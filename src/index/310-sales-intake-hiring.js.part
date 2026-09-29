@@ -1,3 +1,4 @@
+import { _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { CAL_SUPABASE_URL, _obEsc, _obPost, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _calEsc } from './131-core-html.js';
@@ -432,12 +433,15 @@ import { _kasperRenderSalesIntake } from './321-kasper-dashboard-replies.js';
     }
     async function _hpCall(payload, controller) {
         await _syncviewRequireStaffIdentity('hiring');
-        const response = await fetch(HIRING_APPLICATIONS_EF_URL, {
+        const send = () => fetch(HIRING_APPLICATIONS_EF_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, HIRING_APPLICATIONS_EF_URL),
             body: JSON.stringify(payload),
             signal: controller && controller.signal,
         });
+        // Listing and opening an application are reads; every other action is a save.
+        const isRead = !payload || payload.action === 'list' || payload.action === 'detail';
+        const response = await (isRead ? send() : _writeUiTrackSave('hiring', ('hiring_' + payload.action).slice(0, 40), {}, send, { requireOk: true }));
         const data = await response.json().catch(() => null);
         if (!response.ok || !data || data.ok !== true) {
             const error = new Error((data && data.error) || ('http_' + response.status));
@@ -1125,6 +1129,7 @@ import { _kasperRenderSalesIntake } from './321-kasper-dashboard-replies.js';
                 _siShowDone(submission, resp || {});
             })
             .catch(e => {
+                _writeUiRecordSaveFailure('sales_intake', 'sales_intake_submit', e, null, {});
                 btn.disabled = false; btn.textContent = 'Create agreement & send';
                 err.style.display = 'block';
                 err.textContent = 'Could not send the intake (' + ((e && e.message) || 'network error') + '). Nothing was lost — your answers are saved in this browser. Try again in a minute.';

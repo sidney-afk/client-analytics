@@ -548,20 +548,17 @@
     function _calUpsertUrlForClient(clientOrSlug) {
         return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
     }
-    function _calReorderUrlForClient(clientOrSlug) {
-        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
-    }
     function _syncviewClientWriteToken() {
         try { return String(new URLSearchParams(svRoute.search()).get('t') || '').trim(); } catch (e) { return ''; }
     }
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
         if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
-        const resp = await fetch(CLIENT_REVIEW_LINK_URL, {
+        const resp = await _writeUiTrackSave('share', 'client_link_issue', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(CLIENT_REVIEW_LINK_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
-        });
+        }), { requireOk: true });
         let json = null; try { json = await resp.json(); } catch (e) {}
         if (!resp.ok || !json || !json.ok || !json.token) throw new Error(_syncviewShareLinkErrorMessage(json && json.error, resp.status));
         const q = new URLSearchParams();
@@ -2420,6 +2417,65 @@
                 Object.assign({ kind: operation }, error && error.diagIds || {}, context || {}), error);
         } catch (e) {}
     }
+    /* SAVES THAT DO NOT GO THROUGH THE WRITE GATEWAY (Priority 4, 2026-09-29).
+
+       Templates, Filming plans, caption prompts, Workload dates, TikTok, the
+       Kasper admin saves and the rest each talk to their own Edge Function, so
+       the gateway never saw their refusals and only the person at the screen
+       knew. These two helpers record such a refusal in the same log, through
+       the same beacon (so the same cap, page tag, traffic tag and no prose),
+       without touching what the save does next.
+
+       `_writeUiTrackSave` runs the request and returns the SAME response, or
+       rethrows the SAME error, exactly as the bare request did: it looks at
+       `response.ok` and, for an OK answer, at a clone of the body for a
+       refusal sent as {"ok":false}; the response itself is never read. The log's screen column
+       stores these as `unknown`; the operation name (`templates_save`,
+       `filming_plan_save`, ...) is stored as the action, so the name says
+       which save it was. Staff pages only: the client approve and
+       request-changes requests are not sent through here. */
+    function _writeUiRecordSaveFailure(surface, operation, error, response, context) {
+        try {
+            // The status comes from the response, or from a message of the
+            // form "... HTTP 503" that a save's own error text already carries.
+            const fromText = /\bHTTP (\d{3})\b/.exec(String(error && error.message || ''));
+            const raw = response && Number.isInteger(response.status) ? response.status : (fromText ? Number(fromText[1]) : NaN);
+            const status = Number.isInteger(raw) && raw >= 400 && raw <= 599 ? raw : undefined;
+            const name = String(error && error.name || '');
+            const shape = {
+                name,
+                message: String(error && error.message || (status ? 'HTTP ' + status : 'save failed')).slice(0, 200)
+            };
+            if (status !== undefined) shape.status = status;
+            // A request that never got an answer rejects with one of these two
+            // and nothing else; anything with a status did reach a server.
+            else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
+            // The context may be given as a function so that building it can never
+            // get in the way of the save it describes.
+            let ids = context;
+            try { if (typeof context === 'function') ids = context(); } catch (e) { ids = {}; }
+            _writeUiRecordFailure(surface, operation, shape, ids);
+        } catch (e) {}
+    }
+    async function _writeUiTrackSave(surface, operation, context, send, options) {
+        let response;
+        try { response = await send(); }
+        catch (error) { _writeUiRecordSaveFailure(surface, operation, error, null, context); throw error; }
+        if (response && response.ok === false) _writeUiRecordSaveFailure(surface, operation, null, response, context);
+        else if (response && response.ok === true && typeof response.clone === 'function') {
+            // Some saves (the n8n webhooks) refuse with HTTP 200 and {"ok":false}.
+            // A CLONE is read, so the caller still gets an untouched body.
+            // A save whose own code accepts only {"ok":true} passes
+            // { requireOk: true }: for those, an empty, unreadable or ok-less
+            // 2xx answer is the refusal the person sees, so it is recorded too.
+            const strict = !!(options && options.requireOk === true);
+            let body = null, readable = true;
+            try { body = await response.clone().json(); } catch (e) { readable = false; }
+            const refused = readable ? !!((body && body.ok === false) || (strict && !(body && body.ok === true))) : strict;
+            if (refused) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
+        }
+        return response;
+    }
     function _writeUiReportFailure(surface, operation, error, context) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
         // A thrown transport/runtime error carries no `code`, only a message.
@@ -2950,7 +3006,104 @@
             }
         } catch (e) {}
     }
-    function _calUpsertFetch(clientOrSlug, payload, source) {
+    /* THE ONE SHARED SEND STEP FOR EVERY CALENDAR SAVE (n8n exit, PR 2).
+
+       Staff and Kasper saves never reach n8n. Before every write this asks the
+       runtime flag AGAIN, with a read of its own (bounded to two seconds, never
+       reused, never shared with another write), so a client removed from the
+       flag is refused on the very next write, and a suspended tab or dropped
+       realtime channel cannot keep an old allow. A flag that cannot be read,
+       times out or is malformed HOLDS the save: the read is retried a few
+       times, then the save fails visibly and stays in the outbox for its
+       normal retry. Nothing is ever sent on a cached or default route, and
+       nothing falls back to n8n (those endpoints lack the Edge Functions'
+       principal and client authorization, F67). A read that succeeds and does
+       not list the client means "saving paused for this client": refused with
+       a message, never rerouted.
+
+       CARVED OUT (owner, 2026-09-29): the client approve and request-changes
+       buttons go through this same step and keep EXACTLY today's routing and
+       request. Every write made from a client link therefore takes the
+       untouched legacy branch below, byte for byte what it was. */
+    const CAL_WRITE_FLAG_READ_MS = 2000;
+    const CAL_WRITE_FLAG_READ_TRIES = 3;
+    function _calWriteHeldError(code, message) {
+        const error = new Error(message);
+        /* Recordable codes only: the refusal log's code list lives in a deployed
+           function and a database constraint, and this change is browser-only, so
+           it reuses two codes that already exist and keeps the precise reason in
+           `reason`. */
+        error.code = 'authority_unavailable';
+        error.reason = code;
+        error.status = 503;
+        error.calWriteHeld = true;
+        return error;
+    }
+    function _calWritePausedError() {
+        const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
+        error.code = 'client_scope_unavailable';
+        error.status = 503;
+        error.calWritePaused = true;
+        return error;
+    }
+    /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
+       (never resolves to a guess) when the answer cannot be trusted. */
+    function _calReadWriteFlagFresh() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
+        }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        let timer = null;
+        const timeout = new Promise((resolve, reject) => {
+            timer = setTimeout(() => {
+                try { if (ctrl) ctrl.abort(); } catch (e) {}
+                reject(_calWriteHeldError('calendar_flag_timeout', 'Checking whether saving is on took too long. Your change is kept; retry in a moment.'));
+            }, CAL_WRITE_FLAG_READ_MS);
+        });
+        const read = (async () => {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, {
+                cache: 'no-store',
+                signal: ctrl ? ctrl.signal : undefined,
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (!resp.ok) throw _calWriteHeldError('calendar_flag_http_' + resp.status, 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const members = row ? _calRuntimeFlagRawMembers(row.value) : null;
+            if (!members || !members.every(member => _calRuntimeFlagSlug(member) !== null)) throw _calWriteHeldError('calendar_flag_malformed', 'Saving is on hold while its switch is checked. Your change is kept; retry in a moment.');
+            return new Set(members.map(x => _calRuntimeFlagSlug(x)).filter(Boolean));
+        })();
+        return Promise.race([read, timeout]).then(
+            value => { clearTimeout(timer); return value; },
+            error => {
+                clearTimeout(timer);
+                if (error && error.calWriteHeld) throw error;
+                throw _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+            }
+        );
+    }
+    async function _calAssertSavingOn(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        let lastError = null;
+        for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
+            try {
+                const listed = await _calReadWriteFlagFresh();
+                // Keep the boot copy honest too, so the rest of the page (which
+                // still asks the cached set for display decisions) agrees.
+                try { _calSetUpsertEfClients(new Set(listed)); } catch (e) {}
+                if (!slug || !listed.has(slug)) throw _calWritePausedError();
+                return true;
+            } catch (error) {
+                if (error && error.calWritePaused) throw error;
+                lastError = error;
+                if (attempt + 1 < CAL_WRITE_FLAG_READ_TRIES) await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+            }
+        }
+        throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+    }
+    function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
         const url = _calUpsertUrlForClient(clientOrSlug);
         return fetch(url, {
@@ -2958,6 +3111,18 @@
             headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
         });
+    }
+    async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
+        await _calAssertSavingOn(clientOrSlug);
+        return fetch(CALENDAR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _calUpsertHeaders(source, CALENDAR_UPSERT_EF_URL),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _calUpsertFetch(clientOrSlug, payload, source) {
+        if (_isClientLink) return _calUpsertFetchClientLink(clientOrSlug, payload, source);
+        return _calUpsertFetchGuarded(clientOrSlug, payload, source);
     }
     /* Read-only freshness check used to recover from the specific self-conflict
        where `production_native_calendar_status_project` (2026-09-18) has
@@ -3014,6 +3179,15 @@
     function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _calUpsertFetch(clientOrSlug, payload, source);
+        }
+        /* A staff retry pinned to `supabase` is held like any other save when
+           saving is paused. Only a pinned `webhook` repair still replays to
+           its pinned writer (its completion check reads from the same pinned
+           source), and only until the on-load migration resolves it. A client
+           link keeps today's request untouched (approve and request-changes
+           carve-out). */
+        if (!_isClientLink && transport === 'supabase') {
+            return _calUpsertFetchGuarded(clientOrSlug, payload, source);
         }
         const url = transport === 'supabase' ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
         return fetch(url, {
@@ -3603,6 +3777,7 @@
             if (result === null) throw Object.assign(new Error('write_pending'), { code: 'write_pending' });
             saved = true;
         } catch (error) {
+            _writeUiRecordFailure('production', 'title', error, { id: String(issue && issue.id || '') });
             _prodTitlePending.delete(key);
             _prodTitlePaint(key);
             _prodToast(error && error.code === 'write_pending'
@@ -4523,12 +4698,21 @@
                     if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
                     return true;
                 } catch (e) {
+                    /* n8n exit, PR 2: the shared save guard refused this write
+                       (saving paused for this client, or its switch could not be
+                       read after its own retries). Retrying here changes nothing
+                       and swallowing it made the toggle look saved, so say so. */
+                    if (e && (e.calWritePaused || e.calWriteHeld)) {
+                        try { showToast(e.calWritePaused ? e.message : 'Setting not saved to the server yet. ' + e.message); } catch (err) {}
+                        return false;
+                    }
                     if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
                     // Every attempt failed. localStorage keeps the optimistic value
                     // for now; it will reconcile to the backend once the trust window
                     // lapses. Log so a console-watching SMM can spot a backend issue
                     // without surfacing a scary modal.
                     console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                    _writeUiRecordSaveFailure('calendar', 'calendar_settings_save', e, null, { client_slug: _saveSlug });
                     return true;
                 }
             }
@@ -7362,6 +7546,58 @@
         const json = await resp.json();
         return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
     }
+    /* MIGRATION ON LOAD (n8n exit, PR 2): a staff browser that returns after
+       the change still holds repairs pinned to the n8n writer, whose completion
+       check reads the same pinned source. Zero n8n traffic does not prove those
+       have drained (a browser not opened that week makes no calls and still
+       holds one), so the pin is resolved by code, not by counting traffic.
+
+       For each Calendar gate pinned `webhook`: verify it against Supabase first
+       (read-only, on a copy). If that read cannot answer, leave the pin alone
+       and try again on the next resume. Otherwise flip `source_transport` to
+       `supabase` in ONE locked write of the whole queue. The writer
+       (`_writeUiLegacyPinnedSourceTransport`) and the verification source
+       (`_writeUiLegacySourceRows`) both read that single field, so they can
+       only ever move together; the queue is written by one setItem, so there is
+       no moment where one has moved and the other has not. The normal drain
+       then completes or resolves the repair against Supabase.
+
+       A gate that has a committed-tweak ledger row is left pinned: the ledger
+       compares gate signatures, which include the transport, so moving only one
+       side could break that match. Client links are not touched at all
+       (approve and request-changes carve-out). Samples gates are PR 4's. */
+    async function _writeUiMigratePinnedCalendarGates() {
+        const result = { migrated: 0, kept: 0 };
+        if (_isClientLink) return result;
+        const isPinned = row => !!(row && row.source_gate
+            && row.source_gate.source_transport === 'webhook' && row.source_gate.surface !== 'sxr');
+        const pinned = _writeUiLegacyRawOutboxRows('calendar').filter(isPinned);
+        for (const candidate of pinned) {
+            try {
+                const gate = candidate.source_gate;
+                const ledgerKey = _writeUiLegacyTweakKey('calendar', gate);
+                if (_writeUiLegacyCommittedTweakRead().some(row => row && String(row.key || '') === ledgerKey)) {
+                    result.kept++; continue;
+                }
+                const probe = JSON.parse(JSON.stringify(candidate));
+                probe.source_gate.source_transport = 'supabase';
+                const state = await _writeUiLegacySourceGateState(probe, 1);
+                if (state === 'unknown' || state === 'principal_mismatch') { result.kept++; continue; }
+                const moved = await _writeUiLegacyOutboxWithLock('calendar', () => {
+                    const rows = _writeUiLegacyRawOutboxRows('calendar');
+                    let touched = false;
+                    const next = rows.map(row => {
+                        if (!row || String(row.id || '') !== String(candidate.id || '') || !isPinned(row)) return row;
+                        touched = true;
+                        return Object.assign({}, row, { source_gate: Object.assign({}, row.source_gate, { source_transport: 'supabase' }) });
+                    });
+                    return touched ? _writeUiLegacyOutboxWrite('calendar', next) : false;
+                });
+                if (moved) result.migrated++; else result.kept++;
+            } catch (e) { result.kept++; }
+        }
+        return result;
+    }
     async function _writeUiLegacySourceGateState(item, attempts) {
         const gate = item && item.source_gate;
         if (!gate) return 'committed';
@@ -7626,7 +7862,10 @@
             client_slug: String(slug || ''),
             source_transport: surface === 'sxr'
                 ? (_sxrSampleUseEf(slug) ? 'supabase' : 'webhook')
-                : (_calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
+                /* Calendar (n8n exit, PR 2): a staff browser never pins a NEW
+                   repair to the n8n writer. A client link keeps today's choice
+                   (approve and request-changes carve-out). */
+                : (!_isClientLink || _calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
             post_id: String(post && post.id || ''),
             component: String(comp || ''),
             comment_id: String(comment && comment.id || ''),
@@ -9076,11 +9315,11 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -9121,11 +9360,11 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -9394,6 +9633,8 @@
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        // Failed-saves log: an urgent ping that went out and did not come back confirmed.
+                        if (attempted) _writeUiRecordSaveFailure(native && native.surface === 'sxr' ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
                             releaseOwnHold();
@@ -9627,7 +9868,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -9727,7 +9968,7 @@
         const sendOne = async (post) => {
             try {
                 const _bulkSlug = calClientSlug(calState.client);
-                const resp = await _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_import', { client_slug: _bulkSlug }, () => _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post }), { requireOk: true });
                 const json = await resp.json();
                 return !!json.ok;
             } catch (e) { return false; }
@@ -9771,19 +10012,15 @@
         return { done, failed, retried, missingAfterRetry };
     }
     async function _calFetchPostsForVerify() {
-        // Verify against the active write target. Unflagged clients still write
-        // n8n/Sheets, so calendar-get is the right confirmation source. EF
-        // clients write directly to calendar_posts, so reading the Sheet would
-        // false-fail and re-send rows that already landed.
+        // Verify against the write target. Every Calendar save goes to
+        // calendar_posts through the Edge Functions (n8n exit, PR 2), so the
+        // confirmation read is always Supabase. The Sheet read this used to do
+        // for a client not on the function route would false-fail and re-send
+        // rows that already landed.
         try {
             const slug = calClientSlug(calState.client);
-            if (_calUpsertUseEf(slug)) {
-                const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
-                return await _calSupabaseFetchAllRows(baseUrl);
-            }
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            const json = await resp.json();
-            return json.ok ? (json.posts || []) : null;
+            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
+            return await _calSupabaseFetchAllRows(baseUrl);
         } catch (e) {
             console.warn('[Calendar] import verification read failed', e);
             return null;
@@ -18133,7 +18370,7 @@
         const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
+        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', () => ({ client_slug: useSlug, id: String(id || '') }), () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }), { requireOk: true });
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
@@ -18735,6 +18972,8 @@
             job.status = 'error';
             job.error = job.error || 'The generator returned an empty caption — try again.';
         }
+        // Failed-saves log: a generation that ended in error, by fixed wording only.
+        if (status === 'error') _writeUiRecordFailure('calendar', 'caption_generate', { message: 'caption job failed' }, { client_slug: String(job.client || ''), id: String(job.pid || '') });
         let applied = false;
         if (job.caption && (status === 'done' || status === 'error')) {
             const sameClient = calClientSlug(calState.client || '') === job.client;
@@ -19100,11 +19339,11 @@
         btn.textContent = 'Saving…';
         try {
             const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await fetch(writeUrl, {
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('caption-prompts', writeUrl),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
-            });
+            }), { requireOk: true });
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
             _calCaptionPrompts[calClientSlug(client)] = promptText;
@@ -19345,25 +19584,6 @@
         _calRecordReorderOptimistic(items);
         persistCalReorder(items, snapshot, slug);
     }
-    async function _calPersistReorderViaN8n(slug, items) {
-        let json = null;
-        try {
-            const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            json = await resp.json();
-        } catch (e) { json = null; }
-        if (!json || !json.ok) {
-            const resp = await fetch(CALENDAR_REORDER_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            json = await resp.json();
-        }
-        return json;
-    }
-
     async function persistCalReorder(items, prevOrder, slug) {
         // Pin the destination client at call time. Read live (post-await) it
         // could resolve to a different client if the user switched tabs while a
@@ -19384,25 +19604,21 @@
         // feedback, and the per-card optimistic move is the live confirmation.)
         _calSetLastLocalWriteAt(Date.now());
         try {
-            // Edge Function for flagged clients. Once a client is on the EF
-            // route, fail closed: an auth denial/outage must never downgrade
-            // into the unauthenticated legacy n8n writer. Unflagged clients
-            // retain the existing batched-n8n path until their own migration.
-            let json = null;
-            if (_calUpsertUseEf(slug)) {
-                const url = _calReorderUrlForClient(slug);
-                const resp = await fetch(url, {
-                    method: 'POST', headers: _calUpsertHeaders('ui', url),
-                    body: JSON.stringify({ client: slug, items })
-                });
-                json = await resp.json().catch(() => null);
-                if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
-                    throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
-                }
-            } else {
-                json = await _calPersistReorderViaN8n(slug, items);
+            // Edge Function only (n8n exit, PR 2). The same fresh, bounded
+            // flag read as every other Calendar write runs first: a flag that
+            // cannot be read holds the reorder, a client the flag does not
+            // list is refused with a message, and neither ever reroutes to the
+            // unauthenticated legacy n8n writer.
+            await _calAssertSavingOn(slug);
+            const url = CALENDAR_REORDER_EF_URL;
+            const resp = await fetch(url, {
+                method: 'POST', headers: _calUpsertHeaders('ui', url),
+                body: JSON.stringify({ client: slug, items })
+            });
+            const json = await resp.json().catch(() => null);
+            if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
+                throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
             }
-            if (!json || !json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
             // lands a beat later and must not reload/flicker the strip.
             _calSetLastLocalWriteAt(Date.now());
@@ -19413,11 +19629,13 @@
             }
         } catch (e) {
             console.warn('[Calendar] reorder failed', e);
+            _writeUiRecordSaveFailure('calendar', 'calendar_reorder', e, null, { client_slug: slug });
             // Feedback via a toast, not the header badge that displaced the
             // toolbar. Drop the optimistic guard for the ids this write tried to
             // set — but only where a newer drag hasn't already superseded them —
             // so the reverted (server) order is what the next reload adopts.
-            showToast('Couldn’t save the new order — reverted. Try again.');
+            if (e && e.calWritePaused) showToast(e.message);
+            else showToast('Couldn’t save the new order — reverted. Try again.');
             items.forEach(({ id, order_index }) => {
                 const ro = _calReorderOptimistic.get(id);
                 if (ro && ro.order_index === Number(order_index)) _calReorderOptimistic.delete(id);
@@ -20736,10 +20954,13 @@
                 try {
                     const items2 = [{ id, order_index: slot.order_index }];
                     if (kind === 'sxr') await _sxrReorderFetch(slug, { client: slug, items: items2 }, 'ui');
-                    else if (_calUpsertUseEf(slug)) {
-                        const url = _calReorderUrlForClient(slug);
-                        await fetch(url, { method: 'POST', headers: _calUpsertHeaders('ui', url), body: JSON.stringify({ client: slug, items: items2 }) });
-                    } else await _calPersistReorderViaN8n(slug, items2);
+                    else {
+                        /* n8n exit, PR 2: the same fresh, bounded flag read as every
+                           Calendar write, then the function only. A paused or held
+                           write throws into the catch below; nothing goes to n8n. */
+                        await _calAssertSavingOn(slug);
+                        await fetch(CALENDAR_REORDER_EF_URL, { method: 'POST', headers: _calUpsertHeaders('ui', CALENDAR_REORDER_EF_URL), body: JSON.stringify({ client: slug, items: items2 }) });
+                    }
                 } catch (e) { console.warn('[Archived] restore position write failed', e); _arxFail(kind, e, { step: 'order' }); }
             }
             /* 6. Work items, now that the card is live. A failed move never undoes the card. */
@@ -25636,4 +25857,4 @@
             return allowed;
         }
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-336bd55acab1.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-efb3b50d5226.js");

@@ -1,0 +1,151 @@
+{
+  "requests": {
+    "calendar": {
+      "approve": [
+        {
+          "method": "POST",
+          "path": "/webhook/calendar-upsert-post",
+          "headers": [
+            "content-type",
+            "x-syncview-actor",
+            "x-syncview-role",
+            "x-syncview-source"
+          ],
+          "body": {
+            "client": "reviewfixtureclient",
+            "comments_base_at": "",
+            "post": {
+              "client_video_approved_at": "<ts>",
+              "id": "p_review_fixture_1",
+              "status": "Client Approval",
+              "video_status": "Approved"
+            }
+          }
+        }
+      ],
+      "requestChanges": [
+        {
+          "method": "POST",
+          "path": "/webhook/calendar-upsert-post",
+          "headers": [
+            "content-type",
+            "x-syncview-actor",
+            "x-syncview-role",
+            "x-syncview-source"
+          ],
+          "body": {
+            "client": "reviewfixtureclient",
+            "comments_base_at": "",
+            "post": {
+              "caption_status": "Tweaks Needed",
+              "caption_tweaks": "[{\"id\":\"<comment-id>\",\"parent_id\":null,\"author\":\"Review Fixture Client\",\"role\":\"client\",\"is_tweak\":true,\"audience\":\"client\",\"round\":1,\"body\":\"Review fixture: please shorten the first line.\",\"created_at\":\"<ts>\",\"updated_at\":\"<ts>\",\"done\":false,\"done_at\":\"\",\"done_by\":\"\"}]",
+              "id": "p_review_fixture_1",
+              "status": "Tweaks Needed"
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/functions/v1/write-diagnostics",
+          "headers": [
+            "content-type"
+          ],
+          "body": {
+            "action": "browser_claim",
+            "app_version": "<ts>",
+            "attempt": "<uuid>",
+            "code": "legacy_tweak_confirmation_pending",
+            "identifiers": {
+              "client_slug": "reviewfixtureclient"
+            },
+            "message": "legacy_tweak_confirmation_pending",
+            "operation": "comment",
+            "page": "client_link",
+            "status": 503,
+            "surface": "calendar"
+          }
+        }
+      ]
+    },
+    "samples": {
+      "approve": [
+        {
+          "method": "POST",
+          "path": "/webhook/sample-review-upsert",
+          "headers": [
+            "content-type",
+            "x-syncview-actor",
+            "x-syncview-role",
+            "x-syncview-source"
+          ],
+          "body": {
+            "client": "reviewfixtureclient",
+            "comments_base_at": "",
+            "sample": {
+              "client_video_approved_at": "<ts>",
+              "id": "sr_review_fixture_1",
+              "status": "Client Approval",
+              "video_status": "Approved"
+            }
+          }
+        }
+      ],
+      "requestChanges": [
+        {
+          "method": "POST",
+          "path": "/webhook/sample-review-upsert",
+          "headers": [
+            "content-type",
+            "x-syncview-actor",
+            "x-syncview-role",
+            "x-syncview-source"
+          ],
+          "body": {
+            "client": "reviewfixtureclient",
+            "comments_base_at": "",
+            "sample": {
+              "graphic_status": "Tweaks Needed",
+              "graphic_tweaks": "[{\"id\":\"<comment-id>\",\"parent_id\":null,\"author\":\"Review Fixture Client\",\"role\":\"client\",\"is_tweak\":true,\"audience\":\"client\",\"round\":1,\"body\":\"Review fixture: please shorten the first line.\",\"created_at\":\"<ts>\",\"updated_at\":\"<ts>\",\"done\":false,\"done_at\":\"\",\"done_by\":\"\"}]",
+              "id": "sr_review_fixture_1",
+              "status": "Tweaks Needed"
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/functions/v1/write-diagnostics",
+          "headers": [
+            "content-type"
+          ],
+          "body": {
+            "action": "browser_claim",
+            "app_version": "<ts>",
+            "attempt": "<uuid>",
+            "code": "legacy_tweak_confirmation_pending",
+            "identifiers": {
+              "client_slug": "reviewfixtureclient"
+            },
+            "message": "legacy_tweak_confirmation_pending",
+            "operation": "comment",
+            "page": "client_link",
+            "status": 503,
+            "surface": "sxr"
+          }
+        }
+      ]
+    }
+  },
+  "functions": {
+    "_calReviewApprove": "ed2d55e6799c9a39dad78fde15f54d0c6e4fb40b6dfa8a533cef818ea78b2bf4",
+    "_calReviewRequestTweak": "20276168aeb2eb2c2ac59f81940fa10428a438e3c86e8648873ca7fafc57a6b9",
+    "_sxrReviewApprove": "b5d5b34acdd0f8183ce0ed21226c3435a388d035a5c744f2e7fd3b958a7363d3",
+    "_sxrReviewRequestTweak": "f9ff325ea5e347fc95d82cf0939aa4ea3fb765f19f4ce925cbfa56db9fb1151e",
+    "_writeUiGatewayPost": "2463b5dc6d0ff1d5f1cc8e645081484b53adb1ad5f0638dcf27e356308e502f3",
+    "_calUpsertFetch": "e4d9c943d76418299f3e85363f18f3b07fb2248770f06f3c6a0643d6687583c1",
+    "_calUpsertFetchClientLink": "c4af5af0588de63f2689cdffa2b038cec22e23ce8a5ab5ca61f5101702389813",
+    "_calUpsertFetchGuarded": "2c72f07aa28fb3388c107ee7aaf4759f6434a01a5ed449b1beef49b3a2a88702",
+    "_calUpsertFetchPinned": "d30bd3f11ab5242c15b32e4f55d393e75943f4c3a39dceb90672964bfe13fa46",
+    "_sxrUpsertFetch": "5359851a208e16359c60a9ddae5e030fc44b8e473c5185232f9b8ee500ee6610",
+    "_sxrUpsertFetchPinned": "c60010ba008e6b872a6b943d604949f619e55c62f6a96af7dde5cae60b3b1c34"
+  }
+}

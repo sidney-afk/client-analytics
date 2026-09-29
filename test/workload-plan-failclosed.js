@@ -76,7 +76,7 @@ function makeContext(reply, optimisticDate) {
     String, Error, Promise, console,
   };
   context.globalThis = context;
-  vm.createContext(context);
+  Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   vm.runInContext(extract('_wlPersistPlanDate'), context);
   return { context, issue, planByIssueId, notifies, renders };
 }
@@ -133,7 +133,7 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin', initialPlan
     JSON, String, Error, Promise, Map, Array, console,
   };
   context.globalThis = context;
-  vm.createContext(context);
+  Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   vm.runInContext(extract('_syncviewStaffCan'), context);
   vm.runInContext(extract('wlPlanEditingEnabled'), context);
   vm.runInContext(extract('wlPlanDate'), context);
@@ -205,7 +205,7 @@ function makeGroupContext() {
     String, Set, Map, Math, Number, Array, Error, Promise, console,
   };
   context.globalThis = context;
-  vm.createContext(context);
+  Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   vm.runInContext(extract('_wlPersistPlanDate'), context);
   vm.runInContext(extract('wlMovePlanGroup'), context);
   return {
@@ -307,7 +307,7 @@ function makeIdentityPurgeContext() {
     purgePlanSensitiveState: () => context.wlPurgePlanSensitiveState(),
     refreshSensitiveStateSilent: () => (context.wlRefreshSensitiveStateSilent ? context.wlRefreshSensitiveStateSilent() : undefined),
   } : null);
-  vm.createContext(context);
+  Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   for (const name of [
     '_syncviewStaffIdentitySignature',
     '_syncviewStaffIdentityLoad',
@@ -354,7 +354,7 @@ function ok(condition, message) {
       _syncviewStaffRoleValue: identity => String(identity && identity.role || '').trim().toLowerCase(),
       String,
     };
-    vm.createContext(context);
+    Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
     vm.runInContext(extract('_syncviewStaffCan'), context);
     vm.runInContext(extract('wlPlanEditingEnabled'), context);
     ok(context._syncviewStaffCan('workload-plan-read') === true
@@ -604,7 +604,7 @@ function ok(condition, message) {
       AbortController, setTimeout, clearTimeout,
       Date, Number, String, Map, Array, Error, Promise,
     };
-    vm.createContext(context);
+    Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
     vm.runInContext(extract('wlFetchPlanRows'), context);
     vm.runInContext(extract('wlAdoptPlanRows'), context);
     const pending = context.wlFetchPlanRows();
@@ -684,7 +684,7 @@ function ok(condition, message) {
       document: { querySelector: () => null },
       Promise, Array, Error,
     };
-    vm.createContext(context);
+    Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
     vm.runInContext(extract('wlLoadSnapshot'), context);
     const older = context.wlLoadSnapshot(true, null);
     const newer = context.wlLoadSnapshot(true, null);
@@ -821,7 +821,7 @@ function ok(condition, message) {
       JSON, String, Number, Object, Date, Map, Array, Error, Promise, console,
     };
     context.globalThis = context;
-    vm.createContext(context);
+    Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
     vm.runInContext(extract('wlValidRfc3339Timestamp'), context);
     vm.runInContext(extract('wlApplyDueLocal'), context);
     vm.runInContext(extract('wlSetDueDate'), context);
@@ -1034,7 +1034,7 @@ function ok(condition, message) {
       setTimeout: callback => { callback(); return 1; },
       Map,
     };
-    vm.createContext(context);
+    Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
     vm.runInContext(extract('wlWireToolbar'), context);
     context.wlWireToolbar();
     const event = { target: trigger, preventDefault: () => {}, metaKey: false, ctrlKey: false, shiftKey: false };

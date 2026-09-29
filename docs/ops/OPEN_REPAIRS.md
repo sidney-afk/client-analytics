@@ -29814,3 +29814,50 @@ Known limits: a client link that has not loaded the flag still sends approve and
 request-changes to n8n (by the carve-out); a client-link reorder now takes the
 guarded route; the qa/ef-writepath create-a-card steps fail identically on main
 in this sandbox, so their live save checks could not run (details in the PR).
+
+## 290. [2026-09-29] Failed saves: the log now covers every save, and the `traffic` column is measured
+
+Written by session Mason. Priority 4 in `docs/STATE_OF_THINGS.md`. Full write-up
+and the list of every write path checked: `docs/audits/2026-09-29-write-paths-refusal-coverage.md`.
+
+**The `traffic` column, measured live (read-only counts).** It fills for what the
+browser reports (every browser row since 2026-09-26; one on 09-25, none before).
+It does **not** fill for the gateway's own rows: 4,299 rows, none with traffic,
+including the 15 written after 09-25. Cause, from the deploy dates: `write-diagnostics`
+was redeployed on 09-28 with #1643; `production-write` was last deployed on
+09-25 15:51 UTC, before #1643 merged. The repository code already sets it. No pull
+request can fix this: the gateway rows get `traffic` on the next Section 4 deploy of
+`production-write`. Until then the page shows them as unknown traffic.
+
+**Saves that did not report, now do.** Before, only the Calendar, Samples, Production
+and intake saves that go through the write gateway reached the log. Saves that
+talk to their own function or webhook (Templates, Filming plans, caption prompts,
+Workload dates, TikTok, Hiring, Client credentials, Client profile, weekly reports,
+Calendar settings, import, archive and drag order, Samples archive and drag order,
+urgent markers and ping, and others) reported nothing. Two helpers in
+`120-calendar-flags-write-repair` (`_writeUiTrackSave`, `_writeUiRecordSaveFailure`)
+now record such a refusal through the same beacon: same cap, page tag, traffic tag,
+no prose. A Production title rename (a gateway write) had no report either; it has
+one now. No server or database change: the log stores these under screen `unknown`,
+and the operation name (`templates_save`, `filming_plan_save`, ...) is the Action.
+Time off saves are NOT recorded yet: its approved-screenshot evidence is fingerprinted
+against that code and needs a person to re-review every frame to refresh, so it is left
+as a follow-up.
+
+**Not touched:** the client approve and request-changes requests. Their four button
+functions and the transports under them are byte-identical to `main`, and the
+requests they send are identical (`test/client-review-requests-unchanged-browser.js`,
+golden recorded from `main` first).
+
+**Kept from drifting:** `test/write-path-refusal-coverage.js` scans the page for every
+request that is not a plain read and fails on any that is not in
+`test/fixtures/write-path-inventory.json` with a decision, or whose "reports"
+decision has no recorder call in the named function.
+
+**Known limits.** A refusal sent as HTTP 200 (`{"ok":false}`, or for the saves whose own
+code accepts only `{"ok":true}`, an empty or ok-less answer) is recorded with no
+status (the log then shows 500, the function's default for an absent status). Saves
+that judge success some other way (a returned count, for example the Workload plan's
+exact-one check) record HTTP failures only. The
+public onboarding form is not recorded (visitors are not signed in). A client whose
+Templates save is refused is recorded under a hashed client reference only.

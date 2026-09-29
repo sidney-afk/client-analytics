@@ -782,7 +782,7 @@
         const plusIcon = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
         btn.innerHTML = `${plusIcon} Saving…`;
         try {
-            const resp = await fetch(HOOK_LIBRARY_WEBHOOK, {
+            const resp = await _writeUiTrackSave('briefs', 'hook_library_add', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(HOOK_LIBRARY_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -791,7 +791,7 @@
                     openingLine: hookData.openingLine || '',
                     template: hookData.stealThis || ''
                 })
-            });
+            }));
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const saveKey = _hookSaveKey(clientName, hookData.openingLine || '');
             console.log('[SyncView] Saving hook key:', saveKey);
@@ -2792,7 +2792,7 @@
             fresh.sort((a,b)=>n(b.views)-n(a.views));
             const top=fresh[0];
             if(!top){showNotify('No videos','No weekly top videos found for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
-            const resp=await fetch(WEEKLY_SLACK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName,slack_channel_id:channelId,content_description:info.content_description||'',platform:top.platform||'instagram',video_url:top.video_url||'',caption:(top.caption||'').substring(0,500),views:n(top.views),likes:n(top.likes),comments:n(top.comments),shares:n(top.shares),scraped_date:latestDate})});
+            const resp=await _writeUiTrackSave('briefs', 'weekly_slack_update', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(WEEKLY_SLACK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName,slack_channel_id:channelId,content_description:info.content_description||'',platform:top.platform||'instagram',video_url:top.video_url||'',caption:(top.caption||'').substring(0,500),views:n(top.views),likes:n(top.likes),comments:n(top.comments),shares:n(top.shares),scraped_date:latestDate})}));
             if(resp.ok)showNotify('Sent!','Slack update sent for '+clientName);
             else showNotify('Error','Slack webhook returned '+resp.status);
         }catch(e){console.error('[SyncView] Slack send error:',e);showNotify('Error','Could not send Slack update. Check webhook.');}
@@ -3498,11 +3498,11 @@
         let ok = false;
         try {
             const writeUrl = TEMPLATES_SAVE_EF_URL;
-            const resp = await fetch(writeUrl, {
+            const resp = await _writeUiTrackSave('templates', 'templates_save', () => ({ client_slug: calClientSlug(name) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('templates', writeUrl),
                 body: JSON.stringify({ clientName: name, patch }),
-            });
+            }));
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'Save failed');
             // Merge — never replace. The server only echoes back the fields it just wrote
@@ -4687,11 +4687,15 @@
 
     function _tplBrainPost(payload) {
         const url = _tplBrainUrl();
-        return fetch(url, {
+        const send = () => fetch(url, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
             body: JSON.stringify(payload),
-        }).then(async r => {
+        });
+        // Only "Send a change" is a save; reading facts and folders is not.
+        return (payload && payload.action === 'change'
+            ? _writeUiTrackSave('templates', 'templates_brain_change', () => ({ client_slug: calClientSlug(payload.clientName) }), send)
+            : send()).then(async r => {
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
             return j;
@@ -5599,11 +5603,11 @@
     }
     async function _fpPostPlan(payload, retried) {
         const ident = await _syncviewRequireStaffIdentity('onboarding');
-        const resp = await fetch(FILMING_PLANS_EF_URL, {
+        const resp = await _writeUiTrackSave('filming', 'filming_plan_save', () => ({ client_slug: String(payload && payload.clientSlug || calClientSlug(payload && payload.clientName) || '') }), () => fetch(FILMING_PLANS_EF_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key, 'X-Syncview-Actor': ident.member.name, 'X-Syncview-Role': ident.role },
             body: JSON.stringify(payload),
-        });
+        }));
         let json = null;
         try { json = await resp.json(); } catch (e) {}
         if (resp.status === 401) {
@@ -10641,7 +10645,7 @@
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), WL_PLAN_WRITE_TIMEOUT_MS);
         try {
-            return await fetch(WORKLOAD_PLAN_URL, {
+            return await _writeUiTrackSave('workload', 'workload_plan_save', () => ({ id: String(issue.id || '') }), () => fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -10652,7 +10656,7 @@
                     client: String(issue.clientName || ''),
                     plan_date: planDate
                 })
-            });
+            }));
         } finally {
             clearTimeout(timeout);
         }
@@ -10948,7 +10952,7 @@
         const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
         try {
             if (route && route.authority === 'syncview') {
-                return await fetch(PROD_WRITE_EF_URL, {
+                return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
                     cache: 'no-store',
                     signal: controller.signal,
@@ -10968,9 +10972,9 @@
                         expected_updated_at: route.nativeUpdatedAt,
                         due_date: dueDate || ''
                     })
-                });
+                }));
             }
-            return await fetch(WORKLOAD_LINEAR_URL, {
+            return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(WORKLOAD_LINEAR_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -10981,7 +10985,7 @@
                     client: String(issue.clientName || ''),
                     due_date: dueDate
                 })
-            });
+            }));
         } finally {
             clearTimeout(timeout);
         }
@@ -17402,13 +17406,12 @@
 
     /* ============================================================
        CONTENT CALENDAR MODULE
-       Saves and reorders go to the Supabase functions calendar-upsert and
-       calendar-reorder (n8n exit, PR 2); reads come from calendar_posts, with
-       the n8n calendar-get webhook kept only as the read fallback. The
-       original n8n contract, for reference:
+       Backed by n8n workflows (additive, do not edit existing):
          GET  /webhook/calendar-get?client=<slug>
          POST /webhook/calendar-upsert-post  { client, post }
-       Legacy storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
+         POST /webhook/calendar-delete-post  { client, id }
+         POST /webhook/calendar-reorder      { client, items[{id,order_index}] }
+       Storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
        Schema: id, order_index, scheduled_date, name, asset_url, thumbnail_url,
        caption, caption_alt, caption_alt_platform, cta, tweaks, status,
@@ -17429,11 +17432,14 @@
     const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
     const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
-    /* calendar-append-post, calendar-delete-post, calendar-reorder and
-       calendar-reorder-batch had no caller left (or, for the reorders, only
-       the n8n route the page no longer takes) and were removed in the n8n exit,
-       PR 2. Reorders go to CALENDAR_REORDER_EF_URL only. */
+    const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
+    const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
+    const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
     const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
+    // Batched reorder: same contract, but the workflow writes every
+    // order_index in ONE values:batchUpdate (3 fixed API calls instead of
+    // one per row). Falls back to CALENDAR_REORDER_URL when unavailable.
+    const CALENDAR_REORDER_BATCH_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder-batch';
     // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
     // (2 Google API calls server-side). The FE falls back to per-client
     // CALENDAR_GET_URL calls whenever this endpoint fails.
@@ -17671,7 +17677,6 @@
         const role = _syncviewStaffRoleValue(identity);
         if (capability === 'credentials') return role === 'admin' || role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
-        if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';
         if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
@@ -18868,6 +18873,7 @@
         try {
             response = await fetch(url, options);
         } catch (cause) {
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), cause, null, {});
             const error = new Error(mutating
                 ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
                 : (timedOut
@@ -18895,6 +18901,7 @@
         if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
         if (!response.ok || !json || json.ok === false) {
             const error = new Error(_ptoApiMessage(json, response.status));
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), error, response, {});
             error.status = response.status;
             error.code = json && (json.code || json.error);
             throw error;
@@ -20128,7 +20135,9 @@
         }, opts.headers || {});
         headers['X-Syncview-Key'] = ident.key;
         if (method !== 'GET') headers['Content-Type'] = 'application/json';
-        const resp = await fetch(url, Object.assign({}, opts, { method, headers }));
+        const send = () => fetch(url, Object.assign({}, opts, { method, headers }));
+        // Reading options and reports is not a save; a POST is.
+        const resp = await (method === 'GET' ? send() : _writeUiTrackSave('weekly_reports', ('weekly_report_' + action).slice(0, 40), {}, send));
         let data = null;
         try { data = await resp.json(); } catch (e) {}
         if (!resp.ok) {
@@ -21299,17 +21308,20 @@
     function _calUpsertUrlForClient(clientOrSlug) {
         return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
     }
+    function _calReorderUrlForClient(clientOrSlug) {
+        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
+    }
     function _syncviewClientWriteToken() {
         try { return String(new URLSearchParams(svRoute.search()).get('t') || '').trim(); } catch (e) { return ''; }
     }
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
         if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
-        const resp = await fetch(CLIENT_REVIEW_LINK_URL, {
+        const resp = await _writeUiTrackSave('share', 'client_link_issue', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(CLIENT_REVIEW_LINK_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
-        });
+        }));
         let json = null; try { json = await resp.json(); } catch (e) {}
         if (!resp.ok || !json || !json.ok || !json.token) throw new Error(_syncviewShareLinkErrorMessage(json && json.error, resp.status));
         const q = new URLSearchParams();
@@ -23168,6 +23180,62 @@
                 Object.assign({ kind: operation }, error && error.diagIds || {}, context || {}), error);
         } catch (e) {}
     }
+    /* SAVES THAT DO NOT GO THROUGH THE WRITE GATEWAY (Priority 4, 2026-09-29).
+
+       Templates, Filming plans, caption prompts, Workload dates, TikTok, the
+       Kasper admin saves and the rest each talk to their own Edge Function, so
+       the gateway never saw their refusals and only the person at the screen
+       knew. These two helpers record such a refusal in the same log, through
+       the same beacon (so the same cap, page tag, traffic tag and no prose),
+       without touching what the save does next.
+
+       `_writeUiTrackSave` runs the request and returns the SAME response, or
+       rethrows the SAME error, exactly as the bare request did: it looks at
+       `response.ok` and, for an OK answer, at a clone of the body for a
+       refusal sent as {"ok":false}; the response itself is never read. The log's screen column
+       stores these as `unknown`; the operation name (`templates_save`,
+       `filming_plan_save`, ...) is stored as the action, so the name says
+       which save it was. Staff pages only: the client approve and
+       request-changes requests are not sent through here. */
+    function _writeUiRecordSaveFailure(surface, operation, error, response, context) {
+        try {
+            // The status comes from the response, or from a message of the
+            // form "... HTTP 503" that a save's own error text already carries.
+            const fromText = /\bHTTP (\d{3})\b/.exec(String(error && error.message || ''));
+            const raw = response && Number.isInteger(response.status) ? response.status : (fromText ? Number(fromText[1]) : NaN);
+            const status = Number.isInteger(raw) && raw >= 400 && raw <= 599 ? raw : undefined;
+            const name = String(error && error.name || '');
+            const shape = {
+                name,
+                message: String(error && error.message || (status ? 'HTTP ' + status : 'save failed')).slice(0, 200)
+            };
+            if (status !== undefined) shape.status = status;
+            // A request that never got an answer rejects with one of these two
+            // and nothing else; anything with a status did reach a server.
+            else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
+            // The context may be given as a function so that building it can never
+            // get in the way of the save it describes.
+            let ids = context;
+            try { if (typeof context === 'function') ids = context(); } catch (e) { ids = {}; }
+            _writeUiRecordFailure(surface, operation, shape, ids);
+        } catch (e) {}
+    }
+    async function _writeUiTrackSave(surface, operation, context, send) {
+        let response;
+        try { response = await send(); }
+        catch (error) { _writeUiRecordSaveFailure(surface, operation, error, null, context); throw error; }
+        if (response && response.ok === false) _writeUiRecordSaveFailure(surface, operation, null, response, context);
+        else if (response && response.ok === true && typeof response.clone === 'function') {
+            // Some saves (the n8n webhooks) refuse with HTTP 200 and {"ok":false}.
+            // A CLONE is read, so the caller still gets an untouched body; a
+            // body that is not JSON is simply not a refusal we can see.
+            try {
+                const body = await response.clone().json();
+                if (body && body.ok === false) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
+            } catch (e) {}
+        }
+        return response;
+    }
     function _writeUiReportFailure(surface, operation, error, context) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
         // A thrown transport/runtime error carries no `code`, only a message.
@@ -23698,104 +23766,7 @@
             }
         } catch (e) {}
     }
-    /* THE ONE SHARED SEND STEP FOR EVERY CALENDAR SAVE (n8n exit, PR 2).
-
-       Staff and Kasper saves never reach n8n. Before every write this asks the
-       runtime flag AGAIN, with a read of its own (bounded to two seconds, never
-       reused, never shared with another write), so a client removed from the
-       flag is refused on the very next write, and a suspended tab or dropped
-       realtime channel cannot keep an old allow. A flag that cannot be read,
-       times out or is malformed HOLDS the save: the read is retried a few
-       times, then the save fails visibly and stays in the outbox for its
-       normal retry. Nothing is ever sent on a cached or default route, and
-       nothing falls back to n8n (those endpoints lack the Edge Functions'
-       principal and client authorization, F67). A read that succeeds and does
-       not list the client means "saving paused for this client": refused with
-       a message, never rerouted.
-
-       CARVED OUT (owner, 2026-09-29): the client approve and request-changes
-       buttons go through this same step and keep EXACTLY today's routing and
-       request. Every write made from a client link therefore takes the
-       untouched legacy branch below, byte for byte what it was. */
-    const CAL_WRITE_FLAG_READ_MS = 2000;
-    const CAL_WRITE_FLAG_READ_TRIES = 3;
-    function _calWriteHeldError(code, message) {
-        const error = new Error(message);
-        /* Recordable codes only: the refusal log's code list lives in a deployed
-           function and a database constraint, and this change is browser-only, so
-           it reuses two codes that already exist and keeps the precise reason in
-           `reason`. */
-        error.code = 'authority_unavailable';
-        error.reason = code;
-        error.status = 503;
-        error.calWriteHeld = true;
-        return error;
-    }
-    function _calWritePausedError() {
-        const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
-        error.code = 'client_scope_unavailable';
-        error.status = 503;
-        error.calWritePaused = true;
-        return error;
-    }
-    /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
-       (never resolves to a guess) when the answer cannot be trusted. */
-    function _calReadWriteFlagFresh() {
-        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
-            return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
-        }
-        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        let timer = null;
-        const timeout = new Promise((resolve, reject) => {
-            timer = setTimeout(() => {
-                try { if (ctrl) ctrl.abort(); } catch (e) {}
-                reject(_calWriteHeldError('calendar_flag_timeout', 'Checking whether saving is on took too long. Your change is kept; retry in a moment.'));
-            }, CAL_WRITE_FLAG_READ_MS);
-        });
-        const read = (async () => {
-            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, {
-                cache: 'no-store',
-                signal: ctrl ? ctrl.signal : undefined,
-                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
-            });
-            if (!resp.ok) throw _calWriteHeldError('calendar_flag_http_' + resp.status, 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
-            const rows = await resp.json();
-            const row = Array.isArray(rows) ? rows[0] : null;
-            const members = row ? _calRuntimeFlagRawMembers(row.value) : null;
-            if (!members || !members.every(member => _calRuntimeFlagSlug(member) !== null)) throw _calWriteHeldError('calendar_flag_malformed', 'Saving is on hold while its switch is checked. Your change is kept; retry in a moment.');
-            return new Set(members.map(x => _calRuntimeFlagSlug(x)).filter(Boolean));
-        })();
-        return Promise.race([read, timeout]).then(
-            value => { clearTimeout(timer); return value; },
-            error => {
-                clearTimeout(timer);
-                if (error && error.calWriteHeld) throw error;
-                throw _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
-            }
-        );
-    }
-    async function _calAssertSavingOn(clientOrSlug) {
-        let slug = '';
-        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        let lastError = null;
-        for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
-            try {
-                const listed = await _calReadWriteFlagFresh();
-                // Keep the boot copy honest too, so the rest of the page (which
-                // still asks the cached set for display decisions) agrees.
-                try { _calSetUpsertEfClients(new Set(listed)); } catch (e) {}
-                if (!slug || !listed.has(slug)) throw _calWritePausedError();
-                return true;
-            } catch (error) {
-                if (error && error.calWritePaused) throw error;
-                lastError = error;
-                if (attempt + 1 < CAL_WRITE_FLAG_READ_TRIES) await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
-            }
-        }
-        throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
-    }
-    function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
+    function _calUpsertFetch(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
         const url = _calUpsertUrlForClient(clientOrSlug);
         return fetch(url, {
@@ -23803,18 +23774,6 @@
             headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
         });
-    }
-    async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
-        await _calAssertSavingOn(clientOrSlug);
-        return fetch(CALENDAR_UPSERT_EF_URL, {
-            method: 'POST',
-            headers: _calUpsertHeaders(source, CALENDAR_UPSERT_EF_URL),
-            body: JSON.stringify(payload)
-        });
-    }
-    function _calUpsertFetch(clientOrSlug, payload, source) {
-        if (_isClientLink) return _calUpsertFetchClientLink(clientOrSlug, payload, source);
-        return _calUpsertFetchGuarded(clientOrSlug, payload, source);
     }
     /* Read-only freshness check used to recover from the specific self-conflict
        where `production_native_calendar_status_project` (2026-09-18) has
@@ -23871,15 +23830,6 @@
     function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _calUpsertFetch(clientOrSlug, payload, source);
-        }
-        /* A staff retry pinned to `supabase` is held like any other save when
-           saving is paused. Only a pinned `webhook` repair still replays to
-           its pinned writer (its completion check reads from the same pinned
-           source), and only until the on-load migration resolves it. A client
-           link keeps today's request untouched (approve and request-changes
-           carve-out). */
-        if (!_isClientLink && transport === 'supabase') {
-            return _calUpsertFetchGuarded(clientOrSlug, payload, source);
         }
         const url = transport === 'supabase' ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
         return fetch(url, {
@@ -24469,6 +24419,7 @@
             if (result === null) throw Object.assign(new Error('write_pending'), { code: 'write_pending' });
             saved = true;
         } catch (error) {
+            _writeUiRecordFailure('production', 'title', error, { id: String(issue && issue.id || '') });
             _prodTitlePending.delete(key);
             _prodTitlePaint(key);
             _prodToast(error && error.code === 'write_pending'
@@ -25389,20 +25340,13 @@
                     if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
                     return true;
                 } catch (e) {
-                    /* n8n exit, PR 2: the shared save guard refused this write
-                       (saving paused for this client, or its switch could not be
-                       read after its own retries). Retrying here changes nothing
-                       and swallowing it made the toggle look saved, so say so. */
-                    if (e && (e.calWritePaused || e.calWriteHeld)) {
-                        try { showToast(e.calWritePaused ? e.message : 'Setting not saved to the server yet. ' + e.message); } catch (err) {}
-                        return false;
-                    }
                     if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
                     // Every attempt failed. localStorage keeps the optimistic value
                     // for now; it will reconcile to the backend once the trust window
                     // lapses. Log so a console-watching SMM can spot a backend issue
                     // without surfacing a scary modal.
                     console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                    _writeUiRecordSaveFailure('calendar', 'calendar_settings_save', e, null, { client_slug: _saveSlug });
                     return true;
                 }
             }
@@ -28236,58 +28180,6 @@
         const json = await resp.json();
         return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
     }
-    /* MIGRATION ON LOAD (n8n exit, PR 2): a staff browser that returns after
-       the change still holds repairs pinned to the n8n writer, whose completion
-       check reads the same pinned source. Zero n8n traffic does not prove those
-       have drained (a browser not opened that week makes no calls and still
-       holds one), so the pin is resolved by code, not by counting traffic.
-
-       For each Calendar gate pinned `webhook`: verify it against Supabase first
-       (read-only, on a copy). If that read cannot answer, leave the pin alone
-       and try again on the next resume. Otherwise flip `source_transport` to
-       `supabase` in ONE locked write of the whole queue. The writer
-       (`_writeUiLegacyPinnedSourceTransport`) and the verification source
-       (`_writeUiLegacySourceRows`) both read that single field, so they can
-       only ever move together; the queue is written by one setItem, so there is
-       no moment where one has moved and the other has not. The normal drain
-       then completes or resolves the repair against Supabase.
-
-       A gate that has a committed-tweak ledger row is left pinned: the ledger
-       compares gate signatures, which include the transport, so moving only one
-       side could break that match. Client links are not touched at all
-       (approve and request-changes carve-out). Samples gates are PR 4's. */
-    async function _writeUiMigratePinnedCalendarGates() {
-        const result = { migrated: 0, kept: 0 };
-        if (_isClientLink) return result;
-        const isPinned = row => !!(row && row.source_gate
-            && row.source_gate.source_transport === 'webhook' && row.source_gate.surface !== 'sxr');
-        const pinned = _writeUiLegacyRawOutboxRows('calendar').filter(isPinned);
-        for (const candidate of pinned) {
-            try {
-                const gate = candidate.source_gate;
-                const ledgerKey = _writeUiLegacyTweakKey('calendar', gate);
-                if (_writeUiLegacyCommittedTweakRead().some(row => row && String(row.key || '') === ledgerKey)) {
-                    result.kept++; continue;
-                }
-                const probe = JSON.parse(JSON.stringify(candidate));
-                probe.source_gate.source_transport = 'supabase';
-                const state = await _writeUiLegacySourceGateState(probe, 1);
-                if (state === 'unknown' || state === 'principal_mismatch') { result.kept++; continue; }
-                const moved = await _writeUiLegacyOutboxWithLock('calendar', () => {
-                    const rows = _writeUiLegacyRawOutboxRows('calendar');
-                    let touched = false;
-                    const next = rows.map(row => {
-                        if (!row || String(row.id || '') !== String(candidate.id || '') || !isPinned(row)) return row;
-                        touched = true;
-                        return Object.assign({}, row, { source_gate: Object.assign({}, row.source_gate, { source_transport: 'supabase' }) });
-                    });
-                    return touched ? _writeUiLegacyOutboxWrite('calendar', next) : false;
-                });
-                if (moved) result.migrated++; else result.kept++;
-            } catch (e) { result.kept++; }
-        }
-        return result;
-    }
     async function _writeUiLegacySourceGateState(item, attempts) {
         const gate = item && item.source_gate;
         if (!gate) return 'committed';
@@ -28552,10 +28444,7 @@
             client_slug: String(slug || ''),
             source_transport: surface === 'sxr'
                 ? (_sxrSampleUseEf(slug) ? 'supabase' : 'webhook')
-                /* Calendar (n8n exit, PR 2): a staff browser never pins a NEW
-                   repair to the n8n writer. A client link keeps today's choice
-                   (approve and request-changes carve-out). */
-                : (!_isClientLink || _calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
+                : (_calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
             post_id: String(post && post.id || ''),
             component: String(comp || ''),
             comment_id: String(comment && comment.id || ''),
@@ -30005,11 +29894,11 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }));
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -30050,11 +29939,11 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }));
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -30323,6 +30212,8 @@
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        // Failed-saves log: an urgent ping that went out and did not come back confirmed.
+                        if (attempted) _writeUiRecordSaveFailure(native && native.surface === 'sxr' ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
                             releaseOwnHold();
@@ -30556,7 +30447,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -30656,7 +30547,7 @@
         const sendOne = async (post) => {
             try {
                 const _bulkSlug = calClientSlug(calState.client);
-                const resp = await _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_import', { client_slug: _bulkSlug }, () => _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post }));
                 const json = await resp.json();
                 return !!json.ok;
             } catch (e) { return false; }
@@ -30700,15 +30591,19 @@
         return { done, failed, retried, missingAfterRetry };
     }
     async function _calFetchPostsForVerify() {
-        // Verify against the write target. Every Calendar save goes to
-        // calendar_posts through the Edge Functions (n8n exit, PR 2), so the
-        // confirmation read is always Supabase. The Sheet read this used to do
-        // for a client not on the function route would false-fail and re-send
-        // rows that already landed.
+        // Verify against the active write target. Unflagged clients still write
+        // n8n/Sheets, so calendar-get is the right confirmation source. EF
+        // clients write directly to calendar_posts, so reading the Sheet would
+        // false-fail and re-send rows that already landed.
         try {
             const slug = calClientSlug(calState.client);
-            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
-            return await _calSupabaseFetchAllRows(baseUrl);
+            if (_calUpsertUseEf(slug)) {
+                const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
+                return await _calSupabaseFetchAllRows(baseUrl);
+            }
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            const json = await resp.json();
+            return json.ok ? (json.posts || []) : null;
         } catch (e) {
             console.warn('[Calendar] import verification read failed', e);
             return null;
@@ -32825,10 +32720,6 @@
                         <button class="cal-kebab-item cal-kebab-import-toggle" id="calImportToggle" type="button" onclick="_calToggleImportActions(event)" aria-expanded="false" aria-controls="calImportPanel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
                         <div class="cal-kebab-import-panel" id="calImportPanel">
                             <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
-                        </div>
-                        <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
-                            <div class="cal-kebab-sep" role="separator"></div>
-                            <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_arxOpen('cal')" title="See recently archived cards and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived cards</button>
                         </div>
                     </div>
                 </div>`
@@ -39058,7 +38949,7 @@
         const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
+        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', () => ({ client_slug: useSlug, id: String(id || '') }), () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }));
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
@@ -39660,6 +39551,8 @@
             job.status = 'error';
             job.error = job.error || 'The generator returned an empty caption — try again.';
         }
+        // Failed-saves log: a generation that ended in error, by fixed wording only.
+        if (status === 'error') _writeUiRecordFailure('calendar', 'caption_generate', { message: 'caption job failed' }, { client_slug: String(job.client || ''), id: String(job.pid || '') });
         let applied = false;
         if (job.caption && (status === 'done' || status === 'error')) {
             const sameClient = calClientSlug(calState.client || '') === job.client;
@@ -40025,11 +39918,11 @@
         btn.textContent = 'Saving…';
         try {
             const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await fetch(writeUrl, {
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('caption-prompts', writeUrl),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
-            });
+            }));
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
             _calCaptionPrompts[calClientSlug(client)] = promptText;
@@ -40270,6 +40163,25 @@
         _calRecordReorderOptimistic(items);
         persistCalReorder(items, snapshot, slug);
     }
+    async function _calPersistReorderViaN8n(slug, items) {
+        let json = null;
+        try {
+            const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: slug, items })
+            });
+            json = await resp.json();
+        } catch (e) { json = null; }
+        if (!json || !json.ok) {
+            const resp = await fetch(CALENDAR_REORDER_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: slug, items })
+            });
+            json = await resp.json();
+        }
+        return json;
+    }
+
     async function persistCalReorder(items, prevOrder, slug) {
         // Pin the destination client at call time. Read live (post-await) it
         // could resolve to a different client if the user switched tabs while a
@@ -40290,21 +40202,25 @@
         // feedback, and the per-card optimistic move is the live confirmation.)
         _calSetLastLocalWriteAt(Date.now());
         try {
-            // Edge Function only (n8n exit, PR 2). The same fresh, bounded
-            // flag read as every other Calendar write runs first: a flag that
-            // cannot be read holds the reorder, a client the flag does not
-            // list is refused with a message, and neither ever reroutes to the
-            // unauthenticated legacy n8n writer.
-            await _calAssertSavingOn(slug);
-            const url = CALENDAR_REORDER_EF_URL;
-            const resp = await fetch(url, {
-                method: 'POST', headers: _calUpsertHeaders('ui', url),
-                body: JSON.stringify({ client: slug, items })
-            });
-            const json = await resp.json().catch(() => null);
-            if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
-                throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
+            // Edge Function for flagged clients. Once a client is on the EF
+            // route, fail closed: an auth denial/outage must never downgrade
+            // into the unauthenticated legacy n8n writer. Unflagged clients
+            // retain the existing batched-n8n path until their own migration.
+            let json = null;
+            if (_calUpsertUseEf(slug)) {
+                const url = _calReorderUrlForClient(slug);
+                const resp = await fetch(url, {
+                    method: 'POST', headers: _calUpsertHeaders('ui', url),
+                    body: JSON.stringify({ client: slug, items })
+                });
+                json = await resp.json().catch(() => null);
+                if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
+                    throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
+                }
+            } else {
+                json = await _calPersistReorderViaN8n(slug, items);
             }
+            if (!json || !json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
             // lands a beat later and must not reload/flicker the strip.
             _calSetLastLocalWriteAt(Date.now());
@@ -40315,12 +40231,12 @@
             }
         } catch (e) {
             console.warn('[Calendar] reorder failed', e);
+            _writeUiRecordSaveFailure('calendar', 'calendar_reorder', e, null, { client_slug: slug });
             // Feedback via a toast, not the header badge that displaced the
             // toolbar. Drop the optimistic guard for the ids this write tried to
             // set — but only where a newer drag hasn't already superseded them —
             // so the reverted (server) order is what the next reload adopts.
-            if (e && e.calWritePaused) showToast(e.message);
-            else showToast('Couldn’t save the new order — reverted. Try again.');
+            showToast('Couldn’t save the new order — reverted. Try again.');
             items.forEach(({ id, order_index }) => {
                 const ro = _calReorderOptimistic.get(id);
                 if (ro && ro.order_index === Number(order_index)) _calReorderOptimistic.delete(id);
@@ -41226,451 +41142,6 @@
             if (document.visibilityState === 'visible' && _crqMine().length) _calCrqResend();
         });
         setTimeout(() => _crqResumeWhenLoaded(0), 1500);
-    }
-/* ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples).
-   Plan: docs/plans/2026-09-29-calendar-unarchive.md. Mock-up:
-   docs/syncview-design/mockups/calendar-unarchive/.
-
-   Restore puts a card (or sample) back exactly as it was. The card's own row is
-   written through the SAME route archive uses (calendar-upsert, or
-   sample-review-upsert), with the same minimal body, and each linked work item
-   goes back to the exact status it had, through the guarded production-write
-   status operation with expected values. This file never writes a table
-   directly, never touches the client approve or request-changes paths, and
-   never edits the frozen writers. Reads are the same public-key REST reads the
-   Calendar and Production already make. */
-    const ARX_WINDOW_DAYS = [30, 60, 90];
-    const ARX_PAGE = 25;
-    const ARX_KIND = {
-        cal: { noun: 'card', nouns: 'cards', title: 'Archived cards', where: 'the Calendar', table: 'calendar_posts', eventTable: 'calendar_post_events', eventKey: 'post_id', surface: 'calendar', second: 'Graphic' },
-        sxr: { noun: 'sample', nouns: 'samples', title: 'Archived samples', where: 'Sample reviews', table: 'sample_reviews', eventTable: 'sample_review_events', eventKey: 'sample_id', surface: 'sxr', second: 'Thumbnail' }
-    };
-    /* Native work item statuses. A finished item stays as it is; everything a
-       restore moves is put back to the exact status the archive parked it from. */
-    const ARX_FINISHED = ['approved', 'scheduled', 'posted', 'canceled', 'duplicate'];
-    const ARX_STATUS_LABEL = {
-        backlog: 'Backlog', todo: 'To do', in_progress: 'In progress', smm_approval: 'SMM approval',
-        kasper_approval: 'Kasper approval', client_approval: 'Client approval', tweak: 'Tweaks',
-        approved: 'Approved', scheduled: 'Scheduled', posted: 'Posted', canceled: 'Canceled',
-        duplicate: 'Duplicate', triage: 'Triage'
-    };
-    const arxState = { open: false, kind: '', slug: '', rows: [], events: {}, floorIdx: 0, cursor: null, hasMore: false, canWiden: false, loading: false, error: '', busy: false, seq: 0 };
-
-    function _arxLabel(status) {
-        const s = String(status || '').trim().toLowerCase();
-        return ARX_STATUS_LABEL[s] || (s ? s.replace(/_/g, ' ') : 'unknown');
-    }
-    function _arxIsFinished(status) { return ARX_FINISHED.indexOf(String(status || '').trim().toLowerCase()) >= 0; }
-    function _arxEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
-    function _arxNameOf(post) { return String(post && (post.name || post.title) || '').trim() || 'Untitled'; }
-
-    /* Who may see and use restore: admin and SMM seats with a verified staff
-       identity, never a client link, never a creative seat (Decision D6). */
-    function _arxCan() {
-        if (_isClientLink) return false;
-        try { if (!_syncviewStaffIdentityValid()) return false; } catch (e) { return false; }
-        try { return _syncviewStaffCan('restore-archived') === true; } catch (e) { return false; }
-    }
-
-    /* ── Paging: newest first, a cursor (the last row shown), never a wider limit ── */
-    function _arxFloorIso(nowMs, days) { return new Date(nowMs - days * 86400000).toISOString(); }
-    function _arxListQuery(kind, slug, floorIso, cursor) {
-        const k = ARX_KIND[kind];
-        const enc = encodeURIComponent;
-        let q = k.table + '?select=*&client=eq.' + enc(slug) + '&status=eq.Archived&updated_at=gte.' + enc(floorIso)
-            + '&order=updated_at.desc,id.desc&limit=' + (ARX_PAGE + 1);
-        if (cursor && cursor.updated_at) {
-            q += '&or=(updated_at.lt.' + enc(cursor.updated_at) + ',and(updated_at.eq.' + enc(cursor.updated_at) + ',id.lt.' + enc(cursor.id) + '))';
-        }
-        return q;
-    }
-    /* One "show older" step over an injected page reader (fetchPage(floorIdx, cursor)
-       -> rows, at most ARX_PAGE + 1). state.skipEmpty: keep looking back over empty
-       windows (a Show older click), otherwise stop at the first window. Returns { rows, cursor, floorIdx, hasMore, canWiden }.
-       When the current window is used up it moves the floor back (30, 60, 90 days)
-       and keeps the same cursor, so no row is skipped or repeated. */
-    async function _arxNextPage(state, fetchPage) {
-        let floorIdx = state.floorIdx || 0;
-        let cursor = state.cursor || null;
-        let out = [];
-        for (let guard = 0; guard < ARX_WINDOW_DAYS.length + 1; guard++) {
-            const got = await fetchPage(floorIdx, cursor);
-            const more = got.length > ARX_PAGE;
-            out = got.slice(0, ARX_PAGE);
-            if (out.length) cursor = { updated_at: out[out.length - 1].updated_at, id: out[out.length - 1].id };
-            if (more) return { rows: out, cursor, floorIdx, hasMore: true, canWiden: false };
-            if (floorIdx >= ARX_WINDOW_DAYS.length - 1) return { rows: out, cursor, floorIdx, hasMore: false, canWiden: false };
-            /* The first look stops at the first window and offers Show older; a
-               Show older click keeps looking back until it finds something. */
-            if (out.length || !state.skipEmpty) return { rows: out, cursor, floorIdx, hasMore: false, canWiden: true };
-            floorIdx += 1;
-        }
-        return { rows: out, cursor, floorIdx, hasMore: false, canWiden: false };
-    }
-
-    /* ── The work item rules (plan 3.4). First rule that fits wins. ── */
-    /* item: { current: {status, updated_at}|null, events: [{ts, to_status, from_status, payload}] }
-       archivedAtMs: when the card was archived. surface: 'calendar' | 'sxr'. */
-    function _arxWorkItemPlan(item, archivedAtMs, surface) {
-        const cur = item && item.current;
-        if (!cur || !cur.status) return { action: 'left', reason: 'unreadable', text: 'left alone, it could not be read' };
-        const status = String(cur.status).toLowerCase();
-        if (_arxIsFinished(status)) return { action: 'stay', text: 'stays ' + _arxLabel(status) };
-        if (status !== 'backlog') return { action: 'left', reason: 'moved', text: 'left alone, it moved since' };
-        const events = (item.events || []).filter(e => String(e.to_status || '').toLowerCase() === 'backlog')
-            .sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts));
-        const latest = events[0];
-        if (!latest) return { action: 'to', target: 'todo', reason: 'no_record', text: 'to ' + _arxLabel('todo') };
-        const pl = latest.payload && typeof latest.payload === 'object' ? latest.payload : {};
-        const own = String(pl.surface || '').toLowerCase() === surface && Date.parse(latest.ts) >= (archivedAtMs || 0) - 60000;
-        if (!own) return { action: 'left', reason: 'moved', text: 'left alone, it moved since' };
-        const from = String(latest.from_status || '').toLowerCase();
-        if (!from || from === 'backlog' || from === 'triage') return { action: 'to', target: 'todo', reason: 'was_backlog', text: 'to ' + _arxLabel('todo') };
-        return { action: 'to', target: from, reason: 'exact', text: 'back to ' + _arxLabel(from) };
-    }
-
-    /* ── Card facts: status, duplicate owner, position ── */
-    function _arxRestoreStatus(kind, post) {
-        let s = '';
-        try { s = kind === 'sxr' ? computeSampleOverallStatus(post) : computeOverallStatus(post); } catch (e) { s = ''; }
-        s = String(s || '').trim();
-        return (!s || s.toLowerCase() === 'archived') ? 'In Progress' : s;
-    }
-    function _arxWorkItemIds(post) {
-        const out = [];
-        [post && post.video_deliverable_id, post && post.graphic_deliverable_id].forEach(v => { const s = String(v || '').trim(); if (s) out.push(s); });
-        return out;
-    }
-    /* A live card that already drives one of this card's work items (or Linear links). */
-    function _arxDuplicateOwner(post, livePosts) {
-        if (!post) return null;
-        const ids = _arxWorkItemIds(post);
-        const links = [post.linear_issue_id, post.graphic_linear_issue_id].map(v => String(v || '').trim()).filter(Boolean);
-        const live = (livePosts || []).filter(p => p && p.id !== post.id && String(p.status || '').toLowerCase() !== 'archived');
-        for (const p of live) {
-            const theirIds = _arxWorkItemIds(p);
-            if (ids.some(i => theirIds.indexOf(i) >= 0)) return p;
-            const theirLinks = [p.linear_issue_id, p.graphic_linear_issue_id].map(v => String(v || '').trim()).filter(Boolean);
-            if (links.some(l => theirLinks.indexOf(l) >= 0)) return p;
-        }
-        return null;
-    }
-    /* Keep the old slot unless a live card holds it; otherwise the end of the list. */
-    function _arxOrderSlot(post, livePosts) {
-        const mine = Number(post && post.order_index);
-        const live = (livePosts || []).filter(p => p && p.id !== post.id);
-        const taken = Number.isFinite(mine) && live.some(p => Number(p.order_index) === mine);
-        if (Number.isFinite(mine) && !taken) return { tie: false, order_index: mine };
-        const max = live.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
-        return { tie: true, order_index: max + 1 };
-    }
-    function _arxWhen(iso, nowMs) {
-        const t = Date.parse(iso);
-        if (!Number.isFinite(t)) return '';
-        const d = Math.max(0, Math.floor(((nowMs || Date.now()) - t) / 86400000));
-        return d === 0 ? 'today' : d === 1 ? '1 day ago' : d + ' days ago';
-    }
-    function _arxRoleWord(role) {
-        const r = String(role || '').toLowerCase();
-        return r === 'admin' ? 'an admin' : (r === 'smm' || r === 'kasper') ? 'an SMM' : r === 'creative' ? 'a creative' : 'unknown';
-    }
-
-    /* ── Reads (public-key REST, read only) ── */
-    function _arxHeaders() { return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }; }
-    async function _arxRest(path) {
-        const resp = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + path, { headers: _arxHeaders(), cache: 'no-store' });
-        if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
-        return resp.json();
-    }
-    function _arxListFetch(kind, slug, floorIdx, cursor) {
-        return _arxRest(_arxListQuery(kind, slug, _arxFloorIso(Date.now(), ARX_WINDOW_DAYS[floorIdx]), cursor));
-    }
-    /* Who archived each card and when: best effort, never blocks the list. */
-    async function _arxEventsFetch(kind, slug, ids) {
-        if (!ids.length) return {};
-        const k = ARX_KIND[kind];
-        try {
-            const list = ids.map(i => '"' + String(i).replace(/"/g, '') + '"').join(',');
-            const rows = await _arxRest(k.eventTable + '?select=' + k.eventKey + ',ts,actor,role&client=eq.' + encodeURIComponent(slug)
-                + '&action=eq.archive&' + k.eventKey + '=in.(' + encodeURIComponent(list) + ')&order=ts.desc&limit=' + (ids.length * 3));
-            const out = {};
-            rows.forEach(r => { if (!out[r[k.eventKey]]) out[r[k.eventKey]] = r; });
-            return out;
-        } catch (e) { return {}; }
-    }
-    async function _arxItemRead(nativeId) {
-        const enc = encodeURIComponent(nativeId);
-        const [cur, events] = await Promise.all([
-            _arxRest('production_deliverables_browser_v1?select=id,status,updated_at&id=eq.' + enc + '&limit=1'),
-            _arxRest('deliverable_events?select=ts,action,from_status,to_status,payload&deliverable_id=eq.' + enc + '&action=eq.status_change&order=ts.desc&limit=30')
-        ]);
-        return { current: cur && cur[0] || null, events: events || [] };
-    }
-    async function _arxFreshRow(kind, slug, id) {
-        const k = ARX_KIND[kind];
-        const rows = await _arxRest(k.table + '?select=*&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(id) + '&limit=1');
-        return rows && rows[0] || null;
-    }
-
-    /* ── Dialogs (the app's own confirm look) ── */
-    function _arxDialog(opts) {
-        return new Promise(resolve => {
-            let root = document.getElementById('arxDialog');
-            if (root) root.remove();
-            root = document.createElement('div');
-            root.id = 'arxDialog';
-            root.className = 'confirm-overlay active';
-            root.setAttribute('data-backdrop-dismiss', '');
-            const list = (opts.list || []).map(r => '<li><span class="arx-wi-name">' + _arxEsc(r.name) + '</span><span class="arx-wi-to is-' + _arxEsc(r.kind || 'stay') + '">' + _arxEsc(r.text) + '</span></li>').join('');
-            root.innerHTML = '<div class="confirm-box arx-confirm" role="dialog" aria-modal="true" aria-labelledby="arxDialogTitle">'
-                + '<div class="confirm-box-title" id="arxDialogTitle">' + _arxEsc(opts.title) + '</div>'
-                + '<div class="confirm-box-msg">' + _arxEsc(opts.msg || '') + '</div>'
-                + (list ? '<ul class="arx-wi">' + list + '</ul>' : '')
-                + (opts.note ? '<div class="arx-note">' + _arxEsc(opts.note) + '</div>' : '')
-                + '<div class="confirm-box-actions">' + (opts.cancel === false ? '' : '<button type="button" class="brief-action-btn" data-arx="no">Cancel</button>')
-                + '<button type="button" class="brief-action-btn primary" data-arx="yes">' + _arxEsc(opts.yes || 'OK') + '</button></div></div>';
-            const done = v => { document.removeEventListener('keydown', onKey, true); root.remove(); resolve(v); };
-            const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
-            root.addEventListener('click', e => {
-                const a = e.target && e.target.getAttribute && e.target.getAttribute('data-arx');
-                if (a === 'yes') done(true); else if (a === 'no' || (e.target === root && root._backdropPressBegan)) done(false);
-            });
-            document.addEventListener('keydown', onKey, true);
-            document.body.appendChild(root);
-            const yes = root.querySelector('[data-arx="yes"]');
-            if (yes) yes.focus();
-        });
-    }
-
-    /* ── The list modal ── */
-    function _arxSlug(kind) { return kind === 'sxr' ? sxrClientSlug(sxrState.client) : calClientSlug(calState.client); }
-    function _arxLive(kind) { return (kind === 'sxr' ? sxrState.posts : calState.posts) || []; }
-
-    function _arxOpen(kind) {
-        if (!_arxCan()) return;
-        arxState.open = true; arxState.kind = kind; arxState.slug = _arxSlug(kind); arxState.rows = []; arxState.events = {};
-        arxState.floorIdx = 0; arxState.cursor = null; arxState.hasMore = false; arxState.canWiden = false; arxState.error = ''; arxState.busy = false;
-        arxState.seq += 1;
-        document.addEventListener('keydown', _arxKey);
-        _arxRenderModal();
-        _arxLoadMore(true);
-    }
-    function _arxKey(e) {
-        if (e.key === 'Escape' && !document.getElementById('arxDialog')) _arxClose();
-    }
-    function _arxClose() {
-        arxState.open = false;
-        arxState.seq += 1;
-        document.removeEventListener('keydown', _arxKey);
-        const o = document.getElementById('arxOverlay');
-        if (o) o.remove();
-    }
-    async function _arxLoadMore(first) {
-        if (arxState.loading) return;
-        const seq = ++arxState.seq;
-        arxState.loading = true; arxState.error = '';
-        _arxRenderModal();
-        try {
-            const kind = arxState.kind, slug = arxState.slug;
-            let start = { floorIdx: arxState.floorIdx, cursor: arxState.cursor, skipEmpty: !first };
-            /* "Show older" after a used-up window moves the floor back first. */
-            if (!first && arxState.canWiden) start = { floorIdx: Math.min(arxState.floorIdx + 1, ARX_WINDOW_DAYS.length - 1), cursor: arxState.cursor, skipEmpty: true };
-            const page = await _arxNextPage(start, (fi, cur) => _arxListFetch(kind, slug, fi, cur));
-            if (seq !== arxState.seq) return;
-            const ev = await _arxEventsFetch(kind, slug, page.rows.map(r => r.id));
-            if (seq !== arxState.seq) return;
-            arxState.rows = arxState.rows.concat(page.rows);
-            Object.assign(arxState.events, ev);
-            arxState.floorIdx = page.floorIdx; arxState.cursor = page.cursor;
-            arxState.hasMore = page.hasMore; arxState.canWiden = page.canWiden;
-        } catch (e) {
-            if (seq !== arxState.seq) return;
-            console.warn('[Archived] list read failed', e);
-            arxState.error = 'read';
-        } finally {
-            if (seq === arxState.seq) arxState.loading = false;
-            _arxRenderModal();
-        }
-    }
-    function _arxPills(kind, r) {
-        const comps = kind === 'sxr' ? [['Video', 'video_status'], ['Thumbnail', 'graphic_status']] : [['Video', 'video_status'], ['Graphic', 'graphic_status'], ['Caption', 'caption_status']];
-        return comps.map(([label, key]) => {
-            const st = String(r[key] || 'In Progress');
-            return '<span class="arx-pill cal-status-' + _arxEsc(st.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')) + '"><b>' + label + '</b> ' + _arxEsc(st) + '</span>';
-        }).join('');
-    }
-    function _arxRenderModal() {
-        const kind = arxState.kind; const k = ARX_KIND[kind];
-        if (!k || !arxState.open) return;
-        let o = document.getElementById('arxOverlay');
-        if (!o) {
-            o = document.createElement('div');
-            o.id = 'arxOverlay';
-            o.className = 'cal-prompt-overlay open';
-            o.setAttribute('data-backdrop-dismiss', '');
-            o.addEventListener('click', e => {
-                if (e.target === o) { if (o._backdropPressBegan) _arxClose(); return; }
-                const btn = e.target.closest && e.target.closest('[data-arx-act]');
-                if (!btn) return;
-                const act = btn.getAttribute('data-arx-act');
-                if (act === 'close') _arxClose();
-                else if (act === 'more') _arxLoadMore(false);
-                else if (act === 'retry') _arxLoadMore(arxState.rows.length === 0);
-                else if (act === 'restore') _arxRestore(kind, btn.getAttribute('data-id'));
-            });
-            document.body.appendChild(o);
-        }
-        const days = ARX_WINDOW_DAYS[arxState.floorIdx];
-        let body;
-        if (arxState.error && !arxState.rows.length) {
-            body = '<div class="arx-error"><div class="arx-error-t">Couldn\'t load archived ' + k.nouns + '.</div><div class="arx-error-s">Nothing was changed. Check your connection and try again.</div><button class="cal-prompt-btn" type="button" data-arx-act="retry">Try again</button></div>';
-        } else if (!arxState.rows.length && !arxState.loading) {
-            body = '<div class="arx-empty"><div class="arx-empty-t">Nothing archived in the last ' + days + ' days.</div><div class="arx-empty-s">Older ' + k.nouns + ' are still kept. Use Show older to look further back, up to 90 days.</div></div>';
-        } else if (!arxState.rows.length) {
-            body = '<div class="arx-empty"><div class="arx-empty-s">Loading…</div></div>';
-        } else {
-            body = arxState.rows.map(r => {
-                const e = arxState.events[r.id];
-                const when = _arxWhen(e ? e.ts : r.updated_at);
-                const by = e ? _arxRoleWord(e.role) : 'unknown';
-                const date = kind === 'cal' && r.scheduled_date ? 'Scheduled ' + String(r.scheduled_date).slice(0, 10) : '';
-                return '<div class="arx-row"><div class="arx-row-main"><div class="arx-row-name">' + _arxEsc(_arxNameOf(r)) + '</div>'
-                    + '<div class="arx-row-meta">' + _arxEsc([date, 'Archived ' + when + ' by ' + by].filter(Boolean).join(' · ')) + '</div>'
-                    + '<div class="arx-pills">' + _arxPills(kind, r) + '</div></div>'
-                    + '<button class="cal-prompt-btn is-primary" type="button" data-arx-act="restore" data-id="' + _arxEsc(r.id) + '"' + (arxState.busy ? ' disabled' : '') + '>Restore</button></div>';
-            }).join('') + (arxState.error ? '<div class="arx-error-s">Couldn\'t load more. <button class="cal-prompt-btn" type="button" data-arx-act="retry">Try again</button></div>' : '');
-        }
-        const more = (arxState.hasMore || arxState.canWiden) ? '<button class="cal-prompt-btn" type="button" data-arx-act="more"' + (arxState.loading ? ' disabled' : '') + '>Show older</button>' : '';
-        o.innerHTML = '<div class="cal-prompt-modal arx-modal" role="dialog" aria-modal="true" aria-labelledby="arxTitle">'
-            + '<div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3 id="arxTitle">' + k.title + '</h3><p>Restore puts ' + (kind === 'sxr' ? 'a sample' : 'a card') + ' back exactly as it was. Only admins and SMMs see this.</p></div>'
-            + '<button class="cal-prompt-close" type="button" data-arx-act="close" aria-label="Close">&times;</button></div>'
-            + '<div class="cal-prompt-body">' + body + '</div>'
-            + '<div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last ' + days + ' days, newest first.</span></div><div class="cal-prompt-foot-right">' + more + '</div></div></div>';
-    }
-
-    /* ── Restore ── */
-    async function _arxGatewayMove(kind, post, component, target, item) {
-        const k = ARX_KIND[kind];
-        const nativeId = _writeUiNativeId(post, component);
-        const body = {
-            operation: 'status', surface: k.surface, entity: 'deliverable', id: nativeId, status: target,
-            request_id: 'restore:' + nativeId + ':' + target + ':' + String(item.current.updated_at || '').replace(/[^0-9A-Za-z]/g, ''),
-            source_edited_at: new Date().toISOString(),
-            expected_status: 'backlog', expected_updated_at: item.current.updated_at
-        };
-        const url = WRITE_UI_PRODUCTION_WRITE_URL;
-        const resp = await fetch(url, {
-            method: 'POST', cache: 'no-store',
-            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json', 'Content-Type': 'application/json', 'X-Syncview-Source': k.surface }, url),
-            body: JSON.stringify(body)
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (resp.ok && json && json.ok === true) return json;
-        const err = new Error((json && (json.error || json.code)) || ('HTTP ' + resp.status));
-        err.status = resp.status; err.code = String(json && (json.error || json.code) || '');
-        throw err;
-    }
-    function _arxFail(kind, error, extra) {
-        try { _writeUiRecordFailure(ARX_KIND[kind].surface, 'status', error, Object.assign({ kind: 'restore' }, extra || {})); } catch (e) {}
-    }
-    async function _arxRestore(kind, id) {
-        if (arxState.busy || !_arxCan()) return;
-        const k = ARX_KIND[kind];
-        const slug = arxState.slug;
-        const row = arxState.rows.find(r => r.id === id);
-        if (!row) return;
-        arxState.busy = true; _arxRenderModal();
-        try {
-            /* 1. Fresh read: someone else may have restored it already. */
-            let fresh;
-            try { fresh = await _arxFreshRow(kind, slug, id); }
-            catch (e) { await _arxDialog({ title: 'Couldn\'t check this ' + k.noun, msg: 'Nothing was changed. Check your connection and try again.', yes: 'OK', cancel: false }); return; }
-            if (!fresh || String(fresh.status || '').toLowerCase() !== 'archived') {
-                arxState.rows = arxState.rows.filter(r => r.id !== id);
-                await _arxDialog({ title: 'Already restored', msg: '“' + _arxNameOf(row) + '” is no longer archived. Someone else restored it.', yes: 'OK', cancel: false });
-                return;
-            }
-            /* 2. A live card must not drive the same work item (Decision D5). */
-            const owner = _arxDuplicateOwner(fresh, _arxLive(kind));
-            if (owner) {
-                await _arxDialog({ title: 'Can\'t restore this ' + k.noun + ' yet', msg: 'A live ' + k.noun + ', “' + _arxNameOf(owner) + '”, already uses the video work item of “' + _arxNameOf(fresh) + '”. Unlink it there first, then restore this one.', yes: 'OK', cancel: false });
-                return;
-            }
-            /* 3. The status it returns to, and where each work item goes. */
-            const status = _arxRestoreStatus(kind, fresh);
-            const archivedAt = arxState.events[id] ? Date.parse(arxState.events[id].ts) : Date.parse(fresh.updated_at);
-            const items = [];
-            for (const component of ['video', 'graphic']) {
-                const nativeId = _writeUiNativeId(fresh, component);
-                if (!nativeId) continue;
-                let read;
-                try { read = await _arxItemRead(nativeId); } catch (e) { read = { current: null, events: [] }; }
-                const plan = _arxWorkItemPlan(read, archivedAt, k.surface);
-                items.push({ component, name: component === 'video' ? 'Video work item' : k.second + ' work item', read, plan });
-            }
-            const slot = _arxOrderSlot(fresh, _arxLive(kind));
-            const past = kind === 'cal' && fresh.scheduled_date && Date.parse(String(fresh.scheduled_date).slice(0, 10)) < Date.now() - 86400000;
-            const ok = await _arxDialog({
-                title: 'Restore “' + _arxNameOf(fresh) + '”?',
-                msg: 'It goes back to ' + k.where + ' exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be ' + status + '.',
-                list: items.map(i => ({ name: i.name, text: i.plan.text, kind: i.plan.action === 'to' ? 'move' : i.plan.action === 'left' ? 'left' : 'stay' })),
-                note: past ? 'Its scheduled date, ' + String(fresh.scheduled_date).slice(0, 10) + ', has passed. It keeps that date.' : '',
-                yes: 'Restore'
-            });
-            if (!ok) return;
-            /* 4. The card write: the same body archive sends, with a live status. */
-            try {
-                let resp;
-                if (kind === 'sxr') resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id, status, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'ui');
-                else resp = await _calUpsertFetch(slug, { client: slug, post: { id, status } });
-                const json = await resp.json().catch(() => ({}));
-                if (!resp.ok || !json || json.ok === false) throw new Error((json && json.error) || ('HTTP ' + resp.status));
-            } catch (e) {
-                console.warn('[Archived] restore write failed', e);
-                _arxFail(kind, e, { step: 'card' });
-                await _arxDialog({ title: 'Couldn\'t restore this ' + k.noun, msg: (e && e.message ? e.message : 'The write did not go through.') + ' Nothing was changed.', yes: 'OK', cancel: false });
-                return;
-            }
-            if (kind === 'sxr') _sxrArchivedRemove(slug, [id, fresh.linear_issue_id, fresh.graphic_linear_issue_id].filter(Boolean));
-            else _calArchivedRemove(slug, _calRefsForPost(fresh).concat([id]));
-            arxState.rows = arxState.rows.filter(r => r.id !== id);
-            /* 5. Position: only when a live card holds the old slot. */
-            if (slot.tie) {
-                try {
-                    const items2 = [{ id, order_index: slot.order_index }];
-                    if (kind === 'sxr') await _sxrReorderFetch(slug, { client: slug, items: items2 }, 'ui');
-                    else {
-                        /* n8n exit, PR 2: the same fresh, bounded flag read as every
-                           Calendar write, then the function only. A paused or held
-                           write throws into the catch below; nothing goes to n8n. */
-                        await _calAssertSavingOn(slug);
-                        await fetch(CALENDAR_REORDER_EF_URL, { method: 'POST', headers: _calUpsertHeaders('ui', CALENDAR_REORDER_EF_URL), body: JSON.stringify({ client: slug, items: items2 }) });
-                    }
-                } catch (e) { console.warn('[Archived] restore position write failed', e); _arxFail(kind, e, { step: 'order' }); }
-            }
-            /* 6. Work items, now that the card is live. A failed move never undoes the card. */
-            const lines = [];
-            for (const i of items) {
-                if (i.plan.action !== 'to') { lines.push({ name: i.name, text: i.plan.text, kind: i.plan.action === 'left' ? 'left' : 'stay' }); continue; }
-                try {
-                    await _arxGatewayMove(kind, fresh, i.component, i.plan.target, i.read);
-                    lines.push({ name: i.name, text: 'moved ' + i.plan.text, kind: 'move' });
-                } catch (e) {
-                    if (e && (e.status === 409 || /conflict/i.test(e.code || ''))) {
-                        lines.push({ name: i.name, text: 'not moved: someone else changed it first, their change was kept', kind: 'left' });
-                    } else {
-                        _arxFail(kind, e, { step: 'item', component: i.component });
-                        lines.push({ name: i.name, text: 'not moved: ' + (e && e.message ? e.message : 'it could not be saved'), kind: 'left' });
-                    }
-                }
-            }
-            const partial = lines.some(l => /^not moved/.test(l.text));
-            await _arxDialog({ title: partial ? 'Restored, one work item left as it is' : 'Restored', msg: '“' + _arxNameOf(fresh) + '” is back in ' + k.where + '.', list: lines, yes: 'OK', cancel: false });
-            try { if (kind === 'sxr') loadSxrCards({ skipCache: true }); else loadCalendarPosts(); } catch (e) {}
-        } finally {
-            arxState.busy = false;
-            _arxRenderModal();
-        }
     }
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
@@ -63202,11 +62673,11 @@
     }
     function _sxrReorderFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
-        const post = (url) => fetch(url, {
+        const post = (url) => _writeUiTrackSave('sxr', 'sample_reorder', () => ({ client_slug: String(payload && payload.client || '') }), () => fetch(url, {
             method: 'POST',
             headers: _sxrWriteHeaders(source, url),
             body: JSON.stringify(payload)
-        });
+        }));
         if (!_sxrSampleUseEf(clientOrSlug)) return post(SXR_REORDER_N8N_URL);
         return post(SXR_REORDER_EF_URL).then(async (resp) => {
             let json = null;
@@ -63467,10 +62938,6 @@
                     <button class="cal-kebab" type="button" onclick="_sxrToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
                     <div class="cal-kebab-menu" id="sxrKebabMenu" hidden>
                         <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
-                        <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
-                            <div class="cal-kebab-sep" role="separator"></div>
-                            <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_arxOpen('sxr')" title="See recently archived samples and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived samples</button>
-                        </div>
                     </div>
                 </div>`
             : '';
@@ -64873,7 +64340,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt');
+                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'));
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -65523,11 +64990,11 @@
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        });
+        }));
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -65562,11 +65029,11 @@
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        });
+        }));
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -65731,7 +65198,7 @@
         const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
         const archivedAt = new Date().toISOString();
-        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui');
+        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
         // Same rule as the Calendar (owner ruling 2026-08-17, extended to
         // samples 2026-09-28): archiving parks the sample's work items in
@@ -69534,14 +69001,6 @@
                 _writeUiLegacyShedRetired('sxr'),
             ]);
             if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
-            /* n8n exit, PR 2: move any staff Calendar repair still pinned to
-               the n8n writer onto Supabase (writer and verification source
-               together) before the drain looks at it. Staff only; a client
-               link is carved out. Never throws. */
-            if (owner.kind !== 'client') {
-                await _writeUiMigratePinnedCalendarGates().catch(() => null);
-                if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
-            }
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
             const sxrHasOwnedDebt = _sxrLinearOutboxRead()
@@ -70145,7 +69604,7 @@
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
-        const resp = await _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui');
+        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('http ' + resp.status);
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
@@ -71819,6 +71278,7 @@
                 // rather than clearing the draft and telling the operator it queued.
                 if (resp.ok === false) {
                     tkState.progress = 0;
+                    _tkRecordFailure('tiktok_upload', 0);
                     tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
                     _tkRenderForm();
                     return;
@@ -71827,6 +71287,7 @@
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload', xhr.status);
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
             }
@@ -71835,6 +71296,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = 'Network error — the upload could not reach n8n. Try again.';
             _tkRenderForm();
         };
@@ -71915,6 +71377,7 @@
                 _tkActiveXhr = null;
                 tkState.submitting = false;
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload_prepare', urlXhr.status);
                 tkState.error = _tkExplainError(urlXhr);
                 _tkRenderForm();
                 return;
@@ -71925,6 +71388,7 @@
                 _tkActiveXhr = null;
                 tkState.submitting = false;
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload_prepare', 0);
                 tkState.error = 'Could not prepare the upload — ' + (mint.error || 'no upload url returned') + '.';
                 _tkRenderForm();
                 return;
@@ -71935,6 +71399,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload_prepare', 0, true);
             tkState.error = 'Network error — could not reach n8n to prepare the upload. Try again.';
             _tkRenderForm();
         };
@@ -71965,6 +71430,7 @@
                 _tkActiveXhr = null;
                 tkState.submitting = false;
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_storage_put', putXhr.status);
                 tkState.error = `Video upload to storage failed (HTTP ${putXhr.status}). Try again.`;
                 _tkRenderForm();
                 return;
@@ -71975,6 +71441,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_storage_put', 0, true);
             tkState.error = 'Network error while uploading the video to storage. Try again.';
             _tkRenderForm();
         };
@@ -72019,6 +71486,7 @@
                 // can still carry ok:false when Post For Me rejected the post.
                 if (resp.ok === false) {
                     tkState.progress = 0;
+                    _tkRecordFailure('tiktok_upload', 0);
                     tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
                     _tkRenderForm();
                     return;
@@ -72027,6 +71495,7 @@
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload', xhr.status);
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
             }
@@ -72035,6 +71504,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = 'The video finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the video (that part is not saved between attempts).';
             _tkRenderForm();
         };
@@ -72092,6 +71562,7 @@
             _tkActivePhotoAbort = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            if (e.name !== 'AbortError') _writeUiRecordSaveFailure('tiktok', 'tiktok_photo_upload', e, null, {});
             tkState.error = e.name === 'AbortError' ? 'Upload cancelled.' : (e.message || 'Image upload failed. Try again.');
             _tkRenderForm();
             return;
@@ -72128,6 +71599,7 @@
                 // rather than clearing the draft and telling the operator it queued.
                 if (resp.ok === false) {
                     tkState.progress = 0;
+                    _tkRecordFailure('tiktok_upload', 0);
                     tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
                     _tkRenderForm();
                     return;
@@ -72136,6 +71608,7 @@
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload', xhr.status);
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
             }
@@ -72144,6 +71617,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = 'The images finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the images (that part is not saved between attempts).';
             _tkRenderForm();
         };
@@ -72157,6 +71631,15 @@
         xhr.send(fd);
     }
 
+    // Failed-saves log (Priority 4): every way a TikTok upload can fail is
+    // recorded once, next to the message the person sees. Status only; the
+    // file, title and links never leave the page.
+    function _tkRecordFailure(operation, status, network) {
+        const shape = { message: status ? 'HTTP ' + status : (network ? 'network error' : 'upload rejected') };
+        if (status) shape.status = status;
+        else if (network) shape.network = true;
+        _writeUiRecordFailure('tiktok', operation, shape, {});
+    }
     function _tkExplainError(xhr) {
         try {
             const j = JSON.parse(xhr.responseText || '{}');
@@ -72357,7 +71840,7 @@
     async function _tkCancelRow(id) {
         showConfirm('Cancel upload?', 'This marks the upload as cancelled in your queue. If it was already scheduled in Post For Me you may also need to cancel it there. The video file stays on your computer.', async () => {
             try {
-                const r = await fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+                const r = await _writeUiTrackSave('tiktok', 'tiktok_cancel', {}, () => fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }));
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 _tkSavePending(_tkLoadPending().filter(p => p.id !== id));
                 Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
@@ -72380,7 +71863,7 @@
 
     async function _tkRetryRow(id) {
         try {
-            const r = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' });
+            const r = await _writeUiTrackSave('tiktok', 'tiktok_retry', {}, () => fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' }));
             if (!r.ok) throw new Error('HTTP ' + r.status);
             Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
         } catch (e) {
@@ -72915,6 +72398,7 @@
             checkpointCommittedSource();
         }
         const resp = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+        let lastResp = resp;
         let json = await resp.json().catch(() => ({}));
         /* SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push
            this same call just made (above) can make calendar-upsert refuse THIS
@@ -72969,10 +72453,15 @@
                 item.post._baseAt = freshAt;
                 retryIssued = true;
                 const retry = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+                lastResp = retry;
                 json = await retry.json().catch(() => ({}));
             }
         }
-        if (!json || !json.ok) { const err = new Error((json && json.error) || 'Save failed'); err._calRetryIssued = retryIssued; throw err; }
+        if (!json || !json.ok) {
+            const err = new Error((json && json.error) || 'Save failed'); err._calRetryIssued = retryIssued;
+            _writeUiRecordSaveFailure('calendar', 'kasper_post_save', err, lastResp, { client_slug: item.slug, id: String(item.post.id || '') });
+            throw err;
+        }
         if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(item.post, sourceRepairRefsForWrite);
         delete item.post._writeUiRetrySourceAt;
         delete item.post._writeUiRetryPrincipal;
@@ -73533,12 +73022,15 @@
     }
     async function _hpCall(payload, controller) {
         await _syncviewRequireStaffIdentity('hiring');
-        const response = await fetch(HIRING_APPLICATIONS_EF_URL, {
+        const send = () => fetch(HIRING_APPLICATIONS_EF_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, HIRING_APPLICATIONS_EF_URL),
             body: JSON.stringify(payload),
             signal: controller && controller.signal,
         });
+        // Listing and opening an application are reads; every other action is a save.
+        const isRead = !payload || payload.action === 'list' || payload.action === 'detail';
+        const response = await (isRead ? send() : _writeUiTrackSave('hiring', ('hiring_' + payload.action).slice(0, 40), {}, send));
         const data = await response.json().catch(() => null);
         if (!response.ok || !data || data.ok !== true) {
             const error = new Error((data && data.error) || ('http_' + response.status));
@@ -74226,6 +73718,7 @@
                 _siShowDone(submission, resp || {});
             })
             .catch(e => {
+                _writeUiRecordSaveFailure('sales_intake', 'sales_intake_submit', e, null, {});
                 btn.disabled = false; btn.textContent = 'Create agreement & send';
                 err.style.display = 'block';
                 err.textContent = 'Could not send the intake (' + ((e && e.message) || 'network error') + '). Nothing was lost — your answers are saved in this browser. Try again in a minute.';
@@ -75577,11 +75070,14 @@
         opts = opts || {};
         const ident = await _ccEnsureIdentity();
         const body = Object.assign({}, payload || {}, { action, actor: { name: ident.member.name, role: ident.role } });
-        const resp = await fetch(CC_EDGE_URL, {
+        const send = () => fetch(CC_EDGE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(body),
         });
+        // Listing and history are reads; every other action changes a credential.
+        const isRead = action === 'list' || action === 'history';
+        const resp = await (isRead ? send() : _writeUiTrackSave('credentials', ('credentials_' + action).slice(0, 40), {}, send));
         let json = null;
         try { json = await resp.json(); } catch { json = null; }
         if (resp.status === 401) {
@@ -76494,7 +75990,7 @@
         const timer = ctrl ? setTimeout(() => ctrl.abort(), FILMING_TABS_FLAG_TIMEOUT_MS) : null;
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&limit=1&key=eq.'
-                + encodeURIComponent(FILMING_TABS_SOURCE_FLAG_KEY);   // no _t= parameter: PostgREST reads any extra query parameter as a column filter and answers 400 (live, 2026-09-29); no-store already bypasses the HTTP cache
+                + encodeURIComponent(FILMING_TABS_SOURCE_FLAG_KEY) + '&_t=' + Date.now();
             const resp = await fetch(url, {
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
                 cache: 'no-store',
@@ -77302,11 +76798,11 @@
     const CA_FIELD_LABELS = Object.fromEntries(CA_GROUPS.concat([CA_RESEARCH]).flatMap(g => g.fields));
     async function _caEditPost(action, extra) {
         const ident = await _ccEnsureIdentity();
-        const resp = await fetch(CA_WRITE_URL, {
+        const resp = await _writeUiTrackSave('client_profile', ('client_profile_' + action).slice(0, 40), {}, () => fetch(CA_WRITE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
-        });
+        }));
         let json = null;
         try { json = await resp.json(); } catch (e) { json = null; }
         return { resp, json: json || {}, ident };
@@ -81201,4 +80697,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-afc876efa57a.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-a1610261ebf0.js");

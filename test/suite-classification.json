@@ -630,7 +630,8 @@
     "syncview-session.js",
     "sheets-mirror-parity-catchup.js",
     "filming-plan-tabs-source.js",
-    "kasper-filming-tab-source.js"
+    "kasper-filming-tab-source.js",
+    "prod-subissue-parent-name.js"
   ],
   "profiles": [
     {

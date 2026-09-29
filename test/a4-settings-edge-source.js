@@ -19,12 +19,19 @@ assert(index.includes('_calLoadCaptionPromptsFromSupabase'), 'caption prompts Su
 assert(!index.includes('webhook/templates-get') && !index.includes('webhook/templates-save'), 'templates must not use the retired n8n sheet webhooks');
 assert(index.includes('const live = await _tplLoadFromSupabase();'), 'templates must load from Supabase only');
 assert(!index.includes('_tplLoadFromN8n'), 'templates must not keep an n8n loader');
-assert(index.includes('const basePrompts = await _calLoadCaptionPromptsFromN8n();'), 'caption prompts must load n8n as the base store');
-assert(index.includes('_calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));')
-  && index.includes('function _calSetCaptionPrompts(value) { _calCaptionPrompts = value; }'), 'caption prompts must overlay flagged Supabase rows on n8n base');
-assert(index.includes('if (!slug || !_settingsUseEf(slug)) return;'), 'caption prompt Supabase rows must be gated by settings_ef_clients');
+/* n8n exit PR 3: the table is the one source; n8n caption-prompts-get is an error-only fallback
+   after a browser last-known-good copy, and the flag no longer filters which rows are read. */
+assert(index.includes('prompts = await _calLoadCaptionPromptsFromSupabase();')
+  && index.includes('prompts = _calCaptionPromptsLkgRead();')
+  && index.includes('prompts = await _calLoadCaptionPromptsFromN8n();')
+  && index.indexOf('prompts = await _calLoadCaptionPromptsFromSupabase();') < index.indexOf('prompts = _calCaptionPromptsLkgRead();')
+  && index.indexOf('prompts = _calCaptionPromptsLkgRead();') < index.indexOf('prompts = await _calLoadCaptionPromptsFromN8n();'),
+  'caption prompts must load from the table first, then the saved copy, then n8n only on error');
+assert(!index.includes('_settingsUseEf'), 'caption prompt rows must no longer be gated by settings_ef_clients');
 assert(index.includes('const writeUrl = TEMPLATES_SAVE_EF_URL;'), 'templates write must always use the Edge Function');
-assert(index.includes('_settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL)'), 'caption prompt write must be flag-routed with n8n fallback');
+assert(index.includes('await _settingsAssertSavingOn(client);') && index.includes('const writeUrl = CAPTION_PROMPTS_SAVE_EF_URL;')
+  && !index.includes('CAPTION_PROMPTS_SAVE_URL') && !index.includes('webhook/caption-prompts-save'),
+  'caption prompt write must ask settings_ef_clients afresh and go to the function only, never n8n');
 assert(index.includes("const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';"), 'caption generation URL must remain n8n');
 
 assert(migration.includes('create table if not exists public.templates'), 'templates table migration missing');

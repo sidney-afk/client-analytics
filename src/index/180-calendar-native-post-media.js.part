@@ -3,10 +3,9 @@ import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
 import {
   CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
-  CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL, GENERATE_CAPTION_URL, _svSelectHtml,
+  CAPTION_PROMPTS_SAVE_EF_URL, GENERATE_CAPTION_URL, _svSelectHtml,
   _svStepperHtml, _svSyncStepper, _syncviewRequireStaffIdentity, _syncviewStaffEligible
 } from './100-onboarding-staff-controls.js';
-import { _settingsEfClients } from './115-core-calendar-flags.js';
 import {
   CAL_CAPJOB_CANCEL_GRACE_MS, CAL_CAPJOB_CONCURRENCY, CAL_CAPJOB_CONFIRM_MS,
   CAL_CAPJOB_FETCH_TIMEOUT_MS, CAL_CAPJOB_LS_KEY, CAL_CAPJOB_POLL_MS, CAL_CAPJOB_STALE_MS,
@@ -16,8 +15,8 @@ import {
   _calAssertSavingOn, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
   _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
-  _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders,
-  _settingsWriteUrlForClient, _writeUiNativeId, _writeUiQueueDiagnostic, _writeUiRecordFailure,
+  _settingsAssertSavingOn, _settingsWriteHeaders,
+  _writeUiNativeId, _writeUiQueueDiagnostic, _writeUiRecordFailure,
   _writeUiRerouteUseGatewayWhenReady, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import {
@@ -1283,19 +1282,39 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
        SyncView Calendar Sheet. The Edit caption prompt modal in
        the per-card kebab edits that tab via caption-prompts-save.
        ============================================================ */
+    /* n8n exit, PR 3: the prompts are read from the caption_prompts table, the
+       one source (it already holds every prompt the n8n Sheet held). The read is
+       a plain REST read: never a cache-buster (PostgREST answers 400 to any
+       parameter it does not know), freshness comes from cache: 'no-store'.
+
+       An ERROR-ONLY fallback keeps a failed read from making Generate send an
+       empty prompt (which would use the generic default, not the client's
+       stored one): first a last-known-good copy kept in this browser, and only
+       when that is empty the n8n caption-prompts-get webhook, which stays as the
+       reachable first-load fallback until a durable server copy exists. */
+    const CAL_CAPTION_PROMPTS_LKG_KEY = 'syncview_caption_prompts_lkg_v1';
     async function _calLoadCaptionPromptsFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
         const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
-        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+        const resp = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const rows = await resp.json();
+        if (!Array.isArray(rows)) throw new Error('caption_prompts: unexpected payload');
         const prompts = {};
-        (Array.isArray(rows) ? rows : []).forEach(row => {
+        rows.forEach(row => {
             const slug = String((row && row.client_slug) || '').trim();
-            if (!slug || !_settingsUseEf(slug)) return;
             if (slug) prompts[slug] = String(row.prompt || '');
         });
         return prompts;
+    }
+    function _calCaptionPromptsLkgRead() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(CAL_CAPTION_PROMPTS_LKG_KEY) || 'null');
+            return raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length ? raw : null;
+        } catch (e) { return null; }
+    }
+    function _calCaptionPromptsLkgWrite(prompts) {
+        try { if (prompts && Object.keys(prompts).length) localStorage.setItem(CAL_CAPTION_PROMPTS_LKG_KEY, JSON.stringify(prompts)); } catch (e) {}
     }
     async function _calLoadCaptionPromptsFromN8n() {
         const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
@@ -1308,17 +1327,19 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
         _calSetCaptionPromptsInFlight((async () => {
             try {
-                const basePrompts = await _calLoadCaptionPromptsFromN8n();
-                _calSetCaptionPrompts(basePrompts);
+                let prompts = null;
                 try {
-                    await _settingsPrimeRoutingFlag();
-                    if (_settingsEfClients.size) {
-                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
-                        _calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));
+                    prompts = await _calLoadCaptionPromptsFromSupabase();
+                    _calCaptionPromptsLkgWrite(prompts);
+                } catch (tableError) {
+                    console.warn('[Calendar] caption_prompts read failed; using the last saved copy', tableError);
+                    prompts = _calCaptionPromptsLkgRead();
+                    if (!prompts) {
+                        console.warn('[Calendar] no saved copy either; asking n8n caption-prompts-get once');
+                        prompts = await _calLoadCaptionPromptsFromN8n();
                     }
-                } catch (supaError) {
-                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
+                _calSetCaptionPrompts(prompts);
                 _calSetCaptionPromptsLoaded(true);
             } catch (e) {
                 console.warn('[Calendar] caption prompts load failed', e);
@@ -1533,6 +1554,12 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
         // above so a client switch during this await can't mis-target the job.
         if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
+        // Every source failed: sending now would silently use the generic default
+        // prompt instead of this client's own, so stop and say so.
+        if (!_calCaptionPromptsLoaded) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Could not load this client\u2019s caption prompt. Try again in a moment.');
+            return { ok: false, error: 'Caption prompt unavailable', skipped: true };
+        }
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
@@ -1993,7 +2020,11 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
+            // n8n exit, PR 3: fresh, bounded read of settings_ef_clients first. An
+            // unreadable flag holds the save, an unlisted client pauses it with a
+            // message; neither ever reroutes to n8n.
+            await _settingsAssertSavingOn(client);
+            const writeUrl = CAPTION_PROMPTS_SAVE_EF_URL;
             const r = await fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('caption-prompts', writeUrl),
@@ -2002,6 +2033,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
             _calCaptionPrompts[calClientSlug(client)] = promptText;
+            _calCaptionPromptsLkgWrite(_calCaptionPrompts);
             _calCloseCaptionPromptModal();
             showNotify('Saved', promptText
                 ? 'Custom caption prompt saved for ' + client + '.'

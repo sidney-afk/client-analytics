@@ -233,6 +233,21 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/shared-client-browser.js
+      # n8n exit (PRs 2 and 3): the Calendar write guard, the caption prompt read
+      # and save, and the proof that the client approve and request-changes
+      # requests are byte-identical to main. Fully mocked, no backend.
+      - name: Calendar write guard (fresh flag read, hold, pause, zero n8n)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-write-guard-browser.js
+      - name: Caption prompts read and save guard (table read, fallback, pause switch)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/caption-prompts-guard-browser.js
+      - name: Client approve and request-changes requests are byte-identical to main
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-client-carveout-byte-identical-browser.js
 
 
   split-preview:

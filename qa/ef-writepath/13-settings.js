@@ -12,6 +12,9 @@ const L = require('./lib.js');
 const OUT = '/tmp/qa-efwp/results-settings.json';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const SLUG = 'sidneylaruel';
+// NOTE (n8n exit PR 3): teardown only. The page no longer calls this webhook; this direct restore
+// stops working once the old n8n workflow is deactivated (30 days after PR 3 ships) and must then
+// move to the caption-prompts-save function.
 const PROMPT_RESTORE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
 const TPL_FIELD = 'reels_editor_folder_link';
 const readTplField = () => { const r = L.supaGet('templates', `client_slug=eq.${SLUG}&select=data`); return (Array.isArray(r) && r[0] && r[0].data) ? (r[0].data[TPL_FIELD] == null ? '' : String(r[0].data[TPL_FIELD])) : null; };

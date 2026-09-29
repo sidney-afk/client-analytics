@@ -74,11 +74,26 @@ const NOT_A_BACKDROP_CLICK = [
   ['096-quick-jump', "e.target !== input", 'Escape key from a non-input element'],
   ['096-quick-jump', 'if (e.target === box) svQuickJumpClose()', 'closes on the PRESS itself (mousedown), so a press that starts inside can never dismiss it'],
 ];
-const targetCompare = /(\.(target|currentTarget)\s*[!=]==?)|([!=]==?\s*[\w$.]*\.(target|currentTarget)\b)|((?<!\$)\{\s*target\s*\})/;   // any event variable name, either order
-const unguarded = codeLines.filter(x => targetCompare.test(x.text) && !x.text.includes('_backdropPressBegan')
-  && !NOT_A_BACKDROP_CLICK.some(([f, frag]) => x.where.startsWith(f) && x.text.includes(frag)));
+const targetCompare = /(\.(target|currentTarget)\s*[!=]==?)|([!=]==?\s*[\w$.]*\.(target|currentTarget)\b)|((?<!\$)\{\s*target\s*\})/g;   // any event variable name, either order, across line breaks
+// Whole files, not single lines, so a comparison split over two lines is seen.
+// A hit is judged with the two lines either side of it, where the mark is read.
+const unguarded = [];
+for (const f of fs.readdirSync(SRC).filter(n => n.endsWith('.part'))) {
+  const lines = fs.readFileSync(path.join(SRC, f), 'utf8').split('\n').map(l => (/^\s*(\/\/|\/\*|\*)/.test(l) ? '' : l));
+  const starts = []; let at = 0;
+  for (const l of lines) { starts.push(at); at += l.length + 1; }
+  const text = lines.join('\n');
+  for (const m of text.matchAll(targetCompare)) {
+    let n = starts.findIndex((st, i) => st <= m.index && (i + 1 === starts.length || starts[i + 1] > m.index));
+    const window = lines.slice(Math.max(0, n - 2), n + 3).join('\n');
+    if (window.includes('_backdropPressBegan')) continue;
+    if (NOT_A_BACKDROP_CLICK.some(([file, frag]) => f.startsWith(file) && window.includes(frag))) continue;
+    unguarded.push({ where: f + ':' + (n + 1), text: lines[n] });
+  }
+}
 assert.deepEqual(unguarded.map(x => x.where + '  ' + x.text.trim().slice(0, 90)), [],
   'a target comparison ignores where the press began: guard it with data-backdrop-dismiss, or list it in NOT_A_BACKDROP_CLICK with the reason');
+
 
 // The staff sign-in dialog only exists for someone who is not signed in, so it
 // is checked on its own page with no saved login: the app opens it at start.

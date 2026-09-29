@@ -2263,7 +2263,7 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         const timer = ctrl ? setTimeout(() => ctrl.abort(), FILMING_TABS_FLAG_TIMEOUT_MS) : null;
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&limit=1&key=eq.'
-                + encodeURIComponent(FILMING_TABS_SOURCE_FLAG_KEY) + '&_t=' + Date.now();
+                + encodeURIComponent(FILMING_TABS_SOURCE_FLAG_KEY);   // no _t= parameter: PostgREST reads any extra query parameter as a column filter and answers 400 (live, 2026-09-29); no-store already bypasses the HTTP cache
             const resp = await fetch(url, {
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
                 cache: 'no-store',

@@ -1,6 +1,6 @@
 # SyncView — session context
 
-**Every session: read `docs/STATE_OF_THINGS.md` first.** It is the live-verified list of what is open, dormant and done, and outranks older plans.
+**Every session: read `docs/STATE_OF_THINGS.md` first.** It is the live-verified list of what is open, dormant and done, outranks older plans, and opens with the owner's priority order.
 
 index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly
 
@@ -169,9 +169,9 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
   concurrent branches routinely claim the same number.
 - With the browser publishable key you can READ most tables but write nothing;
   `production_comments` and every `production_comment_*` table return 42501.
-- A refused write leaves no server-side trace — only a 50-row `localStorage` ring
-  in the browser it happened in (OPEN_REPAIRS 101). This is why client-reported
-  bugs are hard to diagnose here, and it is the highest-value thing left to build.
+- A refused write IS recorded server-side now (the write-refusal log, since
+  2026-09-23; OPEN_REPAIRS 101 described the old browser-only ring). What is
+  left is making it easy to read; see priority item 4 in `docs/STATE_OF_THINGS.md`.
 - **A gate that has never run against its real target is untested.** The
   Linear-exit deploy preflight first executed live on 2026-09-17, inside a
   dispatch, and refused **10 of 156 keys** — so the release stopped at the

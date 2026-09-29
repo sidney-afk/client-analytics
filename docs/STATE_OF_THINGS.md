@@ -12,6 +12,49 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## The owner's priority order (set 2026-09-29, keep this current)
+
+The owner asked for this list to live here so no session loses it. Work top down.
+When an item is done, move it to "Done" below in the same PR; when the owner
+reorders or adds, edit this list, never a side document.
+
+1. **2026-10-01: analytics database on for every client.** Check the daily
+   Sheets-to-Supabase copy ran clean, then ask the owner's go to set
+   `analytics_mirror_read_enabled` to `{"enabled": true}`. This also removes the
+   client link's 2 to 4 s wait on the `Metrics` and `Clients Info` Sheets
+   (`docs/audits/2026-09-23-boot-baseline.md` section 3.4). Plan:
+   `docs/plans/2026-09-28-analytics-switch-on.md`. Then the one-message Slack
+   alert (under "Needs the owner").
+2. **2026-10-01: n8n measurements for the plan-downgrade decision.** September
+   is the first full month the execution-quota watchdog counts. Report the real
+   monthly executions against the plan tiers (sizing in OPEN_REPAIRS 233: about
+   100k a month, a 50k plan does not fit without cuts) and what would have to
+   stop to fit a smaller plan. No n8n edits without the owner's go.
+3. **Load-per-tab, step 4 (Mason).** After Kasper (#1841) merges and Vigil
+   hand-tests it: switch the split on for staff only, measured before and after,
+   with a one-step switch back. SyncLinear is skipped for now (owner,
+   2026-09-29); revisit only if step 4's numbers justify it.
+4. **Failed saves: finish and USE the log.** The write-refusal log exists and
+   records (see "Needs a session"); what is left is confirming the `traffic`
+   column fills and giving the owner a simple way to see a client's failed
+   saves when they report a bug.
+5. **Load-per-tab, step 5: client links get the smaller page.** Needs the
+   owner's separate go after a week of staff use. This is the big client-side
+   speed gain (about 3 s to about 1.7 s on a typical phone, plan estimate).
+6. **Make this repo private, maintainably (owner wants it, 2026-09-29; this
+   replaces the 2026-09-24 "keep it public for now").** Move scheduled jobs and
+   automation off GitHub Actions (for example Supabase pg_cron and Edge
+   Functions) and choose a new host for the site, so going private costs
+   little. Plan: `docs/plans/2026-09-24-owner-backlog.md` section 1; costs:
+   `docs/ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md`.
+7. **Navigation, then look and feel** (roadmap phases D and E in
+   `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
+   the owner's own observations.
+
+Dated items that must not slip: 2026-10-01 (items 1 and 2), 2026-10-15
+(assurance-ledger rows expire, under "Needs the owner"), and retiring the
+hiring senders when the editor hire closes.
+
 ## Needs the owner
 
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
@@ -81,8 +124,8 @@ line is older than a week, re-check it before relying on it.
 - The historical monitoring cutover workflow retains only its manual TEST
   cleanup and roster report. Its Linear-dependent proof jobs are retired.
   Other Linear-only workflows are unscheduled for hand dispatch.
-- SyncView v2 (Next.js) and making the repo private: plans only; the owner
-  decided on 2026-09-24 to keep the repo public for now.
+- SyncView v2 (Next.js): plans only. (Making the repo private is no longer
+  dormant: the owner wants it, see priority item 6.)
 
 ## Done (was listed as open somewhere)
 

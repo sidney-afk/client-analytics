@@ -116,6 +116,11 @@ const wantReport = args.includes('--report');
 const writeWindowExports = args.includes('--write-window-exports');
 
 // Browser and CDN globals a `typeof x` guard may legitimately test.
+// Dead guards that tests still pin, so they stay until their tests change.
+// `_sxrSyncStatusFromLinear` was removed in B2; two guarded calls remain in
+// 270 and test/sxr-move-link-*.js stub the function. The list only shrinks.
+const KNOWN_DEAD_GUARDS = new Set(['_sxrSyncStatusFromLinear']);
+
 const HOST_GLOBALS = new Set(['document', 'window', 'navigator', 'performance', 'indexedDB', 'requestAnimationFrame',
   'AbortController', 'AbortSignal', 'MutationObserver', 'ResizeObserver', 'Chart']);
 
@@ -547,7 +552,7 @@ if (ast && modules.size) {
     for (const r of sc.globalScope.through) {
       if (!typeofArgs.has(r.identifier)) continue;
       const name = r.identifier.name;
-      if (ownerOf(name) || HOST_GLOBALS.has(name)) continue;
+      if (ownerOf(name) || HOST_GLOBALS.has(name) || KNOWN_DEAD_GUARDS.has(name)) continue;
       deadGuards.push(`${m}: \`typeof ${name}\` guards a name no fragment declares and that is not a browser global; the code behind it can never run`);
     }
   }

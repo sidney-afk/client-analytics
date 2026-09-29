@@ -2020,6 +2020,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             _sxrFlushCardSave(pid);
             if (value) _sxrArchivedRemove(sxrClientSlug(sxrState.client), [value]);
             _sxrRenderBody({ preserveScroll: true });
+            if (value && post && typeof _sxrSyncStatusFromLinear === 'function') _sxrSyncStatusFromLinear(pid, value, which);
         };
         if (!changed) { restoreRow(); return; }
         if (val) {
@@ -2188,6 +2189,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         _sxrFlushCardSave(newPid);
         if (val) _sxrArchivedRemove(slug, [val]);
         _sxrRenderBody({ preserveScroll: true });
+        if (val && typeof _sxrSyncStatusFromLinear === 'function') _sxrSyncStatusFromLinear(newPid, val, which);
         return true;
     }
     function _sxrLinkDuplicatePeers(post) {

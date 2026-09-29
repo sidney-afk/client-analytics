@@ -42,9 +42,12 @@ only; no client names or slugs.
    no fragment declares and that is not a browser global. The 493 guards in modules are
    names a module owns, names it imports (already forced by the existing "uses it
    without importing it" rule, so they cannot silently read "not there") or browser
-   globals; the new rule proves that split, and one was dead: `_sxrSyncStatusFromLinear` (removed in B2) was still tested in
-   two places in `270`, so the code behind it could never run. Both lines are deleted,
-   which changes nothing at runtime.
+   globals; the new rule proves that split. One is dead:
+   `_sxrSyncStatusFromLinear` (removed in B2) is still tested in two places in `270`, so
+   the code behind it can never run. It is listed as a known dead guard in
+   `check-modules.js` rather than deleted, because `test/sxr-move-link-*.js` stub the
+   function and pin those two calls. Deleting the calls and updating those two tests is
+   the follow-up that empties the list.
 
 The 38 recorded on-demand-loading hazards in `lazy-safety-baseline.txt` (34 buttons, 4
 guards, all in areas that are not lazy today) are a different list, owned by the

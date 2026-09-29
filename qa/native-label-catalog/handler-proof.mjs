@@ -1,5 +1,6 @@
 // Actual production-write HTTP handler; persistence here is an in-process model. All provider requests are
 // synthetic or refused. The small named RPC model is not PostgreSQL proof.
+import '../../test/helpers/single-file-index.js'; // split switch on (plan step 4): reads of index.html get the single-file page
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';

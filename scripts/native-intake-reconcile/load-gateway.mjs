@@ -11,6 +11,7 @@
  * Relative imports resolve to the repository files. A needle that does not
  * match exactly once aborts the lane, so the seam is bound to the current file.
  */
+import '../../test/helpers/single-file-index.js'; // split switch on (plan step 4): reads of index.html get the single-file page
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

@@ -18,6 +18,7 @@
  * Runs as a child process (the unit suite does not enable type stripping) and
  * prints one JSON document between NIR_RESULT_BEGIN/END markers.
  */
+import '../../test/helpers/single-file-index.js'; // split switch on (plan step 4): reads of index.html get the single-file page
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

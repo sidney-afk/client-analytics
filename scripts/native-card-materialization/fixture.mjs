@@ -1,5 +1,6 @@
 // Actual accepted gateway + extracted browser creation payload + candidate SQL.
 // SQL transport only, fictional records, no live/provider request can leave.
+import '../../test/helpers/single-file-index.js'; // split switch on (plan step 4): reads of index.html get the single-file page
 import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import {loadGateway,ROOT} from '../native-intake-reconcile/load-gateway.mjs';

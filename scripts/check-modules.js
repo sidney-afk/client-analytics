@@ -74,6 +74,7 @@
  */
 
 const fs = require('fs');
+require('../test/helpers/single-file-index.js'); // split switch on (plan step 4): the --report handler scan reads the single-file page
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { readModuleList, splitModuleFragment, servedBytes } = require('./index-modules');

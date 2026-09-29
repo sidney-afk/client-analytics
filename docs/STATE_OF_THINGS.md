@@ -16,7 +16,10 @@ line is older than a week, re-check it before relying on it.
 
 The owner asked for this list to live here so no session loses it. Work top down.
 When an item is done, move it to "Done" below in the same PR; when the owner
-reorders or adds, edit this list, never a side document.
+reorders or adds, edit this list, never a side document. **The supervisor
+(Lighthouse) updates this file after every merge, owner decision or stalled
+session, in the same sitting.** A session that stops without pushing is recorded
+here with where it stopped, so it can be restarted.
 
 1. **2026-10-01: analytics database on for every client.** Check the daily
    Sheets-to-Supabase copy ran clean, then ask the owner's go to set
@@ -58,8 +61,11 @@ reorders or adds, edit this list, never a side document.
    - **Move SyncView's own traffic off n8n** (owner 2026-09-28, "completely
      optimize n8n execution"): Filming Plan Tabs (about 36% of runs), Calendar
      Upsert Post and its comment merge, Caption Prompts, Sample Review Upsert.
-     Pairs with item 2. Branch `forge/filming-plan-tabs-batch` holds no work;
-     only the hourly booking-recovery timer was done.
+     Pairs with item 2. The Codex session Forge (started 2026-09-28) stalled
+     when Codex broke and pushed nothing: branch `forge/filming-plan-tabs-batch`
+     equals an older main, and `docs/plans/2026-09-28-n8n-exit.md` was never
+     written. Restart from scratch. Only the hourly booking-recovery timer was
+     done (by Lighthouse, live in n8n).
    - **Escape does not close a Calendar card's thumbnail or video edit box**
      (owner 2026-09-26). Last status: still broken. Re-check live first.
    - **Daily real-browser client check from a local session, Samples included,
@@ -122,7 +128,9 @@ hiring senders when the editor hire closes.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **A press that starts in a dialog and ends outside closes it**, 13 sites
-  (OPEN_REPAIRS 215).
+  (OPEN_REPAIRS 215). The Codex session Latch (started 2026-09-28) stalled when
+  Codex broke and pushed nothing: branch `fix/dialog-backdrop-press-release`
+  equals an older main. Restart from scratch.
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has
   confirmed it on a live read (journal 2026-09-22).
 - **Copy transport retry** (OPEN_REPAIRS 223/279): the native brief copy now

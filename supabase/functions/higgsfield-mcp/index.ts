@@ -43,7 +43,7 @@ type Pick = { task: string; picks: string[] };
 // Plain-language shortlist the chat app reads first. Every id is in CATALOG
 // (the generated list of all 80+ API models); find_models lists the rest.
 const GO_TO: Pick[] = [
-  { task: "B-roll, background or filler video (cheaper)", picks: ["kling-video/v2.6/pro/text-to-video", "kling-video/v3.0-turbo/text-to-video"] },
+  { task: "B-roll, background or filler video: ALWAYS photo first, then animate the chosen photo (recipe broll-photo-then-video)", picks: ["higgsfield-ai/soul/v2/standard", "kling-video/v2.6/pro/image-to-video"] },
   { task: "Best-quality video: people up close, realistic motion, clips up to 30s", picks: ["bytedance/seedance-2.5/text-to-video"] },
   { task: "Animate a photo", picks: ["bytedance/seedance-2.5/image-to-video", "kling-video/v2.6/pro/image-to-video"] },
   { task: "Keep the same person or product across shots (reference images)", picks: ["bytedance/seedance-2.5/reference-to-video", "kling-video/o3/image-reference"] },
@@ -126,6 +126,7 @@ const INSTRUCTIONS = [
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
   "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then check_jobs.",
+  "B-roll is always made in two steps with the broll-photo-then-video recipe: first a still image they approve (redo it until they like it), then that exact image is animated. Never make b-roll straight from text to video unless they ask for that.",
   "When someone wants thumbnails from screenshots, call thumbnail_workflow first and follow it.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",

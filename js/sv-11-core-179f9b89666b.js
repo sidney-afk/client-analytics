@@ -548,9 +548,6 @@
     function _calUpsertUrlForClient(clientOrSlug) {
         return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
     }
-    function _calReorderUrlForClient(clientOrSlug) {
-        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
-    }
     function _syncviewClientWriteToken() {
         try { return String(new URLSearchParams(svRoute.search()).get('t') || '').trim(); } catch (e) { return ''; }
     }
@@ -3009,7 +3006,117 @@
             }
         } catch (e) {}
     }
-    function _calUpsertFetch(clientOrSlug, payload, source) {
+    /* THE ONE SHARED SEND STEP FOR EVERY CALENDAR SAVE (n8n exit, PR 2).
+
+       Staff and Kasper saves never reach n8n. Before every write this asks the
+       runtime flag AGAIN, with a read of its own (bounded to two seconds, never
+       reused, never shared with another write), so a client removed from the
+       flag is refused on the very next write, and a suspended tab or dropped
+       realtime channel cannot keep an old allow. A flag that cannot be read,
+       times out or is malformed HOLDS the save: the read is retried a few
+       times, then the save fails visibly and stays in the outbox for its
+       normal retry. Nothing is ever sent on a cached or default route, and
+       nothing falls back to n8n (those endpoints lack the Edge Functions'
+       principal and client authorization, F67). A read that succeeds and does
+       not list the client means "saving paused for this client": refused with
+       a message, never rerouted.
+
+       CARVED OUT (owner, 2026-09-29): the client approve and request-changes
+       buttons go through this same step and keep EXACTLY today's routing and
+       request. Every write made from a client link therefore takes the
+       untouched legacy branch below, byte for byte what it was. */
+    const CAL_WRITE_FLAG_READ_MS = 2000;
+    const CAL_WRITE_FLAG_READ_TRIES = 3;
+    function _calWriteHeldError(code, message) {
+        const error = new Error(message);
+        /* Recordable codes only: the refusal log's code list lives in a deployed
+           function and a database constraint, and this change is browser-only, so
+           it reuses two codes that already exist and keeps the precise reason in
+           `reason`. */
+        error.code = 'authority_unavailable';
+        error.reason = code;
+        error.status = 503;
+        error.calWriteHeld = true;
+        return error;
+    }
+    function _calWritePausedError(what) {
+        const error = new Error((what || 'Saving') + ' is paused for this client. Your change is kept and will save once saving is switched back on.');
+        error.code = 'client_scope_unavailable';
+        error.status = 503;
+        error.calWritePaused = true;
+        return error;
+    }
+    /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
+       (never resolves to a guess) when the answer cannot be trusted. */
+    function _calReadWriteFlagFresh(flagKey) {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
+        }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        let timer = null;
+        const timeout = new Promise((resolve, reject) => {
+            timer = setTimeout(() => {
+                try { if (ctrl) ctrl.abort(); } catch (e) {}
+                reject(_calWriteHeldError('calendar_flag_timeout', 'Checking whether saving is on took too long. Your change is kept; retry in a moment.'));
+            }, CAL_WRITE_FLAG_READ_MS);
+        });
+        const read = (async () => {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(flagKey || CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, {
+                cache: 'no-store',
+                signal: ctrl ? ctrl.signal : undefined,
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (!resp.ok) throw _calWriteHeldError('calendar_flag_http_' + resp.status, 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const members = row ? _calRuntimeFlagRawMembers(row.value) : null;
+            if (!members || !members.every(member => _calRuntimeFlagSlug(member) !== null)) throw _calWriteHeldError('calendar_flag_malformed', 'Saving is on hold while its switch is checked. Your change is kept; retry in a moment.');
+            return new Set(members.map(x => _calRuntimeFlagSlug(x)).filter(Boolean));
+        })();
+        return Promise.race([read, timeout]).then(
+            value => { clearTimeout(timer); return value; },
+            error => {
+                clearTimeout(timer);
+                if (error && error.calWriteHeld) throw error;
+                throw _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+            }
+        );
+    }
+    /* The one guard loop, parameterised by WHICH flag decides. Calendar saves
+       and reorders ask calendar_upsert_ef_clients; the caption prompt save asks
+       settings_ef_clients. Same rules for both: a fresh read of its own, bounded,
+       retried a few times, never a cached or default answer. */
+    async function _calAssertFlagAllows(flagKey, clientOrSlug, onListed, what) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        let lastError = null;
+        for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
+            try {
+                const listed = await _calReadWriteFlagFresh(flagKey);
+                // Keep the boot copy honest too, so the rest of the page (which
+                // still asks the cached set for display decisions) agrees.
+                try { onListed(new Set(listed)); } catch (e) {}
+                if (!slug || !listed.has(slug)) throw _calWritePausedError(what);
+                return true;
+            } catch (error) {
+                if (error && error.calWritePaused) throw error;
+                lastError = error;
+                if (attempt + 1 < CAL_WRITE_FLAG_READ_TRIES) await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+            }
+        }
+        throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+    }
+    function _calAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(CALENDAR_UPSERT_FLAG_KEY, clientOrSlug, set => _calSetUpsertEfClients(set), 'Saving');
+    }
+    /* Caption prompt saves (n8n exit, PR 3): settings_ef_clients is now purely a
+       visible save-pause switch. Off for a client pauses the save with a message;
+       it never reroutes to n8n. */
+    function _settingsAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(SETTINGS_EF_FLAG_KEY, clientOrSlug, set => _settingsSetEfClients(set), 'Saving caption prompts');
+    }
+    function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
         const url = _calUpsertUrlForClient(clientOrSlug);
         return fetch(url, {
@@ -3017,6 +3124,18 @@
             headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
         });
+    }
+    async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
+        await _calAssertSavingOn(clientOrSlug);
+        return fetch(CALENDAR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _calUpsertHeaders(source, CALENDAR_UPSERT_EF_URL),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _calUpsertFetch(clientOrSlug, payload, source) {
+        if (_isClientLink) return _calUpsertFetchClientLink(clientOrSlug, payload, source);
+        return _calUpsertFetchGuarded(clientOrSlug, payload, source);
     }
     /* Read-only freshness check used to recover from the specific self-conflict
        where `production_native_calendar_status_project` (2026-09-18) has
@@ -3074,6 +3193,15 @@
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _calUpsertFetch(clientOrSlug, payload, source);
         }
+        /* A staff retry pinned to `supabase` is held like any other save when
+           saving is paused. Only a pinned `webhook` repair still replays to
+           its pinned writer (its completion check reads from the same pinned
+           source), and only until the on-load migration resolves it. A client
+           link keeps today's request untouched (approve and request-changes
+           carve-out). */
+        if (!_isClientLink && transport === 'supabase') {
+            return _calUpsertFetchGuarded(clientOrSlug, payload, source);
+        }
         const url = transport === 'supabase' ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
         return fetch(url, {
             method: 'POST',
@@ -3100,7 +3228,7 @@
             _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
             _settingsSetFlagValue({ clients: [] });
-            console.warn('[Settings] settings EF flag read failed; using n8n fallback', e);
+            console.warn('[Settings] settings EF flag read failed; caption saves stay held until a fresh read succeeds', e);
         }
     }
     async function _settingsSubscribeFlag() {
@@ -3125,15 +3253,6 @@
             _settingsSetFlagPromise(_settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null));
         }
         return _settingsFlagPromise;
-    }
-    function _settingsUseEf(clientOrSlug) {
-        let slug = '';
-        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        return !!slug && _settingsEfClients.has(slug);
-    }
-    function _settingsWriteUrlForClient(clientOrSlug, efUrl, n8nUrl) {
-        _settingsPrimeRoutingFlag();
-        return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
     }
     function _settingsWriteHeaders(source, url) {
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' }, url);
@@ -4583,6 +4702,14 @@
                     if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
                     return true;
                 } catch (e) {
+                    /* n8n exit, PR 2: the shared save guard refused this write
+                       (saving paused for this client, or its switch could not be
+                       read after its own retries). Retrying here changes nothing
+                       and swallowing it made the toggle look saved, so say so. */
+                    if (e && (e.calWritePaused || e.calWriteHeld)) {
+                        try { showToast(e.calWritePaused ? e.message : 'Setting not saved to the server yet. ' + e.message); } catch (err) {}
+                        return false;
+                    }
                     if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
                     // Every attempt failed. localStorage keeps the optimistic value
                     // for now; it will reconcile to the backend once the trust window
@@ -7423,6 +7550,58 @@
         const json = await resp.json();
         return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
     }
+    /* MIGRATION ON LOAD (n8n exit, PR 2): a staff browser that returns after
+       the change still holds repairs pinned to the n8n writer, whose completion
+       check reads the same pinned source. Zero n8n traffic does not prove those
+       have drained (a browser not opened that week makes no calls and still
+       holds one), so the pin is resolved by code, not by counting traffic.
+
+       For each Calendar gate pinned `webhook`: verify it against Supabase first
+       (read-only, on a copy). If that read cannot answer, leave the pin alone
+       and try again on the next resume. Otherwise flip `source_transport` to
+       `supabase` in ONE locked write of the whole queue. The writer
+       (`_writeUiLegacyPinnedSourceTransport`) and the verification source
+       (`_writeUiLegacySourceRows`) both read that single field, so they can
+       only ever move together; the queue is written by one setItem, so there is
+       no moment where one has moved and the other has not. The normal drain
+       then completes or resolves the repair against Supabase.
+
+       A gate that has a committed-tweak ledger row is left pinned: the ledger
+       compares gate signatures, which include the transport, so moving only one
+       side could break that match. Client links are not touched at all
+       (approve and request-changes carve-out). Samples gates are PR 4's. */
+    async function _writeUiMigratePinnedCalendarGates() {
+        const result = { migrated: 0, kept: 0 };
+        if (_isClientLink) return result;
+        const isPinned = row => !!(row && row.source_gate
+            && row.source_gate.source_transport === 'webhook' && row.source_gate.surface !== 'sxr');
+        const pinned = _writeUiLegacyRawOutboxRows('calendar').filter(isPinned);
+        for (const candidate of pinned) {
+            try {
+                const gate = candidate.source_gate;
+                const ledgerKey = _writeUiLegacyTweakKey('calendar', gate);
+                if (_writeUiLegacyCommittedTweakRead().some(row => row && String(row.key || '') === ledgerKey)) {
+                    result.kept++; continue;
+                }
+                const probe = JSON.parse(JSON.stringify(candidate));
+                probe.source_gate.source_transport = 'supabase';
+                const state = await _writeUiLegacySourceGateState(probe, 1);
+                if (state === 'unknown' || state === 'principal_mismatch') { result.kept++; continue; }
+                const moved = await _writeUiLegacyOutboxWithLock('calendar', () => {
+                    const rows = _writeUiLegacyRawOutboxRows('calendar');
+                    let touched = false;
+                    const next = rows.map(row => {
+                        if (!row || String(row.id || '') !== String(candidate.id || '') || !isPinned(row)) return row;
+                        touched = true;
+                        return Object.assign({}, row, { source_gate: Object.assign({}, row.source_gate, { source_transport: 'supabase' }) });
+                    });
+                    return touched ? _writeUiLegacyOutboxWrite('calendar', next) : false;
+                });
+                if (moved) result.migrated++; else result.kept++;
+            } catch (e) { result.kept++; }
+        }
+        return result;
+    }
     async function _writeUiLegacySourceGateState(item, attempts) {
         const gate = item && item.source_gate;
         if (!gate) return 'committed';
@@ -7687,7 +7866,10 @@
             client_slug: String(slug || ''),
             source_transport: surface === 'sxr'
                 ? (_sxrSampleUseEf(slug) ? 'supabase' : 'webhook')
-                : (_calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
+                /* Calendar (n8n exit, PR 2): a staff browser never pins a NEW
+                   repair to the n8n writer. A client link keeps today's choice
+                   (approve and request-changes carve-out). */
+                : (!_isClientLink || _calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
             post_id: String(post && post.id || ''),
             component: String(comp || ''),
             comment_id: String(comment && comment.id || ''),
@@ -9834,19 +10016,15 @@
         return { done, failed, retried, missingAfterRetry };
     }
     async function _calFetchPostsForVerify() {
-        // Verify against the active write target. Unflagged clients still write
-        // n8n/Sheets, so calendar-get is the right confirmation source. EF
-        // clients write directly to calendar_posts, so reading the Sheet would
-        // false-fail and re-send rows that already landed.
+        // Verify against the write target. Every Calendar save goes to
+        // calendar_posts through the Edge Functions (n8n exit, PR 2), so the
+        // confirmation read is always Supabase. The Sheet read this used to do
+        // for a client not on the function route would false-fail and re-send
+        // rows that already landed.
         try {
             const slug = calClientSlug(calState.client);
-            if (_calUpsertUseEf(slug)) {
-                const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
-                return await _calSupabaseFetchAllRows(baseUrl);
-            }
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            const json = await resp.json();
-            return json.ok ? (json.posts || []) : null;
+            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
+            return await _calSupabaseFetchAllRows(baseUrl);
         } catch (e) {
             console.warn('[Calendar] import verification read failed', e);
             return null;
@@ -11963,6 +12141,10 @@
                         <button class="cal-kebab-item cal-kebab-import-toggle" id="calImportToggle" type="button" onclick="_calToggleImportActions(event)" aria-expanded="false" aria-controls="calImportPanel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
                         <div class="cal-kebab-import-panel" id="calImportPanel">
                             <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
+                        </div>
+                        <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
+                            <div class="cal-kebab-sep" role="separator"></div>
+                            <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_arxOpen('cal')" title="See recently archived cards and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived cards</button>
                         </div>
                     </div>
                 </div>`
@@ -18448,19 +18630,48 @@
        SyncView Calendar Sheet. The Edit caption prompt modal in
        the per-card kebab edits that tab via caption-prompts-save.
        ============================================================ */
+    /* n8n exit, PR 3: the prompts are read from the caption_prompts table, the
+       one source (it already holds every prompt the n8n Sheet held). The read is
+       a plain REST read: never a cache-buster (PostgREST answers 400 to any
+       parameter it does not know), freshness comes from cache: 'no-store'.
+
+       An ERROR-ONLY fallback keeps a failed read from making Generate send an
+       empty prompt (which would use the generic default, not the client's
+       stored one): first a last-known-good copy kept in this browser, and only
+       when that is empty the n8n caption-prompts-get webhook, which stays as the
+       reachable first-load fallback until a durable server copy exists. */
+    const CAL_CAPTION_PROMPTS_LKG_KEY = 'syncview_caption_prompts_lkg_v1';
+    const CAL_CAPTION_PROMPTS_READ_MS = 6000;
     async function _calLoadCaptionPromptsFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
         const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
-        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const rows = await resp.json();
+        /* Bounded: a request that connects and then never answers must not leave the
+           in-flight load pending forever, or the saved-copy and n8n fallbacks are never
+           reached and every Generate in the tab waits. The abort covers the body too. */
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), CAL_CAPTION_PROMPTS_READ_MS) : null;
+        let rows;
+        try {
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        } finally { if (timer) clearTimeout(timer); }
+        if (!Array.isArray(rows)) throw new Error('caption_prompts: unexpected payload');
         const prompts = {};
-        (Array.isArray(rows) ? rows : []).forEach(row => {
+        rows.forEach(row => {
             const slug = String((row && row.client_slug) || '').trim();
-            if (!slug || !_settingsUseEf(slug)) return;
             if (slug) prompts[slug] = String(row.prompt || '');
         });
         return prompts;
+    }
+    function _calCaptionPromptsLkgRead() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(CAL_CAPTION_PROMPTS_LKG_KEY) || 'null');
+            return raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length ? raw : null;
+        } catch (e) { return null; }
+    }
+    function _calCaptionPromptsLkgWrite(prompts) {
+        try { if (prompts && Object.keys(prompts).length) localStorage.setItem(CAL_CAPTION_PROMPTS_LKG_KEY, JSON.stringify(prompts)); } catch (e) {}
     }
     async function _calLoadCaptionPromptsFromN8n() {
         const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
@@ -18473,17 +18684,19 @@
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
         _calSetCaptionPromptsInFlight((async () => {
             try {
-                const basePrompts = await _calLoadCaptionPromptsFromN8n();
-                _calSetCaptionPrompts(basePrompts);
+                let prompts = null;
                 try {
-                    await _settingsPrimeRoutingFlag();
-                    if (_settingsEfClients.size) {
-                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
-                        _calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));
+                    prompts = await _calLoadCaptionPromptsFromSupabase();
+                    _calCaptionPromptsLkgWrite(prompts);
+                } catch (tableError) {
+                    console.warn('[Calendar] caption_prompts read failed; using the last saved copy', tableError);
+                    prompts = _calCaptionPromptsLkgRead();
+                    if (!prompts) {
+                        console.warn('[Calendar] no saved copy either; asking n8n caption-prompts-get once');
+                        prompts = await _calLoadCaptionPromptsFromN8n();
                     }
-                } catch (supaError) {
-                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
+                _calSetCaptionPrompts(prompts);
                 _calSetCaptionPromptsLoaded(true);
             } catch (e) {
                 console.warn('[Calendar] caption prompts load failed', e);
@@ -18698,6 +18911,12 @@
         // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
         // above so a client switch during this await can't mis-target the job.
         if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
+        // Every source failed: sending now would silently use the generic default
+        // prompt instead of this client's own, so stop and say so.
+        if (!_calCaptionPromptsLoaded) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Could not load this client\u2019s caption prompt. Try again in a moment.');
+            return { ok: false, error: 'Caption prompt unavailable', skipped: true };
+        }
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
@@ -19160,15 +19379,24 @@
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
-                method: 'POST',
-                headers: _settingsWriteHeaders('caption-prompts', writeUrl),
-                body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
-            }), { requireOk: true });
+            // n8n exit, PR 3: the function only, after a fresh, bounded read of
+            // settings_ef_clients. An unreadable flag holds the save, an unlisted client
+            // pauses it with a message; neither ever reroutes to n8n. The read sits inside
+            // the tracked send so a paused or held save is recorded in the failed-saves
+            // log like any other refusal.
+            const writeUrl = CAPTION_PROMPTS_SAVE_EF_URL;
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), async () => {
+                await _settingsAssertSavingOn(client);
+                return fetch(writeUrl, {
+                    method: 'POST',
+                    headers: _settingsWriteHeaders('caption-prompts', writeUrl),
+                    body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
+                });
+            }, { requireOk: true });
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
             _calCaptionPrompts[calClientSlug(client)] = promptText;
+            _calCaptionPromptsLkgWrite(_calCaptionPrompts);
             _calCloseCaptionPromptModal();
             showNotify('Saved', promptText
                 ? 'Custom caption prompt saved for ' + client + '.'
@@ -19406,25 +19634,6 @@
         _calRecordReorderOptimistic(items);
         persistCalReorder(items, snapshot, slug);
     }
-    async function _calPersistReorderViaN8n(slug, items) {
-        let json = null;
-        try {
-            const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            json = await resp.json();
-        } catch (e) { json = null; }
-        if (!json || !json.ok) {
-            const resp = await fetch(CALENDAR_REORDER_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            json = await resp.json();
-        }
-        return json;
-    }
-
     async function persistCalReorder(items, prevOrder, slug) {
         // Pin the destination client at call time. Read live (post-await) it
         // could resolve to a different client if the user switched tabs while a
@@ -19445,25 +19654,21 @@
         // feedback, and the per-card optimistic move is the live confirmation.)
         _calSetLastLocalWriteAt(Date.now());
         try {
-            // Edge Function for flagged clients. Once a client is on the EF
-            // route, fail closed: an auth denial/outage must never downgrade
-            // into the unauthenticated legacy n8n writer. Unflagged clients
-            // retain the existing batched-n8n path until their own migration.
-            let json = null;
-            if (_calUpsertUseEf(slug)) {
-                const url = _calReorderUrlForClient(slug);
-                const resp = await fetch(url, {
-                    method: 'POST', headers: _calUpsertHeaders('ui', url),
-                    body: JSON.stringify({ client: slug, items })
-                });
-                json = await resp.json().catch(() => null);
-                if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
-                    throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
-                }
-            } else {
-                json = await _calPersistReorderViaN8n(slug, items);
+            // Edge Function only (n8n exit, PR 2). The same fresh, bounded
+            // flag read as every other Calendar write runs first: a flag that
+            // cannot be read holds the reorder, a client the flag does not
+            // list is refused with a message, and neither ever reroutes to the
+            // unauthenticated legacy n8n writer.
+            await _calAssertSavingOn(slug);
+            const url = CALENDAR_REORDER_EF_URL;
+            const resp = await fetch(url, {
+                method: 'POST', headers: _calUpsertHeaders('ui', url),
+                body: JSON.stringify({ client: slug, items })
+            });
+            const json = await resp.json().catch(() => null);
+            if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
+                throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
             }
-            if (!json || !json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
             // lands a beat later and must not reload/flicker the strip.
             _calSetLastLocalWriteAt(Date.now());
@@ -19479,7 +19684,8 @@
             // toolbar. Drop the optimistic guard for the ids this write tried to
             // set — but only where a newer drag hasn't already superseded them —
             // so the reverted (server) order is what the next reload adopts.
-            showToast('Couldn’t save the new order — reverted. Try again.');
+            if (e && e.calWritePaused) showToast(e.message);
+            else showToast('Couldn’t save the new order — reverted. Try again.');
             items.forEach(({ id, order_index }) => {
                 const ro = _calReorderOptimistic.get(id);
                 if (ro && ro.order_index === Number(order_index)) _calReorderOptimistic.delete(id);
@@ -20385,6 +20591,451 @@
             if (document.visibilityState === 'visible' && _crqMine().length) _calCrqResend();
         });
         setTimeout(() => _crqResumeWhenLoaded(0), 1500);
+    }
+/* ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples).
+   Plan: docs/plans/2026-09-29-calendar-unarchive.md. Mock-up:
+   docs/syncview-design/mockups/calendar-unarchive/.
+
+   Restore puts a card (or sample) back exactly as it was. The card's own row is
+   written through the SAME route archive uses (calendar-upsert, or
+   sample-review-upsert), with the same minimal body, and each linked work item
+   goes back to the exact status it had, through the guarded production-write
+   status operation with expected values. This file never writes a table
+   directly, never touches the client approve or request-changes paths, and
+   never edits the frozen writers. Reads are the same public-key REST reads the
+   Calendar and Production already make. */
+    const ARX_WINDOW_DAYS = [30, 60, 90];
+    const ARX_PAGE = 25;
+    const ARX_KIND = {
+        cal: { noun: 'card', nouns: 'cards', title: 'Archived cards', where: 'the Calendar', table: 'calendar_posts', eventTable: 'calendar_post_events', eventKey: 'post_id', surface: 'calendar', second: 'Graphic' },
+        sxr: { noun: 'sample', nouns: 'samples', title: 'Archived samples', where: 'Sample reviews', table: 'sample_reviews', eventTable: 'sample_review_events', eventKey: 'sample_id', surface: 'sxr', second: 'Thumbnail' }
+    };
+    /* Native work item statuses. A finished item stays as it is; everything a
+       restore moves is put back to the exact status the archive parked it from. */
+    const ARX_FINISHED = ['approved', 'scheduled', 'posted', 'canceled', 'duplicate'];
+    const ARX_STATUS_LABEL = {
+        backlog: 'Backlog', todo: 'To do', in_progress: 'In progress', smm_approval: 'SMM approval',
+        kasper_approval: 'Kasper approval', client_approval: 'Client approval', tweak: 'Tweaks',
+        approved: 'Approved', scheduled: 'Scheduled', posted: 'Posted', canceled: 'Canceled',
+        duplicate: 'Duplicate', triage: 'Triage'
+    };
+    const arxState = { open: false, kind: '', slug: '', rows: [], events: {}, floorIdx: 0, cursor: null, hasMore: false, canWiden: false, loading: false, error: '', busy: false, seq: 0 };
+
+    function _arxLabel(status) {
+        const s = String(status || '').trim().toLowerCase();
+        return ARX_STATUS_LABEL[s] || (s ? s.replace(/_/g, ' ') : 'unknown');
+    }
+    function _arxIsFinished(status) { return ARX_FINISHED.indexOf(String(status || '').trim().toLowerCase()) >= 0; }
+    function _arxEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+    function _arxNameOf(post) { return String(post && (post.name || post.title) || '').trim() || 'Untitled'; }
+
+    /* Who may see and use restore: admin and SMM seats with a verified staff
+       identity, never a client link, never a creative seat (Decision D6). */
+    function _arxCan() {
+        if (_isClientLink) return false;
+        try { if (!_syncviewStaffIdentityValid()) return false; } catch (e) { return false; }
+        try { return _syncviewStaffCan('restore-archived') === true; } catch (e) { return false; }
+    }
+
+    /* ── Paging: newest first, a cursor (the last row shown), never a wider limit ── */
+    function _arxFloorIso(nowMs, days) { return new Date(nowMs - days * 86400000).toISOString(); }
+    function _arxListQuery(kind, slug, floorIso, cursor) {
+        const k = ARX_KIND[kind];
+        const enc = encodeURIComponent;
+        let q = k.table + '?select=*&client=eq.' + enc(slug) + '&status=eq.Archived&updated_at=gte.' + enc(floorIso)
+            + '&order=updated_at.desc,id.desc&limit=' + (ARX_PAGE + 1);
+        if (cursor && cursor.updated_at) {
+            q += '&or=(updated_at.lt.' + enc(cursor.updated_at) + ',and(updated_at.eq.' + enc(cursor.updated_at) + ',id.lt.' + enc(cursor.id) + '))';
+        }
+        return q;
+    }
+    /* One "show older" step over an injected page reader (fetchPage(floorIdx, cursor)
+       -> rows, at most ARX_PAGE + 1). state.skipEmpty: keep looking back over empty
+       windows (a Show older click), otherwise stop at the first window. Returns { rows, cursor, floorIdx, hasMore, canWiden }.
+       When the current window is used up it moves the floor back (30, 60, 90 days)
+       and keeps the same cursor, so no row is skipped or repeated. */
+    async function _arxNextPage(state, fetchPage) {
+        let floorIdx = state.floorIdx || 0;
+        let cursor = state.cursor || null;
+        let out = [];
+        for (let guard = 0; guard < ARX_WINDOW_DAYS.length + 1; guard++) {
+            const got = await fetchPage(floorIdx, cursor);
+            const more = got.length > ARX_PAGE;
+            out = got.slice(0, ARX_PAGE);
+            if (out.length) cursor = { updated_at: out[out.length - 1].updated_at, id: out[out.length - 1].id };
+            if (more) return { rows: out, cursor, floorIdx, hasMore: true, canWiden: false };
+            if (floorIdx >= ARX_WINDOW_DAYS.length - 1) return { rows: out, cursor, floorIdx, hasMore: false, canWiden: false };
+            /* The first look stops at the first window and offers Show older; a
+               Show older click keeps looking back until it finds something. */
+            if (out.length || !state.skipEmpty) return { rows: out, cursor, floorIdx, hasMore: false, canWiden: true };
+            floorIdx += 1;
+        }
+        return { rows: out, cursor, floorIdx, hasMore: false, canWiden: false };
+    }
+
+    /* ── The work item rules (plan 3.4). First rule that fits wins. ── */
+    /* item: { current: {status, updated_at}|null, events: [{ts, to_status, from_status, payload}] }
+       archivedAtMs: when the card was archived. surface: 'calendar' | 'sxr'. */
+    function _arxWorkItemPlan(item, archivedAtMs, surface) {
+        const cur = item && item.current;
+        if (!cur || !cur.status) return { action: 'left', reason: 'unreadable', text: 'left alone, it could not be read' };
+        const status = String(cur.status).toLowerCase();
+        if (_arxIsFinished(status)) return { action: 'stay', text: 'stays ' + _arxLabel(status) };
+        if (status !== 'backlog') return { action: 'left', reason: 'moved', text: 'left alone, it moved since' };
+        const events = (item.events || []).filter(e => String(e.to_status || '').toLowerCase() === 'backlog')
+            .sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts));
+        const latest = events[0];
+        if (!latest) return { action: 'to', target: 'todo', reason: 'no_record', text: 'to ' + _arxLabel('todo') };
+        const pl = latest.payload && typeof latest.payload === 'object' ? latest.payload : {};
+        const own = String(pl.surface || '').toLowerCase() === surface && Date.parse(latest.ts) >= (archivedAtMs || 0) - 60000;
+        if (!own) return { action: 'left', reason: 'moved', text: 'left alone, it moved since' };
+        const from = String(latest.from_status || '').toLowerCase();
+        if (!from || from === 'backlog' || from === 'triage') return { action: 'to', target: 'todo', reason: 'was_backlog', text: 'to ' + _arxLabel('todo') };
+        return { action: 'to', target: from, reason: 'exact', text: 'back to ' + _arxLabel(from) };
+    }
+
+    /* ── Card facts: status, duplicate owner, position ── */
+    function _arxRestoreStatus(kind, post) {
+        let s = '';
+        try { s = kind === 'sxr' ? computeSampleOverallStatus(post) : computeOverallStatus(post); } catch (e) { s = ''; }
+        s = String(s || '').trim();
+        return (!s || s.toLowerCase() === 'archived') ? 'In Progress' : s;
+    }
+    function _arxWorkItemIds(post) {
+        const out = [];
+        [post && post.video_deliverable_id, post && post.graphic_deliverable_id].forEach(v => { const s = String(v || '').trim(); if (s) out.push(s); });
+        return out;
+    }
+    /* A live card that already drives one of this card's work items (or Linear links). */
+    function _arxDuplicateOwner(post, livePosts) {
+        if (!post) return null;
+        const ids = _arxWorkItemIds(post);
+        const links = [post.linear_issue_id, post.graphic_linear_issue_id].map(v => String(v || '').trim()).filter(Boolean);
+        const live = (livePosts || []).filter(p => p && p.id !== post.id && String(p.status || '').toLowerCase() !== 'archived');
+        for (const p of live) {
+            const theirIds = _arxWorkItemIds(p);
+            if (ids.some(i => theirIds.indexOf(i) >= 0)) return p;
+            const theirLinks = [p.linear_issue_id, p.graphic_linear_issue_id].map(v => String(v || '').trim()).filter(Boolean);
+            if (links.some(l => theirLinks.indexOf(l) >= 0)) return p;
+        }
+        return null;
+    }
+    /* Keep the old slot unless a live card holds it; otherwise the end of the list. */
+    function _arxOrderSlot(post, livePosts) {
+        const mine = Number(post && post.order_index);
+        const live = (livePosts || []).filter(p => p && p.id !== post.id);
+        const taken = Number.isFinite(mine) && live.some(p => Number(p.order_index) === mine);
+        if (Number.isFinite(mine) && !taken) return { tie: false, order_index: mine };
+        const max = live.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
+        return { tie: true, order_index: max + 1 };
+    }
+    function _arxWhen(iso, nowMs) {
+        const t = Date.parse(iso);
+        if (!Number.isFinite(t)) return '';
+        const d = Math.max(0, Math.floor(((nowMs || Date.now()) - t) / 86400000));
+        return d === 0 ? 'today' : d === 1 ? '1 day ago' : d + ' days ago';
+    }
+    function _arxRoleWord(role) {
+        const r = String(role || '').toLowerCase();
+        return r === 'admin' ? 'an admin' : (r === 'smm' || r === 'kasper') ? 'an SMM' : r === 'creative' ? 'a creative' : 'unknown';
+    }
+
+    /* ── Reads (public-key REST, read only) ── */
+    function _arxHeaders() { return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }; }
+    async function _arxRest(path) {
+        const resp = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + path, { headers: _arxHeaders(), cache: 'no-store' });
+        if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+        return resp.json();
+    }
+    function _arxListFetch(kind, slug, floorIdx, cursor) {
+        return _arxRest(_arxListQuery(kind, slug, _arxFloorIso(Date.now(), ARX_WINDOW_DAYS[floorIdx]), cursor));
+    }
+    /* Who archived each card and when: best effort, never blocks the list. */
+    async function _arxEventsFetch(kind, slug, ids) {
+        if (!ids.length) return {};
+        const k = ARX_KIND[kind];
+        try {
+            const list = ids.map(i => '"' + String(i).replace(/"/g, '') + '"').join(',');
+            const rows = await _arxRest(k.eventTable + '?select=' + k.eventKey + ',ts,actor,role&client=eq.' + encodeURIComponent(slug)
+                + '&action=eq.archive&' + k.eventKey + '=in.(' + encodeURIComponent(list) + ')&order=ts.desc&limit=' + (ids.length * 3));
+            const out = {};
+            rows.forEach(r => { if (!out[r[k.eventKey]]) out[r[k.eventKey]] = r; });
+            return out;
+        } catch (e) { return {}; }
+    }
+    async function _arxItemRead(nativeId) {
+        const enc = encodeURIComponent(nativeId);
+        const [cur, events] = await Promise.all([
+            _arxRest('production_deliverables_browser_v1?select=id,status,updated_at&id=eq.' + enc + '&limit=1'),
+            _arxRest('deliverable_events?select=ts,action,from_status,to_status,payload&deliverable_id=eq.' + enc + '&action=eq.status_change&order=ts.desc&limit=30')
+        ]);
+        return { current: cur && cur[0] || null, events: events || [] };
+    }
+    async function _arxFreshRow(kind, slug, id) {
+        const k = ARX_KIND[kind];
+        const rows = await _arxRest(k.table + '?select=*&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(id) + '&limit=1');
+        return rows && rows[0] || null;
+    }
+
+    /* ── Dialogs (the app's own confirm look) ── */
+    function _arxDialog(opts) {
+        return new Promise(resolve => {
+            let root = document.getElementById('arxDialog');
+            if (root) root.remove();
+            root = document.createElement('div');
+            root.id = 'arxDialog';
+            root.className = 'confirm-overlay active';
+            root.setAttribute('data-backdrop-dismiss', '');
+            const list = (opts.list || []).map(r => '<li><span class="arx-wi-name">' + _arxEsc(r.name) + '</span><span class="arx-wi-to is-' + _arxEsc(r.kind || 'stay') + '">' + _arxEsc(r.text) + '</span></li>').join('');
+            root.innerHTML = '<div class="confirm-box arx-confirm" role="dialog" aria-modal="true" aria-labelledby="arxDialogTitle">'
+                + '<div class="confirm-box-title" id="arxDialogTitle">' + _arxEsc(opts.title) + '</div>'
+                + '<div class="confirm-box-msg">' + _arxEsc(opts.msg || '') + '</div>'
+                + (list ? '<ul class="arx-wi">' + list + '</ul>' : '')
+                + (opts.note ? '<div class="arx-note">' + _arxEsc(opts.note) + '</div>' : '')
+                + '<div class="confirm-box-actions">' + (opts.cancel === false ? '' : '<button type="button" class="brief-action-btn" data-arx="no">Cancel</button>')
+                + '<button type="button" class="brief-action-btn primary" data-arx="yes">' + _arxEsc(opts.yes || 'OK') + '</button></div></div>';
+            const done = v => { document.removeEventListener('keydown', onKey, true); root.remove(); resolve(v); };
+            const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+            root.addEventListener('click', e => {
+                const a = e.target && e.target.getAttribute && e.target.getAttribute('data-arx');
+                if (a === 'yes') done(true); else if (a === 'no' || (e.target === root && root._backdropPressBegan)) done(false);
+            });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(root);
+            const yes = root.querySelector('[data-arx="yes"]');
+            if (yes) yes.focus();
+        });
+    }
+
+    /* ── The list modal ── */
+    function _arxSlug(kind) { return kind === 'sxr' ? sxrClientSlug(sxrState.client) : calClientSlug(calState.client); }
+    function _arxLive(kind) { return (kind === 'sxr' ? sxrState.posts : calState.posts) || []; }
+
+    function _arxOpen(kind) {
+        if (!_arxCan()) return;
+        arxState.open = true; arxState.kind = kind; arxState.slug = _arxSlug(kind); arxState.rows = []; arxState.events = {};
+        arxState.floorIdx = 0; arxState.cursor = null; arxState.hasMore = false; arxState.canWiden = false; arxState.error = ''; arxState.busy = false;
+        arxState.seq += 1;
+        document.addEventListener('keydown', _arxKey);
+        _arxRenderModal();
+        _arxLoadMore(true);
+    }
+    function _arxKey(e) {
+        if (e.key === 'Escape' && !document.getElementById('arxDialog')) _arxClose();
+    }
+    function _arxClose() {
+        arxState.open = false;
+        arxState.seq += 1;
+        document.removeEventListener('keydown', _arxKey);
+        const o = document.getElementById('arxOverlay');
+        if (o) o.remove();
+    }
+    async function _arxLoadMore(first) {
+        if (arxState.loading) return;
+        const seq = ++arxState.seq;
+        arxState.loading = true; arxState.error = '';
+        _arxRenderModal();
+        try {
+            const kind = arxState.kind, slug = arxState.slug;
+            let start = { floorIdx: arxState.floorIdx, cursor: arxState.cursor, skipEmpty: !first };
+            /* "Show older" after a used-up window moves the floor back first. */
+            if (!first && arxState.canWiden) start = { floorIdx: Math.min(arxState.floorIdx + 1, ARX_WINDOW_DAYS.length - 1), cursor: arxState.cursor, skipEmpty: true };
+            const page = await _arxNextPage(start, (fi, cur) => _arxListFetch(kind, slug, fi, cur));
+            if (seq !== arxState.seq) return;
+            const ev = await _arxEventsFetch(kind, slug, page.rows.map(r => r.id));
+            if (seq !== arxState.seq) return;
+            arxState.rows = arxState.rows.concat(page.rows);
+            Object.assign(arxState.events, ev);
+            arxState.floorIdx = page.floorIdx; arxState.cursor = page.cursor;
+            arxState.hasMore = page.hasMore; arxState.canWiden = page.canWiden;
+        } catch (e) {
+            if (seq !== arxState.seq) return;
+            console.warn('[Archived] list read failed', e);
+            arxState.error = 'read';
+        } finally {
+            if (seq === arxState.seq) arxState.loading = false;
+            _arxRenderModal();
+        }
+    }
+    function _arxPills(kind, r) {
+        const comps = kind === 'sxr' ? [['Video', 'video_status'], ['Thumbnail', 'graphic_status']] : [['Video', 'video_status'], ['Graphic', 'graphic_status'], ['Caption', 'caption_status']];
+        return comps.map(([label, key]) => {
+            const st = String(r[key] || 'In Progress');
+            return '<span class="arx-pill cal-status-' + _arxEsc(st.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')) + '"><b>' + label + '</b> ' + _arxEsc(st) + '</span>';
+        }).join('');
+    }
+    function _arxRenderModal() {
+        const kind = arxState.kind; const k = ARX_KIND[kind];
+        if (!k || !arxState.open) return;
+        let o = document.getElementById('arxOverlay');
+        if (!o) {
+            o = document.createElement('div');
+            o.id = 'arxOverlay';
+            o.className = 'cal-prompt-overlay open';
+            o.setAttribute('data-backdrop-dismiss', '');
+            o.addEventListener('click', e => {
+                if (e.target === o) { if (o._backdropPressBegan) _arxClose(); return; }
+                const btn = e.target.closest && e.target.closest('[data-arx-act]');
+                if (!btn) return;
+                const act = btn.getAttribute('data-arx-act');
+                if (act === 'close') _arxClose();
+                else if (act === 'more') _arxLoadMore(false);
+                else if (act === 'retry') _arxLoadMore(arxState.rows.length === 0);
+                else if (act === 'restore') _arxRestore(kind, btn.getAttribute('data-id'));
+            });
+            document.body.appendChild(o);
+        }
+        const days = ARX_WINDOW_DAYS[arxState.floorIdx];
+        let body;
+        if (arxState.error && !arxState.rows.length) {
+            body = '<div class="arx-error"><div class="arx-error-t">Couldn\'t load archived ' + k.nouns + '.</div><div class="arx-error-s">Nothing was changed. Check your connection and try again.</div><button class="cal-prompt-btn" type="button" data-arx-act="retry">Try again</button></div>';
+        } else if (!arxState.rows.length && !arxState.loading) {
+            body = '<div class="arx-empty"><div class="arx-empty-t">Nothing archived in the last ' + days + ' days.</div><div class="arx-empty-s">Older ' + k.nouns + ' are still kept. Use Show older to look further back, up to 90 days.</div></div>';
+        } else if (!arxState.rows.length) {
+            body = '<div class="arx-empty"><div class="arx-empty-s">Loading…</div></div>';
+        } else {
+            body = arxState.rows.map(r => {
+                const e = arxState.events[r.id];
+                const when = _arxWhen(e ? e.ts : r.updated_at);
+                const by = e ? _arxRoleWord(e.role) : 'unknown';
+                const date = kind === 'cal' && r.scheduled_date ? 'Scheduled ' + String(r.scheduled_date).slice(0, 10) : '';
+                return '<div class="arx-row"><div class="arx-row-main"><div class="arx-row-name">' + _arxEsc(_arxNameOf(r)) + '</div>'
+                    + '<div class="arx-row-meta">' + _arxEsc([date, 'Archived ' + when + ' by ' + by].filter(Boolean).join(' · ')) + '</div>'
+                    + '<div class="arx-pills">' + _arxPills(kind, r) + '</div></div>'
+                    + '<button class="cal-prompt-btn is-primary" type="button" data-arx-act="restore" data-id="' + _arxEsc(r.id) + '"' + (arxState.busy ? ' disabled' : '') + '>Restore</button></div>';
+            }).join('') + (arxState.error ? '<div class="arx-error-s">Couldn\'t load more. <button class="cal-prompt-btn" type="button" data-arx-act="retry">Try again</button></div>' : '');
+        }
+        const more = (arxState.hasMore || arxState.canWiden) ? '<button class="cal-prompt-btn" type="button" data-arx-act="more"' + (arxState.loading ? ' disabled' : '') + '>Show older</button>' : '';
+        o.innerHTML = '<div class="cal-prompt-modal arx-modal" role="dialog" aria-modal="true" aria-labelledby="arxTitle">'
+            + '<div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3 id="arxTitle">' + k.title + '</h3><p>Restore puts ' + (kind === 'sxr' ? 'a sample' : 'a card') + ' back exactly as it was. Only admins and SMMs see this.</p></div>'
+            + '<button class="cal-prompt-close" type="button" data-arx-act="close" aria-label="Close">&times;</button></div>'
+            + '<div class="cal-prompt-body">' + body + '</div>'
+            + '<div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last ' + days + ' days, newest first.</span></div><div class="cal-prompt-foot-right">' + more + '</div></div></div>';
+    }
+
+    /* ── Restore ── */
+    async function _arxGatewayMove(kind, post, component, target, item) {
+        const k = ARX_KIND[kind];
+        const nativeId = _writeUiNativeId(post, component);
+        const body = {
+            operation: 'status', surface: k.surface, entity: 'deliverable', id: nativeId, status: target,
+            request_id: 'restore:' + nativeId + ':' + target + ':' + String(item.current.updated_at || '').replace(/[^0-9A-Za-z]/g, ''),
+            source_edited_at: new Date().toISOString(),
+            expected_status: 'backlog', expected_updated_at: item.current.updated_at
+        };
+        const url = WRITE_UI_PRODUCTION_WRITE_URL;
+        const resp = await fetch(url, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json', 'Content-Type': 'application/json', 'X-Syncview-Source': k.surface }, url),
+            body: JSON.stringify(body)
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (resp.ok && json && json.ok === true) return json;
+        const err = new Error((json && (json.error || json.code)) || ('HTTP ' + resp.status));
+        err.status = resp.status; err.code = String(json && (json.error || json.code) || '');
+        throw err;
+    }
+    function _arxFail(kind, error, extra) {
+        try { _writeUiRecordFailure(ARX_KIND[kind].surface, 'status', error, Object.assign({ kind: 'restore' }, extra || {})); } catch (e) {}
+    }
+    async function _arxRestore(kind, id) {
+        if (arxState.busy || !_arxCan()) return;
+        const k = ARX_KIND[kind];
+        const slug = arxState.slug;
+        const row = arxState.rows.find(r => r.id === id);
+        if (!row) return;
+        arxState.busy = true; _arxRenderModal();
+        try {
+            /* 1. Fresh read: someone else may have restored it already. */
+            let fresh;
+            try { fresh = await _arxFreshRow(kind, slug, id); }
+            catch (e) { await _arxDialog({ title: 'Couldn\'t check this ' + k.noun, msg: 'Nothing was changed. Check your connection and try again.', yes: 'OK', cancel: false }); return; }
+            if (!fresh || String(fresh.status || '').toLowerCase() !== 'archived') {
+                arxState.rows = arxState.rows.filter(r => r.id !== id);
+                await _arxDialog({ title: 'Already restored', msg: '“' + _arxNameOf(row) + '” is no longer archived. Someone else restored it.', yes: 'OK', cancel: false });
+                return;
+            }
+            /* 2. A live card must not drive the same work item (Decision D5). */
+            const owner = _arxDuplicateOwner(fresh, _arxLive(kind));
+            if (owner) {
+                await _arxDialog({ title: 'Can\'t restore this ' + k.noun + ' yet', msg: 'A live ' + k.noun + ', “' + _arxNameOf(owner) + '”, already uses the video work item of “' + _arxNameOf(fresh) + '”. Unlink it there first, then restore this one.', yes: 'OK', cancel: false });
+                return;
+            }
+            /* 3. The status it returns to, and where each work item goes. */
+            const status = _arxRestoreStatus(kind, fresh);
+            const archivedAt = arxState.events[id] ? Date.parse(arxState.events[id].ts) : Date.parse(fresh.updated_at);
+            const items = [];
+            for (const component of ['video', 'graphic']) {
+                const nativeId = _writeUiNativeId(fresh, component);
+                if (!nativeId) continue;
+                let read;
+                try { read = await _arxItemRead(nativeId); } catch (e) { read = { current: null, events: [] }; }
+                const plan = _arxWorkItemPlan(read, archivedAt, k.surface);
+                items.push({ component, name: component === 'video' ? 'Video work item' : k.second + ' work item', read, plan });
+            }
+            const slot = _arxOrderSlot(fresh, _arxLive(kind));
+            const past = kind === 'cal' && fresh.scheduled_date && Date.parse(String(fresh.scheduled_date).slice(0, 10)) < Date.now() - 86400000;
+            const ok = await _arxDialog({
+                title: 'Restore “' + _arxNameOf(fresh) + '”?',
+                msg: 'It goes back to ' + k.where + ' exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be ' + status + '.',
+                list: items.map(i => ({ name: i.name, text: i.plan.text, kind: i.plan.action === 'to' ? 'move' : i.plan.action === 'left' ? 'left' : 'stay' })),
+                note: past ? 'Its scheduled date, ' + String(fresh.scheduled_date).slice(0, 10) + ', has passed. It keeps that date.' : '',
+                yes: 'Restore'
+            });
+            if (!ok) return;
+            /* 4. The card write: the same body archive sends, with a live status. */
+            try {
+                let resp;
+                if (kind === 'sxr') resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id, status, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'ui');
+                else resp = await _calUpsertFetch(slug, { client: slug, post: { id, status } });
+                const json = await resp.json().catch(() => ({}));
+                if (!resp.ok || !json || json.ok === false) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+            } catch (e) {
+                console.warn('[Archived] restore write failed', e);
+                _arxFail(kind, e, { step: 'card' });
+                await _arxDialog({ title: 'Couldn\'t restore this ' + k.noun, msg: (e && e.message ? e.message : 'The write did not go through.') + ' Nothing was changed.', yes: 'OK', cancel: false });
+                return;
+            }
+            if (kind === 'sxr') _sxrArchivedRemove(slug, [id, fresh.linear_issue_id, fresh.graphic_linear_issue_id].filter(Boolean));
+            else _calArchivedRemove(slug, _calRefsForPost(fresh).concat([id]));
+            arxState.rows = arxState.rows.filter(r => r.id !== id);
+            /* 5. Position: only when a live card holds the old slot. */
+            if (slot.tie) {
+                try {
+                    const items2 = [{ id, order_index: slot.order_index }];
+                    if (kind === 'sxr') await _sxrReorderFetch(slug, { client: slug, items: items2 }, 'ui');
+                    else {
+                        /* n8n exit, PR 2: the same fresh, bounded flag read as every
+                           Calendar write, then the function only. A paused or held
+                           write throws into the catch below; nothing goes to n8n. */
+                        await _calAssertSavingOn(slug);
+                        await fetch(CALENDAR_REORDER_EF_URL, { method: 'POST', headers: _calUpsertHeaders('ui', CALENDAR_REORDER_EF_URL), body: JSON.stringify({ client: slug, items: items2 }) });
+                    }
+                } catch (e) { console.warn('[Archived] restore position write failed', e); _arxFail(kind, e, { step: 'order' }); }
+            }
+            /* 6. Work items, now that the card is live. A failed move never undoes the card. */
+            const lines = [];
+            for (const i of items) {
+                if (i.plan.action !== 'to') { lines.push({ name: i.name, text: i.plan.text, kind: i.plan.action === 'left' ? 'left' : 'stay' }); continue; }
+                try {
+                    await _arxGatewayMove(kind, fresh, i.component, i.plan.target, i.read);
+                    lines.push({ name: i.name, text: 'moved ' + i.plan.text, kind: 'move' });
+                } catch (e) {
+                    if (e && (e.status === 409 || /conflict/i.test(e.code || ''))) {
+                        lines.push({ name: i.name, text: 'not moved: someone else changed it first, their change was kept', kind: 'left' });
+                    } else {
+                        _arxFail(kind, e, { step: 'item', component: i.component });
+                        lines.push({ name: i.name, text: 'not moved: ' + (e && e.message ? e.message : 'it could not be saved'), kind: 'left' });
+                    }
+                }
+            }
+            const partial = lines.some(l => /^not moved/.test(l.text));
+            await _arxDialog({ title: partial ? 'Restored, one work item left as it is' : 'Restored', msg: '“' + _arxNameOf(fresh) + '” is back in ' + k.where + '.', list: lines, yes: 'OK', cancel: false });
+            try { if (kind === 'sxr') loadSxrCards({ skipCache: true }); else loadCalendarPosts(); } catch (e) {}
+        } finally {
+            arxState.busy = false;
+            _arxRenderModal();
+        }
     }
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
@@ -25256,4 +25907,4 @@
             return allowed;
         }
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-54d5a613f98f.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-179f9b89666b.js");

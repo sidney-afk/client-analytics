@@ -29861,3 +29861,37 @@ that judge success some other way (a returned count, for example the Workload pl
 exact-one check) record HTTP failures only. The
 public onboarding form is not recorded (visitors are not signed in). A client whose
 Templates save is refused is recorded under a hashed client reference only.
+
+## 291. [2026-09-29] n8n exit PR 3: Calendar caption prompts read from the table, saves behind a pause switch
+
+The Calendar now reads caption prompts from the `caption_prompts` table (26 rows, measured live;
+the URL has only `select` and `order`, checked once against the real database: HTTP 200). A failed
+read falls back to a last-known-good copy kept in the browser, and only when that is empty to the n8n
+`caption-prompts-get` webhook, once. When every source fails the prompts are not marked loaded and
+Generate refuses instead of silently using the generic default prompt. The save goes to the
+`caption-prompts-save` function only, after a fresh, bounded read of `settings_ef_clients` (own read
+per save, two seconds, retried three times): an unreadable or malformed flag holds the save, a flag
+that does not list the client pauses it with a message, neither goes to n8n. The n8n
+`caption-prompts-save` call and constant are removed. Tests: `test/caption-prompts-guard-browser.js`
+(runs in CI job `entry-links-boot`, as do `calendar-write-guard-browser` and the byte-identical client
+approve and request-changes test). `Caption Prompts - Save` (n8n) can be deactivated 30 days after
+this ships; `Caption Prompts - Get` stays as the first-load fallback until a durable server copy exists.
+
+## 292. [2026-09-29] n8n exit PR 4: Sample Review saves and reorders no longer reach n8n for staff
+
+Every staff and Kasper Sample Review save and reorder now goes to `sample-review-upsert` and
+`sample-review-reorder` (functions) only, after a fresh, bounded read of `sample_review_ef_clients`
+(own read per write, two seconds, retried three times, `cache: 'no-store'`, only `select`, `key`,
+`limit`; run once against the real database: HTTP 200, 43 clients). An unreadable or malformed flag
+holds the write; a client the flag does not list is paused with a message; neither goes to n8n.
+`sample-review-upsert` itself stays frozen and ungated. Client approve and request-changes are carved
+out: a write from a client link keeps its routing and request, proven byte for byte
+(`test/samples-client-carveout-byte-identical-browser.js`, golden from main). Staff Samples repairs
+still pinned `webhook` migrate to Supabase on load, writer and verification source together in one
+write (the Calendar migration now covers both surfaces). The n8n `sample-review-reorder` call is gone;
+`sample-review-get` stays as the read fallback. Also fixed: the four urgent-marker writes (two Samples,
+two Calendar) called the function with a bare fetch and skipped the fresh flag read that PR 2 added to
+every other Calendar write; they now use the guarded step. `Sample Review - Upsert` and `Reorder`
+(n8n) can be deactivated 30 days after this ships. The urgent ping now asks the save guard BEFORE the Slack
+message goes out (`preflight`), so a paused or held save cannot leave a delivered ping without its marker
+and allow a duplicate; the marker writes sit inside the failed-saves tracker.

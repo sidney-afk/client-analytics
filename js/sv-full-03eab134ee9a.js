@@ -72,10 +72,12 @@
         });
     }
     // Staff pages served in parts fetch the remaining areas quietly once the
-    // first screen is up, so switching tabs later waits on nothing.
+    // first screen is up, so switching tabs later waits on nothing. A client
+    // link served in parts does not: it has none of those tabs, and an area it
+    // ever did ask for still loads on demand through svArea.
     function _svPrefetchAreas() {
         const lazy = self.__svLoad && self.__svLoad.lazy;
-        if (!lazy) return;
+        if (!lazy || self.__svLoad.client) return;
         for (const name of Object.keys(lazy)) svArea(name).catch(() => {});
     }
     window.addEventListener('load', () => {
@@ -18872,7 +18874,6 @@
         try {
             response = await fetch(url, options);
         } catch (cause) {
-            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), cause, null, {});
             const error = new Error(mutating
                 ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
                 : (timedOut
@@ -18900,7 +18901,6 @@
         if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
         if (!response.ok || !json || json.ok === false) {
             const error = new Error(_ptoApiMessage(json, response.status));
-            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), error, response, {});
             error.status = response.status;
             error.code = json && (json.code || json.error);
             throw error;
@@ -50777,7 +50777,101 @@
            _prodIssueLabel and still gets the real id (Codex P1 on PR 1455). */
         function _prodIssueDisplayLabel(d) {
             if (d && d.syntheticBatchParent === true) return 'Post';
-            return _prodIssueLabel(d);
+            const label = _prodIssueLabel(d);
+            return _prodIsInternalId(label) ? '' : label;
+        }
+        /* An INTERNAL id is a storage key, never a name: bat_<uuid>, del_<uuid>,
+           b1_b_<uuid>, a bare uuid, or a two-team batch node (`bat_...::uuid`).
+           A Linear number such as SYN-123 has no underscore and is not one.
+           Every place a person reads a parent or batch NAME goes through
+           _prodSafeName so a missing name can never fall through to the key
+           (owner report 2026-09-29: "Sub-issue of bat_44ca2350-7bff-..."). */
+        function _prodIsInternalId(value) {
+            const s = String(value == null ? '' : value).trim();
+            if (!s) return false;
+            const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+            /* The WHOLE value must be a key: a prefix match would swallow a real
+               title such as "video_20260929 launch". */
+            return new RegExp('^(?:[a-z][a-z0-9]{0,5}_){1,2}' + uuid + '(?:::' + uuid + ')?$', 'i').test(s)
+                || new RegExp('^' + uuid + '$', 'i').test(s);
+        }
+        function _prodSafeName(value) {
+            const s = String(value == null ? '' : value).trim();
+            return s && !_prodIsInternalId(s) ? s : '';
+        }
+        /* The name a row already carries: its title, else the batch name it
+           was projected from. Empty means "not known yet", never "show the id". */
+        function _prodKnownName(d) {
+            if (!d) return '';
+            return _prodSafeName(d.title) || _prodSafeName(d.batchName)
+                || _prodSafeName(d.raw && d.raw.name) || _prodSafeName(d.raw && d.raw.title);
+        }
+        /* Names fetched on demand for a parent the page has no name for.
+           id -> { state: 'pending' | 'done' | 'failed', name, at }. A failed
+           or timed-out lookup expires so a later render retries it, and a
+           hung request is abandoned after PROD_PARENT_NAME_TIMEOUT_MS: the
+           in-flight marker used to be cleared only when the request settled,
+           so one request that never answered froze the header for the whole
+           session. */
+        const PROD_PARENT_NAME_TIMEOUT_MS = 6000;
+        const PROD_PARENT_NAME_RETRY_MS = 15000;
+        const _prodParentNames = new Map();
+        function _prodParentNameState(id) {
+            const sid = String(id || '');
+            const held = sid ? _prodParentNames.get(sid) : null;
+            if (!held) return null;
+            if (held.state === 'failed' && Date.now() - held.at > PROD_PARENT_NAME_RETRY_MS) {
+                _prodParentNames.delete(sid);
+                return null;
+            }
+            return held;
+        }
+        function _prodEnsureParentName(id, kind) {
+            const sid = String(id || '');
+            if (!sid || _prodParentNameState(sid)) return;
+            const record = { state: 'pending', name: '', at: Date.now() };
+            _prodParentNames.set(sid, record);
+            let settled = false;
+            const finish = (state, name) => {
+                if (settled) return;
+                settled = true;
+                record.state = state;
+                record.name = _prodSafeName(name);
+                record.at = Date.now();
+                if (record.name) record.state = 'done';
+                else if (state === 'done') record.state = 'failed';
+                if (typeof document !== 'undefined' && document.getElementById('prodRoot') && typeof _prodRender === 'function') {
+                    try { _prodRender(); } catch (e) { /* the next render repaints */ }
+                }
+            };
+            const timer = setTimeout(() => finish('failed', ''), PROD_PARENT_NAME_TIMEOUT_MS);
+            const clean = sid.split('::')[0];
+            const read = kind === 'batch'
+                ? _prodRestRows('batches', 'id,name', 'id=eq.' + encodeURIComponent(clean), 1, 1)
+                    .then(rows => rows && rows[0] && rows[0].name)
+                : _prodLoadDeliverableProjection('id=eq.' + encodeURIComponent(clean))
+                    .then(rows => rows && rows[0] && rows[0].title);
+            Promise.resolve(read).then(name => { clearTimeout(timer); finish('done', name); },
+                () => { clearTimeout(timer); finish('failed', ''); });
+        }
+        /* The parent's name as HTML for a header or link: the real name when the
+           page has one, a grey skeleton while a lookup is in flight, and a plain
+           neutral word once the lookup has come back empty. Never an id. */
+        function _prodParentNameHTML(parent, parentId) {
+            const known = _prodKnownName(parent);
+            if (known) return _calEsc(known);
+            const id = String(parent && parent.id || parentId || '');
+            const batchLike = !!(parent && (parent.syntheticBatchParent === true || parent.batchId)) || /^(?:bat|b1_b)_/i.test(id);
+            let looked = _prodParentNameState(id);
+            if (looked && looked.name) return _calEsc(looked.name);
+            if (!looked && id) {
+                _prodEnsureParentName(id, batchLike ? 'batch' : 'deliverable');
+                looked = _prodParentNameState(id);
+            }
+            if (!looked || looked.state === 'pending') {
+                return '<span class="prod-name-skel sv-skeleton" data-prod-parent-skeleton="1" role="img" aria-label="Loading name"></span>';
+            }
+            return batchLike ? 'Untitled post' : 'Untitled issue';
         }
         /* A provider card's identifier is 9 characters; a native card has none
            yet and falls through to the 40-character deliverable id. The cell
@@ -51430,7 +51524,7 @@
             const items = [];
             if (!query) {
                 issues.filter(i => !i.parent).slice(0, 6).forEach(i => {
-                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+                    items.push({ icon: _prodStatusSVG(i.status), title: (_prodKnownName(i) || _prodIssueDisplayLabel(i) || 'Untitled issue'), meta: _prodIssueDisplayLabel(i), go: () => _prodOpenDeliverable(i.id) });
                 });
                 return items.concat(commands);
             }
@@ -51441,7 +51535,7 @@
             };
             commands.forEach(cmd => addScored(cmd, cmd.title, cmd.meta, ''));
             issues.forEach(i => {
-                addScored({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) }, i.title, _prodIssueLabel(i), i.desc);
+                addScored({ icon: _prodStatusSVG(i.status), title: (_prodKnownName(i) || _prodIssueDisplayLabel(i) || 'Untitled issue'), meta: _prodIssueDisplayLabel(i), go: () => _prodOpenDeliverable(i.id) }, i.title, _prodIssueLabel(i), i.desc);
             });
             Object.keys(_prodProjects()).sort((a, b) => fields.client.name(a).localeCompare(fields.client.name(b))).forEach(slug => {
                 const title = fields.client.name(slug);
@@ -52340,7 +52434,7 @@
             }
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
-                label: _prodIssueLabel(issue) + ' · ' + (issue.title || 'Untitled issue')
+                label: (_prodIssueDisplayLabel(issue) ? _prodIssueDisplayLabel(issue) + ' · ' : '') + (_prodKnownName(issue) || 'Untitled issue')
             })));
             const statusItems = PROD_STATUS_ORDER.map(status => {
                 const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
@@ -61168,7 +61262,7 @@
             const favIssues = _prodIssues().filter(d => d.favorite || d.fav);
             const favHTML = favIssues.length
                 ? '<button class="prod-nav-section' + (_prodState.secOpen.fav ? '' : ' collapsed') + '" type="button" data-prod-tip="Favorites" onclick="_prodToggleSection(' + _jsAttrArg('fav') + ')"><span class="prod-section-label">Favorites</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
-                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), d.title || _prodIssueLabel(d), _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
+                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), _prodKnownName(d) || _prodIssueDisplayLabel(d) || 'Untitled issue', _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
                 : '';
             const teamBlock = team => {
                 const open = _prodState.teamOpen[team] !== false;
@@ -61221,7 +61315,7 @@
             const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batchId) : null;
             const parent = d && d.parent ? _prodIssue(d.parent) : null;
             const clientSlug = d ? d.project : batch ? batch.client_slug : '';
-            const title = d ? (d.title || _prodIssueLabel(d)) : batch ? (batch.name || 'Batch') : 'Detail';
+            const title = d ? (_prodKnownName(d) || 'Untitled issue') : batch ? (_prodSafeName(batch.name) || 'Batch') : 'Detail';
             const showParent = !!parent;
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
@@ -61249,7 +61343,7 @@
             }
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
-                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
+                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodParentNameHTML(parent) + '</button>' : '')
                 + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + siblingNav + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
@@ -61705,15 +61799,22 @@
            creation must not be reachable from Production at all, per
            CLAUDE.md's standing rule; only the content calendar creates. */
         function _prodSubIssueContextHTML(d, parent) {
-            if (!parent) return '';
+            /* A parent that is linked but not loaded yet still gets a header,
+               with a skeleton for its name: dropping the header and painting
+               it later moved the whole page down under the reader. */
+            if (!parent && !(d && d.parent)) return '';
+            if (!parent) {
+                return '<div class="prod-detail-context" data-prod-subissue-of="pending"><span>Sub-issue of</span>'
+                    + '<span class="prod-detail-context-link"><b>' + _prodParentNameHTML(null, d.parent) + '</b></span></div>';
+            }
             const progress = _prodSubProgress(parent);
             const projectLabel = _prodDisplayClient(d.project);
-            const parentTitle = (parent.title || _prodIssueLabel(parent));
+            const parentLabel = _prodIssueDisplayLabel(parent);
             const projectContext = _prodAttributionResolved(d)
                 ? '<button class="prod-context-project" type="button" onclick="_prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Open project"><span class="prod-card-ico">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(projectLabel) + '</span></button>' + _prodAttributionChipOnlyHTML(d)
                 : _prodIssueProjectChipHTML(d);
             return '<div class="prod-detail-context" data-prod-subissue-of="' + _calEscAttr(parent.id) + '"><span>Sub-issue of</span>'
-                + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + _calEsc(_prodIssueLabel(parent)) + ' ' + _calEsc(parentTitle) + '</b></button>'
+                + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + (parentLabel ? _calEsc(parentLabel) + ' ' : '') + _prodParentNameHTML(parent) + '</b></button>'
                 + (progress ? '<span class="prod-subchip" data-prod-tip="' + progress.done + ' of ' + progress.total + ' sub-issues done">' + _prodStatusSVG(progress.done === progress.total && progress.total > 0 ? 'approved' : 'todo') + progress.done + '/' + progress.total + '</span>' : '')
                 + '<span class="prod-spacer"></span>' + projectContext + '</div>';
         }
@@ -62172,7 +62273,7 @@
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodRowOverdue(d) ? 'dueover' : '')
                 + sideRow(_prodLabelsButtonHTML(d))
                 + '</div>'
-                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
+                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _prodParentNameHTML(parent) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row">' + _prodAttributionProjectControlHTML(d) + '</div></div>'
                 + _prodSmmCardHTML(d)
                 + '</div>';
@@ -81312,4 +81413,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-37d9483c4e29.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-03eab134ee9a.js");

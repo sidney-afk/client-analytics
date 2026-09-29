@@ -1,6 +1,6 @@
 'use strict';
 /*
- * n8n exit, PR 2: every staff Calendar write, reorder and confirmation read goes
+ * n8n exit, PR 4: every staff Sample Review write and reorder goes
  * to the Supabase functions and NEVER to n8n, behind a fresh, bounded flag read.
  *
  * Fully mocked (no live backend). Every request to n8n.cloud is recorded and
@@ -64,8 +64,8 @@ function ok(cond, msg) {
   const state = {
     flag: 'list',            // list | empty | http500 | hang | malformed | absent
     flagReads: 0,
-    efWrites: [],            // calendar-upsert POSTs
-    efReorders: [],          // calendar-reorder POSTs
+    efWrites: [],            // sample-review-upsert POSTs
+    efReorders: [],          // sample-review-reorder POSTs
     n8n: [],                 // every request to n8n.cloud, boot included
     calendarGets: 0,
     armed: false,
@@ -83,7 +83,6 @@ function ok(cond, msg) {
       if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
       if (/n8n\.cloud$/.test(url.hostname)) {
         state.n8n.push(method + ' ' + url.pathname);
-        if (url.pathname === '/webhook/calendar-get') state.calendarGets++;
         return json(route, { ok: true, posts: [] });
       }
       if (url.pathname === '/rest/v1/syncview_runtime_flags' && method === 'GET') {
@@ -91,7 +90,7 @@ function ok(cond, msg) {
         const keys = raw.startsWith('in.(') ? raw.slice(4, -1).split(',') : [raw.replace(/^eq\./, '')];
         // Boot reads happen before any window is armed; inside a window the
         // only single-flag read of this key is the write guard's own.
-        const isWriteGuardRead = state.armed && keys.length === 1 && keys[0] === 'calendar_upsert_ef_clients';
+        const isWriteGuardRead = state.armed && keys.length === 1 && keys[0] === 'sample_review_ef_clients';
         if (isWriteGuardRead) {
           state.flagReads++;
           state.guardUrls.push(url.search);
@@ -103,22 +102,22 @@ function ok(cond, msg) {
           return json(route, [{ key: keys[0], value: { clients: [SLUG] } }]);
         }
         const values = {
-          calendar_upsert_ef_clients: { clients: [SLUG] },
+          calendar_upsert_ef_clients: { clients: [SLUG] }, sample_review_ef_clients: { clients: [SLUG] },
+          kasper_urgent_ping_enabled: { enabled: true },
           write_ui_reroute_clients: { clients: [SLUG] },
           prod_authority: { video: 'syncview', graphics: 'syncview' },
         };
         return json(route, keys.filter(key => Object.hasOwn(values, key)).map(key => ({ key, value: values[key] })));
       }
-      if (url.pathname === '/functions/v1/calendar-upsert' && method === 'POST') {
+      if (url.pathname === '/functions/v1/sample-review-upsert' && method === 'POST') {
         state.efWrites.push({ body: JSON.parse(request.postData() || '{}'), headers: request.headers() });
         return json(route, { ok: true, post: {} });
       }
-      if (url.pathname === '/functions/v1/calendar-reorder' && method === 'POST') {
+      if (url.pathname === '/functions/v1/sample-review-reorder' && method === 'POST') {
         const body = JSON.parse(request.postData() || '{}');
         state.efReorders.push(body);
         return json(route, { ok: true, updated: (body.items || []).length });
       }
-      if (url.pathname === '/rest/v1/calendar_posts' && method === 'GET') { if (state.armed) state.verifyUrls.push(url.search); return json(route, []); }
       if (url.pathname === '/rest/v1/clients' && method === 'GET') {
         return json(route, [{ slug: SLUG, display_name: 'Fixture Client', kind: 'client', active: true }]);
       }
@@ -132,8 +131,7 @@ function ok(cond, msg) {
     page.on('pageerror', error => errors.push(String(error.message || error).slice(0, 180)));
     await seedStaffGate(page);
     await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => typeof _calUpsertFetch === 'function' && typeof persistCalReorder === 'function'
-      && typeof _calFetchPostsForVerify === 'function', null, { timeout: 30000 });
+    await page.waitForFunction(() => typeof _sxrUpsertFetch === 'function' && typeof _sxrReorderFetch === 'function' && typeof _sxrPersistReorder === 'function', null, { timeout: 30000 });
     await page.waitForTimeout(1500);   // let the boot flag reads settle
 
     const window_ = async (label, work) => {
@@ -147,22 +145,22 @@ function ok(cond, msg) {
     };
     const save = (kind, id) => page.evaluate(async ({ slug, id }) => {
       try {
-        const resp = await _calUpsertFetch(slug, { client: slug, post: { id, name: 'Fixture' } }, 'ui');
+        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id, name: 'Fixture' } }, 'ui');
         return { sent: true, status: resp.status };
       } catch (e) { return { sent: false, code: e && e.code, held: !!(e && e.calWriteHeld), paused: !!(e && e.calWritePaused), message: String(e && e.message) }; }
     }, { slug: SLUG, id });
     const pinned = (transport, id) => page.evaluate(async ({ slug, id, transport }) => {
       try {
-        const resp = await _calUpsertFetchPinned(slug, { client: slug, post: { id, name: 'Fixture' } }, 'ui', transport);
+        const resp = await _sxrUpsertFetchPinned(slug, { client: slug, sample: { id, name: 'Fixture' } }, 'ui', transport);
         return { sent: true, status: resp.status };
       } catch (e) { return { sent: false, code: e && e.code, held: !!(e && e.calWriteHeld), paused: !!(e && e.calWritePaused) }; }
     }, { slug: SLUG, id, transport });
 
     // 1. A flag that lists the client sends to the function, after its own read.
     state.flag = 'list';
-    let r = await window_('listed', () => save('a', 'card-1'));
+    let r = await window_('listed', () => save('a', 'sample-1'));
     ok(r.result.sent && r.ef === 1 && r.reads === 1 && r.n8n.length === 0,
-      'listed client: one fresh flag read, one calendar-upsert function POST, zero n8n requests');
+      'listed client: one fresh flag read, one sample-review-upsert function POST, zero n8n requests');
     ok(state.efWrites[0] && !!state.efWrites[0].headers['x-syncview-key'] && state.efWrites[0].headers['x-syncview-source'] === 'ui' && state.efWrites[0].headers['x-syncview-role'] !== 'client',
       'the function request keeps its staff identity headers');
 
@@ -193,7 +191,7 @@ function ok(cond, msg) {
     // 5. A pinned webhook repair is the ONE remaining n8n call, replayed as pinned.
     state.flag = 'list';
     r = await window_('pinned webhook', () => pinned('webhook', 'card-8'));
-    ok(r.result.sent && r.n8n.length === 1 && r.n8n[0] === 'POST /webhook/calendar-upsert-post' && r.ef === 0,
+    ok(r.result.sent && r.n8n.length === 1 && r.n8n[0] === 'POST /webhook/sample-review-upsert' && r.ef === 0,
       'a repair already pinned webhook still replays to its pinned writer (the only n8n call left, until the on-load migration moves it)');
 
     // 6. A flag that fails, is malformed or is absent HOLDS the save. Nothing goes anywhere.
@@ -207,62 +205,103 @@ function ok(cond, msg) {
     // 7. A flag read that never answers times out and holds.
     state.flag = 'hang';
     const t0 = Date.now();
-    r = await window_('hang', () => save('a', 'card-10'));
+    r = await window_('hang', () => save('a', 'sample-10'));
     if (state.flagHang) state.flagHang();
     ok(!r.result.sent && r.result.held && r.result.code === 'authority_unavailable' && r.ef === 0 && r.n8n.length === 0,
       'a flag read that never answers times out and holds the save (' + (Date.now() - t0) + ' ms for 3 bounded tries)');
     ok(Date.now() - t0 < 12000, 'each read is bounded (about two seconds), not open ended');
 
-    // 8. Reorder: one function POST after a fresh read; paused shows a message; never n8n.
+    // 8. Reorder: one function POST after a fresh read; paused or held rejects; never n8n.
+    const reorder = (n) => page.evaluate(async ({ slug, n }) => {
+      try {
+        await _sxrReorderFetch(slug, { client: slug, items: [{ id: 'sample-1', order_index: n }] }, 'ui');
+        return { sent: true };
+      } catch (e) { return { sent: false, held: !!(e && e.calWriteHeld), paused: !!(e && e.calWritePaused), message: String(e && e.message) }; }
+    }, { slug: SLUG, n });
     state.flag = 'list';
-    r = await window_('reorder', () => page.evaluate(async slug => {
-      await persistCalReorder([{ id: 'card-1', order_index: 1 }, { id: 'card-2', order_index: 2 }], null, slug);
-      return true;
-    }, SLUG));
-    ok(r.re === 1 && r.reads === 1 && r.n8n.length === 0, 'reorder: one fresh read, one calendar-reorder function POST, zero n8n (no batch fallback)');
+    r = await window_('reorder', () => reorder(1));
+    ok(r.result.sent && r.re === 1 && r.reads === 1 && r.n8n.length === 0, 'reorder: one fresh read, one sample-review-reorder function POST, zero n8n');
     state.flag = 'empty';
-    r = await window_('reorder paused', async () => {
-      await page.evaluate(async slug => { await persistCalReorder([{ id: 'card-1', order_index: 3 }], null, slug); }, SLUG);
-      return page.locator('.sv-toast-msg').filter({ hasText: 'Saving is paused' }).count();
-    });
-    ok(r.result >= 1 && r.re === 0 && r.n8n.length === 0, 'reorder for a removed client: refused with the paused message, nothing sent, zero n8n');
+    r = await window_('reorder paused', () => reorder(2));
+    ok(!r.result.sent && r.result.paused && /paused/i.test(r.result.message) && r.re === 0 && r.n8n.length === 0, 'reorder for a removed client: refused with the paused message, nothing sent, zero n8n');
     state.flag = 'http500';
-    r = await window_('reorder held', () => page.evaluate(async slug => { await persistCalReorder([{ id: 'card-1', order_index: 4 }], null, slug); return true; }, SLUG));
-    ok(r.re === 0 && r.n8n.length === 0, 'reorder with an unreadable flag: held, nothing sent, zero n8n');
+    r = await window_('reorder held', () => reorder(3));
+    ok(!r.result.sent && r.result.held && r.re === 0 && r.n8n.length === 0, 'reorder with an unreadable flag: held, nothing sent, zero n8n');
+    // The drag handler tells the person when the guard refuses.
+    state.flag = 'empty';
+    r = await window_('drag reorder paused', async () => {
+      await page.evaluate(async slug => { sxrState.client = slug; await _sxrPersistReorder([{ id: 'sample-1', order_index: 4 }], new Map([['sample-1', 1]]), slug); }, SLUG);
+      return page.evaluate(() => document.body.innerText);
+    });
+    ok(/paused/i.test(r.result) && r.re === 0 && r.n8n.length === 0, 'the drag handler shows the pause message and sends nothing');
 
-    // 9. The confirmation read after a bulk import is always Supabase.
-    r = await window_('verify read', () => page.evaluate(async slug => {
-      calState.client = slug;
-      const rows = await _calFetchPostsForVerify();
-      return Array.isArray(rows);
-    }, SLUG));
-    ok(r.result === true && r.n8n.length === 0 && state.calendarGets === 0, 'the import confirmation read comes from calendar_posts, zero n8n calendar-get');
+    // 9. The urgent-marker writes no longer bypass the guard with a bare fetch.
+    const sxrSrc = fs.readFileSync(path.join(ROOT, 'src/index/270-samples-model.js.part'), 'utf8');
+    const outboxSrc = fs.readFileSync(path.join(ROOT, 'src/index/140-calendar-legacy-outbox.js.part'), 'utf8');
+    ok((sxrSrc.match(/'urgent_marker_save'[^\n]*\(\) => _sxrUpsertFetch\(slug, \{ client: slug, sample: patch, comments_base_at: '' \}, 'ui'\), \{ requireOk: true \}\)/g) || []).length === 2
+      && (outboxSrc.match(/'urgent_marker_save'[^\n]*\(\) => _calUpsertFetch\(slug, \{ client: slug, post: patch, comments_base_at: '' \}, 'ui'\), \{ requireOk: true \}\)/g) || []).length === 2
+      && !/fetch\(SXR_UPSERT_EF_URL, \{\s*method: 'POST',\s*headers: _sxrWriteHeaders\('ui'/.test(sxrSrc)
+      && !/fetch\(CALENDAR_UPSERT_EF_URL/.test(outboxSrc),
+      'the four urgent-marker writes (Samples and Calendar) use the guarded step inside the failed-saves tracker, not a bare fetch');
+
+    // 9a. The urgent ping asks the guard BEFORE the Slack message goes out (Codex P1): a refused
+    // marker write after a delivered ping would re-enable the button and allow a duplicate.
+    const urgent = async (flag) => {
+      state.flag = flag;
+      const before = state.n8n.length;
+      const out = await page.evaluate(async slug => {
+        const btn = document.createElement('button'); btn.textContent = 'URGENT'; document.body.appendChild(btn);
+        let persisted = 0;
+        _calUrgentSlackDispatch(btn, 'VID-1', slug, 'Fixture', {
+          kind: 'kasper', payload: { url: 'https://example.invalid', surface: 'samples', component: 'video' },
+          persist: async () => { persisted++; return {}; }, preflight: () => _sxrAssertSavingOn(slug)
+        });
+        await new Promise(r => setTimeout(r, 300));
+        const yes = document.getElementById('confirmYes'); if (yes) yes.click();
+        await new Promise(r => setTimeout(r, 2500));
+        return { confirmShown: !!yes, persisted, label: btn.textContent, disabled: btn.disabled };
+      }, SLUG);
+      state.armed = false;
+      return { out, sent: state.n8n.slice(before).filter(l => /send-urgent-kasper-slack/.test(l)) };
+    };
+    state.armed = true;
+    let u = await urgent('list');
+    ok(u.out.confirmShown && u.sent.length === 1 && u.out.persisted === 1, 'urgent ping with saving on: one Slack request, then the marker is saved');
+    state.armed = true;
+    u = await urgent('empty');
+    ok(u.out.confirmShown && u.sent.length === 0 && u.out.persisted === 0 && u.out.disabled === false && u.out.label === 'URGENT',
+      'urgent ping with saving paused: NOTHING is sent to Slack, the marker is not written, the button stays usable');
+    state.armed = true;
+    u = await urgent('http500');
+    ok(u.sent.length === 0 && u.out.persisted === 0, 'urgent ping with an unreadable flag: nothing sent to Slack');
+    const outSrc = fs.readFileSync(path.join(ROOT, 'src/index/140-calendar-legacy-outbox.js.part'), 'utf8');
+    const preflights = ['140-calendar-legacy-outbox', '270-samples-model', '290-samples-writes-review', '330-kasper-review-history']
+      .map(f => (fs.readFileSync(path.join(ROOT, 'src/index/' + f + '.js.part'), 'utf8').match(/preflight: \(\) => _(?:cal|sxr)AssertSavingOn\(/g) || []).length);
+    ok(preflights.join(',') === '2,2,1,1' && /opts\.preflight\(\)[\s\S]{0,700}let resp;/.test(outSrc), 'all six urgent dispatch callers pass a preflight, and it runs before the first side effect: ' + preflights.join(','));
 
     // 9b. PostgREST answers 400 to any parameter it does not know (a cache-buster
     // did exactly that to the Filming flag read in PR 1b), so the EXACT query of
     // each REST URL built here is pinned. Freshness comes from cache: 'no-store'.
     const paramKeys = search => Array.from(new URLSearchParams(search).keys()).sort().join(',');
     ok(state.guardUrls.length > 5 && state.guardUrls.every(q => paramKeys(q) === 'key,limit,select'
-      && new URLSearchParams(q).get('select') === 'value' && new URLSearchParams(q).get('key') === 'eq.calendar_upsert_ef_clients'
+      && new URLSearchParams(q).get('select') === 'value' && new URLSearchParams(q).get('key') === 'eq.sample_review_ef_clients'
       && new URLSearchParams(q).get('limit') === '1'),
       'every flag read the guard made (' + state.guardUrls.length + ') has exactly select, key, limit and no cache-buster');
-    ok(state.verifyUrls.length >= 1 && state.verifyUrls.every(q => paramKeys(q).split(',').every(k => ['select', 'client', 'limit', 'offset', 'order', 'id'].includes(k)) && !/_t=/.test(q)),
-      'the confirmation read uses only known PostgREST parameters: ' + JSON.stringify(state.verifyUrls));
     const src = fs.readFileSync(path.join(ROOT, 'src/index/120-calendar-flags-write-repair.js.part'), 'utf8');
     const guardSrc = src.slice(src.indexOf('function _calReadWriteFlagFresh'), src.indexOf('async function _calAssertFlagAllows'));
     ok(guardSrc.length > 200 && /cache: 'no-store'/.test(guardSrc) && !/_t=|Date\.now\(\)/.test(guardSrc),
       'the guard source sets cache: no-store and builds no timestamp parameter');
 
-    // 10. No Calendar n8n request at all outside the one pinned repair.
-    const calendarN8n = state.n8n.filter(line => /\/webhook\/calendar-/.test(line));
-    ok(calendarN8n.length === 1 && calendarN8n[0] === 'POST /webhook/calendar-upsert-post',
-      'across the whole run the only Calendar n8n request is the single pinned-webhook replay (' + JSON.stringify(calendarN8n) + ')');
+    // 10. No Samples n8n request at all outside the one pinned repair, and never the reorder webhook.
+    const sxrN8n = state.n8n.filter(line => /\/webhook\/sample-review-/.test(line));
+    ok(sxrN8n.length === 1 && sxrN8n[0] === 'POST /webhook/sample-review-upsert',
+      'across the whole run the only Samples n8n request is the single pinned-webhook replay (' + JSON.stringify(sxrN8n) + ')');
     ok(errors.length === 0, 'no browser errors: ' + JSON.stringify(errors));
   } finally {
     if (state.flagHang) state.flagHang();
     await browser.close();
     server.close();
   }
-  if (failures) { console.error('\ncalendar-write-guard-browser: ' + failures + ' check(s) failed'); process.exit(1); }
-  console.log('\ncalendar-write-guard-browser: all checks passed');
+  if (failures) { console.error('\nsamples-write-guard-browser: ' + failures + ' check(s) failed'); process.exit(1); }
+  console.log('\nsamples-write-guard-browser: all checks passed');
 })().catch(error => { console.error(error); process.exit(1); });

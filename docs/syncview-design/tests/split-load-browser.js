@@ -5,10 +5,15 @@
  * index.html carries the whole script inline and there is nothing to choose;
  * this checks exactly that. With the split build (switch on, or the CI
  * split-preview job's --force-split), it checks, fully offline:
- *   - a client link, the intake and onboarding forms and a signed-out visitor
- *     get "full": the one js/sv-full-*.js file, the same code that was inline;
- *   - signed-in staff get "parts": every js/sv-NN-* file, in order, and every
- *     one of them ran;
+ *   - the intake and onboarding forms, the SMM weekly report and a signed-out
+ *     visitor get "full": the one js/sv-full-*.js file, the same code that was
+ *     inline (also in a browser that holds a staff sign-in);
+ *   - signed-in staff, and (plan step 5, split.json "clients": true) a client
+ *     link with or without a staff sign-in, get "parts": every js/sv-NN-* file,
+ *     in order, and every one of them ran;
+ *   - a client link never fetches the on-demand staff areas, not even quietly
+ *     in the background, and boots and draws its review card without them;
+ *   - the per-browser way back, ?split=0, works on a client link too;
  *   - a code file that fails to download makes the page reload itself once,
  *     not loop, and not be left half-loaded silently.
  * The CI preview job also builds with --force-split=parts, where everyone gets
@@ -19,12 +24,14 @@ const path = require('path');
 const { chromium } = require('playwright');
 const { serveStatic, formatFailures } = require('./prod-test-utils');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
-const { CORS, clientLinkRoute, clientLinkUrl } = require('./client-link-fixture');
+const { CORS, clientLinkCard, clientLinkRoute, clientLinkUrl } = require('./client-link-fixture');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const split = html.includes('/* SyncView loader.');
 const forcedParts = /var FORCE = "parts";/.test(html);
+const clientsOn = /var CLIENTS = true;/.test(html);
+const clientLinkWant = forcedParts || clientsOn ? 'parts' : 'full';
 
 const empty = r => (r.request().method() === 'OPTIONS'
   ? r.fulfill({ status: 204, headers: CORS, body: '' })
@@ -178,7 +185,7 @@ async function lazyChecks(browser, origin, failures) {
       console.log('split-load: switch off, whole script inline: ' + (failures.length ? 'FAIL' : 'ok'));
     } else {
       const cases = [
-        ['client link', { url: clientLinkUrl('', 'calendar'), route: clientLinkRoute('calendar') }, forcedParts ? 'parts' : 'full'],
+        ['client link', { url: clientLinkUrl('', 'calendar'), route: clientLinkRoute('calendar') }, clientLinkWant],
         ['intake form', { url: '/?intake=1' }, forcedParts ? 'parts' : 'full'],
         ['onboarding form', { url: '/?onboarding=1' }, forcedParts ? 'parts' : 'full'],
         ['signed-out visitor', { url: '/' }, forcedParts ? 'parts' : 'full'],
@@ -189,7 +196,7 @@ async function lazyChecks(browser, origin, failures) {
         ['onboarding form, staff browser, clean path', { url: '/onboarding/qa-fixture', staff: true }, forcedParts ? 'parts' : 'full'],
         ['onboarding form, staff browser', { url: '/?onboarding=1', staff: true }, forcedParts ? 'parts' : 'full'],
         ['SMM weekly report, staff browser', { url: '/#smm-weekly-report', staff: true }, forcedParts ? 'parts' : 'full'],
-        ['client link, staff browser', { url: clientLinkUrl('', 'calendar'), route: clientLinkRoute('calendar'), staff: true }, forcedParts ? 'parts' : 'full'],
+        ['client link, staff browser', { url: clientLinkUrl('', 'calendar'), route: clientLinkRoute('calendar'), staff: true }, clientLinkWant],
         ['signed-in staff', { url: '/', staff: true }, 'parts'],
         ['signed-in staff, Calendar', { url: '/#calendar', staff: true }, 'parts'],
       ];
@@ -222,6 +229,54 @@ async function lazyChecks(browser, origin, failures) {
         }
         console.log('split-load: per-browser opt-out (?split=0 sticks, ?split=1 clears): ' + (failures.some(f => f.startsWith('opt-out')) ? 'FAIL' : 'ok'));
         await context.close();
+      }
+      // Client links (plan step 5). Parts, no quiet download of the staff areas
+      // (a client has none of those tabs), the review card still draws, and the
+      // per-browser way back works on a client link. (Not when everyone is
+      // forced onto parts, and only when split.json has "clients": true.)
+      if (!forcedParts && clientsOn) {
+        const LAZY_FILE = /\/js\/sv-\d\d-(tiktok|templates|workload|kasper)-[0-9a-f]{12}\.js$/;
+        for (const surface of ['calendar', 'samples', 'analytics']) {
+          const context = await browser.newContext();
+          await context.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), clientLinkRoute(surface));
+          const fetchedLazy = [];
+          const errors = [];
+          const page = await context.newPage();
+          page.on('request', r => { if (LAZY_FILE.test(new URL(r.url()).pathname)) fetchedLazy.push(r.url()); });
+          page.on('pageerror', e => errors.push(e.message));
+          await page.goto(origin + clientLinkUrl('', surface), { waitUntil: 'load' });
+          const card = clientLinkCard(surface);
+          const drew = card ? await page.waitForSelector(card, { timeout: 20000 }).then(() => true, () => false) : true;
+          // The staff areas are fetched about 2.5 s after load; wait well past that.
+          await page.waitForTimeout(6500);
+          const state = await page.evaluate(() => ({ mode: self.__svLoad && self.__svLoad.mode, client: self.__svLoad && self.__svLoad.client, lazyKnown: Object.keys((self.__svLoad && self.__svLoad.lazy) || {}).sort(), ran: self.__svParts || [], files: (self.__svLoad && self.__svLoad.files) || [] }));
+          if (state.mode !== 'parts' || state.client !== true) failures.push(`client link (${surface}): expected parts with client=true, got ${JSON.stringify({ mode: state.mode, client: state.client })}`);
+          if (state.files.some(f => !state.ran.includes(f))) failures.push(`client link (${surface}): a code file did not run`);
+          if (state.lazyKnown.join() !== 'kasper,templates,tiktok,workload') failures.push(`client link (${surface}): on-demand areas are not registered for a later load: ${state.lazyKnown.join()}`);
+          if (fetchedLazy.length) failures.push(`client link (${surface}): fetched staff-only code it does not use: ${fetchedLazy.join(', ')}`);
+          if (!drew) failures.push(`client link (${surface}): the review card did not draw on the parts`);
+          if (errors.length) failures.push(`client link (${surface}): page errors: ${errors.slice(0, 2).join(' | ')}`);
+          console.log(`split-load: client link (${surface}): parts, ${state.ran.length} file(s) ran, ${fetchedLazy.length} staff-only download(s), card ${card ? (drew ? 'drawn' : 'NOT drawn') : 'n/a'}`);
+          await context.close();
+        }
+        {
+          const context = await browser.newContext();
+          await context.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), clientLinkRoute('calendar'));
+          const page = await context.newPage();
+          const modeAt = async url => {
+            await page.goto(origin + url, { waitUntil: 'domcontentloaded' });
+            await page.waitForFunction(() => typeof window.navTo === 'function', null, { timeout: 20000 });
+            return page.evaluate(() => self.__svLoad && self.__svLoad.mode);
+          };
+          const base = clientLinkUrl('', 'calendar');
+          const steps = [[base, 'parts'], [base + '&split=0', 'full'], [base, 'full'], [base + '&split=1', 'parts'], [base, 'parts']];
+          for (const [url, want] of steps) {
+            const got = await modeAt(url);
+            if (got !== want) failures.push(`client opt-out: ${url.replace(/[?].*?(&split=\d)?$/, '?...$1')} got "${got}", expected "${want}"`);
+          }
+          console.log('split-load: client link opt-out (?split=0 sticks, ?split=1 clears): ' + (failures.some(f => f.startsWith('client opt-out')) ? 'FAIL' : 'ok'));
+          await context.close();
+        }
       }
       // On-demand areas (split.json "lazy"): staff start without their code,
       // get it when the tab opens (or on a refresh there), see Retry when the

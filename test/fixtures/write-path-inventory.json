@@ -149,20 +149,6 @@
       "status": "read",
       "note": "Asks the gateway whether a queued urgent ping was delivered (native_urgent_status)."
     },
-    "140-calendar-legacy-outbox.js.part|_calPersistKasperUrgentForPost|CALENDAR_UPSERT_EF_URL|POST": {
-      "status": "reports",
-      "within": [
-        "_calPersistKasperUrgentForPost"
-      ],
-      "note": "Kasper urgent marker on the card. Recorded as urgent_marker_save."
-    },
-    "140-calendar-legacy-outbox.js.part|_calPersistUrgentSentForPost|CALENDAR_UPSERT_EF_URL|POST": {
-      "status": "reports",
-      "within": [
-        "_calPersistUrgentSentForPost"
-      ],
-      "note": "Urgent \"sent\" marker on the card. Recorded as urgent_marker_save."
-    },
     "140-calendar-legacy-outbox.js.part|showUnknown|WRITE_UI_PRODUCTION_WRITE_URL|POST": {
       "status": "reports",
       "within": [
@@ -312,34 +298,9 @@
       ],
       "note": "Samples component fill. Already recorded (component_fill)."
     },
-    "270-samples-model.js.part|_sxrPersistKasperUrgentForPost|SXR_UPSERT_EF_URL|POST": {
-      "status": "reports",
-      "within": [
-        "_sxrPersistKasperUrgentForPost"
-      ],
-      "note": "Kasper urgent marker on a sample. Recorded as urgent_marker_save."
-    },
-    "270-samples-model.js.part|_sxrPersistUrgentSentForPost|SXR_UPSERT_EF_URL|POST": {
-      "status": "reports",
-      "within": [
-        "_sxrPersistUrgentSentForPost"
-      ],
-      "note": "Urgent sent marker on a sample. Recorded as urgent_marker_save."
-    },
     "270-samples-model.js.part|_sxrUpsertFetchPinned|url|POST": {
       "status": "client-transport",
       "note": "Pinned Samples upsert transport (status writes, including the client approve path). Not modified."
-    },
-    "270-samples-model.js.part|_sxrUpsertFetch|url|POST": {
-      "status": "client-transport",
-      "note": "Samples upsert transport, shared with the client link. Not modified; each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save)."
-    },
-    "270-samples-model.js.part|post|url|POST": {
-      "status": "reports",
-      "within": [
-        "_sxrReorderFetch"
-      ],
-      "note": "Samples drag order. Recorded as sample_reorder."
     },
     "290-samples-writes-review.js.part|_writeUiReadRepairReceipt|WRITE_UI_PRODUCTION_WRITE_URL|POST": {
       "status": "read",
@@ -455,6 +416,21 @@
         "_arxFail"
       ],
       "note": "Restore position write. A failure is caught in _arxRestore and recorded through _arxFail (step order)."
+    },
+    "270-samples-model.js.part|_sxrReorderFetch|SXR_REORDER_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_sxrReorderFetch"
+      ],
+      "note": "Samples drag order (sample-review-reorder), behind the saving-on check. Recorded as sample_reorder."
+    },
+    "270-samples-model.js.part|_sxrUpsertFetchClientLink|url|POST": {
+      "status": "client-transport",
+      "note": "Samples upsert transport for the client review link (approve and request changes). Not modified by the n8n exit; the Samples golden test proves its requests are unchanged."
+    },
+    "270-samples-model.js.part|_sxrUpsertFetchGuarded|SXR_UPSERT_EF_URL|POST": {
+      "status": "client-transport",
+      "note": "Staff Samples upsert behind the saving-on check (n8n exit PR 4). Each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save, urgent_marker_save)."
     }
   }
 }

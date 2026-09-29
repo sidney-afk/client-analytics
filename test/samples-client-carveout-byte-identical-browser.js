@@ -1,25 +1,25 @@
 'use strict';
 /*
- * n8n exit, PR 2: THE CLIENT APPROVE AND REQUEST-CHANGES BUTTONS ARE UNTOUCHED.
+ * n8n exit, PR 4: THE CLIENT APPROVE AND REQUEST-CHANGES BUTTONS ARE UNTOUCHED (SAMPLE REVIEWS).
  *
  * Owner decision 2026-09-29: their code and their routing do not change. This
  * suite drives both buttons on a tokened client link against a fully mocked
  * backend, records every request the page makes (method, URL, every header
  * except the browser's own, and the exact body string), and compares that to a
  * golden capture taken from `main` BEFORE the change
- * (test/fixtures/calendar-client-carveout-golden.json). Byte for byte.
+ * (test/fixtures/samples-client-carveout-golden.json). Byte for byte.
  *
  * Two flag situations per button, because the legacy step routes on the flag:
- *   listed   the flag lists the client   -> the calendar-upsert function
+ *   listed   the flag lists the client   -> the sample-review-upsert function
  *   unread   the flag read fails         -> today's behaviour, the n8n webhook
  * The second is deliberately kept: the carve-out means these two buttons keep
  * today's routing exactly, including the parts the rest of the page is leaving.
  *
- *   node test/calendar-client-carveout-byte-identical-browser.js            compare to the golden
+ *   node test/samples-client-carveout-byte-identical-browser.js            compare to the golden
  *   node ... --capture                                                       rewrite the golden (run on main only)
  *   BASE_TREE=/path/to/main-checkout node ...                               also run that tree and require the same bytes
  *
- * Fictional client, fictional token, fictional card. Nothing here is a real
+ * Fictional client, fictional token, fictional sample. Nothing here is a real
  * name, slug or key.
  */
 const assert = require('node:assert/strict');
@@ -30,17 +30,16 @@ const crypto = require('node:crypto');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
-const GOLDEN = path.join(__dirname, 'fixtures', 'calendar-client-carveout-golden.json');
+const GOLDEN = path.join(__dirname, 'fixtures', 'samples-client-carveout-golden.json');
 const CLIENT = 'Review Fixture';
 const SLUG = 'reviewfixture';
 const TOKEN = 'fixture-review-token';
-const CARD = 'p_review_fixture_1';
+const CARD = 'sr_review_fixture_1';
 const VIDEO = 'del_review_fixture_video';
-const NOTE = 'Please shorten the opening line in this fixture.';
+const NOTE = 'Please brighten the thumbnail in this fixture.';
 const FROZEN = '2026-09-29T12:00:00.000Z';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*',
   'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
-const loadModes = new Set();   // how the page was served in each run (parts, full or single-file)
 const BROWSER_OWN = /^(user-agent|sec-ch-.*|origin|referer|accept-language|accept-encoding|connection|host|pragma|cache-control|sec-fetch-.*|priority)$/i;
 
 function serve(root) {
@@ -115,15 +114,16 @@ async function capture(browser, origin, action, flag) {
             view: b.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' }
           : { ok: true, valid: false, allowed: false, error: 'invalid_client_link' });
       }
-      if ((url.pathname === '/functions/v1/calendar-upsert' || url.pathname === '/webhook/calendar-upsert-post') && method === 'POST') {
+      if ((url.pathname === '/functions/v1/sample-review-upsert' || url.pathname === '/webhook/sample-review-upsert') && method === 'POST') {
         saved++;
         const b = JSON.parse(body || '{}');
-        stored = { ...stored, ...(b.post || {}) };
+        stored = { ...stored, ...(b.sample || {}) };
         return json(route, { ok: true, post: { ...stored, updated_at: FROZEN } });
       }
-      if (url.pathname === '/rest/v1/calendar_posts' && method === 'GET') return json(route, [stored]);
+      if (url.pathname === '/rest/v1/sample_reviews' && method === 'GET') return json(route, [stored]);
+      if (url.pathname === '/rest/v1/calendar_posts' && method === 'GET') return json(route, []);
       if ((url.pathname === '/rest/v1/deliverables' || url.pathname === '/rest/v1/production_deliverables_browser_v1') && method === 'GET') {
-        return json(route, [{ id: VIDEO, card_id: CARD, client_slug: SLUG, team: 'video', origin: 'calendar',
+        return json(route, [{ id: VIDEO, card_id: CARD, client_slug: SLUG, team: 'video', origin: 'samples',
           status: nativeStatus, updated_at: '2026-09-20T12:00:00.000Z' }]);
       }
       if (url.pathname === '/rest/v1/clients' && method === 'GET') {
@@ -132,9 +132,9 @@ async function capture(browser, origin, action, flag) {
       if (url.pathname === '/rest/v1/syncview_runtime_flags' && method === 'GET') {
         const raw = url.searchParams.get('key') || '';
         const keys = raw.startsWith('in.(') ? raw.slice(4, -1).split(',') : [raw.replace(/^eq\./, '')];
-        if (flag === 'unread' && keys.includes('calendar_upsert_ef_clients')) return json(route, { message: 'fixture' }, 500);
+        if (flag === 'unread' && keys.includes('sample_review_ef_clients')) return json(route, { message: 'fixture' }, 500);
         const values = {
-          calendar_upsert_ef_clients: { clients: [SLUG] },
+          calendar_upsert_ef_clients: { clients: [SLUG] }, sample_review_ef_clients: { clients: [SLUG] },
           write_ui_reroute_clients: { clients: [SLUG] },
           client_comment_gateway_enabled: { enabled: true },
           prod_authority: { video: 'syncview', graphics: 'syncview' },
@@ -166,18 +166,17 @@ async function capture(browser, origin, action, flag) {
       let n = 0;
       try { crypto.randomUUID = () => '00000000-0000-4000-8000-' + String(++n).padStart(12, '0'); } catch (e) {}
     });
-    const query = new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' });
+    const query = new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'sample-reviews', sxr: '1' });
     await page.goto(origin + '/index.html?' + query, { waitUntil: 'domcontentloaded' });
     const card = `.kcard[data-cal-review-pid="${CARD}"]`;
     await page.locator(card).waitFor({ timeout: 30000 });
-    loadModes.add(await page.evaluate(() => (self.__svLoad ? self.__svLoad.mode : 'single-file')));
     await page.locator(card + ' .kcard-expand-btn').click();
     await page.locator(card + ' .cal-review-body').waitFor();
     let button;
     if (action === 'approve') {
       button = card + ' .cal-review-panel[data-comp="video"] .cal-review-approve-btn';
     } else {
-      const panel = card + ' .cal-review-panel[data-comp="caption"]';
+      const panel = card + ' .cal-review-panel[data-comp="graphic"]';
       await page.locator(panel + ' .cal-review-textarea').fill(NOTE);
       button = panel + ' .cal-review-tweak-btn';
     }
@@ -230,15 +229,13 @@ async function captureTree(root) {
   }
   const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
   let failures = 0;
-  // A new comment's id is `c_<clock>_<random>`. The test seeds "random", so the id
-  // repeats run to run only while the page draws the same NUMBER of random values
-  // before the click. Once client links load in parts (plan step 5), one line of
-  // Workload's start-up code (an id for its live plan sync, staff only) no longer
-  // runs on a client link, one draw fewer, and every later draw shifts by one. The
-  // clock part of the id stays compared; only the random suffix is not.
-  const noRandomId = value => JSON.stringify(value).replace(/(c_[a-z0-9]{6,10}_)[a-z0-9]{3,8}/g, '$1<random>');
-  const compare = (label, a, b) => {
-    const same = noRandomId(a) === noRandomId(b);
+  // A new comment id is `c_<clock>_<random>`. The clock is faked; the random tail depends on how
+  // many random numbers the page drew before the click, which any unrelated boot change shifts. It is
+  // random by design, so it is masked on both sides. Everything else stays byte for byte.
+  const maskRandomId = value => JSON.parse(JSON.stringify(value).replace(/(c_[a-z0-9]+_)[a-z0-9]{5}/g, '$1RANDOM'));
+  const compare = (label, a0, b0) => {
+    const a = maskRandomId(a0), b = maskRandomId(b0);
+    const same = JSON.stringify(a) === JSON.stringify(b);
     console.log((same ? '  ok  ' : 'FAIL  ') + label);
     if (!same) {
       failures++;
@@ -250,24 +247,15 @@ async function captureTree(root) {
     compare(key + ': writes are byte-identical to main (method, URL, headers, body)', mine[key] && mine[key].writes, golden[key].writes);
     compare(key + ': backend reads are byte-identical to main', mine[key] && mine[key].reads, golden[key].reads);
     const w = golden[key].writes.map(line => JSON.parse(line));
-    const toN8n = w.some(item => /n8n\.cloud\/webhook\/calendar-upsert-post/.test(item.url));
-    const toFn = w.some(item => /functions\/v1\/calendar-upsert$/.test(item.url));
-    console.log('        (' + key + ' sends to ' + (toN8n ? 'the n8n webhook, as today' : toFn ? 'the calendar-upsert function, as today' : 'neither?!') + ')');
+    const toN8n = w.some(item => /n8n\.cloud\/webhook\/sample-review-upsert/.test(item.url));
+    const toFn = w.some(item => /functions\/v1\/sample-review-upsert$/.test(item.url));
+    console.log('        (' + key + ' sends to ' + (toN8n ? 'the n8n webhook, as today' : toFn ? 'the sample-review-upsert function, as today' : 'neither?!') + ')');
     if (!toN8n && !toFn) failures++;
-  }
-  // Plan step 5: with split.json on and "clients" on, a client link is served in
-  // parts; the requests above must have been recorded on the code as it ships.
-  {
-    const splitCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8'));
-    const want = splitCfg.enabled && splitCfg.clients ? 'parts' : (splitCfg.enabled ? 'full' : 'single-file');
-    const got = [...loadModes].join(',');
-    console.log((got === want ? '  ok  ' : 'FAIL  ') + 'the client link was served as "' + want + '" in every run (got "' + got + '")');
-    if (got !== want) failures++;
   }
   if (process.env.BASE_TREE) {
     const base = await captureTree(path.resolve(process.env.BASE_TREE));
     for (const key of Object.keys(mine)) compare(key + ': identical to the live base tree ' + process.env.BASE_TREE, mine[key], base[key]);
   }
-  if (failures) { console.error('\ncalendar-client-carveout-byte-identical-browser: ' + failures + ' check(s) failed'); process.exit(1); }
-  console.log('\ncalendar-client-carveout-byte-identical-browser: client approve and request-changes requests are unchanged');
+  if (failures) { console.error('\nsamples-client-carveout-byte-identical-browser: ' + failures + ' check(s) failed'); process.exit(1); }
+  console.log('\nsamples-client-carveout-byte-identical-browser: client approve and request-changes requests are unchanged');
 })().catch(error => { console.error(error); process.exit(1); });

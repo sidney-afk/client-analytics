@@ -110,8 +110,6 @@ and SMM weekly reports.
 | `125-title-name-rule.js` | `_renamePropPoke` | `CAL_SUPABASE_URL` POST | background |  | Nudges the rename-propagation drain; best effort by design. The rename itself is a gateway write, recorded as title. |
 | `125-title-name-rule.js` | `_renamePropRetry` | `CAL_SUPABASE_URL` POST | background |  | "Retry" for a rename that did not reach the sub-issues; the server drain already logs the failure and the page keeps its own ring entry. |
 | `140-calendar-legacy-outbox.js` | `_calCheckQueuedUrgent` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | read |  | Asks the gateway whether a queued urgent ping was delivered (native_urgent_status). |
-| `140-calendar-legacy-outbox.js` | `_calPersistKasperUrgentForPost` | `CALENDAR_UPSERT_EF_URL` POST | reports | `_calPersistKasperUrgentForPost` | Kasper urgent marker on the card. Recorded as urgent_marker_save. |
-| `140-calendar-legacy-outbox.js` | `_calPersistUrgentSentForPost` | `CALENDAR_UPSERT_EF_URL` POST | reports | `_calPersistUrgentSentForPost` | Urgent "sent" marker on the card. Recorded as urgent_marker_save. |
 | `140-calendar-legacy-outbox.js` | `showUnknown` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | reports | `_calUrgentSlackDispatch` | Sending an urgent ping through the gateway. A ping that went out and did not come back confirmed is recorded as urgent_ping. |
 | `140-calendar-legacy-outbox.js` | `showUnknown` | `spec.url(` POST | background |  | The pre-gateway urgent webhook path; its send is retired (B2) and only fails closed. The gateway path above is the live one. |
 | `160-calendar-organize-ui.js` | `_calFillComponentSubmit` | `PROD_WRITE_EF_URL` POST | reports | `_calFillComponentSubmit` | Calendar component fill. Already recorded (component_fill). |
@@ -142,11 +140,10 @@ and SMM weekly reports.
 | `240-production-description.js` | `_prodEnsureDescription` | `PROD_WRITE_EF_URL` POST | read |  | Reads a description. |
 | `260-production-refresh-boot.js` | `_syncviewPreflightClientEntry` | `CLIENT_TOKEN_VERIFY_URL` POST | read |  | Client link check at boot. |
 | `270-samples-model.js` | `_sxrFillComponentSubmit` | `PROD_WRITE_EF_URL` POST | reports | `_sxrFillComponentSubmit` | Samples component fill. Already recorded (component_fill). |
-| `270-samples-model.js` | `_sxrPersistKasperUrgentForPost` | `SXR_UPSERT_EF_URL` POST | reports | `_sxrPersistKasperUrgentForPost` | Kasper urgent marker on a sample. Recorded as urgent_marker_save. |
-| `270-samples-model.js` | `_sxrPersistUrgentSentForPost` | `SXR_UPSERT_EF_URL` POST | reports | `_sxrPersistUrgentSentForPost` | Urgent sent marker on a sample. Recorded as urgent_marker_save. |
+| `270-samples-model.js` | `_sxrReorderFetch` | `SXR_REORDER_EF_URL` POST | reports | `_sxrReorderFetch` | Samples drag order (sample-review-reorder), behind the saving-on check. Recorded as sample_reorder. |
+| `270-samples-model.js` | `_sxrUpsertFetchClientLink` | `url` POST | client-transport |  | Samples upsert transport for the client review link (approve and request changes). Not modified by the n8n exit; the Samples golden test proves its requests are unchanged. |
+| `270-samples-model.js` | `_sxrUpsertFetchGuarded` | `SXR_UPSERT_EF_URL` POST | client-transport |  | Staff Samples upsert behind the saving-on check (n8n exit PR 4). Each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save, urgent_marker_save). |
 | `270-samples-model.js` | `_sxrUpsertFetchPinned` | `url` POST | client-transport |  | Pinned Samples upsert transport (status writes, including the client approve path). Not modified. |
-| `270-samples-model.js` | `_sxrUpsertFetch` | `url` POST | client-transport |  | Samples upsert transport, shared with the client link. Not modified; each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save). |
-| `270-samples-model.js` | `post` | `url` POST | reports | `_sxrReorderFetch` | Samples drag order. Recorded as sample_reorder. |
 | `290-samples-writes-review.js` | `_writeUiReadRepairReceipt` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | read |  | Reads a repair receipt. |
 | `300-tiktok-upload.js` | `_tkCancelRow` | `TIKTOK_UPLOAD_CANCEL_URL` POST | reports | `_tkCancelRow` | TikTok cancel. Recorded as tiktok_cancel. |
 | `300-tiktok-upload.js` | `_tkFinishDirectSubmit` | `TIKTOK_UPLOAD_DIRECT_WEBHOOK` POST | reports | `_tkFinishDirectSubmit` | TikTok post creation after a direct upload. Recorded as tiktok_upload. |

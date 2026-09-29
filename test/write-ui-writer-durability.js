@@ -3973,7 +3973,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
        see `_writeUiLegacyShedRetired`. Stubbed as a no-op here because this
        context is about the authority/hydration ordering, not the shed. */
     _writeUiLegacyShedRetired: async () => false,
-    _writeUiMigratePinnedCalendarGates: async () => ({ migrated: 0, kept: 0 }),
+    _writeUiMigratePinnedGates: async () => ({ migrated: 0, kept: 0 }),
     _writeUiLastRenderedAuthoritySig: null,
     get currentNav() { return resumeCurrentNav; },
     _calRenderBody: () => { resumeCalRenderCalls++; },

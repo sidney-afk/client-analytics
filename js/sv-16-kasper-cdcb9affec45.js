@@ -436,7 +436,7 @@
         });
         // Listing and opening an application are reads; every other action is a save.
         const isRead = !payload || payload.action === 'list' || payload.action === 'detail';
-        const response = await (isRead ? send() : _writeUiTrackSave('hiring', ('hiring_' + payload.action).slice(0, 40), {}, send));
+        const response = await (isRead ? send() : _writeUiTrackSave('hiring', ('hiring_' + payload.action).slice(0, 40), {}, send, { requireOk: true }));
         const data = await response.json().catch(() => null);
         if (!response.ok || !data || data.ok !== true) {
             const error = new Error((data && data.error) || ('http_' + response.status));
@@ -2464,7 +2464,7 @@
         });
         // Listing and history are reads; every other action changes a credential.
         const isRead = action === 'list' || action === 'history';
-        const resp = await (isRead ? send() : _writeUiTrackSave('credentials', ('credentials_' + action).slice(0, 40), {}, send));
+        const resp = await (isRead ? send() : _writeUiTrackSave('credentials', ('credentials_' + action).slice(0, 40), {}, send, { requireOk: true }));
         let json = null;
         try { json = await resp.json(); } catch { json = null; }
         if (resp.status === 401) {
@@ -3377,7 +3377,7 @@
         const timer = ctrl ? setTimeout(() => ctrl.abort(), FILMING_TABS_FLAG_TIMEOUT_MS) : null;
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&limit=1&key=eq.'
-                + encodeURIComponent(FILMING_TABS_SOURCE_FLAG_KEY) + '&_t=' + Date.now();
+                + encodeURIComponent(FILMING_TABS_SOURCE_FLAG_KEY);   // no _t= parameter: PostgREST reads any extra query parameter as a column filter and answers 400 (live, 2026-09-29); no-store already bypasses the HTTP cache
             const resp = await fetch(url, {
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
                 cache: 'no-store',
@@ -4162,7 +4162,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
-        }));
+        }), { requireOk: true });
         let json = null;
         try { json = await resp.json(); } catch (e) { json = null; }
         return { resp, json: json || {}, ident };
@@ -5494,7 +5494,8 @@
                 deliverable_id: _writeUiNativeId(item.post, 'video'), card_id: String(item.post.id), surface: 'calendar', video_status_at: String(item.post.video_status_at || '') } : null,
             currentClientSlug: () => String(((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).slug || ''),
             currentPost: () => ((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).post,
-            persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping)
+            persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping),
+            preflight: () => _calAssertSavingOn(item.slug || client)
         });
     }
     window._kasperSendUrgentSlack = _kasperSendUrgentSlack;
@@ -7434,4 +7435,4 @@
         },
     });
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-16-kasper-30a5bcdb4b89.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-16-kasper-cdcb9affec45.js");

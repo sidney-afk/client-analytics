@@ -2946,8 +2946,8 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         error.calWriteHeld = true;
         return error;
     }
-    function _calWritePausedError() {
-        const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
+    function _calWritePausedError(what) {
+        const error = new Error((what || 'Saving') + ' is paused for this client. Your change is kept and will save once saving is switched back on.');
         error.code = 'client_scope_unavailable';
         error.status = 503;
         error.calWritePaused = true;
@@ -2955,7 +2955,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     }
     /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
        (never resolves to a guess) when the answer cannot be trusted. */
-    function _calReadWriteFlagFresh() {
+    function _calReadWriteFlagFresh(flagKey) {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
             return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
         }
@@ -2968,7 +2968,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             }, CAL_WRITE_FLAG_READ_MS);
         });
         const read = (async () => {
-            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(flagKey || CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
             const resp = await fetch(url, {
                 cache: 'no-store',
                 signal: ctrl ? ctrl.signal : undefined,
@@ -2990,17 +2990,21 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             }
         );
     }
-    async function _calAssertSavingOn(clientOrSlug) {
+    /* The one guard loop, parameterised by WHICH flag decides. Calendar saves
+       and reorders ask calendar_upsert_ef_clients; the caption prompt save asks
+       settings_ef_clients. Same rules for both: a fresh read of its own, bounded,
+       retried a few times, never a cached or default answer. */
+    async function _calAssertFlagAllows(flagKey, clientOrSlug, onListed, what) {
         let slug = '';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         let lastError = null;
         for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
             try {
-                const listed = await _calReadWriteFlagFresh();
+                const listed = await _calReadWriteFlagFresh(flagKey);
                 // Keep the boot copy honest too, so the rest of the page (which
                 // still asks the cached set for display decisions) agrees.
-                try { _calSetUpsertEfClients(new Set(listed)); } catch (e) {}
-                if (!slug || !listed.has(slug)) throw _calWritePausedError();
+                try { onListed(new Set(listed)); } catch (e) {}
+                if (!slug || !listed.has(slug)) throw _calWritePausedError(what);
                 return true;
             } catch (error) {
                 if (error && error.calWritePaused) throw error;
@@ -3009,6 +3013,15 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             }
         }
         throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+    }
+    function _calAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(CALENDAR_UPSERT_FLAG_KEY, clientOrSlug, set => _calSetUpsertEfClients(set), 'Saving');
+    }
+    /* Caption prompt saves (n8n exit, PR 3): settings_ef_clients is now purely a
+       visible save-pause switch. Off for a client pauses the save with a message;
+       it never reroutes to n8n. */
+    function _settingsAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(SETTINGS_EF_FLAG_KEY, clientOrSlug, set => _settingsSetEfClients(set), 'Saving caption prompts');
     }
     function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
@@ -3122,7 +3135,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
             _settingsSetFlagValue({ clients: [] });
-            console.warn('[Settings] settings EF flag read failed; using n8n fallback', e);
+            console.warn('[Settings] settings EF flag read failed; caption saves stay held until a fresh read succeeds', e);
         }
     }
     async function _settingsSubscribeFlag() {
@@ -3147,15 +3160,6 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             _settingsSetFlagPromise(_settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null));
         }
         return _settingsFlagPromise;
-    }
-    function _settingsUseEf(clientOrSlug) {
-        let slug = '';
-        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        return !!slug && _settingsEfClients.has(slug);
-    }
-    function _settingsWriteUrlForClient(clientOrSlug, efUrl, n8nUrl) {
-        _settingsPrimeRoutingFlag();
-        return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
     }
     function _settingsWriteHeaders(source, url) {
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' }, url);
@@ -3376,7 +3380,7 @@ export {
   _calCapJobPollTimer, _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calClearStaleApprovals, _calComponentsFor,
   _calIsTitleReviewOn, _calIsYouTubeCard, _calLoadCommentsField, _calNormStatus,
-  _calAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp,
+  _calAssertFlagAllows, _calAssertSavingOn, _settingsAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp,
   _calRuntimeFlagClient, _calRuntimeFlagClients, _calSetCapJobBatch, _calSetCapJobPollBusy,
   _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,
@@ -3385,8 +3389,8 @@ export {
   _prodCanonicalCoversLegacy, _prodCardBindingToken, _prodCommentAddRoutesLegacy,
   _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
   _prodMarkLegacyReadIncomplete, _prodResolveCardCrosswalk, _prodRootAudienceClientRows,
-  _prodStripEphemeralCanonicalPosts, _settingsPrimeRoutingFlag, _settingsUseEf,
-  _settingsWriteHeaders, _settingsWriteUrlForClient, _syncviewClientWriteToken, _syncviewEfHeaders,
+  _prodStripEphemeralCanonicalPosts, 
+  _settingsWriteHeaders, _syncviewClientWriteToken, _syncviewEfHeaders,
   _syncviewIssueClientShareUrl, _writeRefusalNewId, _writeRefusalStageAttempt,
   _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
   _writeUiAuthoritySnapshot, _writeUiBindRepairAck, _writeUiBuildSourceRepair,

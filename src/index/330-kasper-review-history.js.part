@@ -5,7 +5,7 @@ import {
   _syncviewStaffIdentityForHeaders
 } from './100-onboarding-staff-controls.js';
 import {
-  _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _writeUiAdoptRepairAck,
+  _calAssertSavingOn, _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _writeUiAdoptRepairAck,
   _writeUiFailureSentence, _writeUiNativeId, _writeUiRepairCompanions, _writeUiReportFailure,
   computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
@@ -1182,7 +1182,8 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                 deliverable_id: _writeUiNativeId(item.post, 'video'), card_id: String(item.post.id), surface: 'calendar', video_status_at: String(item.post.video_status_at || '') } : null,
             currentClientSlug: () => String(((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).slug || ''),
             currentPost: () => ((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).post,
-            persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping)
+            persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping),
+            preflight: () => _calAssertSavingOn(item.slug || client)
         });
     }
     window._kasperSendUrgentSlack = _kasperSendUrgentSlack;

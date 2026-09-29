@@ -628,7 +628,7 @@
             const favIssues = _prodIssues().filter(d => d.favorite || d.fav);
             const favHTML = favIssues.length
                 ? '<button class="prod-nav-section' + (_prodState.secOpen.fav ? '' : ' collapsed') + '" type="button" data-prod-tip="Favorites" onclick="_prodToggleSection(' + _jsAttrArg('fav') + ')"><span class="prod-section-label">Favorites</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
-                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), d.title || _prodIssueLabel(d), _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
+                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), _prodKnownName(d) || _prodIssueDisplayLabel(d) || 'Untitled issue', _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
                 : '';
             const teamBlock = team => {
                 const open = _prodState.teamOpen[team] !== false;
@@ -681,7 +681,7 @@
             const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batchId) : null;
             const parent = d && d.parent ? _prodIssue(d.parent) : null;
             const clientSlug = d ? d.project : batch ? batch.client_slug : '';
-            const title = d ? (d.title || _prodIssueLabel(d)) : batch ? (batch.name || 'Batch') : 'Detail';
+            const title = d ? (_prodKnownName(d) || 'Untitled issue') : batch ? (_prodSafeName(batch.name) || 'Batch') : 'Detail';
             const showParent = !!parent;
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
@@ -709,7 +709,7 @@
             }
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
-                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
+                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodParentNameHTML(parent) + '</button>' : '')
                 + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + siblingNav + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
@@ -1165,15 +1165,22 @@
            creation must not be reachable from Production at all, per
            CLAUDE.md's standing rule; only the content calendar creates. */
         function _prodSubIssueContextHTML(d, parent) {
-            if (!parent) return '';
+            /* A parent that is linked but not loaded yet still gets a header,
+               with a skeleton for its name: dropping the header and painting
+               it later moved the whole page down under the reader. */
+            if (!parent && !(d && d.parent)) return '';
+            if (!parent) {
+                return '<div class="prod-detail-context" data-prod-subissue-of="pending"><span>Sub-issue of</span>'
+                    + '<span class="prod-detail-context-link"><b>' + _prodParentNameHTML(null, d.parent) + '</b></span></div>';
+            }
             const progress = _prodSubProgress(parent);
             const projectLabel = _prodDisplayClient(d.project);
-            const parentTitle = (parent.title || _prodIssueLabel(parent));
+            const parentLabel = _prodIssueDisplayLabel(parent);
             const projectContext = _prodAttributionResolved(d)
                 ? '<button class="prod-context-project" type="button" onclick="_prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Open project"><span class="prod-card-ico">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(projectLabel) + '</span></button>' + _prodAttributionChipOnlyHTML(d)
                 : _prodIssueProjectChipHTML(d);
             return '<div class="prod-detail-context" data-prod-subissue-of="' + _calEscAttr(parent.id) + '"><span>Sub-issue of</span>'
-                + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + _calEsc(_prodIssueLabel(parent)) + ' ' + _calEsc(parentTitle) + '</b></button>'
+                + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + (parentLabel ? _calEsc(parentLabel) + ' ' : '') + _prodParentNameHTML(parent) + '</b></button>'
                 + (progress ? '<span class="prod-subchip" data-prod-tip="' + progress.done + ' of ' + progress.total + ' sub-issues done">' + _prodStatusSVG(progress.done === progress.total && progress.total > 0 ? 'approved' : 'todo') + progress.done + '/' + progress.total + '</span>' : '')
                 + '<span class="prod-spacer"></span>' + projectContext + '</div>';
         }
@@ -1632,7 +1639,7 @@
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodRowOverdue(d) ? 'dueover' : '')
                 + sideRow(_prodLabelsButtonHTML(d))
                 + '</div>'
-                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
+                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _prodParentNameHTML(parent) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row">' + _prodAttributionProjectControlHTML(d) + '</div></div>'
                 + _prodSmmCardHTML(d)
                 + '</div>';
@@ -2568,8 +2575,8 @@
     const SXR_UPSERT_N8N_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
     const SXR_UPSERT_URL  = SXR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const SXR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-upsert';
-    const SXR_REORDER_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-reorder';
-    const SXR_REORDER_URL = SXR_REORDER_N8N_URL; // legacy fallback alias; do not fetch directly
+    /* sample-review-reorder (n8n) was removed in the n8n exit, PR 4: reorders go to
+       SXR_REORDER_EF_URL only, behind the fresh flag read. */
     const SXR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-reorder';
     const SXR_TABLE       = 'sample_reviews';
     const SXR_RT_CHANNEL_PREFIX = 'sxr-';
@@ -2702,11 +2709,11 @@
         try { slug = sxrClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         return !!slug && _sxrSampleEfClients.has(slug);
     }
+    /* Legacy router, kept ONLY for the client link's approve and request-changes
+       (n8n exit PR 4 carve-out): a write made from a client link keeps its old
+       flag-or-n8n routing and request byte for byte. */
     function _sxrUpsertUrlForClient(clientOrSlug) {
         return _sxrSampleUseEf(clientOrSlug) ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
-    }
-    function _sxrReorderUrlForClient(clientOrSlug) {
-        return _sxrSampleUseEf(clientOrSlug) ? SXR_REORDER_EF_URL : SXR_REORDER_N8N_URL;
     }
     function _sxrWriteHeaders(source, url) {
         let role = 'smm';
@@ -2714,7 +2721,21 @@
         const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
     }
-    function _sxrUpsertFetch(clientOrSlug, payload, source) {
+    /* THE SHARED SEND STEP FOR EVERY SAMPLE SAVE AND REORDER (n8n exit, PR 4).
+       Same rules as the Calendar (see _calUpsertFetchGuarded): staff and Kasper
+       writes read sample_review_ef_clients afresh (own read, two seconds, retried,
+       never shared or cached) and go to the Edge Function only. An unreadable or
+       malformed flag HOLDS the write; a client the flag does not list PAUSES it
+       with a message; neither ever reaches n8n. sample-review-upsert itself stays
+       frozen and ungated (AGENTS.md); nothing here edits or re-gates it.
+
+       CARVED OUT (owner, 2026-09-29): the client approve and request-changes
+       buttons share this step and keep today's routing and request exactly, so a
+       write made from a client link takes the untouched legacy branch. */
+    function _sxrAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(SXR_SAMPLE_REVIEW_FLAG_KEY, clientOrSlug, set => { _sxrSampleEfClients = set; }, 'Saving samples');
+    }
+    function _sxrUpsertFetchClientLink(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
         const url = _sxrUpsertUrlForClient(clientOrSlug);
         return fetch(url, {
@@ -2723,10 +2744,27 @@
             body: JSON.stringify(payload)
         });
     }
+    async function _sxrUpsertFetchGuarded(clientOrSlug, payload, source) {
+        await _sxrAssertSavingOn(clientOrSlug);
+        return fetch(SXR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _sxrWriteHeaders(source, SXR_UPSERT_EF_URL),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _sxrUpsertFetch(clientOrSlug, payload, source) {
+        if (_isClientLink) return _sxrUpsertFetchClientLink(clientOrSlug, payload, source);
+        return _sxrUpsertFetchGuarded(clientOrSlug, payload, source);
+    }
     function _sxrUpsertFetchPinned(clientOrSlug, payload, source, transport) {
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _sxrUpsertFetch(clientOrSlug, payload, source);
         }
+        /* A staff retry pinned to `supabase` is held like any other save when saving
+           is paused. Only a pinned `webhook` repair still replays to its pinned
+           writer, and only until the on-load migration moves it. A client link keeps
+           today's request untouched. */
+        if (!_isClientLink && transport === 'supabase') return _sxrUpsertFetchGuarded(clientOrSlug, payload, source);
         const url = transport === 'supabase' ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
         return fetch(url, {
             method: 'POST',
@@ -2734,20 +2772,21 @@
             body: JSON.stringify(payload)
         });
     }
-    function _sxrReorderFetch(clientOrSlug, payload, source) {
-        _sxrPrimeSampleRoutingFlag();
-        const post = (url) => _writeUiTrackSave('sxr', 'sample_reorder', () => ({ client_slug: String(payload && payload.client || '') }), () => fetch(url, {
-            method: 'POST',
-            headers: _sxrWriteHeaders(source, url),
-            body: JSON.stringify(payload)
-        }));
-        if (!_sxrSampleUseEf(clientOrSlug)) return post(SXR_REORDER_N8N_URL);
-        return post(SXR_REORDER_EF_URL).then(async (resp) => {
-            let json = null;
-            try { json = await resp.clone().json(); } catch (e) {}
-            if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('sample reorder EF HTTP ' + resp.status));
-            return resp;
+    async function _sxrReorderFetch(clientOrSlug, payload, source) {
+        // n8n exit PR 4: the function only, after a fresh, bounded flag read. The read sits
+        // inside the failed-saves tracker so a paused or held reorder is recorded too.
+        const resp = await _writeUiTrackSave('sxr', 'sample_reorder', () => ({ client_slug: String(payload && payload.client || '') }), async () => {
+            await _sxrAssertSavingOn(clientOrSlug);
+            return fetch(SXR_REORDER_EF_URL, {
+                method: 'POST',
+                headers: _sxrWriteHeaders(source, SXR_REORDER_EF_URL),
+                body: JSON.stringify(payload)
+            });
         });
+        let json = null;
+        try { json = await resp.clone().json(); } catch (e) {}
+        if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('sample reorder EF HTTP ' + resp.status));
+        return resp;
     }
     _sxrPrimeSampleRoutingFlag();
 
@@ -3001,6 +3040,10 @@
                     <button class="cal-kebab" type="button" onclick="_sxrToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
                     <div class="cal-kebab-menu" id="sxrKebabMenu" hidden>
                         <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                        <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
+                            <div class="cal-kebab-sep" role="separator"></div>
+                            <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_arxOpen('sxr')" title="See recently archived samples and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived samples</button>
+                        </div>
                     </div>
                 </div>`
             : '';
@@ -4403,7 +4446,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'));
+                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -5053,11 +5096,7 @@
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
-            method: 'POST',
-            headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
-            body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        }));
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: patch, comments_base_at: '' }, 'ui'), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -5085,18 +5124,15 @@
         _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
-            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping)
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping),
+            preflight: () => _sxrAssertSavingOn(sxrState.client)
         });
     }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
-            method: 'POST',
-            headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
-            body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        }));
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: patch, comments_base_at: '' }, 'ui'), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -5124,7 +5160,8 @@
                 deliverable_id: _writeUiNativeId(post, 'video'), card_id: String(post.id), surface: 'samples', video_status_at: String(post.video_status_at || '') } : null,
             currentClientSlug: () => sxrClientSlug(sxrState.client),
             currentPost: () => sxrState.posts.find(p => p.id === pid),
-            persist: (ping) => _sxrPersistUrgentSentForPost(sourceClient, post, ping)
+            persist: (ping) => _sxrPersistUrgentSentForPost(sourceClient, post, ping),
+            preflight: () => _sxrAssertSavingOn(sourceClient)
         });
     }
     function _sxrRenderInlineCard(p, isBlank, isCurrent) {
@@ -5538,9 +5575,8 @@
             // drag referenced a stale/mid-create/archived id and silently did not
             // persist. Revert and tell the user rather than leaving the strip
             // showing an order the sheet never accepted (F141, invariant 2). Scoped
-            // to the EF route, which returns the true count; the n8n fallback keeps
-            // its ok-flag contract.
-            if (_sxrSampleUseEf(slug) && Number((json && json.updated) || 0) < items.length) {
+            // to the EF route, which is now the only route (n8n exit, PR 4).
+            if (Number((json && json.updated) || 0) < items.length) {
                 throw new Error((json && json.error) || 'reorder incomplete');
             }
             _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
@@ -5551,7 +5587,7 @@
                 items.forEach(({ id }) => _sxrReorderOptimistic.delete(id));
                 try { _sxrCacheWrite(slug, sxrState.posts); } catch (e2) {}
                 try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
-                if (typeof showNotify === 'function') showNotify("Couldn't save the new order", 'It was put back — please try again.');
+                if (typeof showNotify === 'function') showNotify("Couldn't save the new order", e && e.calWritePaused ? e.message : 'It was put back — please try again.');
             }
         } finally {
             _sxrReorderInFlight = false;
@@ -9064,6 +9100,14 @@
                 _writeUiLegacyShedRetired('sxr'),
             ]);
             if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            /* n8n exit, PR 2: move any staff Calendar repair still pinned to
+               the n8n writer onto Supabase (writer and verification source
+               together) before the drain looks at it. Staff only; a client
+               link is carved out. Never throws. */
+            if (owner.kind !== 'client') {
+                await _writeUiMigratePinnedGates().catch(() => null);
+                if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            }
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
             const sxrHasOwnedDebt = _sxrLinearOutboxRead()
@@ -9667,7 +9711,7 @@
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
-        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'));
+        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'), { requireOk: true });
         if (!resp.ok) throw new Error('http ' + resp.status);
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
@@ -9971,7 +10015,8 @@
                 deliverable_id: _writeUiNativeId(it.post, 'video'), card_id: String(it.post.id), surface: 'samples', video_status_at: String(it.post.video_status_at || '') } : null,
             currentClientSlug: () => String((_sxrKasperFindItem(pid) || {}).slug || ''),
             currentPost: () => (_sxrKasperFindItem(pid) || {}).post,
-            persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
+            persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping),
+            preflight: () => _sxrAssertSavingOn(it.slug || client)
         });
     }
     function _sxrKasperRequestTweakComp(pid, comp) {
@@ -10036,4 +10081,4 @@
     } catch (e) {}
     // <<< SXR_END
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-13-core-08fdcce22f8d.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-13-core-ce23bb9637ca.js");

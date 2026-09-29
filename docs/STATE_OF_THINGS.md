@@ -37,7 +37,7 @@ here with where it stopped, so it can be restarted.
    `e5f36d6e5a55202b978ab3f666893de50c27d34c`).** Signed-in staff now load the page in parts; client
    links, forms and signed-out visitors still get the whole script as one file.
    Mason measured staff first load on a 4G phone at 2,652 ms before and 1,768 ms after.
-   Next: Vigil hand-tests the live site with the six steps in the PR. Way back:
+   Vigil's six hand-test steps passed on the live site. Way back:
    `node scripts/split-switch.js off`, commit, merge; one browser: `?split=0`.
    SyncLinear stays in the always-loaded part (owner, 2026-09-29).
 4. **Failed saves: finish the log.** Built: the write-refusal log (#1499), an
@@ -48,9 +48,16 @@ here with where it stopped, so it can be restarted.
    Measured live: `traffic` fills for browser reports; the gateway's own rows
    still show none because `production-write` was deployed before #1643 and needs
    its next Section 4 deploy. Left: that deploy (owner's capture ritual).
-5. **Load-per-tab, step 5: client links get the smaller page.** Needs the
-   owner's separate go after a week of staff use. This is the big client-side
-   speed gain (about 3 s to about 1.7 s on a typical phone, plan estimate).
+5. **Load-per-tab, step 5: client links get the smaller page. BUILT 2026-09-29,
+   waiting for Lighthouse to merge and Vigil to hand-test the live client link.**
+   The owner gave the go and waived the week of staff use. A client link now loads
+   the parts (no TikTok, Templates, Workload or Kasper code, and no quiet download
+   of them); forms, the SMM weekly report and signed-out visitors still get the whole
+   script. Numbers: `docs/audits/2026-09-29-step5-client-first-load.md`. Three ways
+   back: everyone `node scripts/split-switch.js off`; client links only
+   `node scripts/split-switch.js clients off`; one browser `?split=0`. The client
+   approve and request-changes tests pass on the parts. Left after this: step 6
+   (measure everything again).
 6. **Make this repo private, maintainably (owner wants it, 2026-09-29; this
    replaces the 2026-09-24 "keep it public for now").** Move scheduled jobs and
    automation off GitHub Actions (for example Supabase pg_cron and Edge
@@ -58,6 +65,12 @@ here with where it stopped, so it can be restarted.
    (owner, 2026-09-24: "I want to keep using GitHub"; the owner already pays
    for GitHub Pro, which serves Pages from a private repo). Plan: `docs/plans/2026-09-24-owner-backlog.md` section 1; costs:
    `docs/ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md`.
+   **Plan written 2026-09-29 (Atlas): `docs/plans/2026-09-29-repo-private-plan.md`,
+   awaiting the owner's decisions in its section 9.** Findings that change the
+   picture: measured pace is about 135,000 billed minutes a month (about $790 on
+   Pro), 90 percent of it pull-request checks, so moving scheduled jobs saves only
+   about $13; and the live site publishes the whole repo (docs, scripts,
+   migrations), so the Pages deploy must become an allowlist before any switch.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -83,11 +96,10 @@ here with where it stopped, so it can be restarted.
      #1857 removes it, after which Kasper > Filming reads from the function, with
      n8n kept as the automatic per-Doc fallback. Rollback: set the flag to
      `{"mode":"n8n"}` (takes effect on the next Filming open). The n8n Filming Plan
-     Tabs workflow stays on for 30 days. **PR 2 (Calendar, session Anvil, #1858) built 2026-09-29, awaiting Lighthouse's
-     merge:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
+     Tabs workflow stays on for 30 days. **PR 2 (Calendar, #1858) merged 2026-09-29:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
      approve and request-changes untouched (byte-identical test); pinned repairs migrate on load;
-     the n8n Calendar workflows stay on 30 days after it ships. Next: Caption Prompts (PR 3), then
-     Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
+     the n8n Calendar workflows stay on 30 days after it ships. **PR 3 (Caption Prompts, session Anvil) built 2026-09-29,
+     awaiting Lighthouse's merge:** prompts are read from the `caption_prompts` table (browser saved copy, then n8n `caption-prompts-get`, only on error); the save is guarded by a fresh, bounded read of `settings_ef_clients` (paused or held, never n8n). `Caption Prompts - Save` can be deactivated 30 days after it ships; `Get` stays as the first-load fallback. **PR 4 (Sample Review, session Anvil) built 2026-09-29, stacked on PR 3, awaiting Lighthouse's merge:** staff Sample saves and reorders hold or pause on a fresh `sample_review_ef_clients` read and never reach n8n; client approve and request-changes untouched (byte-identical test); `sample-review-upsert` stays frozen; pinned Samples repairs migrate on load; the four urgent-marker writes now use the guarded step. `Sample Review - Upsert` and `Reorder` (n8n) can be deactivated 30 days after it ships; `Get` stays as the read fallback. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
    - **Staff can see and restore recently archived Calendar cards and Samples**
      (owner 2026-09-29): BUILT in PR 1853 (session Harbor), waiting for

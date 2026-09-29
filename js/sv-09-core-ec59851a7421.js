@@ -1654,12 +1654,13 @@
 
     /* ============================================================
        CONTENT CALENDAR MODULE
-       Backed by n8n workflows (additive, do not edit existing):
+       Saves and reorders go to the Supabase functions calendar-upsert and
+       calendar-reorder (n8n exit, PR 2); reads come from calendar_posts, with
+       the n8n calendar-get webhook kept only as the read fallback. The
+       original n8n contract, for reference:
          GET  /webhook/calendar-get?client=<slug>
          POST /webhook/calendar-upsert-post  { client, post }
-         POST /webhook/calendar-delete-post  { client, id }
-         POST /webhook/calendar-reorder      { client, items[{id,order_index}] }
-       Storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
+       Legacy storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
        Schema: id, order_index, scheduled_date, name, asset_url, thumbnail_url,
        caption, caption_alt, caption_alt_platform, cta, tweaks, status,
@@ -1680,14 +1681,11 @@
     const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
     const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
-    const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
-    const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
-    const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    /* calendar-append-post, calendar-delete-post, calendar-reorder and
+       calendar-reorder-batch had no caller left (or, for the reorders, only
+       the n8n route the page no longer takes) and were removed in the n8n exit,
+       PR 2. Reorders go to CALENDAR_REORDER_EF_URL only. */
     const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
-    // Batched reorder: same contract, but the workflow writes every
-    // order_index in ONE values:batchUpdate (3 fixed API calls instead of
-    // one per row). Falls back to CALENDAR_REORDER_URL when unavailable.
-    const CALENDAR_REORDER_BATCH_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder-batch';
     // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
     // (2 Google API calls server-side). The FE falls back to per-client
     // CALENDAR_GET_URL calls whenever this endpoint fails.
@@ -1707,7 +1705,8 @@
        own copies of these URLs and are tracked separately. */
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
-    const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
+       to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
     /* Caption-job tracking. The generate-caption workflow upserts a row per
        run into the caption_jobs n8n data table (status: running/done/error/
        cancelled, stage: scraping → transcribing → writing → done). The UI
@@ -1925,6 +1924,7 @@
         const role = _syncviewStaffRoleValue(identity);
         if (capability === 'credentials') return role === 'admin' || role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
+        if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';
         if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
@@ -3121,7 +3121,6 @@
         try {
             response = await fetch(url, options);
         } catch (cause) {
-            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), cause, null, {});
             const error = new Error(mutating
                 ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
                 : (timedOut
@@ -3149,7 +3148,6 @@
         if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
         if (!response.ok || !json || json.ok === false) {
             const error = new Error(_ptoApiMessage(json, response.status));
-            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), error, response, {});
             error.status = response.status;
             error.code = json && (json.code || json.error);
             throw error;
@@ -4308,4 +4306,4 @@
     }
 
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-09-core-45f6472e99ab.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-09-core-ec59851a7421.js");

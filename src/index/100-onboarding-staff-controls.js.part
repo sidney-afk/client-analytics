@@ -1104,7 +1104,8 @@ import {
        own copies of these URLs and are tracked separately. */
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
-    const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
+       to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
     /* Caption-job tracking. The generate-caption workflow upserts a row per
        run into the caption_jobs n8n data table (status: running/done/error/
        cancelled, stage: scraping → transcribing → writing → done). The UI
@@ -2366,7 +2367,7 @@ export {
   CALENDAR_GET_URL, CALENDAR_REORDER_EF_URL,
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
   CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
-  CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL, CLIENT_REVIEW_LINK_URL,
+  CAPTION_PROMPTS_SAVE_EF_URL, CLIENT_REVIEW_LINK_URL,
   CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
   PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
   THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, URGENT_KASPER_SLACK_URL,

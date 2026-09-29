@@ -33,10 +33,13 @@ here with where it stopped, so it can be restarted.
    monthly executions against the plan tiers (sizing in OPEN_REPAIRS 233: about
    100k a month, a 50k plan does not fit without cuts) and what would have to
    stop to fit a smaller plan. No n8n edits without the owner's go.
-3. **Load-per-tab, step 4 (Mason).** After Kasper (#1841) merges and Vigil
-   hand-tests it: switch the split on for staff only, measured before and after,
-   with a one-step switch back. SyncLinear is skipped for now (owner,
-   2026-09-29); revisit only if step 4's numbers justify it.
+3. **Load-per-tab, step 4: DONE, merged 2026-09-29 (#1848, main
+   `e5f36d6e5a55202b978ab3f666893de50c27d34c`).** Signed-in staff now load the page in parts; client
+   links, forms and signed-out visitors still get the whole script as one file.
+   Mason measured staff first load on a 4G phone at 2,652 ms before and 1,768 ms after.
+   Next: Vigil hand-tests the live site with the six steps in the PR. Way back:
+   `node scripts/split-switch.js off`, commit, merge; one browser: `?split=0`.
+   SyncLinear stays in the always-loaded part (owner, 2026-09-29).
 4. **Failed saves: finish the log.** Built: the write-refusal log (#1499) and
    an admin page to read it (#1792). It records Calendar, Samples, Production
    and intake refusals, best-effort. Left: confirm the `traffic` column fills,
@@ -61,11 +64,22 @@ here with where it stopped, so it can be restarted.
    - **Move SyncView's own traffic off n8n** (owner 2026-09-28, "completely
      optimize n8n execution"): Filming Plan Tabs (about 36% of runs), Calendar
      Upsert Post and its comment merge, Caption Prompts, Sample Review Upsert.
-     Pairs with item 2. The Codex session Forge (started 2026-09-28) stalled
-     when Codex broke and pushed nothing: branch `forge/filming-plan-tabs-batch`
-     equals an older main, and `docs/plans/2026-09-28-n8n-exit.md` was never
-     written. Restart from scratch. Only the hourly booking-recovery timer was
-     done (by Lighthouse, live in n8n).
+     Pairs with item 2. Forge restarted it on 2026-09-29: the plan
+     (`docs/plans/2026-09-28-n8n-exit.md`) and PR 1a, the `filming-plan-tabs`
+     Edge Function plus its cache-table migration, merged in #1846 (main
+     `66750995efb371eadaf503b45ade6d984fd1f8cb`); the page does not use it yet. Live since 2026-09-29: the cache
+     migration is applied, the owner deployed the function
+     (`https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml`),
+     switched on the Google Docs API and shared the Filming Plan folder with the
+     thumbnail service account, and a bulk read of 25 recent Filming Plan Docs came
+     back from Google with no n8n fallback (source `google` in the cache). Next:
+     PR 1b (Kasper switches over, behind its runtime flag), then Calendar,
+     Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
+     not touched at all, and old n8n workflows stay on 30 days.
+   - **Staff can see and restore recently archived Calendar cards** (owner
+     2026-09-29): from the Calendar's More menu, researched first and heavily
+     tested, because a restore touches the card, its work items (archiving parks
+     them in backlog) and Workload. Given to a new session on 2026-09-29.
    - **Escape does not close a Calendar card's thumbnail or video edit box**
      (owner 2026-09-26). Last status: still broken. Re-check live first.
    - **Daily real-browser client check from a local session, Samples included,
@@ -170,6 +184,15 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
+- **Kasper loads on demand (#1841), checked by the owner with a real login on
+  2026-09-29:** the Time Off and Clients tabs work. (Vigil's test account saw
+  those two tabs error, as before the change; that was the account, not #1841.)
+- **An SMM revived a work item whose Calendar card was archived (2026-09-29).**
+  The item showed only in SyncLinear, because the Calendar hides archived cards
+  and so does Workload, and SMMs have no way to see or restore an archived card.
+  Lighthouse restored that one card to In Progress on the owner's request
+  (logged in `calendar_post_events` as an `unarchive`). Open question for the owner:
+  should staff get a "show archived / restore" view in the Calendar?
 - **Publishable-key reads of `workload_issues`, `workload_issues_native_v1`
   and `production_deliverables_browser_v1` stay open. Owner decision
   2026-09-28; do not raise these three again.** Keel (#1840) found they return

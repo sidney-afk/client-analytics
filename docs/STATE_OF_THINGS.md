@@ -127,10 +127,10 @@ hiring senders when the editor hire closes.
   the lanes in OPEN_REPAIRS 205). Repair or retire each. Not re-checked today.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
-- **A press that starts in a dialog and ends outside closes it**, 13 sites
-  (OPEN_REPAIRS 215). The Codex session Latch (started 2026-09-28) stalled when
-  Codex broke and pushed nothing: branch `fix/dialog-backdrop-press-release`
-  equals an older main. Restart from scratch.
+- **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since
+  #1431 (2026-09-19), 21 backdrops guarded by one shared helper. The Latch
+  session's stall was a false alarm on a fixed item. A test now proves it on
+  22 dialogs (`test/dialog-backdrop-press-browser.js`, OPEN_REPAIRS 287).
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has
   confirmed it on a live read (journal 2026-09-22).
 - **Copy transport retry** (OPEN_REPAIRS 223/279): the native brief copy now

@@ -223,7 +223,13 @@ function makeIdentityPurgeContext() {
     role: 'admin',
     member: { id: 'synthetic-admin', name: 'Synthetic Admin' },
   };
-  const storage = new Map([[identityKey, JSON.stringify(currentIdentity)]]);
+  const boardCacheKey = 'syncview_workloadBoardCache_v2';
+  const legacyBoardCacheKey = 'syncview_linearIssuesCache_v1';
+  const storage = new Map([
+    [identityKey, JSON.stringify(currentIdentity)],
+    [boardCacheKey, JSON.stringify({ fetchedAt: 1, issues: [{ id: 'warm-issue' }] })],
+    [legacyBoardCacheKey, '{}'],
+  ]);
   const localStorage = {
     getItem: key => storage.has(key) ? storage.get(key) : null,
     setItem: (key, value) => storage.set(key, String(value)),
@@ -240,6 +246,9 @@ function makeIdentityPurgeContext() {
   let focusCalls = 0;
   const context = {
     SYNCVIEW_STAFF_IDENTITY_KEY: identityKey,
+    LINEAR_ISSUES_CACHE_KEY: boardCacheKey,
+    WL_LEGACY_CACHE_KEY: legacyBoardCacheKey,
+    window: {},
     _syncviewStaffIdentityMem: currentIdentity,
     _syncviewStaffIdentityLoaded: true,
     _syncviewStaffIdentityVerified: true,
@@ -267,6 +276,8 @@ function makeIdentityPurgeContext() {
       issueSnapshot: warmIssueSnapshot,
       calendarByDate: new Map([['2026-07-29', warmIssueSnapshot]]),
       fetchedAt: 1,
+      editorRoster: [{ id: 'synthetic-editor' }],
+      editorRosterStatus: 'ready',
     },
     localStorage,
     wlApplyData: (issues, fetchedAt) => {
@@ -302,6 +313,8 @@ function makeIdentityPurgeContext() {
     '_syncviewStaffIdentityLoad',
     '_syncviewStaffIdentitySave',
     '_syncviewStaffIdentityValid',
+    'wlDropCache',
+    'wlPurgeBoardData',
     'wlPurgePlanSensitiveState',
     '_syncviewStaffPurgeSensitiveState',
     '_syncviewStaffIdentityClear',
@@ -311,6 +324,13 @@ function makeIdentityPurgeContext() {
   ]) vm.runInContext(extract(name), context);
   return {
     context,
+    boardGone: () => Array.isArray(context.wlState.issueSnapshot)
+      && context.wlState.issueSnapshot.length === 0
+      && [...context.wlState.calendarByDate.values()].every(rows => !rows.length)
+      && context.wlState.fetchedAt === null
+      && context.wlState.editorRoster.length === 0
+      && storage.get(boardCacheKey) === undefined
+      && storage.get(legacyBoardCacheKey) === undefined,
     warmIssueSnapshot,
     applyCalls,
     renders,
@@ -905,11 +925,10 @@ function ok(condition, message) {
         && h.context._syncviewStaffIdentityMem === null
         && h.focusCalls() === 1,
       'real staff sign-out purges plan and metadata state and invalidates a late snapshot completion');
-    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
-        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot
-        && h.applyCalls.every(call => call[0] === h.warmIssueSnapshot)
-        && h.renders.length >= 1,
-      'staff sign-out preserves and repaints the warm non-sensitive issue calendar');
+    // Owner ruling 2026-09-28: the board is private too. A signed-out browser
+    // keeps no Workload rows, roster or saved copy, and the view repaints empty.
+    ok(h.boardGone() && h.renders.length >= 1,
+      'staff sign-out removes the Workload board rows, roster and saved browser copy, then repaints');
   }
 
   // Cross-tab identity replacement and removal use their own storage-event
@@ -933,9 +952,7 @@ function ok(condition, message) {
         && h.context._syncviewStaffIdentityMem.member.id === replacement.member.id
         && h.bootCalls() === 1,
       'a cross-tab identity replacement purges Workload state before reverification');
-    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
-        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot,
-      'identity replacement leaves the warm issue calendar mounted');
+    ok(h.boardGone(), 'identity replacement drops the previous identity\'s board before reverification');
   }
 
   {
@@ -952,9 +969,7 @@ function ok(condition, message) {
         && h.context._syncviewStaffIdentityMem === null
         && h.bootCalls() === 0,
       'a cross-tab sign-out purges Workload state without trying to verify a missing identity');
-    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
-        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot,
-      'cross-tab sign-out keeps the visible calendar warm');
+    ok(h.boardGone(), 'cross-tab sign-out removes the visible board');
   }
 
   // A Workload authorization failure must take the same centralized clear
@@ -971,9 +986,7 @@ function ok(condition, message) {
         && h.context._syncviewStaffIdentityMem === null
         && h.context.localStorage.getItem(h.context.SYNCVIEW_STAFF_IDENTITY_KEY) === null,
       'a Workload 401 clears identity and purges both staff-only projections');
-    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
-        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot,
-      'the Workload 401 path preserves the warm issue calendar');
+    ok(h.boardGone(), 'the Workload 401 path removes the board along with the identity');
   }
 
   // Exercise the real delegated click ordering: the root handler opens an

@@ -202,6 +202,14 @@
     })();
     </script>
 <script>
+    // No staff sign-in in this browser: a Workload board copy left by an
+    // earlier session is private data, so it is deleted on every load.
+    try {
+        if (!localStorage.getItem('syncview_staff_identity_v1')) {
+            localStorage.removeItem('syncview_workloadBoardCache_v2');
+            localStorage.removeItem('syncview_linearIssuesCache_v1');
+        }
+    } catch (e) {}
     (function () {
         try {
             var de = document.documentElement;
@@ -447,7 +455,12 @@
                 var wlBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
                 var wlKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
                 window.__wlEarlyIssuesUrl = wlBase + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=0';
-                if (!wlKilled && !wlFresh) {
+                // Only for a browser that holds a staff sign-in: a signed-out
+                // visitor must not load Workload rows at all (the board itself
+                // also refuses to draw without a verified identity).
+                var wlHasStaff = false;
+                try { wlHasStaff = !!localStorage.getItem('syncview_staff_identity_v1'); } catch (e) {}
+                if (!wlKilled && !wlFresh && wlHasStaff) {
                     window.__wlEarlyIssues = fetch(window.__wlEarlyIssuesUrl, {
                         cache: 'no-store',
                         headers: { apikey: wlKey, Authorization: 'Bearer ' + wlKey, Accept: 'application/json', Prefer: 'count=exact' }
@@ -15424,6 +15437,11 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
+        // Test clients (clients.kind = 'test'), as normalised slug/name keys.
+        // Their cards stay off the board unless this browser opted in with
+        // ?wltest=1 (wlTestClientsMode).
+        testClientKeys: new Set(),
+        testClientKeysLoaded: false,
         // The last validated v2 snapshot this page holds, keyed by staff
         // identity, so a refresh sends its version and reuses it on "unchanged".
         snapshotMemo: null,
@@ -16518,6 +16536,7 @@
                 const issue = { ..._wlV2MapRow(row), workloadSource: row.source,
                     linearId: row.source === 'native' ? row.linear_id : row.id,
                     nativeClientActive: row.native_client_active,
+                    clientSlug: typeof row.client_slug === 'string' ? row.client_slug : '',
                     nativeAssigneeEligible: row.native_assignee_eligible,
                     // A legacy row the gateway could bind to a native
                     // deliverable (`native_plan_id` -- the same client-matched
@@ -17659,13 +17678,95 @@
         // No plans are loaded at all now, so "some of them were dropped" is no
         // longer a true statement about what is on screen.
         wlState.nativePlansDropped = 0;
-        if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
-            wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
-        }
+        // The board itself is private too (Vigil's hand test, 2026-09-28): a
+        // signed-out browser showed every card and person behind the sign-in
+        // prompt, even after a reload. Sign-out now drops the board's rows,
+        // its team roster, the saved browser copy and any in-flight early read.
+        wlPurgeBoardData();
         if (document.querySelector('.workload-view')) {
             wlClosePopover(false);
             renderWorkloadAll();
+            // Sign-out purges before it clears the identity, so paint again
+            // once it has: that pass draws the signed-out surface.
+            setTimeout(() => { try { if (document.querySelector('.workload-view')) renderWorkloadAll(); } catch (e) {} }, 0);
         }
+    }
+
+    /* TEST CLIENTS ON WORKLOAD (Vigil's hand test, 2026-09-28).
+       A test client's cards are never shown to the team by default. A browser
+       that opts in with ?wltest=1 (remembered here; ?wltest=0 clears it) sees
+       them, Backlog included: the test client's work sits almost entirely in
+       Backlog, which the 2026-08-23 ruling keeps off Workload for real
+       clients, so without it there is nothing to hand-test or to move. */
+    const WL_TEST_CLIENTS_KEY = 'syncview_workload_test_clients_v1';
+    function wlTestClientsMode() {
+        try {
+            const q = new URLSearchParams(svRoute.search()).get('wltest');
+            if (q === '1' || q === 'true') { localStorage.setItem(WL_TEST_CLIENTS_KEY, '1'); return true; }
+            if (q === '0' || q === 'false') { localStorage.removeItem(WL_TEST_CLIENTS_KEY); return false; }
+            return localStorage.getItem(WL_TEST_CLIENTS_KEY) === '1';
+        } catch (e) { return false; }
+    }
+    function _wlClientKey(value) {
+        return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    function wlIsTestClientIssue(issue) {
+        const keys = wlState.testClientKeys;
+        if (!issue || !keys || !keys.size) return false;
+        const slug = _wlClientKey(issue.clientSlug), name = _wlClientKey(issue.clientName);
+        return (!!slug && keys.has(slug)) || (!!name && keys.has(name));
+    }
+    let _wlTestClientsLoading = null;
+    function wlLoadTestClients() {
+        if (wlState.testClientKeysLoaded || _wlTestClientsLoading || !wlStaffMayView()) return _wlTestClientsLoading;
+        _wlTestClientsLoading = (async () => {
+            try {
+                const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name&kind=eq.test';
+                const resp = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const rows = await resp.json();
+                const keys = new Set();
+                for (const row of (Array.isArray(rows) ? rows : [])) {
+                    for (const v of [row && row.slug, row && row.display_name]) { const k = _wlClientKey(v); if (k) keys.add(k); }
+                }
+                wlState.testClientKeys = keys;
+                wlState.testClientKeysLoaded = true;
+                if (wlState.issueSnapshot.length && wlStaffMayView()) {
+                    wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
+                    if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
+                }
+            } catch (e) {
+                // Test cards stay hidden until this list loads (wlApplyData
+                // holds unclassified rows back), so keep trying.
+                console.warn('[workload] test client list unavailable', e && e.message);
+                setTimeout(() => { try { wlLoadTestClients(); } catch (e2) {} }, 5000);
+            } finally { _wlTestClientsLoading = null; }
+        })();
+        return _wlTestClientsLoading;
+    }
+
+    // True only for a verified staff identity. Workload shows nothing to anyone
+    // else: not the live board, not the in-memory copy, not the browser copy.
+    function wlStaffMayView() {
+        return !!_syncviewStaffIdentityForHeaders();
+    }
+    // No staff identity held at all (signed out), as opposed to one that is
+    // still being verified on boot, which must not throw away the board copy.
+    function wlStaffSignedOut() {
+        if (wlStaffMayView()) return false;
+        try { return !_syncviewStaffIdentityLoad(); } catch (e) { return true; }
+    }
+    function wlPurgeBoardData() {
+        wlDropCache();
+        try { window.__wlEarlyIssues = null; } catch (e) {}
+        wlState.snapshotMemo = null;
+        wlState.cachedBoardAt = null;
+        wlState.editorRoster = [];
+        wlState.editorRosterStatus = 'unknown';
+        wlApplyData([], null);
+        wlState.fetchedAt = null;
+        wlState.loading = false;
+        wlState.refreshing = false;
     }
 
     // Issue ids that moved from their fast-paint automatic estimate to a saved
@@ -18339,7 +18440,10 @@
         // docs/ops/OPEN_REPAIRS.md item 22. Nothing reconciles the two stores,
         // so that class does not heal on its own -- if it grows, this filter is
         // where it goes quiet.
-        if (t === 'backlog') return false;
+        // A test client's Backlog counts only in a browser that opted in to
+        // test clients (wlTestClientsMode): it is the only open work the test
+        // client has, and real clients are never affected.
+        if (t === 'backlog' && sub.wlTestShown !== true) return false;
         return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
     }
     function wlIsInProgress(sub) {
@@ -19156,9 +19260,43 @@
         const me = _syncviewCreativeMe();
         if (me && wlState.editor === 'all') _wlCreativePending = me;
     }
+    // Signed out (or not yet verified): no board data may be on screen. Anything
+    // held in memory or in this browser is dropped, and the board says why.
+    function wlRenderSignedOut() {
+        if ((Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) || wlState.fetchedAt != null
+            || (Array.isArray(wlState.editorRoster) && wlState.editorRoster.length)) wlPurgeBoardData();
+        if (wlState.popoverAnchor) wlClosePopover(false);
+        ['wlOverviewRows', 'wlUndatedChips', 'wlUnassignedChips'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+        // Filters can name a client or editor; forget them and hide the
+        // toolbar around the board, so only the sign-in note is left.
+        wlState.client = 'all'; wlState.editor = 'all'; wlState.team = 'all';
+        const bodyEl = document.getElementById('wlBody');
+        if (!bodyEl) return;
+        bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+        const view = bodyEl.closest('.workload-view');
+        for (let el = bodyEl; el && el !== view && el.parentElement; el = el.parentElement) {
+            for (const sib of el.parentElement.children) {
+                if (sib !== el && !sib.hidden) { sib.hidden = true; sib.setAttribute('data-wl-so-hidden', ''); }
+            }
+            if (el.parentElement === view) break;
+        }
+    }
+    function wlUnhideSignedOut() {
+        document.querySelectorAll('[data-wl-so-hidden]').forEach(el => { el.hidden = false; el.removeAttribute('data-wl-so-hidden'); });
+    }
     async function initWorkloadView() {
         // Guarded: unit suites run this mount alone in a sandbox.
         if (typeof _wlCreativeDefaultInit === 'function') _wlCreativeDefaultInit();
+        if (wlStaffSignedOut()) {
+            wlRenderSignedOut();
+            // A sign-in completing later reloads the board through the normal path.
+            if (typeof _syncviewRequireStaffIdentity === 'function') {
+                _syncviewRequireStaffIdentity('workload-plan-read').then(() => {
+                    if (wlStaffMayView() && document.querySelector('.workload-view')) initWorkloadView();
+                }).catch(() => {});
+            }
+            return;
+        }
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
@@ -19194,6 +19332,7 @@
         try { if (_wlNativeDiffEnabled()) window.wlNativeDiff(); }
         catch (e) { console.warn('[workload native] diff failed to start', e); }
 
+        wlLoadTestClients();
         const hasWarmSnapshot = wlState.fetchedAt != null && Array.isArray(wlState.issueSnapshot);
         if (hasWarmSnapshot) {
             wlState.loading = false;
@@ -19371,6 +19510,7 @@
             return _wlBackgroundRefreshPromise;
         }
 
+        if (!wlStaffMayView()) return false;
         const run = async () => {
             const loadGeneration = _wlNextPlanLoadGeneration();
             const sessionGeneration = _wlPlanSessionGeneration;
@@ -19611,9 +19751,16 @@
         // Log any active sub-issue whose client we don't recognise so
         // typo'd Linear projects (e.g. "Mastin Kip" vs "Mastin Kipp") are
         // easy to track down from the browser console.
+        // Test clients: tagged here, hidden unless this browser opted in.
+        const testMode = wlTestClientsMode();
+        for (const i of issues) {
+            i.wlTestClient = wlIsTestClientIssue(i);
+            i.wlTestShown = i.wlTestClient && testMode;
+        }
         const dropped = new Map();
         for (const i of issues) {
             if (!i.isSubIssue || !wlIsActiveStatus(i)) continue;
+            if (i.wlTestClient && !i.wlTestShown) continue;
             if (wlIssueClientAllowed(i)) continue;
             const k = i.clientName || '(no client)';
             dropped.set(k, (dropped.get(k) || 0) + 1);
@@ -19621,7 +19768,8 @@
         if (dropped.size) {
             console.warn('[workload] inactive or unrecognised client rows:', [...dropped.values()].reduce((a,b) => a+b,0));
         }
-        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i)
+            && (!i.wlTestClient || i.wlTestShown));
         // Replace each sub's clientName with the canonical sheet name so
         // dropdowns, group keys and rollup labels collapse "Miki-agrawal" and
         // "Miki Agrawal" into a single "Miki Agrawal" entry.
@@ -21303,6 +21451,13 @@
             return;
         }
         wlState.renderQueued = false;
+        if (!wlStaffMayView()) {
+            // Signed out: wipe and say so. Still verifying: draw no board data
+            // yet; the load after verification repaints.
+            if (wlStaffSignedOut()) wlRenderSignedOut();
+            return;
+        }
+        wlUnhideSignedOut();
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);
@@ -25421,6 +25576,18 @@
     function _tdyOpenSync(id) {
         try { window.open('/synclinear/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {}
     }
+    /* Vigil's hand test, 2026-09-28: the address held only the client, so a
+       reload lost the card. Write the calendar's own card deep link
+       (#calendar/<slug>/<card>); the calendar keeps it and reopens it. */
+    function _tdyCardInAddress(clientSlug, cardId) {
+        try {
+            const slug = calClientSlug(clientSlug);
+            if (!slug || !cardId || currentNav !== 'calendar') return;
+            const base = '/' + svRoute.search().replace(/#.*$/, '');
+            history.replaceState({ nav: 'calendar', client: null }, '',
+                base + '#calendar/' + slug + '/' + encodeURIComponent(cardId));
+        } catch (e) {}
+    }
     function _tdyOpenCard(kind, id) {
         const d = tdyState.data;
         if (!d) return;
@@ -25431,6 +25598,7 @@
             try { svSharedClientNote(name); } catch (e) {}
             _calSetFocusRequest({ client: name, cardId: p.id });
             navTo('calendar');
+            _tdyCardInAddress(p.client, p.id);
             return;
         }
         const r = d.open.find(x => x.id === id);
@@ -25447,6 +25615,7 @@
     window._tdySkip = _tdySkip;
     window._tdyOpenSync = _tdyOpenSync;
     window._tdyOpenCard = _tdyOpenCard;
+    window._tdyCardInAddress = _tdyCardInAddress;
     window.mountTodayView = mountTodayView;
 
     /* WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the
@@ -74275,15 +74444,68 @@
             _sxrRenderBody();
             try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
             if (!_sxrIsBlankId(pid)) {
-                _sxrArchiveOne(pid, slug).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
+                _sxrArchiveOne(pid, slug, post || null).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
             }
         }, 'Archive');
     }
-    async function _sxrArchiveOne(pid, slug) {
+    async function _sxrArchiveOne(pid, slug, preCapturedPost) {
         delete _sxrPendingEdits[pid];
+        // Captured before any await, and before the caller's optimistic removal
+        // (the Calendar learned this the hard way: OPEN_REPAIRS 23).
+        const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
-        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: new Date().toISOString() }, comments_base_at: '' }, 'ui');
+        const archivedAt = new Date().toISOString();
+        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui');
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
+        // Same rule as the Calendar (owner ruling 2026-08-17, extended to
+        // samples 2026-09-28): archiving parks the sample's work items in
+        // Backlog through the same guarded status write a person's status
+        // change uses. Un-archiving forces nothing back.
+        await _sxrArchiveParkWorkItems(knownPost, slug, pid, archivedAt);
+    }
+    /*
+     * Park an archived sample's work items (video and thumbnail) in Backlog.
+     * Mirrors _calArchiveParkSubIssues. It never fails the archive, which has
+     * already succeeded; it says so when something could not be parked.
+     *
+     * Backlog is a work-item state, not a card state (SXR_STATUSES has no
+     * Backlog), so the card keeps its component statuses. The status write
+     * carries the card as it now is -- Archived -- so the card-side repair the
+     * gateway path keeps can never write the pre-archive overall status back
+     * and un-archive the sample.
+     */
+    async function _sxrArchiveParkWorkItems(post, slug, id, archivedAt) {
+        if (!post) {
+            console.warn('[Samples] archive could not resolve the sample to park', id || '');
+            showNotify('Archived, but its work items were not parked',
+                'The sample is archived. Its video and thumbnail work may still be open; move them to Backlog in Production.');
+            return { parked: 0, failed: 0, unresolved: true };
+        }
+        let parked = 0;
+        let failed = 0;
+        for (const component of ['video', 'graphic']) {
+            const url = component === 'video' ? post.linear_issue_id : post.graphic_linear_issue_id;
+            const nativeId = _writeUiNativeId(post, component);
+            if (!url && !nativeId) continue;
+            const parkedPost = Object.assign({}, post, { status: 'Archived', updated_at: archivedAt || post.updated_at });
+            try {
+                await _sxrPushStatusToLinear(url, 'Backlog', {
+                    post: parkedPost,
+                    component,
+                    slug,
+                    sourceEditedAt: archivedAt || post[component + '_status_updated_at'] || post.updated_at
+                });
+                parked += 1;
+            } catch (error) {
+                failed += 1;
+                console.warn('[Samples] archive could not park ' + component, error);
+            }
+        }
+        if (failed) {
+            showNotify('Archived, but a work item is still open',
+                'The sample is archived. ' + failed + ' of its work items could not be moved to Backlog.');
+        }
+        return { parked, failed };
     }
     function _sxrCardSelectClick(e, pid) {
         e.preventDefault();
@@ -74326,8 +74548,10 @@
             () => {
                 const idSet = new Set(ids);
                 const refsById = new Map();
+                const postById = new Map();
                 sxrState.posts.forEach(p => {
                     if (!idSet.has(p.id)) return;
+                    postById.set(p.id, p);
                     const refs = [p.id];
                     if (p.linear_issue_id) refs.push(p.linear_issue_id);
                     if (p.graphic_linear_issue_id) refs.push(p.graphic_linear_issue_id);
@@ -74346,7 +74570,7 @@
                 document.querySelectorAll('#sxrView .cal-select-btn').forEach(btn => btn.classList.remove('active'));
                 _sxrRenderBody({ preserveScroll: true });
                 try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
-                Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug))).then(results => {
+                Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug, postById.get(id) || null))).then(results => {
                     const failedRefs = [];
                     results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(ids[i]); if (refs) refs.forEach(x => failedRefs.push(x)); } });
                     if (failedRefs.length) { _sxrArchivedRemove(slug, failedRefs); loadSxrCards({ skipCache: true }); }

@@ -449,6 +449,7 @@ automated today:
 | 15 | Post For Me | TikTok account (`spc_…`) for auto-upload | ❌ manual, optional |
 | 16 | `SAMPLES_BY_CLIENT` map in **VIDEO PRODUCTION AUTOMATION** code node | reference thumbnails for the AI thumbnail pipeline | ❌ manual **code edit** (§15.7) |
 | 17 | Supabase `calendar_posts` / `sample_reviews` | rows auto-create on first write (PK `(client, id)` by slug) | ✅ auto |
+| 18 | Supabase `templates` | the client's Templates page (fonts, colors, **thumbnail Canva link**) | ❌ manual — no onboarding step makes it; the row is created by the first save of the client's Templates page (`templates-save` upserts). Open the Templates page and save the thumbnail Canva link. The weekday dawn check counts current clients with no row or no link (added 2026-09-28) |
 
 Once the `Clients Info` row exists the client appears in SyncView with no
 deploy, and the scheduled robots (§10) pick them up automatically. Client

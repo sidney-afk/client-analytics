@@ -29612,3 +29612,117 @@ never cause a repeated alert.
 September has no complete-day checkpoint (the last pass, 2026-09-15, counted to
 mid-day), so the scheduled check stays red until the 2026-10-01 month reset lets
 it build one. No partial count is allowed to pass.
+
+## 284. [2026-09-28] Archiving a sample parks its work items in Backlog, and a cleanup for the ones already stuck
+
+**Built, not yet run** (session Compass). Owner request: archiving a sample
+should behave like archiving a calendar post.
+
+**What the Calendar does (measured in code).** `_calArchiveOne` writes the
+card `Archived`, then `_calArchiveParkSubIssues` sends every linked component
+(video and thumbnail, whatever its status) to `Backlog` through
+`_calPushStatusToLinear`: the guarded `production-write` `status` operation, the
+same one a person's status change uses. It never fails the archive and says so
+when a park fails. Un-archiving forces nothing back.
+
+**What samples did.** `_sxrArchiveOne` wrote the card `Archived` and nothing
+else, so the sample's work items stayed open on people's lists.
+
+**Fix.** `_sxrArchiveOne` now parks through `_sxrArchiveParkWorkItems`, a copy
+of the Calendar helper using the Samples guarded writer
+(`_sxrPushStatusToLinear`). Both archive callers pass the row they captured
+before their optimistic removal (the OPEN_REPAIRS 23 lesson). The status write
+carries the card as `Archived`, so its card-side repair can never write the
+pre-archive status back. Backlog is a work-item state, not a card state (no
+card status list has it), so the card keeps its component statuses. Test:
+`test/samples-archive-parks-work-items.js`.
+
+**Cleanup for items already stuck.** `scripts/archived-work-items-park.js`
+covers open work items (triage, todo, in progress, any approval, tweak) behind
+archived samples AND archived calendar posts, still bound to that card. It
+moves each to Backlog through the same gateway `status` operation under a
+staff key and a named staff member; each committed change is captured by
+`card_change_journal`, which `--apply` reads back per item. Output is counts
+only. Test: `test/archived-work-items-park.js`.
+
+Dry run, 2026-09-28 (read-only): 7,652 archived samples and 12,993 archived
+calendar posts; **46 open work items, all real clients, 45 with a card**:
+
+| Source / kind / status | Count |
+|---|---|
+| sample / video / todo | 3 |
+| calendar / video / todo | 13 |
+| calendar / video / smm_approval | 8 |
+| calendar / video / client_approval | 5 |
+| calendar / graphic / smm_approval | 6 |
+| calendar / graphic / client_approval | 6 |
+| calendar / graphic / todo | 4 |
+| calendar / graphic / in_progress | 1 |
+
+**Open.** Lighthouse runs `--apply` after merge (needs `SYNCVIEW_STAFF_KEY`,
+`SYNCVIEW_ACTOR`, and `SUPABASE_SERVICE_ROLE_KEY` for the journal read-back),
+then re-runs the dry run and expects 0. Noticed in passing, not changed here:
+the Calendar park builds its card repair from the pre-archive row, so a replay
+of that repair could in principle write the old overall status back.
+
+## 285. [2026-09-28] The item 284 cleanup ran: 46 stuck work items parked in Backlog
+
+Lighthouse ran `scripts/archived-work-items-park.js --apply` on main a1bc3dd3563cf538b126fcbfe8c88c4eef58e7ee,
+after the owner's go, through the guarded `production-write` status operation
+with a staff key and a named staff member.
+
+- Dry run before: 46 open work items behind archived cards, all real clients
+  (3 behind archived samples, 43 behind archived calendar posts). Checked
+  beforehand: none linked to a live post, none scheduled ahead, none touched
+  since 2026-09-16.
+- Run: 46 parked, 0 failed, 46 confirmed in `card_change_journal`, 0 missing.
+- Dry run after: 0.
+- Before-statuses: 20 todo, 14 smm_approval, 11 client_approval, 1 in_progress.
+- Only `deliverables` rows changed; no `calendar_posts` or `sample_reviews` row
+  was written in the run window.
+
+**Undo:** `card_change_journal` ids 120083 to 120128 (relation `deliverables`,
+recorded 2026-09-28 23:30:10 to 23:30:51 UTC). Each row's `row_before.status`
+is the status to put back, through the same gateway status operation, with the
+item's current status and `updated_at` as the expected values so a later edit
+is never overwritten.
+
+## 286. [2026-09-28] Current clients with no Templates page: flag it every weekday
+
+Written by session Vigil. A row in `templates` is created only by the first
+save of a client's Templates page (`supabase/functions/templates-save` upserts
+it), and no onboarding step makes one: the "every place a client exists"
+checklist (`docs/CLIENT_LIFECYCLE_MAP.md` §7) had no Templates line at all. So
+a new client's Templates page stays empty until someone happens to save it, and
+staff had no thumbnail Canva link for several current clients.
+
+Live repair (owner-approved, 2026-09-28): the thumbnail Canva link was saved
+through the normal Templates save for 5 current clients; 4 had no row until
+that save made one, 1 had a row missing only the link. Read back: all 5 hold
+the link, and the one existing row is otherwise unchanged.
+
+Prevention in this PR:
+- `docs/syncview-design/tests/templates-no-row-browser.js` (fast lane) proves
+  the Templates page opens on an empty form for a client with no row, and that
+  saving the link goes through the normal save and shows on the page.
+- The weekday dawn check gains a read-only "Every current client has a
+  Templates page" line (`qa/dawn/templates-coverage.js`): current clients from
+  Clients Info, test and internal accounts left out, matched to rows by the `clients` slug.
+  A gap is a ⚠️ with counts only, never a failed run.
+- The lifecycle checklist gains row 18 for `templates`.
+
+At the first live read after the repair: 35 current clients, 2 still with no
+Templates page (not in the owner's list, so left for the owner), 0 missing only
+the link.
+
+Update (same PR): the owner confirmed the 2 still flagged are internal accounts,
+not clients. The check now leaves out `clients.kind = 'internal'` as well as
+`'test'`, using the column's existing values. It stays at 2 until those accounts
+(and 1 more internal account) are marked `internal` in `clients`; that data
+change is the owner's call, since other features read `kind` too (urgent client
+alerts fire only for `kind = 'client'`).
+
+**Owner decision (2026-09-28, via Lighthouse):** the three brand accounts stay
+`kind = client`. They are real brands the team produces for, so relabelling them
+would switch off client-only behaviour such as urgent alerts. The warning for
+the two with no Templates page stays until their thumbnail Canva files are saved.

@@ -291,7 +291,10 @@ import { wlEscape } from './080-workload-render.js';
         // docs/ops/OPEN_REPAIRS.md item 22. Nothing reconciles the two stores,
         // so that class does not heal on its own -- if it grows, this filter is
         // where it goes quiet.
-        if (t === 'backlog') return false;
+        // A test client's Backlog counts only in a browser that opted in to
+        // test clients (wlTestClientsMode): it is the only open work the test
+        // client has, and real clients are never affected.
+        if (t === 'backlog' && sub.wlTestShown !== true) return false;
         return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
     }
     function wlIsInProgress(sub) {

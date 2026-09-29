@@ -65,6 +65,11 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
+        // Test clients (clients.kind = 'test'), as normalised slug/name keys.
+        // Their cards stay off the board unless this browser opted in with
+        // ?wltest=1 (wlTestClientsMode).
+        testClientKeys: new Set(),
+        testClientKeysLoaded: false,
         // The last validated v2 snapshot this page holds, keyed by staff
         // identity, so a refresh sends its version and reuses it on "unchanged".
         snapshotMemo: null,

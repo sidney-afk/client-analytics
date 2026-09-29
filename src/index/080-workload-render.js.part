@@ -16,7 +16,9 @@ import {
   wlBackgroundBusinessFingerprint, wlCachedBoardUsable, wlCachedRoster, wlFetchLinearMetadata,
   wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed, wlLinearEditingEnabled,
   wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket, wlNativeDueDate,
-  wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache
+  wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache,
+  wlIsTestClientIssue, wlLoadTestClients, wlPurgeBoardData, wlStaffMayView, wlStaffSignedOut,
+  wlTestClientsMode,
 } from './067-workload-board-source.js';
 import {
   wlAddWorkingDays, wlISO, wlIsWeekend, wlParseISO, wlWeekMondayISO, wlWorkloadTodayISO
@@ -56,9 +58,43 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const me = _syncviewCreativeMe();
         if (me && wlState.editor === 'all') _wlCreativePending = me;
     }
+    // Signed out (or not yet verified): no board data may be on screen. Anything
+    // held in memory or in this browser is dropped, and the board says why.
+    function wlRenderSignedOut() {
+        if ((Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) || wlState.fetchedAt != null
+            || (Array.isArray(wlState.editorRoster) && wlState.editorRoster.length)) wlPurgeBoardData();
+        if (wlState.popoverAnchor) wlClosePopover(false);
+        ['wlOverviewRows', 'wlUndatedChips', 'wlUnassignedChips'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+        // Filters can name a client or editor; forget them and hide the
+        // toolbar around the board, so only the sign-in note is left.
+        wlState.client = 'all'; wlState.editor = 'all'; wlState.team = 'all';
+        const bodyEl = document.getElementById('wlBody');
+        if (!bodyEl) return;
+        bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+        const view = bodyEl.closest('.workload-view');
+        for (let el = bodyEl; el && el !== view && el.parentElement; el = el.parentElement) {
+            for (const sib of el.parentElement.children) {
+                if (sib !== el && !sib.hidden) { sib.hidden = true; sib.setAttribute('data-wl-so-hidden', ''); }
+            }
+            if (el.parentElement === view) break;
+        }
+    }
+    function wlUnhideSignedOut() {
+        document.querySelectorAll('[data-wl-so-hidden]').forEach(el => { el.hidden = false; el.removeAttribute('data-wl-so-hidden'); });
+    }
     async function initWorkloadView() {
         // Guarded: unit suites run this mount alone in a sandbox.
         if (typeof _wlCreativeDefaultInit === 'function') _wlCreativeDefaultInit();
+        if (wlStaffSignedOut()) {
+            wlRenderSignedOut();
+            // A sign-in completing later reloads the board through the normal path.
+            if (typeof _syncviewRequireStaffIdentity === 'function') {
+                _syncviewRequireStaffIdentity('workload-plan-read').then(() => {
+                    if (wlStaffMayView() && document.querySelector('.workload-view')) initWorkloadView();
+                }).catch(() => {});
+            }
+            return;
+        }
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
@@ -94,6 +130,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         try { if (_wlNativeDiffEnabled()) window.wlNativeDiff(); }
         catch (e) { console.warn('[workload native] diff failed to start', e); }
 
+        wlLoadTestClients();
         const hasWarmSnapshot = wlState.fetchedAt != null && Array.isArray(wlState.issueSnapshot);
         if (hasWarmSnapshot) {
             wlState.loading = false;
@@ -271,6 +308,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return _wlBackgroundRefreshPromise;
         }
 
+        if (!wlStaffMayView()) return false;
         const run = async () => {
             const loadGeneration = _wlNextPlanLoadGeneration();
             const sessionGeneration = _wlPlanSessionGeneration;
@@ -511,9 +549,16 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         // Log any active sub-issue whose client we don't recognise so
         // typo'd Linear projects (e.g. "Mastin Kip" vs "Mastin Kipp") are
         // easy to track down from the browser console.
+        // Test clients: tagged here, hidden unless this browser opted in.
+        const testMode = wlTestClientsMode();
+        for (const i of issues) {
+            i.wlTestClient = wlIsTestClientIssue(i);
+            i.wlTestShown = i.wlTestClient && testMode;
+        }
         const dropped = new Map();
         for (const i of issues) {
             if (!i.isSubIssue || !wlIsActiveStatus(i)) continue;
+            if (i.wlTestClient && !i.wlTestShown) continue;
             if (wlIssueClientAllowed(i)) continue;
             const k = i.clientName || '(no client)';
             dropped.set(k, (dropped.get(k) || 0) + 1);
@@ -521,7 +566,8 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         if (dropped.size) {
             console.warn('[workload] inactive or unrecognised client rows:', [...dropped.values()].reduce((a,b) => a+b,0));
         }
-        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i)
+            && (!i.wlTestClient || i.wlTestShown));
         // Replace each sub's clientName with the canonical sheet name so
         // dropdowns, group keys and rollup labels collapse "Miki-agrawal" and
         // "Miki Agrawal" into a single "Miki Agrawal" entry.
@@ -2203,6 +2249,13 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return;
         }
         wlState.renderQueued = false;
+        if (!wlStaffMayView()) {
+            // Signed out: wipe and say so. Still verifying: draw no board data
+            // yet; the load after verification repaints.
+            if (wlStaffSignedOut()) wlRenderSignedOut();
+            return;
+        }
+        wlUnhideSignedOut();
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);

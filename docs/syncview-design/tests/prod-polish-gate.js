@@ -17,6 +17,7 @@ const suites = [
   ['fast', 'Production boot budget', 'docs/syncview-design/tests/prod-boot-budget.js'],
   ['fast', 'Tab switch during boot (Phase D)', 'docs/syncview-design/tests/tab-switch-boot-browser.js'],
   ['fast', 'Saved submission never traps (Submit + Create Post)', 'docs/syncview-design/tests/saved-submission-browser.js'],
+  ['fast', 'Templates page works for a client with no row yet', 'docs/syncview-design/tests/templates-no-row-browser.js'],
   ['fast', 'Clean tab addresses and default landing', 'docs/syncview-design/tests/clean-address-landing-browser.js'],
   ['fast', 'Onboarding page from the staff menu', 'docs/syncview-design/tests/staff-onboarding-page-browser.js'],
   ['fast', 'Today phone actions on one line', 'docs/syncview-design/tests/today-phone-actions-browser.js'],

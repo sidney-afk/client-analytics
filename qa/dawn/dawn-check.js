@@ -33,6 +33,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { D, buildReport } = require('./dawn-report.js');
+const { readCoverage } = require('./templates-coverage.js');
 const H = require('../probes/ot4_lib.js');
 const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
 
@@ -290,6 +291,17 @@ function findRenameTarget() {
   })();
 }
 
+// Every current client should have a Templates row with a thumbnail link:
+// rows are only made by the first save and no onboarding step makes one
+// (templates-coverage.js). Read-only; a gap is a ⚠️, never a failed run.
+async function templatesCoverage() {
+  let c;
+  try { c = await readCoverage({ supa: SUPA, key: KEY }); }
+  catch (e) { record('templates', { ok: true, blocked: true, detail: D.templatesUnread() }); return; }
+  if (c.noRow || c.noLink) record('templates', { ok: true, warn: true, detail: D.templatesGap(c.noRow, c.noLink, c.current) });
+  else record('templates', { ok: true, detail: D.templatesOk(c.current) });
+}
+
 function report(started, calMs) {
   const { md, safe } = buildReport({ started, results, violations: violations.length, calMs, baseline: BASELINE });
   if (!safe) console.error('dawn-check: report withheld, it failed the public allowlist');
@@ -325,6 +337,7 @@ function report(started, calMs) {
     await timeTab(browser, 'synclinear', '/index.html?prod=1', () => !!document.querySelector('#prodRoot .prod-row'));
     await timeTab(browser, 'analytics', '/index.html#home',
       () => [...document.querySelectorAll('.cell-inner')].some(c => !c.querySelector('.sv-skeleton') && /\d/.test(c.textContent)));
+    await templatesCoverage();
   } catch (e) {
     // The message can quote card text; the public log gets the error class only.
     console.error('dawn-check: harness stopped early (' + ((e && e.name) || 'Error') + ')');

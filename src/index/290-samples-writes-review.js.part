@@ -1872,7 +1872,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     Object.assign(window, {
         _sxrKasperAddCommentComp, _sxrKasperApproveAfterTweaksComp, _sxrKasperApproveComp, _sxrKasperClose,
         _sxrKasperDismiss, _sxrKasperLoadQueue, _sxrKasperOnDraftInput, _sxrKasperRequestTweakComp,
-        _sxrKasperToggleCard, _sxrKasperToggleHistory
+        _sxrKasperSendUrgentSlack, _sxrKasperToggleCard, _sxrKasperToggleHistory
     });
 export {
   _sxrEnsureFreshnessWiring, _sxrKasperLoadQueue, _sxrKasperPartitionItems, _sxrKasperRenderCard,

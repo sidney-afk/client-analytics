@@ -2418,9 +2418,9 @@ import { _kedPaint } from './340-kasper-editors-board.js';
     Object.assign(window, {
         _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperClose,
         _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
-        _kasperOnPanelDraftInput, _kasperRequestTweakComp, _kasperSetEditorsAvg, _kasperToggleCard,
-        _kasperToggleHistory, _kasperToggleThread, _kasperToggleTweaks, _kasperToggleUrgent,
-        _kasperToggleWaiting, _kedToggleInfo, _svSectionHeadKey
+        _kasperOnPanelDraftInput, _kasperRequestTweakComp, _kasperSendUrgentSlack, _kasperSetEditorsAvg,
+        _kasperToggleCard, _kasperToggleHistory, _kasperToggleThread, _kasperToggleTweaks,
+        _kasperToggleUrgent, _kasperToggleWaiting, _kedToggleInfo, _svSectionHeadKey
     });
 export {
   _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperClose,

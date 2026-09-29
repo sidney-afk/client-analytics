@@ -22,14 +22,18 @@ only; no client names or slugs.
 
 ## 2. What this PR adds
 
-1. **Window exports.** 511 function names that inline handlers (`onclick="fn()"`) call now
+1. **Window exports.** 520 function names that inline handlers (`onclick="fn()"`) call now
    sit in one `Object.assign(window, {...})` at the end of the module that owns them
-   (36 modules). Written by `node scripts/check-modules.js --write-window-exports`,
+   (37 modules). Written by `node scripts/check-modules.js --write-window-exports`,
    never by hand. Without the flag, the same command **fails** if any block is missing a
    handler-called name or lists one no handler calls, and if a handler calls a `let` or
    `var` (a copy on `window` would go stale). Handlers are found in four written forms:
    `onclick="..."`, the same inside a JS string, `setAttribute('onclick', '...')`, and an
-   options key (`{ onchange: '...' }`).
+   options key (`{ onchange: '...' }`). Handler names passed to a builder as an argument
+   (`_calUrgentButtonHtml(pid, '_calSendUrgentSlack', ...)`, `_calThumbImgTag`) are read from
+   a short list of builders in `check-modules.js`; add a builder there if a new one writes a
+   name into an attribute. The offline screens do not draw these state-gated buttons, so the
+   browser guard cannot catch them.
 2. **The screen guard** is `docs/syncview-design/tests/inline-handlers-browser.js`, which
    already opened every screen (staff tabs, Kasper subtabs, entry links, client links) and
    read the rendered buttons. It now also **fails** when a drawn button calls a function
@@ -37,7 +41,7 @@ only; no client names or slugs.
    and when a block names a browser built-in (the copy would overwrite it). On its first
    run it caught two Time Off form selects that the text scan had missed (their handlers
    are written as an options key), which is why the fourth handler form exists; that
-   form added 7 names (511 in all).
+   form added 7 names (and the builders below, 9 more).
 3. **Guards.** `check-modules.js` now fails on a `typeof x === 'function'` guard whose name
    no fragment declares and that is not a browser global. The 493 guards in modules are
    names a module owns, names it imports (already forced by the existing "uses it
@@ -100,17 +104,24 @@ functions*, which is what both failures are.
 **Step 13 in two moves.**
 
 - **13a (the switch, low risk).** Keep today's build (strip the import and export lines,
-  concatenate in file order, split into parts and lazy areas as now) and add a wrapper
-  around each served file group so nothing leaks into the global scope. The window
-  blocks from this PR are then the entire public surface, which is what makes the guard
-  test above meaningful. Minify in the same step or right after it. Gate: this PR's
-  checks, `prod-write-gateway-browser.js`, `inline-handlers-browser.js`, the split-load
-  suites, `prod-boot-budget.js` on a machine with the live backend, and a
+  concatenate in file order) and wrap the result so nothing leaks into the global scope.
+  The window blocks from this PR are then the entire public surface, which is what makes
+  the guard test above meaningful. Minify in the same step or right after it.
+  **The wrapper must cover one whole script.** Staff get 15 separate part files plus lazy
+  files, and the parts share names (`065` in one part uses `_setLinearClientRows` from
+  `040` in another), so wrapping each part separately would throw `ReferenceError`s. Row 4
+  measured the one-file case only. So 13a either (i) wraps staff as one file, giving up
+  the parts split and lazy areas, or (ii) keeps the split and needs a shared binding
+  mechanism between parts (every cross-part name on one shared object), which is real
+  work and must be measured. Until one is chosen, 13a is not "low risk" for staff; it is
+  low risk for the one-file path (client links and forms) only.
+  Gate: this PR's checks, `prod-write-gateway-browser.js`, `inline-handlers-browser.js`,
+  the split-load suites, `prod-boot-budget.js` on a machine with the live backend, and a
   `/master-test` full pass.
-  Caution for 13a: a wrapper hides names from other classic scripts and from tests that
-  read globals (row 4 boots, but the page's own `page.evaluate` probes and any QA script
-  that reads a bare name would need `window.`). The window blocks cover handler names
-  only, so **the suite run is the proof, not this table**.
+  Caution: a wrapper hides names from other classic scripts and from tests that read
+  globals (`page.evaluate` probes and QA scripts that read a bare name would need
+  `window.`). The window blocks cover handler names only, so **the suite run is the
+  proof, not this table**.
 - **13b (optional, later): real isolation between fragments.** Needs the load-time
   order problem fixed first: extend rule 4 in `check-modules.js` to follow calls
   transitively, then either move the start-up calls that break (the two found so

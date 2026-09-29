@@ -2820,10 +2820,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     Object.assign(window, {
         _calCloseClientLinks, _calCloseKebab, _calEditLink, _calFillComponent, _calLinearClear,
         _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel, _calOnLinkBlur,
-        _calOnLinkInput, _calOpenLink, _calOpenThumbnailFolder, _calTabScrollBy, _calToggleClientLinks,
-        _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop, _calUpdateTabScroll,
-        _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn,
-        calZoom, onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle, onCalStatusFilterChange,
+        _calOnLinkInput, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError, _calOpenLink,
+        _calOpenThumbnailFolder, _calTabScrollBy, _calToggleClientLinks, _calToggleImportActions,
+        _calToggleKebab, _calToggleMonthWarnPop, _calUpdateTabScroll, _thumbCompareClose,
+        _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn, calZoom,
+        onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle, onCalStatusFilterChange,
         onCalTabAddClick, onCalTabClick, onCalTabRemove, onCalViewChange
     });
 export {

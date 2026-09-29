@@ -480,6 +480,15 @@ if (ast && modules.size) {
   // attribute: _svSelectHtml(..., { onchange: '_fn(false)' }).
   for (const m of pageText.matchAll(/\bon[a-z]+\s*:\s*(['"])([^'"\n]{0,300}?\()[^'"\n]{0,300}?\1/gi)) handlerTexts.push(m[0].slice(m[0].indexOf(m[1]) + 1, -1));
   const handlerCalled = new Set();
+  // Builders that write a function NAME passed as an argument into an
+  // attribute (onclick="${handlerName}(...)"); the ${...} is dropped below, so
+  // the names their callers pass as string literals are collected here.
+  // Builder -> zero-based index of the name argument.
+  const HANDLER_NAME_BUILDERS = { _calUrgentButtonHtml: 1, _calThumbImgTag: 1, _calThumbMediaHtml: 1 };
+  for (const [builder, idx] of Object.entries(HANDLER_NAME_BUILDERS)) {
+    const re = new RegExp(builder + '\\(' + '[^,()]*(?:\\([^()]*\\))?[^,()]*,\\s*'.repeat(idx).replace(/^/, '') + "'([A-Za-z_$][\\w$]*)'", 'g');
+    for (const m of pageText.matchAll(re)) handlerCalled.add(m[1]);
+  }
   for (let h of handlerTexts) {
     h = h.replace(/\$\{[^}]*\}/g, ' ').replace(/\\?'[^']*\\?'/g, "''").replace(/\\?"[^"]*\\?"/g, '""');
     for (const x of h.matchAll(/(^|[^.\w$])([A-Za-z_$][\w$]*)/g)) handlerCalled.add(x[2]);

@@ -91,7 +91,11 @@ for (const key of listed) {
   }
 }
 ok(true, 'each "reports" decision is backed by a recorder call in the named function, and each "reports-in-callers" by its callers: ' + Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', '));
-ok(counts['reports'] >= 30, `at least 30 sites now record their own refusals (${counts['reports']})`);
+// The four urgent-marker writes (two Calendar, two Samples) used to be four direct fetch sites and
+// now go through the guarded upsert step (n8n exit PR 4), inside the same _writeUiTrackSave, so they
+// are no longer separate sites: 32 direct sites became 28. Their recording is unchanged and is
+// asserted where the dispatcher is tested (test/samples-write-guard-browser.js).
+ok(counts['reports'] >= 28, `at least 28 sites now record their own refusals (${counts['reports']})`);
 
 // The log stores the operation name as its action: lowercase letters, digits and
 // underscores, at most 40 (the server's own rule, so a name outside it is dropped).

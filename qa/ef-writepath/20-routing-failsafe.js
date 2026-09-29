@@ -31,8 +31,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       out.reorder_router_removed = typeof _calReorderUrlForClient === 'undefined' && typeof _calAssertSavingOn === 'function';
       out.sxr_flagged = { useEf: _sxrSampleUseEf(flagged), url: _sxrUpsertUrlForClient(flagged) };
       out.sxr_unflagged = { useEf: _sxrSampleUseEf(un), url: _sxrUpsertUrlForClient(un) };
-      out.settings_flagged = _settingsUseEf(flagged);
-      out.settings_unflagged = _settingsUseEf(un);
+      out.settings_guard = typeof _settingsAssertSavingOn === 'function' && typeof _settingsWriteUrlForClient === 'undefined' && typeof _settingsUseEf === 'undefined';
       // empty-flag: flagged client must fall back to n8n when the flag set is empty
       const orig = _calUpsertEfClients;
       try { _calUpsertEfClients = new Set(); out.cal_emptyflag = { useEf: _calUpsertUseEf(flagged), url: _calUpsertUrlForClient(flagged) }; }
@@ -51,8 +50,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     s.ok(unit.sxr_flagged.useEf === true && unit.sxr_flagged.url === L.SXR_EF, 'flagged → sample-review-upsert EF', unit.sxr_flagged.url);
     s.ok(unit.sxr_unflagged.useEf === false && unit.sxr_unflagged.url === L.SXR_N8N, 'unflagged → sample-review-upsert n8n', unit.sxr_unflagged.url);
     s.ok(unit.sxr_emptyflag.useEf === false, 'empty flag → sample-review-upsert n8n (fail-safe)');
-    s.ok(unit.settings_flagged === true, 'flagged → settings EF');
-    s.ok(unit.settings_unflagged === false, 'unflagged → settings n8n');
+    s.ok(unit.settings_guard === true, 'caption prompt save has no n8n router any more; the shared fresh settings-flag check is present (n8n exit PR 3)');
 
     // ---- LIVE: unflagged path routes to n8n (test client, flag cleared, write blocked) ----
     // create a disposable card first (flag ON → EF insert)

@@ -29686,3 +29686,43 @@ recorded 2026-09-28 23:30:10 to 23:30:51 UTC). Each row's `row_before.status`
 is the status to put back, through the same gateway status operation, with the
 item's current status and `updated_at` as the expected values so a later edit
 is never overwritten.
+
+## 286. [2026-09-28] Current clients with no Templates page: flag it every weekday
+
+Written by session Vigil. A row in `templates` is created only by the first
+save of a client's Templates page (`supabase/functions/templates-save` upserts
+it), and no onboarding step makes one: the "every place a client exists"
+checklist (`docs/CLIENT_LIFECYCLE_MAP.md` §7) had no Templates line at all. So
+a new client's Templates page stays empty until someone happens to save it, and
+staff had no thumbnail Canva link for several current clients.
+
+Live repair (owner-approved, 2026-09-28): the thumbnail Canva link was saved
+through the normal Templates save for 5 current clients; 4 had no row until
+that save made one, 1 had a row missing only the link. Read back: all 5 hold
+the link, and the one existing row is otherwise unchanged.
+
+Prevention in this PR:
+- `docs/syncview-design/tests/templates-no-row-browser.js` (fast lane) proves
+  the Templates page opens on an empty form for a client with no row, and that
+  saving the link goes through the normal save and shows on the page.
+- The weekday dawn check gains a read-only "Every current client has a
+  Templates page" line (`qa/dawn/templates-coverage.js`): current clients from
+  Clients Info, test and internal accounts left out, matched to rows by the `clients` slug.
+  A gap is a ⚠️ with counts only, never a failed run.
+- The lifecycle checklist gains row 18 for `templates`.
+
+At the first live read after the repair: 35 current clients, 2 still with no
+Templates page (not in the owner's list, so left for the owner), 0 missing only
+the link.
+
+Update (same PR): the owner confirmed the 2 still flagged are internal accounts,
+not clients. The check now leaves out `clients.kind = 'internal'` as well as
+`'test'`, using the column's existing values. It stays at 2 until those accounts
+(and 1 more internal account) are marked `internal` in `clients`; that data
+change is the owner's call, since other features read `kind` too (urgent client
+alerts fire only for `kind = 'client'`).
+
+**Owner decision (2026-09-28, via Lighthouse):** the three brand accounts stay
+`kind = client`. They are real brands the team produces for, so relabelling them
+would switch off client-only behaviour such as urgent alerts. The warning for
+the two with no Templates page stays until their thumbnail Canva files are saved.

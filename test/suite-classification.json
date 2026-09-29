@@ -617,6 +617,7 @@
     "title-name-rule-drift.js",
     "subissue-rename-gateway.js",
     "dawn-report-allowlist.js",
+    "templates-coverage.js",
     "prod-batch-view-hides-batch-parent.js",
     "calendar-client-links-after-sheet.js",
     "client-phone-css-scope.js",

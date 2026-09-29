@@ -38,6 +38,9 @@ const everyShape = [
   { key: 'analytics', ok: false, ms: null, detail: D.tabNever(30, [401, 'network', 503]), shot: 'runner' },
   { key: 'harness', ok: false, detail: D.harness() },
   { key: 'cleanup', ok: false, detail: D.cleanup(2, 3, true, true, false, 1) },
+  { key: 'templates', ok: true, detail: D.templatesOk(41) },
+  { key: 'templates', ok: true, warn: true, detail: D.templatesGap(4, 1, 41) },
+  { key: 'templates', ok: true, blocked: true, detail: D.templatesUnread() },
 ];
 for (const s of STEPS) everyShape.push({ key: 'client-approve', ok: false, detail: D.failedAt(s) });
 const mixed = buildReport({ started, results: everyShape, violations: 1, calMs: 2168, baseline: BASELINE });
@@ -52,6 +55,14 @@ const green = buildReport({ started, calMs: 2168, baseline: BASELINE, results: [
 ] });
 ok(green.safe && /All 3 checks that ran passed/.test(green.md), 'green report renders');
 ok(/\| Workload opens \| not measured \|/.test(green.md), 'blocked tab shows as not measured');
+
+const warned = buildReport({ started, calMs: 1, baseline: BASELINE, results: [
+  { key: 'templates', ok: true, warn: true, detail: D.templatesGap(4, 1, 41) },
+  { key: 'cleanup', ok: true, detail: D.cleanup(3, 3, false, true, true, 0) },
+] });
+ok(warned.safe && /All 2 checks that ran passed\.\*\* 1 needs attention \(see ⚠️\)\./.test(warned.md), 'a Templates gap is a warning, not a failure');
+ok(/- ⚠️ \*\*Every current client has a Templates page\*\* — 4 of 41 current clients have no Templates page; 1 more have no thumbnail link/.test(warned.md), 'the gap line carries counts only');
+assert.throws(() => D.templatesGap('Acme', 1, 2)); n++;
 
 // 2. Anything outside the allowlist is refused, and the report is withheld whole.
 const hostile = [

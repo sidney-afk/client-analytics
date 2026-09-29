@@ -46,6 +46,7 @@ clicks, `qa/test-client-entry.js` for the client link) instead of new machinery.
 | 3 | Staff card save | caption typed + blurred; DB has it and the card's save mark reaches "Saved" (a "Saved, syncing" step is allowed only if it clears) |
 | 4 | Card rename | card name and its linked sub-issue title both change; then both put back |
 | 5–7 | Workload / SyncLinear / Analytics | first real content within 30 s; 🐢 "slow" if over 1.5× the speed-map cold median; ⚠️ "not measured" if the tab needs a role key the run lacks |
+| 8 | Templates coverage | read-only: every current client in Clients Info (test and internal accounts left out) has a `templates` row with a thumbnail Canva link; a gap is ⚠️ with counts only, never a failed run. Rows are only made by the first Templates save, and no onboarding step makes one |
 
 Client flows act on the **caption**: a disposable seed has no native work item,
 and a video approval without one is refused by design (`native_link_required`,

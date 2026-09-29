@@ -53,8 +53,8 @@ const CASES = [
 // dialog added later cannot slip past this test:
 //   1. every backdrop marked `data-backdrop-dismiss` in src/index must have a
 //      case here (the sign-in backdrop is one site exercised in two modes);
-//   2. no click handler may compare the target with an overlay-like name
-//      without also reading the press mark.
+//   2. no event-target comparison may go without reading the press mark,
+//      unless it is listed below as not being a backdrop click.
 const fs = require('fs');
 const path = require('path');
 const SRC = path.join(__dirname, '..', 'src', 'index');
@@ -64,8 +64,21 @@ const codeLines = fs.readdirSync(SRC).filter(f => f.endsWith('.part')).flatMap(f
 const markedSites = codeLines.filter(x => x.text.includes('data-backdrop-dismiss') && !x.where.startsWith('040-shared-briefs'));
 assert.equal(markedSites.length, CASES.length + 1,
   `src/index has ${markedSites.length} backdrops marked data-backdrop-dismiss but this test covers ${CASES.length + 1}; add the new dialog to CASES:\n  ` + markedSites.map(x => x.where).join('\n  '));
-const unguarded = codeLines.filter(x => /target\s*(===|!==)\s*(this|overlay|ov|bd|backdrop)\b/.test(x.text) && !x.text.includes('_backdropPressBegan'));
-assert.deepEqual(unguarded.map(x => x.where), [], 'a backdrop click handler ignores where the press began');
+// Any comparison of an event target with something else, whatever the variable
+// is called (`x === e.target`, `e.target !== y`, `event.currentTarget === ...`).
+// Each must read the press mark or be listed here with the reason it is not a
+// backdrop click, so a new one forces a decision instead of passing unseen.
+const NOT_A_BACKDROP_CLICK = [
+  ['345-core-tooltip-date-picker', 'target === activeTarget', 'tooltip hover bookkeeping'],
+  ['100-onboarding-staff-controls', "e.target!==body || e.propertyName", 'waits for a CSS transition to end'],
+  ['096-quick-jump', "e.target !== input", 'Escape key from a non-input element'],
+  ['096-quick-jump', 'if (e.target === box) svQuickJumpClose()', 'closes on the PRESS itself (mousedown), so a press that starts inside can never dismiss it'],
+];
+const targetCompare = /(target\s*[!=]==?\s*[A-Za-z_$])|([A-Za-z_$.]+\s*[!=]==?\s*(event|e|ev)\.(current)?[tT]arget)/;
+const unguarded = codeLines.filter(x => targetCompare.test(x.text) && !x.text.includes('_backdropPressBegan')
+  && !NOT_A_BACKDROP_CLICK.some(([f, frag]) => x.where.startsWith(f) && x.text.includes(frag)));
+assert.deepEqual(unguarded.map(x => x.where + '  ' + x.text.trim().slice(0, 90)), [],
+  'a target comparison ignores where the press began: guard it with data-backdrop-dismiss, or list it in NOT_A_BACKDROP_CLICK with the reason');
 
 // The staff sign-in dialog only exists for someone who is not signed in, so it
 // is checked on its own page with no saved login: the app opens it at start.

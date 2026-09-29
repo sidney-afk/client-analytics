@@ -67,23 +67,32 @@ here with where it stopped, so it can be restarted.
      Pairs with item 2. Forge restarted it on 2026-09-29: the plan
      (`docs/plans/2026-09-28-n8n-exit.md`) and PR 1a, the `filming-plan-tabs`
      Edge Function plus its cache-table migration, merged in #1846 (main
-     `66750995efb371eadaf503b45ade6d984fd1f8cb`); the page does not use it yet. Live since 2026-09-29: the cache
+     `66750995efb371eadaf503b45ade6d984fd1f8cb`). Live since 2026-09-29: the cache
      migration is applied, the owner deployed the function
      (`https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml`),
      switched on the Google Docs API and shared the Filming Plan folder with the
      thumbnail service account, and a bulk read of 25 recent Filming Plan Docs came
-     back from Google with no n8n fallback (source `google` in the cache). Next:
-     PR 1b (merged, flag `filming_plan_tabs_source` = function). **PR 2 (Calendar writes,
-     reorders and reads to the Supabase functions) built 2026-09-29 by Anvil, awaiting Lighthouse's
+     back from Google with no n8n fallback (source `google` in the cache). PR 1b
+     (#1854, main `b1039f0a27c1e0c2239dca13e6564531ac61be39`) puts Kasper > Filming behind the runtime flag
+     `filming_plan_tabs_source`; the flag row is applied and set to
+     `{"mode":"function"}` (owner's go, 2026-09-29). Live, every browser read of that
+     flag answered 400 because of a `_t=` cache-buster, so the page kept using n8n;
+     #1857 removes it, after which Kasper > Filming reads from the function, with
+     n8n kept as the automatic per-Doc fallback. Rollback: set the flag to
+     `{"mode":"n8n"}` (takes effect on the next Filming open). The n8n Filming Plan
+     Tabs workflow stays on for 30 days. **PR 2 (Calendar, session Anvil, #1858) built 2026-09-29, awaiting Lighthouse's
      merge:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
      approve and request-changes untouched (byte-identical test); pinned repairs migrate on load;
-     the n8n Calendar workflows stay on 30 days after it ships. Next: Caption Prompts (PR 3),
+     the n8n Calendar workflows stay on 30 days after it ships. Next: Caption Prompts (PR 3), then
      Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
-   - **Staff can see and restore recently archived Calendar cards** (owner
-     2026-09-29): from the Calendar's More menu, researched first and heavily
-     tested, because a restore touches the card, its work items (archiving parks
-     them in backlog) and Workload. Given to a new session on 2026-09-29.
+   - **Staff can see and restore recently archived Calendar cards and Samples**
+     (owner 2026-09-29): BUILT in PR 1853 (session Harbor), waiting for
+     Lighthouse's merge; move to Done after that. From the More menu, admin and
+     SMM only; the card and each work item come back exactly as they were (plan
+     `docs/plans/2026-09-29-calendar-unarchive.md`, ledger item 288). Still to do
+     as a separate change: a warning when someone moves a work item whose card is
+     archived (needs the sealed capture and an owner deploy).
    - **Escape does not close a Calendar card's thumbnail or video edit box**
      (owner 2026-09-26). Last status: still broken. Re-check live first.
    - **Daily real-browser client check from a local session, Samples included,
@@ -195,8 +204,8 @@ hiring senders when the editor hire closes.
   The item showed only in SyncLinear, because the Calendar hides archived cards
   and so does Workload, and SMMs have no way to see or restore an archived card.
   Lighthouse restored that one card to In Progress on the owner's request
-  (logged in `calendar_post_events` as an `unarchive`). Open question for the owner:
-  should staff get a "show archived / restore" view in the Calendar?
+  (logged in `calendar_post_events` as an `unarchive`). The owner said yes: PR 1853
+  adds the view and the restore (see the priority list above).
 - **Publishable-key reads of `workload_issues`, `workload_issues_native_v1`
   and `production_deliverables_browser_v1` stay open. Owner decision
   2026-09-28; do not raise these three again.** Keel (#1840) found they return

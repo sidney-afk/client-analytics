@@ -1,0 +1,457 @@
+import { CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityValid } from './100-onboarding-staff-controls.js';
+import {
+  WRITE_UI_PRODUCTION_WRITE_URL, _calAssertSavingOn, _calUpsertFetch, _calUpsertHeaders,
+  _syncviewEfHeaders, _writeUiNativeId, _writeUiRecordFailure, computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import { calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calArchivedRemove, _calRefsForPost } from './134-calendar-prefs-mount.js';
+import { loadCalendarPosts } from './150-calendar-hydration-import.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import {
+  _sxrArchivedRemove, _sxrReorderFetch, _sxrUpsertFetch, computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
+} from './270-samples-model.js';
+/* ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples).
+   Plan: docs/plans/2026-09-29-calendar-unarchive.md. Mock-up:
+   docs/syncview-design/mockups/calendar-unarchive/.
+
+   Restore puts a card (or sample) back exactly as it was. The card's own row is
+   written through the SAME route archive uses (calendar-upsert, or
+   sample-review-upsert), with the same minimal body, and each linked work item
+   goes back to the exact status it had, through the guarded production-write
+   status operation with expected values. This file never writes a table
+   directly, never touches the client approve or request-changes paths, and
+   never edits the frozen writers. Reads are the same public-key REST reads the
+   Calendar and Production already make. */
+    const ARX_WINDOW_DAYS = [30, 60, 90];
+    const ARX_PAGE = 25;
+    const ARX_KIND = {
+        cal: { noun: 'card', nouns: 'cards', title: 'Archived cards', where: 'the Calendar', table: 'calendar_posts', eventTable: 'calendar_post_events', eventKey: 'post_id', surface: 'calendar', second: 'Graphic' },
+        sxr: { noun: 'sample', nouns: 'samples', title: 'Archived samples', where: 'Sample reviews', table: 'sample_reviews', eventTable: 'sample_review_events', eventKey: 'sample_id', surface: 'sxr', second: 'Thumbnail' }
+    };
+    /* Native work item statuses. A finished item stays as it is; everything a
+       restore moves is put back to the exact status the archive parked it from. */
+    const ARX_FINISHED = ['approved', 'scheduled', 'posted', 'canceled', 'duplicate'];
+    const ARX_STATUS_LABEL = {
+        backlog: 'Backlog', todo: 'To do', in_progress: 'In progress', smm_approval: 'SMM approval',
+        kasper_approval: 'Kasper approval', client_approval: 'Client approval', tweak: 'Tweaks',
+        approved: 'Approved', scheduled: 'Scheduled', posted: 'Posted', canceled: 'Canceled',
+        duplicate: 'Duplicate', triage: 'Triage'
+    };
+    const arxState = { open: false, kind: '', slug: '', rows: [], events: {}, floorIdx: 0, cursor: null, hasMore: false, canWiden: false, loading: false, error: '', busy: false, seq: 0 };
+
+    function _arxLabel(status) {
+        const s = String(status || '').trim().toLowerCase();
+        return ARX_STATUS_LABEL[s] || (s ? s.replace(/_/g, ' ') : 'unknown');
+    }
+    function _arxIsFinished(status) { return ARX_FINISHED.indexOf(String(status || '').trim().toLowerCase()) >= 0; }
+    function _arxEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+    function _arxNameOf(post) { return String(post && (post.name || post.title) || '').trim() || 'Untitled'; }
+
+    /* Who may see and use restore: admin and SMM seats with a verified staff
+       identity, never a client link, never a creative seat (Decision D6). */
+    function _arxCan() {
+        if (_isClientLink) return false;
+        try { if (!_syncviewStaffIdentityValid()) return false; } catch (e) { return false; }
+        try { return _syncviewStaffCan('restore-archived') === true; } catch (e) { return false; }
+    }
+
+    /* ── Paging: newest first, a cursor (the last row shown), never a wider limit ── */
+    function _arxFloorIso(nowMs, days) { return new Date(nowMs - days * 86400000).toISOString(); }
+    function _arxListQuery(kind, slug, floorIso, cursor) {
+        const k = ARX_KIND[kind];
+        const enc = encodeURIComponent;
+        let q = k.table + '?select=*&client=eq.' + enc(slug) + '&status=eq.Archived&updated_at=gte.' + enc(floorIso)
+            + '&order=updated_at.desc,id.desc&limit=' + (ARX_PAGE + 1);
+        if (cursor && cursor.updated_at) {
+            q += '&or=(updated_at.lt.' + enc(cursor.updated_at) + ',and(updated_at.eq.' + enc(cursor.updated_at) + ',id.lt.' + enc(cursor.id) + '))';
+        }
+        return q;
+    }
+    /* One "show older" step over an injected page reader (fetchPage(floorIdx, cursor)
+       -> rows, at most ARX_PAGE + 1). state.skipEmpty: keep looking back over empty
+       windows (a Show older click), otherwise stop at the first window. Returns { rows, cursor, floorIdx, hasMore, canWiden }.
+       When the current window is used up it moves the floor back (30, 60, 90 days)
+       and keeps the same cursor, so no row is skipped or repeated. */
+    async function _arxNextPage(state, fetchPage) {
+        let floorIdx = state.floorIdx || 0;
+        let cursor = state.cursor || null;
+        let out = [];
+        for (let guard = 0; guard < ARX_WINDOW_DAYS.length + 1; guard++) {
+            const got = await fetchPage(floorIdx, cursor);
+            const more = got.length > ARX_PAGE;
+            out = got.slice(0, ARX_PAGE);
+            if (out.length) cursor = { updated_at: out[out.length - 1].updated_at, id: out[out.length - 1].id };
+            if (more) return { rows: out, cursor, floorIdx, hasMore: true, canWiden: false };
+            if (floorIdx >= ARX_WINDOW_DAYS.length - 1) return { rows: out, cursor, floorIdx, hasMore: false, canWiden: false };
+            /* The first look stops at the first window and offers Show older; a
+               Show older click keeps looking back until it finds something. */
+            if (out.length || !state.skipEmpty) return { rows: out, cursor, floorIdx, hasMore: false, canWiden: true };
+            floorIdx += 1;
+        }
+        return { rows: out, cursor, floorIdx, hasMore: false, canWiden: false };
+    }
+
+    /* ── The work item rules (plan 3.4). First rule that fits wins. ── */
+    /* item: { current: {status, updated_at}|null, events: [{ts, to_status, from_status, payload}] }
+       archivedAtMs: when the card was archived. surface: 'calendar' | 'sxr'. */
+    function _arxWorkItemPlan(item, archivedAtMs, surface) {
+        const cur = item && item.current;
+        if (!cur || !cur.status) return { action: 'left', reason: 'unreadable', text: 'left alone, it could not be read' };
+        const status = String(cur.status).toLowerCase();
+        if (_arxIsFinished(status)) return { action: 'stay', text: 'stays ' + _arxLabel(status) };
+        if (status !== 'backlog') return { action: 'left', reason: 'moved', text: 'left alone, it moved since' };
+        const events = (item.events || []).filter(e => String(e.to_status || '').toLowerCase() === 'backlog')
+            .sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts));
+        const latest = events[0];
+        if (!latest) return { action: 'to', target: 'todo', reason: 'no_record', text: 'to ' + _arxLabel('todo') };
+        const pl = latest.payload && typeof latest.payload === 'object' ? latest.payload : {};
+        const own = String(pl.surface || '').toLowerCase() === surface && Date.parse(latest.ts) >= (archivedAtMs || 0) - 60000;
+        if (!own) return { action: 'left', reason: 'moved', text: 'left alone, it moved since' };
+        const from = String(latest.from_status || '').toLowerCase();
+        if (!from || from === 'backlog' || from === 'triage') return { action: 'to', target: 'todo', reason: 'was_backlog', text: 'to ' + _arxLabel('todo') };
+        return { action: 'to', target: from, reason: 'exact', text: 'back to ' + _arxLabel(from) };
+    }
+
+    /* ── Card facts: status, duplicate owner, position ── */
+    function _arxRestoreStatus(kind, post) {
+        let s = '';
+        try { s = kind === 'sxr' ? computeSampleOverallStatus(post) : computeOverallStatus(post); } catch (e) { s = ''; }
+        s = String(s || '').trim();
+        return (!s || s.toLowerCase() === 'archived') ? 'In Progress' : s;
+    }
+    function _arxWorkItemIds(post) {
+        const out = [];
+        [post && post.video_deliverable_id, post && post.graphic_deliverable_id].forEach(v => { const s = String(v || '').trim(); if (s) out.push(s); });
+        return out;
+    }
+    /* A live card that already drives one of this card's work items (or Linear links). */
+    function _arxDuplicateOwner(post, livePosts) {
+        if (!post) return null;
+        const ids = _arxWorkItemIds(post);
+        const links = [post.linear_issue_id, post.graphic_linear_issue_id].map(v => String(v || '').trim()).filter(Boolean);
+        const live = (livePosts || []).filter(p => p && p.id !== post.id && String(p.status || '').toLowerCase() !== 'archived');
+        for (const p of live) {
+            const theirIds = _arxWorkItemIds(p);
+            if (ids.some(i => theirIds.indexOf(i) >= 0)) return p;
+            const theirLinks = [p.linear_issue_id, p.graphic_linear_issue_id].map(v => String(v || '').trim()).filter(Boolean);
+            if (links.some(l => theirLinks.indexOf(l) >= 0)) return p;
+        }
+        return null;
+    }
+    /* Keep the old slot unless a live card holds it; otherwise the end of the list. */
+    function _arxOrderSlot(post, livePosts) {
+        const mine = Number(post && post.order_index);
+        const live = (livePosts || []).filter(p => p && p.id !== post.id);
+        const taken = Number.isFinite(mine) && live.some(p => Number(p.order_index) === mine);
+        if (Number.isFinite(mine) && !taken) return { tie: false, order_index: mine };
+        const max = live.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
+        return { tie: true, order_index: max + 1 };
+    }
+    function _arxWhen(iso, nowMs) {
+        const t = Date.parse(iso);
+        if (!Number.isFinite(t)) return '';
+        const d = Math.max(0, Math.floor(((nowMs || Date.now()) - t) / 86400000));
+        return d === 0 ? 'today' : d === 1 ? '1 day ago' : d + ' days ago';
+    }
+    function _arxRoleWord(role) {
+        const r = String(role || '').toLowerCase();
+        return r === 'admin' ? 'an admin' : (r === 'smm' || r === 'kasper') ? 'an SMM' : r === 'creative' ? 'a creative' : 'unknown';
+    }
+
+    /* ── Reads (public-key REST, read only) ── */
+    function _arxHeaders() { return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }; }
+    async function _arxRest(path) {
+        const resp = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + path, { headers: _arxHeaders(), cache: 'no-store' });
+        if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+        return resp.json();
+    }
+    function _arxListFetch(kind, slug, floorIdx, cursor) {
+        return _arxRest(_arxListQuery(kind, slug, _arxFloorIso(Date.now(), ARX_WINDOW_DAYS[floorIdx]), cursor));
+    }
+    /* Who archived each card and when: best effort, never blocks the list. */
+    async function _arxEventsFetch(kind, slug, ids) {
+        if (!ids.length) return {};
+        const k = ARX_KIND[kind];
+        try {
+            const list = ids.map(i => '"' + String(i).replace(/"/g, '') + '"').join(',');
+            const rows = await _arxRest(k.eventTable + '?select=' + k.eventKey + ',ts,actor,role&client=eq.' + encodeURIComponent(slug)
+                + '&action=eq.archive&' + k.eventKey + '=in.(' + encodeURIComponent(list) + ')&order=ts.desc&limit=' + (ids.length * 3));
+            const out = {};
+            rows.forEach(r => { if (!out[r[k.eventKey]]) out[r[k.eventKey]] = r; });
+            return out;
+        } catch (e) { return {}; }
+    }
+    async function _arxItemRead(nativeId) {
+        const enc = encodeURIComponent(nativeId);
+        const [cur, events] = await Promise.all([
+            _arxRest('production_deliverables_browser_v1?select=id,status,updated_at&id=eq.' + enc + '&limit=1'),
+            _arxRest('deliverable_events?select=ts,action,from_status,to_status,payload&deliverable_id=eq.' + enc + '&action=eq.status_change&order=ts.desc&limit=30')
+        ]);
+        return { current: cur && cur[0] || null, events: events || [] };
+    }
+    async function _arxFreshRow(kind, slug, id) {
+        const k = ARX_KIND[kind];
+        const rows = await _arxRest(k.table + '?select=*&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(id) + '&limit=1');
+        return rows && rows[0] || null;
+    }
+
+    /* ── Dialogs (the app's own confirm look) ── */
+    function _arxDialog(opts) {
+        return new Promise(resolve => {
+            let root = document.getElementById('arxDialog');
+            if (root) root.remove();
+            root = document.createElement('div');
+            root.id = 'arxDialog';
+            root.className = 'confirm-overlay active';
+            root.setAttribute('data-backdrop-dismiss', '');
+            const list = (opts.list || []).map(r => '<li><span class="arx-wi-name">' + _arxEsc(r.name) + '</span><span class="arx-wi-to is-' + _arxEsc(r.kind || 'stay') + '">' + _arxEsc(r.text) + '</span></li>').join('');
+            root.innerHTML = '<div class="confirm-box arx-confirm" role="dialog" aria-modal="true" aria-labelledby="arxDialogTitle">'
+                + '<div class="confirm-box-title" id="arxDialogTitle">' + _arxEsc(opts.title) + '</div>'
+                + '<div class="confirm-box-msg">' + _arxEsc(opts.msg || '') + '</div>'
+                + (list ? '<ul class="arx-wi">' + list + '</ul>' : '')
+                + (opts.note ? '<div class="arx-note">' + _arxEsc(opts.note) + '</div>' : '')
+                + '<div class="confirm-box-actions">' + (opts.cancel === false ? '' : '<button type="button" class="brief-action-btn" data-arx="no">Cancel</button>')
+                + '<button type="button" class="brief-action-btn primary" data-arx="yes">' + _arxEsc(opts.yes || 'OK') + '</button></div></div>';
+            const done = v => { document.removeEventListener('keydown', onKey, true); root.remove(); resolve(v); };
+            const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+            root.addEventListener('click', e => {
+                const a = e.target && e.target.getAttribute && e.target.getAttribute('data-arx');
+                if (a === 'yes') done(true); else if (a === 'no' || (e.target === root && root._backdropPressBegan)) done(false);
+            });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(root);
+            const yes = root.querySelector('[data-arx="yes"]');
+            if (yes) yes.focus();
+        });
+    }
+
+    /* ── The list modal ── */
+    function _arxSlug(kind) { return kind === 'sxr' ? sxrClientSlug(sxrState.client) : calClientSlug(calState.client); }
+    function _arxLive(kind) { return (kind === 'sxr' ? sxrState.posts : calState.posts) || []; }
+
+    function _arxOpen(kind) {
+        if (!_arxCan()) return;
+        arxState.open = true; arxState.kind = kind; arxState.slug = _arxSlug(kind); arxState.rows = []; arxState.events = {};
+        arxState.floorIdx = 0; arxState.cursor = null; arxState.hasMore = false; arxState.canWiden = false; arxState.error = ''; arxState.busy = false;
+        arxState.seq += 1;
+        document.addEventListener('keydown', _arxKey);
+        _arxRenderModal();
+        _arxLoadMore(true);
+    }
+    function _arxKey(e) {
+        if (e.key === 'Escape' && !document.getElementById('arxDialog')) _arxClose();
+    }
+    function _arxClose() {
+        arxState.open = false;
+        arxState.seq += 1;
+        document.removeEventListener('keydown', _arxKey);
+        const o = document.getElementById('arxOverlay');
+        if (o) o.remove();
+    }
+    async function _arxLoadMore(first) {
+        if (arxState.loading) return;
+        const seq = ++arxState.seq;
+        arxState.loading = true; arxState.error = '';
+        _arxRenderModal();
+        try {
+            const kind = arxState.kind, slug = arxState.slug;
+            let start = { floorIdx: arxState.floorIdx, cursor: arxState.cursor, skipEmpty: !first };
+            /* "Show older" after a used-up window moves the floor back first. */
+            if (!first && arxState.canWiden) start = { floorIdx: Math.min(arxState.floorIdx + 1, ARX_WINDOW_DAYS.length - 1), cursor: arxState.cursor, skipEmpty: true };
+            const page = await _arxNextPage(start, (fi, cur) => _arxListFetch(kind, slug, fi, cur));
+            if (seq !== arxState.seq) return;
+            const ev = await _arxEventsFetch(kind, slug, page.rows.map(r => r.id));
+            if (seq !== arxState.seq) return;
+            arxState.rows = arxState.rows.concat(page.rows);
+            Object.assign(arxState.events, ev);
+            arxState.floorIdx = page.floorIdx; arxState.cursor = page.cursor;
+            arxState.hasMore = page.hasMore; arxState.canWiden = page.canWiden;
+        } catch (e) {
+            if (seq !== arxState.seq) return;
+            console.warn('[Archived] list read failed', e);
+            arxState.error = 'read';
+        } finally {
+            if (seq === arxState.seq) arxState.loading = false;
+            _arxRenderModal();
+        }
+    }
+    function _arxPills(kind, r) {
+        const comps = kind === 'sxr' ? [['Video', 'video_status'], ['Thumbnail', 'graphic_status']] : [['Video', 'video_status'], ['Graphic', 'graphic_status'], ['Caption', 'caption_status']];
+        return comps.map(([label, key]) => {
+            const st = String(r[key] || 'In Progress');
+            return '<span class="arx-pill cal-status-' + _arxEsc(st.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')) + '"><b>' + label + '</b> ' + _arxEsc(st) + '</span>';
+        }).join('');
+    }
+    function _arxRenderModal() {
+        const kind = arxState.kind; const k = ARX_KIND[kind];
+        if (!k || !arxState.open) return;
+        let o = document.getElementById('arxOverlay');
+        if (!o) {
+            o = document.createElement('div');
+            o.id = 'arxOverlay';
+            o.className = 'cal-prompt-overlay open';
+            o.setAttribute('data-backdrop-dismiss', '');
+            o.addEventListener('click', e => {
+                if (e.target === o) { if (o._backdropPressBegan) _arxClose(); return; }
+                const btn = e.target.closest && e.target.closest('[data-arx-act]');
+                if (!btn) return;
+                const act = btn.getAttribute('data-arx-act');
+                if (act === 'close') _arxClose();
+                else if (act === 'more') _arxLoadMore(false);
+                else if (act === 'retry') _arxLoadMore(arxState.rows.length === 0);
+                else if (act === 'restore') _arxRestore(kind, btn.getAttribute('data-id'));
+            });
+            document.body.appendChild(o);
+        }
+        const days = ARX_WINDOW_DAYS[arxState.floorIdx];
+        let body;
+        if (arxState.error && !arxState.rows.length) {
+            body = '<div class="arx-error"><div class="arx-error-t">Couldn\'t load archived ' + k.nouns + '.</div><div class="arx-error-s">Nothing was changed. Check your connection and try again.</div><button class="cal-prompt-btn" type="button" data-arx-act="retry">Try again</button></div>';
+        } else if (!arxState.rows.length && !arxState.loading) {
+            body = '<div class="arx-empty"><div class="arx-empty-t">Nothing archived in the last ' + days + ' days.</div><div class="arx-empty-s">Older ' + k.nouns + ' are still kept. Use Show older to look further back, up to 90 days.</div></div>';
+        } else if (!arxState.rows.length) {
+            body = '<div class="arx-empty"><div class="arx-empty-s">Loading…</div></div>';
+        } else {
+            body = arxState.rows.map(r => {
+                const e = arxState.events[r.id];
+                const when = _arxWhen(e ? e.ts : r.updated_at);
+                const by = e ? _arxRoleWord(e.role) : 'unknown';
+                const date = kind === 'cal' && r.scheduled_date ? 'Scheduled ' + String(r.scheduled_date).slice(0, 10) : '';
+                return '<div class="arx-row"><div class="arx-row-main"><div class="arx-row-name">' + _arxEsc(_arxNameOf(r)) + '</div>'
+                    + '<div class="arx-row-meta">' + _arxEsc([date, 'Archived ' + when + ' by ' + by].filter(Boolean).join(' · ')) + '</div>'
+                    + '<div class="arx-pills">' + _arxPills(kind, r) + '</div></div>'
+                    + '<button class="cal-prompt-btn is-primary" type="button" data-arx-act="restore" data-id="' + _arxEsc(r.id) + '"' + (arxState.busy ? ' disabled' : '') + '>Restore</button></div>';
+            }).join('') + (arxState.error ? '<div class="arx-error-s">Couldn\'t load more. <button class="cal-prompt-btn" type="button" data-arx-act="retry">Try again</button></div>' : '');
+        }
+        const more = (arxState.hasMore || arxState.canWiden) ? '<button class="cal-prompt-btn" type="button" data-arx-act="more"' + (arxState.loading ? ' disabled' : '') + '>Show older</button>' : '';
+        o.innerHTML = '<div class="cal-prompt-modal arx-modal" role="dialog" aria-modal="true" aria-labelledby="arxTitle">'
+            + '<div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3 id="arxTitle">' + k.title + '</h3><p>Restore puts ' + (kind === 'sxr' ? 'a sample' : 'a card') + ' back exactly as it was. Only admins and SMMs see this.</p></div>'
+            + '<button class="cal-prompt-close" type="button" data-arx-act="close" aria-label="Close">&times;</button></div>'
+            + '<div class="cal-prompt-body">' + body + '</div>'
+            + '<div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last ' + days + ' days, newest first.</span></div><div class="cal-prompt-foot-right">' + more + '</div></div></div>';
+    }
+
+    /* ── Restore ── */
+    async function _arxGatewayMove(kind, post, component, target, item) {
+        const k = ARX_KIND[kind];
+        const nativeId = _writeUiNativeId(post, component);
+        const body = {
+            operation: 'status', surface: k.surface, entity: 'deliverable', id: nativeId, status: target,
+            request_id: 'restore:' + nativeId + ':' + target + ':' + String(item.current.updated_at || '').replace(/[^0-9A-Za-z]/g, ''),
+            source_edited_at: new Date().toISOString(),
+            expected_status: 'backlog', expected_updated_at: item.current.updated_at
+        };
+        const url = WRITE_UI_PRODUCTION_WRITE_URL;
+        const resp = await fetch(url, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json', 'Content-Type': 'application/json', 'X-Syncview-Source': k.surface }, url),
+            body: JSON.stringify(body)
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (resp.ok && json && json.ok === true) return json;
+        const err = new Error((json && (json.error || json.code)) || ('HTTP ' + resp.status));
+        err.status = resp.status; err.code = String(json && (json.error || json.code) || '');
+        throw err;
+    }
+    function _arxFail(kind, error, extra) {
+        try { _writeUiRecordFailure(ARX_KIND[kind].surface, 'status', error, Object.assign({ kind: 'restore' }, extra || {})); } catch (e) {}
+    }
+    async function _arxRestore(kind, id) {
+        if (arxState.busy || !_arxCan()) return;
+        const k = ARX_KIND[kind];
+        const slug = arxState.slug;
+        const row = arxState.rows.find(r => r.id === id);
+        if (!row) return;
+        arxState.busy = true; _arxRenderModal();
+        try {
+            /* 1. Fresh read: someone else may have restored it already. */
+            let fresh;
+            try { fresh = await _arxFreshRow(kind, slug, id); }
+            catch (e) { await _arxDialog({ title: 'Couldn\'t check this ' + k.noun, msg: 'Nothing was changed. Check your connection and try again.', yes: 'OK', cancel: false }); return; }
+            if (!fresh || String(fresh.status || '').toLowerCase() !== 'archived') {
+                arxState.rows = arxState.rows.filter(r => r.id !== id);
+                await _arxDialog({ title: 'Already restored', msg: '“' + _arxNameOf(row) + '” is no longer archived. Someone else restored it.', yes: 'OK', cancel: false });
+                return;
+            }
+            /* 2. A live card must not drive the same work item (Decision D5). */
+            const owner = _arxDuplicateOwner(fresh, _arxLive(kind));
+            if (owner) {
+                await _arxDialog({ title: 'Can\'t restore this ' + k.noun + ' yet', msg: 'A live ' + k.noun + ', “' + _arxNameOf(owner) + '”, already uses the video work item of “' + _arxNameOf(fresh) + '”. Unlink it there first, then restore this one.', yes: 'OK', cancel: false });
+                return;
+            }
+            /* 3. The status it returns to, and where each work item goes. */
+            const status = _arxRestoreStatus(kind, fresh);
+            const archivedAt = arxState.events[id] ? Date.parse(arxState.events[id].ts) : Date.parse(fresh.updated_at);
+            const items = [];
+            for (const component of ['video', 'graphic']) {
+                const nativeId = _writeUiNativeId(fresh, component);
+                if (!nativeId) continue;
+                let read;
+                try { read = await _arxItemRead(nativeId); } catch (e) { read = { current: null, events: [] }; }
+                const plan = _arxWorkItemPlan(read, archivedAt, k.surface);
+                items.push({ component, name: component === 'video' ? 'Video work item' : k.second + ' work item', read, plan });
+            }
+            const slot = _arxOrderSlot(fresh, _arxLive(kind));
+            const past = kind === 'cal' && fresh.scheduled_date && Date.parse(String(fresh.scheduled_date).slice(0, 10)) < Date.now() - 86400000;
+            const ok = await _arxDialog({
+                title: 'Restore “' + _arxNameOf(fresh) + '”?',
+                msg: 'It goes back to ' + k.where + ' exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be ' + status + '.',
+                list: items.map(i => ({ name: i.name, text: i.plan.text, kind: i.plan.action === 'to' ? 'move' : i.plan.action === 'left' ? 'left' : 'stay' })),
+                note: past ? 'Its scheduled date, ' + String(fresh.scheduled_date).slice(0, 10) + ', has passed. It keeps that date.' : '',
+                yes: 'Restore'
+            });
+            if (!ok) return;
+            /* 4. The card write: the same body archive sends, with a live status. */
+            try {
+                let resp;
+                if (kind === 'sxr') resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id, status, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'ui');
+                else resp = await _calUpsertFetch(slug, { client: slug, post: { id, status } });
+                const json = await resp.json().catch(() => ({}));
+                if (!resp.ok || !json || json.ok === false) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+            } catch (e) {
+                console.warn('[Archived] restore write failed', e);
+                _arxFail(kind, e, { step: 'card' });
+                await _arxDialog({ title: 'Couldn\'t restore this ' + k.noun, msg: (e && e.message ? e.message : 'The write did not go through.') + ' Nothing was changed.', yes: 'OK', cancel: false });
+                return;
+            }
+            if (kind === 'sxr') _sxrArchivedRemove(slug, [id, fresh.linear_issue_id, fresh.graphic_linear_issue_id].filter(Boolean));
+            else _calArchivedRemove(slug, _calRefsForPost(fresh).concat([id]));
+            arxState.rows = arxState.rows.filter(r => r.id !== id);
+            /* 5. Position: only when a live card holds the old slot. */
+            if (slot.tie) {
+                try {
+                    const items2 = [{ id, order_index: slot.order_index }];
+                    if (kind === 'sxr') await _sxrReorderFetch(slug, { client: slug, items: items2 }, 'ui');
+                    else {
+                        /* n8n exit, PR 2: the same fresh, bounded flag read as every
+                           Calendar write, then the function only. A paused or held
+                           write throws into the catch below; nothing goes to n8n. */
+                        await _calAssertSavingOn(slug);
+                        await fetch(CALENDAR_REORDER_EF_URL, { method: 'POST', headers: _calUpsertHeaders('ui', CALENDAR_REORDER_EF_URL), body: JSON.stringify({ client: slug, items: items2 }) });
+                    }
+                } catch (e) { console.warn('[Archived] restore position write failed', e); _arxFail(kind, e, { step: 'order' }); }
+            }
+            /* 6. Work items, now that the card is live. A failed move never undoes the card. */
+            const lines = [];
+            for (const i of items) {
+                if (i.plan.action !== 'to') { lines.push({ name: i.name, text: i.plan.text, kind: i.plan.action === 'left' ? 'left' : 'stay' }); continue; }
+                try {
+                    await _arxGatewayMove(kind, fresh, i.component, i.plan.target, i.read);
+                    lines.push({ name: i.name, text: 'moved ' + i.plan.text, kind: 'move' });
+                } catch (e) {
+                    if (e && (e.status === 409 || /conflict/i.test(e.code || ''))) {
+                        lines.push({ name: i.name, text: 'not moved: someone else changed it first, their change was kept', kind: 'left' });
+                    } else {
+                        _arxFail(kind, e, { step: 'item', component: i.component });
+                        lines.push({ name: i.name, text: 'not moved: ' + (e && e.message ? e.message : 'it could not be saved'), kind: 'left' });
+                    }
+                }
+            }
+            const partial = lines.some(l => /^not moved/.test(l.text));
+            await _arxDialog({ title: partial ? 'Restored, one work item left as it is' : 'Restored', msg: '“' + _arxNameOf(fresh) + '” is back in ' + k.where + '.', list: lines, yes: 'OK', cancel: false });
+            try { if (kind === 'sxr') loadSxrCards({ skipCache: true }); else loadCalendarPosts(); } catch (e) {}
+        } finally {
+            arxState.busy = false;
+            _arxRenderModal();
+        }
+    }

@@ -29744,8 +29744,9 @@ What was missing was proof beyond Create Post. Added
 `test/dialog-backdrop-press-browser.js`: opens the page offline, opens each
 dialog with the app's own opener, then with the real mouse presses inside,
 releases on the backdrop (must stay open) and clicks the backdrop (must close).
-It covers 22 dialogs, checks each is marked `data-backdrop-dismiss` so a new
-dialog that forgets the guard fails, and fails if anything writes. Run against a
+It covers 22 cases (21 backdrops; sign-in is tried in two modes). It also scans
+`src/index`, so a new marked backdrop with no case, or a click handler that
+ignores the press mark, fails; and it fails if anything writes. Run against a
 build with the guard disabled, 21 of the 22 fail; with the guard, all pass.
 
 Three things worth knowing:

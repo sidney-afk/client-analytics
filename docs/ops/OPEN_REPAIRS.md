@@ -29861,3 +29861,18 @@ that judge success some other way (a returned count, for example the Workload pl
 exact-one check) record HTTP failures only. The
 public onboarding form is not recorded (visitors are not signed in). A client whose
 Templates save is refused is recorded under a hashed client reference only.
+
+## 291. [2026-09-29] n8n exit PR 3: Calendar caption prompts read from the table, saves behind a pause switch
+
+The Calendar now reads caption prompts from the `caption_prompts` table (26 rows, measured live;
+the URL has only `select` and `order`, checked once against the real database: HTTP 200). A failed
+read falls back to a last-known-good copy kept in the browser, and only when that is empty to the n8n
+`caption-prompts-get` webhook, once. When every source fails the prompts are not marked loaded and
+Generate refuses instead of silently using the generic default prompt. The save goes to the
+`caption-prompts-save` function only, after a fresh, bounded read of `settings_ef_clients` (own read
+per save, two seconds, retried three times): an unreadable or malformed flag holds the save, a flag
+that does not list the client pauses it with a message, neither goes to n8n. The n8n
+`caption-prompts-save` call and constant are removed. Tests: `test/caption-prompts-guard-browser.js`
+(runs in CI job `entry-links-boot`, as do `calendar-write-guard-browser` and the byte-identical client
+approve and request-changes test). `Caption Prompts - Save` (n8n) can be deactivated 30 days after
+this ships; `Caption Prompts - Get` stays as the first-load fallback until a durable server copy exists.

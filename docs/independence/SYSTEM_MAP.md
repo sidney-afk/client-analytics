@@ -357,7 +357,7 @@ n8n in the metric read path.*
   **F125:** both the v1 selector and automatic REST-failure fallback change only reads; full-roster
   writes/reorders still route to Supabase-only Edge Functions. Either is unsafe split-brain, not
   writable recovery.
-  Caption prompts (n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST overlay — see
+  Caption prompts (n8n exit PR 3: `caption_prompts` REST read, browser last-known-good copy, n8n `caption-prompts-get` only as the error-only fallback — see
   §4.11). Caption job state via n8n `caption-job-status` (5 s poll while jobs active). Runtime-flag
   reads (calendar-upsert + settings keys). Rendered cards group at most 50 IDs into one or more
   authenticated `thumbnail-revision-read` availability calls; the response contains only IDs with
@@ -389,7 +389,7 @@ n8n in the metric read path.*
   2026-09-27 revoke (OPEN_REPAIRS 239): that route now saves the card and the source row and
   sends nothing outbound. Gateway recovery reads the linked `deliverables` row only to compare current native
   status clocks and uses the authenticated receipt described in §9.2. The URGENT tweak ping is native-only (`native_urgent_dispatch` via production-write; its legacy `send-urgent-slack` fallback was retired in B2, 2026-09-23) and `send-urgent-kasper-slack` (URGENT ping DMing Kasper about a card at Kasper Approval; feeds the Urgent section of his review tab), gated by the `kasper_urgent_ping_enabled` runtime flag which fails closed — off until the four `kasper_urgent_*` marker fields are live in the frozen writers). Caption AI: `generate-caption`,
-  `caption-job-update`. `caption-prompts-save` (EF/n8n by settings flag). `thumbnail-folder-resolve`
+  `caption-job-update`. `caption-prompts-save` (EF only, paused or held by the settings flag, never n8n). `thumbnail-folder-resolve`
   EF (Drive parent-folder link; skipped for client links) is currently anonymous (F79), and its
   remote-read/final-update sequence lacks atomic URL/version CAS (F80). URGENT "sent" marker → **`calendar-upsert`
   EF directly, bypassing the kill switch**.
@@ -422,7 +422,7 @@ n8n in the metric read path.*
   `syncview_kasper_seen_v1`/`_at_v1`, `syncview_notes_seen_v1`,
   `syncview_calCardJobs_v1` (legacy drain/expire-only jobs). sessionStorage: `sv_noteDraft_<pid>`,
   the shared token-verify cache. **Kill switches:** `calendar_upsert_ef_clients` (upsert+reorder
-  routing), `settings_ef_clients` (caption-prompts-save + prompt overlay). `?v2=0` is a local
+  routing), `settings_ef_clients` (caption-prompts-save pause switch). `?v2=0` is a local
   read-source selector, **not a kill switch** (F125). Rich optimistic-
   state guards (`_calReorderOptimistic` 12 s, recent-save windows, save-in-flight queues).
 - **Roles.** Client: Review tab targets Client-Approval→Approved, may approve/comment/drag (drag only
@@ -1230,14 +1230,14 @@ Supabase REST read is a flag-gated OVERLAY, not a fallback. Templates: Supabase 
   voice, identity, relationship) come from the private Synchro Brain via the `brain` EF
   (`action: read`, staff key only; the page never holds the brain token), laid out generically,
   with `spec:` facts pinned as a quick-look strip. When the client has a generated `brief.md`, the EF also returns it parsed and the page shows that Editor brief first (each line can show its source facts or send a change), with all facts folded under "All facts, with sources". Recent Frame folder / Raw footage links come from the same EF (`action: folders`, service-role read of `batches`, newest first, de-duplicated, 8 each). The n8n `templates-get` sheet base was retired 2026-09-24 once every row
-  was confirmed in Supabase. Prompts: n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST
-  overlay (no realtime channel for prompts). Runtime-flag read (settings key). Shared: filming-plans
+  was confirmed in Supabase. Prompts: `caption_prompts` REST read first, then a browser last-known-good copy, then
+  n8n `caption-prompts-get` only on error (no realtime channel for prompts). Runtime-flag read (settings key). Shared: filming-plans
   store, onboarding slug-index EFs (gate the profile's Onboarding button).
 - **Writes.** Templates links: always the `templates-save` EF (n8n twin retired 2026-09-24).
   "Send a change" posts to the `brain` EF (`action: change`), which saves the text word for word as
   a new file under the brain's `inputs/syncview-changes/`; the brain processes it. No fact is
   edited from SyncView.
-  `caption-prompts-save` — EF iff the slug is in `settings_ef_clients`, else the n8n twin. Debounced autosave; **writes always claim role `smm`**
+  `caption-prompts-save` — EF only, after a fresh bounded read of `settings_ef_clients` (paused or held on failure, never the n8n twin). Debounced autosave; **writes always claim role `smm`**
   even in Kasper mode, and never attach a client token.
 - **State.** `syncview_tpl_pinned_clients`, `syncview_tpl_recent_searches`, in-memory
   `templatesData` + prompt cache + `_settingsEfClients`. History-state carries the client + Reels/
@@ -1631,8 +1631,8 @@ enforcement, a global return to permissive is a security incident—not routine 
   first-party Direct-Post surface; `ttp-status` is dead.
 - **Workload feeder** → §4.8: `workload_issues` REST (default) with n8n `linear-issues` fallback; the
   realtime channel is dormant.
-- **caption-prompts read path** → §4.11: n8n `caption-prompts-get` base + flag-gated `caption_prompts`
-  REST **overlay** (not a fallback). Templates is Supabase-only since 2026-09-24.
+- **caption-prompts read path** → §4.11: `caption_prompts` REST read first; n8n `caption-prompts-get`
+  is the error-only fallback. Templates is Supabase-only since 2026-09-24.
 - **Per-surface state / logic depth** → §4 (every surface's localStorage keys, kill switches, caches,
   URL params, roles, failure paths).
 - **The mechanical sync test** → §7 + §8 (`test/system-map-sync.js`, wired into `npm test`).
@@ -1651,7 +1651,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (29, after n8n exit PR 2 removed four Calendar ones):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-get` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-caption` · `generate-content-summary` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `send-urgent-kasper-slack` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
+- **n8n webhooks (28, after n8n exit PRs 2 and 3 removed five):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-get` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `filming-plan-tabs` · `generate-caption` · `generate-content-summary` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `send-urgent-kasper-slack` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
 - **Edge functions (34):** `ai-onboarding-list` · `analytics-read` · `brain` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-profile-write` · `client-review-link` · `client-token-verify` · `description-image-upload` · `filming-plan-tabs` · `filming-plans` · `hiring-applications` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan` · `write-diagnostics`
 - **Not counted above:** 26 of the 30 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. `description-image-upload` (2026-09-05) is app-called candidate source with a path-triggered deploy lane (`.github/workflows/deploy-description-image-upload.yml`) and is not live until that lane's first run on `main` plus the owner-applied `migrations/2026-09-05-description-images.sql`. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the deployed `hiring-automation` bridge now captures the dedicated application, alerts Kasper, and records the dedicated interview booking without running sales nodes. Candidate email remains disabled until the flag is deliberately enabled and the inactive dispatcher is run. `write-diagnostics` (2026-09-22, OPEN_REPAIRS 101/240) is app-called candidate source: the Calendar/Samples write path posts a fire-and-forget refusal claim to it when a write is refused in the browser. It is deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent), was deployed 2026-09-23 from `344006c511dcd03d668ee8bafec11e6f7c9218d6` with `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner `supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql` is on the live project. Live.
 - **Supabase REST tables, literal (12):** `batches` · `calendar_posts` · `caption_prompts` · `clients` · `deliverables` · `production_deliverables_browser_v1` · `rename_propagation_status_v1` · `rpc` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues` (rpc is the PostgREST function prefix, used only by the rename propagation poke and retry calls; see 4.2)

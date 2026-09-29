@@ -27,7 +27,7 @@ clients fall to n8n. Flag-read failure and some EF failures also silently select
 n8n writer (F67); this is an open auth/failover defect, not a safe fallback contract. See the audit
 register and `ROLLBACK.md` before changing routing.
 
-## n8n webhooks (49)
+## n8n webhooks (48)
 
 **Corrected 2026-09-21:** The Linear bridge list below is a retained endpoint/source inventory. It is not a list of active staff write targets after cutoff. Outbound and parity are off; new native work must not require a provider request.
 
@@ -84,8 +84,8 @@ inventory, which is compared for SET EQUALITY against the paths index.html actua
 AI generation (briefs, captions, summaries):
 - `webhook/generate-caption`, `webhook/generate-content-summary`,
   `webhook/generate-tab-summary`
-- `webhook/caption-job-status`, `webhook/caption-job-update`, `webhook/caption-prompts-get`,
-  `webhook/caption-prompts-save`
+- `webhook/caption-job-status`, `webhook/caption-job-update`, `webhook/caption-prompts-get`
+- **Caption prompts (n8n exit PR 3, 2026-09-29):** the Calendar reads prompts from the `caption_prompts` table (plain REST read, `cache: 'no-store'`, query `select=client_slug,prompt&order=client_slug.asc`). `caption-prompts-get` stays only as an error-only fallback, after a last-known-good copy kept in the browser, so a failed table read cannot make Generate send an empty prompt. The save goes to `functions/v1/caption-prompts-save` only, after a fresh, bounded read of `settings_ef_clients` (an unreadable flag holds the save, an unlisted client pauses it with a message, never n8n). The n8n `caption-prompts-save` call is gone.
 
 The three brief generators (the Keywords, Competitors and Synthesis briefs) are **no longer
 called by the app** (buttons, polling and the auto-run Synthesis card removed 2026-09-24).

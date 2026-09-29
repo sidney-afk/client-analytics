@@ -65,6 +65,12 @@ here with where it stopped, so it can be restarted.
    (owner, 2026-09-24: "I want to keep using GitHub"; the owner already pays
    for GitHub Pro, which serves Pages from a private repo). Plan: `docs/plans/2026-09-24-owner-backlog.md` section 1; costs:
    `docs/ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md`.
+   **Plan written 2026-09-29 (Atlas): `docs/plans/2026-09-29-repo-private-plan.md`,
+   awaiting the owner's decisions in its section 9.** Findings that change the
+   picture: measured pace is about 135,000 billed minutes a month (about $790 on
+   Pro), 90 percent of it pull-request checks, so moving scheduled jobs saves only
+   about $13; and the live site publishes the whole repo (docs, scripts,
+   migrations), so the Pages deploy must become an allowlist before any switch.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -90,11 +96,10 @@ here with where it stopped, so it can be restarted.
      #1857 removes it, after which Kasper > Filming reads from the function, with
      n8n kept as the automatic per-Doc fallback. Rollback: set the flag to
      `{"mode":"n8n"}` (takes effect on the next Filming open). The n8n Filming Plan
-     Tabs workflow stays on for 30 days. **PR 2 (Calendar, session Anvil, #1858) built 2026-09-29, awaiting Lighthouse's
-     merge:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
+     Tabs workflow stays on for 30 days. **PR 2 (Calendar, #1858) merged 2026-09-29:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
      approve and request-changes untouched (byte-identical test); pinned repairs migrate on load;
-     the n8n Calendar workflows stay on 30 days after it ships. Next: Caption Prompts (PR 3), then
-     Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
+     the n8n Calendar workflows stay on 30 days after it ships. **PR 3 (Caption Prompts, session Anvil) built 2026-09-29,
+     awaiting Lighthouse's merge:** prompts are read from the `caption_prompts` table (browser saved copy, then n8n `caption-prompts-get`, only on error); the save is guarded by a fresh, bounded read of `settings_ef_clients` (paused or held, never n8n). `Caption Prompts - Save` can be deactivated 30 days after it ships; `Get` stays as the first-load fallback. Next: Sample Review (PR 4). Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
    - **Staff can see and restore recently archived Calendar cards and Samples**
      (owner 2026-09-29): BUILT in PR 1853 (session Harbor), waiting for

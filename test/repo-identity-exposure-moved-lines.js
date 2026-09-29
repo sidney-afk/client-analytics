@@ -143,6 +143,11 @@ async function main() {
     fs.writeFileSync(path.join(repo, 'index.html'),
       `<!doctype html>\n<script>\n${movedLine}\n</script>\n</html>\n`);
     fs.writeFileSync(path.join(repo, 'README.md'), 'fixture repo\n');
+    // Base also carries a generated script file (the shape after the split switch
+    // went on: base's index.html is a loader, and the app's lines live in js/).
+    const baseScriptLine = `    var SPLIT_ONLY = "${SYNTHETIC_SLUG}";`;
+    fs.mkdirSync(path.join(repo, 'js'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'js', 'sv-00-base-0123456789ab.js'), `${baseScriptLine}\n`);
     const base = commit(repo, 'seed base index.html');
 
     // Change under test:
@@ -173,6 +178,12 @@ async function main() {
     const newLine = `    var NEW_SLUG = "${SYNTHETIC_NEW_SLUG}";`;
     fs.writeFileSync(path.join(repo, 'src', 'index', '998-new.part'), `<script>\n${newLine}\n</script>\n`);
     fs.writeFileSync(path.join(repo, 'js', 'sv-03-core-0123456789ab.js'), `${newLine}\n`);
+    //   (g) a line that base held only in its own js/sv-*.js (not in index.html)
+    //       is exempt in a regenerated top-level js/sv-*.js (a new content hash);
+    //   (h) the same line anywhere else, or in a fragment, is not.
+    fs.writeFileSync(path.join(repo, 'js', 'sv-04-regenerated-0123456789ab.js'), `${baseScriptLine}\n`);
+    fs.writeFileSync(path.join(repo, 'docs-note-3.txt'), `${baseScriptLine}\n`);
+    fs.writeFileSync(path.join(repo, 'src', 'index', '997-from-script.part'), `<script>\n${baseScriptLine}\n</script>\n`);
     commit(repo, 'split index.html and add unrelated new notes');
 
     const result = await runCheck(repo, base, env);
@@ -196,6 +207,10 @@ async function main() {
     ok(!!at('js/nested/sv-02-core-0123456789ab.js'), '(e) the same line in a nested js/ folder IS reported');
     ok(!!at('src/index/998-new.part') && at('src/index/998-new.part').client_slug === 1, '(f) a new name added in a source fragment IS reported');
     ok(!!at('js/sv-03-core-0123456789ab.js') && at('js/sv-03-core-0123456789ab.js').client_slug === 1, '(f) the same new name in its js/sv-*.js copy IS reported');
+
+    ok(!at('js/sv-04-regenerated-0123456789ab.js'), '(g) a line base held only in its own js/sv-*.js is NOT reported in a regenerated top-level js/sv-*.js');
+    ok(!!at('docs-note-3.txt') && at('docs-note-3.txt').client_slug === 1, '(h) the same line in a non-script file IS reported');
+    ok(!!at('src/index/997-from-script.part') && at('src/index/997-from-script.part').client_slug === 1, '(h) the same line in a source fragment IS reported: base js copies exempt generated scripts only');
 
     ok(result.matched_by_kind.client_slug === 2,
       'two matched client-slug terms: the moved slug (copied outside the exempt places) and the new one');

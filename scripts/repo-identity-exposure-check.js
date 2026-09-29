@@ -239,10 +239,37 @@ function baseIndexHtmlLines(base) {
   return baseIndexHtmlLineSet;
 }
 
+/* The same exemption, for the generated script files, after the split switch went
+   on (2026-09-29): base's index.html is then only the loader page, so the app's
+   lines are no longer in it, and a regenerated `js/sv-*.js` (its name carries a
+   content hash) reads as wholly new even when almost every line is byte for byte
+   what base's own `js/sv-*.js` already held in public. So, for the generated
+   script destination ONLY, a line that is an exact full-line match against a line
+   in one of base's top-level `js/sv-*.js` files is not new exposure either. Same
+   terms as above: exact bytes, nothing normalized, nothing fuzzy, no name- or
+   path-based exemption, and not for any other destination. */
+let baseScriptLineSet = null;
+let baseScriptLineSetBase = null;
+function baseGeneratedScriptLines(base) {
+  if (baseScriptLineSetBase !== base) {
+    const set = new Set();
+    const names = git(['ls-tree', '--name-only', base, 'js/'], {});
+    for (const name of (names || '').split('\n').map(x => x.trim()).filter(Boolean)) {
+      if (!/^js\/sv-[^/]+\.js$/.test(name)) continue;
+      const body = git(['show', `${base}:${name}`], {});
+      if (body !== null) for (const l of body.split('\n')) set.add(l);
+    }
+    baseScriptLineSet = set;
+    baseScriptLineSetBase = base;
+  }
+  return baseScriptLineSet;
+}
+
 function addedLinesContaining(term, base) {
   const out = git(['diff', '--unified=0', base + '...HEAD'], {});
   if (out === null) return [];
   const preexisting = baseIndexHtmlLines(base);
+  const preexistingScripts = baseGeneratedScriptLines(base);
   const hits = [];
   let current = null, count = 0;
   const flush = () => { if (current && count) hits.push({ file: current, count }); current = null; count = 0; };
@@ -267,7 +294,8 @@ function addedLinesContaining(term, base) {
          and nowhere else. A new name added to a fragment is still caught in
          the fragment AND in its js/ copy. */
       const isGeneratedScriptDestination = /^js\/sv-[^/]+\.js$/.test(current);
-      if ((isFragmentDestination || isGeneratedScriptDestination) && preexisting.has(line.slice(1))) continue; // moved verbatim from base's index.html into a fragment or its generated copy — not new exposure
+      if ((isFragmentDestination || isGeneratedScriptDestination) && preexisting.has(line.slice(1))) continue;
+      if (isGeneratedScriptDestination && preexistingScripts.has(line.slice(1))) continue;   // already public in base's own js/sv-*.js — not new exposure; // moved verbatim from base's index.html into a fragment or its generated copy — not new exposure
       count++;
     }
   }

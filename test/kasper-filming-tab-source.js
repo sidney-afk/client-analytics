@@ -130,7 +130,9 @@ const monthsOf = (state) => state.filmingData.rows.map(r => [...r.months].sort()
     assert.equal(w.count('flag'), 2, 'every call is its own read, never cached or shared');
     const r = w.log[0];
     assert.equal(r.init.cache, 'no-store', 'the flag read bypasses the HTTP cache');
-    assert(/_t=\d+/.test(r.url), 'and carries a cache-buster');
+    const q = new URL(r.url).searchParams;
+    assert.deepEqual([...q.keys()].sort(), ['key', 'limit', 'select'],
+      'and sends only parameters PostgREST understands (a cache-buster such as _t= is read as a column filter and answered 400, live 2026-09-29)');
   }
   for (const [label, opts] of [
     ['a missing row', { flag: 'missing' }],

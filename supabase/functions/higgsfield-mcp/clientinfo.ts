@@ -57,7 +57,8 @@ async function planTabs(docId: string): Promise<Array<{ id: string; name: string
   // Tab names sit in the page model as {"ty":"ac","d":["t.<id>",[1,"<name>"],[<order>]]}.
   const names = new Map<string, string>();
   for (const m of html.matchAll(/\{"ty":"ac","d":\["(t\.[a-z0-9]{6,20})",\[1,"([^"]{1,80})"\]/g)) names.set(m[1], m[2]);
-  const ids = (names.size ? [...names.keys()] : [...new Set([...html.matchAll(/"(t\.[a-z0-9]{6,20})"/g)].map((m) => m[1]))]).slice(0, MAX_TABS);
+  // Export every tab id found; names only label the ones whose name parsed.
+  const ids = [...new Set([...names.keys(), ...[...html.matchAll(/"(t\.[a-z0-9]{6,20})"/g)].map((m) => m[1])])].slice(0, MAX_TABS);
   const targets = ids.length ? ids : [""];
   const tabs = await Promise.all(targets.map(async (id) => {
     const res = await fetch(`${base}/export?format=txt${id ? `&tab=${encodeURIComponent(id)}` : ""}`);
@@ -97,7 +98,9 @@ export async function filmingPlan(db: SupabaseClient, client: string, month: str
       .map((t) => ({ t, hits: (t.text.toLowerCase().match(new RegExp(monthWord || want.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length }))
       .filter((x) => x.hits > 0)
       .sort((a, b) => (b.t.month.toLowerCase().startsWith(monthWord || want) ? 1 : 0) - (a.t.month.toLowerCase().startsWith(monthWord || want) ? 1 : 0) || b.hits - a.hits);
-    pick = byNumber || scored[0]?.t;
+    // A tab whose name matches wins; body text is the fallback.
+    const byName = labelled.find((t) => t.name && t.name.toLowerCase().includes(monthWord || want));
+    pick = byNumber || byName || scored[0]?.t;
     if (!pick) return `${p.client_name}'s filming plan has no tab for "${month}". Tabs found:\n${list}\nAsk for one by month or number.`;
   }
   if (!pick) return `${p.client_name}'s filming plan has ${labelled.length} tabs:\n${list}\nAsk for one by month or number.`;

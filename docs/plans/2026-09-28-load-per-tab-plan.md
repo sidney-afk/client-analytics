@@ -1,7 +1,9 @@
 # Load only the tab you open
 
 **Status:** approved by the owner 2026-09-28 up to and including step 4 (switch on for
-staff only). Step 5 (client links) needs the owner's separate go after a week of staff use.
+staff only). Step 5 (client links) was given its own go by the owner on 2026-09-29, who
+waived the week of staff use (step 4 had been live since 2026-09-29 and passed Vigil's hand
+test). Step 5 is built, see "Step 5" below.
 Written by the session named Mason. This is roadmap phase C2
 (`docs/plans/2026-09-21-post-modularization-roadmap.md`), planned now that every script
 fragment is an ES module (C3, `docs/plans/2026-09-24-modularization-c3-plan.md`).
@@ -330,5 +332,38 @@ same code unsplit. Numbers: `docs/audits/2026-09-29-step4-first-load.md` (staff 
   also exist). One browser: `?split=0` / `?split=1`.
 - `scripts/prune-split-js.js` lists (or with `--delete` removes) `js/sv-*.js` files no recent
   `index.html` names.
-- Step 5 (client links) is not started and needs the owner's separate go.
+- Step 5 (client links): see below.
+
+## Step 5: client share links get the split parts (2026-09-29)
+
+Owner's go, 2026-09-29, waiving the week of staff use. A client link (`?c=` or `?t=`) now
+gets the loader plus the same content-hashed parts staff get, minus the four on-demand areas
+(TikTok, Templates, Workload, Kasper). **Forms (intake, onboarding, onboarding view), the SMM
+weekly report and signed-out visitors still get the whole script as one file.**
+
+- **What changed.** `scripts/index-split.js`: the loader sends a client link to the parts when
+  `split.json` says `"clients": true` (missing means false, so an old config keeps the single
+  file). A client link never gets the quiet background download of the on-demand areas
+  (`self.__svLoad.client`, checked in `040`'s `_svPrefetchAreas`): a client has none of those tabs, and
+  an area it did ask for would still load through `svArea`. `?split=0` now works on a client link
+  too (before, the client check returned first, so the opt-out never stuck there).
+- **Ways back, three.** Everyone: `node scripts/split-switch.js off`, commit, merge (index.html is
+  the single file again, byte for byte). Client links only: `node scripts/split-switch.js clients off`
+  (staff keep the parts). One browser: `?split=0` (sticks; `?split=1` clears it), on a client link too.
+  `test/index-split.js` runs the real loader against a fake browser for 16 kinds of visitor with
+  clients on and off; `test/split-switch.js` covers the config; `split-load-browser.js` covers the
+  shipped page in a browser, including that a client link fetches no staff-only file.
+- **The client approve and request-changes code did not change.** It is `core!` and every part of it
+  is in always-loaded files. `test/client-review-requests-unchanged-browser.js` and
+  `test/calendar-client-carveout-byte-identical-browser.js` both serve the real page from disk, so they
+  now run on the parts (each asserts it was served as "parts") and compare the same goldens recorded
+  from `main`. One change to the carve-out test: it ignores the random suffix of a NEW COMMENT'S ID
+  (`c_<clock>_<random>`), because the test seeds "random" and one line of Workload's start-up code
+  (an id for the live plan sync) drew one value on a client link before and no longer runs there, which
+  shifts every later value by one. The clock part of the id, and everything else, is still compared byte
+  for byte. The other test already normalised the comment id.
+- **Numbers:** `docs/audits/2026-09-29-step5-client-first-load.md`.
+- Vigil hand-tests the live client link (test client only) after merge; the checklist is in the PR.
+- Left for step 6: measure everything again, and the still-unsplit areas (SyncLinear stays in core by
+  the owner's decision).
 

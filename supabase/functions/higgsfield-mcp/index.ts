@@ -674,7 +674,7 @@ const RECIPES: Recipe[] = [
     summary: "Make a still with GPT Image first, refine it until you like it, then animate that exact photo into a video clip with a cheaper video model.",
     models: ["openai/gpt-image", "kling-video/v2.6/pro/image-to-video", "bytedance/seedance-2.5/image-to-video"],
     guide: [
-      "Step 1, the photo: write the shot as a detailed photo prompt and make it with openai/gpt-image (the team's preferred image model; a strong photo gives a better video even from a cheap video model). Use size 1024x1536 for vertical or 1536x1024 for horizontal, quality high. price_check, show the plan card, create after go. To adjust, edit the last photo with openai/gpt-image by passing its link in image_urls with the change, instead of starting over.",
+      "Step 1, the photo: write the shot as a detailed photo prompt and make it with openai/gpt-image (the team's preferred image model; a strong photo gives a better video even from a cheap video model). Use size 1152x2048 for vertical 9:16 or 2048x1152 for horizontal 16:9, quality high (medium is much cheaper for drafts). price_check, show the plan card, create after go. To adjust, edit the last photo with openai/gpt-image by passing its link in image_urls with the change, instead of starting over.",
       "Step 2, pick: show the results and let them choose one, or adjust and redo step 1.",
       "Step 3, the video: animate the chosen image link with kling-video/v2.6/pro/image-to-video (cheaper, good for b-roll) or bytedance/seedance-2.5/image-to-video (best motion). Prompt only the motion and camera move, since the photo already sets the look. price_check, show the plan card, create after go.",
     ].join("\n"),

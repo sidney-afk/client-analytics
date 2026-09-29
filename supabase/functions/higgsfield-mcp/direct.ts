@@ -30,7 +30,7 @@ export const DIRECT_MODELS: CatalogModel[] = [
     category: "image-edit",
     notes: [
       "The same image model ChatGPT uses. Best at precise edits that change only what you ask for; also makes new images from a prompt.",
-      "size auto keeps the photo's own shape. quality high is the sharpest and costs the most.",
+      "size auto keeps the photo's own shape; any WIDTHxHEIGHT works (1152x2048 for vertical 9:16). quality high is the sharpest and costs the most; bigger sizes cost more.",
     ],
     schema: {
       type: "object",
@@ -38,7 +38,7 @@ export const DIRECT_MODELS: CatalogModel[] = [
       properties: {
         prompt: { type: "string" },
         image_urls: IMAGES,
-        size: { type: "string", enum: ["auto", "1024x1024", "1536x1024", "1024x1536"], default: "auto" },
+        size: { type: "string", default: "auto", description: "auto (keeps the photo's shape), or WIDTHxHEIGHT: both multiples of 16, shape between 1:3 and 3:1, longest edge at most 3840. Vertical 9:16 is 1152x2048, horizontal 16:9 is 2048x1152, square 1024x1024, 2:3 is 1024x1536." },
         quality: { type: "string", enum: ["low", "medium", "high"], default: "high" },
       },
     },
@@ -99,6 +99,16 @@ export const MAX_PROMPT_CHARS = 8000;
 export const MAX_DIRECT_IMAGES = 4;
 const OPENAI_IN_IMAGE_TOKENS = 10000;
 const GOOGLE_IN_IMAGE_TOKENS = 3000;
+// "auto" -> undefined (fine), a valid WIDTHxHEIGHT -> [w, h], anything else -> null.
+function openaiSize(size: string): [number, number] | undefined | null {
+  if (size === "auto") return undefined;
+  const m = size.match(/^(\d{2,4})x(\d{2,4})$/);
+  if (!m) return null;
+  const w = Number(m[1]), h = Number(m[2]);
+  if (w % 16 || h % 16 || w > 3840 || h > 3840 || w / h > 3 || h / w > 3) return null;
+  return [w, h];
+}
+
 function textTokens(inputs: JsonMap): number {
   return String(inputs.prompt || "").length + 50;
 }
@@ -110,7 +120,12 @@ export function directEstimate(id: string, inputs: JsonMap): { usd: number } | {
   if (id === "openai/gpt-image") {
     if (!Deno.env.get("OPENAI_KEY")) return { error: "GPT Image is not set up yet (OPENAI_KEY missing)." };
     const [sq, wide] = OPENAI_OUT[String(inputs.quality || "high")] || OPENAI_OUT.high;
-    const out = String(inputs.size || "auto") === "1024x1024" ? sq : wide;
+    const size = String(inputs.size || "auto");
+    const dims = openaiSize(size);
+    if (dims === null) return { error: `Size "${size}" is not allowed. Use auto, or WIDTHxHEIGHT with both multiples of 16, a shape between 1:3 and 3:1 and no edge over 3840 (vertical 9:16 is 1152x2048).` };
+    // Output tokens grow with pixel count; the table is for 1024x1536, so
+    // larger custom sizes scale up from it (never below the table figure).
+    const out = size === "1024x1024" ? sq : Math.ceil(wide * Math.max(1, dims ? (dims[0] * dims[1]) / (1024 * 1536) : 1));
     return { usd: out * 30e-6 + n * OPENAI_IN_IMAGE_TOKENS * 8e-6 + textTokens(inputs) * 5e-6 };
   }
   const g = GOOGLE_MODELS[id];

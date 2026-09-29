@@ -59,3 +59,6 @@ deno.lock
 # gitlink and warns about an embedded repo. That happened once already; the rest
 # of `.claude/` is tracked on purpose, so the ignore is scoped to this directory.
 .claude/worktrees/
+
+# GitHub Pages site folder (scripts/pages-site.js build)
+.pages-site/

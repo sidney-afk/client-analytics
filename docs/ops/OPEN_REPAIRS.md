@@ -29876,3 +29876,33 @@ that does not list the client pauses it with a message, neither goes to n8n. The
 (runs in CI job `entry-links-boot`, as do `calendar-write-guard-browser` and the byte-identical client
 approve and request-changes test). `Caption Prompts - Save` (n8n) can be deactivated 30 days after
 this ships; `Caption Prompts - Get` stays as the first-load fallback until a durable server copy exists.
+
+## 292. [2026-09-29] The live site published the whole repository; it now publishes an allowlist
+
+**Found by:** the repo-private plan (`docs/plans/2026-09-29-repo-private-plan.md`, section 5.1), by fetching
+live addresses. GitHub Pages was built from the branch root, so `syncview.synchrosocial.com` also served
+`/docs/...`, `/CLAUDE.md`, `/AGENTS.md`, `/package.json`, `/scripts/...`, `/migrations/...`, `/supabase/...`,
+`/test/...`, `/qa/...` and `/src/...` to anyone (14 of 17 probed source addresses answered 200 on 2026-09-29).
+Nothing the app loads lives there. This mattered more than the repository being public, because a private
+repository would still have been readable at the site address.
+
+**Owner decision, 2026-09-29:** the repository stays public; publish only what the app needs.
+
+**Repair:** `scripts/pages-site.js` builds the site folder from an allowlist (`index.html`, `404.html`, one stub
+per top-level address, `CNAME`, three logo/favicon images, and `js/`, `nav-icons/`, `thumbnail-styles/`,
+`onboarding-ai/`, `onboarding-audio/`, `onboarding-video/`: 120 files). `.github/workflows/pages-site.yml`
+builds and checks it on every pull request (never deploys there) and deploys from `main` only once the
+Pages source is set to "GitHub Actions"; until the owner switches that setting nothing changes and the
+branch build keeps serving. `thumbnails/` (a separate mock-up the app never loads) is no longer served.
+
+**Proof:** `test/pages-site-allowlist.js` (unit lane) serves today's whole repository and the site folder the
+way Pages does and requires the same status and bytes for 50 app addresses and all 120 published files, 404 for
+17 source addresses, and that every repository path the page and scripts reference is published;
+`docs/syncview-design/tests/pages-site-browser.js --compare` boots 32 addresses (staff pages, deep links, forms,
+weekly report, legacy entry links, client share links) in a real browser from both and shows identical outcomes.
+
+**Way back, one setting:** Settings, Pages, Source: "Deploy from a branch", `main`, `/ (root)`. The next run
+sees the source is no longer Actions and skips the deploy. This restores the whole-repo exposure, so it is an
+emergency exit. Runbook and switch-on steps: `docs/ops/PAGES_SITE_ALLOWLIST.md`.
+
+**Left:** the owner's Pages source switch and a live `node scripts/pages-site.js probe`.

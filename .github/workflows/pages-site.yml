@@ -1,0 +1,141 @@
+name: Pages site
+
+# Builds the folder GitHub Pages publishes from an ALLOWLIST (scripts/pages-site.js)
+# instead of publishing the whole repository, checks it, and, only from main and
+# only once the repository's Pages source is set to "GitHub Actions", publishes it.
+#
+# Until the owner switches the Pages source (Settings, Pages, Build and
+# deployment, Source: GitHub Actions), this workflow builds and checks and
+# deploys NOTHING, and the branch build keeps serving the site as before.
+#
+# WAY BACK (one setting): Settings, Pages, Source: "Deploy from a branch", main,
+# root. The next run reads the source, sees it is no longer Actions, and skips
+# the deploy. Nothing else needs touching.
+#
+# The build job runs on every pull request and never deploys. The deploy job
+# refuses pull_request runs and any ref but main. Runbook:
+# docs/ops/PAGES_SITE_ALLOWLIST.md
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - '404.html'
+      - 'CNAME'
+      - '*.html'
+      - '*.png'
+      - 'js/**'
+      - 'nav-icons/**'
+      - 'thumbnail-styles/**'
+      - 'onboarding-ai/**'
+      - 'onboarding-audio/**'
+      - 'onboarding-video/**'
+      - 'scripts/pages-site.js'
+      - 'scripts/build-route-stubs.js'
+      - 'src/index/003-sv-route.html.part'
+      - 'test/pages-site-allowlist.js'
+      - 'docs/syncview-design/tests/pages-site-browser.js'
+      - 'qa/staff-gate-seed.js'
+      - '.github/workflows/pages-site.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '404.html'
+      - 'CNAME'
+      - '*.html'
+      - '*.png'
+      - 'js/**'
+      - 'nav-icons/**'
+      - 'thumbnail-styles/**'
+      - 'onboarding-ai/**'
+      - 'onboarding-audio/**'
+      - 'onboarding-video/**'
+      - 'scripts/pages-site.js'
+      - 'scripts/build-route-stubs.js'
+      - 'src/index/003-sv-route.html.part'
+      - 'test/pages-site-allowlist.js'
+      - 'docs/syncview-design/tests/pages-site-browser.js'
+      - 'qa/staff-gate-seed.js'
+      - '.github/workflows/pages-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-site-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      source: ${{ steps.source.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build the site folder from the allowlist
+        run: node scripts/pages-site.js build --out=.pages-site
+
+      - name: Every address answers as before; source, plans and config do not answer
+        run: node test/pages-site-allowlist.js
+
+      - name: Install Playwright into a temp prefix (package.json untouched)
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Every staff, client, form and weekly-report address loads in a real browser
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/pages-site-browser.js --site=.pages-site
+
+      - name: Read the Pages source
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # "workflow" = the owner switched the source to GitHub Actions;
+          # "legacy" = still "Deploy from a branch"; "unknown" = not readable.
+          src=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type' 2>/dev/null || echo unknown)
+          [ -n "$src" ] || src=unknown
+          echo "source=$src" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Pages source: \`$src\`"
+            if [ "$src" = workflow ]; then echo "Deploys from main are ON."
+            elif [ "$src" = legacy ]; then echo "Still the branch build. This run built and checked the site and deploys nothing."
+            else echo "Could not read the Pages source, so nothing is deployed."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$src" = unknown ]; then echo "::warning::Could not read the Pages source; the deploy job is skipped."; fi
+
+      - name: Upload the site folder (kept one day, never deployed from here)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .pages-site
+          retention-days: 1
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.outputs.source == 'workflow'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

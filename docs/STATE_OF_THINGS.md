@@ -35,9 +35,11 @@ reorders or adds, edit this list, never a side document.
    with a one-step switch back. SyncLinear is skipped for now (owner,
    2026-09-29); revisit only if step 4's numbers justify it.
 4. **Failed saves: finish and USE the log.** The write-refusal log exists and
-   records (see "Needs a session"); what is left is confirming the `traffic`
-   column fills and giving the owner a simple way to see a client's failed
-   saves when they report a bug.
+   records Calendar, Samples, Production and intake refusals, best-effort (see
+   "Needs a session"). Left: confirm the `traffic` column fills, report from
+   the surfaces that do not yet (Filming plans, Templates and others without
+   `_writeUiRecordFailure`), and give the owner a simple way to see a client's
+   failed saves when they report a bug.
 5. **Load-per-tab, step 5: client links get the smaller page.** Needs the
    owner's separate go after a week of staff use. This is the big client-side
    speed gain (about 3 s to about 1.7 s on a typical phone, plan estimate).

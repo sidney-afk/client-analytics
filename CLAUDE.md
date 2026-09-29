@@ -169,9 +169,13 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
   concurrent branches routinely claim the same number.
 - With the browser publishable key you can READ most tables but write nothing;
   `production_comments` and every `production_comment_*` table return 42501.
-- A refused write IS recorded server-side now (the write-refusal log, since
-  2026-09-23; OPEN_REPAIRS 101 described the old browser-only ring). What is
-  left is making it easy to read; see priority item 4 in `docs/STATE_OF_THINGS.md`.
+- Refused writes on the Calendar, Samples, Production and intake paths are now
+  reported to a server-side write-refusal log (since 2026-09-23; OPEN_REPAIRS 101
+  described the old browser-only ring). It is best-effort: the report is
+  fire-and-forget, and other surfaces (Filming plans, for one) do not report at
+  all, so absence from the log does not prove a save succeeded. Covered
+  surfaces are the fragments that call `_writeUiRecordFailure`. Making it easy to
+  read, and widening coverage, is priority item 4 in `docs/STATE_OF_THINGS.md`.
 - **A gate that has never run against its real target is untested.** The
   Linear-exit deploy preflight first executed live on 2026-09-17, inside a
   dispatch, and refused **10 of 156 keys** — so the release stopped at the

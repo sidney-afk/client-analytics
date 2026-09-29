@@ -50,8 +50,10 @@ loads; its README calls its smart-picks mock data) is no longer served at
 
 1. Merge the pull request. The `Pages site` run on `main` builds and checks; its
    summary says `Pages source: legacy` and it deploys nothing.
-2. Settings, Pages, Build and deployment, Source: **GitHub Actions**.
-3. Straight away: Actions, `Pages site`, **Run workflow** on `main`. This publishes
+2. Settings, Pages, Build and deployment, Source: **GitHub Actions**
+   (https://github.com/sidney-afk/client-analytics/settings/pages).
+3. Straight away, open https://github.com/sidney-afk/client-analytics/actions/workflows/pages-site.yml
+   and choose **Run workflow** on `main`. This publishes
    the folder. (GitHub does not document whether the old content keeps serving in
    the gap between steps 2 and 3, so do them one after the other.)
 4. Check: `node scripts/pages-site.js probe` should end with
@@ -63,7 +65,7 @@ loads; its README calls its smart-picks mock data) is no longer served at
 
 ## Way back (one setting)
 
-Settings, Pages, Build and deployment, Source: **Deploy from a branch**, branch
+https://github.com/sidney-afk/client-analytics/settings/pages, Build and deployment, Source: **Deploy from a branch**, branch
 `main`, folder `/ (root)`. The next `Pages site` run reads the source, sees it is
 no longer Actions and skips the deploy, so nothing else needs changing. This
 re-publishes the whole repository (the exposure above comes back), so it is an

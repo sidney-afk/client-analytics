@@ -14,15 +14,19 @@ const ROOT = path.resolve(__dirname, '..');
 const FRAG_PATH = 'src/index/321-kasper-dashboard-replies.js.part';
 const SRC = fs.readFileSync(path.join(ROOT, FRAG_PATH), 'utf8');
 const NAMES = ['_filmsTabSource', '_filmsTabsFromFunction', '_filmsTabResult', '_filmsFetchTabMonths',
-  '_filmsParseMonth', '_filmsMapLimit', '_kasperLoadFilming'];
+  '_filmsParseMonth', '_filmsMapLimit', '_kasperLoadFilming', '_kasperRenderFilming',
+  '_filmsLoadCache', '_filmsSaveCache', '_filmsCacheStillValid'];
 // extractFunction starts at `function name(`, so `async` has to be put back.
 const isAsync = (n) => new RegExp('async\\s+function\\s+' + n + '\\s*\\(').test(SRC);
 // The constants come from the fragment too, so the test uses the shipped values.
 // Only the flag-read timeout is shortened, so the "never answers" case is quick.
 const CONST_NAMES = ['FILMING_PLAN_TABS_EF_URL', 'FILMING_TABS_SOURCE_FLAG_KEY', 'FILMING_TABS_FLAG_TIMEOUT_MS',
-  'FILMING_TABS_EF_TIMEOUT_MS', 'FILMING_TABS_EF_BATCH', 'FILMING_TABS_DOC_ID_RE'];
+  'FILMING_TABS_EF_TIMEOUT_MS', 'FILMING_TABS_EF_BATCH', 'FILMING_TABS_DOC_ID_RE',
+  'KASPER_FILMING_CACHE_KEY', 'KASPER_FILMING_CACHE_MAX_AGE_MS'];
+// (The cache key is declared in the shared Kasper fragment, the rest in this one.)
+const CONST_SRC = SRC + '\n' + fs.readFileSync(path.join(ROOT, 'src/index/305-core-kasper-shared.js.part'), 'utf8');
 const CONSTS = CONST_NAMES.map((n) => {
-  const m = SRC.match(new RegExp('^\\s*const ' + n + ' = [^\\n]*;', 'm'));
+  const m = CONST_SRC.match(new RegExp('^\\s*const ' + n + ' = [^\\n]*;', 'm'));
   assert(m, 'fragment declares ' + n);
   return m[0].replace(/FILMING_TABS_FLAG_TIMEOUT_MS = \d+/, 'FILMING_TABS_FLAG_TIMEOUT_MS = 25');
 }).join('\n');
@@ -86,14 +90,19 @@ function world(opts = {}) {
 function load(w, extra = {}) {
   const state = { filmingData: null, filmingExpanded: {} };
   const painted = [];
+  // A page's localStorage. Pass the same one to a second load() to model a page reload.
+  const storage = extra.storage || new Map();
+  const root = { innerHTML: '' };
   const sandbox = {
     console, URL, Date, Math, Set, Map, Array, Promise, JSON, String, encodeURIComponent, setTimeout, clearTimeout, AbortController,
     fetch: w.fetch,
     CAL_SUPABASE_URL: SUPA, CAL_SUPABASE_ANON_KEY: 'anon-key',
     FILMING_PLAN_TABS_URL: N8N,
     _syncviewEfHeaders: (h) => Object.assign({ 'X-Syncview-Key': 'staff-key' }, h),
-    _kasperState: state, document: { getElementById: () => null },
-    _filmsLoadCache: () => null, _filmsSaveCache: () => {}, _filmsPaint: () => painted.push(state.filmingData && state.filmingData.rows.length),
+    _kasperState: state, document: { getElementById: (id) => (id === 'kasperContent' ? root : null) },
+    localStorage: { getItem: (k) => (storage.has(k) ? storage.get(k) : null), setItem: (k, v) => { storage.set(k, String(v)); }, removeItem: (k) => { storage.delete(k); } },
+    _syncviewStaffIdentityForHeaders: () => ({ key: 'staff-key' }),
+    _filmsPaint: () => painted.push(state.filmingData && state.filmingData.rows.length),
     _kasperRefreshTabCounts: () => {}, _svLoadingSkeletonHtml: () => '', _calEsc: (s) => String(s),
     svArea: async () => ({ fpEnsureLoaded: async () => ({ rows: [] }) }),
     _filmsRowsFromPlans: () => DOCS.map((docId, i) => ({ client: 'Client ' + i, slug: 's' + i, docId, docUrl: 'https://docs.google.com/document/d/' + docId, months: new Set() })),
@@ -102,9 +111,10 @@ function load(w, extra = {}) {
     _FILMS_RANK: { green: 2, amber: 1, red: 0 },
   };
   Object.assign(sandbox, extra);
+  delete sandbox.storage;
   vm.createContext(sandbox);
-  vm.runInContext(CODE + '\nthis.exports = { _filmsTabSource, _filmsTabsFromFunction, _filmsFetchTabMonths, _kasperLoadFilming };', sandbox);
-  return { fns: sandbox.exports, state, painted };
+  vm.runInContext(CODE + '\nthis.exports = { _filmsTabSource, _filmsTabsFromFunction, _filmsFetchTabMonths, _kasperLoadFilming, _kasperRenderFilming };', sandbox);
+  return { fns: sandbox.exports, state, painted, storage };
 }
 
 const monthsOf = (state) => state.filmingData.rows.map(r => [...r.months].sort().join(','));
@@ -234,11 +244,80 @@ const monthsOf = (state) => state.filmingData.rows.map(r => [...r.months].sort()
     assert.deepEqual(monthsOf(state), ['2026-06', '2026-05', '2026-07'], 'and shows the right months again');
   }
 
+  // --- the cache must not outlive the source that built it ---------------------
+  // (a) a page reload: same localStorage, everything else new. The function built
+  //     the cached rows and answered wrongly; the flag is flipped to n8n; the
+  //     reload must NOT show the cached function rows.
+  {
+    const w = world({ flag: { mode: 'function' }, fnWrongTitle: 'January 2020' });
+    const first = load(w);
+    await first.fns._kasperLoadFilming(false);
+    assert.equal(w.count('n8n'), 0);
+    const saved = JSON.parse(first.storage.get([...first.storage.keys()][0]));
+    assert.equal(saved.source, 'function', 'the cache remembers which source built it');
+    w.flag = { mode: 'n8n' };
+    const fnBefore = w.count('function');
+    const reloaded = load(w, { storage: first.storage });   // a reload: new page, same browser storage
+    await reloaded.fns._kasperLoadFilming(false);
+    assert.equal(w.count('function'), fnBefore, 'the reload does not call the function');
+    assert.equal(w.count('n8n'), 3, 'and reads n8n');
+    assert.deepEqual(monthsOf(reloaded.state), ['2026-06', '2026-05', '2026-07'], 'the wrong cached months are not shown');
+    const again = load(w, { storage: first.storage });      // a third open, flag unchanged
+    const n8nBefore = w.count('n8n');
+    await again.fns._kasperLoadFilming(false);
+    assert.equal(w.count('n8n'), n8nBefore, 'once rebuilt from n8n the copy is reused as before: no n8n call');
+    assert.equal(again.painted.length >= 1 && again.state.filmingSource, 'n8n');
+  }
+  // (b) reopening the tab in the same page: the rows are in memory.
+  {
+    const w = world({ flag: { mode: 'function' }, fnWrongTitle: 'January 2020' });
+    const { fns, state, painted } = load(w);
+    await fns._kasperLoadFilming(false);
+    assert.equal(state.filmingSource, 'function');
+    // Unchanged flag: reopening paints from memory with no fetch of tabs at all.
+    const before = w.log.length;
+    await fns._kasperRenderFilming();
+    assert.equal(w.log.slice(before).filter(r => r.kind !== 'flag').length, 0, 'same source: reopen makes no tab request');
+    assert.equal(w.log.slice(before).filter(r => r.kind === 'flag').length, 1, 'but it does read the flag afresh');
+    // The flag flips to n8n: reopening must reload from n8n, not repaint the function rows.
+    w.flag = { mode: 'n8n' };
+    await fns._kasperRenderFilming();
+    assert.equal(state.filmingSource, 'n8n');
+    assert.equal(w.count('n8n'), 3, 'the reopen after a flip goes to n8n');
+    assert.deepEqual(monthsOf(state), ['2026-06', '2026-05', '2026-07'], 'and shows the right months');
+    // And the other direction: n8n rows on screen, flag flipped to function.
+    w.flag = { mode: 'function' }; w.fnWrongTitle = null;
+    const fnBefore = w.count('function');
+    await fns._kasperRenderFilming();
+    assert.equal(w.count('function'), fnBefore + 1, 'a flip to function is picked up on the next open too');
+    assert.equal(state.filmingSource, 'function');
+  }
+  // (c) a copy saved before this change carries no source: it is an n8n copy.
+  {
+    const w = world({ flag: { mode: 'n8n' } });
+    const first = load(w);
+    await first.fns._kasperLoadFilming(false);
+    const key = [...first.storage.keys()][0];
+    const legacy = JSON.parse(first.storage.get(key)); delete legacy.source;
+    first.storage.set(key, JSON.stringify(legacy));
+    const n8nBefore = w.count('n8n');
+    const r1 = load(w, { storage: first.storage });
+    await r1.fns._kasperLoadFilming(false);
+    assert.equal(w.count('n8n'), n8nBefore, 'a legacy copy is reused while the flag says n8n');
+    w.flag = { mode: 'function' };
+    const r2 = load(w, { storage: first.storage });
+    await r2.fns._kasperLoadFilming(false);
+    assert.equal(w.count('function'), 1, 'and is rebuilt from the function once the flag says function');
+  }
+
   // --- source-level wiring ----------------------------------------------------
   const load1 = extractFunction(SRC, '_kasperLoadFilming');
   assert(load1.indexOf('_filmsTabSource()') < load1.indexOf('_filmsMapLimit('), 'the flag is read before the per-client work');
   assert(/_filmsTabsFromFunction\(rows\.map\(r => r\.docId\), !!forceRefresh\)/.test(load1), 'Refresh reaches the function call');
   assert(/_filmsFetchTabMonths\(row\.docId, tabsFromFunction\)/.test(load1), 'each row asks the batch answer first');
+  const renderSrc = extractFunction(SRC, '_kasperRenderFilming');
+  assert(/_filmsCacheStillValid\(_kasperState\.filmingSource/.test(renderSrc), 'reopening the tab checks the flag before reusing rows in memory');
+  assert(/_filmsCacheStillValid\(cached\.source\)/.test(load1) && load1.indexOf('_filmsCacheStillValid(cached.source)') < load1.indexOf('_kasperState.filmingData = { rows: cached.rows }'), 'and so does the browser copy, before it is used');
   assert(!/cache|Cache/.test(extractFunction(SRC, '_filmsTabSource').replace(/cache: 'no-store'|no-store|HTTP cache|never cached/g, '')), 'the flag read holds no cache');
 
   console.log('KASPER_FILMING_TAB_SOURCE_OK');

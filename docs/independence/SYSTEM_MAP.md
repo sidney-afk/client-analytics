@@ -1196,7 +1196,8 @@ present are history; its n8n workflows, Sheet tabs and `content_samples` rows st
   server-reverified identity. There is no browser PostgREST, anonymous realtime, or Sheets fallback.
   Kasper's per-Doc coverage probe reads each client's Doc tabs from the `filming-plan-tabs` EF in
   one bulk request when the runtime flag `filming_plan_tabs_source` says `{"mode":"function"}`
-  (default `{"mode":"n8n"}`, read afresh at every Filming load and Refresh, 2 s limit, any failure
+  (default `{"mode":"n8n"}`, read afresh at every Filming load and Refresh and before any cached rows are reused,
+  in memory or in the 30-minute browser copy, which remembers the source that built it; 2 s limit, any failure
   means n8n), and from the n8n `filming-plan-tabs` webhook otherwise or for any Doc the function
   cannot answer (concurrency 5). The route only reads Doc tab titles, so reverting to n8n reopens
   no write path. Kasper runway reuses Calendar reads.

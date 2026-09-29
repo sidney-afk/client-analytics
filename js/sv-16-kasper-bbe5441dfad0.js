@@ -3567,14 +3567,26 @@
             const parsed = JSON.parse(raw);
             if (!parsed || !parsed.fetchedAt || Date.now() - parsed.fetchedAt > KASPER_FILMING_CACHE_MAX_AGE_MS) return null;
             (parsed.rows || []).forEach(r => { r.months = new Set(r.months || []); });
-            return parsed.rows || null;
+            // A copy saved before the tab source existed came from n8n. The source
+            // that built it travels with it: see _filmsCacheStillValid.
+            return parsed.rows ? { rows: parsed.rows, source: parsed.source === 'function' ? 'function' : 'n8n' } : null;
         } catch (e) { return null; }
     }
-    function _filmsSaveCache(rows) {
+    function _filmsSaveCache(rows, source) {
         try {
             const slim = rows.map(r => Object.assign({}, r, { months: Array.from(r.months || []) }));
-            localStorage.setItem(KASPER_FILMING_CACHE_KEY, JSON.stringify({ rows: slim, fetchedAt: Date.now() }));
+            localStorage.setItem(KASPER_FILMING_CACHE_KEY, JSON.stringify({ rows: slim, fetchedAt: Date.now(), source: source === 'function' ? 'function' : 'n8n' }));
         } catch (e) {}
+    }
+    // Filming rows already on screen, or in the 30 minute browser copy, were built
+    // from one tab source. Reusing them without asking the flag again would keep
+    // showing a function answer for up to 30 minutes after an operator flipped
+    // filming_plan_tabs_source back to n8n (or the reverse). So every reuse is
+    // preceded by a fresh flag read, and a copy built from the other source is
+    // not reused: the page reloads instead. Returns the source now in force.
+    async function _filmsCacheStillValid(builtFrom) {
+        const now = await _filmsTabSource();
+        return { ok: now === builtFrom, source: now };
     }
 
     async function _kasperRenderFilming() {
@@ -3605,7 +3617,7 @@
             </div>
             <div id="kfilmBody">${_svLoadingSkeletonHtml('kasper', { label: 'Loading filming plans' })}</div>`;
         const fresh = _kasperState.filmingData && (Date.now() - _kasperState.filmingLoadedAt < KASPER_FILMING_CACHE_MAX_AGE_MS);
-        if (fresh) { _filmsPaint(); return; }
+        if (fresh && (await _filmsCacheStillValid(_kasperState.filmingSource || 'n8n')).ok) { _filmsPaint(); return; }
         await _kasperLoadFilming(false);
     }
 
@@ -3625,14 +3637,22 @@
         const body = document.getElementById('kfilmBody');
         const btn  = document.getElementById('kfilmRefresh');
 
+        // The tab source is read once per load, and before any cached copy is reused.
+        let tabSource = null;
         if (!forceRefresh) {
             const cached = _filmsLoadCache();
             if (cached) {
-                _kasperState.filmingData = { rows: cached };
-                _kasperState.filmingLoadedAt = Date.now();
-                _filmsPaint();
-                _kasperRefreshTabCounts();
-                return;
+                const check = await _filmsCacheStillValid(cached.source);
+                tabSource = check.source;
+                if (check.ok) {
+                    _kasperState.filmingData = { rows: cached.rows };
+                    _kasperState.filmingSource = cached.source;
+                    _kasperState.filmingLoadedAt = Date.now();
+                    _filmsPaint();
+                    _kasperRefreshTabCounts();
+                    return;
+                }
+                // Built from the other source: fall through and load afresh.
             }
         }
 
@@ -3643,6 +3663,8 @@
         try {
             const plans = await (await svArea('templates')).fpEnsureLoaded(!!forceRefresh);
             const rows = _filmsRowsFromPlans(plans.rows || []);
+            if (tabSource === null) tabSource = await _filmsTabSource();
+            _kasperState.filmingSource = tabSource;
             if (!rows.length) {
                 _kasperState.filmingData = { rows: [] };
                 _kasperState.filmingLoadedAt = Date.now();
@@ -3653,7 +3675,7 @@
             // Refresh. In function mode one bulk request covers every Doc (Refresh
             // asks the function to re-read from Google); a Doc it could not answer
             // is read from n8n as before.
-            const tabsFromFunction = (await _filmsTabSource()) === 'function'
+            const tabsFromFunction = tabSource === 'function'
                 ? await _filmsTabsFromFunction(rows.map(r => r.docId), !!forceRefresh)
                 : null;
             // Content bank (per client) + optional Doc-tab months (per doc), bounded concurrency.
@@ -3676,7 +3698,7 @@
                 || a.client.localeCompare(b.client));
             _kasperState.filmingData = { rows };
             _kasperState.filmingLoadedAt = Date.now();
-            _filmsSaveCache(rows);
+            _filmsSaveCache(rows, tabSource);
             _filmsPaint();
         } catch (e) {
             _kasperState.filmingError = e && e.message ? e.message : String(e);
@@ -7405,4 +7427,4 @@
         },
     });
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-16-kasper-c3643ab0e09b.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-16-kasper-bbe5441dfad0.js");

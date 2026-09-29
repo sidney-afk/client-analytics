@@ -1,3 +1,4 @@
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { _svCaptureFocus, _svRestoreFocus, showNotify, showToast } from './040-shared-briefs.js';
 import { NATIVE_INTAKE_PENDING_KEY, currentNav } from './065-core-nav-intake-state.js';
 import { wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
@@ -45,7 +46,7 @@ import { _isClientLink, _isIntake } from './260-production-refresh-boot.js';
 import {
   SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
   SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrBgLoadInFlight, _sxrCacheWrite,
-  _sxrClearStaleApprovals, _sxrDeriveThumbInfo, _sxrEnabled, _sxrEsc, _sxrEscAttr,
+  _sxrAssertSavingOn, _sxrClearStaleApprovals, _sxrDeriveThumbInfo, _sxrEnabled, _sxrEsc, _sxrEscAttr,
   _sxrMigrateShape, _sxrNormStatus, _sxrPendingEdits, _sxrPersistUrgentSentForPost, _sxrReady,
   _sxrReviewBlockReason, _sxrSaveInFlight, _sxrShowUrgent, _sxrSupabaseFetchAllRows,
   _sxrUpsertFetch, _sxrV2LoadLib, computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
@@ -1498,7 +1499,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
-        const resp = await _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui');
+        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'), { requireOk: true });
         if (!resp.ok) throw new Error('http ' + resp.status);
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
@@ -1802,7 +1803,8 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 deliverable_id: _writeUiNativeId(it.post, 'video'), card_id: String(it.post.id), surface: 'samples', video_status_at: String(it.post.video_status_at || '') } : null,
             currentClientSlug: () => String((_sxrKasperFindItem(pid) || {}).slug || ''),
             currentPost: () => (_sxrKasperFindItem(pid) || {}).post,
-            persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
+            persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping),
+            preflight: () => _sxrAssertSavingOn(it.slug || client)
         });
     }
     function _sxrKasperRequestTweakComp(pid, comp) {

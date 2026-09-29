@@ -7,8 +7,9 @@ import {
   PROD_CREATIVE_STATUS_TRANSITIONS, PROD_DELETE_UNSUPPORTED, PROD_EDITOR_COLORS, PROD_ORDER_KEYS,
   PROD_STATUS, PROD_STATUS_FROM_ARTIFACT, PROD_STATUS_META, PROD_STATUS_ORDER, _prodArtifactStatus,
   _prodBoardStatus, _prodDeliverableLive, _prodEnabled, _prodHasOwn, _prodHashText, _prodInitials,
-  _prodLinearRaw, _prodNativeEpochOn, _prodPreviewText, _prodResolveBatchParentNodes,
-  _prodResolveParentLinks, _prodSaveDisplayPrefs, _prodState
+  _prodLinearRaw, _prodLoadDeliverableProjection, _prodNativeEpochOn, _prodPreviewText,
+  _prodResolveBatchParentNodes, _prodResolveParentLinks, _prodRestRows, _prodSaveDisplayPrefs,
+  _prodState
 } from './210-production-state-writes.js';
 import {
   _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop, _prodClearBoardDropFx,
@@ -1030,7 +1031,101 @@ import { _prodRender } from './260-production-refresh-boot.js';
            _prodIssueLabel and still gets the real id (Codex P1 on PR 1455). */
         function _prodIssueDisplayLabel(d) {
             if (d && d.syntheticBatchParent === true) return 'Post';
-            return _prodIssueLabel(d);
+            const label = _prodIssueLabel(d);
+            return _prodIsInternalId(label) ? '' : label;
+        }
+        /* An INTERNAL id is a storage key, never a name: bat_<uuid>, del_<uuid>,
+           b1_b_<uuid>, a bare uuid, or a two-team batch node (`bat_...::uuid`).
+           A Linear number such as SYN-123 has no underscore and is not one.
+           Every place a person reads a parent or batch NAME goes through
+           _prodSafeName so a missing name can never fall through to the key
+           (owner report 2026-09-29: "Sub-issue of bat_44ca2350-7bff-..."). */
+        function _prodIsInternalId(value) {
+            const s = String(value == null ? '' : value).trim();
+            if (!s) return false;
+            const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+            /* The WHOLE value must be a key: a prefix match would swallow a real
+               title such as "video_20260929 launch". */
+            return new RegExp('^(?:[a-z][a-z0-9]{0,5}_){1,2}' + uuid + '(?:::' + uuid + ')?$', 'i').test(s)
+                || new RegExp('^' + uuid + '$', 'i').test(s);
+        }
+        function _prodSafeName(value) {
+            const s = String(value == null ? '' : value).trim();
+            return s && !_prodIsInternalId(s) ? s : '';
+        }
+        /* The name a row already carries: its title, else the batch name it
+           was projected from. Empty means "not known yet", never "show the id". */
+        function _prodKnownName(d) {
+            if (!d) return '';
+            return _prodSafeName(d.title) || _prodSafeName(d.batchName)
+                || _prodSafeName(d.raw && d.raw.name) || _prodSafeName(d.raw && d.raw.title);
+        }
+        /* Names fetched on demand for a parent the page has no name for.
+           id -> { state: 'pending' | 'done' | 'failed', name, at }. A failed
+           or timed-out lookup expires so a later render retries it, and a
+           hung request is abandoned after PROD_PARENT_NAME_TIMEOUT_MS: the
+           in-flight marker used to be cleared only when the request settled,
+           so one request that never answered froze the header for the whole
+           session. */
+        const PROD_PARENT_NAME_TIMEOUT_MS = 6000;
+        const PROD_PARENT_NAME_RETRY_MS = 15000;
+        const _prodParentNames = new Map();
+        function _prodParentNameState(id) {
+            const sid = String(id || '');
+            const held = sid ? _prodParentNames.get(sid) : null;
+            if (!held) return null;
+            if (held.state === 'failed' && Date.now() - held.at > PROD_PARENT_NAME_RETRY_MS) {
+                _prodParentNames.delete(sid);
+                return null;
+            }
+            return held;
+        }
+        function _prodEnsureParentName(id, kind) {
+            const sid = String(id || '');
+            if (!sid || _prodParentNameState(sid)) return;
+            const record = { state: 'pending', name: '', at: Date.now() };
+            _prodParentNames.set(sid, record);
+            let settled = false;
+            const finish = (state, name) => {
+                if (settled) return;
+                settled = true;
+                record.state = state;
+                record.name = _prodSafeName(name);
+                record.at = Date.now();
+                if (record.name) record.state = 'done';
+                else if (state === 'done') record.state = 'failed';
+                if (typeof document !== 'undefined' && document.getElementById('prodRoot') && typeof _prodRender === 'function') {
+                    try { _prodRender(); } catch (e) { /* the next render repaints */ }
+                }
+            };
+            const timer = setTimeout(() => finish('failed', ''), PROD_PARENT_NAME_TIMEOUT_MS);
+            const clean = sid.split('::')[0];
+            const read = kind === 'batch'
+                ? _prodRestRows('batches', 'id,name', 'id=eq.' + encodeURIComponent(clean), 1, 1)
+                    .then(rows => rows && rows[0] && rows[0].name)
+                : _prodLoadDeliverableProjection('id=eq.' + encodeURIComponent(clean))
+                    .then(rows => rows && rows[0] && rows[0].title);
+            Promise.resolve(read).then(name => { clearTimeout(timer); finish('done', name); },
+                () => { clearTimeout(timer); finish('failed', ''); });
+        }
+        /* The parent's name as HTML for a header or link: the real name when the
+           page has one, a grey skeleton while a lookup is in flight, and a plain
+           neutral word once the lookup has come back empty. Never an id. */
+        function _prodParentNameHTML(parent, parentId) {
+            const known = _prodKnownName(parent);
+            if (known) return _calEsc(known);
+            const id = String(parent && parent.id || parentId || '');
+            const batchLike = !!(parent && (parent.syntheticBatchParent === true || parent.batchId)) || /^(?:bat|b1_b)_/i.test(id);
+            let looked = _prodParentNameState(id);
+            if (looked && looked.name) return _calEsc(looked.name);
+            if (!looked && id) {
+                _prodEnsureParentName(id, batchLike ? 'batch' : 'deliverable');
+                looked = _prodParentNameState(id);
+            }
+            if (!looked || looked.state === 'pending') {
+                return '<span class="prod-name-skel sv-skeleton" data-prod-parent-skeleton="1" role="img" aria-label="Loading name"></span>';
+            }
+            return batchLike ? 'Untitled post' : 'Untitled issue';
         }
         /* A provider card's identifier is 9 characters; a native card has none
            yet and falls through to the 40-character deliverable id. The cell
@@ -1683,7 +1778,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             const items = [];
             if (!query) {
                 issues.filter(i => !i.parent).slice(0, 6).forEach(i => {
-                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+                    items.push({ icon: _prodStatusSVG(i.status), title: (_prodKnownName(i) || _prodIssueDisplayLabel(i) || 'Untitled issue'), meta: _prodIssueDisplayLabel(i), go: () => _prodOpenDeliverable(i.id) });
                 });
                 return items.concat(commands);
             }
@@ -1694,7 +1789,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             };
             commands.forEach(cmd => addScored(cmd, cmd.title, cmd.meta, ''));
             issues.forEach(i => {
-                addScored({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) }, i.title, _prodIssueLabel(i), i.desc);
+                addScored({ icon: _prodStatusSVG(i.status), title: (_prodKnownName(i) || _prodIssueDisplayLabel(i) || 'Untitled issue'), meta: _prodIssueDisplayLabel(i), go: () => _prodOpenDeliverable(i.id) }, i.title, _prodIssueLabel(i), i.desc);
             });
             Object.keys(_prodProjects()).sort((a, b) => fields.client.name(a).localeCompare(fields.client.name(b))).forEach(slug => {
                 const title = fields.client.name(slug);
@@ -2593,7 +2688,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             }
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
-                label: _prodIssueLabel(issue) + ' · ' + (issue.title || 'Untitled issue')
+                label: (_prodIssueDisplayLabel(issue) ? _prodIssueDisplayLabel(issue) + ' · ' : '') + (_prodKnownName(issue) || 'Untitled issue')
             })));
             const statusItems = PROD_STATUS_ORDER.map(status => {
                 const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
@@ -2751,7 +2846,7 @@ export {
   _prodCreateValidDate, _prodCreativeNextStatuses, _prodCurIssuesUnfiltered,
   _prodDescriptionOperation, _prodDisplayClient, _prodEditors, _prodEnsureOverlays, _prodFmtDate,
   _prodFmtDateFull, _prodHideTip, _prodIcon, _prodIdentityRepairGateText, _prodIssue,
-  _prodIssueDisplayLabel, _prodIssueIdHTML, _prodIssueLabel, _prodIssueOrderCompare, _prodIssues,
+  _prodIssueDisplayLabel, _prodIssueIdHTML, _prodIssueOrderCompare, _prodIssues, _prodKnownName, _prodParentNameHTML, _prodSafeName,
   _prodMatchFilters, _prodMember, _prodNormalizeCreateAssignees, _prodOpenRowId,
   _prodPersistCreateDraft, _prodPickerEmptyState, _prodPillsHTML, _prodProjectGlyph, _prodProjects,
   _prodReadonlyGuard, _prodRenderCreateAssignees, _prodRenderCreateCatalog, _prodRenderCreateModal,

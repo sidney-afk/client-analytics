@@ -16,7 +16,7 @@ function world(surface='calendar',store=new Map()){
  calState:{client:'Fixture',posts:[post]},sxrState:{client:'Fixture',posts:[post]},_kasperState:{items:[item],replies:[]},_sxrKasperFindItem:()=>item,
  localStorage:{getItem:k=>{if(ctx.readFailure)throw Error('storage');return store.get(k)||null;},setItem:(k,v)=>{if(ctx.writeFailure)throw Error('quota');store.set(k,v);},removeItem:k=>store.delete(k)},
  showNotify:(...x)=>notices.push(x),showConfirm:(title,text,fn)=>confirms.push(fn),
- _calPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},_sxrPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},
+ _calAssertSavingOn:async()=>true,_sxrAssertSavingOn:async()=>true, _calPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},_sxrPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},
  fetch:async(url,options)=>{sent.push({url,options,body:JSON.parse(options.body)});if(ctx.afterFetch)await ctx.afterFetch();if(ctx.lost)throw Error('lost');
  // `staged` answers successive requests in order, so one attempt can cross lanes.
  const staged=Array.isArray(ctx.staged)&&ctx.staged.length?ctx.staged.shift():null,status=staged?staged.status:ctx.status,reply=staged?staged.reply:ctx.reply;

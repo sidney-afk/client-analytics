@@ -224,6 +224,8 @@ function ok(cond, msg) {
     const gsrc = fs.readFileSync(path.join(ROOT, 'src/index/120-calendar-flags-write-repair.js.part'), 'utf8');
     ok(!/CAPTION_PROMPTS_SAVE_URL\b/.test(src + gsrc) && !/webhook\/caption-prompts-save/.test(src + gsrc),
       'the n8n caption-prompts-save constant and URL are gone from the page source');
+    ok(/_writeUiTrackSave\('captions', 'caption_prompt_save'[\s\S]{0,500}await _settingsAssertSavingOn\(client\);[\s\S]{0,400}return fetch\(writeUrl[\s\S]{0,500}\{ requireOk: true \}\)/.test(src),
+      'the save is wrapped by the failed-saves tracker (requireOk) and the fresh flag read runs inside it, so a paused or held save is logged');
     ok(errors.length === 0, 'no browser errors: ' + JSON.stringify(errors));
     ok(state.n8n.filter(l => /caption-prompts-save/.test(l)).length === 0, 'no request to the n8n caption-prompts-save webhook at any point');
   } finally {

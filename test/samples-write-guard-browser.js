@@ -103,6 +103,7 @@ function ok(cond, msg) {
         }
         const values = {
           calendar_upsert_ef_clients: { clients: [SLUG] }, sample_review_ef_clients: { clients: [SLUG] },
+          kasper_urgent_ping_enabled: { enabled: true },
           write_ui_reroute_clients: { clients: [SLUG] },
           prod_authority: { video: 'syncview', graphics: 'syncview' },
         };
@@ -237,11 +238,46 @@ function ok(cond, msg) {
     // 9. The urgent-marker writes no longer bypass the guard with a bare fetch.
     const sxrSrc = fs.readFileSync(path.join(ROOT, 'src/index/270-samples-model.js.part'), 'utf8');
     const outboxSrc = fs.readFileSync(path.join(ROOT, 'src/index/140-calendar-legacy-outbox.js.part'), 'utf8');
-    ok((sxrSrc.match(/await _sxrUpsertFetch\(slug, \{ client: slug, sample: patch, comments_base_at: '' \}, 'ui'\)/g) || []).length === 2
-      && (outboxSrc.match(/await _calUpsertFetch\(slug, \{ client: slug, post: patch, comments_base_at: '' \}, 'ui'\)/g) || []).length === 2
+    ok((sxrSrc.match(/'urgent_marker_save'[^\n]*\(\) => _sxrUpsertFetch\(slug, \{ client: slug, sample: patch, comments_base_at: '' \}, 'ui'\), \{ requireOk: true \}\)/g) || []).length === 2
+      && (outboxSrc.match(/'urgent_marker_save'[^\n]*\(\) => _calUpsertFetch\(slug, \{ client: slug, post: patch, comments_base_at: '' \}, 'ui'\), \{ requireOk: true \}\)/g) || []).length === 2
       && !/fetch\(SXR_UPSERT_EF_URL, \{\s*method: 'POST',\s*headers: _sxrWriteHeaders\('ui'/.test(sxrSrc)
       && !/fetch\(CALENDAR_UPSERT_EF_URL/.test(outboxSrc),
-      'the four urgent-marker writes (Samples and Calendar) use the guarded step, not a bare fetch');
+      'the four urgent-marker writes (Samples and Calendar) use the guarded step inside the failed-saves tracker, not a bare fetch');
+
+    // 9a. The urgent ping asks the guard BEFORE the Slack message goes out (Codex P1): a refused
+    // marker write after a delivered ping would re-enable the button and allow a duplicate.
+    const urgent = async (flag) => {
+      state.flag = flag;
+      const before = state.n8n.length;
+      const out = await page.evaluate(async slug => {
+        const btn = document.createElement('button'); btn.textContent = 'URGENT'; document.body.appendChild(btn);
+        let persisted = 0;
+        _calUrgentSlackDispatch(btn, 'VID-1', slug, 'Fixture', {
+          kind: 'kasper', payload: { url: 'https://example.invalid', surface: 'samples', component: 'video' },
+          persist: async () => { persisted++; return {}; }, preflight: () => _sxrAssertSavingOn(slug)
+        });
+        await new Promise(r => setTimeout(r, 300));
+        const yes = document.getElementById('confirmYes'); if (yes) yes.click();
+        await new Promise(r => setTimeout(r, 2500));
+        return { confirmShown: !!yes, persisted, label: btn.textContent, disabled: btn.disabled };
+      }, SLUG);
+      state.armed = false;
+      return { out, sent: state.n8n.slice(before).filter(l => /send-urgent-kasper-slack/.test(l)) };
+    };
+    state.armed = true;
+    let u = await urgent('list');
+    ok(u.out.confirmShown && u.sent.length === 1 && u.out.persisted === 1, 'urgent ping with saving on: one Slack request, then the marker is saved');
+    state.armed = true;
+    u = await urgent('empty');
+    ok(u.out.confirmShown && u.sent.length === 0 && u.out.persisted === 0 && u.out.disabled === false && u.out.label === 'URGENT',
+      'urgent ping with saving paused: NOTHING is sent to Slack, the marker is not written, the button stays usable');
+    state.armed = true;
+    u = await urgent('http500');
+    ok(u.sent.length === 0 && u.out.persisted === 0, 'urgent ping with an unreadable flag: nothing sent to Slack');
+    const outSrc = fs.readFileSync(path.join(ROOT, 'src/index/140-calendar-legacy-outbox.js.part'), 'utf8');
+    const preflights = ['140-calendar-legacy-outbox', '270-samples-model', '290-samples-writes-review', '330-kasper-review-history']
+      .map(f => (fs.readFileSync(path.join(ROOT, 'src/index/' + f + '.js.part'), 'utf8').match(/preflight: \(\) => _(?:cal|sxr)AssertSavingOn\(/g) || []).length);
+    ok(preflights.join(',') === '2,2,1,1' && /opts\.preflight\(\)[\s\S]{0,700}let resp;/.test(outSrc), 'all six urgent dispatch callers pass a preflight, and it runs before the first side effect: ' + preflights.join(','));
 
     // 9b. PostgREST answers 400 to any parameter it does not know (a cache-buster
     // did exactly that to the Filming flag read in PR 1b), so the EXACT query of

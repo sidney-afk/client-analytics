@@ -52,7 +52,7 @@ ok(!/fetch\(SXR_UPSERT_URL/.test(INDEX), 'frontend must not fetch SXR_UPSERT_URL
 ok(!/fetch\(SXR_REORDER_URL/.test(INDEX), 'frontend must not fetch SXR_REORDER_URL directly');
 ok((INDEX.match(/_sxrUpsertFetch\(/g) || []).length >= 4, 'expected samples upsert router definition plus call sites');
 ok((INDEX.match(/_sxrReorderFetch\(/g) || []).length >= 2, 'expected samples reorder router definition plus call site');
-ok(/async function _sxrReorderFetch[\s\S]{0,200}await _sxrAssertSavingOn\(clientOrSlug\);[\s\S]{0,300}SXR_REORDER_EF_URL/.test(INDEX)
+ok(/async function _sxrReorderFetch[\s\S]{0,700}await _sxrAssertSavingOn\(clientOrSlug\);[\s\S]{0,300}SXR_REORDER_EF_URL/.test(INDEX)
   && !/\[Samples\] EF reorder failed; falling back to n8n/.test(INDEX),
   'sample reorder must read the flag afresh and post to the EF only, never n8n (n8n exit PR 4)');
 ok(/const json = await resp\.clone\(\)\.json\(\)\.catch\(\(\) => null\);[\s\S]*json && json\.ok === false/.test(INDEX),

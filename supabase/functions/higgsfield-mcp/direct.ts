@@ -197,13 +197,15 @@ export async function runDirect(id: string, inputs: JsonMap, fetchImage: (url: s
       form.append("quality", quality);
       form.append("size", size);
       form.append("input_fidelity", "high");
+      form.append("output_format", "jpeg");
+      form.append("output_compression", "90");
       refs.forEach((r, i) => form.append("image[]", new Blob([r.bytes], { type: r.type }), `input-${i}.${r.type.split("/")[1] || "png"}`));
       res = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { Authorization: "Bearer " + key }, body: form });
     } else {
       res = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
         headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, prompt, quality, size }),
+        body: JSON.stringify({ model, prompt, quality, size, output_format: "jpeg", output_compression: 90 }),
       });
     }
     const data = await res.json().catch(() => ({})) as JsonMap;
@@ -215,7 +217,9 @@ export async function runDirect(id: string, inputs: JsonMap, fetchImage: (url: s
     const usd = u.output_tokens !== undefined
       ? Number(inD.text_tokens || 0) * 5e-6 + Number(inD.image_tokens || 0) * 8e-6 + Number(u.output_tokens || 0) * 30e-6
       : null;
-    return { bytes: b64ToBytes(b64), type: "image/png", usd };
+    // JPEG at 90: visually the same, several times smaller than PNG, so it
+    // downloads fast and can be previewed inside the chat.
+    return { bytes: b64ToBytes(b64), type: "image/jpeg", usd };
   }
 
   const g = GOOGLE_MODELS[id];

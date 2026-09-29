@@ -1,3 +1,5 @@
+import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showConfirm, showNotify } from './040-shared-briefs.js';
 import {
   CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
@@ -6,7 +8,7 @@ import {
 } from './100-onboarding-staff-controls.js';
 import {
   CAL_REVIEW_COMPONENTS, WRITE_UI_PRODUCTION_WRITE_URL, _calNormStatus, _calPrimeUpsertRoutingFlag,
-  _calUpsertFetch, _calUpsertUseEf, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
+  _calAssertSavingOn, _calUpsertFetch, _calUpsertUseEf, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
   _prodCardBindingToken, _syncviewEfHeaders, _writeUiAuthoritySnapshot, _writeUiBuildSourceRepair,
   _writeUiClassifyTargetless, _writeUiComponentHasWorkItem, _writeUiFailureText,
   _writeUiGatewayError, _writeUiGatewayPost, _writeUiGatewayWithRepair, _writeUiIntentId,
@@ -2811,8 +2813,9 @@ import {
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        // n8n exit: through the shared guarded step (fresh, bounded flag read), never a bare fetch.
-        const resp = await _calUpsertFetch(slug, { client: slug, post: patch, comments_base_at: '' }, 'ui');
+        // n8n exit: through the shared guarded step (fresh, bounded flag read), never a bare fetch;
+        // the failed-saves tracker wraps it so a refused marker is still recorded.
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: patch, comments_base_at: '' }, 'ui'), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -2853,8 +2856,9 @@ import {
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        // n8n exit: through the shared guarded step (fresh, bounded flag read), never a bare fetch.
-        const resp = await _calUpsertFetch(slug, { client: slug, post: patch, comments_base_at: '' }, 'ui');
+        // n8n exit: through the shared guarded step (fresh, bounded flag read), never a bare fetch;
+        // the failed-saves tracker wraps it so a refused marker is still recorded.
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: patch, comments_base_at: '' }, 'ui'), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -2902,7 +2906,8 @@ import {
         _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(calState.client || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('calendar'), surface: 'calendar', component: comp },
-            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping)
+            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping),
+            preflight: () => _calAssertSavingOn(calState.client)
         });
     }
     /* Which component the ping is recorded against. The button can be clicked
@@ -2932,7 +2937,8 @@ import {
                 deliverable_id: _writeUiNativeId(post, 'video'), card_id: String(post.id), surface: 'calendar', video_status_at: String(post.video_status_at || '') } : null,
             currentClientSlug: () => calClientSlug(calState.client),
             currentPost: () => calState.posts.find(p => p.id === pid),
-            persist: (ping) => _calPersistUrgentSentForPost(sourceClient, post, ping)
+            persist: (ping) => _calPersistUrgentSentForPost(sourceClient, post, ping),
+            preflight: () => _calAssertSavingOn(sourceClient)
         });
     }
     /* Four staff surfaces share confirmation and delivery handling. Native
@@ -2985,6 +2991,10 @@ import {
         const attemptKey = native ? 'syncview-native-urgent:v1:' + JSON.stringify(Object.assign({}, native,
             { video_status_at: Number.isFinite(roundTime) ? new Date(roundTime).toISOString() : native.video_status_at })) : '';
         let storageUnavailable = false;
+        /* One confirmed dispatch at a time. The save-guard check below awaits before the local
+           delivery hold is written, so without this two rapid confirm callbacks could both pass
+           the hold check and each send a message. */
+        let dispatching = false;
         const retainedAttempt = () => {
             if (!native) return false;
             try { return !!localStorage.getItem(attemptKey); } catch (e) { storageUnavailable = true; return true; }
@@ -3015,6 +3025,8 @@ import {
                 : spec.confirmBody,
             () => {
                 if (retainedAttempt()) { showUnknown(); return; }
+                if (dispatching) return;
+                dispatching = true;
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
                     let attempted = false, knownNotSent = false, holdWritten = false, holdValue = '', nativeLane = !!native;
@@ -3036,6 +3048,19 @@ import {
                             if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                             showNotify('Urgent pings are off', 'The Kasper urgent ping was disabled while this dialog was open. Nothing was saved and nothing was sent.');
                             return;
+                        }
+                        /* n8n exit (Codex P1, PR 4): the marker write that follows a
+                           successful ping goes through the guarded save step, which can
+                           now refuse (saving paused, or its switch unreadable). Ask BEFORE
+                           the Slack message goes out, or a refused marker would leave the
+                           button enabled after a reload and a retry would send a duplicate. */
+                        if (opts && typeof opts.preflight === 'function') {
+                            try { await opts.preflight(); }
+                            catch (preflightError) {
+                                if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                                showNotify('Not sent', ((preflightError && preflightError.message) || 'Saving is not available right now.') + ' Nothing was sent.');
+                                return;
+                            }
                         }
                         let resp;
                         if (nativeLane) {
@@ -3123,6 +3148,8 @@ import {
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        // Failed-saves log: an urgent ping that went out and did not come back confirmed.
+                        if (attempted) _writeUiRecordSaveFailure(native && native.surface === 'sxr' ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
                             releaseOwnHold();
@@ -3139,6 +3166,8 @@ import {
                         }
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                         showNotify('Could not send', spec.failBody);
+                    } finally {
+                        dispatching = false;
                     }
                 })();
             },

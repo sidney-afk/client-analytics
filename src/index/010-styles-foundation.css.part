@@ -2871,6 +2871,7 @@
         .prod-detail-context-link, .prod-context-project { min-width: 0; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; padding: 1px 3px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
         .prod-detail-context-link:hover, .prod-context-project:hover { background: var(--prod-hover); }
         .prod-detail-context-link b { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-name-skel { display: inline-block; width: 140px; max-width: 100%; height: 12px; border-radius: 6px; vertical-align: middle; }
         .prod-desc { font-size: 15px; line-height: 24px; color: var(--prod-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
         .prod-desc .prod-md-heading { display: block; margin: 14px 0 2px; color: var(--prod-text); font-size: 14px; line-height: 22px; font-weight: 650; }
         .prod-desc .prod-md-rule { border: 0; border-top: 1px solid var(--prod-divider); margin: 14px 0; }

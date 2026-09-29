@@ -96,7 +96,7 @@ function build(opts) {
     _calSchedulePendingRender: () => { calls.scheduled++; },
     console: { warn: () => {} },
   };
-  vm.createContext(scope);
+  Object.assign(scope, require('./helpers/write-log-stand-ins')); vm.createContext(scope);
   /* 150 is a module: it writes 134's flag through this setter, which runs
      in the same context so the flag still reads back from scope. */
   vm.runInContext(extract('_calSetPendingBackgroundRender') + '\n' + extract('_calAdoptDeliverableLinks') + '\nthis.fn = _calAdoptDeliverableLinks;', scope);

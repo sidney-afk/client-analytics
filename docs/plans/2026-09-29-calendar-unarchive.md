@@ -2,7 +2,7 @@
 
 **Status:** PLAN ONLY. Nothing is built. Waiting for Lighthouse to review (2026-09-29).
 **Written by the session named Harbor.** Counts only, no client names or slugs (public repo).
-Measured by reading the code at main `5664026`. Nothing here was checked against the
+Measured by reading the code at main `566402637b5751a71e43b80ff1c95e6ed5fb3997`. Nothing here was checked against the
 live database; every "live" claim is marked as read from repo notes, or as a
 measurement to take in phase 2.
 
@@ -54,11 +54,18 @@ menu, choose **Archived cards**, see the recent ones, and restore one.
 
 - A modal (same pattern as the Caption prompt modal, `#calPromptOverlay`).
 - Read: the same public-key REST read the Calendar already uses, one call for this
-  client only: `calendar_posts?client=eq.<slug>&status=eq.Archived&updated_at=gte.<cutoff>&order=updated_at.desc&limit=26`.
+  client only, paged by a **cursor** (the last row shown), never by widening a
+  limit: `calendar_posts?client=eq.<slug>&status=eq.Archived&updated_at=gte.<floor>&order=updated_at.desc,id.desc&limit=26`,
+  and for every page after the first, add
+  `&or=(updated_at.lt.<last.updated_at>,and(updated_at.eq.<last.updated_at>,id.lt.<last.id>))`.
+  The 26th row only tells the modal whether "Show older" is needed.
   No new privilege and no write. One helper, `_calRestoreListFetch`, so it is the only
   place to change when #1691 phases 1 and 2 close public reads.
-- **"Recently" = archived in the last 30 days**, newest first, 25 per page with a
-  "Show older" button that widens by 30 days, stopping at 90 days. Why 30: the
+- **"Recently" = archived in the last 30 days**, newest first, 25 per page.
+  "Show older" continues from the cursor. When the current floor is exhausted, it
+  moves the floor back 30 days (60, then 90) and keeps the same cursor, so no row is
+  skipped or repeated, however many cards were archived in the first 30 days. It
+  stops at 90 days. Why 30: the
   rollback and event data that a restore leans on (journal target 90 days, events
   best-effort) is freshest there, and it keeps the query small against about 13k
   archived rows. The archive time shown is the `archive` event `ts` when one exists,
@@ -114,8 +121,17 @@ For each of video and graphic that has a linked work item:
 - **Move it** only if all are true: current status is `backlog`; the latest event to
   `backlog` has `payload.surface='calendar'` and happened at or after the card's
   archive time (so a person's own earlier Backlog move is never undone); and its
-  `from_status` is an open status (`todo`, `in_progress`, `smm_approval`,
-  `client_approval`, or the current names for these). Target = that `from_status`.
+  `from_status` is on a short allow-list of **quiet** open statuses: `todo` and
+  `in_progress` (plus `client_approval`, only if the Postgres test in section 7
+  proves it quiet). Target = that `from_status`.
+- **Never move an item into `smm_approval` or `tweak`.** The database trigger
+  `production_notification_status_intent_after` queues a message to the client's
+  channel whenever staff move an item into either status from the UI
+  (`migrations/2026-09-09-native-notification-outbox.sql:229-285`), so a restore
+  would send the client a second "ready for approval" or "needs tweaks" message.
+  Those items stay in Backlog, and the toast says "left in Backlog so the client is
+  not notified again; move it by hand when ready". (In the 2026-09-28 park run, 14
+  of 46 parked items came from `smm_approval`.)
 - Otherwise leave it. Reasons shown to the user: "was already in Backlog before the
   archive", "has moved since", "no record of where it was".
 - The move goes through the guarded `production-write` `status` operation
@@ -157,7 +173,7 @@ observed. Nothing in this PR may change any Samples code path; a test checks it.
 | 4.2 | One restores while another edits | An archived card cannot be opened for editing, so the only edits in flight are on other cards. A stale tab that still holds the card as live and edits it after someone else archived it is the existing archive race, unchanged. After restore, the reload replaces any stale copy. |
 | 4.3 | One restores while another **archives the same card again** | Last write wins; no CAS exists on this frozen writer (the browser disables the field guard on v2). Outcome is one of two valid states and the list refreshes. Documented, not preventable without changing the frozen writer or adding a function (D1). |
 | 4.4 | Restored card comes back in a status nobody chose | Status is derived from components (same code as page load), shown in the confirm dialog before the write, and never `Archived`. |
-| 4.5 | Stale approvals: a card archived at Client Approval returns to the client queue with old `client_*_approved_at` or `kasper_approved_at` values | Left as they were (they describe real past actions). Confirm dialog shows the returned status and "the client will see this card again" when `_calIsClientReady` is true. Phase 2 measures on the test client whether the item moves or the status write send any client or Kasper notification, and the plan for it is to stop and report if they do. |
+| 4.5 | Stale approvals: a card archived at Client Approval returns to the client queue with old `client_*_approved_at` or `kasper_approved_at` values | Left as they were (they describe real past actions). Confirm dialog shows the returned status and "the client will see this card again" when `_calIsClientReady` is true. The card write itself is not a notification event (the trigger only fires on work item status events). Because that trigger skips test clients, a test client run cannot prove "no message sent". The proof is (a) a Postgres test that replays each allow-listed move and asserts no new `production_notification_intents` row, and (b) the allow-list never including `smm_approval` or `tweak`. Any status added later needs (a) first. |
 | 4.6 | Restored card is tied with a live card on `order_index`, or lands in the past | Tie: end of list via `calendar-reorder` (3.3 step 7). Past date: flagged in the confirm dialog, date kept. |
 | 4.7 | Two cards claim one work item | Blocked by the duplicate link check (3.3 step 3). |
 | 4.8 | Restore undoes a person's own Backlog decision | Work items only move if the Backlog move came from the calendar surface at or after the archive (3.4). |
@@ -202,7 +218,7 @@ observed. Nothing in this PR may change any Samples code path; a test checks it.
 | # | Question | Recommendation |
 |---|---|---|
 | D1 | Write through the existing `calendar-upsert` (browser-only staff gate, no compare-and-set), or add a small new Edge Function that checks the staff key and the row's current status on the server? | Existing path, as you asked. It matches archive exactly and needs no deploy. The server cannot refuse a client link today for archive either. A new function is the fix for both, as a separate piece of work, needing the owner's deploy. |
-| D2 | Should restore move parked work items back? | Yes, only when safe (3.4), with checkboxes so the person can restore the card alone. |
+| D2 | Should restore move parked work items back? | Yes, only when safe (3.4): quiet statuses only, never into `smm_approval` or `tweak` (they message the client), with checkboxes so the person can restore the card alone. |
 | D3 | Window | 30 days, "Show older" up to 90. |
 | D4 | Samples in this PR? | No. Follow-up PR, same design. |
 | D5 | Two cards claiming one work item | Block the restore. |
@@ -214,9 +230,12 @@ observed. Nothing in this PR may change any Samples code path; a test checks it.
 `test/suite-classification.json`; pure helpers extracted so no browser is needed):
 - restored status from component statuses (all Approved, mixed, none set, an
   unknown name) and never `Archived`;
-- 30/60/90 day window bounds and ordering, page size, "Show older" stops at 90;
+- cursor paging: 60 archived rows inside the first 30 days page through with no
+  repeats or skips, including rows that share one `updated_at`; the floor widens only
+  when the window is exhausted; paging stops at 90 days;
 - work item target rule: moves only when backlog + calendar surface + at or after
-  archive + open `from_status`; leaves it for each of the other cases;
+  archive + a quiet `from_status`; leaves it for each of the other cases, and never
+  returns `smm_approval` or `tweak`;
 - `order_index` tie detection and end-of-list value;
 - duplicate link detection (work item id, Linear link, none);
 - capability map: admin and smm true, creative false, client and unverified false.
@@ -228,6 +247,12 @@ observed. Nothing in this PR may change any Samples code path; a test checks it.
   functions, and no file under `supabase/functions` or `src/index/27*`/`28*`/`29*`
   (Samples) changed;
 - every refusal code used has a message sentence (`write-ui-failure-messages` rule).
+
+**Postgres test** (`test/calendar-unarchive-notifications-postgres.js`, Postgres
+profile, next to the other trigger tests): replays a restore move for each
+allow-listed status against the notification trigger and asserts no
+`production_notification_intents` row; replays `smm_approval` and `tweak` to show
+those are the statuses that would create one, which is why they are excluded.
 
 **Mocked browser test:** new phase `CAL_RESTORE` added to `PHASES` in
 `docs/syncview-design/tests/prod-write-gateway-browser.js`, same mocking as the
@@ -258,7 +283,7 @@ Lighthouse the exact command to run rather than report a pass.
 
 **Measurements to take before shipping:** archived-list query time on the largest
 client; count of archived cards in the 30 day window per client (counts only);
-whether item moves or the status write produce any notification row.
+how many parked items came from each status (counts only), so the toast text is accurate. Notification safety is proven by the Postgres test in section 7, not the test client, because the trigger skips test clients.
 
 **Before and after screenshots:** Calendar More menu, the list, the confirm dialog,
 the restored card, and the work items back, each before and after, from the test
@@ -279,5 +304,6 @@ client.
 One branch, one PR (this one). Phase 1 = this document only. On Lighthouse's go,
 phase 2 is built in the same PR: edit `src/index/` fragments (never `index.html`),
 `npm run build:index`, append an `OPEN_REPAIRS.md` entry (next number, checking for
-duplicate headers after any merge), update `STATE_OF_THINGS.md` and `REPO_MAP.md`.
+duplicate headers after any merge), update `STATE_OF_THINGS.md`, and update
+`REPO_MAP.md` again for the new test files (the plan's own row is already added).
 Lighthouse merges. No merge, deploy or dispatch is part of my work.

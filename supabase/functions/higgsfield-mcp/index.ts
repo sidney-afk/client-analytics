@@ -392,8 +392,52 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
   // "amount" could already be dollars, and guessing wrong undercounts the cap.
   const credits = pickNumber(res.data, ["credits", "credit", "credits_cost", "credit_cost"]);
   if (credits !== null && credits > 0) return { usd: Math.round(credits * USD_PER_CREDIT * 10000) / 10000 };
+  if (typeof res.data.pricing_description === "string") return await describedPrice(model, inputs, res.data.pricing_description);
   const raw = JSON.stringify(res.data).slice(0, 300);
   return { error: `Higgsfield returned no price for this request (reply: ${raw || "empty"}). This model may not support price checks yet.` };
+}
+
+// Some video-input models (Seedance video edit/extend) answer the estimate
+// with a sentence instead of a number: "... roughly $0.1234 at 480p, $0.2773
+// at 720p ... per second of combined input and output". Price = that rate x
+// (input seconds + output seconds), measured from the source videos. Kept an
+// upper bound: 10% margin, the 30-second input budget, output at least 4 s,
+// and the full budget when a video's length cannot be read.
+const VIDEO_BUDGET_S = 30;
+async function describedPrice(model: string, inputs: JsonMap, text: string): Promise<{ usd: number } | { error: string }> {
+  const schema = BY_ID.get(model)?.schema as Schema | undefined;
+  const res = String(inputs.resolution || schema?.properties?.resolution?.default || "720p");
+  const rates = new Map<string, number>();
+  for (const m of text.matchAll(/\$([\d.]+)\s+at\s+(\d{3,4}p)/g)) rates.set(m[2], Math.max(rates.get(m[2]) || 0, Number(m[1])));
+  const rate = rates.get(res) ?? Math.max(0, ...rates.values());
+  if (!(rate > 0) || !/per second/i.test(text)) return { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 300)}"` };
+  const links = [inputs.video_url, ...(Array.isArray(inputs.video_urls) ? inputs.video_urls : [])].filter(Boolean).map(String);
+  const lengths = await Promise.all(links.map(videoSeconds));
+  const main = Math.max(4, Math.min(VIDEO_BUDGET_S, lengths[0] ?? VIDEO_BUDGET_S));
+  const input = Math.min(VIDEO_BUDGET_S, lengths.reduce((a: number, b) => a + Math.max(4, b ?? VIDEO_BUDGET_S), 0) || main);
+  const output = Number(inputs.duration) > 0 ? Number(inputs.duration) : main;
+  return { usd: Math.round(rate * (input + output) * 1.1 * 10000) / 10000 };
+}
+
+// Length in seconds of an MP4/MOV from its mvhd box, or null if unreadable.
+async function videoSeconds(link: string): Promise<number | null> {
+  try {
+    const res = await safeFetch(link);
+    if (typeof res === "string" || !res.ok || !res.body) return null;
+    const b = await readLimited(res);
+    if (!b) return null;
+    for (let i = 4; i + 32 < b.length; i++) {
+      if (b[i] !== 0x6d || b[i + 1] !== 0x76 || b[i + 2] !== 0x68 || b[i + 3] !== 0x64) continue; // "mvhd"
+      const v = new DataView(b.buffer, b.byteOffset + i + 4);
+      const long = v.getUint8(0) === 1;
+      const scale = v.getUint32(long ? 20 : 12);
+      const dur = long ? Number(v.getBigUint64(24)) : v.getUint32(16);
+      return scale > 0 && dur > 0 ? dur / scale : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function hfError(res: { status: number; data: JsonMap }): string {

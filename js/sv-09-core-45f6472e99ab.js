@@ -3121,6 +3121,7 @@
         try {
             response = await fetch(url, options);
         } catch (cause) {
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), cause, null, {});
             const error = new Error(mutating
                 ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
                 : (timedOut
@@ -3148,6 +3149,7 @@
         if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
         if (!response.ok || !json || json.ok === false) {
             const error = new Error(_ptoApiMessage(json, response.status));
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), error, response, {});
             error.status = response.status;
             error.code = json && (json.code || json.error);
             throw error;
@@ -4306,4 +4308,4 @@
     }
 
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-09-core-2445026a62ee.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-09-core-45f6472e99ab.js");

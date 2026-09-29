@@ -133,7 +133,7 @@ function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true, fre
     console,
     Object, Array, Promise, String, Number, JSON, Date, Boolean,
   };
-  vm.createContext(sandbox);
+  Object.assign(sandbox, require('./helpers/write-log-stand-ins')); vm.createContext(sandbox);
   vm.runInContext(REAL, sandbox);
   return { sandbox, upsertCalls, freshFetchCalls };
 }

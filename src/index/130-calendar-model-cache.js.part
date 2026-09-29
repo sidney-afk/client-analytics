@@ -1,3 +1,4 @@
+import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
 import {
   _toastEl, hideToast, showConfirm, showNotify, showToast
 } from './040-shared-briefs.js';
@@ -934,6 +935,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     // lapses. Log so a console-watching SMM can spot a backend issue
                     // without surfacing a scary modal.
                     console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                    _writeUiRecordSaveFailure('calendar', 'calendar_settings_save', e, null, { client_slug: _saveSlug });
                     return true;
                 }
             }

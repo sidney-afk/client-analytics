@@ -40,11 +40,14 @@ here with where it stopped, so it can be restarted.
    Next: Vigil hand-tests the live site with the six steps in the PR. Way back:
    `node scripts/split-switch.js off`, commit, merge; one browser: `?split=0`.
    SyncLinear stays in the always-loaded part (owner, 2026-09-29).
-4. **Failed saves: finish the log.** Built: the write-refusal log (#1499) and
-   an admin page to read it (#1792). It records Calendar, Samples, Production
-   and intake refusals, best-effort. Left: confirm the `traffic` column fills,
-   and report from the surfaces that do not yet (Filming plans, Templates and
-   others without `_writeUiRecordFailure`).
+4. **Failed saves: finish the log.** Built: the write-refusal log (#1499), an
+   admin page to read it (#1792), and (2026-09-29, OPEN_REPAIRS 290) refusals from
+   every other save: Templates, Filming plans, caption prompts, Workload dates,
+   TikTok, Hiring, credentials and the rest (list in
+   `docs/audits/2026-09-29-write-paths-refusal-coverage.md`, kept honest by a test).
+   Measured live: `traffic` fills for browser reports; the gateway's own rows
+   still show none because `production-write` was deployed before #1643 and needs
+   its next Section 4 deploy. Left: that deploy (owner's capture ritual).
 5. **Load-per-tab, step 5: client links get the smaller page.** Needs the
    owner's separate go after a week of staff use. This is the big client-side
    speed gain (about 3 s to about 1.7 s on a typical phone, plan estimate).
@@ -148,8 +151,8 @@ hiring senders when the editor hire closes.
   2026-09-23 (OPEN_REPAIRS 225 said "never recorded one"). 4,206 are
   `invalid_staff_key` on the Production gateway, almost all on 09-23 and 09-24
   and down to 2 on 09-25, so it looks like one automated caller that stopped.
-  Next: the new `traffic` column (256) is still empty on every row; confirm it
-  fills on new rows.
+  The `traffic` column (256) now fills on browser reports; gateway rows stay
+  empty until `production-write` is redeployed (measured 2026-09-29, item 4).
 - **Scheduled lanes that are red** (`production-polish-gate` red since 09-17;
   the lanes in OPEN_REPAIRS 205). Repair or retire each. Not re-checked today.
 - **Workload plan `list` deadline** is only budget-raised, not fixed

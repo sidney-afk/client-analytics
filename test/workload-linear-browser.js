@@ -165,7 +165,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     JSON, String, Number, Error, Promise, Map, Array, console,
   };
   context.globalThis = context;
-  vm.createContext(context);
+  Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   for (const name of [
     'wlISO',
     'wlParseISO',
@@ -446,7 +446,7 @@ function backgroundHarness(options = {}) {
     console: { log: console.log, error: console.error, warn: () => {} },
   };
   context.globalThis = context;
-  vm.createContext(context);
+  Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   for (const name of [
     'wlRenderableIssueProjection',
     'wlIssueBusinessFingerprint',
@@ -501,7 +501,7 @@ async function run() {
       Intl, Date, Math, Number, String, RegExp,
     };
     dates.globalThis = dates;
-    vm.createContext(dates);
+    Object.assign(dates, require('./helpers/write-log-stand-ins')); vm.createContext(dates);
     for (const name of [
       'wlWorkloadTodayISO',
       '_prodIsoParts',
@@ -563,7 +563,7 @@ async function run() {
       String, Date,
     };
     pickerToday.globalThis = pickerToday;
-    vm.createContext(pickerToday);
+    Object.assign(pickerToday, require('./helpers/write-log-stand-ins')); vm.createContext(pickerToday);
     vm.runInContext(extract('todayISO'), pickerToday);
     assert.strictEqual(pickerToday.todayISO(), '2026-12-31');
     assert.strictEqual(pickerToday.todayISO(), '2027-01-01',
@@ -627,7 +627,7 @@ async function run() {
       JSON, String, Number, Error, Promise, Map, Set, Array, console,
     };
     mixed.globalThis = mixed;
-    vm.createContext(mixed);
+    Object.assign(mixed, require('./helpers/write-log-stand-ins')); vm.createContext(mixed);
     for (const name of [
       'wlProductionAuthorityValue',
       'wlProductionAuthorityFingerprint',
@@ -1166,7 +1166,7 @@ async function run() {
       },
     };
     nativeFailure.globalThis = nativeFailure;
-    vm.createContext(nativeFailure);
+    Object.assign(nativeFailure, require('./helpers/write-log-stand-ins')); vm.createContext(nativeFailure);
     for (const name of [
       'wlProductionAuthorityValue',
       'wlProductionAuthorityFingerprint',
@@ -1266,7 +1266,7 @@ async function run() {
         },
       };
       partialChunk.globalThis = partialChunk;
-      vm.createContext(partialChunk);
+      Object.assign(partialChunk, require('./helpers/write-log-stand-ins')); vm.createContext(partialChunk);
       for (const name of [
         'wlProductionAuthorityValue',
         'wlProductionAuthorityFingerprint',
@@ -1903,7 +1903,7 @@ wlLoadTestClients: () => null,
       console: { ...console, warn: (...args) => diagnosticWarnings.push(args) },
     };
     warmContext.globalThis = warmContext;
-    vm.createContext(warmContext);
+    Object.assign(warmContext, require('./helpers/write-log-stand-ins')); vm.createContext(warmContext);
     vm.runInContext(extract('_wlNativeDiffEnabled'), warmContext);
     warmContext.svRoute = { search: () => warmContext.location.search, hash: () => '' };
     warmContext.location.search = '?wlnative=1';
@@ -2423,7 +2423,7 @@ wlLoadTestClients: () => null,
         console: { warn: () => {} },
       };
       foreground.globalThis = foreground;
-      vm.createContext(foreground);
+      Object.assign(foreground, require('./helpers/write-log-stand-ins')); vm.createContext(foreground);
       vm.runInContext(extract('wlLoadSnapshot'), foreground);
       await assert.rejects(foreground.wlLoadSnapshot(true, null), error => error === snapshotError);
       assert.strictEqual(foreground.wlState.issueSnapshot[0].title, 'Old issue', `${label} retains only the previous visible population`);
@@ -2484,7 +2484,7 @@ wlLoadTestClients: () => null,
       console,
     };
     manualContext.globalThis = manualContext;
-    vm.createContext(manualContext);
+    Object.assign(manualContext, require('./helpers/write-log-stand-ins')); vm.createContext(manualContext);
     vm.runInContext(extract('wlManualRefresh'), manualContext);
     await manualContext.wlManualRefresh();
     assert.strictEqual(forced, null, 'manual refresh does not start while a due save is active');

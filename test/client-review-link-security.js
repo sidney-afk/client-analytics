@@ -89,7 +89,7 @@ const sanitizeContext = {
   String,
   Object,
 };
-vm.createContext(sanitizeContext);
+Object.assign(sanitizeContext, require('./helpers/write-log-stand-ins')); vm.createContext(sanitizeContext);
 vm.runInContext(sanitizer, sanitizeContext);
 const sanitized = sanitizeContext._clientsInfoPublicRows('public csv');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(sanitized)), [{ client_name: 'Client One', slack_channel_id: 'C1' }]);
@@ -136,7 +136,7 @@ assert(/\[functions\.client-review-link\]\s+verify_jwt = false/.test(supabaseCon
     URLSearchParams,
     location: { origin: 'https://sync.invalid', pathname: '/' },
   };
-  vm.createContext(context);
+  Object.assign(context, require('./helpers/write-log-stand-ins')); vm.createContext(context);
   vm.runInContext([headerHelper, errorHelper, helper].join('\n'), context);
   const first = await context._syncviewIssueClientShareUrl('Client One', 'calendar');
   const second = await context._syncviewIssueClientShareUrl('Client One', 'calendar');

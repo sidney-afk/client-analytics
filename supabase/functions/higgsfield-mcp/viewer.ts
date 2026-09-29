@@ -6,7 +6,9 @@
 export const VIEWER_URI = "ui://synchro-higgsfield/preview.html";
 export const VIEWER_MIME = "text/html;profile=mcp-app";
 // Where results live: our uploads and Higgsfield's outputs (both CloudFront).
-export const VIEWER_CSP = { resourceDomains: ["https://*.cloudfront.net"], connectDomains: [] as string[] };
+// resourceDomains covers img/media; connectDomains lets the page fetch a video
+// itself when the host's media rules refuse to stream it directly.
+export const VIEWER_CSP = { resourceDomains: ["https://*.cloudfront.net"], connectDomains: ["https://*.cloudfront.net"] };
 
 export const VIEWER_HTML = `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -18,6 +20,7 @@ export const VIEWER_HTML = `<!doctype html>
   #media a { display: block; }
   .one img, .one video { margin: 0 auto; }
   #empty { padding: 6px; opacity: .7; }
+  .btn { display: inline-block; padding: 10px 16px; border-radius: 8px; background: #2d6cdf; color: #fff; text-decoration: none; font-weight: 600; }
 </style></head>
 <body><div id="media"></div><div id="empty"></div>
 <script>
@@ -45,8 +48,26 @@ export const VIEWER_HTML = `<!doctype html>
       a.appendChild(img); box.appendChild(a);
     });
     videos.forEach(function (u) {
-      var v = document.createElement("video"); v.src = u; v.controls = true; v.playsInline = true; v.loop = true;
-      v.onloadedmetadata = resize; box.appendChild(v);
+      var wrap = document.createElement("div");
+      var v = document.createElement("video"); v.controls = true; v.playsInline = true; v.loop = true; v.muted = true; v.preload = "metadata";
+      v.onloadedmetadata = resize;
+      var triedBlob = false;
+      v.onerror = function () {
+        // Direct streaming refused: fetch the file and play it from memory,
+        // and if that fails too, fall back to a plain button.
+        if (triedBlob) { fallback(); return; }
+        triedBlob = true;
+        fetch(u).then(function (r) { if (!r.ok) throw 0; return r.blob(); })
+          .then(function (b) { v.src = URL.createObjectURL(b); v.load(); })
+          .catch(fallback);
+      };
+      function fallback() {
+        wrap.innerHTML = "";
+        var a = document.createElement("a"); a.href = u; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = "\u25B6 Play the video"; a.className = "btn";
+        wrap.appendChild(a); resize();
+      }
+      v.src = u; wrap.appendChild(v); box.appendChild(wrap);
     });
     if (!images.length && !videos.length) empty.textContent = sc.status || "";
     resize();

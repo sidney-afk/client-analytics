@@ -251,7 +251,9 @@ async function main() {
   }
   if (cmd === 'probe') {
     const r = await probe(process.argv[3] || 'https://syncview.synchrosocial.com');
-    process.exit(r.bad ? 1 : 0);
+    // Exit 1 while any app address fails OR any source address is still published,
+    // so the command's status is the verdict (before the Pages switch it exits 1 by design).
+    process.exit(r.bad || r.served ? 1 : 0);
   }
   console.error('usage: node scripts/pages-site.js build [--out=dir] | check | serve <dir> | probe [origin]');
   process.exit(2);

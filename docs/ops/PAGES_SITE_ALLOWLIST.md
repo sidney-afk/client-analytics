@@ -55,7 +55,9 @@ loads; its README calls its smart-picks mock data) is no longer served at
    the folder. (GitHub does not document whether the old content keeps serving in
    the gap between steps 2 and 3, so do them one after the other.)
 4. Check: `node scripts/pages-site.js probe` should end with
-   `0 app addresses failing, 0 of 17 source addresses still published`.
+   `0 app addresses failing, 0 of 17 source addresses still published` and exit 0.
+   The command exits 1 while any app address fails or any source address is still
+   published, so before the switch it exits 1 by design.
 5. Confirm Settings, Pages still shows the custom domain with a passing DNS check
    and "Enforce HTTPS" on.
 

@@ -27,8 +27,8 @@ Supabase is not what makes it cheap.** Three things you should know:
    is still public and minutes are free; then (b) run the remaining checks on
    **a computer we own** (a "self-hosted runner": a rented server that GitHub
    sends the jobs to; its minutes are not billed). Expected total after both:
-   **about $40 to $110 a month all-in** (the server plus a few dollars of GitHub
-   overage). The earlier study said $10 to $15; that was sized for half of today's
+   **about $80 to $130 a month all-in** (the server plus about $40 to $50 of
+   GitHub overage for the nightly browser runs and monitors that must stay there). The earlier study said $10 to $15; that was sized for half of today's
    volume and one small server, so treat it as too low.
 3. **A hidden problem: the live website currently publishes the whole
    repository.** I checked: `syncview.synchrosocial.com/docs/...`,
@@ -44,7 +44,7 @@ Supabase is not what makes it cheap.** Three things you should know:
 **Recommendation:** do it, in this order: fix the site publishing, trim wasted
 runs, move the scheduled jobs whose timing matters, set up the server, then
 flip to private with a written way back at every step. You decide three things
-(section 9): accept about $40 to $110 a month, whether to keep the identity
+(section 9): accept about $80 to $130 a month, whether to keep the identity
 check after the switch, and which day to flip.
 
 **Do not flip to private before the site publishing fix and the spending
@@ -153,9 +153,13 @@ filter, runs again on every merge to main), `production-polish-gate` (20,769),
 `edge-function-type-ratchet`, `f27-team-rollback-proof`, `f42-apply-rehearsal`,
 `graphics-f2-evidence`. They only exist on GitHub, so they cannot go to Supabase.
 
-**Nightly browsers: RUNNER.** `calendar-e2e-nightly`, `samples-e2e-nightly`,
-`dawn-check`, plus the weekday cron of `production-polish-gate`. They drive a
-real browser; Supabase cannot host that.
+**Nightly browsers: STAY on GitHub's runners.** `calendar-e2e-nightly`,
+`samples-e2e-nightly`, `dawn-check`, plus the weekday cron of
+`production-polish-gate`. They drive a real browser, so Supabase cannot host
+them, and they hold the Supabase service-role key, staff credentials and the
+Slack webhook. Those must never share a machine with pull-request code (see
+3.2), so they stay on GitHub-hosted runners: about 5,200 minutes a month, about
+$31.
 
 **Scheduled monitors and drains: see section 4.**
 
@@ -175,10 +179,10 @@ unmetered, which is why none of this matters today.
 | A. Flip today, change nothing | 135,300 | **about $794** | Not acceptable |
 | B. A, plus move every movable scheduled job to Supabase | about 133,200 | about $781 | Saves $13; the owner's original idea, not the lever |
 | C. B, plus trim wasted runs (target) | about 60,000 to 80,000 | about $340 to $460 | **Estimate, not measured.** See 3.1 |
-| D. C, plus PR checks and nightly browsers on our own server | about 8,000 to 9,000, trimming leaves about 5,000 | **about $0 to $30** GitHub overage, plus the server | Server $40 to $80/mo (estimate: 8 or more CPU cores, 32 GB RAM, Docker, running 6 to 8 runner instances since each instance takes one job at a time; may need two machines) |
+| D. C, plus **PR checks only** on our own server (nightlies and every credentialed job stay on GitHub) | about 9,000 to 11,000 | **about $40 to $50** GitHub overage, plus the server | Server $40 to $80/mo (estimate: 8 or more CPU cores, 32 GB RAM, Docker, running 6 to 8 runner instances since each instance takes one job at a time; may need two machines) |
 | E. Stay public | 0 | $0 | Still available; the site-publishing fix (5.1) is useful either way |
 
-**Recommended: D.** Expected all-in **$40 to $110 a month** at today's volume
+**Recommended: D.** Expected all-in **$80 to $130 a month** at today's volume
 (server plus small overage), versus about $790 for A. The server must be sized
 from a measured peak: 43 pull requests a day in bursts, each fanning out into
 6 to 10 jobs.
@@ -193,14 +197,40 @@ Also settle before the switch:
 * **The self-hosted runner never runs on a public repo.** Anyone's pull request
   could run code on it. Register it only after the repo is private (step 9).
 
+### 3.2 Runner rules (security and Docker)
+
+Codex review found these on the first draft; all three are requirements.
+* **Two kinds of job, never on the same machine.** Pull-request code can be
+  changed by any branch, so the machine that runs it must hold no secrets and
+  must be thrown away: **ephemeral runners** (each runner takes one job, then
+  the VM or container is destroyed and rebuilt). Jobs that receive the
+  service-role key, staff credentials or the Slack webhook (nightlies, monitors,
+  deploys, backups) stay on GitHub-hosted runners, or on a separate runner group
+  and host if the owner later wants them moved. The `CI_RUNNER` variable applies
+  to pull-request workflows only.
+* **Separate Docker per runner.** Seven workflows publish the test database as
+  host port `5432:5432` (`calendar-unit-tests` twice, `linear-exit-preparation-ci`
+  on a four-way matrix, `f27-team-rollback-proof`, `f42-apply-rehearsal`,
+  `graphics-f2-evidence`, `f27-post-contract-capture`). Two such jobs on one
+  Docker daemon collide on the port. Either each runner is its own VM or has its
+  own daemon, or those workflows are changed to a dynamically assigned host
+  port (read the mapped port from the job's `services` context) before the pool
+  is sized. Prove concurrency with a test burst of at least 8 overlapping jobs
+  before switching.
+
 ### 3.1 Trimming wasted runs (safe now, free while public)
 
 Each is one small pull request, measured against a week of runs before and after:
 1. `concurrency` with `cancel-in-progress: true` on `calendar-unit-tests` and
    `linear-exit-preparation-ci` (four other PR workflows already have it). A
    burst of pushes to one pull request currently runs every one to the end.
-2. Path filters on `calendar-unit-tests` (a documentation-only change runs 6
-   jobs today) and on `linear-exit-preparation-ci`.
+2. Path filters on the **expensive jobs only** (a documentation-only change
+   runs 6 jobs today). Never a workflow-level filter on `calendar-unit-tests`:
+   that would also skip `identity-exposure` (the only automated guard against
+   adding a client slug or staff name while the repo is public) and the
+   repository and truth checks in `test/run-all.js`. Put those cheap guards in a
+   job or workflow with no filter, so they run on every pull request including
+   documentation-only ones. Same rule for `linear-exit-preparation-ci`.
 3. Stop re-running the whole suite on `push: main` for changes that already
    passed on the pull request (539 runs a month of `calendar-unit-tests` alone),
    or keep only a cheap smoke job there.
@@ -237,10 +267,10 @@ and why it is not enough. pg_cron runs on the second.
 | 3 | `card-calendar-status-drift` | Port `scripts/card-calendar-status-drift-check.js` (550 lines; its test loads `index.html`) | medium to large | About 820 min/mo, the biggest scheduled saving. Move last |
 | 3 | `syncview-retirement-census`, `outbox-debt-census` | Decision: they are **dormant** (their step says so and they only heartbeat). Retire both and their heartbeat rows, or leave dormant | tiny | Owner or Lighthouse call; about 320 min/mo of nothing |
 | Stay | `monitoring-deadman`, `monitoring-crosscheck` | Stay on GitHub | none | They exist to watch Supabase from a second place; moving them in defeats the point |
-| Stay | `track-b-backup` (1,800 min/mo) | Stay, on the self-hosted server after step 9 | none | A backup of the database must not run inside the database. Could go from every 6 h to every 12 h to halve it; owner call |
+| Stay | `track-b-backup` (1,800 min/mo) | Stay on GitHub-hosted runners | none | A backup of the database must not run inside the database. Could go from every 6 h to every 12 h to halve it; owner call |
 | Stay | `assurance-ledger-freshness` | Stay | none | Reads repo documents; runs once a day |
 | Stay | `n8n-execution-quota-watchdog`, `clients-roster-sync`, `sheets-mirror-daily` | Stay (30, 13 and 17 min/mo) | none | Daily, reach outside Supabase (n8n, Google Sheets), negligible minutes. The cost study called the watchdog a candidate; it is 30 minutes a month and needs n8n and an Actions cache, so not worth it |
-| Stay | `dawn-check`, both nightly browser suites | Self-hosted runner | none | Real browsers |
+| Stay | `dawn-check`, both nightly browser suites | GitHub-hosted runners | none | Real browsers; they hold credentials, so never on the shared PR runner pool (3.2) |
 
 Order rationale: wave 1 needs no new code, moves the jobs whose lateness
 hurts (notifications, drains), and each can be turned back on in the workflow by
@@ -358,8 +388,8 @@ reverting a pull request or one setting. Only step 9 changes visibility.
 | 3 | Wave 0 and wave 1 of section 4 (pg_net, Vault, rename drain, notification sender and monitor, thumbnail scan). Keep the workflow crons commented, not deleted | Session, Lighthouse merges | Uncomment the cron in each workflow; `cron.unschedule('<name>')` |
 | 4 | Watch 7 days: dead-man's switch shows no stale lane; heartbeats present | Lighthouse | As step 3 |
 | 5 | Waves 2 and 3 (intake completion, drift, retire `lane-ticker` and the dormant censuses) as separate pull requests, each with a parity test | Session | Same |
-| 6 | Provision the self-hosted runner server (Linux, Docker, Playwright browsers, Node 22). **A registered runner runs one job at a time**, so cores do not add capacity; register several runner instances on the machine (or use autoscaling). Size the count from measured peak concurrency (count overlapping jobs in the run history) and the monthly load: one instance supplies at most 43,200 job-minutes a month, and the trimmed load is 55,000 to 75,000, so plan for at least 6 to 8 instances, more if the peak needs it. **Do not register any yet.** Prepare the runner install steps and a way to alert when it is offline | Owner buys, session writes the runbook | Cancel the server |
-| 7 | Change every PR and nightly workflow to `runs-on: ${{ vars.CI_RUNNER \|\| 'ubuntu-latest' }}` so a repository variable picks the runner. Merge with the variable unset (nothing changes) | Session | Revert |
+| 6 | Provision the self-hosted runner server (Linux, Docker, Playwright browsers, Node 22) with **ephemeral, secret-free runners, one isolated Docker per runner** (3.2). **A registered runner runs one job at a time**, so cores do not add capacity; register several runner instances on the machine (or use autoscaling). Size the count from measured peak concurrency (count overlapping jobs in the run history) and the monthly load: one instance supplies at most 43,200 job-minutes a month, and the trimmed load is 55,000 to 75,000, so plan for at least 6 to 8 instances, more if the peak needs it. **Do not register any yet.** Prepare the runner install steps and a way to alert when it is offline | Owner buys, session writes the runbook | Cancel the server |
+| 7 | Change the **pull-request** workflows only (not nightlies, monitors, deploys or backups) to `runs-on: ${{ vars.CI_RUNNER \|\| 'ubuntu-latest' }}` so a repository variable picks the runner. Fix the shared port 5432 first (3.2). Merge with the variable unset (nothing changes) | Session | Revert |
 | 8 | Prune artifacts and set retention to 3 days; lower `Actions` artifact quota use below the private-repo limit. Dry-run the 30-day counts | Session | n/a |
 | 9 | **Day of the switch** (a quiet day, no deploy handed over; the Section 4 rule against merging between a deploy SHA and dispatch applies). In order: (a) set the Actions spending limit to $0; (b) settings, General, Danger Zone, Change visibility, **Make private**; (c) register the runner on the now-private repo; (d) set repository variable `CI_RUNNER` to the runner label | Owner clicks; session prepares the exact text | See "Way back from private" below |
 | 10 | Verify within the hour: site loads at the domain with HTTPS; Pages still redeploys on a merge; one client review link and one staff sign-in work; a pull request runs all checks on the runner; Codex answers a test pull request; a fresh Claude session clones; `raw.githubusercontent.com/...` from a logged-out browser returns 404; the Actions billing page shows $0 spend | Owner and Vigil | As below |
@@ -410,7 +440,7 @@ from this session.
 
 ## 9. Decisions for the owner
 
-1. Accept about **$40 to $110 a month** all-in (server plus small overage) for a
+1. Accept about **$80 to $130 a month** all-in (server plus overage) for a
    private repo, versus $0 public? (The site-publishing fix is worth doing even
    if the answer is no.)
 2. Approve trimming the checks (3.1), in particular running the full suite at

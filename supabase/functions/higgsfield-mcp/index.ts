@@ -130,7 +130,7 @@ const INSTRUCTIONS = [
   "When someone wants thumbnails from screenshots, call thumbnail_workflow first and follow it.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
-  "After create, call check_job about every 20 to 30 seconds until it is done (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes), then give them the download link.",
+  "After create, call check_job about every 20 to 30 seconds until it is done (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
 ].join(" ");
 
@@ -805,6 +805,34 @@ async function checkJob(jobId: string): Promise<string> {
   return `Still working (${status.replace("_", " ")}). Check again in about 20 to 30 seconds.`;
 }
 
+// Finished images are also returned as image content, so the chat app shows
+// them in the conversation (and the model can look at them) instead of only
+// a link. Links are ours or Higgsfield's CDN; fetched through safeFetch, at
+// most 4 images and 4.5 MB each (larger ones stay link-only).
+const PREVIEW_MAX_BYTES = 4_500_000;
+async function imagePreviews(text: string): Promise<Array<{ type: "image"; data: string; mimeType: string }>> {
+  const links = [...new Set(text.match(/https:\/\/\S+\.(?:png|jpe?g|webp)\b/gi) || [])].slice(0, 4);
+  const out: Array<{ type: "image"; data: string; mimeType: string }> = [];
+  for (const link of links) {
+    try {
+      const res = await safeFetch(link);
+      if (typeof res === "string" || !res.ok || !res.body) continue;
+      if (Number(res.headers.get("content-length") || 0) > PREVIEW_MAX_BYTES) { await res.body.cancel(); continue; }
+      const bytes = await readLimited(res);
+      if (!bytes || bytes.length > PREVIEW_MAX_BYTES) continue;
+      const ext = link.split(".").pop()!.toLowerCase();
+      out.push({ type: "image", data: toBase64(bytes), mimeType: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" });
+    } catch { /* preview is best effort; the link is still in the text */ }
+  }
+  return out;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
 // ---- Tool handlers -------------------------------------------------------
 
 async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
@@ -995,8 +1023,10 @@ Deno.serve(async (req) => {
   if (method === "tools/call") {
     const params = (msg.params || {}) as JsonMap;
     try {
-      const text = await callTool(String(params.name || ""), (params.arguments || {}) as JsonMap, member);
-      return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
+      const toolName = String(params.name || "");
+      const text = await callTool(toolName, (params.arguments || {}) as JsonMap, member);
+      const previews = /^check_(job|jobs|video)$/.test(toolName) ? await imagePreviews(text) : [];
+      return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews] } });
     } catch (e) {
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });
     }

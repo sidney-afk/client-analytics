@@ -1,12 +1,11 @@
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityValid } from './100-onboarding-staff-controls.js';
+import { CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityValid } from './100-onboarding-staff-controls.js';
 import {
-  WRITE_UI_PRODUCTION_WRITE_URL, _calReorderUrlForClient, _calUpsertFetch, _calUpsertHeaders, _calUpsertUseEf,
+  WRITE_UI_PRODUCTION_WRITE_URL, _calAssertSavingOn, _calUpsertFetch, _calUpsertHeaders,
   _syncviewEfHeaders, _writeUiNativeId, _writeUiRecordFailure, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calArchivedRemove, _calRefsForPost } from './134-calendar-prefs-mount.js';
 import { loadCalendarPosts } from './150-calendar-hydration-import.js';
-import { _calPersistReorderViaN8n } from './180-calendar-native-post-media.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import {
   _sxrArchivedRemove, _sxrReorderFetch, _sxrUpsertFetch, computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
@@ -423,10 +422,13 @@ import {
                 try {
                     const items2 = [{ id, order_index: slot.order_index }];
                     if (kind === 'sxr') await _sxrReorderFetch(slug, { client: slug, items: items2 }, 'ui');
-                    else if (_calUpsertUseEf(slug)) {
-                        const url = _calReorderUrlForClient(slug);
-                        await fetch(url, { method: 'POST', headers: _calUpsertHeaders('ui', url), body: JSON.stringify({ client: slug, items: items2 }) });
-                    } else await _calPersistReorderViaN8n(slug, items2);
+                    else {
+                        /* n8n exit, PR 2: the same fresh, bounded flag read as every
+                           Calendar write, then the function only. A paused or held
+                           write throws into the catch below; nothing goes to n8n. */
+                        await _calAssertSavingOn(slug);
+                        await fetch(CALENDAR_REORDER_EF_URL, { method: 'POST', headers: _calUpsertHeaders('ui', CALENDAR_REORDER_EF_URL), body: JSON.stringify({ client: slug, items: items2 }) });
+                    }
                 } catch (e) { console.warn('[Archived] restore position write failed', e); _arxFail(kind, e, { step: 'order' }); }
             }
             /* 6. Work items, now that the card is live. A failed move never undoes the card. */

@@ -652,6 +652,7 @@ const ownerB = Object.freeze({
        the surface mutation lock itself. Recorded so the ordering below can
        assert it happens before either flush. */
     _writeUiLegacyShedRetired: async surface => { shed.push(surface); return false; },
+    _writeUiMigratePinnedCalendarGates: async () => ({ migrated: 0, kept: 0 }),
     Promise
   };
   vm.createContext(resumeContext);

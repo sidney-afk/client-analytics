@@ -86,7 +86,7 @@ function makeWorld(reads) {
 
 const RAW_ID = /\b(bat|del|b1_b)_[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-/i;
 const BATCH_ID = 'bat_44ca2350-7bff-4c1d-9a11-0123456789ab';
-const child = { id: 'del_11111111-2222-4333-8444-555555555555', parent: BATCH_ID, project: 'sidneylaruel' };
+const child = { id: 'del_11111111-2222-4333-8444-555555555555', parent: BATCH_ID, project: 'fixture-client' };
 // What a person can read: markup stripped. The parent's key stays in a hidden
 // data attribute the page's own selectors and click handlers need.
 const vis = html => String(html).replace(/<[^>]*>/g, ' ');
@@ -102,6 +102,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok(api._prodIsInternalId(BATCH_ID + '::0a1b2c3d-0000-0000-0000-000000000000'), 'a two-team batch node is an internal id');
     ok(api._prodIsInternalId('0a1b2c3d-0000-4000-8000-000000000000'), 'a bare uuid is an internal id');
     ok(!api._prodIsInternalId('VID-13400'), 'a Linear number is not an internal id');
+    ok(!api._prodIsInternalId('video_20260929 launch') && !api._prodIsInternalId('ad_deadbeef campaign'),
+      'a real title that merely starts like a key is kept');
     ok(!api._prodIsInternalId('Spring launch reel'), 'a real name is not an internal id');
     ok(api._prodKnownName({ title: BATCH_ID, batchName: 'Spring launch' }) === 'Spring launch',
       'a title that is only the key is skipped for the batch name');

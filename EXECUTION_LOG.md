@@ -8424,3 +8424,16 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Workload: the editor filter resolves to the person by id or by name once
   their rows load; picking an editor by hand cancels it.
 - Offline browser test: `docs/syncview-design/tests/smart-defaults-browser.js`.
+
+## 2026-09-29 - SyncLinear sub-issue header shows the parent's name (session Quill)
+
+- The "Sub-issue of" header used to print the parent's internal key when a batch
+  parent had no short identifier or no title. A shared rule now keeps any
+  `bat_`, `del_`, `b1_b_` or bare-uuid key out of every name slot: header,
+  breadcrumb, Parent issue card, topbar title, Favorites, command palette and the
+  create-parent picker.
+- Unknown name: a grey skeleton, then the name. The one-off name read (batches
+  or deliverables, read-only) gives up after 6 s and may retry after 15 s; an
+  empty answer shows "Untitled post" / "Untitled issue".
+- No write path, gateway, role or authority check changed. Browser only.
+- Test: `test/prod-subissue-parent-name.js`.

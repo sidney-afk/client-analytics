@@ -1043,8 +1043,11 @@ import { _prodRender } from './260-production-refresh-boot.js';
         function _prodIsInternalId(value) {
             const s = String(value == null ? '' : value).trim();
             if (!s) return false;
-            return /^(?:[a-z][a-z0-9]{0,5}_){1,2}[0-9a-f]{8}(?:-[0-9a-f]{4}){0,4}/i.test(s)
-                || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(s);
+            const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+            /* The WHOLE value must be a key: a prefix match would swallow a real
+               title such as "video_20260929 launch". */
+            return new RegExp('^(?:[a-z][a-z0-9]{0,5}_){1,2}' + uuid + '(?:::' + uuid + ')?$', 'i').test(s)
+                || new RegExp('^' + uuid + '$', 'i').test(s);
         }
         function _prodSafeName(value) {
             const s = String(value == null ? '' : value).trim();

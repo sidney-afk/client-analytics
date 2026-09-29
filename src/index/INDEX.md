@@ -50,7 +50,7 @@
 | 42 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 43 | `200-intake-data-startup.js.part` | 1867 | Video-only and Thumbnail-only were already built, but sat |
 | 44 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
-| 45 | `220-production-attribution-views.js.part` | 2854 | An ABSENT persisted slug is missing evidence, not |
+| 45 | `220-production-attribution-views.js.part` | 2857 | An ABSENT persisted slug is missing evidence, not |
 | 46 | `230-production-create-comments.js.part` | 2649 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 47 | `240-production-description.js.part` | 2648 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 48 | `250-production-controls-data.js.part` | 2888 | F50 DISCLOSURE — say when a status has no word on the card. |

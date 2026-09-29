@@ -30,7 +30,7 @@ export const DIRECT_MODELS: CatalogModel[] = [
     category: "image-edit",
     notes: [
       "The same image model ChatGPT uses. Best at precise edits that change only what you ask for; also makes new images from a prompt.",
-      "size auto keeps the photo's own shape; any WIDTHxHEIGHT works (1152x2048 for vertical 9:16). quality high is the sharpest and costs the most; bigger sizes cost more.",
+      "size auto keeps the photo's own shape; any WIDTHxHEIGHT works (1152x2048 for vertical 9:16). quality medium is the default (good and cheap); low for rough drafts; high only when they ask for the sharpest result. Bigger sizes cost more.",
     ],
     schema: {
       type: "object",
@@ -39,7 +39,7 @@ export const DIRECT_MODELS: CatalogModel[] = [
         prompt: { type: "string" },
         image_urls: IMAGES,
         size: { type: "string", default: "auto", description: "auto (keeps the photo's shape), or WIDTHxHEIGHT: both multiples of 16, shape between 1:3 and 3:1, longest edge at most 3840. Vertical 9:16 is 1152x2048, horizontal 16:9 is 2048x1152, square 1024x1024, 2:3 is 1024x1536." },
-        quality: { type: "string", enum: ["low", "medium", "high"], default: "high" },
+        quality: { type: "string", enum: ["low", "medium", "high"], default: "medium" },
       },
     },
   },
@@ -119,7 +119,7 @@ export function directEstimate(id: string, inputs: JsonMap): { usd: number } | {
   if (n > MAX_DIRECT_IMAGES) return { error: `At most ${MAX_DIRECT_IMAGES} input images for this model.` };
   if (id === "openai/gpt-image") {
     if (!Deno.env.get("OPENAI_KEY")) return { error: "GPT Image is not set up yet (OPENAI_KEY missing)." };
-    const [sq, wide] = OPENAI_OUT[String(inputs.quality || "high")] || OPENAI_OUT.high;
+    const [sq, wide] = OPENAI_OUT[String(inputs.quality || "medium")] || OPENAI_OUT.medium;
     const size = String(inputs.size || "auto");
     const dims = openaiSize(size);
     if (dims === null) return { error: `Size "${size}" is not allowed. Use auto, or WIDTHxHEIGHT with both multiples of 16, a shape between 1:3 and 3:1 and no edge over 3840 (vertical 9:16 is 1152x2048).` };
@@ -159,7 +159,7 @@ export async function runDirect(id: string, inputs: JsonMap, fetchImage: (url: s
 
   if (id === "openai/gpt-image") {
     const key = Deno.env.get("OPENAI_KEY")!;
-    const quality = String(inputs.quality || "high");
+    const quality = String(inputs.quality || "medium");
     const size = String(inputs.size || "auto");
     let res: Response;
     if (refs.length) {

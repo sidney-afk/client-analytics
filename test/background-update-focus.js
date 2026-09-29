@@ -211,7 +211,7 @@ const queueSrc = grabFunc('_sxrKasperRenderQueue');
 check('_sxrKasperRenderQueue repaints through the Review painter, not its own innerHTML',
   /_kasperPaintReview\s*\(/.test(queueSrc) && !/innerHTML/.test(queueSrc), true);
 check('the Review painter defers while Kasper is typing in a note box',
-  /_ae\.tagName === 'TEXTAREA'[\s\S]{0,400}_kasperPaintRetry = setTimeout\(_kasperPaintReview/.test(grabFunc('_kasperPaintReview')), true);
+  /_ae\.tagName === 'TEXTAREA'[\s\S]{0,400}_kasperPaintRetry = setTimeout\(_kasperPaintReview/.test(grabFunc('_kasperPaintReviewNow')), true);
 
 console.log('\n— Source-form: showToast never grabs focus —');
 const toastSrc = grabFunc('showToast');

@@ -59,11 +59,11 @@ import {
   _sxrSetCommentsFor, _sxrSetLastLocalWriteAt, _sxrSetPendingBackgroundRender,
   _sxrStringifyComments, _sxrThumbIconSvg
 } from './280-samples-cards-notes.js';
-import { KASPER_CACHE_KEY, _kasperPersistCache, _kasperRefreshTabCounts, _kasperState } from './320-kasper-dashboard-replies.js';
 import {
-  _kasperLoadSMMMap, _kasperPaintReview, _kasperPersistPost, _kasperResumeSourceRepairs,
-  _kasperSamplesMerged
-} from './330-kasper-review-history.js';
+  KASPER_CACHE_KEY, _kasperLoadSMMMap, _kasperPaintReview, _kasperPersistCache, _kasperPersistPost,
+  _kasperResumeSourceRepairs, _kasperSamplesMerged, _kasperState
+} from './305-core-kasper-shared.js';
+import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     /* RETIRED 2026-09-22 (B1 order row 5, OPEN_REPAIRS 239):
        `_sxrLegacyPushStatusToLinear` and `_sxrLegacyPostLinearComment` used to
        POST every legacy-routed Samples status and comment to the n8n webhooks

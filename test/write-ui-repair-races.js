@@ -156,7 +156,9 @@ async function calendarKasperCacheOnlyBlockedCase() {
     Object, Array, Promise
   };
   vm.createContext(ctx);
-  vm.runInContext(extractUntil('_kasperPersistPostWrite', '_kasperOnPanelDraftInput'), ctx);
+  // _kasperPersistPostWrite now sits in core 305 (Kasper loads on demand); nothing
+  // ever followed it before _kasperOnPanelDraftInput, so the function alone is the same slice.
+  vm.runInContext(extract('_kasperPersistPostWrite'), ctx);
   const item = { slug: 'fixture', post: {
     id: 'card', _writeUiRetrySourceAt: '2026-07-12T00:00:00Z',
     _writeUiRetryPrincipal: 'staff:fixture:smm'

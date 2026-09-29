@@ -37,7 +37,11 @@ const refreshAfterConflict = functionSource('_ptoRefreshAfterConflict');
 const paint = functionSource('_ptoPaint');
 const calendar = functionSource('_ptoRenderCalendar');
 const kasperView = functionSource('renderKasperView');
-const kasperGoto = functionSource('_kasperGotoTab');
+// Kasper loads on demand: _kasperGotoTab is a core stand-in that forwards to
+// the real function, registered as gotoTab.
+const kasperGoto = functionSource('_kasperGotoTabNow');
+ok(/function _kasperGotoTab\(\.\.\.args\) \{ return _kasperForward\('gotoTab', args, true\); \}/.test(source)
+  && /gotoTab: _kasperGotoTabNow,/.test(source), 'Kasper tab switches from outside Kasper reach the real guarded function');
 const kasperTab = functionSource('_kasperRenderTab');
 const admin = functionSource('_ptoRenderAdmin');
 const refreshChrome = functionSource('_syncviewStaffRefreshChrome');

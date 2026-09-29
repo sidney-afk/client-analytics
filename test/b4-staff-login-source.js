@@ -68,7 +68,14 @@ ok(/if \(identity\) \{[\s\S]{0,180}_syncviewOpenStaffAccount\(\)/.test(functionS
 ok(/button\.setAttribute\('aria-haspopup', 'menu'\)/.test(functionSource('_syncviewStaffRefreshChrome')), 'consolidated staff button always advertises its menu, including while signed out');
 ok(/event\.key === 'Tab'[\s\S]{0,180}!wrap\.contains\(document\.activeElement\)[\s\S]{0,100}_syncviewCloseStaffAccount/.test(functionSource('_syncviewOpenStaffAccount')), 'account popover closes when Tab leaves its wrapper');
 const purgeSource = functionSource('_syncviewStaffPurgeSensitiveState');
-ok(/_ccCloseModal\(\)/.test(purgeSource) && /_ccRevTeardown\(\)/.test(purgeSource) && /_ccState\.modal\.credentials = \[\]/.test(purgeSource), 'sign-out purge closes credential UI, realtime, and plaintext rows');
+// Kasper (credentials, hiring, clients) loads on demand: sign-out reaches its
+// purge through the area registry, which closes the credential UI, stops its
+// realtime and drops plaintext rows; before Kasper loads it holds none, and the
+// saved recent-clients list is still cleared.
+const kasperPurge = (source.match(/purgeSensitiveState\(\) \{[\s\S]*?\n        \},/) || [''])[0];
+ok(/const kasper = svAreaApi\('kasper'\);\s*if \(kasper\) kasper\.purgeSensitiveState\(\);\s*else localStorage\.removeItem\(CA_RECENT_KEY\);/.test(purgeSource)
+  && /_ccCloseModal\(\)/.test(kasperPurge) && /_ccRevTeardown\(\)/.test(kasperPurge) && /_ccState\.modal\.credentials = \[\]/.test(kasperPurge)
+  && /_hpPurgeSensitiveState\(\)/.test(kasperPurge) && /_caPurgeSensitiveState\(\)/.test(kasperPurge), 'sign-out purge closes credential UI, realtime, and plaintext rows');
 // The onboarding inbox loads on demand (Templates area): sign-out reaches its
 // reset through the area registry, and the area's reset does the clearing.
 ok(/svAreaApi\('templates'\)[\s\S]{0,80}\.obvPurgeFullMode\(\)/.test(purgeSource)

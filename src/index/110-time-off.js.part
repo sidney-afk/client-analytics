@@ -1,4 +1,4 @@
-import { showConfirm } from './040-shared-briefs.js';
+import { showConfirm, svAreaApi } from './040-shared-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import {
@@ -16,10 +16,7 @@ import {
 } from './100-onboarding-staff-controls.js';
 import { _calRuntimeFlagClient, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _jsAttrArg } from './131-core-html.js';
-import {
-  _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperState, mountKasperView,
-  renderKasperView
-} from './320-kasper-dashboard-replies.js';
+import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperState } from './305-core-kasper-shared.js';
     function _ptoClearValidation(errorId, controlIds) {
         const errorBox = document.getElementById(errorId);
         if (errorBox) errorBox.textContent = '';
@@ -72,9 +69,10 @@ import {
             setTimeout(() => {
                 if (currentNav !== 'kasper') return;
                 const content = document.getElementById('content');
-                if (content && typeof renderKasperView === 'function') {
-                    content.innerHTML = renderKasperView();
-                    mountKasperView();
+                const kasper = svAreaApi('kasper');   // on demand; on screen means loaded
+                if (content && kasper) {
+                    content.innerHTML = kasper.render();
+                    kasper.mount();
                 }
             }, 0);
         }

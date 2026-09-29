@@ -61,7 +61,7 @@ ok(/page === 'kasper'[\s\S]{0,160}hash = '#kasper\/' \+ _kasperState\.tab/.test(
   'navTo writes #kasper/<subtab> instead of a bare #kasper');
 
 /* ---- 2. A gate that runs before key-verify answers is temporary --------- */
-const src = ['_kasperStaffCheckPending', '_kasperDenySubtab', '_kasperRestorePendingSubtab', '_kasperFallbackToReview']
+const src = ['_kasperStaffCheckPending', '_kasperDenySubtab', '_kasperRestorePendingSubtab', '_kasperFallbackToReviewNow']
   .map(grabFunc).join('\n');
 function world(opts) {
   const w = {
@@ -83,6 +83,8 @@ function world(opts) {
     const _syncviewOfferStaffSignIn = () => { w.offers++; };
     const _ptoEnabled = () => true;
     const _kasperSyncTabNav = () => {};
+    // Kasper loaded: the core stand-in forwards to the real function (305 / 340).
+    const _kasperFallbackToReview = (...a) => _kasperFallbackToReviewNow(...a);
     const _kasperGotoTab = t => { w.gotoCalls.push(t); if (t === 'hiring-process' && !_syncviewStaffCan('hiring')) return; _kasperState.tab = t; };
     ${src.replace(/currentNav/g, 'w.nav').replace(/_syncviewNavEpoch/g, 'w.epoch')}
     return { state: _kasperState, deny: _kasperDenySubtab, restore: _kasperRestorePendingSubtab };
@@ -119,7 +121,10 @@ t.api.deny('hiring');
 ok(t.w.hash === '#kasper' && t.w.saved === 'review' && t.w.offers === 1,
   'signed out: falls back and offers sign-in exactly as before');
 
-ok(/_kasperRestorePendingSubtab\(\)/.test(grabFunc('_syncviewStaffRefreshChrome')),
+// Through the on-demand Kasper area's registry (restorePendingSubtab is
+// _kasperRestorePendingSubtab); before Kasper loads there is no pending subtab.
+ok(/svAreaApi\('kasper'\); if \(k\) k\.restorePendingSubtab\(\)/.test(grabFunc('_syncviewStaffRefreshChrome'))
+  && /restorePendingSubtab: _kasperRestorePendingSubtab,/.test(INDEX),
   'the staff chrome refresh (runs when key-verify settles) calls the restore');
 
 /* ---- 3. The analytics extras wait for Kasper's first content ----------- */
@@ -144,7 +149,7 @@ const h = new Function(`
 
   const boot = INDEX.slice(INDEX.indexOf('const dataLoad = fetchAll(') - 400, INDEX.indexOf('const dataLoad = fetchAll('));
   ok(/_kasperHashLanding[\s\S]*_analyticsHoldExtras\(8000\)/.test(boot), 'the boot holds the extras only for a Kasper landing, with a safety timeout');
-  ok(/_kasperState\.lastLoaded && typeof _analyticsReleaseExtras === 'function'/.test(grabFunc('_kasperPaintReview')),
+  ok(/_kasperState\.lastLoaded && typeof _analyticsReleaseExtras === 'function'/.test(grabFunc('_kasperPaintReviewNow')),
     'the review releases them only after the queue has loaded and painted');
   ok(/page !== 'kasper' && typeof _analyticsReleaseExtras/.test(navTo), 'leaving Kasper releases them');
   ok(/if \(_analyticsExtrasHold\) \{ _analyticsReleaseExtras\(\); fetchExtras\(null\); \}/.test(grabFunc('_analyticsExtrasArrival')),

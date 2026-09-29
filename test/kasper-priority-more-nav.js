@@ -184,7 +184,7 @@ ok((navMarkup(makeRenderer({ tab: 'review' })()).match(/data-kasper-tab="/g) || 
   && !makeRenderer({ tab: 'review' })().includes('data-kasper-tab="samples"'),
   'the nav is complete and duplicate-free, with no separate Samples tab');
 ok(/const KASPER_SUBTAB_ALIASES = \{ samples: 'review' \};/.test(source)
-  && /function _kasperGotoTab\(tab\) \{\s*tab = _kasperResolveSubtab\(tab\);/.test(source),
+  && /function _kasperGotoTabNow\(tab\) \{\s*tab = _kasperResolveSubtab\(tab\);/.test(source),
   'old #kasper/samples links resolve to the Review tab');
 ok(/data-kasper-tab="time-off"[\s\S]*?data-kasper-count="time-off"[\s\S]*?data-kasper-hide-zero/.test(defaultHtml),
   'the Time Off count stays wired inside More and is configured to hide zero');
@@ -267,7 +267,7 @@ ok(/KASPER_ONBOARDING_SEEN_KEY/.test(unreadSource)
   'Onboarding counts submissions newer than the saved cursor and clears only when opened');
 
 const keyboard = functionSource('_kasperOnMoreKeydown');
-const goto = functionSource('_kasperGotoTab');
+const goto = functionSource('_kasperGotoTabNow');
 const wire = functionSource('_kasperWireMoreNav');
 const unwire = functionSource('_kasperUnwireMoreNav');
 const teardown = functionSource('_kasperTeardown');

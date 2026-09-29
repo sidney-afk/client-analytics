@@ -48,7 +48,7 @@ import {
   _sxrKasperState, _sxrPushStatusToLinear, _sxrV2DrainPending, _sxrV2EnsureSubscribed, _sxrV2Teardown,
   _writeUiResumeSourceRepairs
 } from './290-samples-writes-review.js';
-import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
+import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
     // >>> SXR_BEGIN
     /* ============================================================
        SAMPLES (REVIEW) MODULE  —  ?sxr=1 (default-OFF), route #sample-reviews
@@ -2904,7 +2904,6 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
     /* Body dispatcher — enhanced for the Sheet (preserve scroll on optimistic
        repaints from card actions; drag wiring is a Surface 2 follow-up). */
 export {
-  _sxrPinClient, onSxrTabClick,
   SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_GET_URL, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
   SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrAdoptLinksAfterCreate,
   _sxrApplyClearSentinels, _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheRead,
@@ -2912,10 +2911,10 @@ export {
   _sxrEnabled, _sxrEsc, _sxrEscAttr, _sxrForceThumbRefresh, _sxrIsBlankId, _sxrJsArg,
   _sxrLastNetworkLoadAt, _sxrLinkFieldHtml, _sxrLoadPrefs, _sxrLoaderHtml, _sxrMigrateShape,
   _sxrNextLoadSeq, _sxrNormStatus, _sxrNormZoom, _sxrOpenStatusMenu, _sxrPendingEdits,
-  _sxrPersistUrgentSentForPost, _sxrPrimeSampleRoutingFlag, _sxrReady, _sxrRenderShell,
-  _sxrReorderFetch, _sxrReviewBlockReason, _sxrSampleUseEf, _sxrSaveInFlight, _sxrSavePrefs,
-  _sxrSaveTimers, _sxrShowUrgent, _sxrSupabaseFetchAllRows, _sxrUpdateCardStatusDisplay,
-  _sxrUpsertFetch, _sxrUpsertFetchPinned, _sxrV2LoadLib, archiveSxrCard,
-  computeSampleOverallStatus, loadSxrCards, mountSxrView, renderSxrOrganizer, renderSxrView,
-  sxrClientSlug, sxrState
+  _sxrPersistUrgentSentForPost, _sxrPinClient, _sxrPrimeSampleRoutingFlag, _sxrReady,
+  _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason, _sxrSampleUseEf, _sxrSaveInFlight,
+  _sxrSavePrefs, _sxrSaveTimers, _sxrShowUrgent, _sxrSupabaseFetchAllRows,
+  _sxrUpdateCardStatusDisplay, _sxrUpsertFetch, _sxrUpsertFetchPinned, _sxrV2LoadLib,
+  archiveSxrCard, computeSampleOverallStatus, loadSxrCards, mountSxrView, onSxrTabClick,
+  renderSxrOrganizer, renderSxrView, sxrClientSlug, sxrState
 };

@@ -78,7 +78,7 @@ ok(/action: 'queue_invite'/.test(HIRING)
   && (HIRING.match(/\bfetch\s*\(/g) || []).length === 1,
   'the browser confirms terminal/retry actions, uses the Edge Function, and never sends email or calls iClosed directly');
 
-const goto = functionSource('_kasperGotoTab');
+const goto = functionSource('_kasperGotoTabNow');
 const render = functionSource('_kasperRenderTab');
 ok(/tab === 'hiring-process' && !_syncviewStaffCan\('hiring'\)/.test(goto)
   && /tab === 'hiring-process' && !_syncviewStaffCan\('hiring'\)/.test(render),

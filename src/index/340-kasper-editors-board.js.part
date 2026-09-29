@@ -1,13 +1,22 @@
+import { svAreaRegister } from './040-shared-briefs.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _kasperGotoTab, _kasperOpenLightbox, _kasperState } from './305-core-kasper-shared.js';
+import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
-  _kasperCloseLightbox, _kasperGotoTab, _kasperMarkRepliesRead, _kasperOpenLightbox,
-  _kasperRepliesDraftInput, _kasperRepliesReply, _kasperRepliesToggleAll, _kasperState
-} from './320-kasper-dashboard-replies.js';
+  _ccCloseModal, _ccExpanded, _ccOpenModalNow, _ccRevTeardown, _ccRevealed, _ccState,
+  _kasperCloseLightbox, _kasperFallbackToReviewNow, _kasperGotoTabNow, _kasperLoadFilming,
+  _kasperOpenLightboxNow, _kasperRenderOnboarding, _kasperRenderTab, _kasperRestorePendingSubtab,
+  _kasperTeardown, _svStaffPageRender, _svStaffPageShell, mountKasperView, renderKasperView
+} from './321-kasper-dashboard-replies.js';
+import {
+  _caPurgeSensitiveState, _kasperMarkRepliesRead, _kasperRepliesDraftInput, _kasperRepliesReply,
+  _kasperRepliesToggleAll
+} from './323-kasper-dashboard-tail.js';
 import {
   _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperClose,
   _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
-  _kasperOnPanelDraftInput, _kasperRequestTweakComp, _kasperSetEditorsAvg, _kasperToggleCard,
-  _kasperToggleHistory, _kedToggleInfo
+  _kasperOnPanelDraftInput, _kasperPaintReviewNow, _kasperRequestTweakComp, _kasperSetEditorsAvg,
+  _kasperToggleCard, _kasperToggleHistory, _kedToggleInfo
 } from './330-kasper-review-history.js';
     function _kedPaint() {
         const data = _kasperState.editorsData;
@@ -674,4 +683,46 @@ import {
     window._kedToggleInfo = _kedToggleInfo;
     window._kasperSetEditorsAvg = _kasperSetEditorsAvg;
 
+    // Kasper (310-340, and its sales intake and hiring pages) is an on-demand
+    // area; this is its last fragment, so everything it names has run by now.
+    // Outside code reaches it through here (040 svAreaApi / svArea / svWithArea)
+    // or through the stand-ins in core 305.
+    svAreaRegister('kasper', {
+        render: renderKasperView,
+        mount: mountKasperView,
+        teardown: _kasperTeardown,
+        staffPageShell: _svStaffPageShell,
+        staffPageRender: _svStaffPageRender,
+        renderTab: _kasperRenderTab,
+        restorePendingSubtab: _kasperRestorePendingSubtab,
+        renderOnboarding: _kasperRenderOnboarding,
+        loadFilming: _kasperLoadFilming,
+        paintReview: _kasperPaintReviewNow,
+        openLightbox: _kasperOpenLightboxNow,
+        gotoTab: _kasperGotoTabNow,
+        fallbackToReview: _kasperFallbackToReviewNow,
+        ccOpenModal: _ccOpenModalNow,
+        // Sign-out / identity change: drop every credential, hiring and client
+        // record this area holds, and close anything showing them.
+        purgeSensitiveState() {
+            try { _hpPurgeSensitiveState(); } catch (e) {}
+            try { _caPurgeSensitiveState(); } catch (e) {}
+            try { _ccCloseModal(); } catch (e) {}
+            try { _ccRevTeardown(); } catch (e) {}
+            try {
+                _ccState.kasper.credentials = [];
+                _ccState.kasper.error = null;
+                _ccState.kasper.loaded = false;
+                _ccState.kasper.loading = false;
+                _ccState.modal.credentials = [];
+                _ccState.modal.error = null;
+                _ccState.modal.loaded = false;
+                _ccState.modal.loading = false;
+                _ccState.modal.open = false;
+                _ccState.modal.client = '';
+            } catch (e) {}
+            try { _ccRevealed.clear(); } catch (e) {}
+            try { _ccExpanded.clear(); } catch (e) {}
+        },
+    });
 export { _kedPaint };

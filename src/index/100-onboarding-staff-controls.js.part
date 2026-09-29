@@ -21,13 +21,10 @@ import {
   _prodSmmPurgeSensitiveState, _syncviewAppBooted, _syncviewSetAppBooted, init
 } from './260-production-refresh-boot.js';
 import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
-  CC_ICON_EYE, KASPER_FILMING_CACHE_KEY, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect,
-  _ccExpanded, _ccOpenSelectId, _ccRevTeardown, _ccRevealed, _ccSelectHtml, _ccState,
-  _ccTogglePasswordField, _kasperFallbackToReview, _kasperRenderTab, _kasperRestorePendingSubtab,
-  _kasperState, _svStaffPageRender
-} from './320-kasper-dashboard-replies.js';
+  CA_RECENT_KEY, CC_ICON_EYE, KASPER_FILMING_CACHE_KEY, _ccCloseSelect, _ccOpenSelectId,
+  _ccSelectHtml, _ccTogglePasswordField, _kasperFallbackToReview, _kasperState
+} from './305-core-kasper-shared.js';
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
@@ -1427,7 +1424,7 @@ import {
         try { if (typeof _kasperApplyAccess === 'function') _kasperApplyAccess(); } catch (e) {}
         try {
             if (typeof currentNav !== 'undefined' && (currentNav === 'staff-onboarding' || currentNav === 'client-credentials')
-                && typeof _svStaffPageRender === 'function' && !document.querySelector('#kasperContent > :not(.kasper-empty)')) _svStaffPageRender(currentNav);
+                && svAreaApi('kasper') && !document.querySelector('#kasperContent > :not(.kasper-empty)')) svAreaApi('kasper').staffPageRender(currentNav);
         } catch (e) {}
         if (!valid) {
             _syncviewCloseStaffAccount();
@@ -1461,12 +1458,12 @@ import {
                 || (tab === 'filming' && !valid);
             if (blocked) {
                 _kasperFallbackToReview();
-                if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof _kasperRenderTab === 'function') _kasperRenderTab();
+                if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && svAreaApi('kasper')) svAreaApi('kasper').renderTab();
             }
         } catch (e) {}
         // A Kasper subtab that fell back only because the key check had not
         // answered yet (a reload) comes back now that it has.
-        try { if (typeof _kasperRestorePendingSubtab === 'function') _kasperRestorePendingSubtab(); } catch (e) {}
+        try { const k = svAreaApi('kasper'); if (k) k.restorePendingSubtab(); } catch (e) {}
         try {
             if (valid && typeof _thumbCompareScheduleAvailability === 'function') {
                 if (typeof currentNav !== 'undefined' && currentNav === 'calendar') _thumbCompareScheduleAvailability('calendar');
@@ -1582,26 +1579,16 @@ import {
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
-        try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
-        try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
-        try { document.querySelectorAll('#ccOverlay, .cc-sensitive-overlay').forEach(element => element.remove()); } catch (e) {}
+        // Kasper's hiring, client and credential data (040 registry). Before
+        // Kasper loads it holds none in memory; its recently-opened clients
+        // list can still be saved in this browser, so that is cleared here.
         try {
-            _ccState.kasper.credentials = [];
-            _ccState.kasper.error = null;
-            _ccState.kasper.loaded = false;
-            _ccState.kasper.loading = false;
-            _ccState.modal.credentials = [];
-            _ccState.modal.error = null;
-            _ccState.modal.loaded = false;
-            _ccState.modal.loading = false;
-            _ccState.modal.open = false;
-            _ccState.modal.client = '';
+            const kasper = svAreaApi('kasper');
+            if (kasper) kasper.purgeSensitiveState();
+            else localStorage.removeItem(CA_RECENT_KEY);
         } catch (e) {}
-        try { _ccRevealed.clear(); } catch (e) {}
-        try { _ccExpanded.clear(); } catch (e) {}
+        try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
+        try { document.querySelectorAll('#ccOverlay, .cc-sensitive-overlay').forEach(element => element.remove()); } catch (e) {}
         try { const tpl = svAreaApi('templates'); if (tpl) tpl.obvPurgeFullMode(); } catch (e) {}
         try {
             if (typeof _prodState !== 'undefined' && _prodState) {

@@ -27,7 +27,7 @@ import { _isClientLink, _syncviewClientEntryDataRun, _syncviewClientEntryRunCurr
 import { computeSampleOverallStatus, sxrClientSlug, sxrState } from './270-samples-model.js';
 import { _sxrCommentsFor, _sxrMsgAudience, _sxrStringifyComments } from './280-samples-cards-notes.js';
 import { _sxrKasperRenderQueue } from './290-samples-writes-review.js';
-import { _kasperPaintReview } from './330-kasper-review-history.js';
+import { _kasperPaintReview } from './305-core-kasper-shared.js';
     function _calRuntimeFlagSlug(member) {
         if (typeof member !== 'string') return null;
         let slug;

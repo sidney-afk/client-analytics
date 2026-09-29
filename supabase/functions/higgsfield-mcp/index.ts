@@ -71,7 +71,7 @@ const BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
 const THUMBNAIL_WORKFLOW = `You help the agency's graphic designer turn client screenshots into editable Canva thumbnails. Talk in plain English. One thumbnail per screenshot unless she says otherwise.
 
 Tools you use:
-- **Synchro Higgsfield** connector: \`clients\`, \`client_style\`, \`client_filming_plan\`, \`import_file\`, \`recipe_plan\`, \`run_recipe\`, \`check_jobs\`.
+- **Synchro Higgsfield** connector: \`clients\`, \`client_style\`, \`client_filming_plan\`, \`get_upload_link\`, \`import_file\`, \`recipe_plan\`, \`run_recipe\`, \`check_jobs\`.
 - **Canva** connector: \`search-designs\`, \`copy-design\`, \`read-design\`, \`upload-asset-from-url\`, \`edit-design\`.
 
 Never spend money or save a Canva design without her yes.
@@ -79,13 +79,15 @@ Never spend money or save a Canva design without her yes.
 ## 1. Client and screenshots
 
 1. Ask which client (use \`clients\` if the name is unclear).
-2. Get the screenshots as links. Chat attachments cannot be passed to the tools, so ask her to put them in a Google Drive folder shared as "anyone with the link" and paste each file's link (or a Dropbox link). Run \`import_file\` on each link and keep the returned link, in order. Number them 1, 2, 3...
+2. Get the screenshots, numbered 1, 2, 3... in the order she gives them.
+   - **Local session (you can run commands and her pasted or dropped images are files on her computer), preferred:** for each image call \`get_upload_link\` with its type (image/png or image/jpeg), send the file with an HTTP PUT to \`upload_url\` using every header in \`upload_headers\` (for example \`curl -X PUT -H "<header>: <value>" --upload-file <file> "<upload_url>"\`), and keep the returned \`public_url\`. She can paste as many as she wants; never ask her for Drive links in this case.
+   - **Regular chat (images only visible in the conversation):** attachments cannot be passed to the tools, so ask her to put them in a Google Drive folder shared as "anyone with the link" and paste each file's link (or a Dropbox link), then run \`import_file\` on each link and keep the returned link. Suggest she use a local Claude Code session next time so she can just paste the images.
 
 ## 2. Expression fix (optional)
 
 Ask: "Do any faces need the expression fixed (mid-word mouth, half-closed eyes)?" If yes, for the ones she picks:
-1. \`recipe_plan\` with recipe \`thumbnail-expression-fix\` and those links. Show the card (model, count, total price) and wait for "go".
-2. \`run_recipe\`, then \`check_jobs\` every 30 seconds until done. Show her each result and let her keep the fixed or the original version per screenshot.
+1. \`recipe_plan\` with recipe \`thumbnail-expression-fix\` and those links, in groups of at most 20 (the tools take 20 per call). Show the card (model, count, total price, adding up the groups) and wait for "go".
+2. \`run_recipe\` per group of at most 20, then \`check_jobs\` every 30 seconds until done. Show her each result and let her keep the fixed or the original version per screenshot.
 
 ## 3. Titles
 

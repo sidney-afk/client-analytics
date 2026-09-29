@@ -570,7 +570,7 @@ async function safeFetch(link: string): Promise<Response | string> {
   return "That link redirects too many times.";
 }
 
-async function readLimited(res: Response): Promise<Uint8Array<ArrayBuffer> | null> {
+async function readLimited(res: Response, max = MAX_IMPORT_BYTES): Promise<Uint8Array<ArrayBuffer> | null> {
   const reader = res.body!.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -578,7 +578,7 @@ async function readLimited(res: Response): Promise<Uint8Array<ArrayBuffer> | nul
     const { done, value } = await reader.read();
     if (done) break;
     total += value.length;
-    if (total > MAX_IMPORT_BYTES) { await reader.cancel(); return null; }
+    if (total > max) { await reader.cancel(); return null; }
     chunks.push(value);
   }
   const out = new Uint8Array(total);
@@ -817,17 +817,20 @@ async function checkJob(jobId: string): Promise<string> {
 const PREVIEW_MAX_BYTES = 4_500_000;
 const WAIT_MS = 40_000; // stays under chat apps' tool-call timeouts
 async function imagePreviews(text: string): Promise<Array<{ type: "image"; data: string; mimeType: string }>> {
-  const links = [...new Set(text.match(/https:\/\/\S+\.(?:png|jpe?g|webp)\b/gi) || [])].slice(0, 4);
+  // Every link in the text, whole (query strings included); whether it is an
+  // image is decided by the response's content type, not the file name.
+  const links = [...new Set((text.match(/https:\/\/[^\s)"'<>]+/g) || []).map((l) => l.replace(/[.,;:]+$/, "")))].slice(0, 8);
   const out: Array<{ type: "image"; data: string; mimeType: string }> = [];
   for (const link of links) {
+    if (out.length >= 4) break;
     try {
       const res = await safeFetch(link);
       if (typeof res === "string" || !res.ok || !res.body) continue;
-      if (Number(res.headers.get("content-length") || 0) > PREVIEW_MAX_BYTES) { await res.body.cancel(); continue; }
-      const bytes = await readLimited(res);
-      if (!bytes || bytes.length > PREVIEW_MAX_BYTES) continue;
-      const ext = link.split(".").pop()!.toLowerCase();
-      out.push({ type: "image", data: toBase64(bytes), mimeType: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" });
+      const mimeType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/(png|jpeg|webp|gif)$/.test(mimeType) || Number(res.headers.get("content-length") || 0) > PREVIEW_MAX_BYTES) { await res.body.cancel(); continue; }
+      const bytes = await readLimited(res, PREVIEW_MAX_BYTES);
+      if (!bytes) continue;
+      out.push({ type: "image", data: toBase64(bytes), mimeType });
     } catch { /* preview is best effort; the link is still in the text */ }
   }
   return out;

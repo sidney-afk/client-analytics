@@ -69,9 +69,13 @@ here with where it stopped, so it can be restarted.
      Edge Function plus its cache-table migration, merged in #1846 (main
      `66750995efb371eadaf503b45ade6d984fd1f8cb`); the page does not use it yet. Waiting on: the owner's go
      to apply `migrations/2026-09-29-filming-plan-tabs-cache.sql`, the owner's
-     `deploy-single-function` dispatch, then `?whoami=1` and sharing the Filming
-     Plan folder with that service account. PR 1b (Kasper switches over) comes
-     after. Owner decisions: the client approve and request-changes buttons are
+     dispatch of
+     `https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml`
+     (function `filming-plan-tabs`, commit `66750995efb371eadaf503b45ade6d984fd1f8cb`), then `?whoami=1`
+     and sharing the Filming Plan folder with that service account. PR 1b
+     (Kasper switches over) starts only after a live read of a real Doc
+     returns its tabs from Google, not from the n8n fallback, and the row
+     lands in the cache table. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
    - **Escape does not close a Calendar card's thumbnail or video edit box**
      (owner 2026-09-26). Last status: still broken. Re-check live first.

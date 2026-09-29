@@ -72,10 +72,12 @@
         });
     }
     // Staff pages served in parts fetch the remaining areas quietly once the
-    // first screen is up, so switching tabs later waits on nothing.
+    // first screen is up, so switching tabs later waits on nothing. A client
+    // link served in parts does not: it has none of those tabs, and an area it
+    // ever did ask for still loads on demand through svArea.
     function _svPrefetchAreas() {
         const lazy = self.__svLoad && self.__svLoad.lazy;
-        if (!lazy) return;
+        if (!lazy || self.__svLoad.client) return;
         for (const name of Object.keys(lazy)) svArea(name).catch(() => {});
     }
     window.addEventListener('load', () => {
@@ -17457,7 +17459,8 @@
        own copies of these URLs and are tracked separately. */
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
-    const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
+       to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
     /* Caption-job tracking. The generate-caption workflow upserts a row per
        run into the caption_jobs n8n data table (status: running/done/error/
        cancelled, stage: scraping → transcribing → writing → done). The UI
@@ -18872,7 +18875,6 @@
         try {
             response = await fetch(url, options);
         } catch (cause) {
-            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), cause, null, {});
             const error = new Error(mutating
                 ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
                 : (timedOut
@@ -18900,7 +18902,6 @@
         if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
         if (!response.ok || !json || json.ok === false) {
             const error = new Error(_ptoApiMessage(json, response.status));
-            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), error, response, {});
             error.status = response.status;
             error.code = json && (json.code || json.error);
             throw error;
@@ -23798,8 +23799,8 @@
         error.calWriteHeld = true;
         return error;
     }
-    function _calWritePausedError() {
-        const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
+    function _calWritePausedError(what) {
+        const error = new Error((what || 'Saving') + ' is paused for this client. Your change is kept and will save once saving is switched back on.');
         error.code = 'client_scope_unavailable';
         error.status = 503;
         error.calWritePaused = true;
@@ -23807,7 +23808,7 @@
     }
     /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
        (never resolves to a guess) when the answer cannot be trusted. */
-    function _calReadWriteFlagFresh() {
+    function _calReadWriteFlagFresh(flagKey) {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
             return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
         }
@@ -23820,7 +23821,7 @@
             }, CAL_WRITE_FLAG_READ_MS);
         });
         const read = (async () => {
-            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(flagKey || CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
             const resp = await fetch(url, {
                 cache: 'no-store',
                 signal: ctrl ? ctrl.signal : undefined,
@@ -23842,17 +23843,21 @@
             }
         );
     }
-    async function _calAssertSavingOn(clientOrSlug) {
+    /* The one guard loop, parameterised by WHICH flag decides. Calendar saves
+       and reorders ask calendar_upsert_ef_clients; the caption prompt save asks
+       settings_ef_clients. Same rules for both: a fresh read of its own, bounded,
+       retried a few times, never a cached or default answer. */
+    async function _calAssertFlagAllows(flagKey, clientOrSlug, onListed, what) {
         let slug = '';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         let lastError = null;
         for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
             try {
-                const listed = await _calReadWriteFlagFresh();
+                const listed = await _calReadWriteFlagFresh(flagKey);
                 // Keep the boot copy honest too, so the rest of the page (which
                 // still asks the cached set for display decisions) agrees.
-                try { _calSetUpsertEfClients(new Set(listed)); } catch (e) {}
-                if (!slug || !listed.has(slug)) throw _calWritePausedError();
+                try { onListed(new Set(listed)); } catch (e) {}
+                if (!slug || !listed.has(slug)) throw _calWritePausedError(what);
                 return true;
             } catch (error) {
                 if (error && error.calWritePaused) throw error;
@@ -23861,6 +23866,15 @@
             }
         }
         throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+    }
+    function _calAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(CALENDAR_UPSERT_FLAG_KEY, clientOrSlug, set => _calSetUpsertEfClients(set), 'Saving');
+    }
+    /* Caption prompt saves (n8n exit, PR 3): settings_ef_clients is now purely a
+       visible save-pause switch. Off for a client pauses the save with a message;
+       it never reroutes to n8n. */
+    function _settingsAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(SETTINGS_EF_FLAG_KEY, clientOrSlug, set => _settingsSetEfClients(set), 'Saving caption prompts');
     }
     function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
@@ -23974,7 +23988,7 @@
             _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
             _settingsSetFlagValue({ clients: [] });
-            console.warn('[Settings] settings EF flag read failed; using n8n fallback', e);
+            console.warn('[Settings] settings EF flag read failed; caption saves stay held until a fresh read succeeds', e);
         }
     }
     async function _settingsSubscribeFlag() {
@@ -23999,15 +24013,6 @@
             _settingsSetFlagPromise(_settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null));
         }
         return _settingsFlagPromise;
-    }
-    function _settingsUseEf(clientOrSlug) {
-        let slug = '';
-        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        return !!slug && _settingsEfClients.has(slug);
-    }
-    function _settingsWriteUrlForClient(clientOrSlug, efUrl, n8nUrl) {
-        _settingsPrimeRoutingFlag();
-        return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
     }
     function _settingsWriteHeaders(source, url) {
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' }, url);
@@ -39385,19 +39390,48 @@
        SyncView Calendar Sheet. The Edit caption prompt modal in
        the per-card kebab edits that tab via caption-prompts-save.
        ============================================================ */
+    /* n8n exit, PR 3: the prompts are read from the caption_prompts table, the
+       one source (it already holds every prompt the n8n Sheet held). The read is
+       a plain REST read: never a cache-buster (PostgREST answers 400 to any
+       parameter it does not know), freshness comes from cache: 'no-store'.
+
+       An ERROR-ONLY fallback keeps a failed read from making Generate send an
+       empty prompt (which would use the generic default, not the client's
+       stored one): first a last-known-good copy kept in this browser, and only
+       when that is empty the n8n caption-prompts-get webhook, which stays as the
+       reachable first-load fallback until a durable server copy exists. */
+    const CAL_CAPTION_PROMPTS_LKG_KEY = 'syncview_caption_prompts_lkg_v1';
+    const CAL_CAPTION_PROMPTS_READ_MS = 6000;
     async function _calLoadCaptionPromptsFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
         const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
-        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const rows = await resp.json();
+        /* Bounded: a request that connects and then never answers must not leave the
+           in-flight load pending forever, or the saved-copy and n8n fallbacks are never
+           reached and every Generate in the tab waits. The abort covers the body too. */
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), CAL_CAPTION_PROMPTS_READ_MS) : null;
+        let rows;
+        try {
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        } finally { if (timer) clearTimeout(timer); }
+        if (!Array.isArray(rows)) throw new Error('caption_prompts: unexpected payload');
         const prompts = {};
-        (Array.isArray(rows) ? rows : []).forEach(row => {
+        rows.forEach(row => {
             const slug = String((row && row.client_slug) || '').trim();
-            if (!slug || !_settingsUseEf(slug)) return;
             if (slug) prompts[slug] = String(row.prompt || '');
         });
         return prompts;
+    }
+    function _calCaptionPromptsLkgRead() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(CAL_CAPTION_PROMPTS_LKG_KEY) || 'null');
+            return raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length ? raw : null;
+        } catch (e) { return null; }
+    }
+    function _calCaptionPromptsLkgWrite(prompts) {
+        try { if (prompts && Object.keys(prompts).length) localStorage.setItem(CAL_CAPTION_PROMPTS_LKG_KEY, JSON.stringify(prompts)); } catch (e) {}
     }
     async function _calLoadCaptionPromptsFromN8n() {
         const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
@@ -39410,17 +39444,19 @@
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
         _calSetCaptionPromptsInFlight((async () => {
             try {
-                const basePrompts = await _calLoadCaptionPromptsFromN8n();
-                _calSetCaptionPrompts(basePrompts);
+                let prompts = null;
                 try {
-                    await _settingsPrimeRoutingFlag();
-                    if (_settingsEfClients.size) {
-                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
-                        _calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));
+                    prompts = await _calLoadCaptionPromptsFromSupabase();
+                    _calCaptionPromptsLkgWrite(prompts);
+                } catch (tableError) {
+                    console.warn('[Calendar] caption_prompts read failed; using the last saved copy', tableError);
+                    prompts = _calCaptionPromptsLkgRead();
+                    if (!prompts) {
+                        console.warn('[Calendar] no saved copy either; asking n8n caption-prompts-get once');
+                        prompts = await _calLoadCaptionPromptsFromN8n();
                     }
-                } catch (supaError) {
-                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
+                _calSetCaptionPrompts(prompts);
                 _calSetCaptionPromptsLoaded(true);
             } catch (e) {
                 console.warn('[Calendar] caption prompts load failed', e);
@@ -39635,6 +39671,12 @@
         // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
         // above so a client switch during this await can't mis-target the job.
         if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
+        // Every source failed: sending now would silently use the generic default
+        // prompt instead of this client's own, so stop and say so.
+        if (!_calCaptionPromptsLoaded) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Could not load this client\u2019s caption prompt. Try again in a moment.');
+            return { ok: false, error: 'Caption prompt unavailable', skipped: true };
+        }
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
@@ -40097,15 +40139,24 @@
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
-                method: 'POST',
-                headers: _settingsWriteHeaders('caption-prompts', writeUrl),
-                body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
-            }), { requireOk: true });
+            // n8n exit, PR 3: the function only, after a fresh, bounded read of
+            // settings_ef_clients. An unreadable flag holds the save, an unlisted client
+            // pauses it with a message; neither ever reroutes to n8n. The read sits inside
+            // the tracked send so a paused or held save is recorded in the failed-saves
+            // log like any other refusal.
+            const writeUrl = CAPTION_PROMPTS_SAVE_EF_URL;
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), async () => {
+                await _settingsAssertSavingOn(client);
+                return fetch(writeUrl, {
+                    method: 'POST',
+                    headers: _settingsWriteHeaders('caption-prompts', writeUrl),
+                    body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
+                });
+            }, { requireOk: true });
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
             _calCaptionPrompts[calClientSlug(client)] = promptText;
+            _calCaptionPromptsLkgWrite(_calCaptionPrompts);
             _calCloseCaptionPromptModal();
             showNotify('Saved', promptText
                 ? 'Custom caption prompt saved for ' + client + '.'
@@ -50777,7 +50828,101 @@
            _prodIssueLabel and still gets the real id (Codex P1 on PR 1455). */
         function _prodIssueDisplayLabel(d) {
             if (d && d.syntheticBatchParent === true) return 'Post';
-            return _prodIssueLabel(d);
+            const label = _prodIssueLabel(d);
+            return _prodIsInternalId(label) ? '' : label;
+        }
+        /* An INTERNAL id is a storage key, never a name: bat_<uuid>, del_<uuid>,
+           b1_b_<uuid>, a bare uuid, or a two-team batch node (`bat_...::uuid`).
+           A Linear number such as SYN-123 has no underscore and is not one.
+           Every place a person reads a parent or batch NAME goes through
+           _prodSafeName so a missing name can never fall through to the key
+           (owner report 2026-09-29: "Sub-issue of bat_44ca2350-7bff-..."). */
+        function _prodIsInternalId(value) {
+            const s = String(value == null ? '' : value).trim();
+            if (!s) return false;
+            const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+            /* The WHOLE value must be a key: a prefix match would swallow a real
+               title such as "video_20260929 launch". */
+            return new RegExp('^(?:[a-z][a-z0-9]{0,5}_){1,2}' + uuid + '(?:::' + uuid + ')?$', 'i').test(s)
+                || new RegExp('^' + uuid + '$', 'i').test(s);
+        }
+        function _prodSafeName(value) {
+            const s = String(value == null ? '' : value).trim();
+            return s && !_prodIsInternalId(s) ? s : '';
+        }
+        /* The name a row already carries: its title, else the batch name it
+           was projected from. Empty means "not known yet", never "show the id". */
+        function _prodKnownName(d) {
+            if (!d) return '';
+            return _prodSafeName(d.title) || _prodSafeName(d.batchName)
+                || _prodSafeName(d.raw && d.raw.name) || _prodSafeName(d.raw && d.raw.title);
+        }
+        /* Names fetched on demand for a parent the page has no name for.
+           id -> { state: 'pending' | 'done' | 'failed', name, at }. A failed
+           or timed-out lookup expires so a later render retries it, and a
+           hung request is abandoned after PROD_PARENT_NAME_TIMEOUT_MS: the
+           in-flight marker used to be cleared only when the request settled,
+           so one request that never answered froze the header for the whole
+           session. */
+        const PROD_PARENT_NAME_TIMEOUT_MS = 6000;
+        const PROD_PARENT_NAME_RETRY_MS = 15000;
+        const _prodParentNames = new Map();
+        function _prodParentNameState(id) {
+            const sid = String(id || '');
+            const held = sid ? _prodParentNames.get(sid) : null;
+            if (!held) return null;
+            if (held.state === 'failed' && Date.now() - held.at > PROD_PARENT_NAME_RETRY_MS) {
+                _prodParentNames.delete(sid);
+                return null;
+            }
+            return held;
+        }
+        function _prodEnsureParentName(id, kind) {
+            const sid = String(id || '');
+            if (!sid || _prodParentNameState(sid)) return;
+            const record = { state: 'pending', name: '', at: Date.now() };
+            _prodParentNames.set(sid, record);
+            let settled = false;
+            const finish = (state, name) => {
+                if (settled) return;
+                settled = true;
+                record.state = state;
+                record.name = _prodSafeName(name);
+                record.at = Date.now();
+                if (record.name) record.state = 'done';
+                else if (state === 'done') record.state = 'failed';
+                if (typeof document !== 'undefined' && document.getElementById('prodRoot') && typeof _prodRender === 'function') {
+                    try { _prodRender(); } catch (e) { /* the next render repaints */ }
+                }
+            };
+            const timer = setTimeout(() => finish('failed', ''), PROD_PARENT_NAME_TIMEOUT_MS);
+            const clean = sid.split('::')[0];
+            const read = kind === 'batch'
+                ? _prodRestRows('batches', 'id,name', 'id=eq.' + encodeURIComponent(clean), 1, 1)
+                    .then(rows => rows && rows[0] && rows[0].name)
+                : _prodLoadDeliverableProjection('id=eq.' + encodeURIComponent(clean))
+                    .then(rows => rows && rows[0] && rows[0].title);
+            Promise.resolve(read).then(name => { clearTimeout(timer); finish('done', name); },
+                () => { clearTimeout(timer); finish('failed', ''); });
+        }
+        /* The parent's name as HTML for a header or link: the real name when the
+           page has one, a grey skeleton while a lookup is in flight, and a plain
+           neutral word once the lookup has come back empty. Never an id. */
+        function _prodParentNameHTML(parent, parentId) {
+            const known = _prodKnownName(parent);
+            if (known) return _calEsc(known);
+            const id = String(parent && parent.id || parentId || '');
+            const batchLike = !!(parent && (parent.syntheticBatchParent === true || parent.batchId)) || /^(?:bat|b1_b)_/i.test(id);
+            let looked = _prodParentNameState(id);
+            if (looked && looked.name) return _calEsc(looked.name);
+            if (!looked && id) {
+                _prodEnsureParentName(id, batchLike ? 'batch' : 'deliverable');
+                looked = _prodParentNameState(id);
+            }
+            if (!looked || looked.state === 'pending') {
+                return '<span class="prod-name-skel sv-skeleton" data-prod-parent-skeleton="1" role="img" aria-label="Loading name"></span>';
+            }
+            return batchLike ? 'Untitled post' : 'Untitled issue';
         }
         /* A provider card's identifier is 9 characters; a native card has none
            yet and falls through to the 40-character deliverable id. The cell
@@ -51430,7 +51575,7 @@
             const items = [];
             if (!query) {
                 issues.filter(i => !i.parent).slice(0, 6).forEach(i => {
-                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+                    items.push({ icon: _prodStatusSVG(i.status), title: (_prodKnownName(i) || _prodIssueDisplayLabel(i) || 'Untitled issue'), meta: _prodIssueDisplayLabel(i), go: () => _prodOpenDeliverable(i.id) });
                 });
                 return items.concat(commands);
             }
@@ -51441,7 +51586,7 @@
             };
             commands.forEach(cmd => addScored(cmd, cmd.title, cmd.meta, ''));
             issues.forEach(i => {
-                addScored({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) }, i.title, _prodIssueLabel(i), i.desc);
+                addScored({ icon: _prodStatusSVG(i.status), title: (_prodKnownName(i) || _prodIssueDisplayLabel(i) || 'Untitled issue'), meta: _prodIssueDisplayLabel(i), go: () => _prodOpenDeliverable(i.id) }, i.title, _prodIssueLabel(i), i.desc);
             });
             Object.keys(_prodProjects()).sort((a, b) => fields.client.name(a).localeCompare(fields.client.name(b))).forEach(slug => {
                 const title = fields.client.name(slug);
@@ -52340,7 +52485,7 @@
             }
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
-                label: _prodIssueLabel(issue) + ' · ' + (issue.title || 'Untitled issue')
+                label: (_prodIssueDisplayLabel(issue) ? _prodIssueDisplayLabel(issue) + ' · ' : '') + (_prodKnownName(issue) || 'Untitled issue')
             })));
             const statusItems = PROD_STATUS_ORDER.map(status => {
                 const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
@@ -61168,7 +61313,7 @@
             const favIssues = _prodIssues().filter(d => d.favorite || d.fav);
             const favHTML = favIssues.length
                 ? '<button class="prod-nav-section' + (_prodState.secOpen.fav ? '' : ' collapsed') + '" type="button" data-prod-tip="Favorites" onclick="_prodToggleSection(' + _jsAttrArg('fav') + ')"><span class="prod-section-label">Favorites</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
-                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), d.title || _prodIssueLabel(d), _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
+                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), _prodKnownName(d) || _prodIssueDisplayLabel(d) || 'Untitled issue', _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
                 : '';
             const teamBlock = team => {
                 const open = _prodState.teamOpen[team] !== false;
@@ -61221,7 +61366,7 @@
             const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batchId) : null;
             const parent = d && d.parent ? _prodIssue(d.parent) : null;
             const clientSlug = d ? d.project : batch ? batch.client_slug : '';
-            const title = d ? (d.title || _prodIssueLabel(d)) : batch ? (batch.name || 'Batch') : 'Detail';
+            const title = d ? (_prodKnownName(d) || 'Untitled issue') : batch ? (_prodSafeName(batch.name) || 'Batch') : 'Detail';
             const showParent = !!parent;
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
@@ -61249,7 +61394,7 @@
             }
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
-                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
+                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodParentNameHTML(parent) + '</button>' : '')
                 + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + siblingNav + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
@@ -61705,15 +61850,22 @@
            creation must not be reachable from Production at all, per
            CLAUDE.md's standing rule; only the content calendar creates. */
         function _prodSubIssueContextHTML(d, parent) {
-            if (!parent) return '';
+            /* A parent that is linked but not loaded yet still gets a header,
+               with a skeleton for its name: dropping the header and painting
+               it later moved the whole page down under the reader. */
+            if (!parent && !(d && d.parent)) return '';
+            if (!parent) {
+                return '<div class="prod-detail-context" data-prod-subissue-of="pending"><span>Sub-issue of</span>'
+                    + '<span class="prod-detail-context-link"><b>' + _prodParentNameHTML(null, d.parent) + '</b></span></div>';
+            }
             const progress = _prodSubProgress(parent);
             const projectLabel = _prodDisplayClient(d.project);
-            const parentTitle = (parent.title || _prodIssueLabel(parent));
+            const parentLabel = _prodIssueDisplayLabel(parent);
             const projectContext = _prodAttributionResolved(d)
                 ? '<button class="prod-context-project" type="button" onclick="_prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Open project"><span class="prod-card-ico">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(projectLabel) + '</span></button>' + _prodAttributionChipOnlyHTML(d)
                 : _prodIssueProjectChipHTML(d);
             return '<div class="prod-detail-context" data-prod-subissue-of="' + _calEscAttr(parent.id) + '"><span>Sub-issue of</span>'
-                + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + _calEsc(_prodIssueLabel(parent)) + ' ' + _calEsc(parentTitle) + '</b></button>'
+                + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + (parentLabel ? _calEsc(parentLabel) + ' ' : '') + _prodParentNameHTML(parent) + '</b></button>'
                 + (progress ? '<span class="prod-subchip" data-prod-tip="' + progress.done + ' of ' + progress.total + ' sub-issues done">' + _prodStatusSVG(progress.done === progress.total && progress.total > 0 ? 'approved' : 'todo') + progress.done + '/' + progress.total + '</span>' : '')
                 + '<span class="prod-spacer"></span>' + projectContext + '</div>';
         }
@@ -62172,7 +62324,7 @@
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodRowOverdue(d) ? 'dueover' : '')
                 + sideRow(_prodLabelsButtonHTML(d))
                 + '</div>'
-                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
+                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _prodParentNameHTML(parent) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row">' + _prodAttributionProjectControlHTML(d) + '</div></div>'
                 + _prodSmmCardHTML(d)
                 + '</div>';
@@ -81312,4 +81464,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-37d9483c4e29.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-ce2a2d8adfda.js");

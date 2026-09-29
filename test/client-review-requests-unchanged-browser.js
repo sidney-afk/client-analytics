@@ -117,6 +117,7 @@ async function runSurface(browser, origin, name) {
   await page.waitForTimeout(400);
   if (await page.$('#confirmOverlay.active')) await page.click('#confirmYes');
   await page.waitForTimeout(2500);
+  const loadMode = await page.evaluate(() => (self.__svLoad ? self.__svLoad.mode : 'single-file'));
   const approveWrites = writes.slice(before).map(normaliseRequest);
 
   const panel = `${card} .cal-review-panel[data-comp="${tweakComp}"]`;
@@ -127,7 +128,7 @@ async function runSurface(browser, origin, name) {
   await page.waitForTimeout(2500);
   const tweakWrites = writes.slice(before2).map(normaliseRequest);
   await ctx.close();
-  return { approve: approveWrites, requestChanges: tweakWrites, errors };
+  return { approve: approveWrites, requestChanges: tweakWrites, errors, loadMode };
 }
 
 function functionHashes() {
@@ -148,11 +149,13 @@ function functionHashes() {
   const browser = await chromium.launch({ headless: true });
   const result = { requests: {}, functions: functionHashes() };
   let pageErrors = [];
+  const loadModes = {};
   try {
     for (const name of Object.keys(SURFACES)) {
       const r = await runSurface(browser, origin, name);
       result.requests[name] = { approve: r.approve, requestChanges: r.requestChanges };
       pageErrors = pageErrors.concat(r.errors);
+      loadModes[name] = r.loadMode;
       console.log(`  ${name}: approve sent ${r.approve.length} write(s), request changes sent ${r.requestChanges.length} write(s)`);
     }
   } finally { await browser.close(); server.close(); }
@@ -180,5 +183,10 @@ function functionHashes() {
     ok(true, `${name}: source is byte-identical to main`);
   }
   ok(pageErrors.length === 0, 'no page errors on either client review link');
+  // Plan step 5: with split.json on and "clients" on, a client link is served in
+  // parts. Prove the requests above were recorded on the code as it ships.
+  const splitCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8'));
+  const want = splitCfg.enabled && splitCfg.clients ? 'parts' : (splitCfg.enabled ? 'full' : 'single-file');
+  for (const name of Object.keys(SURFACES)) ok(loadModes[name] === want, `${name}: the client link was served as "${want}" (got "${loadModes[name]}"), so these requests are the shipped code's`);
   console.log(`\nclient-review-requests-unchanged: ${passed} checks passed`);
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });

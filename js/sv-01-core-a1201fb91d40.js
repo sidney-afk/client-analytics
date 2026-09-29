@@ -72,10 +72,12 @@
         });
     }
     // Staff pages served in parts fetch the remaining areas quietly once the
-    // first screen is up, so switching tabs later waits on nothing.
+    // first screen is up, so switching tabs later waits on nothing. A client
+    // link served in parts does not: it has none of those tabs, and an area it
+    // ever did ask for still loads on demand through svArea.
     function _svPrefetchAreas() {
         const lazy = self.__svLoad && self.__svLoad.lazy;
-        if (!lazy) return;
+        if (!lazy || self.__svLoad.client) return;
         for (const name of Object.keys(lazy)) svArea(name).catch(() => {});
     }
     window.addEventListener('load', () => {
@@ -3502,7 +3504,7 @@
                 method: 'POST',
                 headers: _settingsWriteHeaders('templates', writeUrl),
                 body: JSON.stringify({ clientName: name, patch }),
-            }));
+            }), { requireOk: true });
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'Save failed');
             // Merge — never replace. The server only echoes back the fields it just wrote
@@ -3724,4 +3726,4 @@
     }
 
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-01-core-7b67fdd9e6c6.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-01-core-a1201fb91d40.js");

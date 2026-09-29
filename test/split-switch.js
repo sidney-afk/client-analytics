@@ -20,6 +20,12 @@ ok(render(cfg, cfg.enabled) === onDisk, 'render() reproduces the committed split
 ok(JSON.parse(render(cfg, false)).enabled === false && JSON.parse(render(cfg, true)).enabled === true, 'off and on flip only "enabled"');
 ok(JSON.stringify(JSON.parse(render(cfg, false)).lazy) === JSON.stringify(cfg.lazy), 'the on-demand list survives a switch off and on');
 ok(render({ enabled: true }, false) === '{\n  "enabled": false\n}\n', 'a config with no on-demand list renders without one');
+// Step 5: "clients" is its own switch, and neither switch disturbs the other.
+ok(cfg.clients === true, 'split.json has clients on (client share links get the parts)');
+ok(JSON.parse(render(cfg, false)).clients === true, 'switching the split off leaves the clients setting as it was');
+ok(JSON.parse(render(cfg, true, false)).clients === false && JSON.parse(render(cfg, true, false)).enabled === true, 'clients off flips only "clients"');
+ok(JSON.stringify(JSON.parse(render(cfg, true, false)).lazy) === JSON.stringify(cfg.lazy), 'the on-demand list survives clients off');
+ok(render({ enabled: true, lazy: ['a'] }, true) === '{\n  "enabled": true,\n  "lazy": ["a"]\n}\n', 'a config without "clients" renders without one');
 
 // 2. The prune lists only files no recent index.html names.
 const page = '<script>var P=["js/sv-01-core-0123456789ab.js","js/sv-02-templates-abcdef012345.js"];var L={"kasper":"js/sv-16-kasper-aaaaaaaaaaaa.js"}</script>';

@@ -5,7 +5,8 @@
  *
  *   node scripts/split-switch.js status   # print the current state
  *   node scripts/split-switch.js off      # THE WAY BACK: everyone gets the single file again
- *   node scripts/split-switch.js on       # staff get the split parts (clients keep the single file)
+ *   node scripts/split-switch.js on       # staff (and client links, when clients is on) get the split parts
+ *   node scripts/split-switch.js clients on|off   # client share links get the parts / the single file (step 5)
  *
  * It sets "enabled" in src/index/split.json (nothing else in that file changes)
  * and rebuilds, so index.html, src/index/INDEX.md and, when on, js/ come out
@@ -26,26 +27,33 @@ const CONFIG = path.join(ROOT, 'src', 'index', 'split.json');
 
 function read() { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); }
 // The file's text for a config: enabled, then the on-demand list, one line each.
-function render(cfg, enabled) {
+function render(cfg, enabled, clients = cfg.clients) {
   const lazy = Array.isArray(cfg.lazy) ? `,\n  "lazy": ${JSON.stringify(cfg.lazy).replace(/","/g, '", "')}` : '';
-  return `{\n  "enabled": ${enabled}${lazy}\n}\n`;
+  const cl = typeof clients === 'boolean' ? `,\n  "clients": ${clients}` : '';
+  return `{\n  "enabled": ${enabled}${lazy}${cl}\n}\n`;
 }
 function setEnabled(enabled) { fs.writeFileSync(CONFIG, render(read(), enabled)); }
+function setClients(clients) { const cfg = read(); fs.writeFileSync(CONFIG, render(cfg, cfg.enabled, clients)); }
 
 if (require.main === module) {
   const cmd = process.argv[2];
   if (cmd === 'status') {
     const cfg = read();
-    console.log(`split: ${cfg.enabled ? 'ON (staff get parts, everyone else the single file)' : 'OFF (everyone gets the single file)'}; on demand: ${(cfg.lazy || []).join(', ') || 'none'}`);
+    console.log(`split: ${cfg.enabled ? `ON (staff get parts, client links ${cfg.clients ? 'get parts' : 'keep the single file'}, forms and signed-out visitors the single file)` : 'OFF (everyone gets the single file)'}; on demand: ${(cfg.lazy || []).join(', ') || 'none'}`);
+  } else if (cmd === 'clients' && (process.argv[3] === 'on' || process.argv[3] === 'off')) {
+    setClients(process.argv[3] === 'on');
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-index.js')], { cwd: ROOT, stdio: 'inherit' });
+    if (r.status !== 0) process.exit(r.status || 1);
+    console.log(`split-switch: client links ${process.argv[3].toUpperCase()}. Commit src/index/split.json, index.html, src/index/INDEX.md and js/ and push to main.`);
   } else if (cmd === 'on' || cmd === 'off') {
     setEnabled(cmd === 'on');
     const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-index.js')], { cwd: ROOT, stdio: 'inherit' });
     if (r.status !== 0) process.exit(r.status || 1);
     console.log(`split-switch: ${cmd.toUpperCase()}. Commit src/index/split.json, index.html, src/index/INDEX.md${cmd === 'on' ? ' and js/' : ''} and push to main.`);
   } else {
-    console.error('Usage: node scripts/split-switch.js status|on|off');
+    console.error('Usage: node scripts/split-switch.js status|on|off|clients on|clients off');
     process.exit(2);
   }
 }
 
-module.exports = { read, render, setEnabled };
+module.exports = { read, render, setEnabled, setClients };

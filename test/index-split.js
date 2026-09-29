@@ -4,6 +4,8 @@
  * Plan: docs/plans/2026-09-28-load-per-tab-plan.md, step 2. */
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const vm = require('vm');
 const { readModuleList, servedBytes } = require('../scripts/index-modules');
 const { buildOutputs, readSplitConfig } = require('../scripts/index-split');
 
@@ -64,6 +66,75 @@ for (const force of ['split', 'parts']) {
   t(html.endsWith(Buffer.concat(served.slice(jsIdx[jsIdx.length - 1] + 1)).toString('utf8')), `${force}: every byte after the main script is unchanged`);
   t(parts.every(p => html.includes(JSON.stringify(p))) && html.includes(JSON.stringify(full)), `${force}: the loader names every file`);
   t(/var FORCE = (null|"parts");/.test(html) && (force === 'parts') === html.includes('var FORCE = "parts";'), `${force}: only --force-split=parts sends everyone the parts`);
+}
+
+// Who gets which script (plan step 5): run the real loader, from a build made with
+// split.json "clients" on and off, against a fake browser, for every kind of visitor.
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'svsplit-'));
+  fs.copyFileSync(path.join(SRC, 'areas.txt'), path.join(tmp, 'areas.txt'));
+  const loaderFor = clients => {
+    fs.writeFileSync(path.join(tmp, 'split.json'), JSON.stringify(Object.assign({ enabled: true, lazy: cfg.lazy || [] }, clients === undefined ? {} : { clients })));
+    const html = buildOutputs(tmp, entries, bufs, modules, null).get('index.html').toString('utf8');
+    const start = html.indexOf('    /* SyncView loader.');
+    return html.slice(start, html.indexOf('\n    })();\n', start) + '\n    })();\n'.length);
+  };
+  const run = (src, { url, staff, off }) => {
+    const u = new URL('https://example.invalid' + url);
+    const store = new Map(off ? [['syncview_split_off', '1']] : []);
+    if (staff) store.set('syncview_staff_identity_v1', '{}');
+    const written = [];
+    const ctx = {
+      location: { search: u.search, hash: u.hash },
+      localStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) },
+      sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+      document: { write: s => written.push(s) }, URLSearchParams,
+    };
+    ctx.self = ctx;
+    vm.runInNewContext(src, ctx);
+    return { mode: ctx.__svLoad.mode, client: ctx.__svLoad.client, lazy: Object.keys(ctx.__svLoad.lazy).length, files: ctx.__svLoad.files.length, sticky: store.get('syncview_split_off') === '1', store };
+  };
+  const CLIENT = '/index.html?c=Some+Client&t=tok&v=calendar';
+  const on = loaderFor(true), offCfg = loaderFor(false), unset = loaderFor(undefined);
+  t(/var CLIENTS = true;/.test(on) && /var CLIENTS = false;/.test(offCfg) && /var CLIENTS = false;/.test(unset), 'the loader records "clients" from split.json (missing means false: client links keep the single file)');
+  const cases = [
+    ['client link, clients on', on, { url: CLIENT }, 'parts', true],
+    ['client link with ?t only, clients on', on, { url: '/index.html?t=tok' }, 'parts', true],
+    ['client link, staff browser, clients on', on, { url: CLIENT, staff: true }, 'parts', true],
+    ['client link, clients off', offCfg, { url: CLIENT }, 'full', false],
+    ['client link, clients missing from split.json', unset, { url: CLIENT }, 'full', false],
+    ['client link, clients off, staff browser', offCfg, { url: CLIENT, staff: true }, 'full', false],
+    ['client link with ?split=0', on, { url: CLIENT + '&split=0' }, 'full', false],
+    ['client link in a browser that opted out', on, { url: CLIENT, off: true }, 'full', false],
+    ['intake form', on, { url: '/?intake=1' }, 'full', false],
+    ['onboarding form', on, { url: '/?onboarding=1&c=Some+Client' }, 'full', false],
+    ['onboarding view, staff browser', on, { url: '/?onboarding_view=1', staff: true }, 'full', false],
+    ['SMM weekly report, staff browser', on, { url: '/#smm-weekly-report', staff: true }, 'full', false],
+    ['signed-out visitor', on, { url: '/' }, 'full', false],
+    ['signed-in staff', on, { url: '/#calendar', staff: true }, 'parts', false],
+    ['signed-in staff, clients off', offCfg, { url: '/', staff: true }, 'parts', false],
+    ['signed-in staff with ?split=0', on, { url: '/?split=0', staff: true }, 'full', false],
+  ];
+  for (const [label, src, opts, mode, client] of cases) {
+    const r = run(src, opts);
+    t(r.mode === mode && r.client === client && (mode === 'full' ? r.files === 1 && r.lazy === 0 : r.files > 1 && r.lazy === (cfg.lazy || []).length), `loader: ${label} gets ${mode}${mode === 'parts' ? ' (' + r.files + ' files, ' + r.lazy + ' on demand)' : ''}${client ? ', flagged as a client link' : ''}`);
+  }
+  const s0 = run(on, { url: CLIENT + '&split=0' });
+  t(s0.sticky, 'loader: ?split=0 on a client link is remembered for that browser');
+  t(run(on, { url: CLIENT + '&split=1', off: true }).mode === 'parts', 'loader: ?split=1 on a client link clears the opt-out');
+  // The way back for everyone: with "enabled" false, whatever "clients" says, the
+  // build is the plain single file, byte for byte, and writes nothing else.
+  fs.writeFileSync(path.join(tmp, 'split.json'), JSON.stringify({ enabled: false, lazy: cfg.lazy || [], clients: true }));
+  const offBuild = buildOutputs(tmp, entries, bufs, modules, null);
+  t(offBuild.size === 1 && offBuild.get('index.html').equals(concat), 'split off (with clients on): index.html is exactly the fragments concatenated, nothing else written');
+  fs.writeFileSync(path.join(tmp, 'split.json'), JSON.stringify({ enabled: true, clients: 'yes' }));
+  let bad = false; try { buildOutputs(tmp, entries, bufs, modules, null); } catch (e) { bad = /clients/.test(e.message); }
+  t(bad, 'a "clients" value that is not true or false is refused');
+  fs.writeFileSync(path.join(tmp, 'split.json'), JSON.stringify({ enabled: true, lazy: cfg.lazy || [], clients: true }));
+  const forced = buildOutputs(tmp, entries, bufs, modules, 'parts').get('index.html').toString('utf8');
+  const fl = forced.slice(forced.indexOf('    /* SyncView loader.'));
+  t(run(fl.slice(0, fl.indexOf('\n    })();\n') + '\n    })();\n'.length), { url: CLIENT }).client === true, 'loader: forced-parts preview still flags a client link, so it skips the quiet download');
+  fs.rmSync(tmp, { recursive: true, force: true });
 }
 
 if (failed) { console.error(`index-split: ${failed} check(s) failed`); process.exit(1); }

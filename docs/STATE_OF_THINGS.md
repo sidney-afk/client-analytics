@@ -12,6 +12,81 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## The owner's priority order (set 2026-09-29, keep this current)
+
+The owner asked for this list to live here so no session loses it. Work top down.
+When an item is done, move it to "Done" below in the same PR; when the owner
+reorders or adds, edit this list, never a side document.
+
+1. **2026-10-01: analytics database on for every client.** Check the daily
+   Sheets-to-Supabase copy ran clean, then ask the owner's go to set
+   `analytics_mirror_read_enabled` to `{"enabled": true}`. This also removes the
+   client link's 2 to 4 s wait on the `Metrics` and `Clients Info` Sheets
+   (`docs/audits/2026-09-23-boot-baseline.md` section 3.4). Plan:
+   `docs/plans/2026-09-28-analytics-switch-on.md`. Then the one-message Slack
+   alert (under "Needs the owner").
+2. **2026-10-01: n8n measurements for the plan-downgrade decision.** September
+   is the first full month the execution-quota watchdog counts. Report the real
+   monthly executions against the plan tiers (sizing in OPEN_REPAIRS 233: about
+   100k a month, a 50k plan does not fit without cuts) and what would have to
+   stop to fit a smaller plan. No n8n edits without the owner's go.
+3. **Load-per-tab, step 4 (Mason).** After Kasper (#1841) merges and Vigil
+   hand-tests it: switch the split on for staff only, measured before and after,
+   with a one-step switch back. SyncLinear is skipped for now (owner,
+   2026-09-29); revisit only if step 4's numbers justify it.
+4. **Failed saves: finish the log.** Built: the write-refusal log (#1499) and
+   an admin page to read it (#1792). It records Calendar, Samples, Production
+   and intake refusals, best-effort. Left: confirm the `traffic` column fills,
+   and report from the surfaces that do not yet (Filming plans, Templates and
+   others without `_writeUiRecordFailure`).
+5. **Load-per-tab, step 5: client links get the smaller page.** Needs the
+   owner's separate go after a week of staff use. This is the big client-side
+   speed gain (about 3 s to about 1.7 s on a typical phone, plan estimate).
+6. **Make this repo private, maintainably (owner wants it, 2026-09-29; this
+   replaces the 2026-09-24 "keep it public for now").** Move scheduled jobs and
+   automation off GitHub Actions (for example Supabase pg_cron and Edge
+   Functions) so going private costs little. Keep hosting on GitHub Pages
+   (owner, 2026-09-24: "I want to keep using GitHub"; the owner already pays
+   for GitHub Pro, which serves Pages from a private repo). Plan: `docs/plans/2026-09-24-owner-backlog.md` section 1; costs:
+   `docs/ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md`.
+7. **Navigation, then look and feel** (roadmap phases D and E in
+   `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
+   the owner's own observations.
+
+8. **Agreed earlier, not yet scheduled** (found by an audit of the owner's
+   requests on 2026-09-29; the owner orders these):
+   - **Move SyncView's own traffic off n8n** (owner 2026-09-28, "completely
+     optimize n8n execution"): Filming Plan Tabs (about 36% of runs), Calendar
+     Upsert Post and its comment merge, Caption Prompts, Sample Review Upsert.
+     Pairs with item 2. Branch `forge/filming-plan-tabs-batch` holds no work;
+     only the hourly booking-recovery timer was done.
+   - **Escape does not close a Calendar card's thumbnail or video edit box**
+     (owner 2026-09-26). Last status: still broken. Re-check live first.
+   - **Daily real-browser client check from a local session, Samples included,
+     noting odd loads, pop-ups and delays** (owner 2026-09-22). The shipped
+     morning check is headless on GitHub and has no Samples flow.
+   - **Write down how to prompt local sessions to use the app's Browser pane
+     instead of Chrome** (owner 2026-09-23, "write this somewhere").
+   - **Public-key reads of `calendar_posts` and `sample_reviews`, phases 1 and 2**
+     (#1691; owner 2026-09-27, "let's do it later"). Same pass: `anon` still
+     holds INSERT, UPDATE and TRUNCATE grants (no write policy, RLS on) on ten
+     tables, among them `clients`, `templates`, `team_members` and
+     `syncview_runtime_flags` (measured live 2026-09-29). Row writes are
+     refused; TRUNCATE ignores RLS, so this is defence in depth, as #1772 did
+     for three other tables.
+   - **The shared SMM key after a former SMM left**: changing it is the only
+     complete fix; needs the owner's decision.
+   - **Remove the Production "archive asset repair" button**: kept only for the
+     Linear rescue, which is no longer needed.
+   - **Stop Slack channels being missed**: a client's channel lives in two
+     places; have the profile fill the notification setting automatically.
+   - **Move everything else off Google Sheets, SMMs included** (owner
+     2026-09-27 and 09-28, "a story for another day"). Analytics is item 1.
+
+Dated items that must not slip: 2026-10-01 (items 1 and 2), 2026-10-15
+(assurance-ledger rows expire, under "Needs the owner"), and retiring the
+hiring senders when the editor hire closes.
+
 ## Needs the owner
 
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
@@ -61,7 +136,8 @@ line is older than a week, re-check it before relying on it.
   value differs; Supabase lacks Metrics 26-28 Sept and TopVideos 26-27 Sept,
   filled by the new daily copy lane once the owner adds its secret and
   variable. Staff read, daily parity check and catch-up job are built but the
-  staff scopes need `analytics-read` deployed. Switch-on plan and every other
+  staff scopes needed `analytics-read` deployed, which the owner did on
+  2026-09-28 (#1810). Switch-on plan and every other
   reader: `docs/plans/2026-09-28-analytics-switch-on.md`.
   `client_profiles_authority` is still `sheet`.
 - **`mirror_outbox` still grows** (236 new rows in the last 24 hours, all
@@ -81,8 +157,8 @@ line is older than a week, re-check it before relying on it.
 - The historical monitoring cutover workflow retains only its manual TEST
   cleanup and roster report. Its Linear-dependent proof jobs are retired.
   Other Linear-only workflows are unscheduled for hand dispatch.
-- SyncView v2 (Next.js) and making the repo private: plans only; the owner
-  decided on 2026-09-24 to keep the repo public for now.
+- SyncView v2 (Next.js): plans only. (Making the repo private is no longer
+  dormant: the owner wants it, see priority item 6.)
 
 ## Done (was listed as open somewhere)
 
@@ -123,8 +199,11 @@ line is older than a week, re-check it before relying on it.
   re-measure across tables, sequences, columns, functions, schemas and
   policies returns 0 rows (`migrations/2026-09-27-authenticated-grants-revoke-three.sql`,
   PR #1772). Anonymous sign-in stays OFF until the owner turns it on.
-  Still open, separate: `anon` holds write and TRUNCATE grants (no SELECT) on
-  the same three tables.
+  The separate `anon` write and TRUNCATE revoke on the same three tables is
+  applied too (#1772; measured live 2026-09-29: no anon write on
+  `filming_plans`, `smm_weekly_reports`, `social_media_managers`), although the
+  migration file's header still says NOT APPLIED. Ten other tables still carry
+  anon write grants: priority item 8.
 
 - **F27 capture guidance already names the three-function closure.** Read-only
   source check on 2026-09-26: `CLAUDE.md` and the Section 4 workflow both name

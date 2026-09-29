@@ -151,6 +151,12 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 
 ## Things that will waste a cycle if you forget them
 
+- **Before telling the owner something is not built or not done, check the
+  live system or `git log origin/main`, not a doc line or your own summary.**
+  Stale "not built yet" lines have misled sessions several times (the refusal
+  log, the New issue button, the Linear rescue). If a doc line is wrong, fix it
+  in the same PR.
+
 - `npm test` is the full suite and takes several minutes. `npm run test:prod-polish`
   **cannot pass WHOLE in a sandbox with no route to the live backend** — the
   live-read lanes fail identically on `origin/main`, so verify against `main`
@@ -167,7 +173,8 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 - `docs/ops/OPEN_REPAIRS.md` is the ledger and the owner cares about it. Append,
   never rewrite. **Check for duplicate `## N.` headers after any merge** —
   concurrent branches routinely claim the same number.
-- With the browser publishable key you can READ most tables but write nothing;
+- With the browser publishable key you can READ many tables (not the card tables
+  closed in #1691 phase 0) but write nothing;
   `production_comments` and every `production_comment_*` table return 42501.
 - Refused writes on the Calendar, Samples, Production and intake paths are now
   reported to a server-side write-refusal log (since 2026-09-23; OPEN_REPAIRS 101

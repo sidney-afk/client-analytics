@@ -3321,7 +3321,7 @@ export {
   _calCapJobPollTimer, _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calClearStaleApprovals, _calComponentsFor,
   _calIsTitleReviewOn, _calIsYouTubeCard, _calLoadCommentsField, _calNormStatus,
-  _calAssertSavingOn, _settingsAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp,
+  _calAssertFlagAllows, _calAssertSavingOn, _settingsAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp,
   _calRuntimeFlagClient, _calRuntimeFlagClients, _calSetCapJobBatch, _calSetCapJobPollBusy,
   _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,

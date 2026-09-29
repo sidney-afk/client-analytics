@@ -28,7 +28,7 @@ import {
   URGENT_EDITOR_NEEDS_NATIVE, _calKasperUrgentActive, _calPostLinearComment, _calUrgentButtonHtml,
   _calUrgentSlackDispatch, _linearOutboxFlush, _writeUiLegacyHydrateConfirmedCacheAfterAuthority,
   _writeUiLegacyQuarantineRead, _writeUiLegacyReconcileCommittedTombstones,
-  _writeUiLegacyShedRetired, _writeUiMigratePinnedCalendarGates
+  _writeUiLegacyShedRetired, _writeUiMigratePinnedGates
 } from './140-calendar-legacy-outbox.js';
 import { CAL_CACHE_KEY_PREFIX, _calCacheWrite, _calHydrateLinearMeta, _calPruneLinearMetaForAuthority } from './150-calendar-hydration-import.js';
 import { _calRenderBody, _calThumbImgTag } from './160-calendar-organize-ui.js';
@@ -892,7 +892,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                together) before the drain looks at it. Staff only; a client
                link is carved out. Never throws. */
             if (owner.kind !== 'client') {
-                await _writeUiMigratePinnedCalendarGates().catch(() => null);
+                await _writeUiMigratePinnedGates().catch(() => null);
                 if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
             }
             const calendarHasOwnedDebt = _linearOutboxRead()

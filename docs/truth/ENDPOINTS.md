@@ -27,7 +27,7 @@ clients fall to n8n. Flag-read failure and some EF failures also silently select
 n8n writer (F67); this is an open auth/failover defect, not a safe fallback contract. See the audit
 register and `ROLLBACK.md` before changing routing.
 
-## n8n webhooks (48)
+## n8n webhooks (47)
 
 **Corrected 2026-09-21:** The Linear bridge list below is a retained endpoint/source inventory. It is not a list of active staff write targets after cutoff. Outbound and parity are off; new native work must not require a provider request.
 
@@ -50,7 +50,8 @@ import-confirmation read goes to the Supabase functions `calendar-upsert` and `c
 Sample reviews (SXR). **Corrected 2026-09-24:** the legacy Samples page was removed; its three
 `samples-*` webhooks (get, upsert, reorder) and its `content_samples` REST read are no longer called
 (old `#samples` links redirect to Sample reviews). The n8n workflows and the table still exist.
-- `webhook/sample-review-get`, `webhook/sample-review-upsert`, `webhook/sample-review-reorder`
+- `webhook/sample-review-get`, `webhook/sample-review-upsert`
+- **Sample review saves and reorders (n8n exit PR 4, 2026-09-29):** every staff and Kasper Sample save and reorder goes to `functions/v1/sample-review-upsert` and `functions/v1/sample-review-reorder` only, after a fresh, bounded read of `sample_review_ef_clients` (own read per write, 2 s, `cache: 'no-store'`, only `select`, `key`, `limit`). An unreadable, slow or malformed flag HOLDS the write; a flag that does not list the client PAUSES it with a message; neither reaches n8n. The n8n `sample-review-reorder` call is gone. `sample-review-get` stays only as the read fallback and for verifying repairs still pinned `webhook`; `sample-review-upsert` stays only to replay such a repair, until the on-load migration moves it. The client link's approve and request-changes keep their old routing and request byte for byte (`test/samples-client-carveout-byte-identical-browser.js`). `sample-review-upsert` itself stays frozen and ungated.
 
 Linear bridge:
 - `webhook/linear-issues`, `webhook/log-linear-submission`

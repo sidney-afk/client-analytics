@@ -46,7 +46,11 @@ function rest(table, qs) {
 }
 const item = id => (rest('production_deliverables_browser_v1', `id=eq.${encodeURIComponent(id)}&select=id,status,updated_at,team,card_id`)[0] || null);
 const itemEvents = id => rest('deliverable_events', `deliverable_id=eq.${encodeURIComponent(id)}&action=eq.status_change&order=ts.asc&select=ts,from_status,to_status,payload`);
-async function shot(page, name) { await page.screenshot({ path: path.join(SHOTS, name + '.png') }); }
+// Pictures never carry a thumbnail or a photo from a neighbouring card: media is hidden first.
+async function shot(page, name) {
+  await page.addStyleTag({ content: 'img, video, canvas, iframe, [style*="background-image"] { visibility: hidden !important; background-image: none !important; }' }).catch(() => {});
+  await page.screenshot({ path: path.join(SHOTS, name + '.png') });
+}
 async function pollUntil(fn, pred, ms) { const t = Date.now(); let v; while (Date.now() - t < ms) { v = await fn(); if (pred(v)) return v; await sleep(1500); } return null; }
 
 const SURFACES = {

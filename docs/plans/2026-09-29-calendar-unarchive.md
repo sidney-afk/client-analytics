@@ -5,6 +5,9 @@ The owner approved the mock-up in `docs/syncview-design/mockups/calendar-unarchi
 OQ1 (accept the message) and A1 (no record -> To do); both are applied below.
 Code: `src/index/186-archived-restore.js.part`, the two menu items in `160` and `270`, the
 `restore-archived` capability in `100`, styles in `020`.
+Live proof on the test client: `qa/probes/arx_restore_live.js` (on demand), pictures in
+`docs/syncview-design/mockups/calendar-unarchive/live/` (before archive, after archive, menu,
+list, confirm, success, after restore, for Calendar and Samples).
 **Written by the session named Harbor.** Counts only, no client names or slugs (public repo).
 Measured by reading the code at main `566402637b5751a71e43b80ff1c95e6ed5fb3997`. Nothing here was checked against the
 live database; every "live" claim is marked as read from repo notes, or as a

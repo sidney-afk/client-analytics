@@ -21,6 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { execFileSync } = require('child_process');
+const { stripComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -222,7 +223,7 @@ function rest() {
 
 function sourceShape() {
   console.log('source shape');
-  const code = fragment.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const code = stripComments(fragment);
   ok(!/method:\s*'(PATCH|PUT|DELETE)'/.test(code), 'no PATCH, PUT or DELETE anywhere in the feature');
   const posts = code.match(/method:\s*'POST'/g) || [];
   ok(posts.length === 2, 'exactly two POST calls: the guarded production-write status move and the position write (found ' + posts.length + ')');

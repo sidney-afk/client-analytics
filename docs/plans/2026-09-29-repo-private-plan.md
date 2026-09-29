@@ -193,7 +193,10 @@ Also settle before the switch:
 * **Artifact storage:** the repo holds about **1.6 GB** of live workflow
   artifacts (2,588 listed, 14 to 30 day retention). Private repos have a quota
   (about 1 GB on Pro; confirm on the billing page) and overage is billed. Cut
-  retention to 3 days on all upload steps and prune before the switch.
+  retention on screenshot and log uploads only, after listing which artifacts
+  other workflows download by run ID: `graphics-f2-preflight` and
+  `graphics-f2-evidence` consume older receipts and drainer terminals (kept 30
+  and 14 days today), so those keep their windows or move to a durable store.
 * **The self-hosted runner never runs on a public repo.** Anyone's pull request
   could run code on it. Register it only after the repo is private (step 9).
 
@@ -207,7 +210,13 @@ Codex review found these on the first draft; all three are requirements.
   service-role key, staff credentials or the Slack webhook (nightlies, monitors,
   deploys, backups) stay on GitHub-hosted runners, or on a separate runner group
   and host if the owner later wants them moved. The `CI_RUNNER` variable applies
-  to pull-request workflows only.
+  to pull-request runs only, chosen **per job and per event**, not per workflow:
+  a workflow with mixed triggers (for example `graphics-f2-evidence`, whose
+  manual job holds the production environment, a database credential and
+  `SUPABASE_ACCESS_TOKEN`) must either split into two workflows or use
+  `runs-on: ${{ github.event_name == 'pull_request' && vars.CI_RUNNER || 'ubuntu-latest' }}`
+  so its credentialed jobs never reach the PR pool. Inventory every workflow
+  with both a `pull_request` trigger and a credentialed job before step 7.
 * **Separate Docker per runner.** Seven workflows publish the test database as
   host port `5432:5432` (`calendar-unit-tests` twice, `linear-exit-preparation-ci`
   on a four-way matrix, `f27-team-rollback-proof`, `f42-apply-rehearsal`,
@@ -233,14 +242,19 @@ Each is one small pull request, measured against a week of runs before and after
    documentation-only ones. Same rule for `linear-exit-preparation-ci`.
 3. Stop re-running the whole suite on `push: main` for changes that already
    passed on the pull request (539 runs a month of `calendar-unit-tests` alone),
-   or keep only a cheap smoke job there.
+   only once a merge queue (or equivalent) tests the exact merge candidate;
+   until then keep a cheap smoke job there.
 4. Cache Playwright and npm downloads (each browser job re-installs).
 5. Drop the GitHub Pages branch build (3,700 min/mo) when the deploy moves to
    the workflow in 5.1, which builds nothing and uploads a folder.
 
-Owner review point: (2) and (3) reduce how often a full test runs. Both keep the
-suite as the merge gate; I propose making the full suite run at "ready for
-review" and on the merge, not on every push to a draft. That is the owner's call.
+Merge-gate rule (Codex review): every commit that can merge must have a full
+result on its exact SHA. So keep the `synchronize` trigger (a run per push)
+with cancellation of superseded runs; do not move the full suite to "ready for
+review" only, because a later push would then merge untested. Item 3 (dropping the
+`push: main` re-run) is safe only if the gate runs on the exact candidate, for
+example through a merge queue; until then keep a cheap smoke job on `push: main`.
+Owner review point: none of these lowers what a merge is checked against.
 
 ## 4. Scheduled jobs: what moves off Actions, in order, and what stays
 
@@ -261,7 +275,7 @@ and why it is not enough. pg_cron runs on the second.
 | 0 | `pg_net` | Enable the extension in a migration; store the runner keys in Vault | small | Prerequisite for waves 1 and 2. Reversible with `drop extension` |
 | 1 | `rename-propagation-drain` | pg_cron calls the existing `rename_propagation_drain` function directly, every 5 min, in passes of 200 | small | Pure SQL already. Move its on/off from the repo variable to a `syncview_runtime_flags` row; keep the `rename_propagation` flag as is |
 | 1 | `native-notification-sender` and `native-notification-monitor` | pg_cron plus pg_net POST to the existing `notify` function with the runner key from Vault | small | **Do not schedule the sender until a server-side gate exists.** Today the only dormant gate is the workflow's `NATIVE_NOTIFICATION_SENDER_ENABLED` variable; `supabase/functions/notify/index.ts` has no enable check, so a pg_cron POST would start client delivery at once (AGENTS.md owner directive: nothing to client channels). Order: add a fail-closed runtime flag checked by the function or the cron wrapper, prove it reads false live, then install the cron, then enable only on the owner's separate go. The monitor is read-only and can move first |
-| 1 | `thumbnail-revision-scan` | pg_cron plus pg_net calling the existing `thumbnail-revision-scan` Edge Function every 10 min with its signature header | small to medium | The workflow only calls the function. One batch per tick instead of 12 batches per run; the function's own limit stays 25 |
+| 1 | `thumbnail-revision-scan` | pg_cron plus pg_net calling the existing `thumbnail-revision-scan` Edge Function every 10 min with its signature header | small to medium | The workflow only calls the function. Keep today's capacity of 12 batches of 25 (300 rows) per 10 minutes, for example 12 staggered calls per cycle; one 25-row call every 10 minutes would take about four hours to cover the 579 watchers measured in OPEN_REPAIRS 204. Prove live watcher count and needed detection latency before changing it |
 | 2 | `native-intake-completion` and its monitor | Port the runner (`scripts/native-intake-completion/*`, `native-intake-reconcile/runner-lib`) into an Edge Function, then pg_cron | medium | Needs its own test; keep the workflow until the parity check passes |
 | 2 | Retire `lane-ticker` | Delete after waves 1 and 2 | tiny | Its lanes no longer need a ticker |
 | 3 | `card-calendar-status-drift` | Port `scripts/card-calendar-status-drift-check.js` (550 lines; its test loads `index.html`) | medium to large | About 820 min/mo, the biggest scheduled saving. Move last |
@@ -389,8 +403,8 @@ reverting a pull request or one setting. Only step 9 changes visibility.
 | 4 | Watch 7 days: dead-man's switch shows no stale lane; heartbeats present | Lighthouse | As step 3 |
 | 5 | Waves 2 and 3 (intake completion, drift, retire `lane-ticker` and the dormant censuses) as separate pull requests, each with a parity test | Session | Same |
 | 6 | Provision the self-hosted runner server (Linux, Docker, Playwright browsers, Node 22) with **ephemeral, secret-free runners, one isolated Docker per runner** (3.2). **A registered runner runs one job at a time**, so cores do not add capacity; register several runner instances on the machine (or use autoscaling). Size the count from measured peak concurrency (count overlapping jobs in the run history) and the monthly load: one instance supplies at most 43,200 job-minutes a month, and the trimmed load is 55,000 to 75,000, so plan for at least 6 to 8 instances, more if the peak needs it. **Do not register any yet.** Prepare the runner install steps and a way to alert when it is offline | Owner buys, session writes the runbook | Cancel the server |
-| 7 | Change the **pull-request** workflows only (not nightlies, monitors, deploys or backups) to `runs-on: ${{ vars.CI_RUNNER \|\| 'ubuntu-latest' }}` so a repository variable picks the runner. Fix the shared port 5432 first (3.2). Merge with the variable unset (nothing changes) | Session | Revert |
-| 8 | Prune artifacts and set retention to 3 days; lower `Actions` artifact quota use below the private-repo limit. Dry-run the 30-day counts | Session | n/a |
+| 7 | Change the **pull-request jobs** only (not nightlies, monitors, deploys, backups, or the credentialed manual jobs inside mixed workflows) to pick the runner per event, `runs-on: ${{ github.event_name == 'pull_request' && vars.CI_RUNNER \|\| 'ubuntu-latest' }}`, so a repository variable chooses it. Fix the shared port 5432 first (3.2). Merge with the variable unset (nothing changes) | Session | Revert |
+| 8 | Inventory artifact consumers, then shorten retention on screenshot and log uploads only (keep the 14 and 30 day windows the F2 evidence sequence needs); bring artifact storage under the private-repo limit. Dry-run the 30-day counts | Session | n/a |
 | 9 | **Day of the switch** (a quiet day, no deploy handed over; the Section 4 rule against merging between a deploy SHA and dispatch applies). In order: (a) set the Actions spending limit to $0; (b) settings, General, Danger Zone, Change visibility, **Make private**; (c) register the runner on the now-private repo; (d) set repository variable `CI_RUNNER` to the runner label | Owner clicks; session prepares the exact text | See "Way back from private" below |
 | 10 | Verify within the hour: site loads at the domain with HTTPS; Pages still redeploys on a merge; one client review link and one staff sign-in work; a pull request runs all checks on the runner; Codex answers a test pull request; a fresh Claude session clones; `raw.githubusercontent.com/...` from a logged-out browser returns 404; the Actions billing page shows $0 spend | Owner and Vigil | As below |
 | 11 | After 30 days: update the "public repo" wording (5.3), the cost study, `STATE_OF_THINGS.md`; decide on keeping the identity gate | Session | n/a |
@@ -443,8 +457,8 @@ from this session.
 1. Accept about **$80 to $130 a month** all-in (server plus overage) for a
    private repo, versus $0 public? (The site-publishing fix is worth doing even
    if the answer is no.)
-2. Approve trimming the checks (3.1), in particular running the full suite at
-   "ready for review" and on merge rather than on every push?
+2. Approve trimming the checks (3.1): cancel superseded runs, filter the expensive
+   jobs on documentation-only changes, keep a run per pushed commit?
 3. Keep the identity gate for 30 days after the switch, then review?
 4. Retire the two dormant censuses and `lane-ticker`?
 5. Track-B backup every 6 hours or every 12?

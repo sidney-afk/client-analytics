@@ -29760,3 +29760,22 @@ Three things worth knowing:
   was left alone and is not covered by the test.
 
 STATE_OF_THINGS corrected in the same change.
+
+## 288. [2026-09-29] n8n exit PR 2: Calendar saves and reorders no longer reach n8n for staff
+
+Every staff and Kasper Calendar save, reorder and import-confirmation read now
+goes to `calendar-upsert`, `calendar-reorder` and `calendar_posts`. Before each
+write the page reads `calendar_upsert_ef_clients` afresh (its own read, two second
+bound, `cache: 'no-store'`, no extra query parameters). An unreadable, slow or
+malformed flag holds the save; a flag that does not list the client pauses it with
+a message; neither ever reroutes to n8n. Client approve and request-changes are
+carved out: a write from a client link keeps its old routing and request, proven
+byte for byte (`test/calendar-client-carveout-byte-identical-browser.js` against
+a golden captured from main). Staff repairs still pinned `webhook` migrate to
+Supabase on load, writer and verification source together in one write
+(`test/calendar-pinned-gate-migration.js`); client-link pins are left alone. The
+n8n Calendar workflows stay on for 30 days after this ships.
+Known limits: a client link that has not loaded the flag still sends approve and
+request-changes to n8n (by the carve-out); a client-link reorder now takes the
+guarded route; the qa/ef-writepath create-a-card steps fail identically on main
+in this sandbox, so their live save checks could not run (details in the PR).

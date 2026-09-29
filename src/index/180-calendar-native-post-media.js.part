@@ -1,7 +1,7 @@
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
 import {
-  CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
+  CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
   CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL, GENERATE_CAPTION_URL, _svSelectHtml,
   _svStepperHtml, _svSyncStepper, _syncviewRequireStaffIdentity, _syncviewStaffEligible
@@ -13,7 +13,7 @@ import {
   DEFAULT_CAPTION_PROMPT, _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer,
   _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus,
-  _calReorderUrlForClient, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
+  _calAssertSavingOn, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
   _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
   _calUpsertUseEf, _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders,
@@ -2239,25 +2239,6 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         _calRecordReorderOptimistic(items);
         persistCalReorder(items, snapshot, slug);
     }
-    async function _calPersistReorderViaN8n(slug, items) {
-        let json = null;
-        try {
-            const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            json = await resp.json();
-        } catch (e) { json = null; }
-        if (!json || !json.ok) {
-            const resp = await fetch(CALENDAR_REORDER_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            json = await resp.json();
-        }
-        return json;
-    }
-
     async function persistCalReorder(items, prevOrder, slug) {
         // Pin the destination client at call time. Read live (post-await) it
         // could resolve to a different client if the user switched tabs while a
@@ -2278,25 +2259,21 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         // feedback, and the per-card optimistic move is the live confirmation.)
         _calSetLastLocalWriteAt(Date.now());
         try {
-            // Edge Function for flagged clients. Once a client is on the EF
-            // route, fail closed: an auth denial/outage must never downgrade
-            // into the unauthenticated legacy n8n writer. Unflagged clients
-            // retain the existing batched-n8n path until their own migration.
-            let json = null;
-            if (_calUpsertUseEf(slug)) {
-                const url = _calReorderUrlForClient(slug);
-                const resp = await fetch(url, {
-                    method: 'POST', headers: _calUpsertHeaders('ui', url),
-                    body: JSON.stringify({ client: slug, items })
-                });
-                json = await resp.json().catch(() => null);
-                if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
-                    throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
-                }
-            } else {
-                json = await _calPersistReorderViaN8n(slug, items);
+            // Edge Function only (n8n exit, PR 2). The same fresh, bounded
+            // flag read as every other Calendar write runs first: a flag that
+            // cannot be read holds the reorder, a client the flag does not
+            // list is refused with a message, and neither ever reroutes to the
+            // unauthenticated legacy n8n writer.
+            await _calAssertSavingOn(slug);
+            const url = CALENDAR_REORDER_EF_URL;
+            const resp = await fetch(url, {
+                method: 'POST', headers: _calUpsertHeaders('ui', url),
+                body: JSON.stringify({ client: slug, items })
+            });
+            const json = await resp.json().catch(() => null);
+            if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
+                throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
             }
-            if (!json || !json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
             // lands a beat later and must not reload/flicker the strip.
             _calSetLastLocalWriteAt(Date.now());
@@ -2311,7 +2288,8 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
             // toolbar. Drop the optimistic guard for the ids this write tried to
             // set — but only where a newer drag hasn't already superseded them —
             // so the reverted (server) order is what the next reload adopts.
-            showToast('Couldn’t save the new order — reverted. Try again.');
+            if (e && e.calWritePaused) showToast(e.message);
+            else showToast('Couldn’t save the new order — reverted. Try again.');
             items.forEach(({ id, order_index }) => {
                 const ro = _calReorderOptimistic.get(id);
                 if (ro && ro.order_index === Number(order_index)) _calReorderOptimistic.delete(id);

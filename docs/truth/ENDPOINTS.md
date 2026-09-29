@@ -27,13 +27,25 @@ clients fall to n8n. Flag-read failure and some EF failures also silently select
 n8n writer (F67); this is an open auth/failover defect, not a safe fallback contract. See the audit
 register and `ROLLBACK.md` before changing routing.
 
-## n8n webhooks (53)
+## n8n webhooks (49)
 
 **Corrected 2026-09-21:** The Linear bridge list below is a retained endpoint/source inventory. It is not a list of active staff write targets after cutoff. Outbound and parity are off; new native work must not require a provider request.
 
-Calendar:
-- `webhook/calendar-get`, `webhook/calendar-upsert-post`, `webhook/calendar-append-post`,
-  `webhook/calendar-delete-post`, `webhook/calendar-reorder`, `webhook/calendar-reorder-batch`
+Calendar (**n8n exit PR 2, 2026-09-29:** every staff and Kasper Calendar save, reorder and
+import-confirmation read goes to the Supabase functions `calendar-upsert` and `calendar-reorder` and
+`calendar_posts`; nothing falls back to n8n, and the page's calls to `calendar-append-post`,
+`calendar-delete-post`, `calendar-reorder` and `calendar-reorder-batch` are gone):
+- `webhook/calendar-get` stays only as the read fallback when the Supabase read fails (and the pinned-repair
+  verification read). `webhook/calendar-upsert-post` stays only to replay a repair already pinned
+  `webhook` in someone's browser, until the on-load migration moves it. The n8n workflows stay on 30 days
+  from the day this ships, then are snapshotted and deactivated.
+- **Client approve and request-changes are carved out:** a write made from a client link keeps its old
+  routing and request byte for byte (`test/calendar-client-carveout-byte-identical-browser.js`), including
+  going to `calendar-upsert-post` when the flag has not loaded. That is deliberate, by owner decision.
+- Before every staff write and reorder the page reads `calendar_upsert_ef_clients` afresh (one read per
+  write, 2 second bound, `cache: 'no-store'`, no query parameters beyond `select`, `key`, `limit`). An
+  unreadable, timed-out or malformed flag HOLDS the save; a flag that does not list the client pauses it
+  with a message. Neither sends anything to n8n.
 
 Sample reviews (SXR). **Corrected 2026-09-24:** the legacy Samples page was removed; its three
 `samples-*` webhooks (get, upsert, reorder) and its `content_samples` REST read are no longer called

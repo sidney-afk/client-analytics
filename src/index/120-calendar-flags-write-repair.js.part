@@ -2,7 +2,7 @@ import { showNotify } from './040-shared-briefs.js';
 import { _linearRefreshProjectsForRerouteChange } from './065-core-nav-intake-state.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
 import {
-  CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_EF_URL, CALENDAR_UPSERT_EF_URL,
+  CALENDAR_UPSERT_EF_URL,
   CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, CLIENT_REVIEW_LINK_URL,
   _svBootFlagRows, _syncviewOpenStaffIdentity, _syncviewStaffIdentityClear,
   _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue, _syncviewStaffVerificationEpoch
@@ -454,9 +454,6 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     window.peekWriteUiRerouteClients = function () { return Array.from(_writeUiRerouteClients); };
     function _calUpsertUrlForClient(clientOrSlug) {
         return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
-    }
-    function _calReorderUrlForClient(clientOrSlug) {
-        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
     }
     function _syncviewClientWriteToken() {
         try { return String(new URLSearchParams(svRoute.search()).get('t') || '').trim(); } catch (e) { return ''; }
@@ -2857,7 +2854,99 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             }
         } catch (e) {}
     }
-    function _calUpsertFetch(clientOrSlug, payload, source) {
+    /* THE ONE SHARED SEND STEP FOR EVERY CALENDAR SAVE (n8n exit, PR 2).
+
+       Staff and Kasper saves never reach n8n. Before every write this asks the
+       runtime flag AGAIN, with a read of its own (bounded to two seconds, never
+       reused, never shared with another write), so a client removed from the
+       flag is refused on the very next write, and a suspended tab or dropped
+       realtime channel cannot keep an old allow. A flag that cannot be read,
+       times out or is malformed HOLDS the save: the read is retried a few
+       times, then the save fails visibly and stays in the outbox for its
+       normal retry. Nothing is ever sent on a cached or default route, and
+       nothing falls back to n8n (those endpoints lack the Edge Functions'
+       principal and client authorization, F67). A read that succeeds and does
+       not list the client means "saving paused for this client": refused with
+       a message, never rerouted.
+
+       CARVED OUT (owner, 2026-09-29): the client approve and request-changes
+       buttons go through this same step and keep EXACTLY today's routing and
+       request. Every write made from a client link therefore takes the
+       untouched legacy branch below, byte for byte what it was. */
+    const CAL_WRITE_FLAG_READ_MS = 2000;
+    const CAL_WRITE_FLAG_READ_TRIES = 3;
+    function _calWriteHeldError(code, message) {
+        const error = new Error(message);
+        error.code = code;
+        error.status = 503;
+        error.calWriteHeld = true;
+        return error;
+    }
+    function _calWritePausedError() {
+        const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
+        error.code = 'calendar_saving_paused';
+        error.status = 503;
+        error.calWritePaused = true;
+        return error;
+    }
+    /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
+       (never resolves to a guess) when the answer cannot be trusted. */
+    function _calReadWriteFlagFresh() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
+        }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        let timer = null;
+        const timeout = new Promise((resolve, reject) => {
+            timer = setTimeout(() => {
+                try { if (ctrl) ctrl.abort(); } catch (e) {}
+                reject(_calWriteHeldError('calendar_flag_timeout', 'Checking whether saving is on took too long. Your change is kept; retry in a moment.'));
+            }, CAL_WRITE_FLAG_READ_MS);
+        });
+        const read = (async () => {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, {
+                cache: 'no-store',
+                signal: ctrl ? ctrl.signal : undefined,
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (!resp.ok) throw _calWriteHeldError('calendar_flag_http_' + resp.status, 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const members = row ? _calRuntimeFlagRawMembers(row.value) : null;
+            if (!members || !members.every(member => _calRuntimeFlagSlug(member) !== null)) throw _calWriteHeldError('calendar_flag_malformed', 'Saving is on hold while its switch is checked. Your change is kept; retry in a moment.');
+            return new Set(members.map(x => _calRuntimeFlagSlug(x)).filter(Boolean));
+        })();
+        return Promise.race([read, timeout]).then(
+            value => { clearTimeout(timer); return value; },
+            error => {
+                clearTimeout(timer);
+                if (error && error.calWriteHeld) throw error;
+                throw _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+            }
+        );
+    }
+    async function _calAssertSavingOn(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        let lastError = null;
+        for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
+            try {
+                const listed = await _calReadWriteFlagFresh();
+                // Keep the boot copy honest too, so the rest of the page (which
+                // still asks the cached set for display decisions) agrees.
+                try { _calSetUpsertEfClients(new Set(listed)); } catch (e) {}
+                if (!slug || !listed.has(slug)) throw _calWritePausedError();
+                return true;
+            } catch (error) {
+                if (error && error.calWritePaused) throw error;
+                lastError = error;
+                if (attempt + 1 < CAL_WRITE_FLAG_READ_TRIES) await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+            }
+        }
+        throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+    }
+    function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
         const url = _calUpsertUrlForClient(clientOrSlug);
         return fetch(url, {
@@ -2865,6 +2954,18 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
         });
+    }
+    async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
+        await _calAssertSavingOn(clientOrSlug);
+        return fetch(CALENDAR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _calUpsertHeaders(source, CALENDAR_UPSERT_EF_URL),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _calUpsertFetch(clientOrSlug, payload, source) {
+        if (_isClientLink) return _calUpsertFetchClientLink(clientOrSlug, payload, source);
+        return _calUpsertFetchGuarded(clientOrSlug, payload, source);
     }
     /* Read-only freshness check used to recover from the specific self-conflict
        where `production_native_calendar_status_project` (2026-09-18) has
@@ -2921,6 +3022,15 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _calUpsertFetch(clientOrSlug, payload, source);
+        }
+        /* A staff retry pinned to `supabase` is held like any other save when
+           saving is paused. Only a pinned `webhook` repair still replays to
+           its pinned writer (its completion check reads from the same pinned
+           source), and only until the on-load migration resolves it. A client
+           link keeps today's request untouched (approve and request-changes
+           carve-out). */
+        if (!_isClientLink && transport === 'supabase') {
+            return _calUpsertFetchGuarded(clientOrSlug, payload, source);
         }
         const url = transport === 'supabase' ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
         return fetch(url, {
@@ -3202,7 +3312,7 @@ export {
   _calCapJobPollTimer, _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calClearStaleApprovals, _calComponentsFor,
   _calIsTitleReviewOn, _calIsYouTubeCard, _calLoadCommentsField, _calNormStatus,
-  _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp, _calReorderUrlForClient,
+  _calAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp,
   _calRuntimeFlagClient, _calRuntimeFlagClients, _calSetCapJobBatch, _calSetCapJobPollBusy,
   _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,

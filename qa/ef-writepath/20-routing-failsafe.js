@@ -1,9 +1,12 @@
-// Phase 3 — fail-safe fork. Asserts the REAL in-page routing functions return the
-// EF url for a flagged client and the n8n url for an unflagged/empty-flag client,
-// across calendar-upsert, calendar-reorder, sample-review-upsert, settings. Then a
-// LIVE observation: with sidneylaruel temporarily removed from the in-memory flag,
-// a real caption edit routes to the n8n webhook (captured), NOT the EF. The n8n
-// write is blocked (mocked) so nothing lands; the flag is restored afterwards.
+// Phase 3 — fail-safe fork. Asserts the REAL in-page routing functions: the EF url
+// for a flagged client across calendar-upsert, sample-review-upsert and settings,
+// and the n8n url still chosen for sample-review and settings (PR 4 and PR 3 move
+// those). CALENDAR changed in n8n exit PR 2: the calendar reorder router is gone,
+// and a staff Calendar save no longer falls back to n8n. Then a LIVE observation on
+// the test client: with the flag READ answered as "does not list this client" (only
+// the browser's read is answered locally, the live flag is never edited) a real
+// caption edit is REFUSED and sends NOTHING, neither to the EF nor to n8n; with the
+// read answered 500 it is HELD the same way; with the real answer it saves again.
 'use strict';
 const fs = require('fs');
 const L = require('./lib.js');
@@ -25,8 +28,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       const flagged = 'sidneylaruel', un = '__unflagged_test_slug__';
       out.cal_flagged = { useEf: _calUpsertUseEf(flagged), url: _calUpsertUrlForClient(flagged) };
       out.cal_unflagged = { useEf: _calUpsertUseEf(un), url: _calUpsertUrlForClient(un) };
-      out.reorder_flagged = _calReorderUrlForClient(flagged);
-      out.reorder_unflagged = _calReorderUrlForClient(un);
+      out.reorder_router_removed = typeof _calReorderUrlForClient === 'undefined' && typeof _calAssertSavingOn === 'function';
       out.sxr_flagged = { useEf: _sxrSampleUseEf(flagged), url: _sxrUpsertUrlForClient(flagged) };
       out.sxr_unflagged = { useEf: _sxrSampleUseEf(un), url: _sxrUpsertUrlForClient(un) };
       out.settings_flagged = _settingsUseEf(flagged);
@@ -45,8 +47,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     s.ok(unit.cal_flagged.useEf === true && unit.cal_flagged.url === L.CAL_EF, 'flagged → calendar-upsert EF', unit.cal_flagged.url);
     s.ok(unit.cal_unflagged.useEf === false && unit.cal_unflagged.url === L.CAL_N8N, 'unflagged → calendar-upsert n8n', unit.cal_unflagged.url);
     s.ok(unit.cal_emptyflag.useEf === false && unit.cal_emptyflag.url === L.CAL_N8N, 'empty flag → calendar-upsert n8n (fail-safe)', unit.cal_emptyflag.url);
-    s.ok(/functions\/v1\/calendar-reorder$/.test(unit.reorder_flagged), 'flagged → calendar-reorder EF', unit.reorder_flagged);
-    s.ok(/\/webhook\/calendar-reorder/.test(unit.reorder_unflagged), 'unflagged → calendar-reorder n8n', unit.reorder_unflagged);
+    s.ok(unit.reorder_router_removed === true, 'calendar-reorder has no n8n router any more; the shared fresh flag check is present');
     s.ok(unit.sxr_flagged.useEf === true && unit.sxr_flagged.url === L.SXR_EF, 'flagged → sample-review-upsert EF', unit.sxr_flagged.url);
     s.ok(unit.sxr_unflagged.useEf === false && unit.sxr_unflagged.url === L.SXR_N8N, 'unflagged → sample-review-upsert n8n', unit.sxr_unflagged.url);
     s.ok(unit.sxr_emptyflag.useEf === false, 'empty flag → sample-review-upsert n8n (fail-safe)');
@@ -70,26 +71,35 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const baseKinds = rec.writesSince(t0).map(w => w.kind);
     s.ok(baseKinds.includes('cal-ef') && !baseKinds.includes('cal-n8n'), 'live: create routed to EF while flagged', JSON.stringify(baseKinds));
 
-    // now clear the flag in memory + block n8n writes, then edit caption
+    // Answer ONLY the browser's own flag read locally (the live flag row is never
+    // edited): first "the flag does not list this client", then "the read fails".
     L.setBlockN8nWrites(true);
-    const cleared = await page.evaluate(() => { const had = _calUpsertEfClients.has('sidneylaruel'); _calUpsertEfClients = new Set(); return had; });
-    s.ok(cleared, 'live: sidneylaruel was in the in-memory flag (now cleared for the test)');
-    t0 = Date.now();
-    await page.evaluate((a) => {
-      const p = calState.posts.find(x => x.name === a.name) || calState.posts.find(x => x.id === a.id); if (!p) return;
-      const id = p.id; if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
-      _calPendingEdits[id].caption = 'failsafe routed-to-n8n'; p.caption = 'failsafe routed-to-n8n';
-      _calFlushCardSave(id);
-    }, { name: uniq, id: newId });
-    await sleep(5000);
-    const fsKinds = rec.writesSince(t0).map(w => w.kind);
-    results.live = { create: baseKinds, unflaggedEdit: fsKinds };
-    console.log('live unflagged edit kinds:', JSON.stringify(fsKinds), '| courier log:', rec.log.slice(-3).join(' | '));
-    s.ok(fsKinds.includes('cal-n8n'), 'live: with flag cleared, caption edit routed to n8n webhook', JSON.stringify(fsKinds));
-    s.ok(!fsKinds.includes('cal-ef'), 'live: with flag cleared, NO EF write', JSON.stringify(fsKinds));
-
-    // restore flag + unblock
-    await page.evaluate(() => { _calUpsertEfClients = new Set(_calUpsertEfClients); _calUpsertEfClients.add('sidneylaruel'); });
+    const FLAG_URL = '**/rest/v1/syncview_runtime_flags?*key=eq.calendar_upsert_ef_clients*';
+    const editCaption = async (text) => {
+      const t = Date.now();
+      await page.evaluate((a) => {
+        const p = calState.posts.find(x => x.name === a.name) || calState.posts.find(x => x.id === a.id); if (!p) return;
+        const id = p.id; if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
+        _calPendingEdits[id].caption = a.text; p.caption = a.text;
+        _calFlushCardSave(id);
+      }, { name: uniq, id: newId, text });
+      await sleep(6000);
+      return rec.writesSince(t).map(w => w.kind);
+    };
+    await page.route(FLAG_URL, route => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify([{ value: { clients: ['__nobody__'] } }]) }));
+    const pausedKinds = await editCaption('failsafe paused');
+    results.live = { create: baseKinds, paused: pausedKinds };
+    console.log('live paused edit kinds:', JSON.stringify(pausedKinds));
+    s.ok(!pausedKinds.includes('cal-n8n') && !pausedKinds.includes('cal-ef'), 'live: flag read says the client is not listed → the save is refused, NOTHING sent (no n8n, no EF)', JSON.stringify(pausedKinds));
+    await page.unroute(FLAG_URL);
+    await page.route(FLAG_URL, route => route.fulfill({ status: 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"message":"probe"}' }));
+    const heldKinds = await editCaption('failsafe held');
+    results.live.held = heldKinds;
+    s.ok(!heldKinds.includes('cal-n8n') && !heldKinds.includes('cal-ef'), 'live: flag read fails → the save is HELD, nothing sent (no n8n, no EF)', JSON.stringify(heldKinds));
+    await page.unroute(FLAG_URL);
+    const okKinds = await editCaption('failsafe restored');
+    results.live.restored = okKinds;
+    s.ok(okKinds.includes('cal-ef') && !okKinds.includes('cal-n8n'), 'live: with the real flag answer the same edit saves through the EF, never n8n', JSON.stringify(okKinds));
     L.setBlockN8nWrites(false);
 
     const errs = L.appErrs(page);

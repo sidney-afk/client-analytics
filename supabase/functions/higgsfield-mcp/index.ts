@@ -71,7 +71,7 @@ const BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
 const THUMBNAIL_WORKFLOW = `You help the agency's graphic designer turn client screenshots into editable Canva thumbnails. Talk in plain English. One thumbnail per screenshot unless she says otherwise.
 
 Tools you use:
-- **Synchro Higgsfield** connector: \`clients\`, \`client_style\`, \`client_filming_plan\`, \`get_upload_link\`, \`import_file\`, \`recipe_plan\`, \`run_recipe\`, \`check_jobs\`.
+- **Synchro Higgsfield** connector: \`clients\`, \`client_style\`, \`client_filming_plan\`, \`get_upload_link\`, \`import_file\`, \`recipe_plan\`, \`run_recipe\`, \`wait_for_job\`.
 - **Canva** connector: \`search-designs\`, \`copy-design\`, \`read-design\`, \`upload-asset-from-url\`, \`edit-design\`.
 
 Never spend money or save a Canva design without her yes.
@@ -87,7 +87,7 @@ Never spend money or save a Canva design without her yes.
 
 Ask: "Do any faces need the expression fixed (mid-word mouth, half-closed eyes)?" If yes, for the ones she picks:
 1. \`recipe_plan\` with recipe \`thumbnail-expression-fix\` and those links, in groups of at most 20 (the tools take 20 per call). Show the card (model, count, total price, adding up the groups) and wait for "go".
-2. \`run_recipe\` per group of at most 20, then \`check_jobs\` every 30 seconds until done. Show her each result and let her keep the fixed or the original version per screenshot.
+2. \`run_recipe\` per group of at most 20, then \`wait_for_job\` with all the job_ids, called again and again in the same reply until done. Show her each result and let her keep the fixed or the original version per screenshot.
 
 ## 3. Titles
 
@@ -125,12 +125,12 @@ const INSTRUCTIONS = [
   "Choose sensible settings yourself: vertical 9:16 for social media unless they say otherwise, and a sharp but not wasteful quality (1080p or 2K when offered).",
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
-  "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then check_jobs.",
+  "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then wait_for_job with all the job_ids.",
   "B-roll is always made in two steps with the broll-photo-then-video recipe: first a still image they approve (redo it until they like it), then that exact image is animated. Never make b-roll straight from text to video unless they ask for that.",
   "When someone wants thumbnails from screenshots, call thumbnail_workflow first and follow it.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
-  "After create, call check_job about every 20 to 30 seconds until it is done (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes), then give them the download link.",
+  "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
 ].join(" ");
 
@@ -157,13 +157,18 @@ const TOOLS = [
   },
   {
     name: "create",
-    description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for check_job.",
+    description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for wait_for_job.",
     inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG } },
   },
   {
     name: "check_job",
     description: "Check whether a job is finished. Returns the download links when done.",
     inputSchema: { type: "object", required: ["job_id"], additionalProperties: false, properties: { job_id: { type: "string" } } },
+  },
+  {
+    name: "wait_for_job",
+    description: "Wait for one or more jobs to finish. Waits up to about 40 seconds on the server, then returns either the results or how long it has been running. Call it again straight away until everything is done; do not end your reply or ask the person to check back.",
+    inputSchema: { type: "object", additionalProperties: false, properties: { job_id: { type: "string" }, job_ids: { type: "array", items: { type: "string" }, maxItems: 25 } } },
   },
   {
     name: "check_jobs",
@@ -565,7 +570,7 @@ async function safeFetch(link: string): Promise<Response | string> {
   return "That link redirects too many times.";
 }
 
-async function readLimited(res: Response): Promise<Uint8Array<ArrayBuffer> | null> {
+async function readLimited(res: Response, max = MAX_IMPORT_BYTES): Promise<Uint8Array<ArrayBuffer> | null> {
   const reader = res.body!.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -573,7 +578,7 @@ async function readLimited(res: Response): Promise<Uint8Array<ArrayBuffer> | nul
     const { done, value } = await reader.read();
     if (done) break;
     total += value.length;
-    if (total > MAX_IMPORT_BYTES) { await reader.cancel(); return null; }
+    if (total > max) { await reader.cancel(); return null; }
     chunks.push(value);
   }
   const out = new Uint8Array(total);
@@ -755,7 +760,7 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
   }
   if (reservation.outcome === "duplicate") {
     return reservation.request_id
-      ? { text: `This exact request was already started a moment ago, so it was not charged twice.\njob_id: ${reservation.request_id}\nUse check_job with that job_id.`, jobId: String(reservation.request_id) }
+      ? { text: `This exact request was already started a moment ago, so it was not charged twice.\njob_id: ${reservation.request_id}\nUse wait_for_job with that job_id.`, jobId: String(reservation.request_id) }
       : { text: "This exact request is being started right now. Wait a minute, then ask for team_usage to find its job." };
   }
   const rowId = Number(reservation.id);
@@ -767,7 +772,7 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
       return { text: "Could not start: the log is unavailable, so nothing was spent." };
     }
     background(runDirectJob(rowId, requestId, id, inputs));
-    return { text: `Started: ${BY_ID.get(id)!.name}, about ${money(usd)}.\njob_id: ${requestId}\nCheck with check_job in about 30 to 60 seconds.`, jobId: requestId };
+    return { text: `Started: ${BY_ID.get(id)!.name}, about ${money(usd)}.\njob_id: ${requestId}\nNow call wait_for_job with this job_id.`, jobId: requestId };
   }
   const res = await hf("POST", id, inputs);
   const requestId = String(res.data.request_id || "");
@@ -777,7 +782,7 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
     return { text: "Higgsfield refused the request: " + why };
   }
   await client.from("hf_generations").update({ request_id: requestId, status: String(res.data.status || "queued"), updated_at: new Date().toISOString() }).eq("id", rowId);
-  return { text: `Started: ${BY_ID.get(id)!.name}, ${money(usd)}.\njob_id: ${requestId}\nCheck with check_job in about 20 to 30 seconds.`, jobId: requestId };
+  return { text: `Started: ${BY_ID.get(id)!.name}, ${money(usd)}.\njob_id: ${requestId}\nNow call wait_for_job with this job_id.`, jobId: requestId };
 }
 
 async function checkJob(jobId: string): Promise<string> {
@@ -803,6 +808,38 @@ async function checkJob(jobId: string): Promise<string> {
   if (status === "nsfw") return "Higgsfield blocked this for its content rules (not charged). Try a different prompt or image.";
   if (status === "canceled") return "This job was canceled.";
   return `Still working (${status.replace("_", " ")}). Check again in about 20 to 30 seconds.`;
+}
+
+// Finished images are also returned as image content, so the chat app shows
+// them in the conversation (and the model can look at them) instead of only
+// a link. Links are ours or Higgsfield's CDN; fetched through safeFetch, at
+// most 4 images and 4.5 MB each (larger ones stay link-only).
+const PREVIEW_MAX_BYTES = 4_500_000;
+const WAIT_MS = 40_000; // stays under chat apps' tool-call timeouts
+async function imagePreviews(text: string): Promise<Array<{ type: "image"; data: string; mimeType: string }>> {
+  // Every link in the text, whole (query strings included); whether it is an
+  // image is decided by the response's content type, not the file name.
+  const links = [...new Set((text.match(/https:\/\/[^\s)"'<>]+/g) || []).map((l) => l.replace(/[.,;:]+$/, "")))].slice(0, 8);
+  const out: Array<{ type: "image"; data: string; mimeType: string }> = [];
+  for (const link of links) {
+    if (out.length >= 4) break;
+    try {
+      const res = await safeFetch(link);
+      if (typeof res === "string" || !res.ok || !res.body) continue;
+      const mimeType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      if (!/^image\/(png|jpeg|webp|gif)$/.test(mimeType) || Number(res.headers.get("content-length") || 0) > PREVIEW_MAX_BYTES) { await res.body.cancel(); continue; }
+      const bytes = await readLimited(res, PREVIEW_MAX_BYTES);
+      if (!bytes) continue;
+      out.push({ type: "image", data: toBase64(bytes), mimeType });
+    } catch { /* preview is best effort; the link is still in the text */ }
+  }
+  return out;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
 // ---- Tool handlers -------------------------------------------------------
@@ -854,6 +891,31 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "check_job" || name === "check_video") return await checkJob(String(args.job_id || "").trim());
+
+  if (name === "wait_for_job") {
+    const ids = [...(args.job_id ? [String(args.job_id)] : []), ...(Array.isArray(args.job_ids) ? args.job_ids.map(String) : [])]
+      .map((x) => x.trim()).filter(Boolean).slice(0, 25);
+    if (!ids.length) return "Give the job_id (or job_ids) to wait for.";
+    const pending = (t: string) => t.startsWith("Still working");
+    const started = Date.now();
+    let results = await Promise.all(ids.map((j) => checkJob(j)));
+    while (results.some(pending) && Date.now() - started < WAIT_MS) {
+      await new Promise((r) => setTimeout(r, 6000));
+      results = await Promise.all(ids.map((j, i) => pending(results[i]) ? checkJob(j) : Promise.resolve(results[i])));
+    }
+    const { data: rows } = await db().from("hf_generations").select("request_id,created_at").in("request_id", ids);
+    const since = new Map((rows || []).map((r) => [String(r.request_id), Date.parse(String(r.created_at))]));
+    const mins = (j: string) => since.has(j) ? Math.max(0, Math.round((Date.now() - since.get(j)!) / 60000)) : null;
+    const lines = ids.map((j, i) => {
+      const m = mins(j);
+      const t = pending(results[i]) && m !== null ? results[i].replace(/Check again.*$/, `Running for ${m} min so far.`) : results[i];
+      return ids.length > 1 ? `${i + 1}. [${j}] ${t}` : t;
+    });
+    const left = results.filter(pending).length;
+    return lines.join("\n\n") + (left
+      ? `\n\n${left} still in progress. Give the person a one-line update (what is running and for how long), then call wait_for_job again right away. Keep going until it finishes; only stop after 30 minutes, and then say it is still queued at Higgsfield and they can ask you to keep waiting.`
+      : "");
+  }
 
   if (name === "check_jobs") {
     const ids = (Array.isArray(args.job_ids) ? args.job_ids : []).map((x) => String(x).trim()).slice(0, 25);
@@ -995,8 +1057,10 @@ Deno.serve(async (req) => {
   if (method === "tools/call") {
     const params = (msg.params || {}) as JsonMap;
     try {
-      const text = await callTool(String(params.name || ""), (params.arguments || {}) as JsonMap, member);
-      return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
+      const toolName = String(params.name || "");
+      const text = await callTool(toolName, (params.arguments || {}) as JsonMap, member);
+      const previews = /^(check_(job|jobs|video)|wait_for_job)$/.test(toolName) ? await imagePreviews(text) : [];
+      return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews] } });
     } catch (e) {
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });
     }

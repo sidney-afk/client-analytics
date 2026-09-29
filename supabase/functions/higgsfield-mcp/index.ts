@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
 
@@ -138,6 +139,10 @@ const EMPTY = { type: "object", properties: {}, additionalProperties: false };
 const MODEL_ARG = { type: "string", description: "Model id, e.g. bytedance/seedance-2.5/text-to-video" };
 const INPUTS_ARG = { type: "object", description: "The model's settings, as listed by model_details (prompt, duration, aspect_ratio, image_url, ...)." };
 
+// Job-check tools point at the in-chat viewer (MCP Apps); hosts without MCP
+// Apps ignore _meta and still get the text and image content.
+const VIEWER_META = { ui: { resourceUri: VIEWER_URI }, "ui/resourceUri": VIEWER_URI };
+
 const TOOLS = [
   { name: "start_here", description: "Read first. What this connector can make, which model to use for what, and the team's remaining budget this month.", inputSchema: EMPTY },
   {
@@ -162,16 +167,19 @@ const TOOLS = [
   },
   {
     name: "check_job",
+    _meta: VIEWER_META,
     description: "Check whether a job is finished. Returns the download links when done.",
     inputSchema: { type: "object", required: ["job_id"], additionalProperties: false, properties: { job_id: { type: "string" } } },
   },
   {
     name: "wait_for_job",
+    _meta: VIEWER_META,
     description: "Wait for one or more jobs to finish. Waits up to about 40 seconds on the server, then returns either the results or how long it has been running. Call it again straight away until everything is done; do not end your reply or ask the person to check back.",
     inputSchema: { type: "object", additionalProperties: false, properties: { job_id: { type: "string" }, job_ids: { type: "array", items: { type: "string" }, maxItems: 25 } } },
   },
   {
     name: "check_jobs",
+    _meta: VIEWER_META,
     description: "Check several jobs at once (for batches). Returns each one's status and download links.",
     inputSchema: { type: "object", required: ["job_ids"], additionalProperties: false, properties: { job_ids: { type: "array", items: { type: "string" }, maxItems: 25 } } },
   },
@@ -816,11 +824,11 @@ async function checkJob(jobId: string): Promise<string> {
 // most 4 images and 4.5 MB each (larger ones stay link-only).
 const PREVIEW_MAX_BYTES = 4_500_000;
 const WAIT_MS = 40_000; // stays under chat apps' tool-call timeouts
-async function imagePreviews(text: string): Promise<Array<{ type: "image"; data: string; mimeType: string }>> {
+async function imagePreviews(text: string): Promise<Array<{ type: "image"; data: string; mimeType: string; url: string }>> {
   // Every link in the text, whole (query strings included); whether it is an
   // image is decided by the response's content type, not the file name.
   const links = [...new Set((text.match(/https:\/\/[^\s)"'<>]+/g) || []).map((l) => l.replace(/[.,;:]+$/, "")))].slice(0, 8);
-  const out: Array<{ type: "image"; data: string; mimeType: string }> = [];
+  const out: Array<{ type: "image"; data: string; mimeType: string; url: string }> = [];
   for (const link of links) {
     if (out.length >= 4) break;
     try {
@@ -830,7 +838,7 @@ async function imagePreviews(text: string): Promise<Array<{ type: "image"; data:
       if (!/^image\/(png|jpeg|webp|gif)$/.test(mimeType) || Number(res.headers.get("content-length") || 0) > PREVIEW_MAX_BYTES) { await res.body.cancel(); continue; }
       const bytes = await readLimited(res, PREVIEW_MAX_BYTES);
       if (!bytes) continue;
-      out.push({ type: "image", data: toBase64(bytes), mimeType });
+      out.push({ type: "image", data: toBase64(bytes), mimeType, url: link });
     } catch { /* preview is best effort; the link is still in the text */ }
   }
   return out;
@@ -1046,7 +1054,7 @@ Deno.serve(async (req) => {
       id,
       result: {
         protocolVersion: PROTOCOLS.includes(asked) ? asked : PROTOCOLS[0],
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         serverInfo: { name: "synchro-higgsfield", version: "2.0.0" },
         instructions: INSTRUCTIONS,
       },
@@ -1054,13 +1062,24 @@ Deno.serve(async (req) => {
   }
   if (method === "ping") return reply({ jsonrpc: "2.0", id, result: {} });
   if (method === "tools/list") return reply({ jsonrpc: "2.0", id, result: { tools: TOOLS } });
+  if (method === "resources/list") {
+    return reply({ jsonrpc: "2.0", id, result: { resources: [{ uri: VIEWER_URI, name: "Result viewer", description: "Shows finished images and videos in the chat.", mimeType: VIEWER_MIME }] } });
+  }
+  if (method === "resources/read") {
+    const uri = String(((msg.params || {}) as JsonMap).uri || "");
+    if (uri !== VIEWER_URI) return rpcError(id, -32002, "Resource not found: " + uri);
+    return reply({ jsonrpc: "2.0", id, result: { contents: [{ uri, mimeType: VIEWER_MIME, text: VIEWER_HTML, _meta: { ui: { csp: VIEWER_CSP, prefersBorder: false } } }] } });
+  }
   if (method === "tools/call") {
     const params = (msg.params || {}) as JsonMap;
     try {
       const toolName = String(params.name || "");
       const text = await callTool(toolName, (params.arguments || {}) as JsonMap, member);
-      const previews = /^(check_(job|jobs|video)|wait_for_job)$/.test(toolName) ? await imagePreviews(text) : [];
-      return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews] } });
+      if (!/^(check_(job|jobs|video)|wait_for_job)$/.test(toolName)) return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
+      const previews = await imagePreviews(text);
+      const videos = [...new Set(text.match(/https:\/\/[^\s)"'<>]+\.(?:mp4|mov|webm)(?:\?[^\s)"'<>]*)?/gi) || [])];
+      const structuredContent = { images: previews.map((p) => p.url), videos, status: text.split("\n")[0] };
+      return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews.map(({ url: _url, ...block }) => block)], structuredContent } });
     } catch (e) {
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });
     }

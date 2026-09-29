@@ -54,9 +54,12 @@ const TYPED = 'ZZ-typed-text-must-not-leave-the-page';
       }
       if (u.pathname === '/functions/v1/templates-save') return respond(route, behaviour.templates, { ok: true, template: { client_name: CLIENT } }, 500);
       if (u.pathname === '/functions/v1/filming-plans' && r.method() === 'POST') return respond(route, behaviour.filming, { ok: true, plan: { clientName: CLIENT, clientSlug: 'samplesaveclient', docUrl: 'https://example.invalid/doc' } }, 403);
-      if (u.pathname === '/functions/v1/caption-prompts-save') return respond(route, behaviour.captions, { ok: true }, 500);
-      // The n8n webhook route (a client not yet on the function) refuses with HTTP 200 and {"ok":false}.
-      if (u.pathname === '/webhook/caption-prompts-save') {
+      if (u.pathname === '/rest/v1/syncview_runtime_flags') {
+        // The caption save asks the settings switch first (n8n exit, PR 3); serve it as on for the fixture client.
+        return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify([{ value: { clients: ['samplesaveclient', 'sample-save-client', CLIENT] } }]) });
+      }
+      // The function answers HTTP 200 with {"ok":false} for a refused caption prompt save (the n8n route it replaced did the same).
+      if (u.pathname === '/functions/v1/caption-prompts-save') {
         return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(behaviour.captions === 'ok' ? { ok: true } : { ok: false, error: 'refused' }) });
       }
       return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: '[]' }).catch(() => {});

@@ -29760,3 +29760,38 @@ Three things worth knowing:
   was left alone and is not covered by the test.
 
 STATE_OF_THINGS corrected in the same change.
+
+## 288. [2026-09-29] Archived cards and samples can be seen and restored by staff (PR pending)
+
+**Why.** On 2026-09-29 an SMM revived a work item in SyncLinear whose Calendar card was
+archived, so it showed nowhere else, and the card had to be restored by hand. Staff had no
+way to see or restore an archived card or sample.
+
+**What now exists.** The Calendar toolbar More menu has **Archived cards**, and the Samples
+menu has **Archived samples**, for admin and SMM seats only (never a creative seat, never a
+client link). The list shows what was archived in the last 30 days, newest first, 25 to a page,
+with Show older up to 90 days (paged by the last row shown, so no row repeats or is skipped).
+Restore puts the card back exactly as it was: the card is written through the same route
+archive uses (`calendar-upsert`, or `sample-review-upsert`) with the same minimal body and a
+status recomputed from its component statuses; its caption, links, comments, dates and approvals
+are not written. Each linked video and graphic (Samples: thumbnail) work item goes back to the
+exact status the archive parked it from, read from its own `deliverable_events` row (surface
+`calendar` or `sxr`, at or after the archive), through the guarded `production-write` status
+operation with `expected_status` and `expected_updated_at`. Already in Backlog before the archive,
+or Backlog with no record: To do. Finished stays. Moved since: left alone and said so. A
+conflict keeps the other person's change. A failed move never undoes the card restore. A live
+card that already uses the same work item blocks the restore and is named.
+
+**Owner decisions applied (2026-09-29).** Existing routes only, frozen writers untouched, no
+deploy. Samples included. The message the trigger posts when an item goes back to SMM approval
+or Tweaks is accepted (`production-write` unchanged).
+
+**Proof.** `test/calendar-unarchive.js`, `docs/syncview-design/tests/archived-restore-browser.js`
+(in the Production polish fast lane), and the on-demand live probe `qa/probes/arx_restore_live.js`
+on the test client. Plan: `docs/plans/2026-09-29-calendar-unarchive.md`. Mock-up:
+`docs/syncview-design/mockups/calendar-unarchive/`.
+
+**Not done here.** A warning when someone moves a work item whose card is archived (the actual
+cause of the 2026-09-29 incident) lives in `production-write` and needs the sealed capture and an
+owner deploy. A server-side staff check on the two frozen writers needs the owner's approval.
+Bulk restore.

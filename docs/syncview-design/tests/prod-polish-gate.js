@@ -26,6 +26,7 @@ const suites = [
   ['fast', 'Production comment thread', 'docs/syncview-design/tests/prod-comments-browser.js'],
   ['fast', 'Production component feedback', 'docs/syncview-design/tests/prod-feedback-browser.js'],
   ['fast', 'Production write gateway', 'docs/syncview-design/tests/prod-write-gateway-browser.js'],
+  ['fast', 'Archived cards restore', 'docs/syncview-design/tests/archived-restore-browser.js'],
   ['interaction', 'Production interaction inventory', 'docs/syncview-design/tests/prod-interaction-inventory.js'],
   ['fast', 'Production accessibility/focus', 'docs/syncview-design/tests/prod-a11y-focus.js'],
   ['fast', 'Production layout polish', 'docs/syncview-design/tests/prod-layout-polish.js'],

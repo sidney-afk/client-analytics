@@ -2862,5 +2862,4 @@ export {
   _kasperGetSeenAt, _kasperHasUnreadReply, _kasperLatestInternalComp, _kasperMarkSeenAt,
   _kasperOwnedThreadRoots, _kasperRepliesSeenBasis, _nativePostViewSlug, _notesGetSeen,
   _notesMarkSeen, archiveCalPost, calMonthShift, calWeekShiftDays, renderCalMonth, renderCalWeek,
-  wireCalOrganizerDrag
-};
+  wireCalOrganizerDrag, _calPersistReorderViaN8n };

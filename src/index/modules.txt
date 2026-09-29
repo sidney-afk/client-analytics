@@ -55,3 +55,4 @@
 170-calendar-links-status.js.part
 190-calendar-approval-comments.js.part
 185-client-review-queue.js.part
+186-archived-restore.js.part

@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "calendar-unarchive.js",
     "workload-plan-live.js",
     "clean-urls-routes.js",
     "prod-realtime-controller.js",

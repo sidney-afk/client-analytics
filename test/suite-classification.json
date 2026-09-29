@@ -239,6 +239,7 @@
     "kasper-finish-log.js",
     "kasper-finish-refresh-popback.js",
     "split-switch.js",
+    "write-path-refusal-coverage.js",
     "sxr-kasper-finish-leaves-queue.js",
     "kasper-priority-more-nav.js",
     "kasper-review-state-global.js",
@@ -1260,6 +1261,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/tiktok-preview-empty-clearance-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "client-review-requests-unchanged-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Compares against test/fixtures/client-review-requests.golden.json, recorded from main before the failed-saves work.",
+      "reproduce": "node --require ./test/helpers/single-file-index.js test/client-review-requests-unchanged-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

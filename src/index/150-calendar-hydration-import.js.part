@@ -1,3 +1,4 @@
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
 import { CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
@@ -213,7 +214,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', { client_slug: slug, id: String(post.id || '') }, () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -313,7 +314,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         const sendOne = async (post) => {
             try {
                 const _bulkSlug = calClientSlug(calState.client);
-                const resp = await _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_import', { client_slug: _bulkSlug }, () => _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post }));
                 const json = await resp.json();
                 return !!json.ok;
             } catch (e) { return false; }

@@ -1,3 +1,4 @@
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
   FILMING_PLAN_TABS_URL, _analyticsReleaseExtras, parseCSV, showConfirm, showToast, svArea,
   svWithArea
@@ -1342,11 +1343,14 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         opts = opts || {};
         const ident = await _ccEnsureIdentity();
         const body = Object.assign({}, payload || {}, { action, actor: { name: ident.member.name, role: ident.role } });
-        const resp = await fetch(CC_EDGE_URL, {
+        const send = () => fetch(CC_EDGE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(body),
         });
+        // Listing and history are reads; every other action changes a credential.
+        const isRead = action === 'list' || action === 'history';
+        const resp = await (isRead ? send() : _writeUiTrackSave('credentials', ('credentials_' + action).slice(0, 40), {}, send));
         let json = null;
         try { json = await resp.json(); } catch { json = null; }
         if (resp.status === 401) {

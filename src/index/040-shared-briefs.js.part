@@ -1,3 +1,5 @@
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
+import { calClientSlug } from './130-calendar-model-cache.js';
 import {
   render, renderChart, renderMRTab_angles, renderMRTab_gap, renderMRTab_hooks, renderMRTab_niche,
   renderMRTab_overview, renderMRTab_sources, renderViewsChart
@@ -800,7 +802,7 @@ import {
         const plusIcon = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
         btn.innerHTML = `${plusIcon} Saving…`;
         try {
-            const resp = await fetch(HOOK_LIBRARY_WEBHOOK, {
+            const resp = await _writeUiTrackSave('briefs', 'hook_library_add', { client_slug: calClientSlug(clientName) }, () => fetch(HOOK_LIBRARY_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -809,7 +811,7 @@ import {
                     openingLine: hookData.openingLine || '',
                     template: hookData.stealThis || ''
                 })
-            });
+            }));
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const saveKey = _hookSaveKey(clientName, hookData.openingLine || '');
             console.log('[SyncView] Saving hook key:', saveKey);

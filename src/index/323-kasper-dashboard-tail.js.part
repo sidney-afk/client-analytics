@@ -1,3 +1,4 @@
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showToast, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
   CAL_SUPABASE_URL, _ptoAdminState, _syncviewStaffCan, _syncviewStaffIdentityForHeaders,
@@ -355,11 +356,11 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     const CA_FIELD_LABELS = Object.fromEntries(CA_GROUPS.concat([CA_RESEARCH]).flatMap(g => g.fields));
     async function _caEditPost(action, extra) {
         const ident = await _ccEnsureIdentity();
-        const resp = await fetch(CA_WRITE_URL, {
+        const resp = await _writeUiTrackSave('client_profile', ('client_profile_' + action).slice(0, 40), {}, () => fetch(CA_WRITE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
-        });
+        }));
         let json = null;
         try { json = await resp.json(); } catch (e) { json = null; }
         return { resp, json: json || {}, ident };

@@ -1,0 +1,456 @@
+{
+  "_about": "Every place the page sends something other than a plain read, and how its refusals reach the failed-saves log. Checked by test/write-path-refusal-coverage.js. Keys are fragment|function|target|method.",
+  "sites": {
+    "005-head-boot.html.part|(top level)|svBase|POST": {
+      "status": "read",
+      "note": "Boot-time sign-in and client-link checks (key-verify, token verify). They answer \"who is this\", they save nothing."
+    },
+    "040-shared-briefs.js.part|abortForClientEntry|TAB_SUMMARY_WEBHOOK|POST": {
+      "status": "read",
+      "note": "Reads the tab summary by POST."
+    },
+    "040-shared-briefs.js.part|addHookToLibrary|HOOK_LIBRARY_WEBHOOK|POST": {
+      "status": "reports",
+      "within": [
+        "addHookToLibrary"
+      ],
+      "note": "Hook library add (n8n webhook). Wrapped: a refused or failed request is recorded as hook_library_add."
+    },
+    "040-shared-briefs.js.part|promise|CAL_SUPABASE_URL|POST": {
+      "status": "read",
+      "note": "analytics-read: reads analytics rows through the function."
+    },
+    "050-market-briefs.js.part|_tplFlush|writeUrl|POST": {
+      "status": "reports",
+      "within": [
+        "_tplFlush"
+      ],
+      "note": "Templates save (templates-save). Recorded as templates_save."
+    },
+    "050-market-briefs.js.part|abortForClientEntry|CONTENT_SUMMARY_WEBHOOK|POST": {
+      "status": "read",
+      "note": "Reads the content summary by POST."
+    },
+    "050-market-briefs.js.part|sendWeeklySlackUpdate|WEEKLY_SLACK_WEBHOOK|POST": {
+      "status": "reports",
+      "within": [
+        "sendWeeklySlackUpdate"
+      ],
+      "note": "Weekly Slack update (n8n webhook). Recorded as weekly_slack_update."
+    },
+    "060-templates-filming.js.part|_fpPostPlan|FILMING_PLANS_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_fpPostPlan"
+      ],
+      "note": "Filming plans save (filming-plans). Recorded as filming_plan_save."
+    },
+    "060-templates-filming.js.part|send|url|POST": {
+      "status": "reports",
+      "within": [
+        "_tplBrainPost"
+      ],
+      "note": "Templates > brain. Only the \"change\" action is a save and is recorded as templates_brain_change; read and folders are reads."
+    },
+    "067-workload-board-source.js.part|wlFetchNativeSnapshot|WORKLOAD_PLAN_URL|POST": {
+      "status": "read",
+      "note": "Workload board snapshot read."
+    },
+    "067-workload-board-source.js.part|wlFetchPlanRows|WORKLOAD_PLAN_URL|POST": {
+      "status": "read",
+      "note": "Workload plan list read."
+    },
+    "067-workload-board-source.js.part|worker|WORKLOAD_LINEAR_URL|POST": {
+      "status": "read",
+      "note": "Workload metadata read (action metadata)."
+    },
+    "080-workload-render.js.part|_wlDueWriteRequest|PROD_WRITE_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_wlDueWriteRequest"
+      ],
+      "note": "Workload due date through the write gateway. Recorded as workload_due_save (the gateway also records its own refusal)."
+    },
+    "080-workload-render.js.part|_wlDueWriteRequest|WORKLOAD_LINEAR_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_wlDueWriteRequest"
+      ],
+      "note": "Workload due date, legacy route. Recorded as workload_due_save."
+    },
+    "080-workload-render.js.part|_wlPlanWriteRequest|WORKLOAD_PLAN_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_wlPlanWriteRequest"
+      ],
+      "note": "Workload plan date save. Recorded as workload_plan_save."
+    },
+    "090-workload-popovers.js.part|_wlNativeTweakComments|url|POST": {
+      "status": "read",
+      "note": "Reads the tweak comments."
+    },
+    "100-onboarding-staff-controls.js.part|_obDraftBeacon|ONBOARDING_FALLBACK_URL|BEACON": {
+      "status": "public-form",
+      "note": "The public onboarding form saves a draft copy when the visitor leaves. Visitors are not signed in, so a report from that page would be labelled as a staff page; the form has its own backup capture and thank-you or failure screen."
+    },
+    "100-onboarding-staff-controls.js.part|_obDraftBeacon|ONBOARDING_FALLBACK_URL|POST": {
+      "status": "public-form",
+      "note": "Same draft copy, sent by fetch when a beacon is unavailable."
+    },
+    "100-onboarding-staff-controls.js.part|_obPost|url|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_siSubmit"
+      ],
+      "note": "Shared form post. The staff Sales Intake submit records its failure as sales_intake_submit; the public onboarding form (visitors are not signed in) has its own backup capture and failure screen and is not recorded."
+    },
+    "100-onboarding-staff-controls.js.part|_syncviewVerifyStaffIdentity|STAFF_KEY_VERIFY_URL|POST": {
+      "status": "read",
+      "note": "Staff key verification: answers who is signing in, saves nothing."
+    },
+    "112-smm-weekly-reports.js.part|send|url|VAR": {
+      "status": "reports",
+      "within": [
+        "_srpApi"
+      ],
+      "note": "SMM weekly reports. Reads (GET) are not recorded; a submit or sync is recorded as weekly_report_<action>."
+    },
+    "120-calendar-flags-write-repair.js.part|_calUpsertFetchPinned|url|POST": {
+      "status": "client-transport",
+      "note": "Pinned Calendar upsert transport (status writes, including the client approve path). Not modified; its status writes record through _writeUiReportFailure."
+    },
+    "120-calendar-flags-write-repair.js.part|_calUpsertFetch|url|POST": {
+      "status": "client-transport",
+      "note": "Calendar upsert transport, shared with the client link. Not modified; each staff save that uses it records its own failure (see calendar_settings_save, calendar_import, calendar_link_adopt, calendar_archive, kasper_post_save)."
+    },
+    "120-calendar-flags-write-repair.js.part|_syncviewIssueClientShareUrl|CLIENT_REVIEW_LINK_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_syncviewIssueClientShareUrl"
+      ],
+      "note": "Issuing a client share link (staff only). Recorded as client_link_issue."
+    },
+    "120-calendar-flags-write-repair.js.part|_writeRefusalBeacon|WRITE_REFUSAL_BEACON_URL|POST": {
+      "status": "the-log",
+      "note": "This is the failed-saves log beacon itself."
+    },
+    "120-calendar-flags-write-repair.js.part|_writeUiGatewayPost|WRITE_UI_PRODUCTION_WRITE_URL|POST": {
+      "status": "client-transport",
+      "callers": [
+        "_writeUiReportFailure"
+      ],
+      "note": "The gateway transport the client approve and request-changes buttons use. Not modified (test/client-review-requests-unchanged-browser.js); its callers record refusals through _writeUiReportFailure / _writeUiRecordFailure."
+    },
+    "125-title-name-rule.js.part|_renamePropPoke|CAL_SUPABASE_URL|POST": {
+      "status": "background",
+      "note": "Nudges the rename-propagation drain; best effort by design. The rename itself is a gateway write, recorded as title."
+    },
+    "125-title-name-rule.js.part|_renamePropRetry|CAL_SUPABASE_URL|POST": {
+      "status": "background",
+      "note": "\"Retry\" for a rename that did not reach the sub-issues; the server drain already logs the failure and the page keeps its own ring entry."
+    },
+    "140-calendar-legacy-outbox.js.part|_calCheckQueuedUrgent|WRITE_UI_PRODUCTION_WRITE_URL|POST": {
+      "status": "read",
+      "note": "Asks the gateway whether a queued urgent ping was delivered (native_urgent_status)."
+    },
+    "140-calendar-legacy-outbox.js.part|_calPersistKasperUrgentForPost|CALENDAR_UPSERT_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_calPersistKasperUrgentForPost"
+      ],
+      "note": "Kasper urgent marker on the card. Recorded as urgent_marker_save."
+    },
+    "140-calendar-legacy-outbox.js.part|_calPersistUrgentSentForPost|CALENDAR_UPSERT_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_calPersistUrgentSentForPost"
+      ],
+      "note": "Urgent \"sent\" marker on the card. Recorded as urgent_marker_save."
+    },
+    "140-calendar-legacy-outbox.js.part|showUnknown|WRITE_UI_PRODUCTION_WRITE_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_calUrgentSlackDispatch"
+      ],
+      "note": "Sending an urgent ping through the gateway. A ping that went out and did not come back confirmed is recorded as urgent_ping."
+    },
+    "140-calendar-legacy-outbox.js.part|showUnknown|spec.url(|POST": {
+      "status": "background",
+      "note": "The pre-gateway urgent webhook path; its send is retired (B2) and only fails closed. The gateway path above is the live one."
+    },
+    "160-calendar-organize-ui.js.part|_calFillComponentSubmit|PROD_WRITE_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_calFillComponentSubmit"
+      ],
+      "note": "Calendar component fill. Already recorded (component_fill)."
+    },
+    "160-calendar-organize-ui.js.part|_calResolveThumbnailFolder|THUMBNAIL_FOLDER_RESOLVE_EF_URL|POST": {
+      "status": "read",
+      "note": "Looks up a thumbnail folder."
+    },
+    "160-calendar-organize-ui.js.part|_thumbCompareDiscoverAvailability|THUMBNAIL_REVISION_READ_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads thumbnail revisions."
+    },
+    "160-calendar-organize-ui.js.part|_thumbCompareLoad|THUMBNAIL_REVISION_READ_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads thumbnail revisions."
+    },
+    "170-calendar-links-status.js.part|current|url|POST": {
+      "status": "read",
+      "note": "Reads the editor options for the intake picker."
+    },
+    "180-calendar-native-post-media.js.part|_calCancelCaptionJob|CAPTION_JOB_UPDATE_URL|POST": {
+      "status": "background",
+      "note": "\"Cancel\" for a caption job; the page settles the job locally if it fails."
+    },
+    "180-calendar-native-post-media.js.part|_calCapJobStart|GENERATE_CAPTION_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_calCapJobSettle"
+      ],
+      "note": "Starts a caption generation (n8n). A job that ends in error is recorded once as caption_generate, where the job settles."
+    },
+    "180-calendar-native-post-media.js.part|_calCapJobsPoll|CAPTION_JOB_UPDATE_URL|POST": {
+      "status": "background",
+      "note": "Stand-down message for a caption job that timed out; the job already ends in error and is recorded there."
+    },
+    "180-calendar-native-post-media.js.part|_calPersistReorderViaN8n|CALENDAR_REORDER_BATCH_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "persistCalReorder"
+      ],
+      "note": "Calendar drag order, legacy route. Recorded once by its caller as calendar_reorder."
+    },
+    "180-calendar-native-post-media.js.part|_calPersistReorderViaN8n|CALENDAR_REORDER_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "persistCalReorder"
+      ],
+      "note": "Calendar drag order, legacy fallback. Recorded once by its caller as calendar_reorder."
+    },
+    "180-calendar-native-post-media.js.part|_calSaveCaptionPrompt|writeUrl|POST": {
+      "status": "reports",
+      "within": [
+        "_calSaveCaptionPrompt"
+      ],
+      "note": "Caption prompt save (caption-prompts-save). Recorded as caption_prompt_save."
+    },
+    "180-calendar-native-post-media.js.part|persistCalReorder|url|POST": {
+      "status": "reports",
+      "within": [
+        "persistCalReorder"
+      ],
+      "note": "Calendar drag order (calendar-reorder). Recorded as calendar_reorder."
+    },
+    "200-intake-data-startup.js.part|_linearIntakeLogSubmissionRequest|LOG_SUBMISSION_WEBHOOK|POST": {
+      "status": "telemetry",
+      "note": "Same submission log."
+    },
+    "200-intake-data-startup.js.part|_linearIntakeSendTelemetry|LOG_SUBMISSION_WEBHOOK|POST": {
+      "status": "telemetry",
+      "note": "Fire-and-forget submission log to a sheet; not a save the person waits on."
+    },
+    "200-intake-data-startup.js.part|_runNativeIntakeJob|PROD_WRITE_EF_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_linearSavedSend",
+        "_submitLinearFormRoutedOnce"
+      ],
+      "note": "Intake create through the gateway. Already recorded (intake_create and the queue kinds) by its callers."
+    },
+    "210-production-state-writes.js.part|_prodArchiveRequest|PROD_ARCHIVE_EF_URL|POST": {
+      "status": "read",
+      "note": "Archive repair viewer: the only actions it sends are list and issue."
+    },
+    "210-production-state-writes.js.part|_prodEnsureAssets|PROD_WRITE_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads assets."
+    },
+    "210-production-state-writes.js.part|_prodEnsureAssigneeOptions|PROD_WRITE_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads assignee options."
+    },
+    "210-production-state-writes.js.part|_prodEnsureBatchFiles|PROD_WRITE_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads batch files."
+    },
+    "210-production-state-writes.js.part|_prodEnsureLabels|PROD_WRITE_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads the label catalogue."
+    },
+    "230-production-create-comments.js.part|_prodGatewayWrite|PROD_WRITE_EF_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_prodRunPickerWrite",
+        "_prodRunLabelsWrite",
+        "_prodSubmitComment",
+        "_prodCommentLifecycle",
+        "_prodSaveDescription",
+        "_prodSaveAsset",
+        "_prodTitleEditCommit"
+      ],
+      "note": "The Production gateway write (status, assignee, due, labels, comments, title, description). Recorded by each caller."
+    },
+    "230-production-create-comments.js.part|_prodLoadCreateOptions|PROD_WRITE_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads the create options."
+    },
+    "230-production-create-comments.js.part|_prodPostCreatePayload|PROD_WRITE_EF_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_prodSubmitCreate"
+      ],
+      "note": "Production create. Recorded as create by its callers."
+    },
+    "230-production-create-comments.js.part|load|PROD_COMMENTS_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads comments."
+    },
+    "240-production-description.js.part|_prodDescriptionPostImage|PROD_DESCRIPTION_IMAGE_EF_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_prodDescriptionUploadImage"
+      ],
+      "note": "Description image upload. Recorded as description_image by its caller."
+    },
+    "240-production-description.js.part|_prodEnsureDescription|PROD_WRITE_EF_URL|POST": {
+      "status": "read",
+      "note": "Reads a description."
+    },
+    "260-production-refresh-boot.js.part|_syncviewPreflightClientEntry|CLIENT_TOKEN_VERIFY_URL|POST": {
+      "status": "read",
+      "note": "Client link check at boot."
+    },
+    "270-samples-model.js.part|_sxrFillComponentSubmit|PROD_WRITE_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_sxrFillComponentSubmit"
+      ],
+      "note": "Samples component fill. Already recorded (component_fill)."
+    },
+    "270-samples-model.js.part|_sxrPersistKasperUrgentForPost|SXR_UPSERT_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_sxrPersistKasperUrgentForPost"
+      ],
+      "note": "Kasper urgent marker on a sample. Recorded as urgent_marker_save."
+    },
+    "270-samples-model.js.part|_sxrPersistUrgentSentForPost|SXR_UPSERT_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_sxrPersistUrgentSentForPost"
+      ],
+      "note": "Urgent sent marker on a sample. Recorded as urgent_marker_save."
+    },
+    "270-samples-model.js.part|_sxrUpsertFetchPinned|url|POST": {
+      "status": "client-transport",
+      "note": "Pinned Samples upsert transport (status writes, including the client approve path). Not modified."
+    },
+    "270-samples-model.js.part|_sxrUpsertFetch|url|POST": {
+      "status": "client-transport",
+      "note": "Samples upsert transport, shared with the client link. Not modified; each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save)."
+    },
+    "270-samples-model.js.part|post|url|POST": {
+      "status": "reports",
+      "within": [
+        "_sxrReorderFetch"
+      ],
+      "note": "Samples drag order. Recorded as sample_reorder."
+    },
+    "290-samples-writes-review.js.part|_writeUiReadRepairReceipt|WRITE_UI_PRODUCTION_WRITE_URL|POST": {
+      "status": "read",
+      "note": "Reads a repair receipt."
+    },
+    "300-tiktok-upload.js.part|_tkCancelRow|TIKTOK_UPLOAD_CANCEL_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_tkCancelRow"
+      ],
+      "note": "TikTok cancel. Recorded as tiktok_cancel."
+    },
+    "300-tiktok-upload.js.part|_tkFinishDirectSubmit|TIKTOK_UPLOAD_DIRECT_WEBHOOK|POST": {
+      "status": "reports",
+      "within": [
+        "_tkFinishDirectSubmit"
+      ],
+      "note": "TikTok post creation after a direct upload. Recorded as tiktok_upload."
+    },
+    "300-tiktok-upload.js.part|_tkFinishPhotoSubmit|TIKTOK_UPLOAD_DIRECT_WEBHOOK|POST": {
+      "status": "reports",
+      "within": [
+        "_tkFinishPhotoSubmit"
+      ],
+      "note": "TikTok photo post creation. Recorded as tiktok_upload."
+    },
+    "300-tiktok-upload.js.part|_tkPutDirect|uploadUrl|PUT": {
+      "status": "reports",
+      "within": [
+        "_tkPutDirect"
+      ],
+      "note": "TikTok video upload to storage. Recorded as tiktok_storage_put."
+    },
+    "300-tiktok-upload.js.part|_tkRetryRow|TIKTOK_UPLOAD_STATUS_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_tkRetryRow"
+      ],
+      "note": "TikTok retry. Recorded as tiktok_retry."
+    },
+    "300-tiktok-upload.js.part|_tkSubmitPhotoCarousel|TIKTOK_UPLOAD_URL_WEBHOOK|PUT": {
+      "status": "reports",
+      "within": [
+        "_tkSubmitPhotoCarousel"
+      ],
+      "note": "TikTok photo upload address. Recorded as tiktok_photo_upload."
+    },
+    "300-tiktok-upload.js.part|_tkSubmitPhotoCarousel|mint.upload_url|PUT": {
+      "status": "reports",
+      "within": [
+        "_tkSubmitPhotoCarousel"
+      ],
+      "note": "TikTok photo upload to storage. Recorded as tiktok_photo_upload."
+    },
+    "300-tiktok-upload.js.part|idempotencyKey|TIKTOK_UPLOAD_WEBHOOK|POST": {
+      "status": "reports",
+      "within": [
+        "_tkSubmit"
+      ],
+      "note": "TikTok upload, multipart. Recorded as tiktok_upload."
+    },
+    "310-sales-intake-hiring.js.part|send|HIRING_APPLICATIONS_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_hpCall"
+      ],
+      "note": "Hiring. list and detail are reads; every other action is recorded as hiring_<action>."
+    },
+    "321-kasper-dashboard-replies.js.part|_spLoad|SP_EF_URL|POST": {
+      "status": "read",
+      "note": "The save-problems page reading the log itself."
+    },
+    "321-kasper-dashboard-replies.js.part|send|CC_EDGE_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_ccApi"
+      ],
+      "note": "Client credentials. list and history are reads; every other action is recorded as credentials_<action>."
+    },
+    "323-kasper-dashboard-tail.js.part|_caEditPost|CA_WRITE_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_caEditPost"
+      ],
+      "note": "Client profile edit / status / refresh. Recorded as client_profile_<action>."
+    },
+    "323-kasper-dashboard-tail.js.part|stale|CA_READ_URL|POST": {
+      "status": "read",
+      "note": "Client profile read."
+    },
+    "330-kasper-review-history.js.part|fetchOne|KASPER_QUEUE_URL|POST": {
+      "status": "read",
+      "note": "Kasper review queue read."
+    }
+  }
+}

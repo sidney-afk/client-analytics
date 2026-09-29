@@ -1,46 +1,2000 @@
-import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { calClientSlug } from './130-calendar-model-cache.js';
-import {
-  CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
-  _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
-  _analyticsMetricFmt, _analyticsMetricNumber, _analyticsPlatformReceipt,
-  _analyticsPlatformVisible, _analyticsProviderFailed, _analyticsStateBadge,
-  _analyticsTrustedReference, _clientBriefTabAvailable, _hookSaveKey, _safeWeekViewDelta,
-  _setCurrentClientHistory, _setFollowersMode, _setFollowersPlat, _setGrowthChart, _setSortCol,
-  _setSortDir, _setViewsChart, _setViewsPlat, _storeHookCard, _syncviewRenderClientExtrasGate,
-  activeBriefSection, activeBriefTab, activeMRBriefTab, activePeriods, buildTabData, clientHistory,
-  clientMap, clientViewTab, contentSummaryState, currentClientHistory, fetchExtras, fmt,
-  fmtCompact, fmtDate, followersMode, followersPlat, formatHookTemplate, getActivePeriod,
-  getMonthRow, getPeriodKey, getWeekRow, growthChart, isPhrase, latestPerClient,
-  monthPrevPerClient, n, parseViewCount, prevPerClient, renderBriefContent, renderTabSummary,
-  savedHooks, showNotify, showToast, sortCol, sortDir, svAreaApi, topVideos, viewsChart, viewsPlat,
-  weekPrevPerClient
-} from './040-shared-briefs.js';
-import {
-  NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav
-} from './065-core-nav-intake-state.js';
-import {
-  WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
-} from './070-core-client-names.js';
-import { _syncviewApplyTabFavicon, navTo } from './092-core-submit-form-navigation.js';
-import { svClientBarSync, svSharedClientNote } from './095-shared-client.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
-import { _calRuntimeFlagClient, _settingsWriteHeaders, _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.js';
-import { _calAbandonLinkOnCalendarExit, _calSetFocusRequest, _calSetPendingDeepLink } from './130-calendar-model-cache.js';
-import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
-import { _calLoaderHtml, _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js';
-import { _calResolvePendingDeepLink, mountCalendarEmbedded } from './134-calendar-prefs-mount.js';
-import { _calV2Teardown } from './150-calendar-hydration-import.js';
-import { _svSaveIndApply } from './170-calendar-links-status.js';
-import { _kasperUnlocked } from './200-intake-data-startup.js';
-import {
-  _isClientLink, _syncviewClientEntryCapability, _syncviewClientEntryDataRun,
-  _syncviewClientEntryEnvelope, _syncviewClientEntryRunCurrent, _syncviewClientEntrySlug,
-  _syncviewInvalidClientLinkScreen, _syncviewSetClientEntryCapability,
-  _syncviewSyncClientEntryRunHref
-} from './260-production-refresh-boot.js';
-import { mountSxrClientView } from './280-samples-cards-notes.js';
-import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
+    const SYNCVIEW_THEME_KEY = 'syncview_theme';
+    const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
+    /*
+     * On-demand areas (docs/plans/2026-09-28-load-per-tab-plan.md, step 3).
+     *
+     * A staff-only area listed as "lazy" in src/index/split.json is not in
+     * the page's first download when the page is served in parts: its code
+     * arrives the first time something asks for it. So nothing outside an
+     * area calls its functions by name. The area registers what it offers,
+     * the moment its code runs (svAreaRegister), and callers go through here:
+     *   svAreaApi(name)   what the area offers if its code has run, else null
+     *                     (an area that never loaded has nothing to tear down,
+     *                     re-render or flush);
+     *   svArea(name)      a promise of the same, fetching the code if needed;
+     *   svWithArea(...)   draw a tab from its area: at once when the code is
+     *                     here (always, for the whole-script page), else a
+     *                     loading state, then the tab, or a Retry.
+     * The client approve / request-changes path is never lazy (areas.txt).
+     */
+    const _svAreaApis = Object.create(null);
+    const _svAreaLoads = Object.create(null);
+    let _svAreaDrawSeq = 0;
+    function svAreaRegister(name, api) { _svAreaApis[name] = api; }
+    function svAreaApi(name) { return _svAreaApis[name] || null; }
+    function svArea(name) {
+        if (_svAreaApis[name]) return Promise.resolve(_svAreaApis[name]);
+        if (_svAreaLoads[name]) return _svAreaLoads[name];
+        const file = self.__svLoad && self.__svLoad.lazy && self.__svLoad.lazy[name];
+        if (!file) {
+            // Not on demand: the area's code is in the page and simply has not
+            // run yet while the page is still being read (start-up routing can
+            // ask this early). It has once the document has finished loading.
+            if (document.readyState !== 'loading') return Promise.reject(new Error('SyncView area "' + name + '" is not available'));
+            return new Promise((resolve, reject) => document.addEventListener('DOMContentLoaded', () => (
+                _svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" is not available'))
+            ), { once: true }));
+        }
+        const load = new Promise((resolve, reject) => {
+            const start = () => {
+                const s = document.createElement('script');
+                s.src = '/' + file;
+                s.onload = () => (_svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" did not start')));
+                s.onerror = () => { s.remove(); reject(new Error('SyncView area "' + name + '" could not be downloaded')); };
+                document.head.appendChild(s);
+            };
+            // An area's code uses always-loaded fragments that come later in the
+            // page than the start-up router (which can ask for an area, on a
+            // refresh, while the page is still being read). A script added now
+            // could run between two of those parts and find a name not defined
+            // yet, so wait until the whole document, and with it every
+            // always-loaded part, has run.
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+            else start();
+        });
+        // A failed download is not remembered, so Retry fetches again.
+        _svAreaLoads[name] = load.catch(e => { delete _svAreaLoads[name]; throw e; });
+        return _svAreaLoads[name];
+    }
+    function svWithArea(name, content, draw, retry) {
+        const seq = ++_svAreaDrawSeq;
+        const api = _svAreaApis[name];
+        if (api) { draw(api); return; }
+        content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" style="padding:48px 24px;text-align:center;opacity:.7;">Loading…</div>';
+        const stillWaiting = () => seq === _svAreaDrawSeq && !!content.querySelector('[data-sv-area-wait="' + seq + '"]');
+        svArea(name).then(loaded => { if (stillWaiting()) draw(loaded); }, () => {
+            if (!stillWaiting()) return;
+            content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="alert" style="padding:48px 24px;text-align:center;">'
+                + 'This page could not be loaded. Check your connection. '
+                + '<button type="button" class="btn btn-secondary" data-sv-area-retry>Retry</button></div>';
+            const b = content.querySelector('[data-sv-area-retry]');
+            if (b) b.addEventListener('click', () => { if (typeof retry === 'function') retry(); else svWithArea(name, content, draw, retry); });
+        });
+    }
+    // Staff pages served in parts fetch the remaining areas quietly once the
+    // first screen is up, so switching tabs later waits on nothing.
+    function _svPrefetchAreas() {
+        const lazy = self.__svLoad && self.__svLoad.lazy;
+        if (!lazy) return;
+        for (const name of Object.keys(lazy)) svArea(name).catch(() => {});
+    }
+    window.addEventListener('load', () => {
+        const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1500));
+        setTimeout(() => idle(_svPrefetchAreas), 2500);
+    });
+    /*
+     * OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog
+     * overlays.
+     *
+     * Every dialog's backdrop closes it with `if (event.target === overlay)
+     * dismiss()`. That is not enough: the DOM dispatches `click` at the
+     * nearest common ancestor of the mousedown target and the mouseup
+     * target, so a press that starts on a field inside the dialog (e.g.
+     * drag-selecting text) and releases on the backdrop makes
+     * `event.target === overlay` true at click time too -- indistinguishable
+     * from an actual backdrop click. Drag-selecting text right-to-left near a
+     * dialog's edge routinely ends the drag outside it, so this is ordinary
+     * input, not an edge case.
+     *
+     * One delegated, capture-phase `mousedown` listener on `document` records
+     * on every press whether it began directly on a marked backdrop
+     * (`[data-backdrop-dismiss]`), not on one of its descendants. Capture
+     * phase is load-bearing: several dialog fields call
+     * `event.stopPropagation()` on their own `mousedown` (the Create Post
+     * batch-name field among them), which would stop a bubble-phase listener
+     * on the overlay from ever seeing those presses -- leaving a stale
+     * `true` from an earlier real backdrop press and letting the bug survive
+     * in a narrower, easier-to-miss form. Delegating at `document` also means
+     * a dialog whose markup is re-rendered (a fresh overlay element replacing
+     * the old one) is covered without re-arming anything, since there is
+     * nothing per-element to re-arm.
+     *
+     * Each backdrop's own click handler additionally requires
+     * `overlay._backdropPressBegan` (or `this._backdropPressBegan` inline)
+     * before dismissing, so a dismiss only fires when BOTH the press and the
+     * click landed on the backdrop itself.
+     */
+    document.addEventListener('mousedown', event => {
+        const backdrop = event.target && event.target.closest && event.target.closest('[data-backdrop-dismiss]');
+        if (backdrop) backdrop._backdropPressBegan = (event.target === backdrop);
+    }, true);
+    function _syncviewThemeAllowed() {
+        try {
+            const q = new URLSearchParams(svRoute.search());
+            return !q.get('c');
+        } catch (e) { return false; }
+    }
+    function _syncviewStoredTheme() {
+        try { return localStorage.getItem(SYNCVIEW_THEME_KEY) === 'dark' ? 'dark' : 'light'; }
+        catch (e) { return 'light'; }
+    }
+    function _syncviewStoredStatusPalette() {
+        try { return localStorage.getItem(SYNCVIEW_STATUS_PALETTE_KEY) === 'classic' ? 'classic' : 'vibrant'; }
+        catch (e) { return 'vibrant'; }
+    }
+    function _syncviewApplyTheme(theme, rerenderCharts) {
+        const allowed = _syncviewThemeAllowed();
+        const next = allowed && theme === 'dark' ? 'dark' : 'light';
+        if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        else document.documentElement.removeAttribute('data-theme');
+        const btn = document.getElementById('themeToggle');
+        if (btn) {
+            btn.hidden = !allowed;
+            btn.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
+            btn.setAttribute('aria-checked', next === 'dark' ? 'true' : 'false');
+            btn.setAttribute('aria-label', next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+            btn.title = next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+        }
+        const label = document.getElementById('themeToggleLabel');
+        const state = document.getElementById('themeToggleState');
+        if (label) label.textContent = 'Dark mode';
+        if (state) state.textContent = next === 'dark' ? 'On' : 'Off';
+        if (rerenderCharts !== false && currentClientHistory && Array.isArray(currentClientHistory)) {
+            try { renderChart(currentClientHistory); renderViewsChart(currentClientHistory); } catch (e) {}
+        }
+    }
+    function _syncviewApplyStatusPalette(palette) {
+        const allowed = _syncviewThemeAllowed();
+        const next = allowed && palette === 'classic' ? 'classic' : 'vibrant';
+        if (next === 'classic') document.documentElement.setAttribute('data-status-palette', 'classic');
+        else document.documentElement.removeAttribute('data-status-palette');
+        const btn = document.getElementById('statusPaletteToggle');
+        if (btn) {
+            btn.hidden = !allowed;
+            btn.setAttribute('aria-pressed', next === 'classic' ? 'true' : 'false');
+            btn.setAttribute('aria-checked', next === 'classic' ? 'true' : 'false');
+            btn.setAttribute('aria-label', next === 'classic' ? 'Switch to new status colors' : 'Switch to original status colors');
+            btn.title = next === 'classic' ? 'Switch to new status colors' : 'Switch to original status colors';
+        }
+        const state = document.getElementById('statusPaletteToggleState');
+        if (state) state.textContent = next === 'classic' ? 'On' : 'Off';
+    }
+    function toggleSyncViewTheme() {
+        if (!_syncviewThemeAllowed()) return;
+        const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        try {
+            if (next === 'dark') localStorage.setItem(SYNCVIEW_THEME_KEY, 'dark');
+            else localStorage.removeItem(SYNCVIEW_THEME_KEY);
+        } catch (e) {}
+        _syncviewApplyTheme(next);
+    }
+    function toggleSyncViewStatusPalette() {
+        if (!_syncviewThemeAllowed()) return;
+        const next = document.documentElement.getAttribute('data-status-palette') === 'classic' ? 'vibrant' : 'classic';
+        try {
+            if (next === 'classic') localStorage.setItem(SYNCVIEW_STATUS_PALETTE_KEY, 'classic');
+            else localStorage.removeItem(SYNCVIEW_STATUS_PALETTE_KEY);
+        } catch (e) {}
+        _syncviewApplyStatusPalette(next);
+    }
+    _syncviewApplyStatusPalette(_syncviewStoredStatusPalette());
+    _syncviewApplyTheme(_syncviewStoredTheme(), false);
+    // ── Confirmation modal ───────────────────────────────────────────────
+    let _confirmCb = null;
+    function showConfirm(title, msg, onYes, yesLabel, checkboxLabel) {
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMsg').textContent = msg;
+        document.getElementById('confirmOverlay').classList.add('active');
+        const yesBtn = document.getElementById('confirmYes');
+        yesBtn.textContent = yesLabel || 'Confirm';
+        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
+        if (cancelBtn) cancelBtn.style.display = '';
+        const checkWrap = document.getElementById('confirmCheckWrap');
+        const check = document.getElementById('confirmCheck');
+        if (checkboxLabel) {
+            document.getElementById('confirmCheckLabel').textContent = checkboxLabel;
+            check.checked = false;
+            checkWrap.hidden = false;
+        } else {
+            checkWrap.hidden = true;
+        }
+        _confirmCb = onYes;
+        yesBtn.onclick = () => { const cb = _confirmCb; const checked = check.checked; dismissConfirm(); if (cb) cb(checked); };
+    }
+    function dismissConfirm() {
+        document.getElementById('confirmOverlay').classList.remove('active');
+        _confirmCb = null;
+        // restore cancel button if it was hidden for notify mode
+        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
+        if (cancelBtn) cancelBtn.style.display = '';
+        document.getElementById('confirmCheckWrap').hidden = true;
+    }
+    function showNotify(title, msg) {
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMsg').textContent = msg;
+        document.getElementById('confirmCheckWrap').hidden = true;
+        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        const yesBtn = document.getElementById('confirmYes');
+        yesBtn.textContent = 'OK';
+        yesBtn.onclick = dismissConfirm;
+        document.getElementById('confirmOverlay').classList.add('active');
+    }
+
+    /* Bottom-center toast with optional action (used for Undo + confirmations).
+       Single instance — a new toast replaces the previous one. DOM-built, so
+       message text needs no escaping. */
+    let _toastEl = null, _toastTimer = null;
+    function hideToast() {
+        if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+        const el = _toastEl; _toastEl = null;
+        if (!el) return;
+        el.classList.remove('show');
+        setTimeout(() => { try { el.remove(); } catch (e) {} }, 220);
+    }
+    function showToast(msg, opts) {
+        opts = opts || {};
+        hideToast();
+        const el = document.createElement('div');
+        el.className = 'sv-toast';
+        // Codex review, PR for item 176 (seventh pass): a screen-reader user
+        // gets no announcement at all when a plain div is inserted into the
+        // page — this toast (and the "Opening linked card…"/"Linked to…"
+        // messages this feature relies on it for) would otherwise leave
+        // exactly the silent wait the feature exists to remove. Matches the
+        // role="status" + aria-live="polite" convention already used
+        // throughout this file for loading/status announcements.
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        const txt = document.createElement('span');
+        txt.className = 'sv-toast-msg';
+        txt.textContent = msg;
+        el.appendChild(txt);
+        if (opts.actionLabel && typeof opts.onAction === 'function') {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sv-toast-action';
+            btn.textContent = opts.actionLabel;
+            btn.onclick = () => { hideToast(); try { opts.onAction(); } catch (e) { console.warn('[SyncView] toast action failed:', e); } };
+            el.appendChild(btn);
+        }
+        document.body.appendChild(el);
+        _toastEl = el;
+        requestAnimationFrame(() => { if (el === _toastEl) el.classList.add('show'); });
+        _toastTimer = setTimeout(hideToast, opts.duration || (opts.actionLabel ? 6000 : 3200));
+    }
+
+    /* ── Focus guard — a background update must never steal the caret ──────
+       A toast, a realtime echo, a tab-return refresh, or a sibling card's
+       after-save repaint can rebuild the very DOM node the user is typing in.
+       A bare innerHTML / replaceWith then destroys that field and kicks focus
+       (and the caret) out — the "Approve pulls me out of the field" bug. These
+       three primitives let any re-render preserve the active input: capture the
+       focused INPUT/TEXTAREA by a signature that survives the rebuild (its id,
+       else its oninput handler string, else its name) + caret, run the render,
+       then re-focus the matching field in the fresh DOM and restore selection.
+       No-ops when nothing is focused or the focused node isn't a text field, so
+       it is always safe to wrap a render — even a background one. */
+    /* The handler string alone is not unique: every card's name box calls
+       the same `_sxrOnFieldInput(this)`, so a match on it alone picked the
+       FIRST card on the page, not the one being typed in. Where the field
+       carries its card and field identity (data-pid, data-fld, data-comp),
+       that identity is part of the signature. */
+    function _svFieldKey(el) {
+        const get = k => (el.getAttribute && el.getAttribute(k)) || '';
+        const parts = ['data-pid', 'data-fld', 'data-comp'].map(k => get(k) ? k + '=' + get(k) : '').filter(Boolean);
+        return parts.length ? '|' + parts.join('|') : '';
+    }
+    function _svFieldSig(el) {
+        if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return '';
+        if (el.id) return '#' + el.id;
+        const oi = el.getAttribute && el.getAttribute('oninput');
+        if (oi) return 'oninput=' + oi + _svFieldKey(el);
+        if (el.name) return 'name=' + el.name + _svFieldKey(el);
+        return '';
+    }
+    function _svCaptureFocus(root) {
+        const a = (typeof document !== 'undefined') ? document.activeElement : null;
+        if (!a) return null;
+        if (root && !(root.contains && root.contains(a))) return null;   // focus isn't in the region being rebuilt
+        const sig = _svFieldSig(a);
+        if (!sig) return null;
+        const cap = { sig, el: a, start: null, end: null, dir: 'none' };
+        try { cap.start = a.selectionStart; cap.end = a.selectionEnd; cap.dir = a.selectionDirection || 'none'; } catch (e) {}
+        return cap;
+    }
+    function _svRestoreFocus(cap) {
+        if (!cap || !cap.sig) return;
+        let el = null;
+        // The very box the person was in, when a render left it in place.
+        if (cap.el && cap.el.isConnected && _svFieldSig(cap.el) === cap.sig) el = cap.el;
+        if (!el && cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
+        if (!el) {
+            const nodes = document.querySelectorAll('input, textarea');
+            for (let i = 0; i < nodes.length; i++) { if (_svFieldSig(nodes[i]) === cap.sig) { el = nodes[i]; break; } }
+        }
+        if (!el) return;
+        try {
+            if (document.activeElement !== el) el.focus();
+            if (cap.start != null && typeof el.setSelectionRange === 'function') el.setSelectionRange(cap.start, cap.end, cap.dir);
+        } catch (e) {}
+    }
+    function _svPreserveFocus(render, root) {
+        const cap = _svCaptureFocus(root);
+        const out = render();
+        if (cap) _svRestoreFocus(cap);
+        return out;
+    }
+
+    const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
+    const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
+    const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
+    const TOPVIDS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
+    // Competitor Briefs: retired 2026-09-24 (#1590). The tab is no longer
+    // downloaded; `briefs` stays an empty list so older saved copies still load.
+    const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
+    const CONTENT_SUMMARIES_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ContentSummaries`;
+    // Filming Plans source. The staff-gated Edge Function is authoritative;
+    // browser reads never fall back to raw PostgREST or the former public sheet.
+    // plan_months is an optional manual list like "2026-04,2026-05" used when the
+    // tabs webhook below isn't configured yet.
+    // Optional n8n endpoint that, given ?doc=<docId>, returns the Google Doc's
+    // tabs as { ok:true, tabs:[{ tabId, title, url }] } via the Docs API. The
+    // "Filming Plan Tabs" workflow (n8n id 5S4JyVVR2CpHEv9b) serves this; until
+    // it's activated the view still shows the calendar content bank (plus any
+    // manual plan_months) — failed calls are caught and treated as no coverage.
+    const FILMING_PLAN_TABS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/filming-plan-tabs';
+    const FILMING_PLANS_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/filming-plans';
+
+    let allData = [], clientMap = {}, topVideos = [], growthChart = null, viewsChart = null;
+    let followersPlat = 'ig', followersMode = 'total', viewsPlat = 'all', currentClientHistory = [];
+    let briefs = [];
+    let mrBriefs = [];
+    let linearProjects = [];
+    let linearClientRows = [];
+    let sortCol = 'ig_followers', sortDir = 'desc';
+    function _setGrowthChart(value) { growthChart = value; }
+    function _setViewsChart(value) { viewsChart = value; }
+    function _setFollowersPlat(value) { followersPlat = value; }
+    function _setFollowersMode(value) { followersMode = value; }
+    function _setViewsPlat(value) { viewsPlat = value; }
+    function _setCurrentClientHistory(value) { currentClientHistory = value; }
+    function _setLinearProjects(value) { linearProjects = value; }
+    function _setLinearClientRows(value) { linearClientRows = value; }
+    function _setSortCol(value) { sortCol = value; }
+    function _setSortDir(value) { sortDir = value; }
+    function _setAllData(value) { allData = value; }
+    function _setClientMap(value) { clientMap = value; }
+    function _setTopVideos(value) { topVideos = value; }
+    function _setBriefs(value) { briefs = value; }
+    function _setMrBriefs(value) { mrBriefs = value; }
+    function _setClientViewTab(value) { clientViewTab = value; }
+    function _setContentSummaryState(value) { contentSummaryState = value; }
+    function _setTabSummaryCache(value) { tabSummaryCache = value; }
+    function _setFetchExtrasPromise(value) { _fetchExtrasPromise = value; }
+    function _nextFetchExtrasAttempt() { return ++_fetchExtrasAttempt; }
+    function _setFetchExtrasState(value) { _fetchExtrasState = value; }
+    function _setClientEssentialsLoad(value) { _clientEssentialsLoad = value; }
+    let activePeriods = {};
+    let clientViewTab = {};
+    let activeBriefTab = {};
+    let activeBriefId = {};
+    let activeBriefSection = {};
+    let activeMRBriefTab = {};
+    let activeMRBriefId = {};
+    let savedHooks = (() => { try { const raw = localStorage.getItem('syncview_savedHooks'); console.log('[SyncView] savedHooks raw from localStorage:', raw); const s = new Set(JSON.parse(raw || '[]')); console.log('[SyncView] savedHooks loaded:', [...s]); return s; } catch(e) { console.warn('[SyncView] savedHooks load error:', e); return new Set(); } })();
+    let tabSummaryCache = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryCache_v2') || '{}'); } catch { return {}; } })();
+    const tabSummaryControllers = new Set();
+    const tabSummaryStartTimers = new Set();
+    let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
+    let contentSummaryState = (() => { try { return JSON.parse(localStorage.getItem('syncview_contentSummaryState_v1') || '{}'); } catch { return {}; } })();
+    // Scrub entries that should not survive a page reload:
+    //   - loading:true with no in-flight request (left behind if the previous tab closed mid-generation)
+    //   - error states (e.g. transient Whisper 429s) — page reload should always re-attempt
+    //   - data shaped like a Claude refusal ("I'm unable to…", "fabricate", "no transcripts") rather than a real summary
+    // Removing these makes the next profile-open auto-trigger a fresh attempt instead of rendering broken text.
+    (() => {
+        const looksLikeRefusal = (s) => {
+            if (typeof s !== 'string' || !s) return false;
+            const t = s.toLowerCase();
+            return /^i'?m unable to\b/.test(t.trimStart()) || /^i can'?t\b/.test(t.trimStart()) || /^i cannot\b/.test(t.trimStart()) || t.includes('fabricate') || t.includes('no transcripts');
+        };
+        let dirty = false;
+        for (const [name, st] of Object.entries(contentSummaryState)) {
+            if (st?.loading) { delete contentSummaryState[name]; dirty = true; continue; }
+            if (st?.error) { delete contentSummaryState[name]; dirty = true; continue; }
+            if (st?.data?.bullets && looksLikeRefusal(st.data.bullets)) { delete contentSummaryState[name]; dirty = true; }
+        }
+        if (dirty) { try { localStorage.setItem('syncview_contentSummaryState_v1', JSON.stringify(contentSummaryState)); } catch {} }
+    })();
+
+    const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
+    const CONTENT_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-content-summary';
+    // Hook Library: N8N webhook that appends a row to the "Hook Library" sheet.
+    // Create a new N8N workflow with a Webhook trigger → Google Sheets "Append row" node.
+    // Fields: clientName, hookType, openingLine, template, views, sourceUrl, dateAdded
+    const HOOK_LIBRARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/add-hook-to-library';
+    const WEEKLY_SLACK_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/weekly-slack-top-reel';
+    // TikTok Upload module — proxies the Post For Me API (api.postforme.dev) through
+    // n8n so the API key stays server-side. See the bottom of this file for the module.
+    const TIKTOK_UPLOAD_WEBHOOK    = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload';
+    const TIKTOK_UPLOADS_LIST_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-uploads-list';
+    const TIKTOK_UPLOAD_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-status';
+    const TIKTOK_UPLOAD_CANCEL_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-cancel';
+    // Direct-to-storage transport (see _tkSubmit). `tiktok-upload-url` mints a
+    // one-time Post For Me upload URL; the browser PUTs the video straight to
+    // their storage and `tiktok-upload-direct` then takes metadata + that media
+    // URL only. This exists because n8n Cloud sits behind Cloudflare, which hard
+    // rejects request bodies over 100 MB before they ever reach the workflow —
+    // the browser sees only a generic network failure, which is what the
+    // 2026-08-17/18 "could not reach n8n" reports (113 MB / 122 MB) actually were.
+    const TIKTOK_UPLOAD_URL_WEBHOOK    = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-url';
+    const TIKTOK_UPLOAD_DIRECT_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-direct';
+    const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
+    const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
+    const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
+    const TIKTOK_QUEUE_CACHE_KEY   = 'syncview_tiktokQueueCache_v1';
+    const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
+    const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
+    // Cloudflare's request-body ceiling in front of n8n Cloud. Only the legacy
+    // in-band transport is subject to it; the direct path above is not.
+    const TIKTOK_LEGACY_MAX_BYTES  = 100 * 1024 * 1024;
+    // Photo carousel mode (TikTok "photo post"): always goes through the direct-to-storage
+    // transport above (mint one Post For Me upload URL per image, PUT each, then submit the
+    // resulting media URLs together) regardless of size — images are small, and reusing that
+    // path keeps this additive to tiktok-upload-direct only, never touching the in-band
+    // single-video tiktok-upload workflow above.
+    const TIKTOK_MAX_PHOTOS        = 35;               // TikTok photo/carousel post limit
+    const TIKTOK_PHOTO_MAX_BYTES   = 20 * 1024 * 1024;  // per-image guard
+
+    function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
+
+    function _scheduleTabSummary(name, briefType, tabId, tabData) {
+        const timer = setTimeout(() => {
+            tabSummaryStartTimers.delete(timer);
+            fetchTabSummary(name, briefType, tabId, tabData);
+        }, 0);
+        tabSummaryStartTimers.add(timer);
+    }
+
+    async function fetchTabSummary(name, briefType, tabId, tabData) {
+        const key = getTabSummaryKey(name, briefType, tabId);
+        const clientEntryRun = _isClientLink ? _syncviewClientEntryDataRun : null;
+        const runCurrent = () => !_isClientLink || _syncviewClientEntryRunCurrent(clientEntryRun);
+        if (!runCurrent()) return;
+        if (tabSummaryCache[key]?.text || tabSummaryCache[key]?.loading) return;
+        tabSummaryCache[key] = { loading: true, text: null, error: null };
+        refreshBriefView(name);
+        const controller = new AbortController();
+        tabSummaryControllers.add(controller);
+        const abortForClientEntry = () => controller.abort();
+        if (clientEntryRun) {
+            if (clientEntryRun.signal.aborted) controller.abort();
+            else clientEntryRun.signal.addEventListener('abort', abortForClientEntry, { once: true });
+        }
+        let timeout = null;
+        try {
+            timeout = setTimeout(() => controller.abort(), 180000);
+            const resp = await fetch(TAB_SUMMARY_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientName: name, briefType, tabId, tabData }),
+                signal: controller.signal
+            });
+            if (!runCurrent()) return;
+            const text = await resp.text();
+            if (!runCurrent()) return;
+            if (!text) { tabSummaryCache[key] = { loading: false, text: null, error: 'Empty response' }; refreshBriefView(name); return; }
+            const result = JSON.parse(text);
+            if (!runCurrent()) return;
+            tabSummaryCache[key] = { loading: false, text: result.summary || '', error: null };
+            try { localStorage.setItem('syncview_tabSummaryCache_v2', JSON.stringify(tabSummaryCache)); } catch {}
+            refreshBriefView(name);
+        } catch (e) {
+            if (!runCurrent()) return;
+            console.warn('[SyncView] Tab summary error:', e);
+            tabSummaryCache[key] = { loading: false, text: null, error: 'Could not generate summary' };
+            refreshBriefView(name);
+        } finally {
+            if (timeout) clearTimeout(timeout);
+            if (clientEntryRun) clientEntryRun.signal.removeEventListener('abort', abortForClientEntry);
+            tabSummaryControllers.delete(controller);
+        }
+    }
+
+    function renderTabSummary(name, briefType, tabId, tabData) {
+        const key = getTabSummaryKey(name, briefType, tabId);
+        const state = tabSummaryCache[key];
+        if (!state) {
+            // Trigger async fetch (fire-and-forget)
+            _scheduleTabSummary(name, briefType, tabId, tabData);
+            return `<div class="brief-tab-summary loading">Generating summary…</div>`;
+        }
+        if (state.loading) return `<div class="brief-tab-summary loading">Generating summary… <span style="font-weight:400;opacity:0.7;">(~1-2 min)</span></div>`;
+        if (state.error) return '';
+        if (state.text) {
+            // Strip markdown formatting (# headers, **bold**, *italic*) and render bullet points
+            const clean = state.text.replace(/^#{1,6}\s+/gm, '');
+            const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+            const hasBullets = lines.some(l => /^[-•*]\s/.test(l) || /^\d+\.\s/.test(l));
+            if (hasBullets) {
+                const items = lines.filter(l => /^[-•*]\s/.test(l) || /^\d+\.\s/.test(l)).map(l => {
+                    const t = l.replace(/^[-•*]\s*/, '').replace(/^\d+\.\s*/, '').trim();
+                    const html = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                    return `<li>${html}</li>`;
+                }).join('');
+                return `<div class="brief-tab-summary"><ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">${items}</ul></div>`;
+            }
+            const plainClean = clean.replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1');
+            return `<div class="brief-tab-summary">${plainClean}</div>`;
+        }
+        return '';
+    }
+
+    function buildTabData(briefType, tabId, data) {
+        // For overview/exec tabs, build a readable highlights string across all sections
+        if (briefType === 'mr' && tabId === 'overview') {
+            const exec = data.executiveSummary || {};
+            const h = (typeof exec === 'object' && exec.highlights) ? exec.highlights : {};
+            return { summary: 'Executive summary: ' + (exec.summary || exec || '') +
+                '. Landscape: ' + (h.landscape || '') +
+                '. Topic Clusters: ' + (h.topicClusters || '') +
+                '. Hooks: ' + (h.hooks || '') +
+                '. Filming Angles: ' + (h.filmingAngles || '') +
+                '. Gap: ' + (h.gap || '') };
+        }
+        if (briefType === 'comp' && tabId === 'exec') {
+            const s = data.executiveSummary || {};
+            return { summary: 'What is resonating: ' + (s.whatIsResonating || '') +
+                '. The gap: ' + (s.theGap || '') +
+                '. Hook patterns: ' + (s.hookPatterns || '') +
+                '. Action priorities: ' + (Array.isArray(s.actionPriorities) ? s.actionPriorities.join('; ') : '') };
+        }
+        const tabSections = {
+            mr: { landscape: data.landscapeAnalysis, topics: data.topicClusters, niche: [...(data.landscapeAnalysis||[]),...(data.topicClusters||[])], hooks: data.hookAnalysis, angles: data.filmingAngles, gap: data.theGap },
+            comp: { resonating: data.resonating, comments: data.commentIntelligence, gap: data.theGap, hooks: data.hookAnalysis }
+        };
+        const sectionData = (tabSections[briefType] || {})[tabId];
+        if (sectionData === undefined) return {};
+        return { summary: JSON.stringify(sectionData) };
+    }
+    function invalidateTabSummaries(name, briefType) {
+        const prefix = `${name}__${briefType}__`;
+        Object.keys(tabSummaryCache).forEach(key => { if (key.startsWith(prefix)) delete tabSummaryCache[key]; });
+        try { localStorage.setItem('syncview_tabSummaryCache_v2', JSON.stringify(tabSummaryCache)); } catch {}
+    }
+    function prefetchAllTabSummaries(name, briefType, data, briefId) {
+        const trackKey = `${name}__${briefType}`;
+        if (briefId && tabSummaryBriefIds[trackKey] && tabSummaryBriefIds[trackKey] !== briefId) {
+            invalidateTabSummaries(name, briefType);
+        }
+        if (briefId) { tabSummaryBriefIds[trackKey] = briefId; try { localStorage.setItem('syncview_tabSummaryBriefIds_v1', JSON.stringify(tabSummaryBriefIds)); } catch {} }
+        const tabs = briefType === 'mr' ? ['overview','niche','hooks','angles','gap'] : ['exec','resonating','comments','gap','hooks'];
+        tabs.forEach(tabId => _scheduleTabSummary(name, briefType, tabId, buildTabData(briefType, tabId, data)));
+    }
+
+    function getPeriodKey(c,p){return c+'__'+p;}
+    function getActivePeriod(c,p){return activePeriods[getPeriodKey(c,p)]||'week';}
+
+    function parseCSV(text) {
+        const rows=[]; let field='',fields=[],inQuotes=false,i=0;
+        const commit=()=>{fields.push(field.trim());field='';};
+        const commitRow=()=>{commit();if(fields.some(f=>f!==''))rows.push(fields);fields=[];};
+        while(i<text.length){
+            const ch=text[i],next=text[i+1];
+            if(inQuotes){if(ch==='"'&&next==='"'){field+='"';i+=2;continue;}if(ch==='"'){inQuotes=false;i++;continue;}field+=ch;i++;continue;}
+            if(ch==='"'){inQuotes=true;i++;continue;}
+            if(ch===','){commit();i++;continue;}
+            if(ch==='\r'&&next==='\n'){commitRow();i+=2;continue;}
+            if(ch==='\n'||ch==='\r'){commitRow();i++;continue;}
+            field+=ch;i++;
+        }
+        if(field!==''||fields.length>0)commitRow();
+        if(rows.length<2)return[];
+        const headers=rows[0].map(h=>h.replace(/^"|"$/g,''));
+        return rows.slice(1).map(vals=>{const obj={};headers.forEach((h,idx)=>obj[h]=vals[idx]||'');return obj;});
+    }
+    function n(v){const x=Number(v);return isNaN(x)?0:x;}
+    function fmt(v){const x=n(v);if(!x)return null;if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
+    function fmtDate(d){if(!d)return'';const p=d.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d;}
+    function fmtCompact(v){const x=n(v);if(v===''||v===undefined||v===null)return'—';if(!x&&v!=='0'&&v!==0)return'—';if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
+    const ANALYTICS_RECEIPT_SCHEMA='syncview.analytics.receipt.v1';
+    const ANALYTICS_RECEIPT_STATES=new Set(['success','genuinely_empty','provider_failed','not_configured']);
+    const ANALYTICS_RECEIPT_PLATFORMS=['instagram','tiktok','youtube'];
+    const ANALYTICS_RECEIPT_ERROR_CLASSES={
+        instagram:new Set(['apify_no_items','apify_request_blocked','apify_http_error','apify_schema_invalid','apify_provider_error','stale_post_metrics','receipt_missing']),
+        tiktok:new Set(['apify_no_items','apify_request_blocked','apify_http_error','apify_provider_error','receipt_missing']),
+        youtube:new Set(['youtube_provider_error','receipt_missing'])
+    };
+    function _analyticsPlatformValue(value,platform){
+        if(!value||typeof value!=='object'||Array.isArray(value)||!ANALYTICS_RECEIPT_STATES.has(value.state))return null;
+        if(typeof value.expected!=='boolean'||typeof value.attempted!=='boolean'||typeof value.used_last_good!=='boolean')return null;
+        if(!Number.isInteger(value.item_count)||value.item_count<0)return null;
+        const hasFetchedAt=typeof value.fetched_at==='string'&&value.fetched_at.length>0;
+        const hasSourceDate=typeof value.source_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value.source_date);
+        if(!Object.prototype.hasOwnProperty.call(value,'error_class')||(value.error_class!==null&&typeof value.error_class!=='string'))return null;
+        if(value.state==='not_configured'){
+            if(value.expected||value.attempted||value.used_last_good||value.item_count!==0||value.fetched_at!==null||value.source_date!==null||value.error_class!==null)return null;
+        }else if(value.state==='provider_failed'){
+            if(!value.expected||!value.attempted||value.item_count!==0||!hasFetchedAt||!ANALYTICS_RECEIPT_ERROR_CLASSES[platform]?.has(value.error_class))return null;
+            if(value.used_last_good?!hasSourceDate:value.source_date!==null)return null;
+        }else{
+            if(!value.expected||!value.attempted||value.used_last_good||!hasFetchedAt||!hasSourceDate||value.error_class!==null)return null;
+            if(value.state==='success'&&value.item_count<1)return null;
+            if(value.state==='genuinely_empty'&&value.item_count!==0)return null;
+        }
+        return value;
+    }
+    function _analyticsReceipt(row){
+        if(!row)return null;
+        let receipt=row.analytics_receipt;
+        if(!receipt)return null;
+        if(typeof receipt==='string'){
+            try{receipt=JSON.parse(receipt);}catch{return null;}
+        }
+        if(!receipt||typeof receipt!=='object'||Array.isArray(receipt))return null;
+        if(receipt.schema!==ANALYTICS_RECEIPT_SCHEMA||receipt.terminal!==true||receipt.metrics_written!==true||!receipt.platforms||typeof receipt.platforms!=='object'||Array.isArray(receipt.platforms))return null;
+        if(!receipt.client_name||!row.client_name||String(receipt.client_name)!==String(row.client_name))return null;
+        if(!receipt.run_date||!row.date||!/^\d{4}-\d{2}-\d{2}$/.test(String(receipt.run_date))||String(receipt.run_date)!==String(row.date).slice(0,10))return null;
+        if(typeof receipt.client_key!=='string'||!receipt.client_key.trim())return null;
+        const rowNumber=receipt.row_number;
+        const rowKeyValid=Number.isInteger(Number(rowNumber))&&Number(rowNumber)>0&&receipt.client_key==='row:'+String(rowNumber);
+        const nameKeyValid=(rowNumber===null||rowNumber==='')&&receipt.client_key==='name:'+String(receipt.client_name).trim().toLowerCase();
+        if(!rowKeyValid&&!nameKeyValid)return null;
+        if(typeof receipt.completed_at!=='string'||!receipt.completed_at)return null;
+        if(!ANALYTICS_RECEIPT_PLATFORMS.every(platform=>_analyticsPlatformValue(receipt.platforms[platform],platform)))return null;
+        const expectedResult=ANALYTICS_RECEIPT_PLATFORMS.some(platform=>receipt.platforms[platform].state==='provider_failed')?'degraded':'success';
+        if(receipt.result!==expectedResult)return null;
+        return receipt;
+    }
+    function _analyticsPlatformReceipt(row,platform){
+        const receipt=_analyticsReceipt(row);
+        return _analyticsPlatformValue(receipt?.platforms?.[platform],platform);
+    }
+    function _analyticsProviderFailed(row,platform){return _analyticsPlatformReceipt(row,platform)?.state==='provider_failed';}
+    function _analyticsMetricNumber(row,platform,key){
+        if(!row)return null;
+        const raw=row[key];
+        if(raw===''||raw===null||raw===undefined||!Number.isFinite(Number(raw)))return null;
+        const receipt=_analyticsPlatformReceipt(row,platform);
+        if(receipt){
+            const trustedFresh=receipt.state==='success'||receipt.state==='genuinely_empty';
+            const trustedFallback=receipt.state==='provider_failed'&&receipt.used_last_good===true;
+            return trustedFresh||trustedFallback?Number(raw):null;
+        }
+        const value=Number(raw);
+        return value===0?null:value;
+    }
+    function _analyticsHasTrustedMetrics(row,platform,keys){
+        return keys.some(key=>_analyticsMetricNumber(row,platform,key)!==null);
+    }
+    function _analyticsTrustedReference(today,candidate,platform,key){
+        if(_analyticsMetricNumber(candidate,platform,key)!==null)return candidate;
+        if(!today?.client_name||!today.date||typeof clientHistory!=='function')return null;
+        const cutoff=String(candidate?.date||today.date);
+        const history=clientHistory(today.client_name);
+        for(let i=history.length-1;i>=0;i--){
+            const row=history[i];
+            if(!row?.date||String(row.date)>=String(today.date)||String(row.date)>cutoff)continue;
+            if(_analyticsMetricNumber(row,platform,key)!==null)return row;
+        }
+        return null;
+    }
+    function _analyticsPlatformVisible(row,platform,legacyVisible){
+        const state=_analyticsPlatformReceipt(row,platform)?.state;
+        if(state==='success'||state==='genuinely_empty'||state==='provider_failed')return true;
+        if(state==='not_configured')return false;
+        return!!legacyVisible;
+    }
+    function _analyticsMetricFmt(row,platform,key){
+        const receipt=_analyticsPlatformReceipt(row,platform);
+        const value=_analyticsMetricNumber(row,platform,key);
+        if(receipt)return value===null?null:(fmt(value)||'0');
+        return fmt(row?.[key]);
+    }
+    function _analyticsStateBadge(row,platform){
+        const receipt=_analyticsPlatformReceipt(row,platform);
+        if(receipt?.state!=='provider_failed')return'';
+        const isStale=receipt.error_class==='stale_post_metrics';
+        const label=isStale
+            ? (receipt.used_last_good===true?'Delayed · last-known':'Delayed · no fresh data')
+            : (receipt.used_last_good===true?'Degraded · last-known':'Degraded · no fresh data');
+        return`<span class="analytics-state-badge">${label}</span>`;
+    }
+    function fmtIsoDate(iso){if(!iso)return'';try{const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);if(m){const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${parseInt(m[3])} ${months[parseInt(m[2])-1]} ${m[1]}, ${m[4]}:${m[5]}`;}return iso;}catch{return iso;}}
+    function parseViewCount(v){if(!v)return 0;const s=String(v).replace(/,/g,'').trim();if(s.endsWith('M'))return parseFloat(s)*1e6;if(s.endsWith('K'))return parseFloat(s)*1e3;return parseFloat(s)||0;}
+    function isPhrase(text){return(text||'').split(/\s+/).filter(w=>w.length>0).length>=3;}
+
+    // ── Hook Template & Library ───────────────────────────────────────────────
+
+    // Stores hook data keyed by card ID so onclick can reference it safely
+    // without embedding raw JSON into HTML attribute strings.
+    const _hookCardData = {};
+
+    function _storeHookCard(cardId, clientName, hookData, transcript) {
+        _hookCardData[cardId] = { clientName, hookData, transcript };
+    }
+
+    // Converts client-specific text into a bracketed template by detecting
+    // proper nouns and niche-specific phrases and replacing them with [placeholders].
+    // Falls back to showing the raw text if no substitutions are found.
+    function formatHookTemplate(text) {
+        if (!text) return '';
+        // If already has brackets, show as-is with styled brackets
+        if (/\[.+?\]/.test(text)) {
+            return text.replace(/\[([^\]]+)\]/g, '<span class="hook-template-bracket">[$1]</span>');
+        }
+        // Otherwise return as plain text (N8N not yet updated to generate templates)
+        return text;
+    }
+
+    function openTranscriptModal(cardId) {
+        const stored = _hookCardData[cardId];
+        if (!stored) return;
+        const { hookData, transcript } = stored;
+        const overlay = document.getElementById('transcriptOverlay');
+        const title = document.getElementById('transcriptModalTitle');
+        const meta = document.getElementById('transcriptModalMeta');
+        const body = document.getElementById('transcriptModalBody');
+        title.textContent = hookData.handle ? `@${hookData.handle}` : 'Transcript';
+        const metaParts = [];
+        if (hookData.views) metaParts.push(`👁 ${hookData.views}`);
+        if (hookData.url) metaParts.push(`<a href="${hookData.url}" target="_blank" rel="noopener" style="color:var(--text-secondary);font-weight:600;">View reel ↗</a>`);
+        meta.innerHTML = metaParts.join(' &nbsp;·&nbsp; ');
+        const text = transcript || hookData.openingLine || '';
+        if (text.trim()) {
+            body.innerHTML = `<p>${text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</p>`;
+        } else {
+            body.innerHTML = `<p class="no-transcript">Full transcript not available for this brief. Transcripts will appear here after regenerating the brief with the updated workflow.</p>`;
+        }
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeTranscriptModal(e) {
+        const overlay = document.getElementById('transcriptOverlay');
+        if (e && (e.target !== overlay || !overlay._backdropPressBegan)) return;
+        document.getElementById('transcriptOverlay').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    function _hookSaveKey(clientName, openingLine) { return `${clientName}||${openingLine}`; }
+
+    async function addHookToLibrary(cardId, btn) {
+        const stored = _hookCardData[cardId];
+        if (!stored) return;
+        const { clientName, hookData } = stored;
+        if (!HOOK_LIBRARY_WEBHOOK) {
+            showNotify('Webhook not configured', 'Hook Library webhook not configured yet. See setup instructions.');
+            return;
+        }
+        btn.disabled = true;
+        const plusIcon = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+        btn.innerHTML = `${plusIcon} Saving…`;
+        try {
+            const resp = await _writeUiTrackSave('briefs', 'hook_library_add', { client_slug: calClientSlug(clientName) }, () => fetch(HOOK_LIBRARY_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientName,
+                    hookType: hookData.hookType || '',
+                    openingLine: hookData.openingLine || '',
+                    template: hookData.stealThis || ''
+                })
+            }));
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const saveKey = _hookSaveKey(clientName, hookData.openingLine || '');
+            console.log('[SyncView] Saving hook key:', saveKey);
+            savedHooks.add(saveKey);
+            try { localStorage.setItem('syncview_savedHooks', JSON.stringify([...savedHooks])); console.log('[SyncView] savedHooks persisted:', [...savedHooks]); } catch(e) { console.warn('[SyncView] savedHooks persist error:', e); }
+            btn.classList.add('saved');
+            btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="var(--sv-fg-10b981)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`;
+        } catch(err) {
+            console.warn('[SyncView] Hook library save error:', err);
+            btn.disabled = false;
+            btn.innerHTML = `${plusIcon} Add to library`;
+            showNotify('Could not save', 'Could not save to Hook Library. Check the webhook is set up.');
+        }
+    }
+
+    const ICON={
+        views:`<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.5"/></svg>`,
+        likes:`<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 14s-5.5-3.5-5.5-7A3.5 3.5 0 0 1 8 4.5 3.5 3.5 0 0 1 13.5 7C13.5 10.5 8 14 8 14z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+        comments:`<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v8H5l-3 3V3z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+        shares:`<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 9l4-5 4 5M8 4v9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    };
+
+    /* Essentials = the two CSVs every routing path needs: metrics (for
+       allData / clientHistory / clientNames) and clients info (for
+       clientMap and roster resolution). Review tokens are service-role-only
+       and are never sourced from this anonymously-readable CSV. Kept separate so
+       a client share link landing on /v=calendar only waits for these
+       two and the analytics-heavy fetches (top videos, briefs, MR briefs,
+       content summaries) load in the background. */
+    let _fetchExtrasPromise = null;
+    let _fetchExtrasAttempt = 0;
+    let _fetchExtrasState = { status: 'idle', run: null };
+    /* Client links track the essentials read per entry run too: the Calendar
+       tab no longer waits on it (the verified client comes from the server,
+       not the sheet), so Analytics/Brief must know whether it has landed. */
+    let _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
+
+    /* ── Analytics snapshot cache (stale-while-revalidate) ────────────────
+       The six analytics CSVs change once a day (the morning scrape), yet
+       every page load waited on all of them before painting the dashboard.
+       We cache analytics CSV text plus a sanitized Clients Info row set and
+       replay them through the exact same
+       parsers on the next load — instant paint from yesterday's snapshot —
+       while fetchAll() revalidates in the background. If the fresh texts
+       differ, the analytics view re-renders once (scroll preserved, and
+       never while the user is typing). Client share links (?c=…) always
+       await fresh data so their client name resolves against the current roster. */
+    const ANALYTICS_CACHE_KEY = 'syncview_analyticsCache_v1';
+    const ANALYTICS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    const CLIENTS_INFO_FORBIDDEN_FIELDS = new Set(['client_review_token']);
+    let _analyticsAppliedFp = { ess: '', ext: '' };   // fingerprint of last-applied texts
+    function _analyticsFp(parts){
+        let h = 5381;
+        for (const s of parts) { const t = String(s || ''); for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; h = ((h << 5) + h + 31) | 0; }
+        return String(h);
+    }
+    /* The snapshot outgrew the localStorage quota (a big roster's MR briefs
+       alone run ~0.75MB of CSV), which killed caching entirely: every write
+       threw, the cache was dropped, every boot re-fetched from cold, and the
+       quota-exceeded warning spammed each load. Worse, a full localStorage
+       endangers the OTHER writers on this origin -- including the saved
+       Create Post payload, which is the only copy of what a user typed.
+
+       Three defenses, in order:
+       1. PACK. localStorage stores UTF-16, so ASCII-heavy JSON wastes half of
+          every character. The snapshot is UTF-8-encoded and packed two bytes
+          per code unit -- a sync, lossless, exactly-2x cut. Stored with a
+          "P1:" prefix; an unprefixed legacy snapshot still hydrates.
+       2. DEGRADE. If the packed snapshot still misses, retry once without
+          `summaries` -- the one section hydrate treats as optional -- before
+          giving up. The complete-snapshot paint rule is untouched.
+       3. GO QUIET. If it still misses, drop the cache (as before) but warn
+          once per session and stop re-attempting writes of at least the
+          failed size, instead of serializing megabytes into a guaranteed
+          exception on every load. */
+    const ANALYTICS_CACHE_FAIL_KEY = 'syncview_analyticsCacheQuotaFail_v1';
+    /* Typed arrays, not a string grown one character at a time. The older
+       loops were the same encoding, but on the 2.5 MB Metrics sheet one cache
+       write (read + unpack + pack) held the main thread for ~2.1 s, measured
+       2026-09-23 -- and on a SyncLinear load that task landed between two
+       pages of the deliverable read, so the third page could not even start
+       until it finished. Output is byte-for-byte the old format, so snapshots
+       already in a browser still read. */
+    function _lsPackUtf8(text){
+        const CHUNK = 8192;   // under the argument limit of fromCharCode.apply
+        const str = String(text);
+        // encodeURIComponent threw on a lone surrogate; TextEncoder would
+        // quietly write U+FFFD instead. Keep the throw, so the caller's catch
+        // still drops the write rather than caching altered text.
+        if (typeof str.isWellFormed === 'function' && !str.isWellFormed()) throw new URIError('URI malformed');
+        const bytes = new TextEncoder().encode(str);
+        const n = bytes.length;
+        const units = new Uint16Array((n + 1) >> 1);
+        for (let i = 0, j = 0; i < n; i += 2, j++) {
+            units[j] = (bytes[i] << 8) | (i + 1 < n ? bytes[i + 1] : 0);
+        }
+        let out = '';
+        for (let k = 0; k < units.length; k += CHUNK) {
+            out += String.fromCharCode.apply(null, units.subarray(k, k + CHUNK));
+        }
+        // A trailing odd byte is padded with NUL; record parity so unpack
+        // knows whether to drop it.
+        return (n % 2 ? 'O' : 'E') + out;
+    }
+    function _lsUnpackUtf8(packed){
+        const parity = packed[0];
+        const bytes = new Uint8Array(Math.max(0, packed.length - 1) * 2);
+        for (let i = 1, j = 0; i < packed.length; i++, j += 2) {
+            const u = packed.charCodeAt(i);
+            bytes[j] = u >> 8;
+            bytes[j + 1] = u & 0xff;
+        }
+        const end = parity === 'O' ? bytes.length - 1 : bytes.length;
+        // fatal: bad UTF-8 throws, as decodeURIComponent did. ignoreBOM: a
+        // leading U+FEFF is text here, and the old path kept it.
+        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, Math.max(0, end)));
+    }
+    function _analyticsCacheRead(){
+        try{
+            const raw = localStorage.getItem(ANALYTICS_CACHE_KEY);
+            if (!raw) return null;
+            const json = raw.slice(0, 3) === 'P1:' ? _lsUnpackUtf8(raw.slice(3)) : raw;
+            return JSON.parse(json) || null;
+        }catch(e){ return null; }
+    }
+    function _analyticsCacheWrite(partial){
+        let packed = '';
+        let cur = null, curAt = 0;
+        try{
+            cur = _analyticsCacheRead() || {};
+            curAt = Number(cur.at) || 0;   // before the merge below restamps it
+            if (cur.clients) cur.clients = _clientsInfoPublicRows(cur.clients);
+            const next = Object.assign({}, partial || {});
+            if (next.clients) next.clients = _clientsInfoPublicRows(next.clients);
+            Object.assign(cur, next, { at: Date.now() });
+            packed = 'P1:' + _lsPackUtf8(JSON.stringify(cur));
+            let failedAt = 0;
+            try { failedAt = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0; } catch (e) {}
+            if (failedAt && packed.length >= failedAt * 0.9) {   // known-doomed this session
+                // Fresh numbers headed for IndexedDB must not leave older ones
+                // here, where they would paint first on the next load.
+                if (next.metrics != null || next.clients != null) { try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e) {} }
+                if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(partial);
+                return;
+            }
+            try {
+                localStorage.setItem(ANALYTICS_CACHE_KEY, packed);
+            } catch (quotaErr) {
+                // Retry once without the optional summaries before giving up.
+                delete cur.summaries;
+                localStorage.setItem(ANALYTICS_CACHE_KEY, 'P1:' + _lsPackUtf8(JSON.stringify(cur)));
+            }
+            try { sessionStorage.removeItem(ANALYTICS_CACHE_FAIL_KEY); } catch (e) {}
+        }catch(e){
+            // Quota or private mode — drop the cache rather than half-write it,
+            // remember the losing size, and say so once instead of every load.
+            // Spill everything this key held, not just the new part: dropping
+            // the key used to lose the saved numbers whenever the extras were
+            // the write that overflowed, so the next load had nothing to paint.
+            try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e2) {}
+            if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(Object.assign({}, cur || {}, partial || {},
+                // Numbers carried over from the key keep that key's age, so a
+                // move between stores never makes old numbers look fresh.
+                (partial && (partial.metrics != null || partial.clients != null)) ? {} : { essAt: curAt }));
+            let warned = 0;
+            try {
+                warned = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0;
+                sessionStorage.setItem(ANALYTICS_CACHE_FAIL_KEY, String(packed.length || 1));
+            } catch (e3) {}
+            if (!warned) console.warn('[SyncView] analytics cache write skipped:', e && e.message);
+        }
+    }
+    function _clientsInfoPublicRows(input){
+        const rows = Array.isArray(input) ? input : parseCSV(String(input || ''));
+        return rows.map(row => {
+            const safe = {};
+            Object.keys(row || {}).forEach(key => {
+                if (!CLIENTS_INFO_FORBIDDEN_FIELDS.has(String(key).trim().toLowerCase())) safe[key] = row[key];
+            });
+            return safe;
+        });
+    }
+    function _analyticsHydrateFromCache(){
+        try{
+            const c = _analyticsCacheRead();
+            if (!c) return false;
+            const publicClients = _clientsInfoPublicRows(c.clients);
+            if (JSON.stringify(c.clients) !== JSON.stringify(publicClients)) {
+                c.clients = publicClients;
+                localStorage.setItem(ANALYTICS_CACHE_KEY, 'P1:' + _lsPackUtf8(JSON.stringify(c)));
+            }
+            if (!c.at || (Date.now() - c.at) > ANALYTICS_CACHE_TTL_MS) return false;
+            /* PAINT FROM WHAT ARRIVED. The overview draws from Metrics and
+               Clients Info only, so those two are all this paint needs. The
+               extras used to be required here too, but they no longer fit
+               localStorage: the write path keeps the numbers here and spills
+               the extras to IndexedDB, and the IndexedDB path wanted both
+               halves in IndexedDB. So neither saved copy ever painted, and
+               every warm Analytics visit waited on the live sheets (measured
+               on the live site 2026-09-24). Missing extras are read from
+               IndexedDB behind the paint; a client page still waits for them
+               (render() -> _analyticsExtrasArrival). */
+            if (!c.metrics || !c.clients) return false;
+            // Migrate older raw-CSV snapshots in place before hydration. Keep
+            // the original timestamp so sanitization cannot extend freshness.
+            _analyticsApplySnapshot(c, publicClients);
+            console.log('[SyncView] painted from analytics snapshot cache (' + Math.round((Date.now() - c.at) / 60000) + ' min old)');
+            return true;
+        }catch(e){ console.warn('[SyncView] analytics cache hydrate failed:', e); return false; }
+    }
+    /* ESSENTIALS NOW, EXTRAS AFTER THE FIRST FRAME. The staff overview draws
+       from Metrics and Clients Info only; TopVideos (15.8 MB, 56,881 rows,
+       measured 2026-09-23) and the two brief sheets feed the per-client pages.
+       Parsing them before the overview could paint cost ~370 ms of a ~650 ms
+       cached paint. They are applied one frame later -- or at once by anything
+       that reads them first (_analyticsFlushPendingExtras, called from
+       render() for a client page) -- so no view ever
+       draws without them. A live fetchExtras that lands first wins and the
+       queued copy is dropped. */
+    let _analyticsPendingExtras = null;
+    let _analyticsExtrasApplied = false;
+    let _analyticsLiveEssentials = false;   // set when fresh sheet texts are applied
+    let _analyticsCachedAt = 0;             // saved-copy time while its numbers are on screen
+    function _analyticsApplySnapshot(c, publicClients){
+        _applyEssentialTexts(c.metrics, publicClients);
+        _analyticsCachedAt = Number(c.at) || Date.now();
+        _analyticsSyncCachedNote();
+        if (!(c.topvids && c.mrbriefs)) { _analyticsIdbReadExtras(); return; }
+        _analyticsPendingExtras = [c.topvids, '', c.mrbriefs, c.summaries || null];
+        // Fingerprinted now, so the revalidation compare in init() sees what
+        // this paint stands for even before the queued texts are parsed.
+        _analyticsAppliedFp.ext = _analyticsFp([c.topvids, '', c.mrbriefs, c.summaries || '']);
+        const later = () => setTimeout(_analyticsFlushPendingExtras, 0);
+        if (document.hidden || typeof requestAnimationFrame !== 'function') later();
+        else requestAnimationFrame(later);
+    }
+    function _analyticsFlushPendingExtras(){
+        const p = _analyticsPendingExtras;
+        if (!p) return;
+        _analyticsPendingExtras = null;
+        _applyExtraTexts(p[0], p[1], p[2], p[3]);
+    }
+    /* "Showing numbers saved at HH:MM · updating…" while a saved copy is on
+       screen; "Couldn't update" if the refresh fails; gone once fresh sheets
+       apply. It sits in the analytics page header (#pageTop), which every
+       other tab already hides, so no other view can show it. */
+    function _analyticsSyncCachedNote(failed){
+        try{
+            const top = document.getElementById('pageTop');
+            let note = document.getElementById('analyticsCachedNote');
+            if (!_analyticsCachedAt) { if (note) note.remove(); return; }
+            if (!top) return;
+            if (!note) {
+                note = document.createElement('div');
+                note.id = 'analyticsCachedNote';
+                note.className = 'page-sub';
+                note.setAttribute('aria-live', 'polite');
+                top.appendChild(note);
+            }
+            const at = new Date(_analyticsCachedAt);
+            const hhmm = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+            const time = at.toDateString() === new Date().toDateString()
+                ? hhmm : at.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + hhmm;
+            note.setAttribute('data-analytics-cached', failed ? 'failed' : 'updating');
+            note.textContent = failed
+                ? 'Couldn\u2019t update \u00b7 showing numbers saved at ' + time
+                : 'Showing numbers saved at ' + time + ' \u00b7 updating\u2026';
+        }catch(e){}
+    }
+    function _analyticsLiveApplied(){
+        _analyticsCachedAt = 0;
+        _analyticsSyncCachedNote();
+    }
+    /* THE SNAPSHOT THAT DOES NOT FIT localStorage GOES TO IndexedDB. Measured
+       2026-09-23 it is 10.95 M characters packed (TopVideos alone is 15.8 MB
+       raw) against a ~5.2 M-character origin budget in an ordinary browser, so
+       _analyticsCacheWrite fails there on every visit and staff wait ~5 s for
+       the sheets each time. The localStorage path is unchanged; only a write
+       it refuses is kept here.
+
+       THREE RECORDS, NOT ONE. `ess` (Metrics + Clients Info, ~2.6 MB) is all
+       the overview needs; `ext` (TopVideos and the briefs, ~17 MB) is for the
+       per-client pages. Stored as one record, the overview had to deserialize
+       all of TopVideos first and painted LATER than with no copy at all
+       (measured: ~2.2 s vs ~1.8 s). `meta` holds both timestamps, so freshness
+       and completeness are checked without reading either body.
+
+       Never in a client-link session: a client link never paints from a
+       snapshot (init() gates on ?c=), and now it does not leave one behind
+       either. Writes are serialized, so the two halves cannot interleave. */
+    const ANALYTICS_IDB_NAME = 'syncview_analytics';
+    const ANALYTICS_IDB_STORE = 'snapshot';
+    const ANALYTICS_IDB_META = 'meta', ANALYTICS_IDB_ESS = 'ess', ANALYTICS_IDB_EXT = 'ext';
+    let _analyticsIdbPromise = null;
+    let _analyticsIdbChain = Promise.resolve();
+    let _analyticsIdbExtRead = null;        // the saved `ext` read, while one is out
+    function _analyticsIsClientSession(){
+        try { return (typeof _isClientLink !== 'undefined' && !!_isClientLink)
+            || !!new URLSearchParams(svRoute.search()).get('c'); } catch (e) { return true; }
+    }
+    function _analyticsIdbOpen(){
+        if (_analyticsIdbPromise) return _analyticsIdbPromise;
+        _analyticsIdbPromise = new Promise((resolve, reject) => {
+            try {
+                if (typeof indexedDB === 'undefined' || !indexedDB) return reject(new Error('no indexedDB'));
+                const req = indexedDB.open(ANALYTICS_IDB_NAME, 1);
+                req.onupgradeneeded = () => { try { req.result.createObjectStore(ANALYTICS_IDB_STORE); } catch (e) {} };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error || new Error('indexedDB open failed'));
+                req.onblocked = () => reject(new Error('indexedDB blocked'));
+            } catch (e) { reject(e); }
+        }).catch(error => { _analyticsIdbPromise = null; throw error; });
+        return _analyticsIdbPromise;
+    }
+    function _analyticsIdbRequest(mode, run){
+        return _analyticsIdbOpen().then(db => new Promise((resolve, reject) => {
+            const tx = db.transaction(ANALYTICS_IDB_STORE, mode);
+            const req = run(tx.objectStore(ANALYTICS_IDB_STORE));
+            tx.oncomplete = () => resolve(req ? req.result : undefined);
+            tx.onerror = tx.onabort = () => reject(tx.error || new Error('indexedDB transaction failed'));
+        }));
+    }
+    const _analyticsIdbGet = key => _analyticsIdbRequest('readonly', store => store.get(key));
+    function _analyticsIdbSpill(partial){
+        if (_analyticsIsClientSession() || !partial) return;
+        const now = Date.now();
+        const ess = (partial.metrics != null || partial.clients != null)
+            ? { metrics: partial.metrics, clients: partial.clients ? _clientsInfoPublicRows(partial.clients) : partial.clients } : null;
+        const ext = (partial.topvids != null || partial.briefs != null || partial.mrbriefs != null)
+            ? { topvids: partial.topvids, briefs: partial.briefs, mrbriefs: partial.mrbriefs, summaries: partial.summaries || '' } : null;
+        if (!ess && !ext) return;
+        _analyticsIdbChain = _analyticsIdbChain
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META).catch(() => null))
+            .then(meta => _analyticsIdbRequest('readwrite', store => {
+                const m = Object.assign({}, (meta && typeof meta === 'object') ? meta : {});
+                if (ess) { store.put(ess, ANALYTICS_IDB_ESS); m.essAt = Number(partial.essAt) || now; }
+                if (ext) { store.put(ext, ANALYTICS_IDB_EXT); m.extAt = now; }
+                return store.put(m, ANALYTICS_IDB_META);
+            }))
+            .catch(() => {});
+    }
+    function _analyticsIdbDelete(){
+        _analyticsIdbChain = _analyticsIdbChain
+            .then(() => _analyticsIdbRequest('readwrite', store => store.clear()))
+            .catch(() => {});
+        return _analyticsIdbChain;
+    }
+    /* Resolves true only if the saved overview numbers were painted: staff
+       session, both halves saved and fresh, and no live sheet data applied in
+       the meantime. The `ext` half is then read behind the paint and queued
+       like the localStorage path's, unless live extras land first. */
+    function _analyticsHydrateFromIdb(){
+        if (_analyticsIsClientSession()) return Promise.resolve(false);
+        const fresh = at => at && (Date.now() - at) <= ANALYTICS_CACHE_TTL_MS;
+        return _analyticsIdbChain
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META))
+            .then(meta => {
+                // The numbers alone paint the overview; `ext` is optional.
+                if (!meta || !fresh(meta.essAt)) return null;
+                return _analyticsIdbGet(ANALYTICS_IDB_ESS).then(ess => ess ? { meta, ess } : null);
+            })
+            .then(found => {
+                if (!found || _analyticsLiveEssentials) return false;
+                const { meta, ess } = found;
+                if (!ess.metrics || !ess.clients) return false;
+                _applyEssentialTexts(ess.metrics, _clientsInfoPublicRows(ess.clients));
+                _analyticsCachedAt = meta.essAt;
+                _analyticsSyncCachedNote();
+                _analyticsIdbReadExtras();
+                console.log('[SyncView] painted from analytics IndexedDB snapshot (' + Math.round((Date.now() - meta.essAt) / 60000) + ' min old)');
+                return true;
+            })
+            .catch(() => false);
+    }
+    /* Read the saved `ext` half behind a paint and queue it like the
+       localStorage path's, unless live extras land first. Stale or absent,
+       it never blocks the overview. */
+    function _analyticsIdbReadExtras(){
+        if (_analyticsIsClientSession() || _analyticsIdbExtRead) return;
+        const fresh = at => at && (Date.now() - at) <= ANALYTICS_CACHE_TTL_MS;
+        _analyticsIdbExtRead = _analyticsIdbChain
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META))
+            .then(meta => (meta && fresh(meta.extAt)) ? _analyticsIdbGet(ANALYTICS_IDB_EXT) : null)
+            .then(ext => {
+                _analyticsIdbExtRead = null;
+                if (!ext || _analyticsExtrasApplied || _analyticsPendingExtras) return;
+                if (!ext.topvids || !ext.mrbriefs) return;
+                _analyticsPendingExtras = [ext.topvids, '', ext.mrbriefs, ext.summaries || null];
+                _analyticsFlushPendingExtras();
+            }, () => { _analyticsIdbExtRead = null; });
+    }
+    /* What a client page waits on when its data is not applied yet: whichever
+       arrives first of the saved `ext` half and the live sheets. */
+    function _analyticsExtrasArrival(){
+        // A client page wants the extras NOW. If a Kasper landing is still
+        // holding them, stop holding and start the download here: some routes
+        // to a client page (client search, Back into a client entry) bypass
+        // navTo(), which is where the hold is otherwise released.
+        if (_analyticsExtrasHold) { _analyticsReleaseExtras(); fetchExtras(null); }
+        const waits = [];
+        if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
+        if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);
+        if (!waits.length) return null;
+        return new Promise(resolve => {
+            let left = waits.length;
+            waits.forEach(w => w.then(resolve, () => { if (--left === 0) resolve(); }));
+        });
+    }
+    /* Re-render whatever analytics view is on screen after fresh sheet data
+       replaced a cached paint. Gentle by design: skipped while the user is
+       typing (the next navigation shows fresh data anyway), only touches the
+       analytics tab, and restores the scroll position. */
+    function _analyticsRefreshCurrentView(){
+        try{
+            const ae = document.activeElement;
+            if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+            if (currentNav !== 'home') return;
+            const sc = window.scrollY;
+            const c = history.state && history.state.client;
+            if (c && wlIsAllowedClient(c)) render(wlCanonicalClient(c), false);
+            else if (!c) navTo('home', false);
+            else return;
+            window.scrollTo({ top: sc, behavior: 'instant' });
+            console.log('[SyncView] analytics view refreshed with fresh sheet data');
+        }catch(e){ console.warn('[SyncView] analytics refresh-render failed:', e); }
+    }
+
+    function _applyEssentialTexts(metricsText, clientsText){
+        const publicClientRows = _applyEssentialRows(parseCSV(metricsText), clientsText);
+        _analyticsAppliedFp.ess = _analyticsFp([metricsText, JSON.stringify(publicClientRows)]);
+        return publicClientRows;
+    }
+    function _applyEssentialRows(metricsRows, clientsText){
+        allData=metricsRows;
+        // Rebuild (don't accumulate): a cached paint may be replaced by fresh
+        // data in the same session, and a client deleted from the sheet must
+        // not linger from the snapshot.
+        Object.keys(clientMap).forEach(k=>{delete clientMap[k];});
+        const publicClientRows = _clientsInfoPublicRows(clientsText);
+        publicClientRows.forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
+        // Clients Info is the source of truth for who's live: fold any new
+        // client_name into the allowlist so a new sheet row goes live with no
+        // deploy. Wrapped defensively so a cache paint that runs before the
+        // allowlist consts initialise can't break the render (the fresh
+        // fetchEssentials() pass merges moments later regardless).
+        try { wlMergeClientsFromSheet(Object.keys(clientMap)); }
+        catch(e){ console.warn('[SyncView] client allowlist merge deferred:', e && e.message); }
+        // TikTok Upload is a "fast" tab (mounts via skipAwait before this fetch
+        // resolves on a direct landing/refresh), and unlike the analytics/home
+        // view it has no refresh hook of its own — so a client that only exists
+        // in the sheet (not the WL_CLIENT_NAMES seed) stayed invisible in its
+        // dropdown until *something else* happened to re-render the form. Redraw
+        // it here whenever it's on screen so a fresh sheet merge shows up
+        // immediately instead of only on the next unrelated form interaction.
+        try { const tk = svAreaApi('tiktok'); if (tk && tk.isMounted()) tk.renderForm(); }
+        catch(e){ console.warn('[SyncView] TikTok Upload roster refresh deferred:', e && e.message); }
+        // Same story for the Calendar's social-profiles (globe) button: its
+        // handles come from clientMap, but it was only re-synced when the
+        // calendar body repainted. When the calendar painted first and this
+        // sheet arrived after, the button stayed missing until a client switch.
+        try { if (typeof _calSyncClientLinks === 'function') _calSyncClientLinks(); }
+        catch(e){ console.warn('[SyncView] calendar profile links refresh deferred:', e && e.message); }
+        // And the Templates client page's profile links, which read the same map.
+        try { const tpl = svAreaApi('templates'); if (tpl) tpl.refreshSocialLinks(); }
+        catch(e){ console.warn('[SyncView] templates profile links refresh deferred:', e && e.message); }
+        // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
+        const metricsClients=new Set(allData.map(r=>r.client_name));
+        Object.keys(clientMap).forEach(name=>{
+            if(!metricsClients.has(name)){
+                allData.push(_blankAnalyticsRow(name));
+                console.log('[SyncView] Added placeholder for new client:',name);
+            }
+        });
+        return publicClientRows;
+    }
+    function _applyExtraTexts(topvidsText, briefsText, mrbText, csText){
+        _applyExtraRows(parseCSV(topvidsText), parseCSV(briefsText), parseCSV(mrbText), csText!=null?parseCSV(csText):null, mrbText.length);
+        _analyticsAppliedFp.ext = _analyticsFp([topvidsText, briefsText, mrbText, csText || '']);
+    }
+    function _applyExtraRows(rawVideos, briefRows, mrbRows, csRows, mrbChars){
+        if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
+        topVideos=rawVideos.map(normalizeVideoRow);
+        briefs=briefRows;
+        if(mrbChars!=null)console.log('[SyncView] MR briefs CSV length:',mrbChars,'chars');
+        mrBriefs=mrbRows;
+        console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
+        if(mrBriefs.length>0){
+            console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
+        }
+        if(csRows!=null){
+            try{
+                const latest={};
+                for(const r of csRows){
+                    if(!r.client_name||!r.bullets)continue;
+                    if(!latest[r.client_name]||(r.date||'')>(latest[r.client_name].date||''))latest[r.client_name]=r;
+                }
+                for(const[name,r]of Object.entries(latest)){
+                    if(!contentSummaryState[name]?.data){
+                        contentSummaryState[name]={loading:false,data:{bullets:r.bullets,date:r.date||''},error:null};
+                    }
+                }
+                console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
+            }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
+        }
+        _analyticsExtrasApplied = true;
+    }
+
+    /* PHASE 2: A CLIENT LINK READS ITS OWN ROWS FROM THE DATABASE
+       (docs/plans/2026-09-24-sheets-to-supabase.md). Only a verified client
+       link, and only while analytics_mirror_read_enabled says so (on for all,
+       or {"enabled": false, "clients": [slug]} for named clients). One
+       analytics-read call answers both stages for that one client, instead of
+       downloading every client's Sheets.
+
+       STAFF (the overview and every per-client page) reads the database too
+       once the flag is on for everyone ({"enabled": true}) or for staff only
+       ({"staff": true}, for checking it before clients see it): one
+       analytics-read "overview" answer for the numbers and roster, one
+       "extras" answer for videos, briefs and summaries, every client each.
+
+       FALLBACK: the Sheets are read exactly as before when the flag is off,
+       the read fails or times out, or the database has no copy yet. An empty
+       dataset counts as a real "no rows" only when a complete receipt
+       covers this client; otherwise that stage uses the Sheets. */
+    const ANALYTICS_MIRROR_FLAG_KEY = 'analytics_mirror_read_enabled';
+    const ANALYTICS_MIRROR_TIMEOUT_MS = 8000;
+    let _analyticsMirrorLoad = null;   // { run, promise } for the current client entry
+    async function _analyticsMirrorFlagValue(){
+        let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(ANALYTICS_MIRROR_FLAG_KEY) : null);
+        if (!rows) {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(ANALYTICS_MIRROR_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        }
+        const row = Array.isArray(rows) ? rows[0] : null;
+        return row ? row.value : null;
+    }
+    function _analyticsMirrorOnFor(value, slug){
+        if (!value || typeof value !== 'object') return false;
+        if (value.enabled === true) return true;
+        return Array.isArray(value.clients) && value.clients.some(c => String(c).trim() === slug);
+    }
+    const _analyticsMirrorText = v => v == null ? '' : String(v);
+    function _analyticsMirrorRows(rows){
+        return (Array.isArray(rows) ? rows : []).map(r => {
+            const o = {};
+            Object.keys(r || {}).forEach(k => { o[k] = _analyticsMirrorText(r[k]); });
+            return o;
+        });
+    }
+    // null = use the Sheets for both stages; otherwise { ess, ext }, either
+    // of which may be null (that stage uses the Sheets).
+    function _analyticsMirrorRead(clientEntryRun){
+        if (!clientEntryRun || typeof _isClientLink === 'undefined' || !_isClientLink) return Promise.resolve(null);
+        const cap = typeof _syncviewClientEntryCapability !== 'undefined' ? _syncviewClientEntryCapability : null;
+        if (!cap || !cap.verified || !cap.slug) return Promise.resolve(null);
+        if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
+        const started = performance.now();
+        const promise = (async () => {
+            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
+            const token = _syncviewClientWriteToken();
+            if (!token) return null;
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_TIMEOUT_MS) : null;
+            const onAbort = () => { if (controller) controller.abort(); };
+            if (clientEntryRun.signal) clientEntryRun.signal.addEventListener('abort', onAbort, { once: true });
+            try {
+                const resp = await fetch(CAL_SUPABASE_URL + '/functions/v1/analytics-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined,
+                    body: JSON.stringify({ slug: cap.slug })
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const json = await resp.json();
+                if (!json || json.ok !== true || json.slug !== cap.slug || !json.data || typeof json.data !== 'object') throw new Error('unexpected answer');
+                const d = json.data, rc = json.receipts || {};
+                const covered = (rows, receipt) => (Array.isArray(rows) && rows.length > 0) || !!rc[receipt];
+                const profile = d.client_profile;
+                const ess = (profile && profile.display_name && covered(d.metrics, 'metrics')) ? {
+                    metrics: _analyticsMirrorRows(d.metrics),
+                    clients: [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
+                        tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
+                        content_description: _analyticsMirrorText(profile.content_description) }]
+                } : null;
+                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                    && covered(d.content_summaries, 'content_summaries')) ? {
+                    topvids: _analyticsMirrorRows(d.top_videos),
+                    mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
+                    summaries: _analyticsMirrorRows(d.content_summaries)
+                } : null;
+                console.log('[SyncView] analytics database read in ' + Math.round(performance.now() - started) + ' ms'
+                    + (ess ? '' : '; no copy of the numbers yet, using the Sheets') + (ext ? '' : '; no copy of videos/briefs yet, using the Sheets'));
+                return { ess, ext };
+            } finally {
+                if (timer) clearTimeout(timer);
+                if (clientEntryRun.signal) clientEntryRun.signal.removeEventListener('abort', onAbort);
+            }
+        })().catch(e => {
+            console.warn('[SyncView] analytics database read failed, using the Sheets:', e && e.message);
+            return null;
+        });
+        _analyticsMirrorLoad = { run: clientEntryRun, promise };
+        return promise;
+    }
+
+    // One flag read per page load, shared by the client and staff paths (the
+    // boot batch hands each key out once).
+    let _analyticsMirrorFlagPromise = null;
+    function _analyticsMirrorFlagShared(){
+        if (!_analyticsMirrorFlagPromise) {
+            _analyticsMirrorFlagPromise = _analyticsMirrorFlagValue().catch(() => null);
+        }
+        return _analyticsMirrorFlagPromise;
+    }
+    function _analyticsMirrorStaffOn(value){
+        return !!value && typeof value === 'object' && (value.enabled === true || value.staff === true);
+    }
+    // Rows back into the Sheet's CSV shape, so the database answer goes
+    // through the same parse, fingerprint and saved-copy path as a Sheet.
+    function _analyticsMirrorCsv(columns, rows){
+        const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+        const lines = [columns.map(q).join(',')];
+        for (const r of rows) lines.push(columns.map(c => q(Array.isArray(r) ? r[columns.indexOf(c)] : r[c])).join(','));
+        return lines.join('\n');
+    }
+    function _analyticsMirrorProfileRow(p){
+        const row = Object.assign({}, (p && typeof p.extra === 'object' && p.extra) || {});
+        Object.keys(p || {}).forEach(k => {
+            if (k === 'slug' || k === 'display_name' || k === 'extra') return;
+            row[k] = _analyticsMirrorText(p[k]);
+        });
+        row.client_name = String(p.display_name || '');
+        return row;
+    }
+    // A stuck read must not hold the overview: past this, the Sheets load instead.
+    const ANALYTICS_MIRROR_STAFF_TIMEOUT_MS = { overview: 10000, extras: 20000 };
+    const ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS = 3;
+    let _analyticsStaffMirror = { overview: null, extras: null };
+    // null = read the Sheets; otherwise CSV texts shaped like the Sheet tabs.
+    function _analyticsStaffMirrorRead(scope){
+        if (_analyticsIsClientSession()) return Promise.resolve(null);
+        const ident = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+        if (!ident || !ident.key) return Promise.resolve(null);
+        if (_analyticsStaffMirror[scope]) return _analyticsStaffMirror[scope];
+        const started = performance.now();
+        const promise = (async () => {
+            if (!_analyticsMirrorStaffOn(await _analyticsMirrorFlagShared())) return null;
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_STAFF_TIMEOUT_MS[scope]) : null;
+            try {
+                const resp = await fetch(CAL_SUPABASE_URL + '/functions/v1/analytics-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(ident.key) },
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined,
+                    body: JSON.stringify({ scope })
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const json = await resp.json();
+                if (!json || json.ok !== true || json.scope !== scope || !json.data) throw new Error('unexpected answer');
+                const d = json.data, rc = json.receipts || {};
+                // A whole-dataset copy counts only if it finished recently: if the
+                // daily copy stops, an old receipt must not vouch for stale rows.
+                const oldestCopy = Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000;
+                const fresh = name => !!(rc[name] && Date.parse(rc[name].created_at) >= oldestCopy);
+                let out = null, why = '';
+                if (scope === 'overview') {
+                    const m = d.metrics || {}, profiles = Array.isArray(d.client_profiles) ? d.client_profiles : [];
+                    const latest = String(json.latest_metrics_date || '');
+                    const oldest = new Date(Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
+                    if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
+                    else if (!fresh('metrics') || !fresh('client_profiles')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                    else if (latest < oldest) why = 'copy is older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                    else out = { metrics: _analyticsMirrorCsv(m.columns, m.rows), clients: profiles.map(_analyticsMirrorProfileRow) };
+                } else {
+                    const tv = d.top_videos || {};
+                    if (!Array.isArray(tv.rows)) why = 'no copy yet';
+                    else if (!fresh('top_videos') || !fresh('market_research_briefs') || !fresh('content_summaries')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                    else out = {
+                        topvids: _analyticsMirrorCsv(tv.columns, tv.rows),
+                        mrbriefs: _analyticsMirrorCsv(['id', 'client_name', 'date', 'raw_json', 'raw_json_2', 'raw_json_3'], d.market_research_briefs || []),
+                        summaries: _analyticsMirrorCsv(['date', 'client_name', 'bullets'], d.content_summaries || [])
+                    };
+                }
+                console.log('[SyncView] analytics database ' + scope + ' read in ' + Math.round(performance.now() - started) + ' ms'
+                    + (out ? '' : '; ' + why + ', using the Sheets'));
+                return out;
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
+        })().catch(e => {
+            console.warn('[SyncView] analytics database ' + scope + ' read failed, using the Sheets:', e && e.message);
+            return null;
+        });
+        // A failed or refused read is not remembered: the next load tries again.
+        _analyticsStaffMirror[scope] = promise;
+        promise.then(r => { if (!r) _analyticsStaffMirror[scope] = null; });
+        return promise;
+    }
+
+    async function fetchEssentials(clientEntryRun){
+        const mirror=await _analyticsMirrorRead(clientEntryRun);
+        if(mirror&&mirror.ess){
+            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+            _analyticsLiveEssentials = true;
+            _applyEssentialRows(mirror.ess.metrics, mirror.ess.clients);
+            return;   // a client link never saves a copy
+        }
+        const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('overview');
+        if(staff){
+            _analyticsLiveEssentials = true;
+            const publicClientRows = _applyEssentialTexts(staff.metrics, staff.clients);
+            _analyticsCacheWrite({ metrics: staff.metrics, clients: publicClientRows });
+            return;
+        }
+        const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
+        const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
+        const metricsText=await mr.text(), clientsText=await cr.text();
+        if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+        _analyticsLiveEssentials = true;
+        const publicClientRows = _applyEssentialTexts(metricsText, clientsText);
+        _analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
+    }
+    function _syncviewClientEssentials(clientEntryRun){
+        const cur=_clientEssentialsLoad;
+        if(cur.run===clientEntryRun&&cur.promise&&cur.status!=='error')return cur.promise;
+        const load={promise:null,status:'loading',run:clientEntryRun};
+        load.promise=fetchEssentials(clientEntryRun).then(() => {
+            load.status='ready';
+        }, err => {
+            load.status=_syncviewClientEntryRunCurrent(clientEntryRun)?'error':'idle';
+            throw err;
+        });
+        _clientEssentialsLoad=load;
+        return load.promise;
+    }
+    // Everything the client Analytics/Brief tabs need: both Sheets stages.
+    function _syncviewClientAnalyticsData(clientEntryRun){
+        return Promise.all([_syncviewClientEssentials(clientEntryRun),fetchExtras(clientEntryRun)]).then(() => undefined);
+    }
+    async function fetchExtras(clientEntryRun){
+        if (_fetchExtrasPromise) return _fetchExtrasPromise;
+        const attempt=++_fetchExtrasAttempt;
+        _fetchExtrasState={status:'loading',run:clientEntryRun||null};
+        const request=(async () => {
+            const mirror=await _analyticsMirrorRead(clientEntryRun);
+            if(mirror&&mirror.ext){
+                if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+                _analyticsPendingExtras = null;
+                _applyExtraRows(mirror.ext.topvids, [], mirror.ext.mrbriefs, mirror.ext.summaries, null);
+                return;   // a client link never saves a copy
+            }
+            const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('extras');
+            if(staff){
+                _analyticsPendingExtras = null;
+                _applyExtraTexts(staff.topvids, '', staff.mrbriefs, staff.summaries);
+                _analyticsCacheWrite({ topvids: staff.topvids, briefs: '', mrbriefs: staff.mrbriefs, summaries: staff.summaries });
+                return;
+            }
+            const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
+            const [tr,mrb,cs]=await Promise.all([
+                fetch(TOPVIDS_URL,requestOpts),
+                fetch(MR_BRIEFS_URL+'&_t='+Date.now(),requestOpts),
+                fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now(),requestOpts).catch(e=>{
+                    if(clientEntryRun&&(!_syncviewClientEntryRunCurrent(clientEntryRun)||clientEntryRun.signal.aborted))throw e;
+                    return null;
+                }),
+            ]);
+            if(!tr.ok||!mrb.ok)throw new Error('analytics_extras_http');
+            const topvidsText=await tr.text();
+            const briefsText='';   // Competitor Briefs retired
+            const mrbText=await mrb.text();
+            const csText=cs&&cs.ok?await cs.text():null;
+            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+            _analyticsPendingExtras = null;   // fresh texts win over a queued saved copy
+            _applyExtraTexts(topvidsText, briefsText, mrbText, csText);
+            _analyticsCacheWrite({ topvids: topvidsText, briefs: briefsText, mrbriefs: mrbText, summaries: csText || '' });
+        })();
+        const tracked=request.then(() => {
+            if(attempt===_fetchExtrasAttempt&&_fetchExtrasPromise===tracked){
+                _fetchExtrasState={status:'ready',run:clientEntryRun||null};
+            }
+        }, err => {
+            if(attempt===_fetchExtrasAttempt&&_fetchExtrasPromise===tracked){
+                _fetchExtrasPromise=null;
+                const current=!clientEntryRun||_syncviewClientEntryRunCurrent(clientEntryRun);
+                _fetchExtrasState={status:current?'error':'idle',run:current?(clientEntryRun||null):null};
+            }
+            throw err;
+        });
+        _fetchExtrasPromise=tracked;
+        return _fetchExtrasPromise;
+    }
+    /* A Kasper landing displays none of the analytics extras (TopVideos, the
+       briefs and content summaries: ~17 MB of Sheets, parsed on the main
+       thread), yet starting them at boot put them on the review queue's
+       critical path (speed map 2026-09-23 §5: they were the last requests to
+       finish before the first card). The boot holds them until Kasper's first
+       content paints, the visitor leaves Kasper, or a safety timeout -- the
+       download still happens, just not in front of the queue. Anything that
+       needs the extras sooner calls fetchExtras() itself, which is unaffected. */
+    let _analyticsExtrasHold = null;
+    function _analyticsHoldExtras(ms){
+        let release;
+        const promise = new Promise(resolve => { release = resolve; });
+        const timer = setTimeout(() => _analyticsReleaseExtras(), ms);
+        _analyticsExtrasHold = { promise, release: () => { clearTimeout(timer); release(); } };
+        return promise;
+    }
+    function _analyticsReleaseExtras(){
+        const hold = _analyticsExtrasHold;
+        if (!hold) return;
+        _analyticsExtrasHold = null;
+        hold.release();
+    }
+    function fetchAll(clientEntryRun){
+        // Kick off both halves in parallel so the SMM flow keeps its original
+        // total time. Expose the essentials stage separately because Calendar's
+        // fast boot only needs that client roster to restore its active client,
+        // staff toolbar, and deferred deep links. Unrelated analytics extras may
+        // be slow or fail independently.
+        const essentials = clientEntryRun ? _syncviewClientEssentials(clientEntryRun) : fetchEssentials();
+        const hold = typeof _analyticsExtrasHold !== 'undefined' ? _analyticsExtrasHold : null;
+        const extras = (!clientEntryRun && hold)
+            ? hold.promise.then(() => fetchExtras(clientEntryRun))
+            : fetchExtras(clientEntryRun);
+        const complete = Promise.all([essentials, extras]).then(() => undefined);
+        return { essentials, complete };
+    }
+
+    function normalizeVideoRow(r){
+        function pick(){for(const k of arguments){const v=r[k]??r[k.toLowerCase()]??r[k.toUpperCase()];if(v!==undefined&&v!=='')return v;}return'';}
+        return{...r,client_name:pick('client_name','client'),platform:pick('platform'),period:pick('period'),rank:pick('rank','position'),video_url:pick('video_url','url','link','video_link','post_url','post_link'),caption:pick('caption','title','description','text','post_caption','post_text'),views:pick('views','view_count','video_views','play_count','plays','total_views','impressions','reach'),likes:pick('likes','like_count','total_likes','hearts','favorites','digg_count'),comments:pick('comments','comment_count','total_comments'),shares:pick('shares','share_count','total_shares','reposts','repost_count')};
+    }
+
+    function _buildHistories(){
+        const map={};
+        allData.forEach((r,i)=>{
+            if(!map[r.client_name])map[r.client_name]=[];
+            map[r.client_name].push({r,i});
+        });
+        const out={};
+        Object.entries(map).forEach(([name,items])=>{
+            items.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
+            const deduped=[];
+            for(let i=0;i<items.length;i++){
+                if(i===items.length-1||items[i].r.date!==items[i+1].r.date){
+                    deduped.push(items[i]);
+                }
+            }
+            out[name]=deduped.map(x=>x.r);
+        });
+        return out;
+    }
+    function latestPerClient(){
+        const h=_buildHistories();
+        // Metrics retains historical rows after a client is offboarded. The
+        // overview is a current-client surface, so its membership must follow
+        // the live Clients Info roster rather than every name ever scraped.
+        return Object.entries(h)
+            .filter(([name])=>Object.prototype.hasOwnProperty.call(clientMap,name))
+            .map(([,rows])=>rows[rows.length-1]);
+    }
+    function prevPerClient(){const h=_buildHistories();const prev={};Object.entries(h).forEach(([name,rows])=>{if(rows.length>=2)prev[name]=rows[rows.length-2];});return prev;}
+    function _findRowDaysAgo(history, daysAgo){
+        if(history.length < 2) return null;
+        const todayRow = history[history.length-1];
+        const todayDate = new Date(todayRow.date);
+        const targetDate = new Date(todayDate);
+        targetDate.setDate(targetDate.getDate() - daysAgo);
+        let best = null;
+        for(let i = 0; i < history.length - 1; i++){
+            const d = new Date(history[i].date);
+            if(d <= todayDate){
+                if(!best || Math.abs(d - targetDate) < Math.abs(new Date(best.date) - targetDate)){
+                    best = history[i];
+                }
+            }
+        }
+        return best;
+    }
+    function getWeekRow(history){ return _findRowDaysAgo(history, 7); }
+    function getMonthRow(history){ return _findRowDaysAgo(history, 30); }
+    function _blankAnalyticsRow(name){
+        return {
+            client_name:name,date:'',
+            analytics_receipt:'',
+            ig_followers:'',ig_avg_views:'',ig_avg_likes:'',ig_views_this_month:'',ig_views_gained_today:'',
+            tiktok_followers:'',tiktok_avg_plays:'',tiktok_plays_this_month:'',tiktok_plays_gained_today:'',
+            yt_subscribers:'',yt_total_views:'',yt_views_gained_today:''
+        };
+    }
+    // Compute weekly view delta that correctly handles month-boundary resets.
+    // ig_views_this_month / tiktok_plays_this_month are cumulative counters that
+    // reset on the 1st, so a simple subtraction breaks when the reference row is
+    // in a different calendar month.  In that case we fall back to summing the
+    // daily gained_today values over the past 7 days.
+    function _safeWeekViewDelta(todayRow, refRow, clientName, monthlyKey, dailyKey){
+        if(!refRow) return null;
+        const td=new Date(todayRow.date), rd=new Date(refRow.date);
+        if(td.getFullYear()===rd.getFullYear()&&td.getMonth()===rd.getMonth()){
+            return n(todayRow[monthlyKey])-n(refRow[monthlyKey]);
+        }
+        const hist=clientHistory(clientName);
+        const cutoff=new Date(td); cutoff.setDate(cutoff.getDate()-7);
+        let sum=0,has=false;
+        for(let i=hist.length-1;i>=0;i--){
+            if(new Date(hist[i].date)<cutoff) break;
+            const v=n(hist[i][dailyKey]);
+            if(v){sum+=v;has=true;}
+        }
+        return has?sum:null;
+    }
+    function clientHistory(name){
+        const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
+        indexed.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
+        const deduped=[];
+        for(let i=0;i<indexed.length;i++){
+            if(i===indexed.length-1||indexed[i].r.date!==indexed[i+1].r.date){
+                deduped.push(indexed[i]);
+            }
+        }
+        if(!deduped.length && wlIsAllowedClient(name)) return [_blankAnalyticsRow(wlCanonicalClient(name))];
+        return deduped.map(x=>x.r);
+    }
+    function _prevPerClientDaysAgo(daysAgo){
+        const h = _buildHistories();
+        const result = {};
+        Object.entries(h).forEach(([name, rows]) => {
+            if(rows.length < 2) return;
+            const latest = rows[rows.length - 1];
+            const latestDate = new Date(latest.date);
+            const target = new Date(latestDate);
+            target.setDate(target.getDate() - daysAgo);
+            let best = null;
+            for(let i = 0; i < rows.length - 1; i++){
+                const d = new Date(rows[i].date);
+                if(d <= latestDate){
+                    if(!best || Math.abs(d - target) < Math.abs(new Date(best.date) - target)){
+                        best = rows[i];
+                    }
+                }
+            }
+            if(best) result[name] = best;
+        });
+        return result;
+    }
+    function weekPrevPerClient(){ return _prevPerClientDaysAgo(7); }
+    function monthPrevPerClient(){ return _prevPerClientDaysAgo(30); }
+
+    // ── Brief helpers ────────────────────────────────────────────────────────
+    // ── Market Research Brief helpers ─────────────────────────────────────────
+    function getClientMRBriefs(name){
+        return mrBriefs
+            .filter(b=>b.client_name===name&&b.raw_json)
+            .sort((a,b)=>b.id.localeCompare(a.id));
+    }
+    function getActiveMRBrief(name){
+        const all=getClientMRBriefs(name);
+        if(!all.length)return null;
+        const id=activeMRBriefId[name];
+        if(id){const found=all.find(b=>b.id===id);if(found)return found;}
+        return all[0];
+    }
+    function parseMRBriefData(brief){
+        if(!brief)return null;
+        try{
+            const p1=brief.raw_json||'';
+            const p2=brief.raw_json_2||'';
+            const p3=brief.raw_json_3||'';
+            console.log('[SyncView] MR brief parts:',{p1len:p1.length,p2len:p2.length,p3len:p3.length,p1start:p1.substring(0,80),p2start:p2.substring(0,80)});
+            const raw=p1+p2+p3;
+            const data=JSON.parse(raw);
+            // Override keywords with actual submitted keywords if available
+            try{
+                const savedKw=JSON.parse(localStorage.getItem('syncview_submittedMRKeywords_v1')||'{}');
+                const clientName=data.clientName||brief.client_name||'';
+                if(savedKw[clientName]&&savedKw[clientName].length>0){
+                    data.keywords=savedKw[clientName];
+                }
+            }catch{}
+            console.log('[SyncView] MR brief parsed OK, keys:',Object.keys(data),'filmingAngles:',data.filmingAngles?.length,'theGap:',data.theGap?.length);
+            return data;
+        }catch(e){
+            const p1=brief.raw_json||'';
+            const p2=brief.raw_json_2||'';
+            const raw=p1+p2+(brief.raw_json_3||'');
+            console.error('[SyncView] MR brief parse error',e,'rawLen:',raw.length,'last100:',raw.slice(-100));
+            return null;
+        }
+    }
+    function _updateBriefHistoryState(name){
+        const s=history.state;
+        if(s&&s.client===name){
+            history.replaceState(Object.assign({},s,{briefSection:activeBriefSection[name],briefTab:activeBriefTab[name],mrBriefTab:activeMRBriefTab[name]}),''  );
+        }
+    }
+    function setActiveMRBriefTab(encodedName,tab){
+        const name=decodeURIComponent(encodedName);
+        activeMRBriefTab[name]=tab;
+        _updateBriefHistoryState(name);
+        refreshBriefView(name);
+    }
+    function selectMRBriefById(encodedName,id){
+        const name=decodeURIComponent(encodedName);
+        activeMRBriefId[name]=id;
+        refreshBriefView(name);
+    }
+    function _syncviewCancelBriefWork(){
+        try{
+            tabSummaryStartTimers.forEach(timer=>clearTimeout(timer));
+            tabSummaryStartTimers.clear();
+        }catch(e){}
+        try{
+            tabSummaryControllers.forEach(controller=>controller.abort());
+            tabSummaryControllers.clear();
+        }catch(e){}
+    }
+
+    function refreshBriefView(name){
+        const container=document.getElementById('briefViewContainer');
+        if(!container)return;
+        container.innerHTML=renderBriefContent(name);
+    }
+
+    function _clientBriefTabAvailable(name,clientOnly){
+        // Client share links show only Analytics and Content Calendar.
+        if(_isClientLink)return false;
+        const hasData=getClientMRBriefs(name).length>0;
+        if(!clientOnly||hasData)return true;
+        const cap=_syncviewClientEntryCapability;
+        // A verified client document may always open its supported Brief route.
+        // This keeps the tab stable while analytics extras stream in and lets
+        // the existing visible empty-Brief copy own the genuine no-data case.
+        return !!(_isClientLink&&cap&&cap.verified&&_syncviewClientEntrySlug(name)===cap.slug);
+    }
+
+    function _syncviewRefreshClientExtrasRoute(clientEntryRun){
+        if(!_isClientLink||!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+        const cap=_syncviewClientEntryCapability;
+        if(!cap||!cap.verified)return;
+        const tab=clientViewTab[cap.client]||cap.view;
+        if(tab==='analytics'||tab==='brief')render(cap.client,true);
+    }
+
+    function _syncviewWatchClientExtras(promise,clientEntryRun){
+        Promise.resolve(promise).then(() => {
+            if(!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+            _applyAllDataDependentChrome();
+            _syncviewRefreshClientExtrasRoute(clientEntryRun);
+        }, err => {
+            if(!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+            console.warn('[SyncView] background fetchExtras failed',err);
+            _syncviewRefreshClientExtrasRoute(clientEntryRun);
+        });
+    }
+
+    function _syncviewRenderClientExtrasGate(name,tab){
+        if(!_isClientLink||!['analytics','brief'].includes(tab))return false;
+        const cap=_syncviewClientEntryCapability;
+        const run=_syncviewClientEntryDataRun;
+        if(!cap||!cap.verified||_syncviewClientEntrySlug(name)!==cap.slug||!_syncviewClientEntryRunCurrent(run)){
+            _syncviewInvalidClientLinkScreen();
+            return true;
+        }
+        const extrasState=_fetchExtrasState.run===run?_fetchExtrasState.status:'idle';
+        const essState=_clientEssentialsLoad.run===run?_clientEssentialsLoad.status:'idle';
+        const state=(extrasState==='error'||essState==='error')?'error'
+            :(extrasState==='ready'&&essState==='ready')?'ready':'loading';
+        if(state==='ready')return false;
+        if(state==='error')_syncviewClientExtrasErrorScreen({client:cap.client,view:tab});
+        else _syncviewClientEntryLoader({client:cap.client,view:tab},{extras:true});
+        return true;
+    }
+
+    function _syncviewRetryClientExtras(){
+        const cap=_syncviewClientEntryCapability;
+        const run=_syncviewClientEntryDataRun;
+        if(!cap||!cap.verified||!_syncviewClientEntryRunCurrent(run)){
+            _syncviewInvalidClientLinkScreen();
+            return;
+        }
+        const tab=clientViewTab[cap.client]||cap.view;
+        if(!['analytics','brief'].includes(tab))return;
+        const request=_syncviewClientAnalyticsData(run);
+        _syncviewRenderClientExtrasGate(cap.client,tab);
+        _syncviewWatchClientExtras(request,run);
+    }
+
+    function setClientViewTab(encodedName,tab){
+        const name=decodeURIComponent(encodedName);
+        if(!['analytics','calendar','brief'].includes(tab))return;
+        if(_isClientLink){
+            const cap=_syncviewClientEntryCapability;
+            if(!cap||!cap.verified||_syncviewClientEntrySlug(name)!==cap.slug){_syncviewInvalidClientLinkScreen();return;}
+            _syncviewSetClientEntryCapability(Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true}));
+        }
+        clientViewTab[name]=tab;
+        // Header nav active state is NOT changed here — it reflects where the user came from,
+        // not which tab they're on within a client profile.
+        const state={nav:_isClientLink?null:currentNav,client:name,clientSlug:_isClientLink?_syncviewClientEntryCapability.slug:undefined,clientTab:tab,briefSection:activeBriefSection[name],briefTab:activeBriefTab[name],mrBriefTab:activeMRBriefTab[name]};
+        if(_isClientLink){
+            const q=new URLSearchParams(svRoute.search());
+            if(tab==='analytics')q.delete('v');else q.set('v',tab);
+            q.delete('sxr');
+            history.pushState(state,'','/'+'?'+q.toString());
+            _syncviewSyncClientEntryRunHref();
+        }else{
+            history.pushState(state,'','#'+encodeURIComponent(name));
+        }
+        // Keep tab changes on the same guarded render path as initial boot.
+        // In particular, a Calendar/Brief-only client may have no analytics
+        // rows; render() owns that visible no-data state and must run before
+        // renderClient() can dereference an absent "today" row.
+        render(name,_isClientLink);
+        window.scrollTo({top:0,behavior:'instant'});
+    }
+
+    function renderBriefContent(name){
+        // Competitor Briefs retired 2026-09-24: the Keywords brief is the only one.
+        return `<div>${renderMRBriefContent(name)}</div>`;
+    }
+
+    function renderMRBriefContent(name){
+        const allBriefs=getClientMRBriefs(name);
+        if(!allBriefs.length){return renderMRBriefGeneratePrompt(name);}
+        const activeBrief=getActiveMRBrief(name);
+        const data=parseMRBriefData(activeBrief);
+        if(!data){return`<div class="error-state">Could not parse keywords brief. The data may be malformed.</div>`;}
+        return renderMRBriefFull(name,data,allBriefs,activeBrief.id);
+    }
+
+    function renderMRBriefGeneratePrompt(name){
+        return`<div class="brief-generate-prompt">
+            <div class="brief-prompt-icon">🌐</div>
+            <div class="brief-prompt-title">No Keywords Brief yet</div>
+            <div class="brief-prompt-sub">${_isClientLink?"Your keywords brief hasn't been generated yet. Check back soon!":'No keywords brief on file for this client.'}</div>
+        </div>`;
+    }
+
+    function renderMRBriefFull(name,data,allBriefs,activeId){
+        prefetchAllTabSummaries(name, 'mr', data, activeId);
+        const enc=encodeURIComponent(name);
+        const tab=activeMRBriefTab[name]||'overview';
+        const briefDate=data.date?fmtDate(data.date):(activeId?fmtIsoDate(activeId):'');
+        const totalReels=data.totalReels||0;
+        const igIn=data.instagramInTop||0;
+        const ttIn=data.tiktokInTop||0;
+        const transcribed=data.transcribedCount||0;
+
+        let dateSelector='';
+        if(allBriefs.length>1){
+            const opts=allBriefs.map(b=>`<option value="${b.id}" ${b.id===activeId?'selected':''}>${fmtIsoDate(b.id)}</option>`).join('');
+            dateSelector=`<select class="brief-date-select" onchange="selectMRBriefById('${enc}',this.value)">${opts}</select>`;
+        }
+
+        const tabs=[
+            {id:'overview',label:'Overview'},
+            {id:'niche',label:'Niche Insights'},
+            {id:'hooks',label:'Hook Analysis'},
+            {id:'angles',label:'Content Directions'},
+            {id:'gap',label:'The Gap'},
+            {id:'sources',label:'Sources'},
+        ];
+        const tabBar=`<div class="brief-section-tabs">${tabs.map(t=>`<button class="brief-section-tab ${tab===t.id?'active':''}" onclick="setActiveMRBriefTab('${enc}','${t.id}')">${t.label}</button>`).join('')}</div>`;
+
+        let tabContent='';
+        if(tab==='overview')tabContent=renderMRTab_overview(data,name);
+        else if(tab==='niche')tabContent=renderMRTab_niche(data,name);
+        else if(tab==='landscape')tabContent=renderMRTab_niche(data,name); // legacy redirect
+        else if(tab==='topics')tabContent=renderMRTab_niche(data,name); // legacy redirect
+        else if(tab==='hooks')tabContent=renderMRTab_hooks(data,name);
+        else if(tab==='angles')tabContent=renderMRTab_angles(data,name);
+        else if(tab==='gap')tabContent=renderMRTab_gap(data,name);
+        else if(tab==='sources')tabContent=renderMRTab_sources(data);
+
+        const statChips=[
+            {label:'Reels Analysed',val:totalReels},
+            {label:'Instagram',val:igIn},
+            {label:'TikTok',val:ttIn},
+            {label:'Transcribed',val:transcribed},
+        ].filter(c=>c.val).map(c=>`<div class="brief-method-chip"><span class="brief-method-chip-label">${c.label}</span><span class="brief-method-chip-val">${c.val}</span></div>`).join('');
+        const keywordChips=Array.isArray(data.keywords)&&data.keywords.length
+            ?data.keywords.map(k=>`<div class="brief-method-chip"><span class="brief-method-chip-label">Keyword</span><span class="brief-method-chip-val">${k}</span></div>`).join('')
+            :'';
+
+        const infoChips=(statChips||keywordChips)?`<div class="brief-methodology-bar" style="margin:0;">${statChips}${keywordChips}</div>`:'';
+        return`<div class="brief-wrap">
+            <div class="brief-tab-header">
+                ${tabBar}
+                <div class="brief-tab-header-right">
+                    ${dateSelector}
+                    <button class="brief-info-btn" onclick="this.closest('.brief-wrap').toggleAttribute('data-show-info')" title="Brief info"><span>i</span></button>
+                </div>
+            </div>
+            <div class="brief-info-panel">${infoChips}<span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span></div>
+            ${tabContent}
+        </div>`;
+    }
+
     // ── Market Research Brief Tab Renderers ───────────────────────────────────
     const _mrExternalLink=`<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     const _mrEmpty=(msg)=>`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:24px 0;">${msg||'No data in this section.'}</div>`;
@@ -1769,15 +3723,5 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         </div>`;
     }
 
-export {
-  CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
-  _autoSummaryAttempted, _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _svCss, _svRgb,
-  _templatesActiveTab, _templatesEditMode, _templatesSelected, _templatesSetActiveTab,
-  _templatesSetEditMode, _templatesSetSelected, _tplClientReady, _tplDirty, _tplEsc, _tplEscAttr,
-  _tplFieldLink, _tplFlush, _tplGet, _tplGetColorSets, _tplPinSelectorOpen, _tplPinsEditMode,
-  _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen, _tplSetPinsEditMode,
-  _tplViewColor, _tplViewProse, _tplViewText, clientSearchGhostHtml, clientSearchMatches,
-  clientSearchResultsHtml, getRecent, highlightMatch, igUrl, loadTemplates, render, renderChart,
-  renderMRTab_angles, renderMRTab_gap, renderMRTab_hooks, renderMRTab_niche, renderMRTab_overview,
-  renderMRTab_sources, renderPins, renderViewsChart, selectClient, templatesLoadError, ttUrl, ytUrl
-};
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-01-core-814e36f93957.js");

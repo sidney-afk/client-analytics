@@ -1,3 +1,4 @@
+import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
 import { showConfirm, svAreaApi } from './040-shared-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { navTo } from './092-core-submit-form-navigation.js';
@@ -180,6 +181,7 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         try {
             response = await fetch(url, options);
         } catch (cause) {
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), cause, null, {});
             const error = new Error(mutating
                 ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
                 : (timedOut
@@ -207,6 +209,7 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
         if (!response.ok || !json || json.ok === false) {
             const error = new Error(_ptoApiMessage(json, response.status));
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), error, response, {});
             error.status = response.status;
             error.code = json && (json.code || json.error);
             throw error;

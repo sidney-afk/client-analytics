@@ -464,11 +464,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
         if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
-        const resp = await fetch(CLIENT_REVIEW_LINK_URL, {
+        const resp = await _writeUiTrackSave('share', 'client_link_issue', { client_slug: calClientSlug(clientName) }, () => fetch(CLIENT_REVIEW_LINK_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
-        });
+        }));
         let json = null; try { json = await resp.json(); } catch (e) {}
         if (!resp.ok || !json || !json.ok || !json.token) throw new Error(_syncviewShareLinkErrorMessage(json && json.error, resp.status));
         const q = new URLSearchParams();
@@ -2327,6 +2327,58 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 Object.assign({ kind: operation }, error && error.diagIds || {}, context || {}), error);
         } catch (e) {}
     }
+    /* SAVES THAT DO NOT GO THROUGH THE WRITE GATEWAY (Priority 4, 2026-09-29).
+
+       Templates, Filming plans, caption prompts, Workload dates, TikTok, the
+       Kasper admin saves and the rest each talk to their own Edge Function, so
+       the gateway never saw their refusals and only the person at the screen
+       knew. These two helpers record such a refusal in the same log, through
+       the same beacon (so the same cap, page tag, traffic tag and no prose),
+       without touching what the save does next.
+
+       `_writeUiTrackSave` runs the request and returns the SAME response, or
+       rethrows the SAME error, exactly as the bare request did: it looks at
+       `response.ok` and, for an OK answer, at a clone of the body for a
+       refusal sent as {"ok":false}; the response itself is never read. The log's screen column
+       stores these as `unknown`; the operation name (`templates_save`,
+       `filming_plan_save`, ...) is stored as the action, so the name says
+       which save it was. Staff pages only: the client approve and
+       request-changes requests are not sent through here. */
+    function _writeUiRecordSaveFailure(surface, operation, error, response, context) {
+        try {
+            // The status comes from the response, or from a message of the
+            // form "... HTTP 503" that a save's own error text already carries.
+            const fromText = /\bHTTP (\d{3})\b/.exec(String(error && error.message || ''));
+            const raw = response && Number.isInteger(response.status) ? response.status : (fromText ? Number(fromText[1]) : NaN);
+            const status = Number.isInteger(raw) && raw >= 400 && raw <= 599 ? raw : undefined;
+            const name = String(error && error.name || '');
+            const shape = {
+                name,
+                message: String(error && error.message || (status ? 'HTTP ' + status : 'save failed')).slice(0, 200)
+            };
+            if (status !== undefined) shape.status = status;
+            // A request that never got an answer rejects with one of these two
+            // and nothing else; anything with a status did reach a server.
+            else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
+            _writeUiRecordFailure(surface, operation, shape, context);
+        } catch (e) {}
+    }
+    async function _writeUiTrackSave(surface, operation, context, send) {
+        let response;
+        try { response = await send(); }
+        catch (error) { _writeUiRecordSaveFailure(surface, operation, error, null, context); throw error; }
+        if (response && response.ok === false) _writeUiRecordSaveFailure(surface, operation, null, response, context);
+        else if (response && response.ok === true && typeof response.clone === 'function') {
+            // Some saves (the n8n webhooks) refuse with HTTP 200 and {"ok":false}.
+            // A CLONE is read, so the caller still gets an untouched body; a
+            // body that is not JSON is simply not a refusal we can see.
+            try {
+                const body = await response.clone().json();
+                if (body && body.ok === false) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
+            } catch (e) {}
+        }
+        return response;
+    }
     function _writeUiReportFailure(surface, operation, error, context) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
         // A thrown transport/runtime error carries no `code`, only a message.
@@ -3231,3 +3283,4 @@ export {
   _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug, _writeUiSourceEditsOnly, _writeUiTeam,
   _writeUiUseGatewayWhenReady, computeOverallStatus
 };
+export { _writeUiRecordSaveFailure, _writeUiTrackSave };

@@ -1,3 +1,4 @@
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify } from './040-shared-briefs.js';
 import { WL_DEADLINE_PREF_KEY, WL_VIEW_PREF_KEY, wlState } from './066-core-workload-state.js';
 import {
@@ -767,7 +768,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), WL_PLAN_WRITE_TIMEOUT_MS);
         try {
-            return await fetch(WORKLOAD_PLAN_URL, {
+            return await _writeUiTrackSave('workload', 'workload_plan_save', { id: String(issue.id || '') }, () => fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -778,7 +779,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     client: String(issue.clientName || ''),
                     plan_date: planDate
                 })
-            });
+            }));
         } finally {
             clearTimeout(timeout);
         }
@@ -1074,7 +1075,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
         try {
             if (route && route.authority === 'syncview') {
-                return await fetch(PROD_WRITE_EF_URL, {
+                return await _writeUiTrackSave('workload', 'workload_due_save', { id: String(issue && issue.id || '') }, () => fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
                     cache: 'no-store',
                     signal: controller.signal,
@@ -1094,9 +1095,9 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                         expected_updated_at: route.nativeUpdatedAt,
                         due_date: dueDate || ''
                     })
-                });
+                }));
             }
-            return await fetch(WORKLOAD_LINEAR_URL, {
+            return await _writeUiTrackSave('workload', 'workload_due_save', { id: String(issue && issue.id || '') }, () => fetch(WORKLOAD_LINEAR_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -1107,7 +1108,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     client: String(issue.clientName || ''),
                     due_date: dueDate
                 })
-            });
+            }));
         } finally {
             clearTimeout(timeout);
         }

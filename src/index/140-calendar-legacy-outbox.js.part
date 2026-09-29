@@ -1,3 +1,5 @@
+import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showConfirm, showNotify } from './040-shared-briefs.js';
 import {
   CALENDAR_GET_URL, CALENDAR_UPSERT_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
@@ -2751,11 +2753,11 @@ import {
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }));
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -2796,11 +2798,11 @@ import {
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }));
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -3069,6 +3071,8 @@ import {
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        // Failed-saves log: an urgent ping that went out and did not come back confirmed.
+                        if (attempted) _writeUiRecordSaveFailure(native && native.surface === 'sxr' ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
                             releaseOwnHold();

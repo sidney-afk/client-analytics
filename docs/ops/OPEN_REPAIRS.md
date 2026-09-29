@@ -29726,3 +29726,37 @@ alerts fire only for `kind = 'client'`).
 `kind = client`. They are real brands the team produces for, so relabelling them
 would switch off client-only behaviour such as urgent alerts. The warning for
 the two with no Templates page stays until their thumbnail Canva files are saved.
+
+## 287. [2026-09-29] Item 215 is fixed on main; the drag test that proves it now covers every dialog
+
+The Latch session (Codex, started 2026-09-28) stalled and pushed nothing, and
+`docs/STATE_OF_THINGS.md` still listed item 215 as open ("13 sites, restart from
+scratch"). It was not open. Item 215's own amendments record the fix (#1431):
+one shared capture-phase `mousedown` listener (`src/index/040-shared-briefs.js.part`)
+marks whether a press began on the backdrop itself, and every dialog's dismiss
+check also requires that mark. Counted from the source today, 21 backdrops carry the guard (the older 13 and 24 counted dialogs since removed, such as the Linear import ones).
+
+Re-swept on current main with two different searches (any `target ===` check
+against an overlay-like name, and any overlay that closes on click): no backdrop
+closes without the guard. Nothing in the app needed changing.
+
+What was missing was proof beyond Create Post. Added
+`test/dialog-backdrop-press-browser.js`: opens the page offline, opens each
+dialog with the app's own opener, then with the real mouse presses inside,
+releases on the backdrop (must stay open) and clicks the backdrop (must close).
+It covers 22 cases (21 backdrops; sign-in is tried in two modes). It also scans
+`src/index`, so a new marked backdrop with no case, or a click handler that
+ignores the press mark, fails; and it fails if anything writes. Run against a
+build with the guard disabled, 21 of the 22 fail; with the guard, all pass.
+
+Three things worth knowing:
+- Production "Create issue" is closed for everyone by an owner ruling, so no one
+  can open it; the test renders its form directly, because the backdrop code
+  still ships.
+- The start-up staff sign-in is the login gate itself and deliberately has no
+  outside-click dismiss; the test checks it stays open through both gestures.
+- `.cal-lightbox` (the full-size image viewer) closes on any click, including a
+  drag that ends outside the image. It has no fields, so nothing can be lost; it
+  was left alone and is not covered by the test.
+
+STATE_OF_THINGS corrected in the same change.

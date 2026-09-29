@@ -1,6 +1,5 @@
 // Actual accepted gateway + extracted browser creation payload + candidate SQL.
 // SQL transport only, fictional records, no live/provider request can leave.
-import '../../test/helpers/single-file-index.js'; // split switch on (plan step 4): reads of index.html get the single-file page
 import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import {loadGateway,ROOT} from '../native-intake-reconcile/load-gateway.mjs';
@@ -16,7 +15,8 @@ const capture={console,_isIntake:true,__sent:[],_linearIntakeCheckpointOrSuspend
   _calCacheWrite:()=>{},_sxrCacheWrite:()=>{},_linearIntakeRead:()=>capture.__job||null,
   _calUpsertFetch:async(_c,p,s)=>{capture.__sent.push({body:p,surface:'calendar',source:s,transport:'webhook'});return new Response(JSON.stringify({ok:false}),{status:409});},
   _sxrUpsertFetch:async(_c,p,s)=>{capture.__sent.push({body:p,surface:'samples',source:s,transport:'webhook'});return new Response(JSON.stringify({ok:false}),{status:409});}};
-vm.createContext(capture);const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
+vm.createContext(capture);await import((await import('node:url')).pathToFileURL(path.join(ROOT,'test','helpers','single-file-index.js')).href);// split switch on (plan step 4): the read below must see the single-file page
+const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
 vm.runInContext(['async '+extractFunction(html,'_writeNativeSubmissionCardsToCalendar'),extractFunction(html,'_linearIntakeValidateResult'),extractFunction(html,'_linearIntakeRequireActor'),extractFunction(html,'_linearIntakeJobId')].join('\n'),capture);
 async function accepted(mode='both',surface='calendar',failAt=0,overrides={}){
   const body=gw.rootBody(mode,gw.requestId(surface==='samples'?'sxr':'submission'),{surface:surface==='samples'?'sxr':'submission',...overrides});

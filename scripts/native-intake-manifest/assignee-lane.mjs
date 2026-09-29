@@ -28,7 +28,6 @@
  * Runs as a child process (the unit suite does not enable type stripping) and
  * prints one JSON document between NIR_RESULT_BEGIN/END markers.
  */
-import '../../test/helpers/single-file-index.js'; // split switch on (plan step 4): reads of index.html get the single-file page
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -166,6 +165,7 @@ await import(pathToFileURL(rewritten).href);
 if (typeof handler !== 'function') throw new Error('Deno.serve handler was not captured');
 
 /* ---------- 3. The browser's own item builder, for realistic payloads ---------- */
+await import(pathToFileURL(path.join(ROOT, 'test', 'helpers', 'single-file-index.js')).href); // split switch on (plan step 4): the read below must see the single-file page
 const html = fs.readFileSync(INDEX_HTML, 'utf8');
 const { extractFunction } = await import(pathToFileURL(path.join(ROOT, 'test', 'helpers', 'extract-function.js')).href)
   .then(m => m.default || m);

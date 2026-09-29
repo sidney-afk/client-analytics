@@ -1137,8 +1137,7 @@ async function createMockBackend(options = {}) {
         return fulfill(route, result);
       }
 
-      // A refused save is reported to the failed-saves log; that report is expected.
-      if (!['GET', 'HEAD'].includes(method) && !url.pathname.endsWith('/functions/v1/write-diagnostics')) {
+      if (!['GET', 'HEAD'].includes(method)) {
         recordUnexpected(
           url.pathname.includes('/functions/v1/') ? 'other_edge_function' : 'external',
           method,

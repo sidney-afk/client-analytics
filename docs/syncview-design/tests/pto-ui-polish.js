@@ -316,8 +316,7 @@ async function installFixture(page, state) {
 
     // The single-file app primes other read-only surfaces during boot. Keep the
     // test hermetic with inert responses; any unrelated external write is a bug.
-    // A refused save is reported to the failed-saves log; that report is expected.
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && !/\/functions\/v1\/write-diagnostics$/.test(parsed.pathname)) {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
       state.unexpectedWrites.push({ url, method: request.method() });
     }
     if (parsed.pathname.includes('/rest/v1/')) {

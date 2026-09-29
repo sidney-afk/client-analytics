@@ -30,7 +30,7 @@
 | 22 | `097-today.js.part` | 561 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `100-onboarding-staff-controls.js.part` | 2382 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
-| 25 | `110-time-off.js.part` | 1373 | Kasper Time Off calendar |
+| 25 | `110-time-off.js.part` | 1370 | Kasper Time Off calendar |
 | 26 | `112-smm-weekly-reports.js.part` | 708 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
 | 28 | `120-calendar-flags-write-repair.js.part` | 3408 | The members a flag value offers, or null when it offers no member list at |

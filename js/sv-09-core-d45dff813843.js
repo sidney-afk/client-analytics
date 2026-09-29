@@ -1654,12 +1654,13 @@
 
     /* ============================================================
        CONTENT CALENDAR MODULE
-       Backed by n8n workflows (additive, do not edit existing):
+       Saves and reorders go to the Supabase functions calendar-upsert and
+       calendar-reorder (n8n exit, PR 2); reads come from calendar_posts, with
+       the n8n calendar-get webhook kept only as the read fallback. The
+       original n8n contract, for reference:
          GET  /webhook/calendar-get?client=<slug>
          POST /webhook/calendar-upsert-post  { client, post }
-         POST /webhook/calendar-delete-post  { client, id }
-         POST /webhook/calendar-reorder      { client, items[{id,order_index}] }
-       Storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
+       Legacy storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
        Schema: id, order_index, scheduled_date, name, asset_url, thumbnail_url,
        caption, caption_alt, caption_alt_platform, cta, tweaks, status,
@@ -1680,14 +1681,11 @@
     const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
     const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
-    const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
-    const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
-    const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    /* calendar-append-post, calendar-delete-post, calendar-reorder and
+       calendar-reorder-batch had no caller left (or, for the reorders, only
+       the n8n route the page no longer takes) and were removed in the n8n exit,
+       PR 2. Reorders go to CALENDAR_REORDER_EF_URL only. */
     const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
-    // Batched reorder: same contract, but the workflow writes every
-    // order_index in ONE values:batchUpdate (3 fixed API calls instead of
-    // one per row). Falls back to CALENDAR_REORDER_URL when unavailable.
-    const CALENDAR_REORDER_BATCH_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder-batch';
     // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
     // (2 Google API calls server-side). The FE falls back to per-client
     // CALENDAR_GET_URL calls whenever this endpoint fails.
@@ -1925,6 +1923,7 @@
         const role = _syncviewStaffRoleValue(identity);
         if (capability === 'credentials') return role === 'admin' || role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
+        if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';
         if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
@@ -4306,4 +4305,4 @@
     }
 
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-09-core-2445026a62ee.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-09-core-d45dff813843.js");

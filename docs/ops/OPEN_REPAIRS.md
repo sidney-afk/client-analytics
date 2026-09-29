@@ -29840,8 +29840,9 @@ now record such a refusal through the same beacon: same cap, page tag, traffic t
 no prose. A Production title rename (a gateway write) had no report either; it has
 one now. No server or database change: the log stores these under screen `unknown`,
 and the operation name (`templates_save`, `filming_plan_save`, ...) is the Action.
-Time off saves were recorded on lines with none of the leave-evidence fingerprint
-words, so the approved-screenshot fingerprint is unchanged.
+Time off saves are NOT recorded yet: its approved-screenshot evidence is fingerprinted
+against that code and needs a person to re-review every frame to refresh, so it is left
+as a follow-up.
 
 **Not touched:** the client approve and request-changes requests. Their four button
 functions and the transports under them are byte-identical to `main`, and the

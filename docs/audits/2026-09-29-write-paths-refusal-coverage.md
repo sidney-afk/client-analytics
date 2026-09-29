@@ -53,8 +53,7 @@ import, link adoption, archive, drag order, urgent markers and urgent ping, capt
 generation, Samples archive, link adoption, drag order and urgent markers, Kasper's Calendar
 and Samples saves, Production title rename (a gateway write that had no report), TikTok
 uploads, cancel and retry, Hiring, Client credentials, Client profile, Sales intake submit,
-SMM weekly reports, and Time off saves (added on lines that carry none of the leave-evidence
-fingerprint words, so the screenshot fingerprint is unchanged).
+and SMM weekly reports.
 
 ## 3. Not recorded, and why
 
@@ -62,6 +61,10 @@ fingerprint words, so the screenshot fingerprint is unchanged).
   archive repair viewer, the save-problems page itself): nothing is saved.
 - **Public onboarding form** (`_obPost`, the draft beacon): visitors are not signed in, so a
   report would be tagged as a staff page; the form has its own backup capture and screen.
+- **Time off saves (`_ptoApi`)** are not recorded yet, on purpose. The Time Off screenshot
+  evidence (`qa/pto-lifecycle`) is fingerprinted against this code and its test harnesses, and
+  refreshing it needs a person to re-review every frame. A one-line report there is a small
+  follow-up once that review can be done.
 - **Background or best-effort:** the rename drain nudge and its retry, caption job stand-down
   and cancel, the retired urgent webhook.
 - **Fire-and-forget logs:** the intake submission log.

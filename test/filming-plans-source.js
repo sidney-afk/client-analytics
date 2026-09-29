@@ -200,7 +200,8 @@ assert.strictEqual(sample.result.status, 'green', '21 active pieces with a Septe
 sample = classifyContent(99, [], '');
 assert.strictEqual(sample.result.status, 'red', 'missing filming Doc remains an immediate action item');
 
-const tabLogic = [grabFunc('_filmsParseMonth'), 'async ' + grabFunc('_filmsFetchTabMonths')].join('\n');
+// _filmsTabResult is the shared tab-list reader the webhook path and the function path both use (PR 1b).
+const tabLogic = [grabFunc('_filmsParseMonth'), grabFunc('_filmsTabResult'), 'async ' + grabFunc('_filmsFetchTabMonths')].join('\n');
 const tabContext = {
   FILMING_PLAN_TABS_URL: 'https://example.test/filming-plan-tabs',
   Date: { now: () => 1 },

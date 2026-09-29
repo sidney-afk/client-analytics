@@ -134,9 +134,11 @@ function deps(over = {}) {
   assert(/grant select, insert, update on table public\.filming_plan_tabs_cache to service_role/.test(MIGRATION), 'service_role gets back only what it needs');
   assert(/enable row level security/.test(MIGRATION), 'RLS on');
   assert(/^-- NOT APPLIED/m.test(MIGRATION), 'migration is written, not applied');
-  // Browser is untouched in PR 1a.
+  // PR 1b: Kasper uses the function only behind the runtime flag, and keeps n8n as the default and the fallback.
   const frag = read('src/index/321-kasper-dashboard-replies.js.part');
-  assert(frag.includes('FILMING_PLAN_TABS_URL + ') && !frag.includes('filming-plan-tabs'), 'Kasper still calls the n8n constant until PR 1b');
+  assert(frag.includes("/functions/v1/filming-plan-tabs"), 'Kasper knows the function URL');
+  assert(frag.includes("FILMING_PLAN_TABS_URL + '?doc='"), 'and still has the n8n webhook call, as the default and the fallback');
+  assert(frag.includes("'filming_plan_tabs_source'") && /value\.mode === 'function'\) \? 'function' : 'n8n'/.test(frag), 'the function is used only for the exact flag value, n8n otherwise');
 
   console.log('FILMING_PLAN_TABS_SOURCE_OK');
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -25,7 +25,7 @@ export const VIEWER_HTML = `<!doctype html>
 <body><div id="media"></div><div id="empty"></div>
 <script>
 (function () {
-  var nextId = 1, pending = {};
+  var nextId = 1, pending = {}, blobBudget = 3, blobQueue = Promise.resolve();
   function send(msg) { window.parent.postMessage(msg, "*"); }
   function request(method, params) {
     var id = nextId++;
@@ -55,11 +55,16 @@ export const VIEWER_HTML = `<!doctype html>
       v.onerror = function () {
         // Direct streaming refused: fetch the file and play it from memory,
         // and if that fails too, fall back to a plain button.
-        if (triedBlob) { fallback(); return; }
-        triedBlob = true;
-        fetch(u).then(function (r) { if (!r.ok) throw 0; return r.blob(); })
-          .then(function (b) { v.src = URL.createObjectURL(b); v.load(); })
-          .catch(fallback);
+        // Only a few videos, one at a time, each under 80 MB, so a big batch
+        // cannot exhaust the frame's memory.
+        if (triedBlob || blobBudget <= 0) { fallback(); return; }
+        triedBlob = true; blobBudget--;
+        blobQueue = blobQueue.then(function () {
+          return fetch(u).then(function (r) {
+            if (!r.ok || Number(r.headers.get("content-length") || 0) > 80e6) throw 0;
+            return r.blob();
+          }).then(function (b) { v.src = URL.createObjectURL(b); v.load(); }).catch(fallback);
+        });
       };
       function fallback() {
         wrap.innerHTML = "";

@@ -2,6 +2,8 @@
 
 **Decision (owner, 2026-09-24):** this repo stays public. Going private is deferred to SyncView v2, which would start in its own private repo (likely hosted on Vercel).
 
+**Superseded 2026-09-29 by `docs/plans/2026-09-29-repo-private-plan.md`** (the owner now wants the repo private; measured pace is about 135,000 billed minutes a month, not 72,700).
+
 Read-only research. Nothing was changed in GitHub settings, workflows or Supabase.
 
 ## Answers

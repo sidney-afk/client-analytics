@@ -58,6 +58,12 @@ here with where it stopped, so it can be restarted.
    (owner, 2026-09-24: "I want to keep using GitHub"; the owner already pays
    for GitHub Pro, which serves Pages from a private repo). Plan: `docs/plans/2026-09-24-owner-backlog.md` section 1; costs:
    `docs/ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md`.
+   **Plan written 2026-09-29 (Atlas): `docs/plans/2026-09-29-repo-private-plan.md`,
+   awaiting the owner's decisions in its section 9.** Findings that change the
+   picture: measured pace is about 135,000 billed minutes a month (about $790 on
+   Pro), 90 percent of it pull-request checks, so moving scheduled jobs saves only
+   about $13; and the live site publishes the whole repo (docs, scripts,
+   migrations), so the Pages deploy must become an allowlist before any switch.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.

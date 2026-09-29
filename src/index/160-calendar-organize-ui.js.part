@@ -346,6 +346,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                         <div class="cal-kebab-import-panel" id="calImportPanel">
                             <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
                         </div>
+                        <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
+                            <div class="cal-kebab-sep" role="separator"></div>
+                            <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_arxOpen('cal')" title="See recently archived cards and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived cards</button>
+                        </div>
                     </div>
                 </div>`
             : '';

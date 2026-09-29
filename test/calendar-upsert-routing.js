@@ -27,9 +27,11 @@ function ok(cond, msg) {
    NEW call site inside _kasperPersistPostWrite, a single bounded retry (never
    a loop) issued only when calendar-upsert's own conflict guard refused a
    write that this same action's native status push had just made stale out
-   from under it. */
+   from under it. 2026-09-29: 11 -- the archived-card restore (_arxRestore in
+   186-archived-restore.js.part) writes the card's live status through the same
+   helper archive uses, with the same minimal body. */
 const frontendCalls = (INDEX.match(/_calUpsertFetch\(/g) || []).length;
-ok(frontendCalls === 10, 'expected _calUpsertFetch definition plus nine frontend call sites including native Submit materialization, deliverable-link adoption, component fill, and the Kasper self-conflict retry, got ' + frontendCalls);
+ok(frontendCalls === 11, 'expected _calUpsertFetch definition plus ten frontend call sites including native Submit materialization, deliverable-link adoption, component fill, the Kasper self-conflict retry, and the archived-card restore, got ' + frontendCalls);
 ok(!/fetch\(CALENDAR_UPSERT_URL/.test(INDEX), 'frontend must not fetch CALENDAR_UPSERT_URL directly');
 ok(/CALENDAR_UPSERT_N8N_URL/.test(INDEX), 'frontend n8n fallback URL constant missing');
 ok(/CALENDAR_UPSERT_EF_URL/.test(INDEX), 'frontend EF URL constant missing');

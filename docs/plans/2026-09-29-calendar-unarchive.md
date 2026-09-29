@@ -1,8 +1,10 @@
 # Calendar and Samples: see recently archived cards and restore one
 
-**Status:** Decisions D1 to D6 are final (Lighthouse and the owner, 2026-09-29). Step 1
-is this plan plus the static mock-up in `docs/syncview-design/mockups/calendar-unarchive/`.
-**Nothing is built.** Waiting for the owner to review the mock-up, then step 2 (the build).
+**Status:** BUILT (step 2), 2026-09-29. Decisions D1 to D6 are final (Lighthouse and the owner).
+The owner approved the mock-up in `docs/syncview-design/mockups/calendar-unarchive/` and answered
+OQ1 (accept the message) and A1 (no record -> To do); both are applied below.
+Code: `src/index/186-archived-restore.js.part`, the two menu items in `160` and `270`, the
+`restore-archived` capability in `100`, styles in `020`.
 **Written by the session named Harbor.** Counts only, no client names or slugs (public repo).
 Measured by reading the code at main `566402637b5751a71e43b80ff1c95e6ed5fb3997`. Nothing here was checked against the
 live database; every "live" claim is marked as read from repo notes, or as a
@@ -115,7 +117,7 @@ work items put back exactly as they were.
 8. **Work items** (3.4), only after step 5 succeeded and the card is live (the
    status bridge skips archived cards).
 9. Success message ("Restored", "<name> is back in the Calendar.") with one line per
-   work item: "moved back to SMM approval", "moved to To do", "stays Done", "left
+   work item: "moved back to SMM approval", "moved to To do", "stays Posted", "left
    alone, it moved since", or "not moved: someone else changed it first, their change
    was kept".
 
@@ -136,12 +138,14 @@ and its `deliverable_events`, then apply the **first rule that fits**:
 
 | # | Situation | Result | Dialog wording |
 |---|---|---|---|
-| 1 | Item is finished now (done, posted, canceled). The archive never parks a finished item. | Leave it. | "stays Done" |
+| 1 | Item is finished now (approved, scheduled, posted, canceled or duplicate: the app has no separate "Done" status). | Leave it. | "stays Posted" (the item's own status word) |
 | 2 | Item is in Backlog, and its latest move into Backlog is the archive's own park: an event with `to_status=backlog` and `payload.surface` `calendar` (Samples: `sxr`), at or after the archive time (the card's `archive` event `ts`, else its `updated_at`), and nothing later. That event's `from_status` was an ordinary status. | Move it to exactly that `from_status` (`todo`, `in_progress`, `smm_approval`, `client_approval` and so on). | "back to SMM approval" |
 | 3 | As rule 2, but the event's `from_status` was `backlog`: it was already in Backlog before the archive. | Move it to To do. | "to To do" |
 | 4 | Item is in Backlog, but its latest move into Backlog is not the archive's park (a person moved it there later, or another surface did). | Leave it. | "left alone, it moved since" |
-| 5 | Item is in Backlog and there is no readable park event at all (assumption A1). | Leave it. | "left alone, no record of where it was" |
+| 5 | Item is in Backlog and there is no readable park event at all (owner answer to A1, 2026-09-29). | Move it to To do. | "to To do" |
 | 6 | Item is in any other open status, or was archived or removed itself. Someone moved it after the archive. | Leave it. | "left alone, it moved since" |
+
+Note from a read-only count of the last 45 days of park events (2026-09-29): a park can also come from a finished status (5 canceled and 2 posted from the Calendar surface). Restore puts those back to that status too, because the rule is the exact prior status; rule 1 only covers an item that is finished NOW.
 
 Mechanics:
 
@@ -158,29 +162,20 @@ Mechanics:
   an old overall status back. (The Samples archive deliberately stamps the card as
   Archived on its park write; the restore move must stamp it as live.)
 
-**OPEN QUESTION OQ1, needs the owner's answer before the build moves any item into
-`smm_approval` or `tweak`.** The database trigger
-`production_notification_status_intent_after`
-(`migrations/2026-09-09-native-notification-outbox.sql:229-285`) queues a message to the
-client's channel whenever staff move an item into `smm_approval` or `tweak` from the
-UI (`source='ui'`, `action='status_change'`, staff caller, not a test client). Rule 2
-with `from_status=smm_approval` (or `tweak`) would therefore send the client a second
-"ready for SMM approval" ("needs tweaks") message. The instruction is to stop and report
-if a restore sends any client or Kasper notification, so I am reporting it now:
-
-- (a) Accept the message.
-- (b) Put those items back but silence the message. That needs a change to
-  `production-write` (or its shared code) and so the sealed capture and an owner deploy.
-- (c) Leave those two kinds of item in Backlog and say "left in Backlog so the client
-  is not told again" in the dialog. **My recommendation.** No deploy, no message.
-
-Every other target (`todo`, `in_progress`, `client_approval`) is not announced by that
-trigger; a Postgres test proves it (section 7) before the build relies on it. The
-other trigger that mentions Kasper, `syncview_kasper_urgent_ping_ledger`, only writes
-a ledger row when a ping marker appears on the card; a restore never sets one, and a
-test asserts that. A restored card at Kasper Approval does reappear in Kasper's queue
-(a view, not a message), and the dialog says so. In the 2026-09-28 park run, 14 of 46
-parked items came from `smm_approval`, so this is a common case.
+**OQ1, answered by the owner (2026-09-29): option (a), accept the message.** A restore that
+puts an item back in SMM approval or Tweaks may post the normal status message in the team's
+creative channel. The database trigger `production_notification_status_intent_after`
+(`migrations/2026-09-09-native-notification-outbox.sql:229-285`) queues that message for any
+staff move into those two statuses from the UI (`source='ui'`, `action='status_change'`,
+staff caller, not a test client). `production-write` is not changed. Any OTHER client or
+Kasper notification caused by a restore or an item move stops the work and is reported
+(instruction stands). The trigger skips test clients, so a test client run cannot show this
+message; it is proven by reading the trigger, not by the live run. Every other target
+(`todo`, `in_progress`, `client_approval`) is not announced by that trigger. The other trigger
+that mentions Kasper, `syncview_kasper_urgent_ping_ledger`, only writes a ledger row when a
+ping marker appears on the card; a restore never sets one. A restored card at Kasper
+Approval does reappear in Kasper's queue (a view, not a message). In the 2026-09-28 park run,
+14 of 46 parked items came from `smm_approval`, so the accepted message is a common case.
 
 Not restored: Linear (cancelled), and nothing else needs restoring (comments and
 approvals are never deleted by archive; see 4.5).
@@ -225,7 +220,7 @@ Backlog with the card stamped Archived. Restore mirrors the Calendar design:
 | 4.2 | One restores while another edits | An archived card cannot be opened for editing, so the only edits in flight are on other cards. A stale tab that still holds the card as live and edits it after someone else archived it is the existing archive race, unchanged. After restore, the reload replaces any stale copy. |
 | 4.3 | One restores while another **archives the same card again** | Last write wins; no CAS exists on this frozen writer (the browser disables the field guard on v2). Outcome is one of two valid states and the list refreshes. Documented, not preventable without changing the frozen writer or adding a function (D1). |
 | 4.4 | Restored card comes back in a status nobody chose | Status is derived from components (same code as page load), shown in the confirm dialog before the write, and never `Archived`. |
-| 4.5 | Stale approvals: a card archived at Client Approval returns to the client queue with old `client_*_approved_at` or `kasper_approved_at` values | Left as they were (they describe real past actions). Confirm dialog shows the returned status and "the client will see this card again" when `_calIsClientReady` is true. The card write itself is not a notification event (the trigger only fires on work item status events). Item moves into `smm_approval` or `tweak` are announced to the client: see OQ1 in 3.4. Because that trigger skips test clients, a test client run cannot prove "no message sent"; a Postgres test does (section 7). |
+| 4.5 | Stale approvals: a card archived at Client Approval returns to the client queue with old `client_*_approved_at` or `kasper_approved_at` values | Left as they were (they describe real past actions). Confirm dialog shows the returned status and "the client will see this card again" when `_calIsClientReady` is true. The card write itself is not a notification event (the trigger only fires on work item status events). Item moves into `smm_approval` or `tweak` are announced to the client: see OQ1 in 3.4. Because that trigger skips test clients, a test client run cannot show that message; the owner accepted it (OQ1, option a). |
 | 4.6 | Restored card is tied with a live card on `order_index`, or lands in the past | Tie: end of list via `calendar-reorder` (3.3 step 7). Past date: flagged in the confirm dialog, date kept. |
 | 4.7 | Two cards (or two samples) claim one work item | Blocked by the duplicate check (3.3 step 3, D5); the live card is named in the message. |
 | 4.8 | Restore undoes a person's own Backlog decision, or moves an item somebody moved since | Rules 4 to 6 in 3.4 leave those items alone and say so. |
@@ -276,8 +271,8 @@ Backlog with the card stamped Archived. Restore mirrors the Calendar design:
 | D4 | Samples are in this PR, same logic, from the Samples page's own menu, clearing the Samples ledger. | 3.6. |
 | D5 | Block the restore when a live card already uses the same video or graphic work item, and name that card. | 3.3 step 3, 3.6. |
 | D6 | Only admin and SMM roles can restore. Never creative seats, never client links. | 3.1. |
-| OQ1 | Moving an item back into `smm_approval` or `tweak` makes the database message the client. | 3.4. **Open. The build does not move those items until the owner answers.** |
-| A1 | An item in Backlog with no readable park event is left alone ("left alone, no record of where it was") rather than guessed. | 3.4 rule 5. Assumption, not a decision. |
+| OQ1 | Moving an item back into `smm_approval` or `tweak` posts the normal status message in the team's creative channel. | Owner: option (a), accepted (2026-09-29). `production-write` unchanged. |
+| A1 | An item in Backlog with no record of where it came from goes to To do (owner, 2026-09-29). | 3.4 rule 5. **Decided.** |
 
 ## 7. Tests (step 2)
 
@@ -302,46 +297,33 @@ Backlog with the card stamped Archived. Restore mirrors the Calendar design:
   functions (Calendar or Samples), and no file under `supabase/functions` changed;
 - every refusal code used has a message sentence (`write-ui-failure-messages` rule).
 
-**Postgres test** (`test/calendar-unarchive-notifications-postgres.js`, Postgres
-profile, next to the other trigger tests): replays a restore move into each
-target status against the notification trigger and asserts `todo`, `in_progress` and
-`client_approval` create no `production_notification_intents` row while `smm_approval`
-and `tweak` do (documenting OQ1); after the owner answers OQ1, it also asserts the
-chosen behaviour. It also asserts a restore never sets the Kasper ping marker.
+**Mocked browser test:** `docs/syncview-design/tests/archived-restore-browser.js`, added to the fast lane of the
+Production polish gate. It drives the real page with every backend answer local, for Calendar
+and for Samples: the menu item for admin and SMM and not for a creative seat or a client link;
+the list (25 a page, newest first, cursor paging, Show older to the 45 day item and on to
+the end of 90 days); the confirm text with the owner's wording; blocked (names the live
+card); Cancel writes nothing; restore sends exactly one card write with a live status and
+nothing else on the card, then one guarded item move with `expected_status` and
+`expected_updated_at`; a slot tie sends one position write; a conflict keeps the other change
+and the card stays restored; "Already restored" writes nothing; a failed card write changes
+nothing and moves no item; the empty and error states with retry; no direct table write; no
+page error. `docs/syncview-design/tests/prod-write-gateway-browser.js` is unchanged and must still pass.
+The exit line of each suite is quoted verbatim in the report.
 
-**Mocked browser test:** new phase `CAL_RESTORE` added to `PHASES` in
-`docs/syncview-design/tests/prod-write-gateway-browser.js`, same mocking as the
-archive cases there (`calendarWrites`, `writes`); a matching `SXR_RESTORE` phase (or a sibling
-file with the same mocks if the Samples page cannot be driven from this harness) covers
-Samples. Cases: menu absent on a client
-link and for creative; menu present for admin and smm; list shows only archived rows
-from the last 30 days, newest first; Show older; empty state; read failure and retry;
-confirm text (status, past date, client-visible line); cancel writes nothing;
-Restore sends exactly one `calendar-upsert` (Samples: `sample-review-upsert`) body `{id, status}` with a non-Archived
-status; ledger cleared and card back after reload; already-restored race (re-read
-returns live row, zero writes); duplicate link blocked, zero writes; write failure
-keeps the row and logs one refusal; work item moves sent with expected values;
-conflict on an item keeps the card restored; every rule 1 to 6 outcome shows the right
-line in the dialog; tie sends one `calendar-reorder`.
-The exit line of each suite is quoted verbatim in my report. The whole file must pass, as must `prod-boot-budget.js`, `npm run build:index`,
-`npm run check:index`, `repo-map-sync`, and
-`node scripts/repo-identity-exposure-check.js --diff="origin/main"` after committing.
-
-**Real browser, test client only** (uses `qa/master.js` scaffolding, unique card ids,
+**Real browser, test client only** (`qa/probes/arx_restore_live.js`, on demand, not in the nightly manifest because it creates real work items; uses the existing courier harness, unique card ids,
 archive on exit, Linear mocked): create a card with a video and a graphic item, set
 component statuses, archive it, confirm it is parked, open the list, restore,
 confirm card status, position, items back to their exact prior status, ledger, client
 link view of it, and that no notification fired. The same round trip for a sample. Then the negative paths: restore from a second
 tab (already restored), duplicate link, item moved by hand before restore. Also
 **reproduce the 2026-09-29 sequence** (revive an item under an archived card) to
-confirm the mechanism in section 2. Add the archive-then-restore round trip to
-`qa/probes/nightly-manifest.txt`. If this sandbox's browser cannot reach the live
+confirm the mechanism in section 2. If this sandbox's browser cannot reach the live
 backend through its proxy (docs say it may not), I will say so plainly and give
 Lighthouse the exact command to run rather than report a pass.
 
 **Measurements to take before shipping:** archived-list query time on the largest
 client; count of archived cards in the 30 day window per client (counts only);
-how many parked items came from each status (counts only), so the dialog wording is accurate. Notification safety is proven by the Postgres test in section 7, not the test client, because the trigger skips test clients.
+how many parked items came from each status (counts only), so the dialog wording is accurate. The trigger skips test clients, so the accepted status message cannot show up in a test client run.
 
 **Before and after screenshots:** Calendar More menu, the list, the confirm dialog,
 the restored card, and the work items back, each before and after, from the test

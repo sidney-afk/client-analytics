@@ -4,7 +4,7 @@ import {
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlIsAllowedClient, wlNormalizeClient } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _syncviewRequireStaffIdentity, _syncviewStaffCan } from './100-onboarding-staff-controls.js';
 import {
   WRITE_UI_NO_WORK_ITEM_TEXT, _calRuntimeFlagClient, _calRuntimeFlagClients, _kasperUrgentPingOn,
   _kasperUrgentPingOnLive, _prodMarkLegacyReadIncomplete, _prodStripEphemeralCanonicalPosts,
@@ -509,6 +509,10 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                     <button class="cal-kebab" type="button" onclick="_sxrToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
                     <div class="cal-kebab-menu" id="sxrKebabMenu" hidden>
                         <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                        <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
+                            <div class="cal-kebab-sep" role="separator"></div>
+                            <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_arxOpen('sxr')" title="See recently archived samples and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived samples</button>
+                        </div>
                     </div>
                 </div>`
             : '';
@@ -2916,5 +2920,4 @@ export {
   _sxrSavePrefs, _sxrSaveTimers, _sxrShowUrgent, _sxrSupabaseFetchAllRows,
   _sxrUpdateCardStatusDisplay, _sxrUpsertFetch, _sxrUpsertFetchPinned, _sxrV2LoadLib,
   archiveSxrCard, computeSampleOverallStatus, loadSxrCards, mountSxrView, onSxrTabClick,
-  renderSxrOrganizer, renderSxrView, sxrClientSlug, sxrState
-};
+  renderSxrOrganizer, renderSxrView, sxrClientSlug, sxrState, _sxrArchivedRemove };

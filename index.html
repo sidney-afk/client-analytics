@@ -8813,6 +8813,27 @@
             .tdy-deck .tdy-cd { grid-column: 1 / -1 !important; grid-row: 2 !important; }
             .tdy-left { grid-column: 2; }
         }
+        /* Archived cards and samples: list, rows and the restore confirm (docs/plans/2026-09-29-calendar-unarchive.md) */
+        .arx-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--white); }
+        .arx-row-main { min-width: 0; flex: 1; }
+        .arx-row-name { font-size: 0.86rem; font-weight: 800; color: var(--text-primary); }
+        .arx-row-meta { font-size: 0.72rem; color: var(--text-muted); margin: 2px 0 7px; }
+        .arx-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+        .arx-pill { font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
+        .arx-pill b { font-weight: 800; opacity: 0.75; margin-right: 2px; }
+        .arx-empty, .arx-error { text-align: center; padding: 52px 20px; }
+        .arx-empty-t, .arx-error-t { font-size: 0.92rem; font-weight: 800; color: var(--text-primary); }
+        .arx-empty-s, .arx-error-s { font-size: 0.78rem; color: var(--text-secondary); margin: 4px 0 14px; }
+        .arx-error-t { color: var(--brief-avoid-ink); }
+        .arx-confirm { max-width: 440px; }
+        .arx-wi { list-style: none; padding: 0; margin: 0 0 16px; text-align: left; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .arx-wi li { display: flex; justify-content: space-between; gap: 14px; padding: 9px 12px; font-size: 0.78rem; border-top: 1px solid var(--border-light); }
+        .arx-wi li:first-child { border-top: 0; }
+        .arx-wi-name { font-weight: 700; }
+        .arx-wi-to { font-weight: 700; text-align: right; color: var(--text-secondary); }
+        .arx-wi-to.is-move { color: var(--sv-fg-166534); }
+        .arx-wi-to.is-left { color: var(--sv-fg-854d0e); }
+        .arx-note { font-size: 0.74rem; color: var(--text-secondary); margin: -6px 0 16px; line-height: 1.45; }
     </style>
 </head>
 <body>
@@ -9331,8 +9352,8 @@
        in parts; everyone else (client links, forms, signed-out visitors) gets the
        whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-8967c83eda0b.js";
-        var PARTS = ["js/sv-01-core-04d2f2aac2ca.js","js/sv-03-core-8e9d02e02e20.js","js/sv-05-core-c83b1558a2c6.js","js/sv-06-core-e572f11d972e.js","js/sv-07-core-8300ae58b7d2.js","js/sv-08-quick-jump-26e0876fbc78.js","js/sv-09-core-2445026a62ee.js","js/sv-10-smm-weekly-06083f3a789b.js","js/sv-11-core-1e8dfe8e993d.js","js/sv-12-synclinear-7b53e4f48a09.js","js/sv-13-core-76bb15780a32.js","js/sv-15-core-68051745f192.js","js/sv-17-core-d34dbd9f45f5.js","js/sv-18-core-dd9985e268b4.js","js/sv-19-core-ca3e4331fdc8.js"];
+        var FULL = "js/sv-full-0c98fd0ed507.js";
+        var PARTS = ["js/sv-01-core-04d2f2aac2ca.js","js/sv-03-core-8e9d02e02e20.js","js/sv-05-core-c83b1558a2c6.js","js/sv-06-core-e572f11d972e.js","js/sv-07-core-8300ae58b7d2.js","js/sv-08-quick-jump-26e0876fbc78.js","js/sv-09-core-d1b1946c0fd4.js","js/sv-10-smm-weekly-06083f3a789b.js","js/sv-11-core-336bd55acab1.js","js/sv-12-synclinear-7b53e4f48a09.js","js/sv-13-core-2df9de36afb0.js","js/sv-15-core-68051745f192.js","js/sv-17-core-d34dbd9f45f5.js","js/sv-18-core-dd9985e268b4.js","js/sv-19-core-ca3e4331fdc8.js"];
         var LAZY = {"templates":"js/sv-02-templates-d997722506aa.js","workload":"js/sv-04-workload-1a66c73d253b.js","tiktok":"js/sv-14-tiktok-69f35a978304.js","kasper":"js/sv-16-kasper-9f8eb8f5f73c.js"};
         var FORCE = null;
         function staffParts() {

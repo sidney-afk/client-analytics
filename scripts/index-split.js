@@ -32,6 +32,8 @@
  *     lists as "lazy": those are left out and fetched the first time their
  *     tab asks (040's svArea), or quietly once the first screen is up. A lazy
  *     area made of several runs (core between them) is one file.
+ * The loader also honours a per-browser opt-out, ?split=0 (sticky; ?split=1
+ * clears it), which sends that browser the whole script as one file.
  * Both are parser-blocking scripts written at the exact place the inline
  * script stood, so they run at the same moment relative to the page's
  * markup as the inline script did.
@@ -170,6 +172,12 @@ function loaderSource({ full, parts, lazy, force }) {
                 var h = String(r ? r.hash() : location.hash).replace(/^#/, '').split(/[/?]/)[0];
                 if (q.has('c') || q.has('t') || q.has('onboarding') || q.has('onboarding_view') || q.get('intake') === '1') return false;
                 if (h === 'smm-weekly-report' || h === 'smm-weekly-reports') return false;
+                // A per-browser way back, no deploy needed: ?split=0 sticks (this
+                // browser gets the whole script as one file), ?split=1 clears it.
+                var sp = q.get('split');
+                if (sp === '0') localStorage.setItem('syncview_split_off', '1');
+                else if (sp === '1') localStorage.removeItem('syncview_split_off');
+                if (localStorage.getItem('syncview_split_off') === '1') return false;
                 return !!localStorage.getItem('syncview_staff_identity_v1');
             } catch (e) { return false; }
         }

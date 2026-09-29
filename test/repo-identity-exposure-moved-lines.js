@@ -122,9 +122,10 @@ async function main() {
   // colleague's name.
   const SYNTHETIC_SLUG = 'zzzfixtureclientmovedline';
   const SYNTHETIC_STAFF_NAME = 'Zzq Fixturestaff';
+  const SYNTHETIC_NEW_SLUG = 'zzzfixturenewnameadded';
 
   const server = await startFakeRoster({
-    clients: [{ slug: SYNTHETIC_SLUG, kind: 'client', active: true }],
+    clients: [{ slug: SYNTHETIC_SLUG, kind: 'client', active: true }, { slug: SYNTHETIC_NEW_SLUG, kind: 'client', active: true }],
     team_members: [{ name: SYNTHETIC_STAFF_NAME, active: true }],
   });
   const port = server.address().port;
@@ -159,11 +160,24 @@ async function main() {
     fs.writeFileSync(path.join(repo, 'docs-note.txt'),
       `New note that was never in index.html, mentioning ${SYNTHETIC_STAFF_NAME} by name.\n`);
     fs.writeFileSync(path.join(repo, 'docs-note-2.txt'), `${movedLine}\n`);
+    // Owner-ratified 2026-09-29 (split switch on): the generated js/sv-*.js
+    // copies of the fragments.
+    //   (d) the verbatim base line inside a top-level js/sv-*.js file is exempt;
+    //   (e) the same line in any other js/ file, or a nested one, is not;
+    //   (f) a NEW name, absent from base's index.html, is caught in a fragment
+    //       and in its js/sv-*.js copy alike.
+    fs.mkdirSync(path.join(repo, 'js', 'nested'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'js', 'sv-01-core-0123456789ab.js'), `${movedLine}\n`);
+    fs.writeFileSync(path.join(repo, 'js', 'other-script.js'), `${movedLine}\n`);
+    fs.writeFileSync(path.join(repo, 'js', 'nested', 'sv-02-core-0123456789ab.js'), `${movedLine}\n`);
+    const newLine = `    var NEW_SLUG = "${SYNTHETIC_NEW_SLUG}";`;
+    fs.writeFileSync(path.join(repo, 'src', 'index', '998-new.part'), `<script>\n${newLine}\n</script>\n`);
+    fs.writeFileSync(path.join(repo, 'js', 'sv-03-core-0123456789ab.js'), `${newLine}\n`);
     commit(repo, 'split index.html and add unrelated new notes');
 
     const result = await runCheck(repo, base, env);
 
-    ok(result.roster_terms_checked === 2, 'fixture roster carries exactly the two synthetic terms');
+    ok(result.roster_terms_checked === 3, 'fixture roster carries exactly the three synthetic terms');
 
     const slugFile = (result.files || []).find((f) => f.file === 'src/index/999-remainder.part');
     ok(!slugFile, '(a) a line moved verbatim from the base index.html into a src/index/*.part fragment is NOT reported as new exposure');
@@ -176,8 +190,15 @@ async function main() {
     ok(!!nonFragmentSlugFile && nonFragmentSlugFile.client_slug === 1,
       '(c) the SAME verbatim moved line landing outside src/index/*.part IS still reported — the exemption is scoped to fragment destinations, not any file');
 
-    ok(result.matched_by_kind.client_slug === 1,
-      'exactly one matched client-slug term: the non-fragment copy, not the fragment one');
+    const at = (f) => (result.files || []).find((x) => x.file === f);
+    ok(!at('js/sv-01-core-0123456789ab.js'), '(d) the verbatim base line in a top-level js/sv-*.js copy is NOT reported');
+    ok(!!at('js/other-script.js') && at('js/other-script.js').client_slug === 1, '(e) the same line in a js/ file that is not sv-*.js IS reported');
+    ok(!!at('js/nested/sv-02-core-0123456789ab.js'), '(e) the same line in a nested js/ folder IS reported');
+    ok(!!at('src/index/998-new.part') && at('src/index/998-new.part').client_slug === 1, '(f) a new name added in a source fragment IS reported');
+    ok(!!at('js/sv-03-core-0123456789ab.js') && at('js/sv-03-core-0123456789ab.js').client_slug === 1, '(f) the same new name in its js/sv-*.js copy IS reported');
+
+    ok(result.matched_by_kind.client_slug === 2,
+      'two matched client-slug terms: the moved slug (copied outside the exempt places) and the new one');
     ok(result.matched_by_kind.staff_name === 1,
       'the new staff-name line contributes exactly one matched staff-name term');
   } finally {

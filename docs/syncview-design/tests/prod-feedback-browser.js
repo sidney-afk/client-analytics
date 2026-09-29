@@ -1,4 +1,5 @@
 'use strict';
+require('../../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 // Actual renderer, normalizer, paging/cache and request loader from index.html.
 // The surrounding app router and backend are finite fixtures. This is component
 // browser proof, not a boot, live delivery, or retention/history claim.

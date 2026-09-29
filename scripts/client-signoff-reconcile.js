@@ -1,4 +1,5 @@
 'use strict';
+require('../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 /*
  * Client review ⇄ card reconciler — the server-side completion of a client's
  * committed review action.

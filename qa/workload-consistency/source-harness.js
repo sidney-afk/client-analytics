@@ -1,4 +1,5 @@
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 // OFFLINE_TEST only. Extract named production helpers; never evaluate page boot,
 // import the live visibility scanner, or provide a real network implementation.
 const fs = require('node:fs');

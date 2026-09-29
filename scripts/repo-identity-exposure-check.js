@@ -258,7 +258,16 @@ function addedLinesContaining(term, base) {
          file is new exposure regardless of whether the same line happens to
          already exist somewhere in `index.html`. */
       const isFragmentDestination = current.startsWith('src/index/') && current.endsWith('.part');
-      if (isFragmentDestination && preexisting.has(line.slice(1))) continue; // moved verbatim from base's index.html into a fragment — not new exposure
+      /* Owner-ratified 2026-09-29 (load-per-tab plan, step 4): the generated
+         script files the split page loads (`js/sv-*.js`, written by
+         `npm run build:index`) are byte copies of those same fragments, and
+         `check-index` fails if they differ from the build. So a line there is
+         exempt on exactly the same terms, and no wider: an exact full-line
+         match against base's `index.html`, in a top-level `js/sv-*.js` file
+         and nowhere else. A new name added to a fragment is still caught in
+         the fragment AND in its js/ copy. */
+      const isGeneratedScriptDestination = /^js\/sv-[^/]+\.js$/.test(current);
+      if ((isFragmentDestination || isGeneratedScriptDestination) && preexisting.has(line.slice(1))) continue; // moved verbatim from base's index.html into a fragment or its generated copy — not new exposure
       count++;
     }
   }

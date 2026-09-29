@@ -106,6 +106,7 @@ export async function loadGateway() {
   if (typeof handler !== 'function') throw new Error('Deno.serve handler was not captured');
 
   /* The browser's own item builder, so request payloads are what Submit sends. */
+  await import(pathToFileURL(path.join(ROOT, 'test', 'helpers', 'single-file-index.js')).href); // split switch on (plan step 4): the read below must see the single-file page
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const { extractFunction } = await import(pathToFileURL(path.join(ROOT, 'test', 'helpers', 'extract-function.js')).href)
     .then(m => m.default || m);

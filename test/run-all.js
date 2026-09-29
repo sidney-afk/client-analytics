@@ -19,7 +19,11 @@ for (const proof of plan.deferred) console.log(JSON.stringify({required_test:pro
 
 const failures = [];
 for (const f of files) {
-  const r = spawnSync(process.execPath, [path.join(dir, f)], { stdio: 'inherit' });
+  // With the split switch on, index.html is a loader; suites that read the app's
+  // code from it get the single-file page through this preload (see the helper).
+  const preload = '--require=' + JSON.stringify(path.join(dir, 'helpers', 'single-file-index.js'));
+  const env = Object.assign({}, process.env, { NODE_OPTIONS: [process.env.NODE_OPTIONS, preload].filter(Boolean).join(' ') });
+  const r = spawnSync(process.execPath, [path.join(dir, f)], { stdio: 'inherit', env });
   if (r.status !== 0) { failures.push(f); console.error('\n>>> FAILED: test/' + f + '\n'); }
 }
 /*

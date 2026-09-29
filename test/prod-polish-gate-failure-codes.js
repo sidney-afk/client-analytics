@@ -93,6 +93,22 @@ const CASES = [
   ['but a real console error still outranks both, because it comes first in the message',
     'Browser errors: TypeError: undefined is not a function | pending read requests: [{"host":"x"}]',
     'page_error'],
+  /* Added 2026-09-29. The first error in the message picks the code. */
+  ['a first console error that is a 401 resource load is its own code',
+    'Browser errors: Failed to load resource: the server responded with a status of 401 () | x',
+    'page_error_resource_auth'],
+  ['a 404 resource load is a 4xx code',
+    'Browser errors: Failed to load resource: the server responded with a status of 404 ()',
+    'page_error_resource_4xx'],
+  ['a 503 resource load is a 5xx code',
+    'Browser errors: Failed to load resource: the server responded with a status of 503 ()',
+    'page_error_resource_5xx'],
+  ['a network-level resource failure after the prefix is its own code',
+    'Browser errors: Failed to load resource: net::ERR_CONNECTION_RESET',
+    'page_error_resource_network'],
+  ['a script exception first still reads as a plain page error',
+    'Browser errors: x is not defined | Failed to load resource: the server responded with a status of 401 ()',
+    'page_error'],
 ];
 for (const [message, input, expected] of CASES) {
   ok(classifyFailure(input) === expected, message);

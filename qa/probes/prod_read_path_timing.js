@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 /*
  * prod_read_path_timing.js — READ-ONLY anon timing probe for the Production
  * browser read path (`production_deliverables_browser_v1`).

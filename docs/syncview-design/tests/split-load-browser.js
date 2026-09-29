@@ -203,6 +203,26 @@ async function lazyChecks(browser, origin, failures) {
         if (!s.booted) failures.push(`${label}: the app did not boot`);
         console.log(`split-load: ${label}: ${s.load.mode}, ${s.ran.length} file(s) ran`);
       }
+      // The per-browser way back: ?split=0 sends this browser the single file and
+      // sticks; ?split=1 clears it. (Skipped when everyone is forced onto parts.)
+      if (!forcedParts) {
+        const context = await browser.newContext();
+        await context.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), empty);
+        await seedStaffGate(context);
+        const page = await context.newPage();
+        const modeAt = async url => {
+          await page.goto(origin + url, { waitUntil: 'domcontentloaded' });
+          await page.waitForFunction(() => typeof window.navTo === 'function', null, { timeout: 20000 });
+          return page.evaluate(() => self.__svLoad && self.__svLoad.mode);
+        };
+        const steps = [['/', 'parts'], ['/?split=0', 'full'], ['/', 'full'], ['/#calendar', 'full'], ['/?split=1', 'parts'], ['/', 'parts']];
+        for (const [url, want] of steps) {
+          const got = await modeAt(url);
+          if (got !== want) failures.push(`opt-out: staff at ${url} got "${got}", expected "${want}"`);
+        }
+        console.log('split-load: per-browser opt-out (?split=0 sticks, ?split=1 clears): ' + (failures.some(f => f.startsWith('opt-out')) ? 'FAIL' : 'ok'));
+        await context.close();
+      }
       // On-demand areas (split.json "lazy"): staff start without their code,
       // get it when the tab opens (or on a refresh there), see Retry when the
       // download fails, and get it quietly in the background otherwise.

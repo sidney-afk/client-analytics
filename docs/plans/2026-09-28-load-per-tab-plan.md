@@ -310,3 +310,25 @@ is ~112 KB compressed; ~11 KB stays loaded and ~100 KB now loads on demand.
   `#kasper` with the slowest always-loaded part delayed (it failed with the fix removed). (2) A
   Kasper download that fails when started from a button (Calendar Credentials, the thumbnail zoom)
   now shows a message; pressing the button again retries.
+
+## Step 4: the split is switched on for staff (2026-09-29)
+
+`src/index/split.json` is `enabled: true`, lazy areas TikTok, Templates, Workload, Kasper.
+Signed-in staff get the loader plus content-hashed parts; **client links, forms, signed-out
+visitors and the public entry links keep getting the whole script** (`js/sv-full-*.js`), the
+same code unsplit. Numbers: `docs/audits/2026-09-29-step4-first-load.md` (staff on phone 4G:
+-19% download, -33% time to ready; client link unchanged apart from +2 KB).
+
+- **Tests.** Several hundred suites and about 23 scripts read the app's source out of
+  `index.html`. `test/helpers/single-file-index.js` is a preload that answers a read of
+  `index.html` with the plain concatenation (byte-identical to the switched-off build), and
+  `test/run-all.js` passes it to every suite through `NODE_OPTIONS`. The leave-evidence
+  fingerprint files under `qa/pto-lifecycle/` are not edited (that would change the
+  fingerprint); the two workflow steps that run them pass the preload from outside. Browser
+  suites that serve `index.html` from disk still get the real loader and parts.
+- **Way back, one step:** `node scripts/split-switch.js off`, commit, merge (`status` and `on`
+  also exist). One browser: `?split=0` / `?split=1`.
+- `scripts/prune-split-js.js` lists (or with `--delete` removes) `js/sv-*.js` files no recent
+  `index.html` names.
+- Step 5 (client links) is not started and needs the owner's separate go.
+

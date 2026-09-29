@@ -1,4 +1,5 @@
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 
 // Private evidence acquisition, NOT a native completeness verdict. No HTTP or
 // arbitrary SQL input. This first lane accepts explicitly owned local fixtures.

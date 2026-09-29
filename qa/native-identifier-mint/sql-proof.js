@@ -1,4 +1,5 @@
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 
 /*
  * The native naming mint, proved against a real PostgreSQL 16 rather than

@@ -116,6 +116,15 @@ const FAILURE_SIGNATURES = [
   // assertion failures both landed as 'unclassified', which is why its first
   // classified run said nothing useful. Reached now only when a real console
   // or page error is present, since the two read-only shapes match above.
+  /* Added 2026-09-29 (plan step 4, first red smoke run): a console failure
+   * that is only a browser-reported resource load ("Failed to load resource")
+   * is a different diagnosis from a script exception, and the runner log is
+   * private. The first error in the message decides, and only a fixed code
+   * comes out: no URL, status text or page text rides along. */
+  ['page_error_resource_auth', /Browser errors: Failed to load resource: the server responded with a status of 40[13]\b/],
+  ['page_error_resource_4xx', /Browser errors: Failed to load resource: the server responded with a status of 4\d\d\b/],
+  ['page_error_resource_5xx', /Browser errors: Failed to load resource: the server responded with a status of 5\d\d\b/],
+  ['page_error_resource_network', /Browser errors: Failed to load resource: net::ERR_/],
   ['page_error', /Console\/page errors|Browser errors:|net::ERR_/],
   ['module_or_syntax_error', /Cannot find module|SyntaxError|ReferenceError/],
   ['browser_launch_failed', /Executable doesn't exist|browserType\.launch/],

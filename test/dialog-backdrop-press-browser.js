@@ -64,6 +64,9 @@ const codeLines = fs.readdirSync(SRC).filter(f => f.endsWith('.part')).flatMap(f
 const markedSites = codeLines.filter(x => x.text.includes('data-backdrop-dismiss') && !x.where.startsWith('040-shared-briefs'));
 assert.equal(markedSites.length, CASES.length + 1,
   `src/index has ${markedSites.length} backdrops marked data-backdrop-dismiss but this test covers ${CASES.length + 1}; add the new dialog to CASES:\n  ` + markedSites.map(x => x.where).join('\n  '));
+// This scan is a tripwire, not a proof: text matching cannot cover every way of
+// writing a comparison. The guarantee is the browser cases above; this catches
+// the common shapes of a dialog added later that forgets the guard.
 // Any comparison of an event target with something else, whatever the variable
 // is called (any event variable name, either order, `currentTarget` too).
 // Each must read the press mark or be listed here with the reason it is not a
@@ -74,7 +77,7 @@ const NOT_A_BACKDROP_CLICK = [
   ['096-quick-jump', "e.target !== input", 'Escape key from a non-input element'],
   ['096-quick-jump', 'if (e.target === box) svQuickJumpClose()', 'closes on the PRESS itself (mousedown), so a press that starts inside can never dismiss it'],
 ];
-const targetCompare = /(\.(target|currentTarget)\s*[!=]==?)|([!=]==?\s*[\w$.]*\.(target|currentTarget)\b)|((?<!\$)\{\s*target\s*\})/g;   // any event variable name, either order, across line breaks
+const targetCompare = /(\.(target|currentTarget)\b[\s)]*[!=]==?)|([!=]==?[\s(]*[\w$.]*\.(target|currentTarget)\b)|((?<!\$)\{\s*target\s*\})/g;   // any event variable name, either order, across line breaks, through grouping parentheses
 // Whole files, not single lines, so a comparison split over two lines is seen.
 // A hit is judged with the two lines either side of it, where the mark is read.
 const unguarded = [];

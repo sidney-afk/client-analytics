@@ -122,6 +122,39 @@ async function lazyChecks(browser, origin, failures) {
       console.log(`split-load: ${name} failed download: Retry ${retry ? 'shown' : 'MISSING'}, ${fetched.length} download(s)`);
       await context.close();
     }
+    // 5. A refresh on the tab while the LAST always-loaded parts are slow: the
+    // area's chunk arrives first and must wait for them (it uses names they
+    // define), not run early and leave the page on "Loading...".
+    if (name === 'kasper') {
+      const context = await browser.newContext();
+      await context.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), empty);
+      await context.route(/\/js\/sv-\d\d-core-[0-9a-f]+\.js$/, async r => {
+        const res = await r.fetch();
+        const body = await res.text();
+        if (body.includes('const KASPER_SUBTABS')) await new Promise(ok => setTimeout(ok, 2500));
+        await r.fulfill({ response: res, body });
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(() => { try { localStorage.removeItem('syncview_nav'); } catch (e) {} });
+      const page = await context.newPage();
+      const errors = [];
+      page.on('pageerror', e => errors.push(e.message));
+      await page.goto(origin + '/#kasper', { waitUntil: 'domcontentloaded' });
+      const drew = await page.waitForSelector(view.drawn, { timeout: 20000 }).then(() => true, () => false);
+      if (!drew) failures.push(`${name}: a refresh with slow always-loaded parts never drew it (the area ran before they did)`);
+      if (errors.some(e => /is not defined|before initialization/.test(e))) failures.push(`${name}: the area ran before the always-loaded parts: ${errors[0]}`);
+      console.log(`split-load: ${name} refresh with slow core parts: ${drew ? 'drawn' : 'NOT drawn'}`);
+      await context.close();
+    }
+    // 6. A button that loads the area (not a tab): a failed download says so.
+    if (name === 'kasper') {
+      const { context, page } = await open('/', { failFirst: true });
+      await page.evaluate(() => _ccOpenModal('Sample Client'));
+      const toast = await page.waitForSelector('.sv-toast', { timeout: 15000 }).then(() => true, () => false);
+      if (!toast) failures.push(`${name}: a failed download from the Credentials button showed no message`);
+      console.log(`split-load: ${name} failed download from a button: message ${toast ? 'shown' : 'MISSING'}`);
+      await context.close();
+    }
     // 4. Fetched quietly in the background after the first screen.
     {
       const { context, page } = await open('/');

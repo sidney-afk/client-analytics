@@ -1,4 +1,6 @@
-import { SHEET_ID, parseCSV, svArea, svAreaApi } from './040-shared-briefs.js';
+import {
+  SHEET_ID, parseCSV, showToast, svArea, svAreaApi
+} from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import { _syncviewCloseStaffAccount } from './100-onboarding-staff-controls.js';
@@ -576,7 +578,13 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
     function _kasperForward(name, args, loadFirst) {
         const k = svAreaApi('kasper');
         if (k) return k[name](...args);
-        if (loadFirst) svArea('kasper').then(api => api[name](...args), () => {});
+        if (loadFirst) {
+            svArea('kasper').then(api => api[name](...args), () => {
+                // The download failed (svArea forgets a failure, so pressing the
+                // button again fetches again): say so rather than do nothing.
+                showToast('This could not be opened. Check your connection and try again.');
+            });
+        }
         return undefined;
     }
     function _kasperPaintReview(...args) { return _kasperForward('paintReview', args, false); }

@@ -12,7 +12,7 @@
 | 4 | `010-styles-foundation.css.part` | 3925 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4391 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 2035 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
+| 7 | `040-shared-briefs.js.part` | 2045 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1781 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2152 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
@@ -58,7 +58,7 @@
 | 50 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 51 | `290-samples-writes-review.js.part` | 1869 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 52 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
-| 53 | `305-core-kasper-shared.js.part` | 597 | SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push |
+| 53 | `305-core-kasper-shared.js.part` | 605 | SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push |
 | 54 | `310-sales-intake-hiring.js.part` | 1159 | KASPER REVIEW TAB |
 | 55 | `320-core-kasper-subtabs.js.part` | 20 | — |
 | 56 | `321-kasper-dashboard-replies.js.part` | 2607 | The Samples subtab was folded into Review (samples are listed in the |

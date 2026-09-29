@@ -9351,11 +9351,21 @@
             ), { once: true }));
         }
         const load = new Promise((resolve, reject) => {
-            const s = document.createElement('script');
-            s.src = '/' + file;
-            s.onload = () => (_svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" did not start')));
-            s.onerror = () => { s.remove(); reject(new Error('SyncView area "' + name + '" could not be downloaded')); };
-            document.head.appendChild(s);
+            const start = () => {
+                const s = document.createElement('script');
+                s.src = '/' + file;
+                s.onload = () => (_svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" did not start')));
+                s.onerror = () => { s.remove(); reject(new Error('SyncView area "' + name + '" could not be downloaded')); };
+                document.head.appendChild(s);
+            };
+            // An area's code uses always-loaded fragments that come later in the
+            // page than the start-up router (which can ask for an area, on a
+            // refresh, while the page is still being read). A script added now
+            // could run between two of those parts and find a name not defined
+            // yet, so wait until the whole document, and with it every
+            // always-loaded part, has run.
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+            else start();
         });
         // A failed download is not remembered, so Retry fetches again.
         _svAreaLoads[name] = load.catch(e => { delete _svAreaLoads[name]; throw e; });
@@ -81571,7 +81581,13 @@
     function _kasperForward(name, args, loadFirst) {
         const k = svAreaApi('kasper');
         if (k) return k[name](...args);
-        if (loadFirst) svArea('kasper').then(api => api[name](...args), () => {});
+        if (loadFirst) {
+            svArea('kasper').then(api => api[name](...args), () => {
+                // The download failed (svArea forgets a failure, so pressing the
+                // button again fetches again): say so rather than do nothing.
+                showToast('This could not be opened. Check your connection and try again.');
+            });
+        }
         return undefined;
     }
     function _kasperPaintReview(...args) { return _kasperForward('paintReview', args, false); }

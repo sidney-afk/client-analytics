@@ -303,3 +303,10 @@ is ~112 KB compressed; ~11 KB stays loaded and ~100 KB now loads on demand.
   redraw go through the registry; `060`'s onboarding and filming redraws too.
 - `split.json` lists `kasper` as lazy (switch still off). Kasper has no outside import ties;
   20 recorded hazards are gone (38 left).
+- **Review fixes (Codex, #1841), which apply to every on-demand area:** (1) `svArea` now starts an
+  area's download only once the document has finished loading, since an area uses always-loaded
+  fragments that sit later in the page than the start-up router, and a refresh on an on-demand tab
+  asks for the area while the page is still being read; `split-load-browser.js` refreshes on
+  `#kasper` with the slowest always-loaded part delayed (it failed with the fix removed). (2) A
+  Kasper download that fails when started from a button (Calendar Credentials, the thumbnail zoom)
+  now shows a message; pressing the button again retries.

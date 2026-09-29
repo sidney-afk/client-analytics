@@ -392,8 +392,104 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
   // "amount" could already be dollars, and guessing wrong undercounts the cap.
   const credits = pickNumber(res.data, ["credits", "credit", "credits_cost", "credit_cost"]);
   if (credits !== null && credits > 0) return { usd: Math.round(credits * USD_PER_CREDIT * 10000) / 10000 };
+  if (typeof res.data.pricing_description === "string") return await describedPrice(model, inputs, res.data.pricing_description);
   const raw = JSON.stringify(res.data).slice(0, 300);
   return { error: `Higgsfield returned no price for this request (reply: ${raw || "empty"}). This model may not support price checks yet.` };
+}
+
+// Some video-input models (Seedance video edit/extend) answer the estimate
+// with a sentence instead of a number: "... roughly $0.1234 at 480p, $0.2773
+// at 720p ... per second of combined input and output". Price = that rate x
+// (input seconds + output seconds), measured from the source videos. Kept an
+// upper bound: 10% margin, the 30-second input budget, output at least 4 s,
+// and the full budget when a video's length cannot be read.
+const VIDEO_BUDGET_S = 30;
+async function describedPrice(model: string, inputs: JsonMap, text: string): Promise<{ usd: number } | { error: string }> {
+  const schema = BY_ID.get(model)?.schema as Schema | undefined;
+  const res = String(inputs.resolution || schema?.properties?.resolution?.default || "720p");
+  const rates = new Map<string, number>();
+  for (const m of text.matchAll(/\$([\d.]+)\s+at\s+(\d{3,4}p)/g)) rates.set(m[2], Math.max(rates.get(m[2]) || 0, Number(m[1])));
+  const rate = rates.get(res) ?? Math.max(0, ...rates.values());
+  if (!(rate > 0) || !/per second/i.test(text)) return { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 300)}"` };
+  const links = [inputs.video_url, ...(Array.isArray(inputs.video_urls) ? inputs.video_urls : [])].filter(Boolean).map(String);
+  // One at a time, so a request with many reference videos never holds more
+  // than one download open.
+  const lengths: Array<number | null> = [];
+  for (const link of links) lengths.push(await videoSeconds(link));
+  const main = Math.max(4, Math.min(VIDEO_BUDGET_S, lengths[0] ?? VIDEO_BUDGET_S));
+  const input = Math.min(VIDEO_BUDGET_S, lengths.reduce((a: number, b) => a + Math.max(4, b ?? VIDEO_BUDGET_S), 0) || main);
+  const asked = Number(inputs.duration ?? schema?.properties?.duration?.default);
+  const output = asked > 0 ? asked : main;
+  return { usd: Math.round(rate * (input + output) * 1.1 * 10000) / 10000 };
+}
+
+// Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box
+// structure as it streams (media payloads are skipped, never buffered), or
+// null if unreadable. Stops after MAX_IMPORT_BYTES.
+async function videoSeconds(link: string): Promise<number | null> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    const res = await safeFetch(link);
+    if (typeof res === "string" || !res.ok || !res.body) return null;
+    reader = res.body.getReader();
+    let buf = new Uint8Array(0);
+    let seen = 0;
+    const need = async (n: number): Promise<boolean> => {
+      while (buf.length < n) {
+        const { done, value } = await reader!.read();
+        if (done) return false;
+        seen += value.length;
+        if (seen > MAX_IMPORT_BYTES) return false;
+        const next = new Uint8Array(buf.length + value.length);
+        next.set(buf); next.set(value, buf.length);
+        buf = next;
+      }
+      return true;
+    };
+    const skip = async (n: number): Promise<boolean> => {
+      while (n > 0) {
+        if (!buf.length && !(await need(1))) return false;
+        const k = Math.min(n, buf.length);
+        buf = buf.subarray(k); n -= k;
+      }
+      return true;
+    };
+    for (;;) {
+      if (!(await need(8))) return null;
+      let size = new DataView(buf.buffer, buf.byteOffset).getUint32(0);
+      const type = String.fromCharCode(...buf.subarray(4, 8));
+      let hdr = 8;
+      if (size === 1) {
+        if (!(await need(16))) return null;
+        size = Number(new DataView(buf.buffer, buf.byteOffset).getBigUint64(8));
+        hdr = 16;
+      }
+      if (size === 0) return null; // box runs to end of file; not worth guessing
+      if (type !== "moov") {
+        if (size < hdr || !(await skip(size))) return null;
+        continue;
+      }
+      if (size > 16 * 1024 * 1024 || !(await need(size))) return null;
+      const moov = new DataView(buf.buffer, buf.byteOffset, size);
+      for (let at = hdr; at + 8 <= moov.byteLength;) {
+        const csize = moov.getUint32(at);
+        const ctype = String.fromCharCode(moov.getUint8(at + 4), moov.getUint8(at + 5), moov.getUint8(at + 6), moov.getUint8(at + 7));
+        if (csize < 8) return null;
+        if (ctype === "mvhd" && at + 40 <= moov.byteLength) {
+          const long = moov.getUint8(at + 8) === 1;
+          const scale = moov.getUint32(at + (long ? 28 : 20));
+          const dur = long ? Number(moov.getBigUint64(at + 32)) : moov.getUint32(at + 24);
+          return scale > 0 && dur > 0 ? dur / scale : null;
+        }
+        at += csize;
+      }
+      return null;
+    }
+  } catch {
+    return null;
+  } finally {
+    await reader?.cancel().catch(() => {});
+  }
 }
 
 function hfError(res: { status: number; data: JsonMap }): string {

@@ -641,3 +641,9 @@ read-only default: with no `view`, `d`, `batch` or `client` in the address, a
 creative's first SyncLinear open of the page load uses `view=my`. It reads the
 stored staff identity only to choose what to paint; the gateway, role checks
 and team authority are unchanged. Recorded in EXECUTION_LOG.md and ROLLBACK.md.
+
+**2026-09-29 addendum (parent names).** Production name slots go through
+`_prodSafeName`, so an internal key is never shown as a name. A missing parent
+name triggers one read-only lookup (`batches` or the deliverable projection, one
+row) with a 6 s limit and a 15 s retry. No new privilege, table or write path.
+Recorded in EXECUTION_LOG.md and ROLLBACK.md.

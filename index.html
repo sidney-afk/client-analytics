@@ -3370,6 +3370,7 @@
         .prod-detail-context-link, .prod-context-project { min-width: 0; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; padding: 1px 3px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
         .prod-detail-context-link:hover, .prod-context-project:hover { background: var(--prod-hover); }
         .prod-detail-context-link b { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-name-skel { display: inline-block; width: 140px; max-width: 100%; height: 12px; border-radius: 6px; vertical-align: middle; }
         .prod-desc { font-size: 15px; line-height: 24px; color: var(--prod-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
         .prod-desc .prod-md-heading { display: block; margin: 14px 0 2px; color: var(--prod-text); font-size: 14px; line-height: 22px; font-weight: 650; }
         .prod-desc .prod-md-rule { border: 0; border-top: 1px solid var(--prod-divider); margin: 14px 0; }
@@ -9352,8 +9353,8 @@
        in parts; everyone else (client links, forms, signed-out visitors) gets the
        whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-04eab6f95c33.js";
-        var PARTS = ["js/sv-01-core-90d9105e1883.js","js/sv-03-core-8e9d02e02e20.js","js/sv-05-core-c83b1558a2c6.js","js/sv-06-core-e572f11d972e.js","js/sv-07-core-8300ae58b7d2.js","js/sv-08-quick-jump-26e0876fbc78.js","js/sv-09-core-d45dff813843.js","js/sv-10-smm-weekly-c58f689a9b58.js","js/sv-11-core-efb3b50d5226.js","js/sv-12-synclinear-7b53e4f48a09.js","js/sv-13-core-f99f177cdc31.js","js/sv-15-core-02f4e4d3fc6b.js","js/sv-17-core-d34dbd9f45f5.js","js/sv-18-core-dd9985e268b4.js","js/sv-19-core-ca3e4331fdc8.js"];
+        var FULL = "js/sv-full-782fa5e251d6.js";
+        var PARTS = ["js/sv-01-core-90d9105e1883.js","js/sv-03-core-8e9d02e02e20.js","js/sv-05-core-c83b1558a2c6.js","js/sv-06-core-e572f11d972e.js","js/sv-07-core-8300ae58b7d2.js","js/sv-08-quick-jump-26e0876fbc78.js","js/sv-09-core-d45dff813843.js","js/sv-10-smm-weekly-c58f689a9b58.js","js/sv-11-core-efb3b50d5226.js","js/sv-12-synclinear-efea10ed3de1.js","js/sv-13-core-c17f161c8128.js","js/sv-15-core-02f4e4d3fc6b.js","js/sv-17-core-d34dbd9f45f5.js","js/sv-18-core-dd9985e268b4.js","js/sv-19-core-ca3e4331fdc8.js"];
         var LAZY = {"templates":"js/sv-02-templates-357573e17b0b.js","workload":"js/sv-04-workload-e92dff59e067.js","tiktok":"js/sv-14-tiktok-287a7f1635ca.js","kasper":"js/sv-16-kasper-2131b8f19968.js"};
         var FORCE = null;
         function staffParts() {

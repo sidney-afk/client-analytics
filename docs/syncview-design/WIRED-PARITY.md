@@ -1380,3 +1380,10 @@ Issues. A creative (non-admin, video or graphics team) now lands on My issues
 once per page load, which is where their work is. Any `view`, `d`, `batch` or
 `client` in the address still wins, and admins keep Issues. Read-only routing:
 nothing about writes or authority changed.
+
+## 2026-09-29 - parent name in the sub-issue header
+
+The "Sub-issue of" line, breadcrumb and Parent issue card show the parent's
+name. Never a `bat_`/`del_` key: while the name loads there is a grey skeleton,
+and if it cannot be found the line reads "Untitled post" or "Untitled issue".
+Read-only presentation; nothing about writes or authority changed.

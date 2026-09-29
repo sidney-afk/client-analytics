@@ -140,7 +140,7 @@ Other:
 - The editor urgent ping no longer has a webhook: its n8n route (send-urgent-slack) was retired 2026-09-23 (B2); it is native only (`native_urgent_dispatch` in production-write).
 - `webhook/send-urgent-kasper-slack` — urgent ping DMing Kasper about a card parked at Kasper Approval, with a link to his review tab
 - `webhook/weekly-slack-top-reel` — weekly top-reel Slack post
-- `webhook/filming-plan-tabs` — filming-plans tab data
+- `webhook/filming-plan-tabs` — filming-plans tab data (Kasper > Filming's default source and its fallback for any Doc the function below cannot answer)
 - `webhook/add-hook-to-library` — hook library capture
 
 ## Supabase Edge Functions (23 literal URLs + 4 composed onboarding URLs)
@@ -335,6 +335,7 @@ Other:
   outbox debt. F2 `off` or drainer outage pauses applicable debt; it does not retire or discard it.
   Its migration was applied 2026-07-24, the gateway deployed from `1738ad3`, and the F42
   linked-cohort import executed 2026-07-25; the TEST drill remains separately owner-gated.
+- `functions/v1/filming-plan-tabs` — Doc tab lists for Kasper > Filming, in one bulk request (`?docs=`, or `?doc=` for one; `refresh=1` re-reads from Google). Staff role key required. Reads the Docs with the Google service account and keeps a 3 hour copy in `filming_plan_tabs_cache` (service_role only); a Doc it cannot read falls back to the n8n webhook for that Doc and the answer names the service account's email (`share_with`, never a key). Used by the page only when the runtime flag `filming_plan_tabs_source` says `{"mode":"function"}` (default `{"mode":"n8n"}`; read afresh at every Filming load, Refresh and cached-rows reuse).
 - `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
   constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.

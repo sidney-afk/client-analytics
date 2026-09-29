@@ -627,7 +627,8 @@
     "onboarding-boot-skeleton.js",
     "syncview-session.js",
     "sheets-mirror-parity-catchup.js",
-    "filming-plan-tabs-source.js"
+    "filming-plan-tabs-source.js",
+    "kasper-filming-tab-source.js"
   ],
   "profiles": [
     {

@@ -35,7 +35,7 @@
 | 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
 | 28 | `120-calendar-flags-write-repair.js.part` | 3348 | The members a flag value offers, or null when it offers no member list at |
 | 29 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
-| 30 | `130-calendar-model-cache.js.part` | 1388 | Returns the comments array for a given component. Falls back to the |
+| 30 | `130-calendar-model-cache.js.part` | 1396 | Returns the comments array for a given component. Falls back to the |
 | 31 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 32 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 33 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |

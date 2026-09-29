@@ -49,6 +49,24 @@ const CASES = [
   { name: 'Credentials: client dialog', overlay: '#ccOverlay', open: () => _ccOpenModalNow('Fixture client') },
 ];
 
+// Inventory, read from the source and independent of the cases above, so a
+// dialog added later cannot slip past this test:
+//   1. every backdrop marked `data-backdrop-dismiss` in src/index must have a
+//      case here (the sign-in backdrop is one site exercised in two modes);
+//   2. no click handler may compare the target with an overlay-like name
+//      without also reading the press mark.
+const fs = require('fs');
+const path = require('path');
+const SRC = path.join(__dirname, '..', 'src', 'index');
+const codeLines = fs.readdirSync(SRC).filter(f => f.endsWith('.part')).flatMap(f =>
+  fs.readFileSync(path.join(SRC, f), 'utf8').split('\n').map((text, i) => ({ where: f + ':' + (i + 1), text }))
+).filter(x => !/^\s*(\/\/|\/\*|\*)/.test(x.text));
+const markedSites = codeLines.filter(x => x.text.includes('data-backdrop-dismiss') && !x.where.startsWith('040-shared-briefs'));
+assert.equal(markedSites.length, CASES.length + 1,
+  `src/index has ${markedSites.length} backdrops marked data-backdrop-dismiss but this test covers ${CASES.length + 1}; add the new dialog to CASES:\n  ` + markedSites.map(x => x.where).join('\n  '));
+const unguarded = codeLines.filter(x => /target\s*(===|!==)\s*(this|overlay|ov|bd|backdrop)\b/.test(x.text) && !x.text.includes('_backdropPressBegan'));
+assert.deepEqual(unguarded.map(x => x.where), [], 'a backdrop click handler ignores where the press began');
+
 // The staff sign-in dialog only exists for someone who is not signed in, so it
 // is checked on its own page with no saved login: the app opens it at start.
 const SIGN_IN = { name: 'Staff sign-in', overlay: '#staffIdentityOverlay',

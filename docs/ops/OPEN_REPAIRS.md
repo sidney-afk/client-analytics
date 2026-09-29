@@ -29734,7 +29734,7 @@ The Latch session (Codex, started 2026-09-28) stalled and pushed nothing, and
 scratch"). It was not open. Item 215's own amendments record the fix (#1431):
 one shared capture-phase `mousedown` listener (`src/index/040-shared-briefs.js.part`)
 marks whether a press began on the backdrop itself, and every dialog's dismiss
-check also requires that mark. It later grew from 13 sites to 24 backdrops.
+check also requires that mark. Counted from the source today, 21 backdrops carry the guard (the older 13 and 24 counted dialogs since removed, such as the Linear import ones).
 
 Re-swept on current main with two different searches (any `target ===` check
 against an overlay-like name, and any overlay that closes on click): no backdrop

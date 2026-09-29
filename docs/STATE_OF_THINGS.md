@@ -128,7 +128,7 @@ hiring senders when the editor hire closes.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since
-  #1431 (2026-09-19), 24 backdrops guarded by one shared helper. The Latch
+  #1431 (2026-09-19), 21 backdrops guarded by one shared helper. The Latch
   session's stall was a false alarm on a fixed item. A test now proves it on
   22 dialogs (`test/dialog-backdrop-press-browser.js`, OPEN_REPAIRS 287).
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has

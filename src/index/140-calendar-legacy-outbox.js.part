@@ -1037,6 +1037,58 @@ import {
         const json = await resp.json();
         return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
     }
+    /* MIGRATION ON LOAD (n8n exit, PR 2): a staff browser that returns after
+       the change still holds repairs pinned to the n8n writer, whose completion
+       check reads the same pinned source. Zero n8n traffic does not prove those
+       have drained (a browser not opened that week makes no calls and still
+       holds one), so the pin is resolved by code, not by counting traffic.
+
+       For each Calendar gate pinned `webhook`: verify it against Supabase first
+       (read-only, on a copy). If that read cannot answer, leave the pin alone
+       and try again on the next resume. Otherwise flip `source_transport` to
+       `supabase` in ONE locked write of the whole queue. The writer
+       (`_writeUiLegacyPinnedSourceTransport`) and the verification source
+       (`_writeUiLegacySourceRows`) both read that single field, so they can
+       only ever move together; the queue is written by one setItem, so there is
+       no moment where one has moved and the other has not. The normal drain
+       then completes or resolves the repair against Supabase.
+
+       A gate that has a committed-tweak ledger row is left pinned: the ledger
+       compares gate signatures, which include the transport, so moving only one
+       side could break that match. Client links are not touched at all
+       (approve and request-changes carve-out). Samples gates are PR 4's. */
+    async function _writeUiMigratePinnedCalendarGates() {
+        const result = { migrated: 0, kept: 0 };
+        if (_isClientLink) return result;
+        const isPinned = row => !!(row && row.source_gate
+            && row.source_gate.source_transport === 'webhook' && row.source_gate.surface !== 'sxr');
+        const pinned = _writeUiLegacyRawOutboxRows('calendar').filter(isPinned);
+        for (const candidate of pinned) {
+            try {
+                const gate = candidate.source_gate;
+                const ledgerKey = _writeUiLegacyTweakKey('calendar', gate);
+                if (_writeUiLegacyCommittedTweakRead().some(row => row && String(row.key || '') === ledgerKey)) {
+                    result.kept++; continue;
+                }
+                const probe = JSON.parse(JSON.stringify(candidate));
+                probe.source_gate.source_transport = 'supabase';
+                const state = await _writeUiLegacySourceGateState(probe, 1);
+                if (state === 'unknown' || state === 'principal_mismatch') { result.kept++; continue; }
+                const moved = await _writeUiLegacyOutboxWithLock('calendar', () => {
+                    const rows = _writeUiLegacyRawOutboxRows('calendar');
+                    let touched = false;
+                    const next = rows.map(row => {
+                        if (!row || String(row.id || '') !== String(candidate.id || '') || !isPinned(row)) return row;
+                        touched = true;
+                        return Object.assign({}, row, { source_gate: Object.assign({}, row.source_gate, { source_transport: 'supabase' }) });
+                    });
+                    return touched ? _writeUiLegacyOutboxWrite('calendar', next) : false;
+                });
+                if (moved) result.migrated++; else result.kept++;
+            } catch (e) { result.kept++; }
+        }
+        return result;
+    }
     async function _writeUiLegacySourceGateState(item, attempts) {
         const gate = item && item.source_gate;
         if (!gate) return 'committed';
@@ -1301,7 +1353,10 @@ import {
             client_slug: String(slug || ''),
             source_transport: surface === 'sxr'
                 ? (_sxrSampleUseEf(slug) ? 'supabase' : 'webhook')
-                : (_calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
+                /* Calendar (n8n exit, PR 2): a staff browser never pins a NEW
+                   repair to the n8n writer. A client link keeps today's choice
+                   (approve and request-changes carve-out). */
+                : (!_isClientLink || _calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
             post_id: String(post && post.id || ''),
             component: String(comp || ''),
             comment_id: String(comment && comment.id || ''),
@@ -3147,7 +3202,7 @@ export {
   _writeUiLegacyQuarantineRead, _writeUiLegacyReconcileCommittedTombstones,
   _writeUiLegacyReconcileCommittedTweak, _writeUiLegacyRecordedTeamDeliveryReceiptItem,
   _writeUiLegacyRefreshActiveTweak, _writeUiLegacyRememberCommittedTweak,
-  _writeUiLegacyShedRetired, _writeUiLegacySourceGateState, _writeUiLegacyStoredTeamTerminalItem,
+  _writeUiLegacyShedRetired, _writeUiLegacySourceGateState, _writeUiMigratePinnedCalendarGates, _writeUiLegacyStoredTeamTerminalItem,
   _writeUiLegacySupersededSourceItem, _writeUiLegacySupersededTeamItem,
   _writeUiLegacyTargetWithLock, _writeUiPersistCanonicalCommentProjection,
   _writeUiQueueDeferredLegacyTweak, _writeUiRequestTweakMarkLocalStatus,

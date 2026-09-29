@@ -2314,7 +2314,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   const stageContext = {
     _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
     _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
-    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true, _isClientLink: true,
     _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
     _sxrCommentRole: () => 'client', _calCommentRole: () => 'client',
     _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
@@ -2599,7 +2599,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     _sxrPrimeSampleRoutingFlag: async () => {},
     _calPrimeUpsertRoutingFlag: async () => {},
     _sxrSampleUseEf: () => false,
-    _calUpsertUseEf: () => true,
+    _calUpsertUseEf: () => true, _isClientLink: true,
     _writeUiSourceClientSlug: () => 'fixture',
     _writeUiPrincipalKey: () => 'client:fixture',
     _sxrCurrentAuthor: () => 'Client',
@@ -2686,7 +2686,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   const concurrentStageContext = {
     _sxrLinearUrlFor: () => '', _calLinearUrlFor: post => post.linear_issue,
     _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
-    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true, _isClientLink: true,
     _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
     _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
     _calCommentsFor: post => post.graphic_comments || [], _sxrCommentsFor: post => post.graphic_comments || [],
@@ -2743,7 +2743,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   const noLockContext = {
     _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
     _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
-    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true, _isClientLink: true,
     _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
     _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
     _calCommentsFor: post => post.graphic_comments || [], _sxrCommentsFor: post => post.graphic_comments || [],
@@ -2837,7 +2837,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   const overlapContext = {
     _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
     _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
-    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true, _isClientLink: true,
     _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
     _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
     _calCommentsFor: post => post.graphic_comments || [], _sxrCommentsFor: post => post.graphic_comments || [],
@@ -3973,6 +3973,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
        see `_writeUiLegacyShedRetired`. Stubbed as a no-op here because this
        context is about the authority/hydration ordering, not the shed. */
     _writeUiLegacyShedRetired: async () => false,
+    _writeUiMigratePinnedCalendarGates: async () => ({ migrated: 0, kept: 0 }),
     _writeUiLastRenderedAuthoritySig: null,
     get currentNav() { return resumeCurrentNav; },
     _calRenderBody: () => { resumeCalRenderCalls++; },

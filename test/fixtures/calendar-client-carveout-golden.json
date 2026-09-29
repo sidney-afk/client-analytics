@@ -1,0 +1,42 @@
+{
+  "approve/listed": {
+    "writes": [
+      "{\"method\":\"POST\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/production-write\",\"headers\":{\"accept\":\"application/json\",\"authorization\":\"sha256:69a2d89e2722cfa0\",\"content-type\":\"application/json\",\"x-syncview-client-token\":\"fixture-review-token\",\"x-syncview-source\":\"calendar\",\"apikey\":\"sha256:0e3c8527db4a9690\"},\"body\":\"{\\\"operation\\\":\\\"status\\\",\\\"surface\\\":\\\"calendar\\\",\\\"entity\\\":\\\"deliverable\\\",\\\"request_id\\\":\\\"calendar:status:p_review_fixture_1:video:approved:2026-09-29T12:00:00_000Z\\\",\\\"source_edited_at\\\":\\\"2026-09-29T12:00:00.000Z\\\",\\\"id\\\":\\\"del_review_fixture_video\\\",\\\"status\\\":\\\"approved\\\"}\"}",
+      "{\"method\":\"POST\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert\",\"headers\":{\"accept\":\"*/*\",\"content-type\":\"application/json\",\"x-syncview-actor\":\"Client\",\"x-syncview-client-token\":\"fixture-review-token\",\"x-syncview-role\":\"client\",\"x-syncview-source\":\"ui\"},\"body\":\"{\\\"client\\\":\\\"reviewfixture\\\",\\\"post\\\":{\\\"id\\\":\\\"p_review_fixture_1\\\",\\\"video_status\\\":\\\"Approved\\\",\\\"status\\\":\\\"Client Approval\\\",\\\"client_video_approved_at\\\":\\\"2026-09-29T12:00:00.000Z\\\"},\\\"comments_base_at\\\":\\\"\\\"}\"}"
+    ],
+    "reads": [
+      "{\"method\":\"GET\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.prod_authority&limit=2\",\"headers\":{\"accept\":\"application/json\",\"authorization\":\"sha256:69a2d89e2722cfa0\",\"apikey\":\"sha256:0e3c8527db4a9690\"},\"body\":\"\"}"
+    ]
+  },
+  "approve/unread": {
+    "writes": [
+      "{\"method\":\"POST\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/production-write\",\"headers\":{\"accept\":\"application/json\",\"authorization\":\"sha256:69a2d89e2722cfa0\",\"content-type\":\"application/json\",\"x-syncview-client-token\":\"fixture-review-token\",\"x-syncview-source\":\"calendar\",\"apikey\":\"sha256:0e3c8527db4a9690\"},\"body\":\"{\\\"operation\\\":\\\"status\\\",\\\"surface\\\":\\\"calendar\\\",\\\"entity\\\":\\\"deliverable\\\",\\\"request_id\\\":\\\"calendar:status:p_review_fixture_1:video:approved:2026-09-29T12:00:00_000Z\\\",\\\"source_edited_at\\\":\\\"2026-09-29T12:00:00.000Z\\\",\\\"id\\\":\\\"del_review_fixture_video\\\",\\\"status\\\":\\\"approved\\\"}\"}",
+      "{\"method\":\"POST\",\"url\":\"https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post\",\"headers\":{\"accept\":\"*/*\",\"content-type\":\"application/json\",\"x-syncview-actor\":\"Client\",\"x-syncview-role\":\"client\",\"x-syncview-source\":\"ui\"},\"body\":\"{\\\"client\\\":\\\"reviewfixture\\\",\\\"post\\\":{\\\"id\\\":\\\"p_review_fixture_1\\\",\\\"video_status\\\":\\\"Approved\\\",\\\"status\\\":\\\"Client Approval\\\",\\\"client_video_approved_at\\\":\\\"2026-09-29T12:00:00.000Z\\\"},\\\"comments_base_at\\\":\\\"\\\"}\"}"
+    ],
+    "reads": [
+      "{\"method\":\"GET\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.prod_authority&limit=2\",\"headers\":{\"accept\":\"application/json\",\"authorization\":\"sha256:69a2d89e2722cfa0\",\"apikey\":\"sha256:0e3c8527db4a9690\"},\"body\":\"\"}"
+    ]
+  },
+  "request/listed": {
+    "writes": [
+      "{\"method\":\"POST\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert\",\"headers\":{\"accept\":\"*/*\",\"content-type\":\"application/json\",\"x-syncview-actor\":\"Client\",\"x-syncview-client-token\":\"fixture-review-token\",\"x-syncview-role\":\"client\",\"x-syncview-source\":\"ui\"},\"body\":\"{\\\"client\\\":\\\"reviewfixture\\\",\\\"post\\\":{\\\"id\\\":\\\"p_review_fixture_1\\\",\\\"caption_status\\\":\\\"Tweaks Needed\\\",\\\"status\\\":\\\"Tweaks Needed\\\",\\\"caption_tweaks\\\":\\\"[{\\\\\\\"id\\\\\\\":\\\\\\\"c_mummjk00_224bo\\\\\\\",\\\\\\\"parent_id\\\\\\\":null,\\\\\\\"author\\\\\\\":\\\\\\\"Review Fixture\\\\\\\",\\\\\\\"role\\\\\\\":\\\\\\\"client\\\\\\\",\\\\\\\"is_tweak\\\\\\\":true,\\\\\\\"audience\\\\\\\":\\\\\\\"client\\\\\\\",\\\\\\\"round\\\\\\\":1,\\\\\\\"body\\\\\\\":\\\\\\\"Please shorten the opening line in this fixture.\\\\\\\",\\\\\\\"created_at\\\\\\\":\\\\\\\"2026-09-29T12:00:00.000Z\\\\\\\",\\\\\\\"updated_at\\\\\\\":\\\\\\\"2026-09-29T12:00:00.000Z\\\\\\\",\\\\\\\"done\\\\\\\":false,\\\\\\\"done_at\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"done_by\\\\\\\":\\\\\\\"\\\\\\\"}]\\\"},\\\"comments_base_at\\\":\\\"\\\"}\"}"
+    ],
+    "reads": [
+      "{\"method\":\"GET\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.prod_authority&limit=2\",\"headers\":{\"accept\":\"application/json\",\"authorization\":\"sha256:69a2d89e2722cfa0\",\"apikey\":\"sha256:0e3c8527db4a9690\"},\"body\":\"\"}"
+    ]
+  },
+  "request/unread": {
+    "writes": [
+      "{\"method\":\"POST\",\"url\":\"https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post\",\"headers\":{\"accept\":\"*/*\",\"content-type\":\"application/json\",\"x-syncview-actor\":\"Client\",\"x-syncview-role\":\"client\",\"x-syncview-source\":\"ui\"},\"body\":\"{\\\"client\\\":\\\"reviewfixture\\\",\\\"post\\\":{\\\"id\\\":\\\"p_review_fixture_1\\\",\\\"caption_status\\\":\\\"Tweaks Needed\\\",\\\"status\\\":\\\"Tweaks Needed\\\",\\\"caption_tweaks\\\":\\\"[{\\\\\\\"id\\\\\\\":\\\\\\\"c_mummjk00_224bo\\\\\\\",\\\\\\\"parent_id\\\\\\\":null,\\\\\\\"author\\\\\\\":\\\\\\\"Review Fixture\\\\\\\",\\\\\\\"role\\\\\\\":\\\\\\\"client\\\\\\\",\\\\\\\"is_tweak\\\\\\\":true,\\\\\\\"audience\\\\\\\":\\\\\\\"client\\\\\\\",\\\\\\\"round\\\\\\\":1,\\\\\\\"body\\\\\\\":\\\\\\\"Please shorten the opening line in this fixture.\\\\\\\",\\\\\\\"created_at\\\\\\\":\\\\\\\"2026-09-29T12:00:00.000Z\\\\\\\",\\\\\\\"updated_at\\\\\\\":\\\\\\\"2026-09-29T12:00:00.000Z\\\\\\\",\\\\\\\"done\\\\\\\":false,\\\\\\\"done_at\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"done_by\\\\\\\":\\\\\\\"\\\\\\\"}]\\\"},\\\"comments_base_at\\\":\\\"\\\"}\"}"
+    ],
+    "reads": [
+      "{\"method\":\"GET\",\"url\":\"https://synchrosocial.app.n8n.cloud/webhook/calendar-get?client=reviewfixture&_t=1790683200000\",\"headers\":{\"accept\":\"*/*\"},\"body\":\"\"}",
+      "{\"method\":\"GET\",\"url\":\"https://synchrosocial.app.n8n.cloud/webhook/calendar-get?client=reviewfixture&_t=1790683200000\",\"headers\":{\"accept\":\"*/*\"},\"body\":\"\"}",
+      "{\"method\":\"GET\",\"url\":\"https://synchrosocial.app.n8n.cloud/webhook/calendar-get?client=reviewfixture&_t=1790683200000\",\"headers\":{\"accept\":\"*/*\"},\"body\":\"\"}",
+      "{\"method\":\"GET\",\"url\":\"https://synchrosocial.app.n8n.cloud/webhook/calendar-get?client=reviewfixture&_t=1790683200000\",\"headers\":{\"accept\":\"*/*\"},\"body\":\"\"}",
+      "{\"method\":\"GET\",\"url\":\"https://synchrosocial.app.n8n.cloud/webhook/calendar-get?client=reviewfixture&_t=1790683200000\",\"headers\":{\"accept\":\"*/*\"},\"body\":\"\"}",
+      "{\"method\":\"GET\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.prod_authority&limit=2\",\"headers\":{\"accept\":\"application/json\",\"authorization\":\"sha256:69a2d89e2722cfa0\",\"apikey\":\"sha256:0e3c8527db4a9690\"},\"body\":\"\"}",
+      "{\"method\":\"GET\",\"url\":\"https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.prod_authority&limit=2\",\"headers\":{\"accept\":\"application/json\",\"authorization\":\"sha256:69a2d89e2722cfa0\",\"apikey\":\"sha256:0e3c8527db4a9690\"},\"body\":\"\"}"
+    ]
+  }
+}

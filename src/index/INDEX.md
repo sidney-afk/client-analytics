@@ -29,24 +29,24 @@
 | 21 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 22 | `097-today.js.part` | 561 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 24 | `100-onboarding-staff-controls.js.part` | 2384 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 24 | `100-onboarding-staff-controls.js.part` | 2382 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 25 | `110-time-off.js.part` | 1370 | Kasper Time Off calendar |
 | 26 | `112-smm-weekly-reports.js.part` | 705 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
-| 28 | `120-calendar-flags-write-repair.js.part` | 3233 | The members a flag value offers, or null when it offers no member list at |
+| 28 | `120-calendar-flags-write-repair.js.part` | 3348 | The members a flag value offers, or null when it offers no member list at |
 | 29 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
-| 30 | `130-calendar-model-cache.js.part` | 1388 | Returns the comments array for a given component. Falls back to the |
+| 30 | `130-calendar-model-cache.js.part` | 1396 | Returns the comments array for a given component. Falls back to the |
 | 31 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 32 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 33 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
 | 34 | `134-calendar-prefs-mount.js.part` | 1076 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
-| 35 | `140-calendar-legacy-outbox.js.part` | 3155 | Shed the retired legacy rows from storage, under the surface mutation |
-| 36 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
+| 35 | `140-calendar-legacy-outbox.js.part` | 3210 | Shed the retired legacy rows from storage, under the surface mutation |
+| 36 | `150-calendar-hydration-import.js.part` | 2193 | For a card linked to a real sub-issue (not a parent), return which of |
 | 37 | `160-calendar-organize-ui.js.part` | 2835 | Lighter path for the Order switch: update the chrome in place so the |
 | 38 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 39 | `180-calendar-native-post-media.js.part` | 2865 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 39 | `180-calendar-native-post-media.js.part` | 2843 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 40 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
-| 41 | `186-archived-restore.js.part` | 455 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
+| 41 | `186-archived-restore.js.part` | 457 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 42 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 43 | `200-intake-data-startup.js.part` | 1867 | Video-only and Thumbnail-only were already built, but sat |
 | 44 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
@@ -57,7 +57,7 @@
 | 49 | `260-production-refresh-boot.js.part` | 2634 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 50 | `270-samples-model.js.part` | 2923 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 51 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
-| 52 | `290-samples-writes-review.js.part` | 1869 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 52 | `290-samples-writes-review.js.part` | 1877 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 53 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
 | 54 | `305-core-kasper-shared.js.part` | 605 | SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push |
 | 55 | `310-sales-intake-hiring.js.part` | 1159 | KASPER REVIEW TAB |

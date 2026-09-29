@@ -80,7 +80,10 @@ here with where it stopped, so it can be restarted.
      #1857 removes it, after which Kasper > Filming reads from the function, with
      n8n kept as the automatic per-Doc fallback. Rollback: set the flag to
      `{"mode":"n8n"}` (takes effect on the next Filming open). The n8n Filming Plan
-     Tabs workflow stays on for 30 days. Next: PR 2 (Calendar, session Anvil), then
+     Tabs workflow stays on for 30 days. **PR 2 (Calendar, session Anvil, #1858) built 2026-09-29, awaiting Lighthouse's
+     merge:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
+     approve and request-changes untouched (byte-identical test); pinned repairs migrate on load;
+     the n8n Calendar workflows stay on 30 days after it ships. Next: Caption Prompts (PR 3), then
      Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
    - **Staff can see and restore recently archived Calendar cards and Samples**

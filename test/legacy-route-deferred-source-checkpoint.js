@@ -155,7 +155,7 @@ function writerContext(surface) {
             _sxrLinearUrlFor: () => '',
             async _calPrimeUpsertRoutingFlag() {},
             async _sxrPrimeSampleRoutingFlag() {},
-            _calUpsertUseEf: () => true,
+            _calUpsertUseEf: () => true, _isClientLink: true,
             _sxrSampleUseEf: () => false,
             _writeUiSourceClientSlug: () => 'aclient',
             _writeUiPrincipalKey: () => 'client:aclient',

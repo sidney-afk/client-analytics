@@ -920,6 +920,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
                     return true;
                 } catch (e) {
+                    /* n8n exit, PR 2: the shared save guard refused this write
+                       (saving paused for this client, or its switch could not be
+                       read after its own retries). Retrying here changes nothing
+                       and swallowing it made the toggle look saved, so say so. */
+                    if (e && (e.calWritePaused || e.calWriteHeld)) {
+                        try { showToast(e.calWritePaused ? e.message : 'Setting not saved to the server yet. ' + e.message); } catch (err) {}
+                        return false;
+                    }
                     if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
                     // Every attempt failed. localStorage keeps the optimistic value
                     // for now; it will reconcile to the backend once the trust window

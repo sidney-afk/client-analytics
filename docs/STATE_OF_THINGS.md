@@ -67,16 +67,19 @@ here with where it stopped, so it can be restarted.
      Pairs with item 2. Forge restarted it on 2026-09-29: the plan
      (`docs/plans/2026-09-28-n8n-exit.md`) and PR 1a, the `filming-plan-tabs`
      Edge Function plus its cache-table migration, merged in #1846 (main
-     `66750995efb371eadaf503b45ade6d984fd1f8cb`); the page does not use it yet. Waiting on: the owner's go
-     to apply `migrations/2026-09-29-filming-plan-tabs-cache.sql`, the owner's
-     dispatch of
-     `https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml`
-     (function `filming-plan-tabs`, commit `66750995efb371eadaf503b45ade6d984fd1f8cb`), then `?whoami=1`
-     and sharing the Filming Plan folder with that service account. PR 1b
-     (Kasper switches over) starts only after a live read of a real Doc
-     returns its tabs from Google, not from the n8n fallback, and the row
-     lands in the cache table. Owner decisions: the client approve and request-changes buttons are
+     `66750995efb371eadaf503b45ade6d984fd1f8cb`); the page does not use it yet. Live since 2026-09-29: the cache
+     migration is applied, the owner deployed the function
+     (`https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml`),
+     switched on the Google Docs API and shared the Filming Plan folder with the
+     thumbnail service account, and a bulk read of 25 recent Filming Plan Docs came
+     back from Google with no n8n fallback (source `google` in the cache). Next:
+     PR 1b (Kasper switches over, behind its runtime flag), then Calendar,
+     Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
+   - **Staff can see and restore recently archived Calendar cards** (owner
+     2026-09-29): from the Calendar's More menu, researched first and heavily
+     tested, because a restore touches the card, its work items (archiving parks
+     them in backlog) and Workload. Given to a new session on 2026-09-29.
    - **Escape does not close a Calendar card's thumbnail or video edit box**
      (owner 2026-09-26). Last status: still broken. Re-check live first.
    - **Daily real-browser client check from a local session, Samples included,

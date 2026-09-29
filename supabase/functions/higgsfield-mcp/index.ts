@@ -86,8 +86,8 @@ Never spend money or save a Canva design without her yes.
 ## 2. Expression fix (optional)
 
 Ask: "Do any faces need the expression fixed (mid-word mouth, half-closed eyes)?" If yes, for the ones she picks:
-1. \`recipe_plan\` with recipe \`thumbnail-expression-fix\` and those links. Show the card (model, count, total price) and wait for "go".
-2. \`run_recipe\`, then \`check_jobs\` every 30 seconds until done. Show her each result and let her keep the fixed or the original version per screenshot.
+1. \`recipe_plan\` with recipe \`thumbnail-expression-fix\` and those links, in groups of at most 20 (the tools take 20 per call). Show the card (model, count, total price, adding up the groups) and wait for "go".
+2. \`run_recipe\` per group of at most 20, then \`check_jobs\` every 30 seconds until done. Show her each result and let her keep the fixed or the original version per screenshot.
 
 ## 3. Titles
 

@@ -1,8 +1,3 @@
-import { currentNav } from './065-core-nav-intake-state.js';
-import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-core-client-names.js';
-import { navTo } from './092-core-submit-form-navigation.js';
-import { SV_CLIENT_FOLLOW_TABS, svOpenAnalytics, svSharedClientGet, svSharedClientNote } from './095-shared-client.js';
-import { _calEsc, _calEscAttr } from './131-core-html.js';
     /* QUICK JUMP (owner decision 2026-09-27). Press / anywhere, type part of a
      * client and a tab ("luna cal"), press Enter: that client becomes the
      * shared client and the tab opens on it. A tab alone ("workload") just
@@ -175,3 +170,5 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
     Object.assign(window, {
         svQuickJumpOpen
     });
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-08-quick-jump-a0637b60467d.js");

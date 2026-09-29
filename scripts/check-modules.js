@@ -55,6 +55,22 @@
  *   6. MODULE FRAGMENTS. Every fragment listed in src/index/modules.txt is
  *      checked as a module; the rules are stated at section 6 below.
  *
+ *   7. WINDOW EXPORTS (step 13 prep). Inline handlers (onclick="fn()") look
+ *      their function up on `window` when clicked, and a real module keeps
+ *      its names private. So every module ends (just before its export
+ *      footer) with ONE `Object.assign(window, {...})` naming exactly the
+ *      top-level names its OWN handler strings call, and nothing else. The
+ *      list is generated: `node scripts/check-modules.js --write-window-exports`
+ *      rewrites the blocks; without the flag a stale or missing block fails.
+ *      A handler-called name declared with `let` or `var` fails too (a copy
+ *      onto window would go stale); `const`, `function` and `class` are fine.
+ *
+ *   8. TYPEOF GUARDS. `typeof x === 'function'` on a name that no fragment
+ *      declares and that is not a browser global (HOST_GLOBALS) is a dead
+ *      guard: it can only ever answer "not there", so the code behind it never
+ *      runs. Guards on another fragment's name are already forced to be
+ *      imports by the "uses it without importing it" rule above.
+ *
  * REPORT (--report, informational, never fails): per-fragment top-level
  * declaration counts, functions named in inline handler strings that are not
  * copied onto `window`, and `typeof x === 'function'` guards. These are the
@@ -70,14 +86,14 @@
  * Locally: npm install --no-save --no-package-lock --prefix /tmp/c3 acorn@8.15.0 eslint-scope@9.1.2
  * then NODE_PATH=/tmp/c3/node_modules node scripts/check-modules.js
  *
- * Usage: node scripts/check-modules.js [--against=<git-ref>] [--report]
+ * Usage: node scripts/check-modules.js [--against=<git-ref>] [--report] [--write-window-exports]
  */
 
 const fs = require('fs');
 require('../test/helpers/single-file-index.js'); // split switch on (plan step 4): the --report handler scan reads the single-file page
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { readModuleList, splitModuleFragment, servedBytes } = require('./index-modules');
+const { readModuleList, splitModuleFragment, servedBytes, WINDOW_BLOCK_MARK, stripWindowBlock } = require('./index-modules');
 
 let acorn;
 try { acorn = require('acorn'); } catch (e) {
@@ -97,6 +113,12 @@ const args = process.argv.slice(2);
 const againstArg = args.find(a => a.startsWith('--against='));
 const against = againstArg ? againstArg.slice('--against='.length) : '';
 const wantReport = args.includes('--report');
+const writeWindowExports = args.includes('--write-window-exports');
+
+// Browser and CDN globals a `typeof x` guard may legitimately test.
+const HOST_GLOBALS = new Set(['document', 'window', 'navigator', 'performance', 'indexedDB', 'requestAnimationFrame',
+  'AbortController', 'AbortSignal', 'MutationObserver', 'ResizeObserver', 'Chart']);
+
 
 const failures = [];
 const fail = (msg) => failures.push(msg);
@@ -437,6 +459,100 @@ if (ast && modules.size) {
     const imports = mast.body.filter(n => n.type === 'ImportDeclaration').reduce((a, n) => a + n.specifiers.length, 0);
     console.log(`module ${m}: ${imports} imports, ${exported.size} exports` + (pending.length ? `; pending setters (reassigned elsewhere): ${pending.join(', ')}` : ''));
   }
+
+  // ---- 7. window exports ------------------------------------------------------
+  // Every string the page could hand the browser as an inline handler: the
+  // attribute form (onclick="...", also written onclick=\"...\" inside a JS
+  // string) and setAttribute('onclick', '...'). Identifiers inside ${...}
+  // interpolations and quoted arguments are dropped (they run at build time
+  // or are data), then every bare identifier is a candidate; only the ones a
+  // fragment declares at top level matter.
+  const pageText = manifest.map(f => servedBytes(f, fs.readFileSync(path.join(SRC_DIR, f)), modules).toString('utf8')).join('');
+  const handlerTexts = [];
+  for (const m of pageText.matchAll(/\bon[a-z]+\s*=\s*(\\?["'])([\s\S]{0,400}?)\1/g)) handlerTexts.push(m[2]);
+  for (const m of pageText.matchAll(/setAttribute\(\s*['"]on[a-z]+['"]\s*,\s*(['"])([\s\S]{0,400}?)\1/g)) handlerTexts.push(m[2]);
+  // An options object handed to a shared builder that writes it into the
+  // attribute: _svSelectHtml(..., { onchange: '_fn(false)' }).
+  for (const m of pageText.matchAll(/\bon[a-z]+\s*:\s*(['"])([^'"\n]{0,300}?\()[^'"\n]{0,300}?\1/gi)) handlerTexts.push(m[0].slice(m[0].indexOf(m[1]) + 1, -1));
+  const handlerCalled = new Set();
+  for (let h of handlerTexts) {
+    h = h.replace(/\$\{[^}]*\}/g, ' ').replace(/\\?'[^']*\\?'/g, "''").replace(/\\?"[^"]*\\?"/g, '""');
+    for (const x of h.matchAll(/(^|[^.\w$])([A-Za-z_$][\w$]*)/g)) handlerCalled.add(x[2]);
+  }
+  const windowNames = new Map(); // module -> sorted names its handler strings call
+  for (const name of handlerCalled) {
+    const list = decls.get(name);
+    if (!list) continue;
+    const d = list[list.length - 1];
+    if (!modules.has(d.frag)) { fail(`${d.frag}: declares ${name}, which an inline handler calls, but the fragment is not a module`); continue; }
+    if (d.node.type === 'VariableDeclaration' && d.node.kind !== 'const') {
+      fail(`${d.frag}: ${name} is called by an inline handler but is a \`${d.node.kind}\` binding; a copy on window would go stale, so make it a function or const`);
+      continue;
+    }
+    if (!windowNames.has(d.frag)) windowNames.set(d.frag, []);
+    windowNames.get(d.frag).push(name);
+  }
+  for (const list of windowNames.values()) list.sort();
+  const blockText = (names) => {
+    const lines = [];
+    let cur = '        ';
+    names.forEach((n, i) => {
+      const piece = n + (i < names.length - 1 ? ',' : '');
+      if (cur.trim() && (cur + ' ' + piece).length > 110) { lines.push(cur); cur = '        ' + piece; }
+      else cur += (cur.trim() ? ' ' : '') + piece;
+    });
+    lines.push(cur);
+    return `    ${WINDOW_BLOCK_MARK}\n    Object.assign(window, {\n${lines.join('\n')}\n    });\n`;
+  };
+  let windowTotal = 0;
+  for (const [m, parts] of moduleParts) {
+    const names = windowNames.get(m) || [];
+    windowTotal += names.length;
+    const stripped = stripWindowBlock(parts.body);
+    const wanted = names.length ? stripped.replace(/\s+$/, '\n') + '\n' + blockText(names) : stripped;
+    if (writeWindowExports) {
+      const next = parts.header + wanted + parts.footer;
+      if (next !== parts.header + parts.body + parts.footer) fs.writeFileSync(path.join(SRC_DIR, m), next);
+      continue;
+    }
+    if (parts.body === wanted) continue;
+    // Say what is wrong, not just that something is.
+    const have = new Set();
+    for (const node of parsed.get(m).mast.body) {
+      if (node.type !== 'ExpressionStatement' || node.expression.type !== 'CallExpression') continue;
+      const c = node.expression;
+      if (c.callee.type === 'MemberExpression' && c.callee.object.name === 'Object' && c.callee.property.name === 'assign'
+        && c.arguments[0] && c.arguments[0].name === 'window' && c.arguments[1] && c.arguments[1].type === 'ObjectExpression') {
+        for (const p of c.arguments[1].properties) have.add(p.key && p.key.name);
+      }
+    }
+    const missing = names.filter(n => !have.has(n)), stale = [...have].filter(n => !names.includes(n));
+    fail(`${m}: the window export block is out of date` + (missing.length ? `; handlers call ${missing.slice(0, 6).join(', ')}${missing.length > 6 ? ` and ${missing.length - 6} more` : ''} which it lacks` : '') + (stale.length ? `; it lists ${stale.slice(0, 6).join(', ')} which no handler calls` : '') + ' (run: node scripts/check-modules.js --write-window-exports)');
+  }
+  console.log(`window exports: ${windowTotal} handler-called names in ${windowNames.size} modules` + (writeWindowExports ? ' (blocks written)' : ''));
+
+  // ---- 8. typeof guards ------------------------------------------------------
+  let guardCount = 0;
+  const deadGuards = [];
+  for (const [m, { mast }] of parsed) {
+    const typeofArgs = new Set();
+    const seen = (node) => {
+      if (!node || typeof node.type !== 'string') return;
+      if (node.type === 'UnaryExpression' && node.operator === 'typeof' && node.argument.type === 'Identifier') typeofArgs.add(node.argument);
+      for (const [c] of children(node)) seen(c);
+    };
+    seen(mast);
+    guardCount += typeofArgs.size;
+    const sc = eslintScope.analyze(mast, { ecmaVersion: 2022, sourceType: 'module' });
+    for (const r of sc.globalScope.through) {
+      if (!typeofArgs.has(r.identifier)) continue;
+      const name = r.identifier.name;
+      if (ownerOf(name) || HOST_GLOBALS.has(name)) continue;
+      deadGuards.push(`${m}: \`typeof ${name}\` guards a name no fragment declares and that is not a browser global; the code behind it can never run`);
+    }
+  }
+  for (const d of new Set(deadGuards)) fail(d);
+  console.log(`typeof guards in modules: ${guardCount}; unresolvable: ${new Set(deadGuards).size}`);
 }
 
 // ---- 5. byte identity against a base commit ---------------------------------

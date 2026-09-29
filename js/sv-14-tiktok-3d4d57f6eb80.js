@@ -1,14 +1,3 @@
-import { _writeUiRecordFailure, _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import {
-  TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES, TIKTOK_MAX_PHOTOS,
-  TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES, TIKTOK_QUEUE_CACHE_KEY,
-  TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL, TIKTOK_UPLOAD_DIRECT_WEBHOOK,
-  TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK, TIKTOK_UPLOAD_WEBHOOK, clientMap,
-  showConfirm, showNotify, svAreaRegister
-} from './040-shared-briefs.js';
-import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, getRecent } from './050-market-briefs.js';
-import { WL_CLIENT_NAMES } from './070-core-client-names.js';
-import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
        Posts videos to Post For Me (api.postforme.dev) through a
@@ -2056,3 +2045,5 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
         _tkCancelRow, _tkCancelUpload, _tkClearFile, _tkDismissRow, _tkMovePhoto, _tkQueueShowMore,
         _tkRemovePhoto, _tkReplaceFile, _tkRetryRow, _tkSetQueueTab
     });
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-14-tiktok-3d4d57f6eb80.js");

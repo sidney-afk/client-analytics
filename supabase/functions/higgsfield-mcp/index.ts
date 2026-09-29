@@ -43,7 +43,7 @@ type Pick = { task: string; picks: string[] };
 // Plain-language shortlist the chat app reads first. Every id is in CATALOG
 // (the generated list of all 80+ API models); find_models lists the rest.
 const GO_TO: Pick[] = [
-  { task: "B-roll, background or filler video: ALWAYS photo first, then animate the chosen photo (recipe broll-photo-then-video)", picks: ["higgsfield-ai/soul/v2/standard", "kling-video/v2.6/pro/image-to-video"] },
+  { task: "B-roll, background or filler video: ALWAYS photo first, then animate the chosen photo (recipe broll-photo-then-video)", picks: ["openai/gpt-image", "kling-video/v2.6/pro/image-to-video"] },
   { task: "Best-quality video: people up close, realistic motion, clips up to 30s", picks: ["bytedance/seedance-2.5/text-to-video"] },
   { task: "Animate a photo", picks: ["bytedance/seedance-2.5/image-to-video", "kling-video/v2.6/pro/image-to-video"] },
   { task: "Keep the same person or product across shots (reference images)", picks: ["bytedance/seedance-2.5/reference-to-video", "kling-video/o3/image-reference"] },
@@ -671,10 +671,10 @@ const RECIPES: Recipe[] = [
     key: "broll-photo-then-video",
     name: "B-roll: photo first, then video",
     forWho: "video editors",
-    summary: "Make a still first (cheap, fast), pick the one you like, then animate that exact photo into a video clip.",
-    models: ["higgsfield-ai/soul/v2/standard", "z-image/turbo", "kling-video/v2.6/pro/image-to-video", "bytedance/seedance-2.5/image-to-video"],
+    summary: "Make a still with GPT Image first, refine it until you like it, then animate that exact photo into a video clip with a cheaper video model.",
+    models: ["openai/gpt-image", "kling-video/v2.6/pro/image-to-video", "bytedance/seedance-2.5/image-to-video"],
     guide: [
-      "Step 1, the photo: write the shot as a photo prompt and price_check then create it with higgsfield-ai/soul/v2/standard (photoreal; batch_size 4 gives four options at once) or z-image/turbo (quick drafts). Use the final video's shape (usually 9:16).",
+      "Step 1, the photo: write the shot as a detailed photo prompt and make it with openai/gpt-image (the team's preferred image model; a strong photo gives a better video even from a cheap video model). Use size 1024x1536 for vertical or 1536x1024 for horizontal, quality high. price_check, show the plan card, create after go. To adjust, edit the last photo with openai/gpt-image by passing its link in image_urls with the change, instead of starting over.",
       "Step 2, pick: show the results and let them choose one, or adjust and redo step 1.",
       "Step 3, the video: animate the chosen image link with kling-video/v2.6/pro/image-to-video (cheaper, good for b-roll) or bytedance/seedance-2.5/image-to-video (best motion). Prompt only the motion and camera move, since the photo already sets the look. price_check, show the plan card, create after go.",
     ].join("\n"),

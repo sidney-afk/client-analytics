@@ -625,7 +625,8 @@
     "client-profile-edit.js",
     "onboarding-boot-skeleton.js",
     "syncview-session.js",
-    "sheets-mirror-parity-catchup.js"
+    "sheets-mirror-parity-catchup.js",
+    "filming-plan-tabs-source.js"
   ],
   "profiles": [
     {

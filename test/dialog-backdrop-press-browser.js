@@ -65,7 +65,7 @@ const markedSites = codeLines.filter(x => x.text.includes('data-backdrop-dismiss
 assert.equal(markedSites.length, CASES.length + 1,
   `src/index has ${markedSites.length} backdrops marked data-backdrop-dismiss but this test covers ${CASES.length + 1}; add the new dialog to CASES:\n  ` + markedSites.map(x => x.where).join('\n  '));
 // Any comparison of an event target with something else, whatever the variable
-// is called (`x === e.target`, `e.target !== y`, `event.currentTarget === ...`).
+// is called (any event variable name, either order, `currentTarget` too).
 // Each must read the press mark or be listed here with the reason it is not a
 // backdrop click, so a new one forces a decision instead of passing unseen.
 const NOT_A_BACKDROP_CLICK = [
@@ -74,7 +74,7 @@ const NOT_A_BACKDROP_CLICK = [
   ['096-quick-jump', "e.target !== input", 'Escape key from a non-input element'],
   ['096-quick-jump', 'if (e.target === box) svQuickJumpClose()', 'closes on the PRESS itself (mousedown), so a press that starts inside can never dismiss it'],
 ];
-const targetCompare = /(target\s*[!=]==?\s*[A-Za-z_$])|([A-Za-z_$.]+\s*[!=]==?\s*(event|e|ev)\.(current)?[tT]arget)/;
+const targetCompare = /(\.(target|currentTarget)\s*[!=]==?)|([!=]==?\s*[\w$.]*\.(target|currentTarget)\b)|((?<!\$)\{\s*target\s*\})/;   // any event variable name, either order
 const unguarded = codeLines.filter(x => targetCompare.test(x.text) && !x.text.includes('_backdropPressBegan')
   && !NOT_A_BACKDROP_CLICK.some(([f, frag]) => x.where.startsWith(f) && x.text.includes(frag)));
 assert.deepEqual(unguarded.map(x => x.where + '  ' + x.text.trim().slice(0, 90)), [],

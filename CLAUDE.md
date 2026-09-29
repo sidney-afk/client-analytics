@@ -142,6 +142,12 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 - The owner has decided the **Linear archive rescue (F34) is not needed**
   (2026-09-28): Linear is being cancelled and its text and brief images are
   already in SyncView. Do not raise it again.
+- The owner has decided **not** to close the publishable-key reads of exactly
+  three relations: `workload_issues`, `workload_issues_native_v1` and
+  `production_deliverables_browser_v1` (they return staff names and emails;
+  found by Keel on #1840, 2026-09-28). Do not raise those again. This is not a
+  blanket Workload exception: `workload_plan` and any other relation must keep
+  zero browser privileges, and a new public read anywhere else is a regression.
 
 ## Things that will waste a cycle if you forget them
 

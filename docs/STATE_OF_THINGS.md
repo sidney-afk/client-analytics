@@ -86,6 +86,14 @@ line is older than a week, re-check it before relying on it.
 
 ## Done (was listed as open somewhere)
 
+- **Publishable-key reads of `workload_issues`, `workload_issues_native_v1`
+  and `production_deliverables_browser_v1` stay open. Owner decision
+  2026-09-28; do not raise these three again.** Keel (#1840) found they return
+  tasks with staff names and emails (or staff ids) to the publishable key.
+  #1840 stops a signed-out page from showing or keeping the board; these three
+  grants are left as they are by choice. Only these three: `workload_plan`
+  keeps zero browser privileges (measured 2026-09-29), and any other new
+  public read is a regression.
 - **Linear archive rescue (F34) is NOT needed. Owner decision 2026-09-28; do
   not raise it again.** Linear is being cancelled. Measured live the same day:
   3,478 briefs (with their images, see Brief media rescue below) and 14,205

@@ -1,3 +1,4 @@
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
   _svPreserveFocus, fetchEssentials, showConfirm, showNotify, showToast
 } from './040-shared-briefs.js';
@@ -244,11 +245,11 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
     }
     function _sxrReorderFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
-        const post = (url) => fetch(url, {
+        const post = (url) => _writeUiTrackSave('sxr', 'sample_reorder', () => ({ client_slug: String(payload && payload.client || '') }), () => fetch(url, {
             method: 'POST',
             headers: _sxrWriteHeaders(source, url),
             body: JSON.stringify(payload)
-        });
+        }));
         if (!_sxrSampleUseEf(clientOrSlug)) return post(SXR_REORDER_N8N_URL);
         return post(SXR_REORDER_EF_URL).then(async (resp) => {
             let json = null;
@@ -1915,7 +1916,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt');
+                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -2565,11 +2566,11 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -2604,11 +2605,11 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -2773,7 +2774,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
         const archivedAt = new Date().toISOString();
-        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui');
+        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
         // Same rule as the Calendar (owner ruling 2026-08-17, extended to
         // samples 2026-09-28): archiving parks the sample's work items in

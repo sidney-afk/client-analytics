@@ -782,7 +782,7 @@
         const plusIcon = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
         btn.innerHTML = `${plusIcon} Saving…`;
         try {
-            const resp = await fetch(HOOK_LIBRARY_WEBHOOK, {
+            const resp = await _writeUiTrackSave('briefs', 'hook_library_add', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(HOOK_LIBRARY_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -791,7 +791,7 @@
                     openingLine: hookData.openingLine || '',
                     template: hookData.stealThis || ''
                 })
-            });
+            }));
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const saveKey = _hookSaveKey(clientName, hookData.openingLine || '');
             console.log('[SyncView] Saving hook key:', saveKey);
@@ -2792,7 +2792,7 @@
             fresh.sort((a,b)=>n(b.views)-n(a.views));
             const top=fresh[0];
             if(!top){showNotify('No videos','No weekly top videos found for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
-            const resp=await fetch(WEEKLY_SLACK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName,slack_channel_id:channelId,content_description:info.content_description||'',platform:top.platform||'instagram',video_url:top.video_url||'',caption:(top.caption||'').substring(0,500),views:n(top.views),likes:n(top.likes),comments:n(top.comments),shares:n(top.shares),scraped_date:latestDate})});
+            const resp=await _writeUiTrackSave('briefs', 'weekly_slack_update', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(WEEKLY_SLACK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName,slack_channel_id:channelId,content_description:info.content_description||'',platform:top.platform||'instagram',video_url:top.video_url||'',caption:(top.caption||'').substring(0,500),views:n(top.views),likes:n(top.likes),comments:n(top.comments),shares:n(top.shares),scraped_date:latestDate})}));
             if(resp.ok)showNotify('Sent!','Slack update sent for '+clientName);
             else showNotify('Error','Slack webhook returned '+resp.status);
         }catch(e){console.error('[SyncView] Slack send error:',e);showNotify('Error','Could not send Slack update. Check webhook.');}
@@ -3498,11 +3498,11 @@
         let ok = false;
         try {
             const writeUrl = TEMPLATES_SAVE_EF_URL;
-            const resp = await fetch(writeUrl, {
+            const resp = await _writeUiTrackSave('templates', 'templates_save', () => ({ client_slug: calClientSlug(name) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('templates', writeUrl),
                 body: JSON.stringify({ clientName: name, patch }),
-            });
+            }), { requireOk: true });
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'Save failed');
             // Merge — never replace. The server only echoes back the fields it just wrote
@@ -4687,11 +4687,15 @@
 
     function _tplBrainPost(payload) {
         const url = _tplBrainUrl();
-        return fetch(url, {
+        const send = () => fetch(url, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
             body: JSON.stringify(payload),
-        }).then(async r => {
+        });
+        // Only "Send a change" is a save; reading facts and folders is not.
+        return (payload && payload.action === 'change'
+            ? _writeUiTrackSave('templates', 'templates_brain_change', () => ({ client_slug: calClientSlug(payload.clientName) }), send)
+            : send()).then(async r => {
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
             return j;
@@ -5599,11 +5603,11 @@
     }
     async function _fpPostPlan(payload, retried) {
         const ident = await _syncviewRequireStaffIdentity('onboarding');
-        const resp = await fetch(FILMING_PLANS_EF_URL, {
+        const resp = await _writeUiTrackSave('filming', 'filming_plan_save', () => ({ client_slug: String(payload && payload.clientSlug || calClientSlug(payload && payload.clientName) || '') }), () => fetch(FILMING_PLANS_EF_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key, 'X-Syncview-Actor': ident.member.name, 'X-Syncview-Role': ident.role },
             body: JSON.stringify(payload),
-        });
+        }), { requireOk: true });
         let json = null;
         try { json = await resp.json(); } catch (e) {}
         if (resp.status === 401) {
@@ -10641,7 +10645,7 @@
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), WL_PLAN_WRITE_TIMEOUT_MS);
         try {
-            return await fetch(WORKLOAD_PLAN_URL, {
+            return await _writeUiTrackSave('workload', 'workload_plan_save', () => ({ id: String(issue.id || '') }), () => fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -10652,7 +10656,7 @@
                     client: String(issue.clientName || ''),
                     plan_date: planDate
                 })
-            });
+            }));
         } finally {
             clearTimeout(timeout);
         }
@@ -10948,7 +10952,7 @@
         const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
         try {
             if (route && route.authority === 'syncview') {
-                return await fetch(PROD_WRITE_EF_URL, {
+                return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
                     cache: 'no-store',
                     signal: controller.signal,
@@ -10968,9 +10972,9 @@
                         expected_updated_at: route.nativeUpdatedAt,
                         due_date: dueDate || ''
                     })
-                });
+                }));
             }
-            return await fetch(WORKLOAD_LINEAR_URL, {
+            return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(WORKLOAD_LINEAR_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -10981,7 +10985,7 @@
                     client: String(issue.clientName || ''),
                     due_date: dueDate
                 })
-            });
+            }));
         } finally {
             clearTimeout(timeout);
         }
@@ -17453,8 +17457,7 @@
        own copies of these URLs and are tracked separately. */
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
-    /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
-       to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
+    const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
     /* Caption-job tracking. The generate-caption workflow upserts a row per
        run into the caption_jobs n8n data table (status: running/done/error/
        cancelled, stage: scraping → transcribing → writing → done). The UI
@@ -18869,6 +18872,7 @@
         try {
             response = await fetch(url, options);
         } catch (cause) {
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), cause, null, {});
             const error = new Error(mutating
                 ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
                 : (timedOut
@@ -18896,6 +18900,7 @@
         if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
         if (!response.ok || !json || json.ok === false) {
             const error = new Error(_ptoApiMessage(json, response.status));
+            if (mutating) _writeUiRecordSaveFailure('leave', ('leave_' + action).slice(0, 40), error, response, {});
             error.status = response.status;
             error.code = json && (json.code || json.error);
             throw error;
@@ -20129,7 +20134,9 @@
         }, opts.headers || {});
         headers['X-Syncview-Key'] = ident.key;
         if (method !== 'GET') headers['Content-Type'] = 'application/json';
-        const resp = await fetch(url, Object.assign({}, opts, { method, headers }));
+        const send = () => fetch(url, Object.assign({}, opts, { method, headers }));
+        // Reading options and reports is not a save; a POST is.
+        const resp = await (method === 'GET' ? send() : _writeUiTrackSave('weekly_reports', ('weekly_report_' + action).slice(0, 40), {}, send));
         let data = null;
         try { data = await resp.json(); } catch (e) {}
         if (!resp.ok) {
@@ -21306,11 +21313,11 @@
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
         if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
-        const resp = await fetch(CLIENT_REVIEW_LINK_URL, {
+        const resp = await _writeUiTrackSave('share', 'client_link_issue', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(CLIENT_REVIEW_LINK_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
-        });
+        }), { requireOk: true });
         let json = null; try { json = await resp.json(); } catch (e) {}
         if (!resp.ok || !json || !json.ok || !json.token) throw new Error(_syncviewShareLinkErrorMessage(json && json.error, resp.status));
         const q = new URLSearchParams();
@@ -23169,6 +23176,65 @@
                 Object.assign({ kind: operation }, error && error.diagIds || {}, context || {}), error);
         } catch (e) {}
     }
+    /* SAVES THAT DO NOT GO THROUGH THE WRITE GATEWAY (Priority 4, 2026-09-29).
+
+       Templates, Filming plans, caption prompts, Workload dates, TikTok, the
+       Kasper admin saves and the rest each talk to their own Edge Function, so
+       the gateway never saw their refusals and only the person at the screen
+       knew. These two helpers record such a refusal in the same log, through
+       the same beacon (so the same cap, page tag, traffic tag and no prose),
+       without touching what the save does next.
+
+       `_writeUiTrackSave` runs the request and returns the SAME response, or
+       rethrows the SAME error, exactly as the bare request did: it looks at
+       `response.ok` and, for an OK answer, at a clone of the body for a
+       refusal sent as {"ok":false}; the response itself is never read. The log's screen column
+       stores these as `unknown`; the operation name (`templates_save`,
+       `filming_plan_save`, ...) is stored as the action, so the name says
+       which save it was. Staff pages only: the client approve and
+       request-changes requests are not sent through here. */
+    function _writeUiRecordSaveFailure(surface, operation, error, response, context) {
+        try {
+            // The status comes from the response, or from a message of the
+            // form "... HTTP 503" that a save's own error text already carries.
+            const fromText = /\bHTTP (\d{3})\b/.exec(String(error && error.message || ''));
+            const raw = response && Number.isInteger(response.status) ? response.status : (fromText ? Number(fromText[1]) : NaN);
+            const status = Number.isInteger(raw) && raw >= 400 && raw <= 599 ? raw : undefined;
+            const name = String(error && error.name || '');
+            const shape = {
+                name,
+                message: String(error && error.message || (status ? 'HTTP ' + status : 'save failed')).slice(0, 200)
+            };
+            if (status !== undefined) shape.status = status;
+            // A request that never got an answer rejects with one of these two
+            // and nothing else; anything with a status did reach a server.
+            else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
+            // The context may be given as a function so that building it can never
+            // get in the way of the save it describes.
+            let ids = context;
+            try { if (typeof context === 'function') ids = context(); } catch (e) { ids = {}; }
+            _writeUiRecordFailure(surface, operation, shape, ids);
+        } catch (e) {}
+    }
+    async function _writeUiTrackSave(surface, operation, context, send, options) {
+        let response;
+        try { response = await send(); }
+        catch (error) { _writeUiRecordSaveFailure(surface, operation, error, null, context); throw error; }
+        if (response && response.ok === false) _writeUiRecordSaveFailure(surface, operation, null, response, context);
+        else if (response && response.ok === true && typeof response.clone === 'function') {
+            // Some saves (the n8n webhooks) refuse with HTTP 200 and {"ok":false}.
+            // A CLONE is read, so the caller still gets an untouched body.
+            // A save whose own code accepts only {"ok":true} passes
+            // { requireOk: true }: for those, an empty, unreadable or ok-less
+            // 2xx answer is the refusal the person sees, so it is recorded too.
+            const strict = !!(options && options.requireOk === true);
+            let body = null, readable = true;
+            try { body = await response.clone().json(); } catch (e) { readable = false; }
+            const refused = readable ? !!((body && body.ok === false) || (strict && !(body && body.ok === true))) : strict;
+            if (refused) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
+        }
+        return response;
+    }
     function _writeUiReportFailure(surface, operation, error, context) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
         // A thrown transport/runtime error carries no `code`, only a message.
@@ -23732,8 +23798,8 @@
         error.calWriteHeld = true;
         return error;
     }
-    function _calWritePausedError(what) {
-        const error = new Error((what || 'Saving') + ' is paused for this client. Your change is kept and will save once saving is switched back on.');
+    function _calWritePausedError() {
+        const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
         error.code = 'client_scope_unavailable';
         error.status = 503;
         error.calWritePaused = true;
@@ -23741,7 +23807,7 @@
     }
     /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
        (never resolves to a guess) when the answer cannot be trusted. */
-    function _calReadWriteFlagFresh(flagKey) {
+    function _calReadWriteFlagFresh() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
             return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
         }
@@ -23754,7 +23820,7 @@
             }, CAL_WRITE_FLAG_READ_MS);
         });
         const read = (async () => {
-            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(flagKey || CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
             const resp = await fetch(url, {
                 cache: 'no-store',
                 signal: ctrl ? ctrl.signal : undefined,
@@ -23776,21 +23842,17 @@
             }
         );
     }
-    /* The one guard loop, parameterised by WHICH flag decides. Calendar saves
-       and reorders ask calendar_upsert_ef_clients; the caption prompt save asks
-       settings_ef_clients. Same rules for both: a fresh read of its own, bounded,
-       retried a few times, never a cached or default answer. */
-    async function _calAssertFlagAllows(flagKey, clientOrSlug, onListed, what) {
+    async function _calAssertSavingOn(clientOrSlug) {
         let slug = '';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         let lastError = null;
         for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
             try {
-                const listed = await _calReadWriteFlagFresh(flagKey);
+                const listed = await _calReadWriteFlagFresh();
                 // Keep the boot copy honest too, so the rest of the page (which
                 // still asks the cached set for display decisions) agrees.
-                try { onListed(new Set(listed)); } catch (e) {}
-                if (!slug || !listed.has(slug)) throw _calWritePausedError(what);
+                try { _calSetUpsertEfClients(new Set(listed)); } catch (e) {}
+                if (!slug || !listed.has(slug)) throw _calWritePausedError();
                 return true;
             } catch (error) {
                 if (error && error.calWritePaused) throw error;
@@ -23799,15 +23861,6 @@
             }
         }
         throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
-    }
-    function _calAssertSavingOn(clientOrSlug) {
-        return _calAssertFlagAllows(CALENDAR_UPSERT_FLAG_KEY, clientOrSlug, set => _calSetUpsertEfClients(set), 'Saving');
-    }
-    /* Caption prompt saves (n8n exit, PR 3): settings_ef_clients is now purely a
-       visible save-pause switch. Off for a client pauses the save with a message;
-       it never reroutes to n8n. */
-    function _settingsAssertSavingOn(clientOrSlug) {
-        return _calAssertFlagAllows(SETTINGS_EF_FLAG_KEY, clientOrSlug, set => _settingsSetEfClients(set), 'Saving caption prompts');
     }
     function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
@@ -23921,7 +23974,7 @@
             _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
             _settingsSetFlagValue({ clients: [] });
-            console.warn('[Settings] settings EF flag read failed; caption saves stay held until a fresh read succeeds', e);
+            console.warn('[Settings] settings EF flag read failed; using n8n fallback', e);
         }
     }
     async function _settingsSubscribeFlag() {
@@ -23946,6 +23999,15 @@
             _settingsSetFlagPromise(_settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null));
         }
         return _settingsFlagPromise;
+    }
+    function _settingsUseEf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _settingsEfClients.has(slug);
+    }
+    function _settingsWriteUrlForClient(clientOrSlug, efUrl, n8nUrl) {
+        _settingsPrimeRoutingFlag();
+        return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
     }
     function _settingsWriteHeaders(source, url) {
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' }, url);
@@ -24474,6 +24536,7 @@
             if (result === null) throw Object.assign(new Error('write_pending'), { code: 'write_pending' });
             saved = true;
         } catch (error) {
+            _writeUiRecordFailure('production', 'title', error, { id: String(issue && issue.id || '') });
             _prodTitlePending.delete(key);
             _prodTitlePaint(key);
             _prodToast(error && error.code === 'write_pending'
@@ -25408,6 +25471,7 @@
                     // lapses. Log so a console-watching SMM can spot a backend issue
                     // without surfacing a scary modal.
                     console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                    _writeUiRecordSaveFailure('calendar', 'calendar_settings_save', e, null, { client_slug: _saveSlug });
                     return true;
                 }
             }
@@ -30010,11 +30074,11 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -30055,11 +30119,11 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -30328,6 +30392,8 @@
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        // Failed-saves log: an urgent ping that went out and did not come back confirmed.
+                        if (attempted) _writeUiRecordSaveFailure(native && native.surface === 'sxr' ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
                             releaseOwnHold();
@@ -30561,7 +30627,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -30661,7 +30727,7 @@
         const sendOne = async (post) => {
             try {
                 const _bulkSlug = calClientSlug(calState.client);
-                const resp = await _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post });
+                const resp = await _writeUiTrackSave('calendar', 'calendar_import', { client_slug: _bulkSlug }, () => _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post }), { requireOk: true });
                 const json = await resp.json();
                 return !!json.ok;
             } catch (e) { return false; }
@@ -39063,7 +39129,7 @@
         const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
+        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', () => ({ client_slug: useSlug, id: String(id || '') }), () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }), { requireOk: true });
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
@@ -39319,48 +39385,19 @@
        SyncView Calendar Sheet. The Edit caption prompt modal in
        the per-card kebab edits that tab via caption-prompts-save.
        ============================================================ */
-    /* n8n exit, PR 3: the prompts are read from the caption_prompts table, the
-       one source (it already holds every prompt the n8n Sheet held). The read is
-       a plain REST read: never a cache-buster (PostgREST answers 400 to any
-       parameter it does not know), freshness comes from cache: 'no-store'.
-
-       An ERROR-ONLY fallback keeps a failed read from making Generate send an
-       empty prompt (which would use the generic default, not the client's
-       stored one): first a last-known-good copy kept in this browser, and only
-       when that is empty the n8n caption-prompts-get webhook, which stays as the
-       reachable first-load fallback until a durable server copy exists. */
-    const CAL_CAPTION_PROMPTS_LKG_KEY = 'syncview_caption_prompts_lkg_v1';
-    const CAL_CAPTION_PROMPTS_READ_MS = 6000;
     async function _calLoadCaptionPromptsFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
         const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
-        /* Bounded: a request that connects and then never answers must not leave the
-           in-flight load pending forever, or the saved-copy and n8n fallbacks are never
-           reached and every Generate in the tab waits. The abort covers the body too. */
-        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        const timer = ctrl ? setTimeout(() => ctrl.abort(), CAL_CAPTION_PROMPTS_READ_MS) : null;
-        let rows;
-        try {
-            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            rows = await resp.json();
-        } finally { if (timer) clearTimeout(timer); }
-        if (!Array.isArray(rows)) throw new Error('caption_prompts: unexpected payload');
+        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const rows = await resp.json();
         const prompts = {};
-        rows.forEach(row => {
+        (Array.isArray(rows) ? rows : []).forEach(row => {
             const slug = String((row && row.client_slug) || '').trim();
+            if (!slug || !_settingsUseEf(slug)) return;
             if (slug) prompts[slug] = String(row.prompt || '');
         });
         return prompts;
-    }
-    function _calCaptionPromptsLkgRead() {
-        try {
-            const raw = JSON.parse(localStorage.getItem(CAL_CAPTION_PROMPTS_LKG_KEY) || 'null');
-            return raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length ? raw : null;
-        } catch (e) { return null; }
-    }
-    function _calCaptionPromptsLkgWrite(prompts) {
-        try { if (prompts && Object.keys(prompts).length) localStorage.setItem(CAL_CAPTION_PROMPTS_LKG_KEY, JSON.stringify(prompts)); } catch (e) {}
     }
     async function _calLoadCaptionPromptsFromN8n() {
         const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
@@ -39373,19 +39410,17 @@
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
         _calSetCaptionPromptsInFlight((async () => {
             try {
-                let prompts = null;
+                const basePrompts = await _calLoadCaptionPromptsFromN8n();
+                _calSetCaptionPrompts(basePrompts);
                 try {
-                    prompts = await _calLoadCaptionPromptsFromSupabase();
-                    _calCaptionPromptsLkgWrite(prompts);
-                } catch (tableError) {
-                    console.warn('[Calendar] caption_prompts read failed; using the last saved copy', tableError);
-                    prompts = _calCaptionPromptsLkgRead();
-                    if (!prompts) {
-                        console.warn('[Calendar] no saved copy either; asking n8n caption-prompts-get once');
-                        prompts = await _calLoadCaptionPromptsFromN8n();
+                    await _settingsPrimeRoutingFlag();
+                    if (_settingsEfClients.size) {
+                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
+                        _calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));
                     }
+                } catch (supaError) {
+                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
-                _calSetCaptionPrompts(prompts);
                 _calSetCaptionPromptsLoaded(true);
             } catch (e) {
                 console.warn('[Calendar] caption prompts load failed', e);
@@ -39600,12 +39635,6 @@
         // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
         // above so a client switch during this await can't mis-target the job.
         if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
-        // Every source failed: sending now would silently use the generic default
-        // prompt instead of this client's own, so stop and say so.
-        if (!_calCaptionPromptsLoaded) {
-            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Could not load this client\u2019s caption prompt. Try again in a moment.');
-            return { ok: false, error: 'Caption prompt unavailable', skipped: true };
-        }
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
@@ -39702,6 +39731,8 @@
             job.status = 'error';
             job.error = job.error || 'The generator returned an empty caption — try again.';
         }
+        // Failed-saves log: a generation that ended in error, by fixed wording only.
+        if (status === 'error') _writeUiRecordFailure('calendar', 'caption_generate', { message: 'caption job failed' }, { client_slug: String(job.client || ''), id: String(job.pid || '') });
         let applied = false;
         if (job.caption && (status === 'done' || status === 'error')) {
             const sameClient = calClientSlug(calState.client || '') === job.client;
@@ -40066,20 +40097,15 @@
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            // n8n exit, PR 3: fresh, bounded read of settings_ef_clients first. An
-            // unreadable flag holds the save, an unlisted client pauses it with a
-            // message; neither ever reroutes to n8n.
-            await _settingsAssertSavingOn(client);
-            const writeUrl = CAPTION_PROMPTS_SAVE_EF_URL;
-            const r = await fetch(writeUrl, {
+            const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('caption-prompts', writeUrl),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
-            });
+            }), { requireOk: true });
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
             _calCaptionPrompts[calClientSlug(client)] = promptText;
-            _calCaptionPromptsLkgWrite(_calCaptionPrompts);
             _calCloseCaptionPromptModal();
             showNotify('Saved', promptText
                 ? 'Custom caption prompt saved for ' + client + '.'
@@ -40362,6 +40388,7 @@
             }
         } catch (e) {
             console.warn('[Calendar] reorder failed', e);
+            _writeUiRecordSaveFailure('calendar', 'calendar_reorder', e, null, { client_slug: slug });
             // Feedback via a toast, not the header badge that displaced the
             // toolbar. Drop the optimistic guard for the ids this write tried to
             // set — but only where a newer drag hasn't already superseded them —
@@ -63249,11 +63276,11 @@
     }
     function _sxrReorderFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
-        const post = (url) => fetch(url, {
+        const post = (url) => _writeUiTrackSave('sxr', 'sample_reorder', () => ({ client_slug: String(payload && payload.client || '') }), () => fetch(url, {
             method: 'POST',
             headers: _sxrWriteHeaders(source, url),
             body: JSON.stringify(payload)
-        });
+        }));
         if (!_sxrSampleUseEf(clientOrSlug)) return post(SXR_REORDER_N8N_URL);
         return post(SXR_REORDER_EF_URL).then(async (resp) => {
             let json = null;
@@ -64920,7 +64947,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt');
+                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -65570,11 +65597,11 @@
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -65609,11 +65636,11 @@
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        });
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -65778,7 +65805,7 @@
         const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
         const archivedAt = new Date().toISOString();
-        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui');
+        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
         // Same rule as the Calendar (owner ruling 2026-08-17, extended to
         // samples 2026-09-28): archiving parks the sample's work items in
@@ -70192,7 +70219,7 @@
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
-        const resp = await _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui');
+        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'), { requireOk: true });
         if (!resp.ok) throw new Error('http ' + resp.status);
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
@@ -71866,6 +71893,7 @@
                 // rather than clearing the draft and telling the operator it queued.
                 if (resp.ok === false) {
                     tkState.progress = 0;
+                    _tkRecordFailure('tiktok_upload', 0);
                     tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
                     _tkRenderForm();
                     return;
@@ -71874,6 +71902,7 @@
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload', xhr.status);
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
             }
@@ -71882,6 +71911,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = 'Network error — the upload could not reach n8n. Try again.';
             _tkRenderForm();
         };
@@ -71962,6 +71992,7 @@
                 _tkActiveXhr = null;
                 tkState.submitting = false;
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload_prepare', urlXhr.status);
                 tkState.error = _tkExplainError(urlXhr);
                 _tkRenderForm();
                 return;
@@ -71972,6 +72003,7 @@
                 _tkActiveXhr = null;
                 tkState.submitting = false;
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload_prepare', 0);
                 tkState.error = 'Could not prepare the upload — ' + (mint.error || 'no upload url returned') + '.';
                 _tkRenderForm();
                 return;
@@ -71982,6 +72014,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload_prepare', 0, true);
             tkState.error = 'Network error — could not reach n8n to prepare the upload. Try again.';
             _tkRenderForm();
         };
@@ -72012,6 +72045,7 @@
                 _tkActiveXhr = null;
                 tkState.submitting = false;
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_storage_put', putXhr.status);
                 tkState.error = `Video upload to storage failed (HTTP ${putXhr.status}). Try again.`;
                 _tkRenderForm();
                 return;
@@ -72022,6 +72056,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_storage_put', 0, true);
             tkState.error = 'Network error while uploading the video to storage. Try again.';
             _tkRenderForm();
         };
@@ -72066,6 +72101,7 @@
                 // can still carry ok:false when Post For Me rejected the post.
                 if (resp.ok === false) {
                     tkState.progress = 0;
+                    _tkRecordFailure('tiktok_upload', 0);
                     tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
                     _tkRenderForm();
                     return;
@@ -72074,6 +72110,7 @@
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload', xhr.status);
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
             }
@@ -72082,6 +72119,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = 'The video finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the video (that part is not saved between attempts).';
             _tkRenderForm();
         };
@@ -72139,6 +72177,7 @@
             _tkActivePhotoAbort = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            if (e.name !== 'AbortError') _writeUiRecordSaveFailure('tiktok', 'tiktok_photo_upload', e, null, {});
             tkState.error = e.name === 'AbortError' ? 'Upload cancelled.' : (e.message || 'Image upload failed. Try again.');
             _tkRenderForm();
             return;
@@ -72175,6 +72214,7 @@
                 // rather than clearing the draft and telling the operator it queued.
                 if (resp.ok === false) {
                     tkState.progress = 0;
+                    _tkRecordFailure('tiktok_upload', 0);
                     tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
                     _tkRenderForm();
                     return;
@@ -72183,6 +72223,7 @@
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
+                _tkRecordFailure('tiktok_upload', xhr.status);
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
             }
@@ -72191,6 +72232,7 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = 'The images finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the images (that part is not saved between attempts).';
             _tkRenderForm();
         };
@@ -72204,6 +72246,15 @@
         xhr.send(fd);
     }
 
+    // Failed-saves log (Priority 4): every way a TikTok upload can fail is
+    // recorded once, next to the message the person sees. Status only; the
+    // file, title and links never leave the page.
+    function _tkRecordFailure(operation, status, network) {
+        const shape = { message: status ? 'HTTP ' + status : (network ? 'network error' : 'upload rejected') };
+        if (status) shape.status = status;
+        else if (network) shape.network = true;
+        _writeUiRecordFailure('tiktok', operation, shape, {});
+    }
     function _tkExplainError(xhr) {
         try {
             const j = JSON.parse(xhr.responseText || '{}');
@@ -72404,7 +72455,7 @@
     async function _tkCancelRow(id) {
         showConfirm('Cancel upload?', 'This marks the upload as cancelled in your queue. If it was already scheduled in Post For Me you may also need to cancel it there. The video file stays on your computer.', async () => {
             try {
-                const r = await fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+                const r = await _writeUiTrackSave('tiktok', 'tiktok_cancel', {}, () => fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }));
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 _tkSavePending(_tkLoadPending().filter(p => p.id !== id));
                 Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
@@ -72427,7 +72478,7 @@
 
     async function _tkRetryRow(id) {
         try {
-            const r = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' });
+            const r = await _writeUiTrackSave('tiktok', 'tiktok_retry', {}, () => fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' }));
             if (!r.ok) throw new Error('HTTP ' + r.status);
             Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
         } catch (e) {
@@ -72962,6 +73013,7 @@
             checkpointCommittedSource();
         }
         const resp = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+        let lastResp = resp;
         let json = await resp.json().catch(() => ({}));
         /* SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push
            this same call just made (above) can make calendar-upsert refuse THIS
@@ -73016,10 +73068,15 @@
                 item.post._baseAt = freshAt;
                 retryIssued = true;
                 const retry = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+                lastResp = retry;
                 json = await retry.json().catch(() => ({}));
             }
         }
-        if (!json || !json.ok) { const err = new Error((json && json.error) || 'Save failed'); err._calRetryIssued = retryIssued; throw err; }
+        if (!json || !json.ok) {
+            const err = new Error((json && json.error) || 'Save failed'); err._calRetryIssued = retryIssued;
+            _writeUiRecordSaveFailure('calendar', 'kasper_post_save', err, lastResp, { client_slug: item.slug, id: String(item.post.id || '') });
+            throw err;
+        }
         if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(item.post, sourceRepairRefsForWrite);
         delete item.post._writeUiRetrySourceAt;
         delete item.post._writeUiRetryPrincipal;
@@ -73580,12 +73637,15 @@
     }
     async function _hpCall(payload, controller) {
         await _syncviewRequireStaffIdentity('hiring');
-        const response = await fetch(HIRING_APPLICATIONS_EF_URL, {
+        const send = () => fetch(HIRING_APPLICATIONS_EF_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, HIRING_APPLICATIONS_EF_URL),
             body: JSON.stringify(payload),
             signal: controller && controller.signal,
         });
+        // Listing and opening an application are reads; every other action is a save.
+        const isRead = !payload || payload.action === 'list' || payload.action === 'detail';
+        const response = await (isRead ? send() : _writeUiTrackSave('hiring', ('hiring_' + payload.action).slice(0, 40), {}, send, { requireOk: true }));
         const data = await response.json().catch(() => null);
         if (!response.ok || !data || data.ok !== true) {
             const error = new Error((data && data.error) || ('http_' + response.status));
@@ -74273,6 +74333,7 @@
                 _siShowDone(submission, resp || {});
             })
             .catch(e => {
+                _writeUiRecordSaveFailure('sales_intake', 'sales_intake_submit', e, null, {});
                 btn.disabled = false; btn.textContent = 'Create agreement & send';
                 err.style.display = 'block';
                 err.textContent = 'Could not send the intake (' + ((e && e.message) || 'network error') + '). Nothing was lost — your answers are saved in this browser. Try again in a minute.';
@@ -75624,11 +75685,14 @@
         opts = opts || {};
         const ident = await _ccEnsureIdentity();
         const body = Object.assign({}, payload || {}, { action, actor: { name: ident.member.name, role: ident.role } });
-        const resp = await fetch(CC_EDGE_URL, {
+        const send = () => fetch(CC_EDGE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(body),
         });
+        // Listing and history are reads; every other action changes a credential.
+        const isRead = action === 'list' || action === 'history';
+        const resp = await (isRead ? send() : _writeUiTrackSave('credentials', ('credentials_' + action).slice(0, 40), {}, send, { requireOk: true }));
         let json = null;
         try { json = await resp.json(); } catch { json = null; }
         if (resp.status === 401) {
@@ -77349,11 +77413,11 @@
     const CA_FIELD_LABELS = Object.fromEntries(CA_GROUPS.concat([CA_RESEARCH]).flatMap(g => g.fields));
     async function _caEditPost(action, extra) {
         const ident = await _ccEnsureIdentity();
-        const resp = await fetch(CA_WRITE_URL, {
+        const resp = await _writeUiTrackSave('client_profile', ('client_profile_' + action).slice(0, 40), {}, () => fetch(CA_WRITE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
-        });
+        }), { requireOk: true });
         let json = null;
         try { json = await resp.json(); } catch (e) { json = null; }
         return { resp, json: json || {}, ident };
@@ -81248,4 +81312,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-f9ede948265d.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-37d9483c4e29.js");

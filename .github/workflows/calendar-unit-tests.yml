@@ -201,6 +201,14 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/templates-social-links-browser.js
+      - name: Saves outside the gateway report their refusals to the failed-saves log
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/failed-saves-beacon-browser.js
+      - name: Client approve and request-changes requests are unchanged
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/client-review-requests-unchanged-browser.js
       - name: Split load, opt-out and on-demand areas (browser)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

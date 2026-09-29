@@ -75,7 +75,7 @@ function world(opts) {
     console: { warn: () => {}, log: () => {} },
     Promise, Error, Object, String, Date,
   };
-  vm.createContext(sandbox);
+  Object.assign(sandbox, require('./helpers/write-log-stand-ins')); vm.createContext(sandbox);
   vm.runInContext(extractFn('_sxrArchiveParkWorkItems') + '\n' + extractFn('_sxrArchiveOne')
     + '\nthis.archiveOne = _sxrArchiveOne;', sandbox);
   return { archiveOne: sandbox.archiveOne, order, pushes, notices };

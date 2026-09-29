@@ -1433,3 +1433,10 @@ poll, without disabling Production:
   flag, table, Edge Function or n8n change.
 - **One person:** opening SyncLinear with `?prod=1&view=list`, or picking
   "All" in Workload's editor filter, overrides the default for that visit.
+
+## 2026-09-29 - inverse for the sub-issue parent-name header (browser only)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). It adds no
+  flag, table, Edge Function or n8n change.
+- The only new network call is a read-only, single-row name lookup that times
+  out on its own; reverting removes it.

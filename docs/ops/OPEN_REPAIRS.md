@@ -29966,3 +29966,5 @@ about at 0, 10, 20, then every 30 minutes, then hourly (only answers from Post F
 
 **Not changed:** the uploads, result callback and cancel stay on n8n; the list still reads the sheet. No n8n workflow was edited.
 **Way back:** revert this commit. **Left:** measure the two workflows again 7 days after it ships.
+
+**Update, same day:** the CI job `entry-links-boot` hit its 10 minute limit and was cancelled (not failed) once this step's new test was added to the many browser suites it already runs; its time limit is now 15 minutes (`.github/workflows/calendar-unit-tests.yml`).

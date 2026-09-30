@@ -249,7 +249,7 @@ function ok(cond, msg) {
     ok(state.verifyUrls.length >= 1 && state.verifyUrls.every(q => paramKeys(q).split(',').every(k => ['select', 'client', 'limit', 'offset', 'order', 'id'].includes(k)) && !/_t=/.test(q)),
       'the confirmation read uses only known PostgREST parameters: ' + JSON.stringify(state.verifyUrls));
     const src = fs.readFileSync(path.join(ROOT, 'src/index/120-calendar-flags-write-repair.js.part'), 'utf8');
-    const guardSrc = src.slice(src.indexOf('function _calReadWriteFlagFresh'), src.indexOf('async function _calAssertSavingOn'));
+    const guardSrc = src.slice(src.indexOf('function _calReadWriteFlagFresh'), src.indexOf('async function _calAssertFlagAllows'));
     ok(guardSrc.length > 200 && /cache: 'no-store'/.test(guardSrc) && !/_t=|Date\.now\(\)/.test(guardSrc),
       'the guard source sets cache: no-store and builds no timestamp parameter');
 

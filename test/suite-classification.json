@@ -1418,6 +1418,22 @@
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Calendar caption prompt table read, its last-known-good and n8n error-only fallbacks, and the fresh settings-flag guard on the save.",
       "reproduce": "node test/caption-prompts-guard-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
+    },
+    {
+      "file": "samples-write-guard-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the staff Sample Review write guard: fresh flag read per write, hold and pause, reorder, zero n8n requests, exact REST query parameters.",
+      "reproduce": "node test/samples-write-guard-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "samples-client-carveout-byte-identical-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Sample Review client approve and request-changes requests, compared byte for byte to a golden captured from main.",
+      "reproduce": "node test/samples-client-carveout-byte-identical-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
     }
   ]
 }

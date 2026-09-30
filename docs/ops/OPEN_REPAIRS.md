@@ -29877,7 +29877,26 @@ that does not list the client pauses it with a message, neither goes to n8n. The
 approve and request-changes test). `Caption Prompts - Save` (n8n) can be deactivated 30 days after
 this ships; `Caption Prompts - Get` stays as the first-load fallback until a durable server copy exists.
 
-## 292. [2026-09-29] The live site published the whole repository; it now publishes an allowlist
+## 292. [2026-09-29] n8n exit PR 4: Sample Review saves and reorders no longer reach n8n for staff
+
+Every staff and Kasper Sample Review save and reorder now goes to `sample-review-upsert` and
+`sample-review-reorder` (functions) only, after a fresh, bounded read of `sample_review_ef_clients`
+(own read per write, two seconds, retried three times, `cache: 'no-store'`, only `select`, `key`,
+`limit`; run once against the real database: HTTP 200, 43 clients). An unreadable or malformed flag
+holds the write; a client the flag does not list is paused with a message; neither goes to n8n.
+`sample-review-upsert` itself stays frozen and ungated. Client approve and request-changes are carved
+out: a write from a client link keeps its routing and request, proven byte for byte
+(`test/samples-client-carveout-byte-identical-browser.js`, golden from main). Staff Samples repairs
+still pinned `webhook` migrate to Supabase on load, writer and verification source together in one
+write (the Calendar migration now covers both surfaces). The n8n `sample-review-reorder` call is gone;
+`sample-review-get` stays as the read fallback. Also fixed: the four urgent-marker writes (two Samples,
+two Calendar) called the function with a bare fetch and skipped the fresh flag read that PR 2 added to
+every other Calendar write; they now use the guarded step. `Sample Review - Upsert` and `Reorder`
+(n8n) can be deactivated 30 days after this ships. The urgent ping now asks the save guard BEFORE the Slack
+message goes out (`preflight`), so a paused or held save cannot leave a delivered ping without its marker
+and allow a duplicate; the marker writes sit inside the failed-saves tracker.
+
+## 294. [2026-09-29] The live site published the whole repository; it now publishes an allowlist
 
 **Found by:** the repo-private plan (`docs/plans/2026-09-29-repo-private-plan.md`, section 5.1), by fetching
 live addresses. GitHub Pages was built from the branch root, so `syncview.synchrosocial.com` also served

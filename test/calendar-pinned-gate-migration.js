@@ -1,7 +1,7 @@
 'use strict';
 /*
  * n8n exit, PR 2: a staff browser that returns after the change and still holds
- * a Calendar repair pinned to the n8n writer is moved onto Supabase ON LOAD, by
+ * a Calendar or Samples repair pinned to the n8n writer is moved onto Supabase ON LOAD, by
  * code, and the move is ATOMIC.
  *
  * "Atomic" is proven here, not asserted: the writer choice
@@ -63,7 +63,7 @@ function world(items, options) {
   };
   vm.createContext(ctx);
   ['_writeUiLegacyRawOutboxRows', '_writeUiLegacyTweakKey', '_writeUiLegacyPinnedSourceTransport',
-    '_writeUiLegacySourceRows', '_writeUiMigratePinnedCalendarGates'].forEach(name => load(ctx, name));
+    '_writeUiLegacySourceRows', '_writeUiMigratePinnedGates'].forEach(name => load(ctx, name));
   return { ctx, calls, get store() { return store; } };
 }
 
@@ -73,7 +73,7 @@ function world(items, options) {
   const before = JSON.parse(JSON.stringify(w.store));
   ok(w.ctx._writeUiLegacyPinnedSourceTransport('calendar', ['a']) === 'webhook',
     'before: the writer for the pinned repair is the n8n webhook');
-  let res = await w.ctx._writeUiMigratePinnedCalendarGates();
+  let res = await w.ctx._writeUiMigratePinnedGates();
   ok(res.migrated === 1 && res.kept === 0, 'one pinned gate migrated: ' + JSON.stringify(res));
   ok(w.calls.writes === 1, 'the whole queue is rewritten in exactly ONE write (atomic)');
   ok(w.calls.stateChecks.length === 1 && w.calls.stateChecks[0] === 'supabase',
@@ -93,30 +93,37 @@ function world(items, options) {
 
   // 2. Supabase cannot answer: leave the pin alone and try again next time.
   w = world([gateItem('a')], { state: 'unknown' });
-  res = await w.ctx._writeUiMigratePinnedCalendarGates();
+  res = await w.ctx._writeUiMigratePinnedGates();
   ok(res.migrated === 0 && res.kept === 1 && w.calls.writes === 0 && w.store[0].source_gate.source_transport === 'webhook',
     'an unanswerable verification leaves the pin exactly as it was, zero writes');
 
   // 3. Another person's gate is not touched.
   w = world([gateItem('a')], { state: 'principal_mismatch' });
-  res = await w.ctx._writeUiMigratePinnedCalendarGates();
+  res = await w.ctx._writeUiMigratePinnedGates();
   ok(res.migrated === 0 && w.calls.writes === 0, 'a gate owned by another identity is left alone');
 
   // 4. A client link is carved out entirely: no read, no write.
   w = world([gateItem('a')], { client: true });
-  res = await w.ctx._writeUiMigratePinnedCalendarGates();
+  res = await w.ctx._writeUiMigratePinnedGates();
   ok(res.migrated === 0 && w.calls.writes === 0 && w.calls.stateChecks.length === 0 && w.calls.fetches.length === 0,
     'on a client link nothing is read, checked or written (approve and request-changes carve-out)');
 
   // 5. A gate with a committed-tweak ledger row stays pinned (signature includes the transport).
   w = world([gateItem('a')], { ledger: [{ key: 'calendar|fixture|card-a|caption' }] });
-  res = await w.ctx._writeUiMigratePinnedCalendarGates();
+  res = await w.ctx._writeUiMigratePinnedGates();
   ok(res.migrated === 0 && res.kept === 1 && w.calls.writes === 0, 'a gate with a committed-tweak ledger row is left pinned, not half-moved');
 
-  // 6. Samples gates are PR 4's.
+  // 6. Samples gates (PR 4).
   w = world([gateItem('a', { source_gate: Object.assign(gateItem('a').source_gate, { surface: 'sxr' }) })]);
-  res = await w.ctx._writeUiMigratePinnedCalendarGates();
-  ok(res.migrated === 0 && w.calls.writes === 0 && w.store[0].source_gate.source_transport === 'webhook', 'a Samples gate is not touched here');
+  res = await w.ctx._writeUiMigratePinnedGates();
+  ok(res.migrated === 1 && w.calls.writes === 1 && w.store[0].source_gate.source_transport === 'supabase',
+    'a Samples gate migrates the same way (n8n exit PR 4), verified against Supabase first');
+  ok(w.calls.stateChecks.length === 1 && w.calls.stateChecks[0] === 'supabase', 'the Samples probe copy read as supabase');
+  // A Samples gate is read from the sample_reviews table once it has moved, never sample-review-get.
+  w.calls.fetches.length = 0;
+  await w.ctx._writeUiLegacySourceRows(w.store[0]);
+  ok(w.calls.fetches.some(u => /db\.invalid\/rest\/v1\/sample_reviews\?/.test(u)) && !w.calls.fetches.some(u => /sample-review-get/.test(u)),
+    'the moved Samples gate is verified from sample_reviews, not the n8n sample-review-get');
 
   // 7. Row changed under us between the check and the lock: no rewrite.
   w = world([gateItem('a')]);
@@ -127,13 +134,13 @@ function world(items, options) {
     w.calls.writes = 0;
     return s;
   };
-  res = await w.ctx._writeUiMigratePinnedCalendarGates();
+  res = await w.ctx._writeUiMigratePinnedGates();
   ok(res.migrated === 0 && w.calls.writes === 0, 'a gate another tab already moved is not rewritten a second time');
 
   // 8. Idempotent.
   w = world([gateItem('a')]);
-  await w.ctx._writeUiMigratePinnedCalendarGates();
-  res = await w.ctx._writeUiMigratePinnedCalendarGates();
+  await w.ctx._writeUiMigratePinnedGates();
+  res = await w.ctx._writeUiMigratePinnedGates();
   ok(res.migrated === 0 && res.kept === 0 && w.calls.writes === 1, 'running it again does nothing');
 
   if (failures) { console.error('\ncalendar-pinned-gate-migration: ' + failures + ' check(s) failed'); process.exit(1); }

@@ -58,7 +58,7 @@ here with where it stopped, so it can be restarted.
    `node scripts/split-switch.js clients off`; one browser `?split=0`. The client
    approve and request-changes tests pass on the parts. Left after this: step 6
    (measure everything again).
-6. **Make this repo private: NOT NOW. Owner decision 2026-09-29 (later the same day): the repo stays public.** Only the site publishing fix from the plan is being done: **BUILT, waiting for Lighthouse to merge and the owner to switch the Pages source** (OPEN_REPAIRS 292, `docs/ops/PAGES_SITE_ALLOWLIST.md`). The live site served the whole repo (docs, scripts, migrations); it will publish 120 allowlisted files instead. One-setting way back: Pages source to "Deploy from a branch". The rest of this item is the earlier plan, kept for reference: **Make this repo private, maintainably (owner wanted it earlier on 2026-09-29; this
+6. **Make this repo private: NOT NOW. Owner decision 2026-09-29 (later the same day): the repo stays public.** Only the site publishing fix from the plan is being done: **BUILT, waiting for Lighthouse to merge and the owner to switch the Pages source** (OPEN_REPAIRS 294, `docs/ops/PAGES_SITE_ALLOWLIST.md`). The live site served the whole repo (docs, scripts, migrations); it will publish 120 allowlisted files instead. One-setting way back: Pages source to "Deploy from a branch". The rest of this item is the earlier plan, kept for reference: **Make this repo private, maintainably (owner wanted it earlier on 2026-09-29; this
    replaced the 2026-09-24 "keep it public for now").** Move scheduled jobs and
    automation off GitHub Actions (for example Supabase pg_cron and Edge
    Functions) so going private costs little. Keep hosting on GitHub Pages
@@ -99,7 +99,7 @@ here with where it stopped, so it can be restarted.
      Tabs workflow stays on for 30 days. **PR 2 (Calendar, #1858) merged 2026-09-29:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
      approve and request-changes untouched (byte-identical test); pinned repairs migrate on load;
      the n8n Calendar workflows stay on 30 days after it ships. **PR 3 (Caption Prompts, session Anvil) built 2026-09-29,
-     awaiting Lighthouse's merge:** prompts are read from the `caption_prompts` table (browser saved copy, then n8n `caption-prompts-get`, only on error); the save is guarded by a fresh, bounded read of `settings_ef_clients` (paused or held, never n8n). `Caption Prompts - Save` can be deactivated 30 days after it ships; `Get` stays as the first-load fallback. Next: Sample Review (PR 4). Owner decisions: the client approve and request-changes buttons are
+     awaiting Lighthouse's merge:** prompts are read from the `caption_prompts` table (browser saved copy, then n8n `caption-prompts-get`, only on error); the save is guarded by a fresh, bounded read of `settings_ef_clients` (paused or held, never n8n). `Caption Prompts - Save` can be deactivated 30 days after it ships; `Get` stays as the first-load fallback. **PR 4 (Sample Review, session Anvil) built 2026-09-29, stacked on PR 3, awaiting Lighthouse's merge:** staff Sample saves and reorders hold or pause on a fresh `sample_review_ef_clients` read and never reach n8n; client approve and request-changes untouched (byte-identical test); `sample-review-upsert` stays frozen; pinned Samples repairs migrate on load; the four urgent-marker writes now use the guarded step. `Sample Review - Upsert` and `Reorder` (n8n) can be deactivated 30 days after it ships; `Get` stays as the read fallback. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
    - **Staff can see and restore recently archived Calendar cards and Samples**
      (owner 2026-09-29): BUILT in PR 1853 (session Harbor), waiting for
@@ -151,8 +151,16 @@ hiring senders when the editor hire closes.
   single consolidated problem message with a quiet default proposed in
   `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, AFTER the analytics
   move to Supabase lands.
-- **Modularization C3 step 0 waits for Mason's C2 (owner, 2026-09-28).** Do
-  not start it while the load-per-tab split is still editing the same files.
+- **Modularization C3: every script fragment is a module; only step 13 (the
+  runtime switch) is left, and it waits for the owner's go.** The prep is in
+  (Keystone, 2026-09-29): each module lists the functions its buttons call on
+  `window`, a check fails if a list goes stale, and the screen guard
+  (`inline-handlers-browser.js`) enforces it. Owed: delete the dead
+  `_sxrSyncStatusFromLinear` calls in `270` and update `test/sxr-move-link-*.js`. The measured proposal for the
+  switch is `docs/plans/2026-09-29-c3-step13-switch-proposal.md`: serve today's
+  code in today's order (native modules and a plain bundle both fail to boot,
+  because of load order), and re-run `prod-boot-budget.js` on a machine with
+  the live backend first.
 
 ## Needs a session
 

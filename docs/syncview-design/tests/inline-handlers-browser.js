@@ -18,6 +18,15 @@
  *     opened so its Approve / Request change buttons are on screen.
  * Every request outside the local server is answered locally and empty; no
  * backend, key or client data is needed.
+ *
+ * Runtime-switch guard (plan step 13, docs/plans/2026-09-24-modularization-c3-plan.md).
+ * Today every function is on `window` for free, because the page is one classic
+ * script. Real ES modules keep their names private, so each module ends with
+ * one generated `Object.assign(window, {...})` (scripts/check-modules.js
+ * --write-window-exports). This suite proves the blocks are complete against
+ * what the screens really draw: every function a rendered handler names must
+ * be in some module's block (unless it is a browser built-in), and no block may
+ * name a browser built-in (copying onto window would overwrite it).
  */
 const { chromium } = require('playwright');
 const { serveStatic, formatFailures } = require('./prod-test-utils');
@@ -25,6 +34,21 @@ const { seedStaffGate } = require('../../../qa/staff-gate-seed');
 
 const SETTLE_MS = Number(process.env.INLINE_HANDLERS_SETTLE_MS || 1500);
 const { CORS, clientLinkRoute, clientLinkUrl, clientLinkCard } = require('./client-link-fixture');
+const fs = require('fs');
+const path = require('path');
+
+// The names the modules' window export blocks carry, read from the sources.
+function windowExportNames() {
+  const dir = path.join(__dirname, '..', '..', '..', 'src', 'index');
+  const names = new Set();
+  for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.js.part'))) {
+    const text = fs.readFileSync(path.join(dir, f), 'utf8');
+    for (const m of text.matchAll(/Object\.assign\(window, \{([\s\S]*?)\n    \}\);/g)) {
+      for (const n of m[1].split(',').map(x => x.trim()).filter(Boolean)) names.add(n);
+    }
+  }
+  return names;
+}
 
 // Reads the rendered page: every function an on* attribute calls, and which
 // of them are not on window right now.
@@ -41,6 +65,7 @@ const collect = () => {
   // separately, whether it is on window, which real ES modules will need.
   const resolves = n => { try { return (0, eval)('typeof ' + n) === 'function'; } catch (e) { return false; } };
   return {
+    names: [...names],
     checked: names.size,
     missing: [...names].filter(n => !resolves(n)).sort(),
     notOnWindow: [...names].filter(n => resolves(n) && typeof window[n] !== 'function').sort(),
@@ -62,10 +87,12 @@ const emptyAnswer = r => {
 };
 
 const notOnWindow = new Set();
+const seenNames = new Set();
 async function check(page, label, failures, totals) {
   const r = await page.evaluate(collect);
   totals.push(`${label} ${r.checked}`);
   for (const n of r.notOnWindow) notOnWindow.add(n);
+  for (const n of r.names) seenNames.add(n);
   if (!r.checked) failures.push(`${label}: no inline handlers found on screen; the screen probably did not draw`);
   if (r.missing.length) failures.push(`${label}: ${r.missing.length} button function(s) do not exist: ${r.missing.slice(0, 12).join(', ')}`);
 }
@@ -76,6 +103,7 @@ async function check(page, label, failures, totals) {
   const browser = await chromium.launch({ headless: true });
   const failures = [];
   const totals = [];
+  let builtin = [];
   try {
     // Staff tabs.
     {
@@ -151,14 +179,29 @@ async function check(page, label, failures, totals) {
       await check(page, label, failures, totals);
       await context.close();
     }
+    // Which of the names are browser built-ins (a blank page has none of ours).
+    const blankContext = await browser.newContext();
+    const blank = await blankContext.newPage();
+    builtin = await blank.evaluate(names => names.filter(n => n in window), [...new Set([...seenNames, ...windowExportNames()])]);
+    await blankContext.close();
   } finally {
     await browser.close();
     server.close();
   }
   console.log(`inline-handlers: functions checked per screen: ${totals.join('; ')}`);
-  // Informational until the runtime switch to real modules, where each of
-  // these must be put on window or its button stops working.
-  if (notOnWindow.size) console.log(`inline-handlers: reachable today but not on window (${notOnWindow.size}): ${[...notOnWindow].sort().join(', ')}`);
+  // A function a button calls that resolves but is not a property of window
+  // (a top-level const, say) would stop working under real modules.
+  if (notOnWindow.size) failures.push(`${notOnWindow.size} handler function(s) resolve but are not on window: ${[...notOnWindow].sort().join(', ')}`);
+
+  // Runtime-switch guard: the generated window export blocks against what the
+  // screens drew.
+  const exported = windowExportNames();
+  const builtinSet = new Set(builtin);
+  const unexported = [...seenNames].filter(n => !builtinSet.has(n) && !exported.has(n)).sort();
+  const collisions = [...exported].filter(n => builtinSet.has(n)).sort();
+  if (unexported.length) failures.push(`${unexported.length} function(s) a drawn button calls are in no module's window export block (run: node scripts/check-modules.js --write-window-exports): ${unexported.slice(0, 12).join(', ')}`);
+  if (collisions.length) failures.push(`window export block(s) name a browser built-in, which the copy would overwrite: ${collisions.join(', ')}`);
+  console.log(`inline-handlers: ${exported.size} names in window export blocks; ${seenNames.size} distinct names drawn on screen; ${unexported.length} unexported, ${collisions.length} built-in collisions`);
   if (failures.length) {
     console.error(formatFailures('inline-handlers failures', failures));
     process.exit(1);

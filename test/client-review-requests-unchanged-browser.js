@@ -39,7 +39,10 @@ const SURFACES = {
   samples: { card: 'sr_review_fixture_1', query: { v: 'sample-reviews', sxr: '1' }, table: 'sample_reviews', tweakComp: 'graphic' },
 };
 const FUNCTIONS = ['_calReviewApprove', '_calReviewRequestTweak', '_sxrReviewApprove', '_sxrReviewRequestTweak',
-  '_writeUiGatewayPost', '_calUpsertFetch', '_calUpsertFetchClientLink', '_calUpsertFetchGuarded', '_calUpsertFetchPinned', '_sxrUpsertFetch', '_sxrUpsertFetchPinned'];
+  '_writeUiGatewayPost', '_calUpsertFetch', '_calUpsertFetchClientLink', '_calUpsertFetchGuarded', '_calUpsertFetchPinned', '_sxrUpsertFetch', '_sxrUpsertFetchClientLink', '_sxrUpsertFetchGuarded', '_sxrUpsertFetchPinned'];
+// n8n exit PR 4: _sxrUpsertFetch became a branch (client link -> _sxrUpsertFetchClientLink, whose body is the
+// old _sxrUpsertFetch body verbatim; staff -> _sxrUpsertFetchGuarded). The recorded REQUESTS are unchanged; only
+// these four source hashes were refreshed, exactly as PR 2 did for the Calendar twins.
 
 // Per-run values (times, random ids) must not make two identical clicks differ.
 function normalise(value) {

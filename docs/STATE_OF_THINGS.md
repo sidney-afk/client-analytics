@@ -48,8 +48,9 @@ here with where it stopped, so it can be restarted.
    Measured live: `traffic` fills for browser reports; the gateway's own rows
    still show none because `production-write` was deployed before #1643 and needs
    its next Section 4 deploy. Left: that deploy (owner's capture ritual).
-5. **Load-per-tab, step 5: client links get the smaller page. BUILT 2026-09-29,
-   waiting for Lighthouse to merge and Vigil to hand-test the live client link.**
+5. **Load-per-tab, step 5: client links get the smaller page. DONE: merged (#1868, key fix #1872),
+   Vigil hand-tested the live client links 2026-09-30 (all five steps pass, test client only).
+   Parts are also minified since 2026-09-30 (#1873).**
    The owner gave the go and waived the week of staff use. A client link now loads
    the parts (no TikTok, Templates, Workload or Kasper code, and no quiet download
    of them); forms, the SMM weekly report and signed-out visitors still get the whole
@@ -60,7 +61,7 @@ here with where it stopped, so it can be restarted.
    follow-up fix: #1868 shipped with the link check refusing that key, found by Vigil on the live site). The client
    approve and request-changes tests pass on the parts. Left after this: step 6
    (measure everything again).
-6. **Make this repo private: NOT NOW. Owner decision 2026-09-29 (later the same day): the repo stays public.** Only the site publishing fix from the plan is being done: **BUILT, waiting for Lighthouse to merge and the owner to switch the Pages source** (OPEN_REPAIRS 294, `docs/ops/PAGES_SITE_ALLOWLIST.md`). The live site served the whole repo (docs, scripts, migrations); it will publish the allowlisted files only (about 137). One-setting way back: Pages source to "Deploy from a branch". The rest of this item is the earlier plan, kept for reference: **Make this repo private, maintainably (owner wanted it earlier on 2026-09-29; this
+6. **Make this repo private: NOT NOW. Owner decision 2026-09-29 (later the same day): the repo stays public.** Only the site publishing fix from the plan is being done: **DONE (#1870, Pages source switched by the owner 2026-09-30; verified 0 app addresses failing, 0 of 17 source addresses published)** (OPEN_REPAIRS 294, `docs/ops/PAGES_SITE_ALLOWLIST.md`). The live site served the whole repo (docs, scripts, migrations); it will publish the allowlisted files only (about 137). One-setting way back: Pages source to "Deploy from a branch". The rest of this item is the earlier plan, kept for reference: **Make this repo private, maintainably (owner wanted it earlier on 2026-09-29; this
    replaced the 2026-09-24 "keep it public for now").** Move scheduled jobs and
    automation off GitHub Actions (for example Supabase pg_cron and Edge
    Functions) so going private costs little. Keep hosting on GitHub Pages
@@ -73,6 +74,14 @@ here with where it stopped, so it can be restarted.
    Pro), 90 percent of it pull-request checks, so moving scheduled jobs saves only
    about $13; and the live site publishes the whole repo (docs, scripts,
    migrations), so the Pages deploy must become an allowlist before any switch.
+6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30).** Order: TikTok poll trim
+   (step D, DONE #1878), caption progress (step B: table `caption_jobs` applied live 2026-09-30 with the
+   owner's go, function `caption-jobs` deployed and answering; the Generate Caption workflow edit is in
+   progress with Anvil and waits on one owner-supplied Frame.io link for the real end-to-end test),
+   then Finalizer trigger (A), Filming Docs edit function (E), read fallbacks (F), Booking Recovery
+   gating (C), and last the client approve and request-changes move. Every n8n edit is logged in
+   `docs/ops/N8N_EDIT_LOG.md`. Typed-in keys move to the existing n8n logins "Claude" and
+   "APIFY @HOUSE"; the staff key login is expected to be "SyncView Client Credentials Staff Key", a candidate only until a real call to `caption-jobs` answers 200 with it (that function accepts role keys only, unlike `client-credentials`).
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -221,6 +230,12 @@ hiring senders when the editor hire closes.
   dormant: the owner wants it, see priority item 6.)
 
 ## Done (was listed as open somewhere)
+
+- **Workload: unfinished work pinned to a past day is carried over (2026-09-30, #1875,
+  OPEN_REPAIRS 295).** It shows on today (or Monday at a weekend, when Workload opens on the
+  coming week) with a "Carried over" mark; the saved plan day is left unchanged. Cause found
+  on a card archived and unarchived with an old manual day.
+- **Two dormant censuses retired (#1871)** and **the load-per-tab split key fix (#1872).**
 
 - **Today shows fresh items about 2x sooner and never yesterday's list (2026-09-30;
   OPEN_REPAIRS 296).** Reads start from the head script, one parent check instead of eleven, and

@@ -30019,3 +30019,12 @@ Generate Caption workflow and points the page at the function behind a flag. The
 the migration's privileges, the deploy lane). `ef-deploy-provenance` and `deploy-single-function` updated for 45 slugs.
 **Way back:** nothing to undo before deploy; after it, `drop table public.caption_jobs` and do not deploy the function.
 **Left:** apply the migration and deploy (Lighthouse, owner's go), read the function back once, then build B2.
+
+## 299. [2026-09-30] Follow-up to 298: the caption_jobs migration is applied and the caption-jobs function is deployed
+
+**What:** 298's "Left" items one and two are done. Lighthouse applied `migrations/2026-09-30-caption-jobs.sql` with the
+owner's go (table read back: row security on, 0 rows, `service_role` DELETE/INSERT/SELECT/UPDATE only). The owner
+dispatched the one-function deploy for `caption-jobs` at main `72d8f80d6ba471f1f71514f22757d5a5cc062f74`; a call without a
+staff key answers 401. Recorded in `EXECUTION_LOG.md`.
+**Left:** step B2, the Generate Caption workflow edit. Its staff key login ("SyncView Client Credentials Staff Key") is a
+candidate until a real call answers 200 with it.

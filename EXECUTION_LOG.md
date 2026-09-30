@@ -4,6 +4,15 @@
 
 All times are UTC unless noted.
 
+## 2026-09-30 — caption_jobs table created and the caption-jobs function made live (owner's go; OPEN_REPAIRS 298, 299)
+
+`migrations/2026-09-30-caption-jobs.sql` applied by Lighthouse after the owner's go ("go on the caption table"); before it,
+`to_regclass('public.caption_jobs')` was null. Read back after: the table exists with row security on and 0 rows; grants are
+`service_role` DELETE, INSERT, SELECT, UPDATE and the owner role only (no `anon`, `authenticated` or PUBLIC). The owner then
+published the `caption-jobs` function through the one-function lane at main `72d8f80d6ba471f1f71514f22757d5a5cc062f74`.
+Read back: a call without a staff key answers 401, OPTIONS 204. Nothing reads or writes the table yet; the Generate Caption
+workflow edit (step B2) is next. **Way back:** `drop table public.caption_jobs;` and remove the function (progress rows only).
+
 ## 2026-09-24 — six native rows re-stamped with the native attribution (owner-approved)
 
 Attribution fields only (`source`, `reason`, `native_epoch`) on 6 rows whose Linear issues never existed; before values and the one-line undo are in OPEN_REPAIRS 246. A read-only sweep found no other row in this state.

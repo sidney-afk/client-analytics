@@ -32,10 +32,46 @@ except where noted. Runs counted by the API total for the four busiest, row by r
 **How the set was closed.** The workflow list was read twice in different shapes (sorted by last edit, then sorted by
 creation date, 200 per page, so 119 is below the page size and nothing was cut off). Both returned the same 119 ids, 76 active and
 43 inactive. Every active id was then looked up for runs, so a workflow missing from the list would still have to show up as
-an unknown id in the run list, and none did. Two workflows are hidden from this read access: one inactive (an old backup
-workflow) and one active (`Edge Alert Relay to DM`), so the active census is complete but that one workflow's runs and
-contents are not measured, and a workflow hidden from this access in future would be missed the same way. This supersedes the
+an unknown id in the run list, and none did. Two workflows were hidden from this read access: one inactive (an old backup
+workflow, still unreadable) and one active (`Edge Alert Relay to DM`, opened to access by the owner on 2026-09-30 and then read and
+counted). A workflow hidden from this access in future would be missed the same way. This supersedes the
 138 / 96 / 42 count in `docs/truth/N8N.md` (updated in this PR).
+
+## Owner decisions, 2026-09-30 (recorded here, in this PR)
+
+1. **Client approve and request-changes: move them off n8n (option b).** The two buttons move to the functions behind a new
+   byte for byte test that proves the request the function receives, and what the client sees (the same success and error
+   screens, the same saved card), are unchanged. This is the only step that touches the protected client path, so it is the last
+   build, and it has its own PR. Once it ships and the 30 day rule passes, `Calendar, Upsert Post` and `Sample Review, Upsert`
+   can be switched off.
+2. **Go to edit two n8n workflows.**
+   - *Slack Creative Channel Finalizer:* no 15 minute polling and no database timer. The onboarding session triggers the
+     finalizer directly at the right step of the onboarding runbook, and one daily safety check catches a client who is ready
+     but was never triggered. The onboarding runbook is updated in this PR (see step A).
+   - *Generate Caption:* the AI generation stays on n8n. Progress is written to Supabase and the Calendar page reads it there.
+     Tested end to end on the test client (step B).
+3. **Booking Recovery gating: yes, after proof.** Before anything is switched, a test proves every due recovery still sends,
+   with the same messages at the same time (step C).
+4. **No key rotation.** The two keys typed into workflow code stay valid. Moving them into n8n credentials is approved when
+   those workflows are edited anyway (steps A to C touch them). **I cannot create a credential from here** (the n8n tools I
+   have can list credentials, not create them), so the owner creates the two credentials in n8n's Credentials screen and tells
+   me their names; I then point the nodes at them. The Code steps that hold a key today become HTTP Request steps that use the
+   credential, which is a larger edit than a swap, and is written down in the edit record.
+5. **Edge Alert Relay: read on 2026-09-30 after the owner enabled access.** Active, three steps: a webhook that receives an
+   edge function alert, a code step that strips every character except letters, digits and `_.:@-` (capped at 96 each) and builds
+   one line of text, and a Slack message to the owner. It reads no data and calls nothing else. 45 runs in the 7 days, none
+   failed. The webhook has no sign-in, so anyone with the URL can make it send the owner a DM; the content is sanitised text
+   only, so the risk is noise, not data. **Verdict: keep, no change.**
+
+**Order, as decided:** merge this plan first (Lighthouse), then one PR per step, smallest risk first. The resulting order is
+D, B, A, E, F, C, then the client approve and request-changes move (call it step K), with G optional. Steps in the list below
+keep their letters; the order is this one.
+
+**Every n8n edit is written down.** Each PR that edits an n8n workflow adds an entry to `docs/ops/N8N_EDIT_LOG.md` (created by
+the first such PR, append only) with: the workflow's name and id, its version id before and after (from n8n's own version
+history), exactly which steps changed and why, how it was tested, and **how to undo it** (restore the named earlier version in
+n8n, with the version id written there). Nothing is deleted. No secret value is ever written in that file or anywhere in the
+repo. An edit that changes what a workflow does for a client (steps A and C) is first tried on the test client only.
 
 ## The two Hiring timers: left alone
 
@@ -78,7 +114,7 @@ about 8,700 a month each, 17,400 together. That is now the single largest block 
 | Urgent Kasper Review to Slack | 1 | 4 | Keep (owner: preserve urgent notifications) |
 | SyncView Weekly Backup, SMM Weekly Reminder | 2 | 9 | Keep |
 | Zero runs in the window (18 workflows: onboarding list and submit, sales nurture, monthly check-in, content ready notify, inbound SMS relay, sales intake submit, editor music upload x2, editors labor week, others) | 0 | 0 | Keep, nothing to save. Candidates for a later tidy-up, not phase 2 |
-| Edge Alert Relay to DM | not readable | not known | n8n answered "not available in MCP"; needs the owner to look in the n8n screen |
+| Edge Alert Relay to DM | 45 | 190 | **Keep**, read 2026-09-30 (decision 5): three steps, sanitised alert text to the owner's DM |
 
 Phase 1 workflows are not repeated here; they are in the switch-off table.
 
@@ -99,8 +135,8 @@ Phase 1 workflows are not repeated here; they are in the switch-off table.
 6. **Security findings from reading the graphs** (no secret values are written here, and these workflow files must never be
    committed to this public repo):
    - Two workflows (VIDEO PRODUCTION AUTOMATION and Generate Caption) carry an AI key and a scraping token typed directly into
-     code steps. Moving them into n8n's own credential store, and rotating them, is an owner decision (the standing "do not
-     rotate the publishable key" decision covers only the Supabase publishable key, not these).
+     code steps. Owner decision 2026-09-30: no rotation; moving them into n8n credentials is approved when those workflows are
+     edited anyway (see decision 4).
    - `Filming Plan, Docs BatchUpdate` has no sign-in check: anyone holding the URL and a Doc id the connected Google account
      can edit could rewrite that Doc. Step E closes this while moving it.
 
@@ -109,35 +145,68 @@ Phase 1 workflows are not repeated here; they are in the switch-off table.
 Ordered by runs saved per month for the least risk. "Effort" is S (under a day), M (1 to 3 days), L (a week or more).
 "Saved" is n8n runs a month that stop, from the table above.
 
-**A. Slack Creative Channel Finalizer: stop the 15 minute polling.** Saves about 2,800 a month. Effort M. Risk medium.
-What it does: every 15 minutes it looks at a queue of new clients, checks they are ready, then creates the client's Slack
-channels, invites people, writes the channel ids back to the client sheet and posts the kickoff message. 96 runs a day, and
-almost all of them find nothing to do.
-Where it can live: the channel creation itself should stay on n8n for now (it is real Slack work across sheets, with manual
-repair steps). What moves is the question "is there anything to do?". Put the queue in a Supabase table (today it is an n8n
-data table), have the upstream step that adds a job write to it, and let a `pg_cron` job (a timer inside our database) run every
-15 minutes, check the table, and call the n8n workflow only when a job is waiting and ready. Result: runs fall from 96 a day to
-the number of real jobs. Also consider calling it the moment a job is added instead of on a timer.
-Why not move it all: it creates public and private channels and invites people, so a bug is visible to clients and cannot be
-cleanly undone. Reconsider after a month of the gated version.
-Needs the owner's explicit go to edit the n8n workflow (its trigger and first step), and finding which step adds queue rows
-(not traced in this read).
+**A. Slack Creative Channel Finalizer: triggered by onboarding, not by a timer.** Saves about 2,800 runs a month. Effort M.
+Risk medium (it creates Slack channels that clients' staff see). Owner decision: no 15 minute polling and no database timer.
+What it does today: every 15 minutes it looks at a queue of new clients, checks they are ready, then creates the client's
+channels, invites people, writes the channel ids back to the client sheet and posts the kickoff message. 96 runs a day, almost
+all finding nothing to do.
+What changes (an n8n edit, with the owner's go already given):
+1. The 15 minute schedule is replaced by a **direct trigger**: a new webhook on the same workflow,
+   `POST /webhook/slack-creative-finalize`, that processes the waiting queue row for the client named in the body (or the
+   oldest ready one if none is named) using the **same readiness checks and the same steps as today**. Nothing else in the
+   channel creation changes. The webhook only acts on a queue row that is already ready, and it is safe to call twice (a row
+   that is done is skipped), so a stray or repeated call does nothing harmful.
+2. **One daily safety check** is kept: the same workflow on a once a day schedule, which runs the same pass for every waiting
+   row. This catches a client who was ready but whose onboarding session forgot to trigger. It is one run a day (about 30 a
+   month) instead of 96.
+3. **The onboarding runbook is updated in this PR** (`docs/ops/NEW_CLIENT_ONBOARDING.md`, section 6c) so a new session knows exactly
+   when and how to call the trigger. Until the n8n edit ships and is confirmed, the runbook says the 15 minute check is still the
+   active path, and the trigger step is marked "live only after the Finalizer PR".
+4. The queue stays where it is for now (n8n's own data table); moving it to Supabase is not needed, since nothing polls it.
+Ship order inside the PR: add the webhook and the daily schedule **alongside** the existing 15 minute schedule, test the trigger
+on the test client (create a queue row for it, call the trigger, see one channel created, see a second call do nothing), then
+remove the 15 minute schedule in the same edit session, and record both versions. If anything is wrong, undo is to restore the
+saved earlier version, which brings the 15 minute schedule back.
+Why not move it all off n8n: it creates public and private channels and invites people, so a bug is visible and cannot be
+cleanly undone. Reconsider after a month.
+Not yet traced: which step adds queue rows (the onboarding provisioning workflow writes the private brief snapshot; the exact
+moment "ready" is true is the three checks in the runbook). The PR's first job is to read that and write the exact trigger
+moment in the runbook from what it finds, not from this plan.
 
-**B. Caption Jobs Status and Update.** Saves about 700 a month (141 and 22 a week). Effort M. Risk low to medium.
-What it does: while a caption is being generated, the Calendar page asks every few seconds "how far along is it?" and n8n reads
-its own small data table to answer. Update writes progress into that table.
-Where it can live: a Supabase table `caption_jobs` with two small functions. The generation workflow (which stays on n8n)
-writes progress to the function instead of its data table, and the page reads from the function. Until the generation workflow
-is edited, the function can mirror the data table, so the page can switch first.
-Needs the owner's go to edit the Generate Caption workflow. Gate by a server-readable flag with the same rules as phase 1
-(fresh bounded read, hold on failure, no fallback to n8n writes). Cheaper first step (S): the page polls less often and stops as
-soon as the job finishes, which alone should cut most of the 600.
+**B. Caption Jobs: progress in Supabase, generation stays on n8n.** Saves about 700 a month (141 and 22 a week). Effort M.
+Risk low to medium. Owner decision: AI generation stays on n8n; progress goes to Supabase; the page reads it there; tested end to
+end on the test client.
+What it does today: while a caption is being generated, the Calendar page asks every few seconds "how far along is it?" and n8n
+reads its own small data table. Update writes progress into that table.
+Plan: a Supabase table `caption_jobs` with two small functions (status read, update write) behind a server-readable flag with
+the same rules as phase 1 (fresh bounded read before each write, hold on failure, no write ever falls back to n8n). The Generate
+Caption workflow (an n8n edit, owner go given) writes progress through the update function instead of its data table; the page
+reads from the status function. **The page switches only after the workflow edit is live and the function has been proven to
+receive real progress**, so there is never a moment the page reads a table nothing writes to.
+Also in the same edit: the key and scraping token typed into two code steps move into n8n credentials (decision 4). This makes the
+edit bigger than a swap, so it is tested separately: the same caption generated before and after must be the same kind of result.
+End to end test on the test client (run on the test client only, real generation, no mocks): start a caption on a test card,
+watch progress appear in Supabase in order (queued, scraping, transcribing, writing, done), see the page show the same stages,
+cancel one mid run and see it stop, see a finished caption saved to the card. The test also asserts the page makes zero
+requests to n8n's `caption-job-status` and `caption-job-update`.
+Cheaper first step (S, goes first inside this PR): the page polls less often and stops as soon as the job finishes.
+Undo: the page flag back to the old route is not allowed to reopen a write hole, so undo for the workflow is restoring its earlier
+saved version (recorded in the edit log); the old data table is kept untouched until the 30 day rule passes.
 
-**C. Sales, Booking Recovery Dispatch: only run when something is due.** Saves about 600 a month (it is already down to
-hourly, so the big saving of the 10 minute schedule has been taken). Effort S to M. Risk medium, because it sends emails and texts.
-What it does: re-checks unfinished bookings and sends a recovery email and text. Where it can live: same shape as A. A database
-timer checks for due rows and calls n8n only when there are some. Not started until the owner agrees, because it touches sales
-messages.
+**C. Sales, Booking Recovery Dispatch: only run when something is due, after proof.** Saves about 600 a month (it is already
+hourly, so the large saving of the old 10 minute schedule is already taken). Effort M. Risk medium, because it sends emails and
+texts to real prospects. Owner decision: yes, but prove first.
+What it does: re-checks unfinished bookings and sends a recovery email and text. It re-checks our booked rows and HubSpot before
+each send so anyone who booked is never chased.
+Plan: a database timer (`pg_cron`, a timer inside our own database) runs the same "is anything due?" test the workflow runs today
+and calls the workflow only when at least one row is due. **Before switching, a test proves "every due recovery still sends":**
+a replay test takes a set of recovery rows at known times (including rows due exactly at the hour, rows due in the same hour as a
+booking, rows whose person just booked, and rows already sent) and compares, row by row, what the current hourly workflow would
+send (message text, channel, send time) against what the gated path sends. They must match exactly, and zero rows may be missed
+or sent twice. Only after that passes on the test data is the trigger edited, and the old hourly schedule is kept running beside
+the new trigger for one week, with a check that the two never disagree, before it is removed. Test recipients are the test
+client's and the owner's own address only.
+Undo: restore the saved earlier version of the workflow (brings back the hourly schedule); the timer is turned off in the database.
 
 **D. TikTok Upload: list and status.** Saves about 1,000 a month. Effort S first, M later. Risk low.
 What it does: the TikTok tab asks n8n to read the upload sheet (the last 100 rows) and, for one upload, asks Post For Me
@@ -210,15 +279,24 @@ test, which records every `n8n.cloud` request and asserts none.
 | Caption Prompts, Get | **not in phase 2**: first-load fallback | only after a durable server copy of prompts exists | n/a |
 | Calendar, Get; Sample Review, Get; Kasper, Queue | after step F ships and 30 days pass | replacement recovery read built | the new forced Supabase failure test from step F |
 
-**The blocker for the Calendar and Sample Review rows.** Phase 1 carved the client approve and request-changes buttons out
-completely (owner decision), so a client link whose pause switch has not loaded still sends those two calls to n8n. The byte for
-byte tests prove they are unchanged
-(`test/calendar-client-carveout-byte-identical-browser.js` and `test/samples-client-carveout-byte-identical-browser.js`), which is
-exactly why switching off Calendar Upsert or Sample Review Upsert would break a client's button. Before either workflow is turned
-off, the owner has to decide how those two buttons are served. This is one new owner decision, not a change I will make: the
-options are (a) keep those two workflows on for good, or (b) move those two calls to the functions with a new byte for byte
-test that shows the request body and result the client sees are unchanged, then switch off. I recommend (b), but it touches the
-one path the owner protected, so it needs an explicit go.
+**Step K: move the client approve and request-changes calls off n8n (owner decision 1).** Phase 1 carved these two buttons out
+completely, so a client link whose pause switch has not loaded still sends them to n8n. That is the only reason
+`Calendar, Upsert Post` and `Sample Review, Upsert` cannot be switched off. Effort M. Risk high, because this is the one path the owner
+protected, so it is built last, alone, in its own PR.
+Plan: the two calls go to the existing functions (the same functions staff saves use, which accept a client link's signed-in
+identity through `client-token-verify`). The page keeps its current behaviour for a client: the same buttons, the same success
+and error messages, the same saved card afterwards. The shared save step's pause and hold rules do not apply to these two calls
+the way they do to staff saves; the exact rule is decided in the PR from how a client link loads its flag, and written in its
+description before any code.
+**The test.** A new browser test, `test/calendar-client-approve-function-browser.js` (and a Samples twin), drives a client link
+on the test client through approve and request-changes against a mock that records everything, and asserts: (1) the body the
+function receives has the same fields and values the n8n request carried (the existing golden files are the reference, and each
+field is mapped one to one in the test), (2) the client sees the same screens, strings and saved card as the current tests
+record, (3) zero requests to n8n, (4) a failed function answer shows the same error the n8n failure shows today and leaves the
+card as it was. The two existing byte for byte tests stay in the repo and stay green until this step ships, then are replaced by
+these in the same PR.
+After it ships, run the real thing once on the test client (approve and request-changes on a test card, read the card back from
+Supabase), then the 30 day rule starts for the two upsert workflows.
 
 ## Rules that carry over unchanged
 
@@ -227,10 +305,9 @@ n8n, every new database read is run once against the real database with exact qu
 `/rest/v1/` URLs, new browser tests run in CI, real exit lines quoted for every suite, one branch and one PR each, Lighthouse
 merges. No n8n workflow is edited without the owner's go in that same request: steps A, B and C each edit one, so each needs it.
 
-## Open owner decisions, in one place
+## Open items after the owner's decisions
 
-1. Approve and request-changes for clients: keep those two n8n workflows forever, or move them with a byte for byte test (above).
-2. Go to edit the n8n Finalizer trigger (A) and the Generate Caption workflow (B).
-3. Sales Booking Recovery gating (C): yes or no.
-4. Rotate the AI and scraping keys typed into two workflows, and move them to n8n's credential store.
-5. Someone to open the Edge Alert Relay workflow in the n8n screen (not readable from here).
+1. The owner creates two credentials in n8n (one for the AI service, one for the scraping service) and tells me their names,
+   before step B (I cannot create them from here). No key is rotated.
+2. Sample Review Upsert still ran 84 times on 2026-09-30 (check 1 above): someone reads the callers before step K.
+3. The two "hidden from this access" items: one old inactive backup workflow is unreadable, and is left alone.

@@ -71,13 +71,15 @@ import { wlEscape } from './080-workload-render.js';
             && Number.isFinite(Date.parse(value));
     }
     function wlPlacementLabel(mode) {
-        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
+        return ({ auto: 'Automatically planned', manual: 'Manually planned', carried: 'Carried over', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
     }
     function wlPlanOriginHtml(mode, compact, count, tipDetail) {
         const label = wlPlacementLabel(mode);
         if (!label) return '';
         let icon;
-        if (mode === 'manual') {
+        if (mode === 'carried') {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h8.5M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 3v10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+        } else if (mode === 'manual') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 2.2h5.6l-.8 3 1.7 1.7v1.3H8.7v5.2L8 14l-.7-.6V8.2H4.3V6.9L6 5.2l-.8-3Z" fill="currentColor"/></svg>';
         } else if (mode === 'loading') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
@@ -90,6 +92,8 @@ import { wlEscape } from './080-workload-render.js';
         const accessible = Number(count) > 0 ? `${Number(count)} ${label.toLowerCase()}` : label;
         const tip = mode === 'manual'
             ? 'Manual plan: stays on this work day until someone changes or clears it.'
+            : mode === 'carried'
+            ? 'Carried over: this was planned for a day that has passed and is not finished, so it shows on the first working day from today. The saved plan day is unchanged; drag it to plan a new day.'
             : (mode === 'loading'
                 ? 'Loading saved plans… showing an automatic estimate from the due date; only manually planned items will settle when plans arrive.'
                 : (mode === 'fallback'
@@ -105,7 +109,7 @@ import { wlEscape } from './080-workload-render.js';
         return 'mixed';
     }
     function wlGroupPlanOriginHtml(subs) {
-        const counts = { auto: 0, manual: 0, fallback: 0, loading: 0 };
+        const counts = { auto: 0, manual: 0, carried: 0, fallback: 0, loading: 0 };
         for (const sub of subs || []) {
             const mode = wlPlacementMode(sub);
             if (Object.prototype.hasOwnProperty.call(counts, mode)) counts[mode]++;

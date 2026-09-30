@@ -30065,3 +30065,18 @@ or cancel for a caption started after this edit until the page switches (next PR
 caption still generates and saves; only the progress strip and the Cancel button are affected.
 **Also still to do:** the finished caption is saved through the n8n `calendar-upsert-post` webhook (separate later step).
 **Way back:** restore version `2ac32e2c` in n8n (see the edit log).
+
+## 303. [2026-09-30] n8n exit phase 2, step B, page side: the Calendar reads caption progress and cancels through `caption-jobs`
+
+**What:** closes the gap named in 301. The Calendar's caption poll (`_calCapJobsPoll`) and the three Cancel sends (user cancel,
+cancel grace, stale timeout) now call the `caption-jobs` function with the staff headers (`_syncviewEfHeaders`), uncached and with
+no cache-buster; the two n8n caption job webhooks are gone from the page. Shapes are unchanged (`{ ok, jobs }` in, `{ jobId,
+cancel_requested: true }` out), so nothing else in the caption flow changes. `qa/boot/client-entry-sequence.js` also records the new
+function path among its caption boundary requests.
+**Proof:** `node test/caption-jobs-page-wiring.js` (15 checks); the caption suites, `prod-write-gateway-browser`, both client
+approve and request-changes byte tests, `client-review-requests-unchanged` and `write-path-refusal-coverage` pass.
+**Order:** ships after the edit-log PR (301); until then progress and Cancel for new runs do not show on the page.
+**Way back:** revert this PR and restore version `2ac32e2c` of the Generate Caption workflow together (the old flow writes the old
+n8n table); reverting only one of them puts progress and Cancel out of step again.
+**Left:** the n8n `Caption Jobs Status` and `Update` workflows can be switched off 30 days after this ships (zero runs for 7 days
+first); the finished caption save still goes through the n8n `calendar-upsert-post` webhook (separate later step).

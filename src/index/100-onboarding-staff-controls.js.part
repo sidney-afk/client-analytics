@@ -1106,14 +1106,15 @@ import {
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
        to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
-    /* Caption-job tracking. The generate-caption workflow upserts a row per
-       run into the caption_jobs n8n data table (status: running/done/error/
-       cancelled, stage: scraping → transcribing → writing → done). The UI
-       polls the status webhook so the button/progress chip mirror the real
+    /* Caption-job tracking. The generate-caption workflow (n8n) reports a row
+       per run to the caption-jobs function (caption_jobs table; status:
+       running/done/error/cancelled, stage: scraping → transcribing → writing →
+       done). The UI polls it so the button/progress chip mirror the real
        backend state — surviving refreshes, tab switches and dropped
-       connections — and posts cancel_requested to the update webhook. */
-    const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
-    const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
+       connections — and posts cancel_requested to it. One function, two verbs:
+       GET reads, POST writes; the staff key goes on both (n8n exit, step B). */
+    const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
+    const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
     /* "URGENT TWEAKS NEEDED" editor ping: native route only
        (native_urgent_dispatch via production-write). The legacy n8n

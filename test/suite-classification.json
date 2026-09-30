@@ -634,6 +634,7 @@
     "sheets-mirror-parity-catchup.js",
     "filming-plan-tabs-source.js",
     "caption-jobs-source.js",
+    "caption-jobs-page-wiring.js",
     "instagram-upload-source.js",
     "kasper-filming-tab-source.js",
     "prod-subissue-parent-name.js"

@@ -17585,14 +17585,15 @@
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
        to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
-    /* Caption-job tracking. The generate-caption workflow upserts a row per
-       run into the caption_jobs n8n data table (status: running/done/error/
-       cancelled, stage: scraping → transcribing → writing → done). The UI
-       polls the status webhook so the button/progress chip mirror the real
+    /* Caption-job tracking. The generate-caption workflow (n8n) reports a row
+       per run to the caption-jobs function (caption_jobs table; status:
+       running/done/error/cancelled, stage: scraping → transcribing → writing →
+       done). The UI polls it so the button/progress chip mirror the real
        backend state — surviving refreshes, tab switches and dropped
-       connections — and posts cancel_requested to the update webhook. */
-    const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
-    const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
+       connections — and posts cancel_requested to it. One function, two verbs:
+       GET reads, POST writes; the staff key goes on both (n8n exit, step B). */
+    const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
+    const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
     /* "URGENT TWEAKS NEEDED" editor ping: native route only
        (native_urgent_dispatch via production-write). The legacy n8n
@@ -35322,6 +35323,56 @@
             ? 'The ' + label + ' is on this post; the Linear mirror is still draining.'
             : 'The ' + label + ' is on this post.');
     }
+    /* Frame.io folder button, the top of the pile. One quick lookup per client,
+       reused for every card on that calendar: the brain helper's `folders`
+       action, the same saved Frame folder links (the batches' delivery folder)
+       the Templates page lists. The link is NOT tested, it is only opened in a
+       new tab. Nothing here touches how the SyncLinear grid reads its own
+       per-post copy. Staff only, and a client with no saved folder shows
+       nothing. A failed lookup also shows nothing and is tried again after a
+       minute, never in a loop. */
+    const _calFrameFolders = {};   // client -> { busy, url, at, ok }
+    const _CAL_FRAME_FOLDER_TTL = 300000;   // a saved folder can change while the calendar stays open
+    const _CAL_FRAME_FOLDER_RETRY = 60000;
+    function _calFramePick(list) {
+        const rows = Array.isArray(list) ? list.map(i => String(i && i.url || '').trim()).filter(u => /^https?:\/\//i.test(u)) : [];
+        return rows.find(u => _calIsFrameLink(u)) || rows[0] || '';
+    }
+    function _calFrameFolderEnsure(name) {
+        const cur = _calFrameFolders[name];
+        if (cur && (cur.busy || Date.now() - cur.at < (cur.ok ? _CAL_FRAME_FOLDER_TTL : _CAL_FRAME_FOLDER_RETRY))) return cur;
+        // Keep showing the last answer while a fresh one is fetched; a failed
+        // fetch keeps it too.
+        const entry = _calFrameFolders[name] = { busy: true, url: cur ? cur.url : '', at: Date.now(), ok: cur ? cur.ok : false };
+        const url = CAL_SUPABASE_URL + '/functions/v1/brain';
+        let before = entry.url;
+        fetch(url, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
+            body: JSON.stringify({ action: 'folders', clientName: name })
+        }).then(async r => {
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+            entry.url = _calFramePick(j.frame);
+            entry.ok = true;
+        }).catch(() => { entry.ok = false; })
+          .then(() => {
+              entry.busy = false; entry.at = Date.now();
+              if (entry.url !== before && calState.client === name) _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
+          });
+        return entry;
+    }
+    function _calFrameFolderSlotHtml() {
+        if (_isClientLink || !calState.client) return '';
+        const entry = _calFrameFolderEnsure(calState.client);
+        if (!entry || !entry.url) return '';
+        // Only a Frame.io link gets the Frame icon and name; a Drive or Dropbox
+        // delivery link says what it is instead of posing as Frame.io.
+        const isFrame = _calIsFrameLink(entry.url);
+        const what = isFrame ? 'Frame.io' : _calLinkLabel(entry.url);
+        const tip = 'Open this client\'s ' + what + ' folder in a new tab';
+        return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</a>`;
+    }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
         const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
@@ -35332,8 +35383,9 @@
         // close rather than as a card that is simply missing something.
         const fv = _calFillComponentSlotHtml(p, 'video');
         const fg = _calFillComponentSlotHtml(p, 'graphic');
-        if (!v && !g && !pv && !pg && !fv && !fg) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
+        const fr = _calFrameFolderSlotHtml();
+        if (!fr && !v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${fr}${v}${pv}${fv}${g}${pg}${fg}</div>`;
     }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only
@@ -40070,7 +40122,7 @@
             const rows = new Map();
             await Promise.all(clients.map(async (slug) => {
                 try {
-                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug), { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_JOB_STATUS_URL) });
                     const j = await r.json();
                     if (j && j.ok && Array.isArray(j.jobs)) for (const row of j.jobs) rows.set(row.jobId, row);
                 } catch {}
@@ -40094,7 +40146,7 @@
                 // the full 12-min stale timeout. cancel_requested is (re)sent so a
                 // late checkpoint still won't save a caption.
                 if (_calCapJobCancelExpired(job, now)) {
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'cancelled', {});
                     continue;
                 }
@@ -40112,7 +40164,7 @@
                 if (now - (job.lastMovementAt || job.startedAt) > CAL_CAPJOB_STALE_MS) {
                     // Stand the backend down too, so a zombie run can't write a
                     // caption to the sheet long after the UI gave up.
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'error', { error: 'Timed out — the caption generator stopped responding. Try again.' });
                 }
             }
@@ -40140,7 +40192,7 @@
         _calUpdateBulkCaptionBar();
         fetch(CAPTION_JOB_UPDATE_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL),
             body: JSON.stringify({ jobId: job.jobId, cancel_requested: true })
         }).then(r => { if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); })
           .catch(() => {
@@ -82405,4 +82457,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-686ad6a8d223.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-65da3cdb129e.js");

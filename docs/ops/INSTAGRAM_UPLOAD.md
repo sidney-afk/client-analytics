@@ -1,6 +1,6 @@
 # Instagram upload (TikTok Upload tab, Instagram side)
 
-Built 2026-09-30 by Relay. **Nothing here is live until the owner's three one-time steps
+Built 2026-09-30 by Relay. **Nothing here is live until the owner's remaining one-time steps
 below are done**: the page already shows the switch, but the Instagram side has no server
 to talk to until the function is deployed.
 
@@ -21,7 +21,7 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 
 ## One-time setup (owner, with Lighthouse)
 
-1. **Apply the migration** `migrations/2026-09-30-instagram-uploads.sql` (it creates the queue table; Lighthouse applies it with your go).
+1. **Migration: done.** `migrations/2026-09-30-instagram-uploads.sql` created the queue table on 2026-09-30 (Lighthouse, with your go).
 2. **Add the Post For Me key as a Supabase secret** named `POST_FOR_ME_API_KEY` (Supabase, Edge Functions, Secrets). It is the same key the n8n credential "Post For Me" holds. Never put it in the repo.
 3. **Deploy the function**: `https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml`, choose `instagram-upload`, paste main's commit SHA.
 

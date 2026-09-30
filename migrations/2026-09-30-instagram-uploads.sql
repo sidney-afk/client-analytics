@@ -1,7 +1,8 @@
 -- ============================================================
--- NOT APPLIED. Written 2026-09-30 by Relay for the instagram-upload Edge Function (Instagram side of the
--- TikTok Upload tab, through Post For Me). Lighthouse applies it with the owner's go, then the function is
--- deployed. Nothing in the page works against the live system until both are done.
+-- APPLIED 2026-09-30 by Lighthouse with the owner's go (see EXECUTION_LOG.md).
+-- Written 2026-09-30 by Relay for the instagram-upload Edge Function (Instagram side of the
+-- TikTok Upload tab, through Post For Me). The table exists live; the function is not deployed yet,
+-- so nothing in the page works against the live system until the secret is set and it is deployed.
 --
 -- The Instagram upload queue: one row per post sent to Post For Me. The function reads and writes it with
 -- service_role only; no browser role holds anything (the page reads it through the function).

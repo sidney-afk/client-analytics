@@ -175,7 +175,7 @@ hiring senders when the editor hire closes.
 
 - **Instagram upload is built but not switched on (2026-09-30, OPEN_REPAIRS 301).** The TikTok Upload
   tab has a TikTok / Instagram switch; the Instagram side runs on a new Supabase function, no n8n. To
-  switch on: apply `migrations/2026-09-30-instagram-uploads.sql`, set the `POST_FOR_ME_API_KEY` secret,
+  switch on (the table was created 2026-09-30, `migrations/2026-09-30-instagram-uploads.sql`): set the `POST_FOR_ME_API_KEY` secret,
   deploy `instagram-upload` (`deploy-single-function.yml`), add the Clients Info column
   `postforme_instagram_account_id`. Only the test client can post until
   `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` is widened. Steps: `docs/ops/INSTAGRAM_UPLOAD.md`.

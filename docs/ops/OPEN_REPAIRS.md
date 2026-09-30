@@ -30051,5 +30051,5 @@ through the `calendar-upsert` function) and is recorded in the phase 2 plan; it 
 
 **Safety.** The function needs a staff key, checks with Post For Me that the account really is Instagram, and only lets clients in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` post (default: the test client only).
 
-**Still to do (owner's go).** Apply `migrations/2026-09-30-instagram-uploads.sql`; set the `POST_FOR_ME_API_KEY` secret; deploy `instagram-upload` through `deploy-single-function.yml`; add the sheet column. Runbook and the list of Post For Me details not yet proven for Instagram: `docs/ops/INSTAGRAM_UPLOAD.md`.
+**Done 2026-09-30:** `migrations/2026-09-30-instagram-uploads.sql` applied (table only, EXECUTION_LOG.md). **Still to do (owner's go).** Set the `POST_FOR_ME_API_KEY` secret; deploy `instagram-upload` through `deploy-single-function.yml`; add the sheet column. Runbook and the list of Post For Me details not yet proven for Instagram: `docs/ops/INSTAGRAM_UPLOAD.md`.
 

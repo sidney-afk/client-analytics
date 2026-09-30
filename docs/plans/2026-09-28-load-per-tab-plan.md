@@ -345,11 +345,13 @@ weekly report and signed-out visitors still get the whole script as one file.**
   `split.json` says `"clients": true` (missing means false, so an old config keeps the single
   file). A client link never gets the quiet background download of the on-demand areas
   (`self.__svLoad.client`, checked in `040`'s `_svPrefetchAreas`): a client has none of those tabs, and
-  an area it did ask for would still load through `svArea`. `?split=0` now works on a client link
-  too (before, the client check returned first, so the opt-out never stuck there).
+  an area it did ask for would still load through `svArea`. The loader now reads `?split=0`
+  on a client link (before, the client check returned first, so the opt-out never stuck there).
+  **This line originally claimed the way back worked on a client link. It did not on the live
+  site:** the client link check refused the extra key ("This link isn't valid"). See the fix below.
 - **Ways back, three.** Everyone: `node scripts/split-switch.js off`, commit, merge (index.html is
   the single file again, byte for byte). Client links only: `node scripts/split-switch.js clients off`
-  (staff keep the parts). One browser: `?split=0` (sticks; `?split=1` clears it), on a client link too.
+  (staff keep the parts). One browser: `?split=0` (sticks; `?split=1` clears it); on a client link this works only from the fix below on.
   `test/index-split.js` runs the real loader against a fake browser for 16 kinds of visitor with
   clients on and off; `test/split-switch.js` covers the config; `split-load-browser.js` covers the
   shipped page in a browser, including that a client link fetches no staff-only file.
@@ -366,4 +368,26 @@ weekly report and signed-out visitors still get the whole script as one file.**
 - Vigil hand-tests the live client link (test client only) after merge; the checklist is in the PR.
 - Left for step 6: measure everything again, and the still-unsplit areas (SyncLinear stays in core by
   the owner's decision).
+
+### Step 5 fix: `?split=0` / `?split=1` on a client link (2026-09-29)
+
+Vigil found on the live site that adding `&split=0` or `&split=1` to a client link showed "This link
+isn't valid". Cause: the client link check (`SYNCVIEW_CLIENT_ENTRY_KEYS` in `260`) accepts only the keys
+`c`, `t`, `v` and `sxr` and refuses anything else as `mixed_entry`, and #1868 taught the loader to read
+`split` on a client link without teaching the check. The #1868 tests did not notice because
+`split-load-browser.js` only asked which script the page loaded (`self.__svLoad.mode`), not whether the
+link was accepted; it now also checks that the review card draws and no "isn't valid" screen shows.
+
+- **The check now accepts `split`, and only that:** exactly one `split` key, with the value `0` or `1`.
+  `split=2`, an empty or repeated split, `SPLIT`, `splitx` and every other key (alone or next to `split`)
+  are refused as before, and no verify request is sent for them. `split` never stands in for a credential.
+- **The key leaves the address.** The loader removes `split=0|1` from a client link's address right after it
+  has read it (only when there is exactly one `split`, so a repeated key stays and is refused), and the
+  check's canonical rewrite after verification drops it too (this covers the single-file page, where there is
+  no loader). The rest of the link is untouched.
+- **Tests:** `test/client-entry-preflight.js` (the check itself, including each refused key) and
+  `docs/syncview-design/tests/client-link-split-key-browser.js` (real client links for Calendar, Samples and
+  Analytics with `&split=0` and `&split=1` through the real check, the address afterwards, the way back
+  sticking and clearing, and the refused cases). Run against `main` before the fix it fails with "This link
+  isn't valid".
 

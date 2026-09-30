@@ -55,7 +55,8 @@ here with where it stopped, so it can be restarted.
    of them); forms, the SMM weekly report and signed-out visitors still get the whole
    script. Numbers: `docs/audits/2026-09-29-step5-client-first-load.md`. Three ways
    back: everyone `node scripts/split-switch.js off`; client links only
-   `node scripts/split-switch.js clients off`; one browser `?split=0`. The client
+   `node scripts/split-switch.js clients off`; one browser `?split=0` (on a client link only after the
+   follow-up fix: #1868 shipped with the link check refusing that key, found by Vigil on the live site). The client
    approve and request-changes tests pass on the parts. Left after this: step 6
    (measure everything again).
 6. **Make this repo private: NOT NOW. Owner decision 2026-09-29 (later the same day): the repo stays public.** Only the site publishing fix from the plan is being done: **BUILT, waiting for Lighthouse to merge and the owner to switch the Pages source** (OPEN_REPAIRS 294, `docs/ops/PAGES_SITE_ALLOWLIST.md`). The live site served the whole repo (docs, scripts, migrations); it will publish the allowlisted files only (about 137). One-setting way back: Pages source to "Deploy from a branch". The rest of this item is the earlier plan, kept for reference: **Make this repo private, maintainably (owner wanted it earlier on 2026-09-29; this
@@ -220,6 +221,12 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
+- **The two dormant censuses are retired (owner, 2026-09-29; OPEN_REPAIRS 293).**
+  The outbox-debt and retirement-admission monitors only wrote heartbeats. Their
+  workflows are deleted, both dead-man lanes are marked retired (dated, with a
+  reason), and `lane-ticker` no longer dispatches them. Scripts, SQL and tests stay
+  as a frozen reference. Their 69 and 72 old heartbeat rows are kept in the event
+  log, as every earlier retired lane's were; deleting them is a separate owner go.
 - **Kasper loads on demand (#1841), checked by the owner with a real login on
   2026-09-29:** the Time Off and Clients tabs work. (Vigil's test account saw
   those two tabs error, as before the change; that was the account, not #1841.)

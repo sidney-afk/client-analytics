@@ -331,6 +331,27 @@ assert.deepStrictEqual(envelope('?c=Client+One&t=current-token'), {
 assert.strictEqual(envelope('?c=Client+One').reason, 'missing_credential');
 assert.strictEqual(envelope('?c=Client+One&t=one&t=two').reason, 'duplicate_t');
 assert.strictEqual(envelope('?c=Client+One&t=token&prod=1').reason, 'mixed_entry');
+// The per-browser way back from the split page (?split=0 / ?split=1) is the ONE extra key
+// a client link may carry, and only with exactly those two values. Nothing else got looser.
+for (const good of ['0', '1']) {
+  const withSplit = envelope('?c=Client+One&t=current-token&split=' + good);
+  assert.strictEqual(withSplit.ok, true, 'a client link with ?split=' + good + ' passes the entry check');
+  assert.strictEqual(withSplit.token, 'current-token');
+  assert.strictEqual(withSplit.view, 'analytics');
+  assert.strictEqual(envelope('?split=' + good + '&c=Client+One&t=current-token&v=calendar').ok, true, 'split first, then the link');
+  assert.strictEqual(envelope('?c=Client+One&t=current-token&v=sample-reviews&sxr=1&split=' + good).ok, true, 'split on a Samples link');
+}
+for (const bad of ['2', '', 'true', '00', ' 0', '0%20', 'off']) {
+  assert.strictEqual(envelope('?c=Client+One&t=token&split=' + encodeURIComponent(bad)).reason, 'invalid_split', 'split=' + JSON.stringify(bad) + ' is refused');
+}
+assert.strictEqual(envelope('?c=Client+One&t=token&split=0&split=1').reason, 'duplicate_split');
+assert.strictEqual(envelope('?c=Client+One&t=token&split=0&split=0').reason, 'duplicate_split');
+for (const other of ['splitx', 'SPLIT', 'Split', 'spl', 'prod', 'kasper', 'nav', 'debug', 'sv_path', 'intake', 'onboarding']) {
+  assert.strictEqual(envelope('?c=Client+One&t=token&' + other + '=1').reason, 'mixed_entry', other + ' is still refused');
+  assert.strictEqual(envelope('?c=Client+One&t=token&split=0&' + other + '=1').reason, 'mixed_entry', other + ' is still refused next to split');
+}
+assert.strictEqual(envelope('?c=Client+One&split=0').reason, 'missing_credential', 'split never stands in for a credential');
+assert.strictEqual(envelope('?split=0').reason, 'missing_credential');
 assert.strictEqual(envelope('?c=Client+One&t=token&v=unknown').reason, 'unsupported_view');
 assert.strictEqual(envelope('?c=Client+One&t=token&sxr=1').reason, 'mixed_samples_entry');
 assert.strictEqual(envelope('?c=Client+One&t=token&v=sample-reviews').reason, 'invalid_samples_entry');
@@ -408,6 +429,26 @@ assert.strictEqual(canonicalQuery.get('t'), 'current-token');
 assert.strictEqual(canonicalQuery.get('v'), 'sample-reviews');
 assert.strictEqual(canonicalQuery.get('sxr'), '1');
 assert(!canonical.replacement.url.includes('#'), 'canonical client route must discard legacy hash authority');
+{
+  // After the link is verified the split key leaves the address; the link itself is untouched.
+  let seen = null;
+  const context = {
+    URLSearchParams,
+    svRoute: { search() { return context.location.search; }, hash() { return ''; } },
+    location: { search: '?c=Client+One&t=current-token&v=calendar&split=0', pathname: '/index.html' },
+    history: { state: null, replaceState(_s, _t, url) { seen = url; } },
+    _syncviewClientEntrySlug: normalizeClient,
+  };
+  vm.createContext(context);
+  vm.runInContext(canonicalizeSource, context);
+  context._syncviewCanonicalizeClientEntry({ ok: true, client: 'Client One', slug: 'clientone', token: 'current-token', view: 'calendar' });
+  const q = new URLSearchParams(seen.split('?')[1]);
+  assert(!q.has('split'), 'the verified client link is rewritten without ?split');
+  assert.strictEqual(q.get('c'), 'Client One');
+  assert.strictEqual(q.get('t'), 'current-token');
+  assert.strictEqual(q.get('v'), 'calendar');
+  assert.strictEqual(seen.split('?')[0], '/index.html', 'the path the link was opened on is kept');
+}
 assert(!Object.prototype.hasOwnProperty.call(canonical.capability, 'token'), 'verified capability must not retain the raw token');
 
 async function preflight({

@@ -179,51 +179,27 @@ const assess = (over = {}) => assessDebt({
 }
 
 // ---------------------------------------------------------------------------
-// Wiring.
+// Retirement (owner, 2026-09-29). The census was dormant and its subject, the
+// Linear mirror outbox, goes with Linear. The script above stays as a frozen
+// reference; the monitor around it is gone.
 // ---------------------------------------------------------------------------
 {
-  const workflow = fs.readFileSync(
-    path.join(__dirname, '..', '.github', 'workflows', 'outbox-debt-census.yml'), 'utf8');
-  ok(/schedule:/.test(workflow) && /- cron:/.test(workflow),
-    'the census must be scheduled, not dispatch-only');
-  ok(/node scripts\/outbox-debt-census\.js/.test(workflow), 'the workflow must run the census');
-  ok(/if: always\(\)[\s\S]{0,300}?--heartbeat=outbox_debt_census/.test(workflow),
-    'the heartbeat must be written even when the run failed');
-  ok(!/LINEAR_/.test(workflow),
-    'the census must hold no Linear credential — it exists to outlive Linear');
-
-  const { LANES } = require('../scripts/monitoring-watchdog');
-  const lane = LANES.find(entry => entry.key === 'outbox_debt_census');
-  ok(Boolean(lane), 'the census must be a registered dead-man lane');
-  ok(lane && !lane.retires_with,
-    'this lane outlives Linear — the debt it counts only STARTS when the outbound flag goes off');
-  ok(lane && Array.isArray(lane.hosts) && lane.hosts.includes('outbox-debt-census.yml'),
-    'the lane must name its host so the suite can check the registry against reality');
-}
-
-// Preparation: automatic business work is opt-in, but the existing host
-// heartbeat remains scheduled so dormancy does not create a dead-man alarm.
-for (const [file, variable, businessName] of [
-  ['outbox-debt-census.yml', 'OUTBOX_DEBT_CENSUS_ENABLED', 'Count undeliverable mirror rows'],
-  ['syncview-retirement-census.yml', 'SYNCVIEW_RETIREMENT_CENSUS_ENABLED', 'Check retirement admission boundary'],
-]) {
-  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', file), 'utf8');
-  const expected = "(github.event_name == 'workflow_dispatch' && !inputs.scheduled_tick) || vars." + variable + " == 'true'";
-  for (const name of ['Require census credentials', businessName]) {
-    const lines = workflow.slice(workflow.indexOf('- name: ' + name)).split(/\r?\n/);
-    ok(lines[1].trim() === 'if: ' + expected, file + ': ' + name + ' uses the exact activation gate');
+  const workflows = path.join(__dirname, '..', '.github', 'workflows');
+  for (const file of ['outbox-debt-census.yml', 'syncview-retirement-census.yml']) {
+    ok(!fs.existsSync(path.join(workflows, file)), file + ' is deleted: a retired census must not keep a host that runs');
   }
-  const enabled = new Function('github', 'vars', 'inputs', 'return (' + expected + ');');
-  for (const value of [undefined, '', 'false', '0']) {
-    ok(!enabled({event_name: 'schedule'}, {[variable]: value}, {}), file + ': default/disabled schedule performs no census');
-    ok(enabled({event_name: 'workflow_dispatch'}, {[variable]: value}, {scheduled_tick: false}), file + ': explicit manual census stays available');
-    ok(!enabled({event_name: 'workflow_dispatch'}, {[variable]: value}, {scheduled_tick: true}), file + ': a lane-ticker dispatch stays dormant like a schedule');
+  const ticker = fs.readFileSync(path.join(workflows, 'lane-ticker.yml'), 'utf8');
+  ok(!/outbox-debt-census|syncview-retirement-census/.test(ticker),
+    'the lane ticker no longer dispatches a retired census (a leftover dispatch would beat old heartbeats and hide nothing)');
+
+  const { LANES, activeLanes } = require('../scripts/monitoring-watchdog');
+  for (const key of ['outbox_debt_census', 'syncview_retirement_census']) {
+    const lane = LANES.find(entry => entry.key === key);
+    ok(Boolean(lane), key + ' stays in the registry: retirement is stated on every check, never silent');
+    ok(lane && lane.retired && lane.retired.at === '2026-09-29' && lane.retired.reason === 'dormant-census-retired-by-owner',
+      key + ' records when and why it was retired');
+    ok(!activeLanes().some(entry => entry.key === key), key + ' is no longer watched, so its silence cannot page');
   }
-  ok(enabled({event_name: 'schedule'}, {[variable]: 'true'}, {}), file + ': approved scheduled activation works');
-  ok(enabled({event_name: 'workflow_dispatch'}, {[variable]: 'true'}, {scheduled_tick: true}), file + ': approved activation works from a lane-ticker dispatch');
-  ok(workflow.includes("if: (github.event_name != 'workflow_dispatch' || inputs.scheduled_tick) && vars." + variable + " != 'true'"), file + ': dormant step mirrors the activation gate');
-  ok(/if: always\(\)[\s\S]{0,300}?--heartbeat=/.test(workflow), file + ': existing heartbeat remains active');
-  ok(workflow.includes('Report dormant scheduled census') && workflow.includes('heartbeat remains active'), file + ': dormant output distinguishes host health from census completion');
 }
 
 console.log(failures

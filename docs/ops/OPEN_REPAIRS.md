@@ -30053,3 +30053,9 @@ through the `calendar-upsert` function) and is recorded in the phase 2 plan; it 
 
 **Done 2026-09-30:** `migrations/2026-09-30-instagram-uploads.sql` applied (table only, EXECUTION_LOG.md). **Still to do (owner's go).** Set the `POST_FOR_ME_API_KEY` secret; deploy `instagram-upload` through `deploy-single-function.yml`; add the sheet column. Runbook and the list of Post For Me details not yet proven for Instagram: `docs/ops/INSTAGRAM_UPLOAD.md`.
 
+## 302. [2026-09-30] Instagram upload: optional Reel cover (image, Calendar thumbnail, or video frame)
+
+**What.** The Instagram form has a "Cover image" field below the video and a preview beside it. The cover is an uploaded JPEG or PNG, the thumbnail of one of the client's Calendar cards, or a frame of the video. The function sends Post For Me one of `thumbnail_url` (image copied into Post For Me storage) or `thumbnail_timestamp_ms` (frame), never both. Field names confirmed from Post For Me's own API client; which one wins if both were sent is not documented, which is why only one is sent. No table change, no n8n change. Test: `test/instagram-cover-browser.js`.
+
+**Still unproven until the first real post:** accepted cover image sizes, and whether the browser may read a Calendar thumbnail from its Google Drive link (if not, the form says so and asks for an upload).
+

@@ -89,6 +89,21 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(L.buildCreate({ ...base, options: '{"placement":"timeline"}' }, NOW).postBody.account_configurations[0].configuration.placement, 'timeline', 'options sent as text are read');
   ok(/^ig_/.test(L.buildCreate({ ...base, idempotencyKey: '' }, NOW).row.id), 'a missing key gets a generated one');
 
+  // --- cover: an image or a frame, never both, from Post For Me storage only
+  r = L.buildCreate({ ...base, coverUrl: 'https://data.postforme.dev/cover.jpg' }, NOW);
+  eq(r.postBody.media, [{ url: 'https://data.postforme.dev/x.mp4', thumbnail_url: 'https://data.postforme.dev/cover.jpg' }], 'a cover image goes on the media item as thumbnail_url');
+  eq(r.row.options.cover, 'image', 'the row records an image cover');
+  r = L.buildCreate({ ...base, options: { cover_timestamp_ms: 2500 } }, NOW);
+  eq(r.postBody.media, [{ url: 'https://data.postforme.dev/x.mp4', thumbnail_timestamp_ms: 2500 }], 'a chosen frame goes on the media item as thumbnail_timestamp_ms');
+  eq(r.row.options.cover, 'frame', 'the row records a frame cover');
+  r = L.buildCreate({ ...base, coverUrl: 'https://data.postforme.dev/cover.png', options: { cover_timestamp_ms: 2500 } }, NOW);
+  eq(r.postBody.media[0].thumbnail_timestamp_ms, undefined, 'with both, only the image is sent (Post For Me does not say which wins)');
+  eq(r.postBody.media[0].thumbnail_url, 'https://data.postforme.dev/cover.png', 'the image is the one that stays');
+  ok(!L.buildCreate({ ...base, coverUrl: 'https://evil.example/c.jpg' }, NOW).ok, 'a cover must come from Post For Me storage');
+  ok(!L.buildCreate({ ...base, coverUrl: 'http://data.postforme.dev/c.jpg' }, NOW).ok, 'and over https');
+  eq(L.buildCreate(base, NOW).postBody.media, [{ url: 'https://data.postforme.dev/x.mp4' }], 'no cover chosen sends no thumbnail field at all');
+  eq(L.publicRow({ id: 'a', options: { cover: 'image' } }).cover, 'image', 'the queue row says which cover kind it used');
+
   // --- Post For Me's answers become statuses
   const row = L.buildCreate(base, NOW).row;
   eq(L.applyCreateResponse(row, { id: 'sp_1', status: 'processing' }, NOWISO).status, 'processing', 'created, in flight');

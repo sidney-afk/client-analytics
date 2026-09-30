@@ -1343,6 +1343,14 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "instagram-cover-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Instagram side's Cover image field: image upload, Calendar card thumbnail, video frame fallback, preview, and that only one of image or frame reaches the function.",
+      "reproduce": "node test/instagram-cover-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "instagram-platform-switch-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

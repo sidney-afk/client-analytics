@@ -79,6 +79,10 @@ export function buildCreate(input, nowMs, actor) {
   if (!options || typeof options !== 'object') options = {};
   const placement = PLACEMENTS.includes(clean(options.placement)) ? clean(options.placement) : 'reels';
   const coverMs = Number(options.cover_timestamp_ms);
+  // The cover: an uploaded image (already in Post For Me storage) or a frame of the video, never both.
+  // Post For Me documents both fields on a media item and does not say which wins, so only one is ever sent.
+  const coverUrl = clean(body.coverUrl);
+  if (coverUrl && !MEDIA_URL_RE.test(coverUrl)) return { ok: false, error: 'coverUrl must be a Post For Me media url' };
 
   const scheduledUtc = toUtcIso(body.scheduledAtUTC);
   if (clean(body.scheduledAtUTC) && !scheduledUtc) return { ok: false, error: 'scheduledAtUTC is not a valid time' };
@@ -88,7 +92,9 @@ export function buildCreate(input, nowMs, actor) {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return { ok: false, error: 'idempotencyKey has unsupported characters' };
 
   const media = { url: mediaUrl };
-  if (Number.isFinite(coverMs) && coverMs > 0) media.thumbnail_timestamp_ms = Math.round(coverMs);
+  let cover = null;
+  if (coverUrl) { media.thumbnail_url = coverUrl; cover = 'image'; }
+  else if (Number.isFinite(coverMs) && coverMs > 0) { media.thumbnail_timestamp_ms = Math.round(coverMs); cover = 'frame'; }
   const postBody = {
     caption: title,
     social_accounts: [accountId],
@@ -101,7 +107,7 @@ export function buildCreate(input, nowMs, actor) {
   const nowIso = new Date(nowMs).toISOString();
   const row = {
     id, client, account_id: accountId, title,
-    options: { placement, cover_timestamp_ms: media.thumbnail_timestamp_ms || null },
+    options: { placement, cover, cover_timestamp_ms: media.thumbnail_timestamp_ms || null },
     scheduled_for: scheduledUtc || null,
     timezone: clean(body.timezone).slice(0, 60),
     status: scheduledUtc ? 'scheduled' : 'uploading',
@@ -166,5 +172,6 @@ export function publicRow(row) {
     instagram_url: r.instagram_url || '', error: r.error || '', posted_at: r.posted_at || '',
     created_at: r.created_at || '', updated_at: r.updated_at || '',
     placement: (r.options && r.options.placement) || 'reels',
+    cover: (r.options && r.options.cover) || '',
   };
 }

@@ -4,6 +4,14 @@
 
 All times are UTC unless noted.
 
+## 2026-09-30 — instagram_uploads table created (owner's go; OPEN_REPAIRS 301)
+
+`migrations/2026-09-30-instagram-uploads.sql` (the version with `last_checked_at`) applied by Lighthouse after the owner's go.
+Read back after: the table exists with row security on; grants are `service_role` INSERT, SELECT and UPDATE only (no `anon`,
+`authenticated` or PUBLIC). This is a table creation only: no function was published and no secret was set, so nothing reads
+or writes the table yet. The `instagram-upload` function, the `POST_FOR_ME_API_KEY` secret and the sheet column are still to do
+(`docs/ops/INSTAGRAM_UPLOAD.md`). **Way back:** `drop table public.instagram_uploads;` (queue rows only).
+
 ## 2026-09-30 — caption_jobs table created and the caption-jobs function made live (owner's go; OPEN_REPAIRS 298, 299)
 
 `migrations/2026-09-30-caption-jobs.sql` applied by Lighthouse after the owner's go ("go on the caption table"); before it,

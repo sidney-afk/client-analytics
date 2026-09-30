@@ -167,6 +167,10 @@
       ],
       "note": "Calendar component fill. Already recorded (component_fill)."
     },
+    "160-calendar-organize-ui.js.part|_calFrameFolderEnsure|url|POST": {
+      "status": "read",
+      "note": "Calendar Frame folder button: reads the client's saved Frame folder (brain, action folders). Nothing is saved."
+    },
     "160-calendar-organize-ui.js.part|_calResolveThumbnailFolder|THUMBNAIL_FOLDER_RESOLVE_EF_URL|POST": {
       "status": "read",
       "note": "Looks up a thumbnail folder."
@@ -305,6 +309,20 @@
     "290-samples-writes-review.js.part|_writeUiReadRepairReceipt|WRITE_UI_PRODUCTION_WRITE_URL|POST": {
       "status": "read",
       "note": "Reads a repair receipt."
+    },
+    "299-instagram-upload.js.part|ctrl|mint.json.upload_url|PUT": {
+      "status": "reports",
+      "within": [
+        "_igSubmit"
+      ],
+      "note": "Instagram video upload to Post For Me storage. Recorded as instagram_storage_put."
+    },
+    "299-instagram-upload.js.part|send|IG_FUNCTION_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_igCall"
+      ],
+      "note": "Instagram upload function (mint, create, list, cancel). Create and cancel are recorded as instagram_create and instagram_cancel; list and mint are reads of state."
     },
     "300-tiktok-upload.js.part|_tkCancelRow|TIKTOK_UPLOAD_CANCEL_URL|POST": {
       "status": "reports",

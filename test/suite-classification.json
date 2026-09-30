@@ -635,6 +635,7 @@
     "filming-plan-tabs-source.js",
     "caption-jobs-source.js",
     "caption-jobs-page-wiring.js",
+    "instagram-upload-source.js",
     "kasper-filming-tab-source.js",
     "prod-subissue-parent-name.js"
   ],
@@ -1340,6 +1341,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/tiktok-upload-redesign-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "instagram-platform-switch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the TikTok / Instagram switch and a full Instagram post through the mocked instagram-upload function.",
+      "reproduce": "node test/instagram-platform-switch-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

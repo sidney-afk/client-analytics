@@ -30045,7 +30045,28 @@ deploy. **Way back:** revert the commit and redeploy `caption-jobs`.
 `calendar-upsert-post` webhook, which blocks switching that workflow off after the 30 days. It needs its own change (save
 through the `calendar-upsert` function) and is recorded in the phase 2 plan; it is not part of this PR.
 
-## 302. [2026-09-30] n8n exit phase 2, step B, page side: the Calendar reads caption progress and cancels through `caption-jobs`
+## 301. [2026-09-30] Instagram upload on the TikTok Upload tab, through Post For Me (built, not switched on)
+
+**What.** The TikTok Upload tab has a TikTok / Instagram switch (the tab keeps its name). The Instagram side uploads a video to Post For Me's storage, then a new Supabase function `instagram-upload` creates the post, keeps the queue in a new table `instagram_uploads`, reports status and cancels a scheduled post. No n8n workflow was changed or used (TikTok still runs on n8n). The client's Instagram connection id lives in a new Clients Info column `postforme_instagram_account_id`, next to the TikTok `postforme_account_id`.
+
+**Safety.** The function needs a staff key, checks with Post For Me that the account really is Instagram, and only lets clients in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` post (default: the test client only).
+
+**Done 2026-09-30:** `migrations/2026-09-30-instagram-uploads.sql` applied (table only, EXECUTION_LOG.md). **Still to do (owner's go).** Set the `POST_FOR_ME_API_KEY` secret; deploy `instagram-upload` through `deploy-single-function.yml`; add the sheet column. Runbook and the list of Post For Me details not yet proven for Instagram: `docs/ops/INSTAGRAM_UPLOAD.md`.
+
+## 302. [2026-09-30] n8n exit phase 2, step B2: Generate Caption reports progress to `caption-jobs` and uses saved logins (n8n edit, published)
+
+**What:** the Generate Caption n8n workflow was edited (version `2ac32e2c` to `8d2ffd70`, published 2026-09-30) so progress and cancel
+checks go to the `caption-jobs` function through HTTP steps with the saved staff key login, the Claude call uses the saved
+"Claude" login and Apify uses "APIFY @HOUSE"; no key is typed in the workflow. The edit, the real test results on the test client
+(full run, cancel, duplicate guard, error path) and the undo are in `docs/ops/N8N_EDIT_LOG.md`.
+**Still on n8n after this:** the Calendar page still reads progress from and cancels through the old n8n `caption-job-status` and
+`caption-job-update` webhooks, which read a data table the workflow no longer writes. **That means the page cannot show progress
+or cancel for a caption started after this edit until the page switches (next PR, behind a server-readable flag).** Until then a
+caption still generates and saves; only the progress strip and the Cancel button are affected.
+**Also still to do:** the finished caption is saved through the n8n `calendar-upsert-post` webhook (separate later step).
+**Way back:** restore version `2ac32e2c` in n8n (see the edit log).
+
+## 303. [2026-09-30] n8n exit phase 2, step B, page side: the Calendar reads caption progress and cancels through `caption-jobs`
 
 **What:** closes the gap named in 301. The Calendar's caption poll (`_calCapJobsPoll`) and the three Cancel sends (user cancel,
 cancel grace, stale timeout) now call the `caption-jobs` function with the staff headers (`_syncviewEfHeaders`), uncached and with

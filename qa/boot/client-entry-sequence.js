@@ -756,6 +756,10 @@ function installBfcacheSyntheticNetwork(config) {
         state.supportReads.push({ at, kind: 'smm_roster', url: url.href });
         return jsonResponse({ managers: [] });
       }
+      if (url.pathname === '/functions/v1/brain') {
+        state.supportReads.push({ at, kind: 'brain_folders', url: url.href });
+        return jsonResponse({ ok: true, frame: [], raw: [] });
+      }
       if (url.pathname === '/rest/v1/team_members') {
         state.supportReads.push({ at, kind: 'team_members', url: url.href });
         return jsonResponse([{
@@ -1316,6 +1320,12 @@ async function installSyntheticNetwork(context, origin, config = {}) {
       // (098-smm-clients); this operator is on no roster.
       if (url.pathname === '/functions/v1/smm-weekly-reports') {
         await fulfillJson(route, { managers: [] });
+        return;
+      }
+      // The Calendar's Frame folder button reads the client's saved folder
+      // once per calendar; this offline operator has none saved.
+      if (url.pathname === '/functions/v1/brain') {
+        await fulfillJson(route, { ok: true, frame: [], raw: [] });
         return;
       }
       if (url.pathname === '/rest/v1/team_members') {

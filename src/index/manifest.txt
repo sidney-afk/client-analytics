@@ -50,6 +50,7 @@
 270-samples-model.js.part
 280-samples-cards-notes.js.part
 290-samples-writes-review.js.part
+299-instagram-upload.js.part
 300-tiktok-upload.js.part
 305-core-kasper-shared.js.part
 310-sales-intake-hiring.js.part

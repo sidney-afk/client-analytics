@@ -17585,14 +17585,15 @@
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
        to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
-    /* Caption-job tracking. The generate-caption workflow upserts a row per
-       run into the caption_jobs n8n data table (status: running/done/error/
-       cancelled, stage: scraping → transcribing → writing → done). The UI
-       polls the status webhook so the button/progress chip mirror the real
+    /* Caption-job tracking. The generate-caption workflow (n8n) reports a row
+       per run to the caption-jobs function (caption_jobs table; status:
+       running/done/error/cancelled, stage: scraping → transcribing → writing →
+       done). The UI polls it so the button/progress chip mirror the real
        backend state — surviving refreshes, tab switches and dropped
-       connections — and posts cancel_requested to the update webhook. */
-    const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
-    const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
+       connections — and posts cancel_requested to it. One function, two verbs:
+       GET reads, POST writes; the staff key goes on both (n8n exit, step B). */
+    const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
+    const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
     /* "URGENT TWEAKS NEEDED" editor ping: native route only
        (native_urgent_dispatch via production-write). The legacy n8n
@@ -35322,6 +35323,56 @@
             ? 'The ' + label + ' is on this post; the Linear mirror is still draining.'
             : 'The ' + label + ' is on this post.');
     }
+    /* Frame.io folder button, the top of the pile. One quick lookup per client,
+       reused for every card on that calendar: the brain helper's `folders`
+       action, the same saved Frame folder links (the batches' delivery folder)
+       the Templates page lists. The link is NOT tested, it is only opened in a
+       new tab. Nothing here touches how the SyncLinear grid reads its own
+       per-post copy. Staff only, and a client with no saved folder shows
+       nothing. A failed lookup also shows nothing and is tried again after a
+       minute, never in a loop. */
+    const _calFrameFolders = {};   // client -> { busy, url, at, ok }
+    const _CAL_FRAME_FOLDER_TTL = 300000;   // a saved folder can change while the calendar stays open
+    const _CAL_FRAME_FOLDER_RETRY = 60000;
+    function _calFramePick(list) {
+        const rows = Array.isArray(list) ? list.map(i => String(i && i.url || '').trim()).filter(u => /^https?:\/\//i.test(u)) : [];
+        return rows.find(u => _calIsFrameLink(u)) || rows[0] || '';
+    }
+    function _calFrameFolderEnsure(name) {
+        const cur = _calFrameFolders[name];
+        if (cur && (cur.busy || Date.now() - cur.at < (cur.ok ? _CAL_FRAME_FOLDER_TTL : _CAL_FRAME_FOLDER_RETRY))) return cur;
+        // Keep showing the last answer while a fresh one is fetched; a failed
+        // fetch keeps it too.
+        const entry = _calFrameFolders[name] = { busy: true, url: cur ? cur.url : '', at: Date.now(), ok: cur ? cur.ok : false };
+        const url = CAL_SUPABASE_URL + '/functions/v1/brain';
+        let before = entry.url;
+        fetch(url, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
+            body: JSON.stringify({ action: 'folders', clientName: name })
+        }).then(async r => {
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+            entry.url = _calFramePick(j.frame);
+            entry.ok = true;
+        }).catch(() => { entry.ok = false; })
+          .then(() => {
+              entry.busy = false; entry.at = Date.now();
+              if (entry.url !== before && calState.client === name) _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
+          });
+        return entry;
+    }
+    function _calFrameFolderSlotHtml() {
+        if (_isClientLink || !calState.client) return '';
+        const entry = _calFrameFolderEnsure(calState.client);
+        if (!entry || !entry.url) return '';
+        // Only a Frame.io link gets the Frame icon and name; a Drive or Dropbox
+        // delivery link says what it is instead of posing as Frame.io.
+        const isFrame = _calIsFrameLink(entry.url);
+        const what = isFrame ? 'Frame.io' : _calLinkLabel(entry.url);
+        const tip = 'Open this client\'s ' + what + ' folder in a new tab';
+        return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</a>`;
+    }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
         const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
@@ -35332,8 +35383,9 @@
         // close rather than as a card that is simply missing something.
         const fv = _calFillComponentSlotHtml(p, 'video');
         const fg = _calFillComponentSlotHtml(p, 'graphic');
-        if (!v && !g && !pv && !pg && !fv && !fg) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
+        const fr = _calFrameFolderSlotHtml();
+        if (!fr && !v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${fr}${v}${pv}${fv}${g}${pg}${fg}</div>`;
     }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only
@@ -40070,7 +40122,7 @@
             const rows = new Map();
             await Promise.all(clients.map(async (slug) => {
                 try {
-                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug), { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_JOB_STATUS_URL) });
                     const j = await r.json();
                     if (j && j.ok && Array.isArray(j.jobs)) for (const row of j.jobs) rows.set(row.jobId, row);
                 } catch {}
@@ -40094,7 +40146,7 @@
                 // the full 12-min stale timeout. cancel_requested is (re)sent so a
                 // late checkpoint still won't save a caption.
                 if (_calCapJobCancelExpired(job, now)) {
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'cancelled', {});
                     continue;
                 }
@@ -40112,7 +40164,7 @@
                 if (now - (job.lastMovementAt || job.startedAt) > CAL_CAPJOB_STALE_MS) {
                     // Stand the backend down too, so a zombie run can't write a
                     // caption to the sheet long after the UI gave up.
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'error', { error: 'Timed out — the caption generator stopped responding. Try again.' });
                 }
             }
@@ -40140,7 +40192,7 @@
         _calUpdateBulkCaptionBar();
         fetch(CAPTION_JOB_UPDATE_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL),
             body: JSON.stringify({ jobId: job.jobId, cancel_requested: true })
         }).then(r => { if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); })
           .catch(() => {
@@ -71095,6 +71147,477 @@
         _sxrKasperSendUrgentSlack, _sxrKasperToggleCard, _sxrKasperToggleHistory
     });
     /* ============================================================
+       INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab)
+       Posts a video to a client's Instagram through Post For Me. Unlike TikTok, which
+       runs through n8n webhooks, everything here talks to ONE Supabase function,
+       `instagram-upload`, which holds the Post For Me key and keeps the queue in the
+       `instagram_uploads` table (owner, 2026-09-30: new server work goes in Supabase).
+
+       The client's Instagram account id (the Post For Me connection id, spc_...) comes
+       from the Clients Info sheet column `postforme_instagram_account_id`, next to the
+       TikTok one (`postforme_account_id`). No id, no post: there is no fallback, so a
+       video can never land on another client's account.
+
+       The TikTok module (300) owns the tab, the platform switch and the shared helpers;
+       it hands them in through `deps` so the two files never import each other.
+       ============================================================ */
+    const IG_FUNCTION_URL = CAL_SUPABASE_URL + '/functions/v1/instagram-upload';
+    const IG_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
+    const IG_ACCOUNT_COLUMN = 'postforme_instagram_account_id';
+    const IG_MAX_CAPTION = 2200;
+    const IG_PLACEMENTS = [
+        { v: 'reels', label: 'Reel' },
+        { v: 'timeline', label: 'Feed video' },
+    ];
+    const IG_STATUS_LABELS = { uploading: 'Uploading', processing: 'Posting', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled' };
+    const IG_UPCOMING = ['uploading', 'processing', 'scheduled'];
+    const IG_CALL_TIMEOUT_MS = 30000;
+    const IG_QUEUE_PAGE = 5;
+
+    const igState = {
+        client: null,
+        file: null,
+        objectUrl: null,
+        title: '',
+        placement: 'reels',
+        schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
+        attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
+        phase: '',                   // '', 'preparing', 'uploading', 'creating'
+        uploads: [],
+        queueReadState: 'loading',   // only a successful read proves an empty queue
+        queueTab: 'upcoming',
+        queueLimit: IG_QUEUE_PAGE,
+        submitting: false,
+        error: null,
+        notice: null,
+        progress: 0,
+    };
+    let _igDeps = null;
+    let _igMounted = false;
+    let _igPollTimer = null;
+    let _igActiveXhr = null;
+    let _igAbort = null;           // aborts every step before the post is created
+
+    const _igEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    // The client's Instagram connection id. Staff pages read the sheet columns directly, or (once the analytics
+    // database is on) receive any column the copy does not know by name inside `extra`; both are accepted.
+    function _igResolveAccount(client) {
+        const row = (client && clientMap[client]) || null;
+        if (!row) return '';
+        const direct = String(row[IG_ACCOUNT_COLUMN] || '').trim();
+        if (direct) return direct;
+        const extra = row.extra && typeof row.extra === 'object' ? row.extra : null;
+        return extra ? String(extra[IG_ACCOUNT_COLUMN] || '').trim() : '';
+    }
+
+    function _igRecordFailure(operation, status, network) {
+        const shape = { message: status ? 'HTTP ' + status : (network ? 'network error' : 'upload rejected') };
+        if (status) shape.status = status;
+        else if (network) shape.network = true;
+        _writeUiRecordFailure('tiktok', operation, shape, {});
+    }
+
+    // One call to the function. Returns { ok, status, json }; a bad answer never throws, a network failure does.
+    async function _igCall(payload, track, userSignal) {
+        const timeout = (AbortSignal.timeout ? AbortSignal.timeout(IG_CALL_TIMEOUT_MS) : undefined);
+        const signal = (userSignal && timeout && AbortSignal.any) ? AbortSignal.any([userSignal, timeout]) : (userSignal || timeout);
+        const send = () => fetch(IG_FUNCTION_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }, IG_FUNCTION_URL),
+            body: JSON.stringify(payload),
+            cache: 'no-store',
+            signal,
+        });
+        const resp = track ? await _writeUiTrackSave('tiktok', track, {}, send) : await send();
+        let json = null;
+        try { json = await resp.json(); } catch { json = null; }
+        return { ok: !!(resp.ok && json && json.ok !== false), status: resp.status, json };
+    }
+
+    function _igClientNames() {
+        return (WL_CLIENT_NAMES || []).slice().sort((a, b) => a.localeCompare(b));
+    }
+
+    function renderInstagramPanel() {
+        return `
+            <div class="tk-col tk-form-col" id="igFormCol" hidden></div>
+            <div class="tk-col tk-right-col" id="igRightCol" hidden><div id="igQueueCol"></div></div>
+        `;
+    }
+
+    // The schedule is held as date + 12-hour time, like TikTok's; this composes "YYYY-MM-DDTHH:MM".
+    function _igAt() {
+        const s = igState.schedule;
+        if (!s.date || s.hour === '' || s.minute === '') return '';
+        let h = parseInt(s.hour, 10);
+        if (!Number.isFinite(h)) return '';
+        if (s.ampm === 'PM' && h < 12) h += 12;
+        if (s.ampm === 'AM' && h === 12) h = 0;
+        return s.date + 'T' + String(h).padStart(2, '0') + ':' + String(s.minute).padStart(2, '0');
+    }
+    function _igTodayIso() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    const _igItems = (pairs) => pairs.map(([value, label]) => ({ value: String(value), label: String(label) }));
+
+    function _igValidate() {
+        if (!igState.client) return 'Pick a client first.';
+        if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'This client has no Instagram account connected yet. Add its Post For Me connection id to the ' + IG_ACCOUNT_COLUMN + ' column of the Clients Info sheet.';
+        if (!igState.file) return 'Attach a video.';
+        if (igState.file.size > _igDeps.maxBytes) return 'That video is over the ' + _igDeps.formatBytes(_igDeps.maxBytes) + ' limit.';
+        if (!igState.title.trim()) return 'Add a caption.';
+        if (igState.title.length > IG_MAX_CAPTION) return 'Caption is over the ' + IG_MAX_CAPTION + '-character limit.';
+        if (!igState.schedule.postNow) {
+            const at = _igAt();
+            if (!at) return 'Pick a schedule date and time, or switch on "Post immediately".';
+            const t = new Date(at).getTime();
+            if (!Number.isFinite(t)) return 'That schedule time is not valid.';
+            if (t < Date.now() - 60000) return 'The schedule time is in the past.';
+        }
+        return null;
+    }
+
+    function _igRenderForm() {
+        const col = document.getElementById('igFormCol');
+        if (!col) return;
+        const account = igState.client ? _igResolveAccount(igState.client) : '';
+        const accountOk = IG_ACCOUNT_RE.test(account);
+        const names = _igClientNames();
+        const over = igState.title.length > IG_MAX_CAPTION;
+        const can = !!(igState.client && accountOk && igState.file && igState.title.trim() && !over && !igState.submitting);
+        let accountLine = '';
+        if (igState.client) {
+            accountLine = accountOk
+                ? `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(account)}</span></div>`
+                : `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> Connect this client's Instagram in Post For Me, then put its <strong>Connection ID</strong> (<code>spc_…</code>) in the <code>${IG_ACCOUNT_COLUMN}</code> column of the Clients Info sheet.</div>`;
+        }
+        const media = igState.file
+            ? `<div class="tk-file-card">
+                    <video id="igFilePreview" src="${_igEsc(igState.objectUrl)}" playsinline controls preload="metadata"></video>
+                    <div class="tk-file-meta">
+                        <div class="tk-file-meta-text">
+                            <div class="tk-file-name">${_igEsc(igState.file.name)}</div>
+                            <div class="tk-file-size">${_igDeps.formatBytes(igState.file.size)} · ${_igEsc(igState.file.type || 'video')}</div>
+                        </div>
+                        <div class="tk-file-actions">
+                            <button type="button" class="tk-mini-btn" id="igRemoveFile" ${igState.submitting ? 'disabled' : ''}>Remove</button>
+                        </div>
+                    </div>
+                </div>`
+            : `<div class="tk-drop" id="igDrop">
+                    <input type="file" id="igFile" accept="video/mp4,video/quicktime,video/*" ${igState.submitting ? 'disabled' : ''}>
+                    <div class="tk-drop-title">Drop a video here, or click to browse</div>
+                    <div class="tk-drop-sub">MP4 or MOV · up to ${_igDeps.formatBytes(_igDeps.maxBytes)}</div>
+                </div>`;
+        col.innerHTML = `
+            <div class="tk-card">
+                <h3>Client</h3>
+                ${_svSelectHtml('igClient', _igItems(names.map(n => [n, n])), igState.client || '', 'Pick a client…', { disabled: igState.submitting })}
+                ${accountLine}
+            </div>
+            <div class="tk-card">
+                <h3>Video</h3>
+                ${media}
+            </div>
+            <div class="tk-card">
+                <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
+                <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
+                <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Post type" style="margin-top:12px">
+                    ${IG_PLACEMENTS.map(p => `<label class="tk-radio${igState.placement === p.v ? ' active' : ''}"><input type="radio" name="igPlacement" value="${p.v}" ${igState.placement === p.v ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">${p.label}</label>`).join('')}
+                </div>
+            </div>
+            <div class="tk-card">
+                <div class="tk-sched-head"><h3>Schedule</h3>
+                    <label class="tk-radio"><input type="checkbox" id="igPostNow" ${igState.schedule.postNow ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}> Post immediately</label>
+                </div>
+                <div id="igScheduleFields" ${igState.schedule.postNow ? 'hidden' : ''}>
+                    ${_svDateHtml('igDate', igState.schedule.date, { min: _igTodayIso(), placeholder: 'Choose date', disabled: igState.submitting })}
+                    <div style="display:flex;gap:8px;margin-top:10px">
+                        ${_svSelectHtml('igHour', _igItems(Array.from({ length: 12 }, (_, i) => [i + 1, i + 1])), igState.schedule.hour, 'Hour', { disabled: igState.submitting })}
+                        ${_svSelectHtml('igMin', _igItems(Array.from({ length: 12 }, (_, i) => { const m = String(i * 5).padStart(2, '0'); return [m, m]; })), igState.schedule.minute, 'Min', { disabled: igState.submitting })}
+                        ${_svSelectHtml('igAmPm', _igItems([['AM', 'AM'], ['PM', 'PM']]), igState.schedule.ampm, 'AM', { disabled: igState.submitting })}
+                    </div>
+                    <div style="margin-top:10px">${_svSelectHtml('igTz', _igItems(_igDeps.timezones.map(tz => [tz, tz])), igState.schedule.tz, 'Timezone', { disabled: igState.submitting })}</div>
+                </div>
+            </div>
+            <div class="tk-submit-bar">
+                <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : (igState.schedule.postNow ? 'Post now' : 'Schedule post')}</button>
+                ${igState.submitting
+                    ? `<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div>${igState.phase === 'creating' ? '<span class="tk-step-note">Finishing…</span>' : '<button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>'}`
+                    : ''}
+                ${igState.error ? `<div class="tk-error" role="alert">${_igEsc(igState.error)}</div>` : (igState.notice ? `<div class="tk-step-note" role="status">${_igEsc(igState.notice)}</div>` : '')}
+            </div>
+        `;
+        _igWireForm();
+    }
+
+    function _igWireForm() {
+        const $ = (id) => document.getElementById(id);
+        // Only the parts that change the submit button re-render the whole form; typing never does.
+        const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; _igRenderForm(); });
+        $('igTitle')?.addEventListener('input', (e) => {
+            igState.title = e.target.value;
+            const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
+            syncSubmit();
+        });
+        document.querySelectorAll('input[name="igPlacement"]').forEach(r => r.addEventListener('change', (e) => { igState.placement = e.target.value; _igRenderForm(); }));
+        $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
+        $('igDate')?.addEventListener('change', (e) => { igState.schedule.date = e.target.value; syncSubmit(); });
+        $('igHour')?.addEventListener('change', (e) => { igState.schedule.hour = e.target.value; syncSubmit(); });
+        $('igMin')?.addEventListener('change', (e) => { igState.schedule.minute = e.target.value; syncSubmit(); });
+        $('igAmPm')?.addEventListener('change', (e) => { igState.schedule.ampm = e.target.value; syncSubmit(); });
+        $('igTz')?.addEventListener('change', (e) => { igState.schedule.tz = e.target.value; });
+        $('igFile')?.addEventListener('change', (e) => { _igHandleFile(e.target.files && e.target.files[0]); });
+        $('igRemoveFile')?.addEventListener('click', _igClearFile);
+        $('igSubmit')?.addEventListener('click', _igSubmit);
+        $('igAbort')?.addEventListener('click', () => { if (_igAbort) _igAbort.abort(); if (_igActiveXhr) _igActiveXhr.abort(); });
+        const drop = $('igDrop');
+        if (drop) {
+            drop.addEventListener('dragover', (e) => { e.preventDefault(); });
+            drop.addEventListener('drop', (e) => { e.preventDefault(); _igHandleFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
+        }
+    }
+
+    // The submit button's enabled state, without a message.
+    function _igValidateSoft() {
+        if (igState.submitting) return 'busy';
+        if (!igState.client || !IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'account';
+        if (!igState.file || !igState.title.trim() || igState.title.length > IG_MAX_CAPTION) return 'fields';
+        return '';
+    }
+
+    function _igHandleFile(file) {
+        if (!file) return;
+        if (!/^video\//.test(file.type || '')) { igState.error = 'That file is not a video.'; _igRenderForm(); return; }
+        if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl);
+        igState.file = file;
+        igState.objectUrl = URL.createObjectURL(file);
+        igState.error = null;
+        _igRenderForm();
+    }
+    function _igClearFile() {
+        if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl);
+        igState.file = null; igState.objectUrl = null; igState.error = null;
+        _igRenderForm();
+    }
+
+    // Three steps, the same shape as TikTok's direct transport: (1) ask the function for a one-time Post For Me
+    // storage URL, (2) PUT the video straight there from the browser, (3) tell the function to create the post.
+    // Cancel works for steps 1 and 2. Once step 3 is sent its outcome may be unknown (a timeout, a dropped
+    // connection), so the same retry-safe key is kept and sent again: a second press can never post twice.
+    async function _igSubmit() {
+        const err = _igValidate();
+        if (err) { igState.error = err; _igRenderForm(); return; }
+        const account = _igResolveAccount(igState.client);
+        const wall = igState.schedule.postNow ? '' : _igAt();
+        const utc = wall ? (_igDeps.wallClockToUTC(wall, igState.schedule.tz) || '') : '';
+        if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
+        const file = igState.file;
+        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), igState.placement, utc].join('|');
+        if (!igState.attempt || igState.attempt.fp !== fp) {
+            igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
+        }
+        const idempotencyKey = igState.attempt.key;
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        _igAbort = ctrl;
+        igState.submitting = true; igState.error = null; igState.notice = null; igState.progress = 0; igState.phase = 'preparing';
+        _igRenderForm();
+        try {
+            const mint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
+            if (!mint.ok || !mint.json || !mint.json.upload_url || !mint.json.media_url) {
+                _igRecordFailure('instagram_mint', mint.status);
+                throw new Error((mint.json && mint.json.error) || 'Could not prepare the upload. Try again.');
+            }
+            igState.phase = 'uploading';
+            await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                _igActiveXhr = xhr;
+                xhr.open('PUT', mint.json.upload_url);
+                xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+                xhr.upload.onprogress = (e) => {
+                    if (!e.lengthComputable) return;
+                    igState.progress = Math.min(90, Math.round((e.loaded / e.total) * 90));
+                    const bar = document.getElementById('igProgress');
+                    if (bar) bar.style.width = igState.progress + '%';
+                };
+                xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : (_igRecordFailure('instagram_storage_put', xhr.status), reject(new Error('Video upload to storage failed (HTTP ' + xhr.status + '). Try again.')));
+                xhr.onerror = () => { _igRecordFailure('instagram_storage_put', 0, true); reject(new Error('Network error while uploading the video. Try again.')); };
+                xhr.onabort = () => reject(Object.assign(new Error('Upload cancelled.'), { igCancelled: true }));
+                xhr.send(file);
+            });
+            _igActiveXhr = null;
+            if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
+            igState.phase = 'creating';
+            _igRenderForm();
+            const created = await _igCall({
+                action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
+                mediaUrl: mint.json.media_url, options: { placement: igState.placement },
+                scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
+            }, 'instagram_create');
+            if (!created.ok) {
+                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
+                if (created.json && created.status >= 400 && created.status < 500) igState.attempt = null;
+                throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !(created.json && created.status >= 400 && created.status < 500) });
+            }
+            igState.attempt = null;
+            const row = created.json.row;
+            if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
+            igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
+            igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
+            igState.title = '';
+            igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
+            igState.queueTab = 'upcoming';
+            _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
+        } catch (e) {
+            const inCreate = igState.phase === 'creating';
+            _igActiveXhr = null; _igAbort = null;
+            igState.submitting = false; igState.progress = 0; igState.phase = '';
+            const cancelled = !!(e && (e.igCancelled || e.name === 'AbortError')) && !inCreate;
+            if (cancelled) { igState.attempt = null; igState.error = 'Upload cancelled.'; }
+            else if (inCreate && !(e && e.igUnknown === false)) igState.error = 'We could not confirm whether Instagram received this post. Press the button again: it will not post twice. You can also check the queue.';
+            else igState.error = e && e.message ? e.message : 'The upload failed. Try again.';
+            _igRenderForm();
+        }
+    }
+
+    function _igEffective(r) { return r.status; }
+    function _igWhen(r) {
+        const iso = r.scheduled_for || r.posted_at || r.created_at || '';
+        if (!iso) return { day: '—', time: '' };
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return { day: '—', time: '' };
+        const opts = r.timezone ? { timeZone: r.timezone } : {};
+        let day, time;
+        try {
+            day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', ...opts });
+            time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', ...opts });
+        } catch { day = d.toLocaleDateString(); time = d.toLocaleTimeString(); }
+        return { day, time };
+    }
+
+    function _igRenderQueue() {
+        const col = document.getElementById('igQueueCol');
+        if (!col) return;
+        const t = (r) => { const d = new Date(r.scheduled_for || r.posted_at || r.created_at || 0); return d.getTime() || 0; };
+        const all = igState.uploads;
+        const groups = {
+            upcoming: all.filter(r => IG_UPCOMING.includes(_igEffective(r))).sort((x, y) => t(x) - t(y)),
+            failed: all.filter(r => _igEffective(r) === 'failed').sort((x, y) => t(y) - t(x)),
+            done: all.filter(r => ['posted', 'cancelled'].includes(_igEffective(r))).sort((x, y) => t(y) - t(x)),
+        };
+        const tab = groups[igState.queueTab] ? igState.queueTab : 'upcoming';
+        const rows = groups[tab];
+        const shown = rows.slice(0, igState.queueLimit);
+        const remaining = rows.length - shown.length;
+        const item = (r) => {
+            const status = _igEffective(r);
+            const when = _igWhen(r);
+            const id = _igEsc(r.id);
+            const actions = [];
+            if (status === 'scheduled') actions.push(`<button type="button" class="tk-q-btn tk-q-danger" data-ig-cancel="${id}">Cancel</button>`);
+            if (r.instagram_url) actions.push(`<a class="tk-q-btn" href="${_igEsc(r.instagram_url)}" target="_blank" rel="noopener">Open</a>`);
+            return `
+                <div class="tk-queue-item">
+                    <div class="tk-q-when"><div class="tk-q-day">${_igEsc(when.day)}</div><div class="tk-q-time">${_igEsc(when.time)}</div></div>
+                    <div class="tk-q-main">
+                        <div class="tk-queue-client">${_igEsc(r.client || '—')}</div>
+                        ${r.title ? `<div class="tk-queue-title">${_igEsc(r.title)}</div>` : ''}
+                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${r.placement === 'timeline' ? 'Feed video' : 'Reel'}</span></div>
+                        ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}
+                    </div>
+                    ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
+                </div>`;
+        };
+        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" data-ig-tab="${key}">${label}<b>${groups[key].length}</b></button>`;
+        const empty = { upcoming: 'Nothing scheduled yet.', failed: 'No failed uploads.', done: 'No posts yet.' }[tab];
+        const notice = igState.queueReadState === 'loading' ? '<div class="tk-queue-empty" role="status">Loading uploads…</div>'
+            : igState.queueReadState === 'error' ? `<div class="tk-queue-empty" role="alert">Couldn't load your Instagram uploads. ${all.length ? 'Showing what we have. ' : ''}Trying again shortly.</div>` : '';
+        col.innerHTML = `
+            <div class="tk-card">
+                <h3>Instagram uploads</h3>
+                <div class="tk-q-tabs" role="tablist">${tabBtn('upcoming', 'Upcoming')}${tabBtn('failed', 'Failed')}${tabBtn('done', 'Done')}</div>
+                ${notice}
+                ${shown.length ? shown.map(item).join('') : igState.queueReadState === 'ready' ? `<div class="tk-queue-empty">${empty}</div>` : ''}
+                ${remaining > 0 ? `<button type="button" class="tk-q-more" data-ig-more>Show ${Math.min(remaining, IG_QUEUE_PAGE)} more <span>· ${remaining} left</span></button>` : ''}
+            </div>`;
+        col.querySelectorAll('[data-ig-tab]').forEach(b => b.addEventListener('click', () => { igState.queueTab = b.getAttribute('data-ig-tab'); igState.queueLimit = IG_QUEUE_PAGE; _igRenderQueue(); }));
+        col.querySelector('[data-ig-more]')?.addEventListener('click', () => { igState.queueLimit += IG_QUEUE_PAGE; _igRenderQueue(); });
+        col.querySelectorAll('[data-ig-cancel]').forEach(b => b.addEventListener('click', () => _igCancelRow(b.getAttribute('data-ig-cancel'))));
+    }
+
+    async function _igFetchQueue() {
+        try {
+            const r = await _igCall({ action: 'list', client: '' });
+            if (!r.ok || !r.json || !Array.isArray(r.json.rows)) throw new Error('read failed');
+            igState.uploads = r.json.rows;
+            igState.queueReadState = 'ready';
+        } catch {
+            igState.queueReadState = igState.queueReadState === 'ready' ? 'ready' : 'error';
+        }
+        if (_igMounted) _igRenderQueue();
+    }
+
+    function _igCancelRow(id) {
+        showConfirm('Cancel this scheduled post?', 'This removes the scheduled post from Post For Me, so it will not go out. The video file stays on your computer.', async () => {
+            try {
+                const r = await _igCall({ action: 'cancel', id }, 'instagram_cancel');
+                if (!r.ok) throw new Error((r.json && r.json.error) || 'Post For Me did not cancel it.');
+                igState.uploads = igState.uploads.map(x => x.id === id ? r.json.row : x);
+                _igRenderQueue();
+            } catch (e) { showNotify('Could not cancel', (e && e.message) || 'The cancel did not go through.'); }
+        });
+    }
+
+    // Poll gently: often while something is being posted, rarely while only future posts wait, never when idle.
+    function _igPollDelay() {
+        if (igState.queueReadState === 'error') return 60000;
+        if (igState.uploads.some(r => r.status === 'uploading' || r.status === 'processing')) return 15000;
+        if (igState.uploads.some(r => r.status === 'scheduled')) return 300000;
+        return 0;
+    }
+    function _igStopPolling() { if (_igPollTimer) { clearTimeout(_igPollTimer); _igPollTimer = null; } }
+    function _igSchedulePoll() {
+        _igStopPolling();
+        if (!_igMounted || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+        const delay = _igPollDelay();
+        if (delay <= 0) return;
+        _igPollTimer = setTimeout(() => { _igPollTimer = null; Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll); }, delay);
+    }
+
+    // Called by the TikTok module when the person switches to Instagram (or lands on it after a reload).
+    function mountInstagramPanel(deps) {
+        _igDeps = deps;
+        const shared = svSharedClientFor('tiktok-upload');
+        if (!igState.client && shared && (WL_CLIENT_NAMES || []).includes(shared)) igState.client = shared;
+        _igMounted = true;
+        const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');
+        if (form) form.hidden = false;
+        if (right) right.hidden = false;
+        _igRenderForm();
+        _igRenderQueue();
+        Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll);
+    }
+    // Called when the person switches back to TikTok or leaves the tab. The chosen video stays in memory.
+    function teardownInstagramPanel() {
+        _igMounted = false;
+        _igStopPolling();
+        const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');
+        if (form) form.hidden = true;
+        if (right) right.hidden = true;
+    }
+    // The roster can arrive after this side first drew. Redrawn unless the caption is being typed into.
+    function refreshInstagramForm() {
+        if (!_igMounted) return;
+        const a = document.activeElement;
+        if (a && a.id === 'igTitle') return;
+        _igRenderForm();
+    }
+    function instagramResumePolling() { if (_igMounted) { Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll); } }
+
+    /* ============================================================
        TIKTOK UPLOAD MODULE
        Posts videos to Post For Me (api.postforme.dev) through a
        server-side n8n proxy so the API key never reaches the browser.
@@ -71134,7 +71657,9 @@
 
     const TK_QUEUE_PAGE = 5;
 
+    const TK_PLATFORM_KEY = 'syncview_uploadPlatform_v1';   // which side of the tab this browser last used
     const tkState = {
+        platform: 'tiktok',         // 'tiktok' | 'instagram' — which side of the tab is showing
         client: null,
         profile: null,
         profileSource: null,        // 'sheet' | 'missing'  (profile holds the Post For Me spc_… account id)
@@ -71225,6 +71750,8 @@
         .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
         .tk-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
         .tk-form-col { grid-column: 1; grid-row: 2; }
+        .tk-col[hidden] { display: none; }
+        .tk-platform-switch { width: 220px; flex-shrink: 0; margin-bottom: 0; }
         .tk-right-col { grid-column: 2; grid-row: 1 / span 2; }
         /* Collapse to a single stacked column on narrow screens. This block must
            come AFTER the base column-placement rules above: it has the same
@@ -71244,10 +71771,10 @@
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
         .tk-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
         /* Form column: numbered steps on a thin rail instead of boxed cards. */
-        #tkFormCol { counter-reset: tkstep; }
-        #tkFormCol > .tk-card { background: none; border: 0; border-radius: 0; padding: 0 0 26px 40px; position: relative; counter-increment: tkstep; }
-        #tkFormCol > .tk-card::before { content: counter(tkstep); position: absolute; left: 0; top: -3px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background: var(--bg); }
-        #tkFormCol > .tk-card::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 6px; width: 1.5px; background: var(--border); }
+        #tkFormCol, #igFormCol { counter-reset: tkstep; }
+        #tkFormCol > .tk-card, #igFormCol > .tk-card { background: none; border: 0; border-radius: 0; padding: 0 0 26px 40px; position: relative; counter-increment: tkstep; }
+        #tkFormCol > .tk-card::before, #igFormCol > .tk-card::before { content: counter(tkstep); position: absolute; left: 0; top: -3px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background: var(--bg); }
+        #tkFormCol > .tk-card::after, #igFormCol > .tk-card::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 6px; width: 1.5px; background: var(--border); }
         #tkFormCol > .tk-opts-card::after { display: none; }
         .tk-step-note { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
         .tk-radio-row.tk-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--field-bg); border-radius: 12px; padding: 4px; }
@@ -71690,6 +72217,41 @@
         return Number.isFinite(at) && Date.now() - at > TK_OVERDUE_MS;
     }
 
+    function _tkPlatformSub(platform) {
+        return platform === 'instagram'
+            ? 'Post a video to a client\'s Instagram — uploads through Post For Me.'
+            : 'Schedule a TikTok post for a client — uploads through Post For Me.';
+    }
+    function _tkLoadPlatform() {
+        try { return localStorage.getItem(TK_PLATFORM_KEY) === 'instagram' ? 'instagram' : 'tiktok'; } catch { return 'tiktok'; }
+    }
+    // Shows one side of the tab and hides the other. Nothing is torn down on the TikTok side: its form, draft and
+    // queue stay exactly as they were, so switching back loses nothing.
+    function _tkApplyPlatform(platform, persist) {
+        tkState.platform = platform === 'instagram' ? 'instagram' : 'tiktok';
+        if (persist) { try { localStorage.setItem(TK_PLATFORM_KEY, tkState.platform); } catch {} }
+        const ig = tkState.platform === 'instagram';
+        const $ = (id) => document.getElementById(id);
+        if ($('tkFormCol')) $('tkFormCol').hidden = ig;
+        if ($('tkRightCol')) $('tkRightCol').hidden = ig;
+        if ($('tkPlatTiktok')) { $('tkPlatTiktok').classList.toggle('on', !ig); $('tkPlatTiktok').setAttribute('aria-selected', String(!ig)); }
+        if ($('tkPlatInstagram')) { $('tkPlatInstagram').classList.toggle('on', ig); $('tkPlatInstagram').setAttribute('aria-selected', String(ig)); }
+        if ($('tkPlatformSub')) $('tkPlatformSub').textContent = _tkPlatformSub(tkState.platform);
+        if (ig) {
+            _tkStopPolling();
+            mountInstagramPanel({
+                maxBytes: TIKTOK_MAX_BYTES, formatBytes: _tkFormatBytes, timezones: TK_TIMEZONES, wallClockToUTC: _tkWallClockToUTC,
+            });
+        } else {
+            teardownInstagramPanel();
+            if (_tkMounted) Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        }
+    }
+    function _tkSetPlatform(platform) {
+        if ((platform === 'instagram' ? 'instagram' : 'tiktok') === tkState.platform) return;
+        _tkApplyPlatform(platform, true);
+    }
+
     function renderTiktokUploadView() {
         _tkInjectCSSOnce();
         return `
@@ -71697,14 +72259,19 @@
                 <div class="tk-header">
                     <div>
                         <div class="tk-title">TikTok Upload</div>
-                        <div class="tk-sub">Schedule a TikTok post for a client — uploads through Post For Me.</div>
+                        <div class="tk-sub" id="tkPlatformSub">${_tkPlatformSub(tkState.platform)}</div>
+                    </div>
+                    <div class="tk-q-tabs tk-platform-switch" role="tablist" aria-label="Platform">
+                        <button type="button" class="tk-q-tab${tkState.platform === 'tiktok' ? ' on' : ''}" id="tkPlatTiktok" role="tab" aria-selected="${tkState.platform === 'tiktok'}" onclick="_tkSetPlatform('tiktok')">TikTok</button>
+                        <button type="button" class="tk-q-tab${tkState.platform === 'instagram' ? ' on' : ''}" id="tkPlatInstagram" role="tab" aria-selected="${tkState.platform === 'instagram'}" onclick="_tkSetPlatform('instagram')">Instagram</button>
                     </div>
                 </div>
-                <div class="tk-col tk-form-col" id="tkFormCol"></div>
-                <div class="tk-col tk-right-col">
+                <div class="tk-col tk-form-col" id="tkFormCol"${tkState.platform === 'instagram' ? ' hidden' : ''}></div>
+                <div class="tk-col tk-right-col" id="tkRightCol"${tkState.platform === 'instagram' ? ' hidden' : ''}>
                     <div class="tk-preview-wrap" id="tkPreviewWrap"></div>
                     <div id="tkQueueCol"></div>
                 </div>
+                ${renderInstagramPanel()}
             </div>
         `;
     }
@@ -72824,6 +73391,10 @@
             tkState.queueFromCache = false;
             tkState.queueReadState = 'ready';
             tkState.queueFailures = 0;
+            // Count consecutive reads that changed nothing, so the poll can back off.
+            const readSig = JSON.stringify(tkState.uploads);
+            tkState.unchangedPolls = (readSig === tkState.lastReadSig) ? (tkState.unchangedPolls || 0) + 1 : 0;
+            tkState.lastReadSig = readSig;
             // The live list is usually the same; repaint only on a change
             // (or to turn the cached, read-only rows into live ones).
             if (wasUnverified || JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
@@ -73018,9 +73589,11 @@
     // Ask Post For Me (through the read-only status webhook) what happened
     // to overdue rows. At most a few per pass, each at most every 10 min.
     const TK_LOOKUP_EVERY_MS = 10 * 60000;
+    // A row that keeps coming back without a result is asked less and less often.
+    function _tkLookupGap(n) { return TK_LOOKUP_EVERY_MS * ((n || 0) < 3 ? 1 : (n || 0) < 5 ? 3 : 6); }
     async function _tkLookupOverdue() {
         tkState.pfm = tkState.pfm || {};
-        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < TK_LOOKUP_EVERY_MS))
+        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < _tkLookupGap((tkState.pfm[r.id] || {}).n)))
             .sort((x, y) => ((tkState.pfm[x.id] || {}).at || 0) - ((tkState.pfm[y.id] || {}).at || 0))   // longest-unasked first, so no row starves
             .slice(0, 5);
         let changed = false;
@@ -73030,17 +73603,21 @@
                 const json = resp.ok ? await resp.json() : null;
                 const pfm = (json && json.pfm) || null;
                 const prev = tkState.pfm[r.id] || {};
-                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now() };
+                // Only an answer from Post For Me counts toward the slower pace; a failed request is retried at the same gap.
+                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now(), n: json ? (prev.n || 0) + 1 : (prev.n || 0) };
                 if (prev.state !== tkState.pfm[r.id].state) changed = true;
-            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now() }; }
+            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now(), n: (tkState.pfm[r.id] || {}).n || 0 }; }
         }
         if (changed) _tkRenderQueue();
     }
     function _tkNextPollDelay() {
         if (tkState.queueReadState === 'error') return Math.min(300_000, 30_000 * 2 ** Math.min(tkState.queueFailures - 1, 4));
-        if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
-        if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
-        if (_tkUnresolvedOverdue().length) return 300_000; // overdue, no result yet — keep asking
+        // Each base delay stretches after reads that changed nothing; any change,
+        // submit, return to the tab or remount starts it again from the base.
+        const quiet = tkState.unchangedPolls || 0;
+        if (_tkActiveUploadCount() > 0) return quiet <= 6 ? 30_000 : quiet <= 12 ? 60_000 : 120_000;   // something in-flight — watch closely
+        if (_tkHasScheduled()) return quiet <= 3 ? 120_000 : quiet <= 9 ? 300_000 : 600_000;           // only future posts — check lazily
+        if (_tkUnresolvedOverdue().length) return quiet <= 2 ? 300_000 : quiet <= 6 ? 600_000 : 900_000; // overdue, no result yet — keep asking
         return 0;                                        // nothing pending — stop until activity resumes
     }
     function _tkStopPolling() {
@@ -73062,6 +73639,7 @@
     function _tkTeardown() {
         _tkMounted = false;
         _tkStopPolling();
+        teardownInstagramPanel();
         if (tkState.objectUrl) { URL.revokeObjectURL(tkState.objectUrl); tkState.objectUrl = null; }
         // Keep tkState.file around so navigating away and back doesn't lose the
         // user's selection — but the object URL needs to be recreated.
@@ -73093,20 +73671,30 @@
         tkState.queueFromCache = cachedRows.length > 0;
         tkState.queueReadState = 'loading';
         tkState.queueFailures = 0;
+        tkState.unchangedPolls = 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();
         _tkMounted = true;
-        // Fetch once on mount, then let the adaptive scheduler decide whether
-        // (and how often) to keep polling based on what's in the queue.
-        Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        tkState.platform = _tkLoadPlatform();
+        if (tkState.platform === 'instagram') {
+            // The Instagram side has its own queue and its own polling; TikTok's stays quiet until the switch is flipped back.
+            _tkApplyPlatform('instagram', false);
+        } else {
+            // Fetch once on mount, then let the adaptive scheduler decide whether
+            // (and how often) to keep polling based on what's in the queue.
+            Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        }
         // Pause polling whenever the tab is hidden; resume + refetch on return.
         // Registered once — the listener is a no-op unless the view is mounted.
         if (!_tkVisHooked) {
             _tkVisHooked = true;
             document.addEventListener('visibilitychange', () => {
                 if (!_tkMounted) return;
-                if (document.visibilityState === 'visible') {
+                if (tkState.platform === 'instagram') {
+                    if (document.visibilityState === 'visible') instagramResumePolling();
+                } else if (document.visibilityState === 'visible') {
+                    tkState.unchangedPolls = 0;
                     Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
                 } else {
                     _tkStopPolling();
@@ -73126,6 +73714,7 @@
     window._tkDismissRow = _tkDismissRow;
     window._tkSetQueueTab = _tkSetQueueTab;
     window._tkQueueShowMore = _tkQueueShowMore;
+    window._tkSetPlatform = _tkSetPlatform;
     // What the rest of the page may use, through 040's svAreaApi / svArea:
     // this area can arrive after the page has started (on-demand loading).
     svAreaRegister('tiktok', {
@@ -73133,13 +73722,14 @@
         mount: mountTiktokUploadView,
         teardown: _tkTeardown,
         isMounted: () => _tkMounted,
-        renderForm: _tkRenderForm
+        // A roster arriving late redraws the form; the Instagram side needs the same refresh when it is the one showing.
+        renderForm: () => { _tkRenderForm(); if (tkState.platform === 'instagram') refreshInstagramForm(); }
     });
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _tkCancelRow, _tkCancelUpload, _tkClearFile, _tkDismissRow, _tkMovePhoto, _tkQueueShowMore,
-        _tkRemovePhoto, _tkReplaceFile, _tkRetryRow, _tkSetQueueTab
+        _tkRemovePhoto, _tkReplaceFile, _tkRetryRow, _tkSetPlatform, _tkSetQueueTab
     });
     const KASPER_SUBTAB_ALIASES = { samples: 'review' };
     function _kasperResolveSubtab(sub) {
@@ -81867,4 +82457,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-9c445e3b803a.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-65da3cdb129e.js");

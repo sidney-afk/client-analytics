@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 45 |
+| Deployable function slugs | 46 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 16 |
+| Manual-dispatch-only paths | 17 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -40,6 +40,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `higgsfield-mcp` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | - | `brain/parse.mjs`<br>`higgsfield-mcp/catalog.ts`<br>`higgsfield-mcp/clientinfo.ts`<br>`higgsfield-mcp/direct.ts`<br>`higgsfield-mcp/viewer.ts` |
 | `hiring-applications` | [deploy-hiring-applications](../../.github/workflows/deploy-hiring-applications.yml) | workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `hiring-automation` | [deploy-hiring-automation](../../.github/workflows/deploy-hiring-automation.yml) | workflow_dispatch | - | - |
+| `instagram-upload` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `instagram-upload/logic.mjs` |
 | `kasper-ad-performance-read` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
 | `key-verify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

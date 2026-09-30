@@ -113,6 +113,7 @@ and SMM weekly reports.
 | `140-calendar-legacy-outbox.js` | `showUnknown` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | reports | `_calUrgentSlackDispatch` | Sending an urgent ping through the gateway. A ping that went out and did not come back confirmed is recorded as urgent_ping. |
 | `140-calendar-legacy-outbox.js` | `showUnknown` | `spec.url(` POST | background |  | The pre-gateway urgent webhook path; its send is retired (B2) and only fails closed. The gateway path above is the live one. |
 | `160-calendar-organize-ui.js` | `_calFillComponentSubmit` | `PROD_WRITE_EF_URL` POST | reports | `_calFillComponentSubmit` | Calendar component fill. Already recorded (component_fill). |
+| `160-calendar-organize-ui.js` | `_calFrameFolderEnsure` | `url` POST | read |  | Calendar Frame folder button: reads the client's saved Frame folder (brain, action folders). Nothing is saved. |
 | `160-calendar-organize-ui.js` | `_calResolveThumbnailFolder` | `THUMBNAIL_FOLDER_RESOLVE_EF_URL` POST | read |  | Looks up a thumbnail folder. |
 | `160-calendar-organize-ui.js` | `_thumbCompareDiscoverAvailability` | `THUMBNAIL_REVISION_READ_EF_URL` POST | read |  | Reads thumbnail revisions. |
 | `160-calendar-organize-ui.js` | `_thumbCompareLoad` | `THUMBNAIL_REVISION_READ_EF_URL` POST | read |  | Reads thumbnail revisions. |
@@ -145,6 +146,8 @@ and SMM weekly reports.
 | `270-samples-model.js` | `_sxrUpsertFetchGuarded` | `SXR_UPSERT_EF_URL` POST | client-transport |  | Staff Samples upsert behind the saving-on check (n8n exit PR 4). Each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save, urgent_marker_save). |
 | `270-samples-model.js` | `_sxrUpsertFetchPinned` | `url` POST | client-transport |  | Pinned Samples upsert transport (status writes, including the client approve path). Not modified. |
 | `290-samples-writes-review.js` | `_writeUiReadRepairReceipt` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | read |  | Reads a repair receipt. |
+| `299-instagram-upload.js` | `ctrl` | `mint.json.upload_url` PUT | reports | `_igSubmit` | Instagram video upload to Post For Me storage. Recorded as instagram_storage_put. |
+| `299-instagram-upload.js` | `send` | `IG_FUNCTION_URL` POST | reports | `_igCall` | Instagram upload function (mint, create, list, cancel). Create and cancel are recorded as instagram_create and instagram_cancel; list and mint are reads of state. |
 | `300-tiktok-upload.js` | `_tkCancelRow` | `TIKTOK_UPLOAD_CANCEL_URL` POST | reports | `_tkCancelRow` | TikTok cancel. Recorded as tiktok_cancel. |
 | `300-tiktok-upload.js` | `_tkFinishDirectSubmit` | `TIKTOK_UPLOAD_DIRECT_WEBHOOK` POST | reports | `_tkFinishDirectSubmit` | TikTok post creation after a direct upload. Recorded as tiktok_upload. |
 | `300-tiktok-upload.js` | `_tkFinishPhotoSubmit` | `TIKTOK_UPLOAD_DIRECT_WEBHOOK` POST | reports | `_tkFinishPhotoSubmit` | TikTok photo post creation. Recorded as tiktok_upload. |

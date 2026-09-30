@@ -30044,3 +30044,16 @@ deploy. **Way back:** revert the commit and redeploy `caption-jobs`.
 **Found on the way, for a later step:** the Generate Caption workflow still saves the finished caption through the old n8n
 `calendar-upsert-post` webhook, which blocks switching that workflow off after the 30 days. It needs its own change (save
 through the `calendar-upsert` function) and is recorded in the phase 2 plan; it is not part of this PR.
+
+## 301. [2026-09-30] n8n exit phase 2, step B2: Generate Caption reports progress to `caption-jobs` and uses saved logins (n8n edit, published)
+
+**What:** the Generate Caption n8n workflow was edited (version `2ac32e2c` to `8d2ffd70`, published 2026-09-30) so progress and cancel
+checks go to the `caption-jobs` function through HTTP steps with the saved staff key login, the Claude call uses the saved
+"Claude" login and Apify uses "APIFY @HOUSE"; no key is typed in the workflow. The edit, the real test results on the test client
+(full run, cancel, duplicate guard, error path) and the undo are in `docs/ops/N8N_EDIT_LOG.md`.
+**Still on n8n after this:** the Calendar page still reads progress from and cancels through the old n8n `caption-job-status` and
+`caption-job-update` webhooks, which read a data table the workflow no longer writes. **That means the page cannot show progress
+or cancel for a caption started after this edit until the page switches (next PR, behind a server-readable flag).** Until then a
+caption still generates and saves; only the progress strip and the Cancel button are affected.
+**Also still to do:** the finished caption is saved through the n8n `calendar-upsert-post` webhook (separate later step).
+**Way back:** restore version `2ac32e2c` in n8n (see the edit log).

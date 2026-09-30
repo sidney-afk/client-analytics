@@ -29982,7 +29982,7 @@ script, one parent check instead of eleven, email read in parallel. Fresh items 
 **Left:** Today still waits for Clients Info (about 1.1 s); priority 1 in STATE_OF_THINGS removes most of it.
 
 
-## 296. [2026-09-30] n8n exit phase 2, step B1: caption job progress gets a function and a table (backend only, nothing switched)
+## 298. [2026-09-30] n8n exit phase 2, step B1: caption job progress gets a function and a table (backend only, nothing switched)
 
 **What:** new Edge Function `caption-jobs` and migration `migrations/2026-09-30-caption-jobs.sql` (written, not applied). One
 function for both old n8n webhooks: `GET ?client=&postId=&jobId=` answers `{ ok, jobs: [{ jobId, client, postId, status, stage,

@@ -188,6 +188,7 @@ anywhere in the repo, PR or reply. **Resolved 2026-09-30:** the owner named `Syn
 real test answered 401 because that login holds the `CREDENTIALS_STAFF_KEY` that `client-credentials` accepts (a legacy secret),
 not a role key. Owner decision: `caption-jobs` also accepts `CREDENTIALS_STAFF_KEY` (OPEN_REPAIRS 300). The workflow edit is
 drafted and stays unpublished until a real end to end test passes after that deploy.
+**B2 status 2026-09-30:** the Generate Caption workflow edit is published (OPEN_REPAIRS 302, `docs/ops/N8N_EDIT_LOG.md`), tested end to end on the test client. **Not yet switched: the Calendar page** still polls the old n8n status webhook, so until the page PR (flag gated) ships, progress and Cancel do not reflect new runs.
 **Later step (recorded, not started):** Generate Caption still saves the finished caption through the old n8n
 `calendar-upsert-post` webhook from a Code step. That call must move to the `calendar-upsert` function (staff key login,
 same hold on failure rule, test on the test client) before the n8n Calendar upsert workflow can be switched off.

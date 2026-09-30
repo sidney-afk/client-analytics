@@ -17585,14 +17585,15 @@
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
        to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
-    /* Caption-job tracking. The generate-caption workflow upserts a row per
-       run into the caption_jobs n8n data table (status: running/done/error/
-       cancelled, stage: scraping → transcribing → writing → done). The UI
-       polls the status webhook so the button/progress chip mirror the real
+    /* Caption-job tracking. The generate-caption workflow (n8n) reports a row
+       per run to the caption-jobs function (caption_jobs table; status:
+       running/done/error/cancelled, stage: scraping → transcribing → writing →
+       done). The UI polls it so the button/progress chip mirror the real
        backend state — surviving refreshes, tab switches and dropped
-       connections — and posts cancel_requested to the update webhook. */
-    const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
-    const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
+       connections — and posts cancel_requested to it. One function, two verbs:
+       GET reads, POST writes; the staff key goes on both (n8n exit, step B). */
+    const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
+    const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
     /* "URGENT TWEAKS NEEDED" editor ping: native route only
        (native_urgent_dispatch via production-write). The legacy n8n
@@ -35322,6 +35323,56 @@
             ? 'The ' + label + ' is on this post; the Linear mirror is still draining.'
             : 'The ' + label + ' is on this post.');
     }
+    /* Frame.io folder button, the top of the pile. One quick lookup per client,
+       reused for every card on that calendar: the brain helper's `folders`
+       action, the same saved Frame folder links (the batches' delivery folder)
+       the Templates page lists. The link is NOT tested, it is only opened in a
+       new tab. Nothing here touches how the SyncLinear grid reads its own
+       per-post copy. Staff only, and a client with no saved folder shows
+       nothing. A failed lookup also shows nothing and is tried again after a
+       minute, never in a loop. */
+    const _calFrameFolders = {};   // client -> { busy, url, at, ok }
+    const _CAL_FRAME_FOLDER_TTL = 300000;   // a saved folder can change while the calendar stays open
+    const _CAL_FRAME_FOLDER_RETRY = 60000;
+    function _calFramePick(list) {
+        const rows = Array.isArray(list) ? list.map(i => String(i && i.url || '').trim()).filter(u => /^https?:\/\//i.test(u)) : [];
+        return rows.find(u => _calIsFrameLink(u)) || rows[0] || '';
+    }
+    function _calFrameFolderEnsure(name) {
+        const cur = _calFrameFolders[name];
+        if (cur && (cur.busy || Date.now() - cur.at < (cur.ok ? _CAL_FRAME_FOLDER_TTL : _CAL_FRAME_FOLDER_RETRY))) return cur;
+        // Keep showing the last answer while a fresh one is fetched; a failed
+        // fetch keeps it too.
+        const entry = _calFrameFolders[name] = { busy: true, url: cur ? cur.url : '', at: Date.now(), ok: cur ? cur.ok : false };
+        const url = CAL_SUPABASE_URL + '/functions/v1/brain';
+        let before = entry.url;
+        fetch(url, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
+            body: JSON.stringify({ action: 'folders', clientName: name })
+        }).then(async r => {
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+            entry.url = _calFramePick(j.frame);
+            entry.ok = true;
+        }).catch(() => { entry.ok = false; })
+          .then(() => {
+              entry.busy = false; entry.at = Date.now();
+              if (entry.url !== before && calState.client === name) _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
+          });
+        return entry;
+    }
+    function _calFrameFolderSlotHtml() {
+        if (_isClientLink || !calState.client) return '';
+        const entry = _calFrameFolderEnsure(calState.client);
+        if (!entry || !entry.url) return '';
+        // Only a Frame.io link gets the Frame icon and name; a Drive or Dropbox
+        // delivery link says what it is instead of posing as Frame.io.
+        const isFrame = _calIsFrameLink(entry.url);
+        const what = isFrame ? 'Frame.io' : _calLinkLabel(entry.url);
+        const tip = 'Open this client\'s ' + what + ' folder in a new tab';
+        return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</a>`;
+    }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
         const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
@@ -35332,8 +35383,9 @@
         // close rather than as a card that is simply missing something.
         const fv = _calFillComponentSlotHtml(p, 'video');
         const fg = _calFillComponentSlotHtml(p, 'graphic');
-        if (!v && !g && !pv && !pg && !fv && !fg) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
+        const fr = _calFrameFolderSlotHtml();
+        if (!fr && !v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${fr}${v}${pv}${fv}${g}${pg}${fg}</div>`;
     }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only
@@ -40070,7 +40122,7 @@
             const rows = new Map();
             await Promise.all(clients.map(async (slug) => {
                 try {
-                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug), { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_JOB_STATUS_URL) });
                     const j = await r.json();
                     if (j && j.ok && Array.isArray(j.jobs)) for (const row of j.jobs) rows.set(row.jobId, row);
                 } catch {}
@@ -40094,7 +40146,7 @@
                 // the full 12-min stale timeout. cancel_requested is (re)sent so a
                 // late checkpoint still won't save a caption.
                 if (_calCapJobCancelExpired(job, now)) {
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'cancelled', {});
                     continue;
                 }
@@ -40112,7 +40164,7 @@
                 if (now - (job.lastMovementAt || job.startedAt) > CAL_CAPJOB_STALE_MS) {
                     // Stand the backend down too, so a zombie run can't write a
                     // caption to the sheet long after the UI gave up.
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'error', { error: 'Timed out — the caption generator stopped responding. Try again.' });
                 }
             }
@@ -40140,7 +40192,7 @@
         _calUpdateBulkCaptionBar();
         fetch(CAPTION_JOB_UPDATE_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL),
             body: JSON.stringify({ jobId: job.jobId, cancel_requested: true })
         }).then(r => { if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); })
           .catch(() => {
@@ -71119,6 +71171,8 @@
     ];
     const IG_STATUS_LABELS = { uploading: 'Uploading', processing: 'Posting', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled' };
     const IG_UPCOMING = ['uploading', 'processing', 'scheduled'];
+    const IG_COVER_MAX_BYTES = 8 * 1024 * 1024;     // Instagram's own limit for a cover image
+    const IG_COVER_RATIO = 9 / 16;
     const IG_CALL_TIMEOUT_MS = 30000;
     const IG_QUEUE_PAGE = 5;
 
@@ -71128,6 +71182,8 @@
         objectUrl: null,
         title: '',
         placement: 'reels',
+        // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
+        cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
         attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
         phase: '',                   // '', 'preparing', 'uploading', 'creating'
@@ -71190,8 +71246,161 @@
     function renderInstagramPanel() {
         return `
             <div class="tk-col tk-form-col" id="igFormCol" hidden></div>
-            <div class="tk-col tk-right-col" id="igRightCol" hidden><div id="igQueueCol"></div></div>
+            <div class="tk-col tk-right-col" id="igRightCol" hidden><div id="igPreviewCol"></div><div id="igQueueCol"></div></div>
         `;
+    }
+
+
+    /* ---- Cover ----------------------------------------------------------------------------------
+       Post For Me takes a Reel cover on the media item, two ways: `thumbnail_url` (an image in its
+       storage) or `thumbnail_timestamp_ms` (a frame of the video). The form offers both, plus the
+       thumbnail of a Calendar card as a ready-made image. Only one is ever sent. */
+    const _igCover = () => igState.cover;
+    function _igCoverClear(keepMode) {
+        const c = _igCover();
+        if (c.url) { try { URL.revokeObjectURL(c.url); } catch (e) {} }
+        igState.cover = Object.assign({}, c, { blob: null, url: '', name: '', source: '', note: '', dims: '', cardId: '', frameUrl: keepMode ? c.frameUrl : '' });
+    }
+    // The client's Calendar cards that already have a thumbnail: the live Calendar if it is showing this client,
+    // otherwise its saved copy on this device. Read only; nothing is fetched here.
+    function _igCalendarCards(client) {
+        if (!client) return [];
+        let posts = [];
+        try {
+            const slug = calClientSlug(client);
+            if (calState && calState.client && calClientSlug(calState.client) === slug && Array.isArray(calState.posts) && calState.posts.length) posts = calState.posts;
+            else { const cached = _calCacheRead(slug); posts = (cached && cached.posts) || []; }
+        } catch (e) { posts = []; }
+        return posts
+            .filter(p => p && p.id && !p.archived && String(p.id).indexOf('p_cal_settings') !== 0)
+            .map(p => ({ id: String(p.id), thumb: (function () { try { return _calDeriveThumb(p); } catch (e) { return ''; } })(), date: String(p.scheduled_date || '').slice(0, 10), title: String(p.title || p.caption || '').replace(/\s+/g, ' ').trim().slice(0, 50) }))
+            .filter(c => c.thumb)
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+            .slice(0, 60)
+            .map(c => Object.assign(c, { label: (c.date ? c.date + ' · ' : '') + (c.title || 'Untitled card') }));
+    }
+    function _igImageSize(url) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+            img.onerror = () => resolve(null);
+            img.src = url;
+        });
+    }
+    // WebP and other formats become a JPEG: Instagram takes JPEG and PNG.
+    async function _igToJpegOrPng(blob) {
+        if (/^image\/(jpeg|png)$/.test(blob.type)) return blob;
+        const url = URL.createObjectURL(blob);
+        try {
+            const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+            const cv = document.createElement('canvas');
+            cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+            cv.getContext('2d').drawImage(img, 0, 0);
+            return await new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('convert failed')), 'image/jpeg', 0.92));
+        } finally { URL.revokeObjectURL(url); }
+    }
+    async function _igSetCoverImage(input, name, source, cardId) {
+        const c = _igCover();
+        let blob = input;
+        if (source === 'upload' && !/^image\/(jpeg|png)$/.test(blob.type || '')) { c.note = 'The cover must be a JPEG or PNG image.'; _igRenderForm(); return; }
+        try { blob = await _igToJpegOrPng(blob); } catch (e) { c.note = 'That image could not be read. Try a JPEG or PNG.'; _igRenderForm(); return; }
+        if (blob.size > IG_COVER_MAX_BYTES) { c.note = 'That image is over ' + _igDeps.formatBytes(IG_COVER_MAX_BYTES) + '. Use a smaller JPEG or PNG.'; _igRenderForm(); return; }
+        _igCoverClear(true);
+        const url = URL.createObjectURL(blob);
+        const size = await _igImageSize(url);
+        const cur = _igCover();
+        cur.blob = blob; cur.url = url; cur.name = name || 'cover'; cur.source = source; cur.cardId = cardId || ''; cur.mode = 'image';
+        cur.dims = size ? size.w + '×' + size.h : '';
+        // Not 9:16 is a heads-up, not a block: the image still posts and Instagram crops it.
+        cur.note = (size && Math.abs(size.w / size.h - IG_COVER_RATIO) > 0.02) ? 'This image is ' + size.w + '×' + size.h + ', not 9:16. Instagram will crop it to fit.' : '';
+        _igRenderForm(); _igRenderPreview();
+    }
+    async function _igUseCalendarCard(cardId) {
+        const c = _igCover();
+        if (!cardId) { if (c.source === 'calendar') _igCoverClear(true); c.cardId = ''; c.note = ''; _igRenderForm(); _igRenderPreview(); return; }
+        const card = _igCalendarCards(igState.client).find(x => x.id === cardId);
+        if (!card) return;
+        c.cardId = cardId; c.note = 'Copying the Calendar thumbnail…'; _igRenderForm();
+        try {
+            const resp = await fetch(card.thumb, { mode: 'cors', credentials: 'omit', cache: 'force-cache' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            await _igSetCoverImage(await resp.blob(), 'calendar-thumbnail', 'calendar', cardId);
+        } catch (e) {
+            _igCover().note = "Couldn't copy that Calendar thumbnail (the browser was not allowed to read it). Upload the image instead.";
+            _igCover().cardId = '';
+            _igRenderForm();
+        }
+    }
+    // A frame of the chosen video, drawn small, for the preview.
+    function _igCaptureFrame(objectUrl, ms) {
+        return new Promise(resolve => {
+            const v = document.createElement('video');
+            v.muted = true; v.preload = 'auto'; v.playsInline = true;
+            const done = (val) => { v.removeAttribute('src'); try { v.load(); } catch (e) {} resolve(val); };
+            v.onloadeddata = () => { try { v.currentTime = Math.max(0, ms / 1000); } catch (e) { done(''); } };
+            v.onseeked = () => {
+                try {
+                    const w = 360, h = Math.round(w * (v.videoHeight || 640) / (v.videoWidth || 360));
+                    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+                    cv.getContext('2d').drawImage(v, 0, 0, w, h);
+                    done(cv.toDataURL('image/jpeg', 0.8));
+                } catch (e) { done(''); }
+            };
+            v.onerror = () => done('');
+            v.src = objectUrl;
+        });
+    }
+    async function _igSetFrame(ms) {
+        const c = _igCover();
+        c.frameMs = Math.max(0, Math.round(ms));
+        if (igState.objectUrl) c.frameUrl = await _igCaptureFrame(igState.objectUrl, c.frameMs);
+        _igRenderPreview();
+    }
+    function _igCoverPreviewUrl() {
+        const c = _igCover();
+        if (c.mode === 'image') return c.url || '';
+        return c.frameMs > 0 ? c.frameUrl : '';
+    }
+    function _igCoverSummary() {
+        const c = _igCover();
+        if (c.mode === 'image' && c.blob) return c.source === 'calendar' ? 'Calendar thumbnail' : 'Uploaded image';
+        if (c.mode === 'frame' && c.frameMs > 0) return 'Video frame at ' + (c.frameMs / 1000).toFixed(1) + ' s';
+        return 'Instagram picks the first frame';
+    }
+    function _igCoverCardHtml() {
+        const c = _igCover(), cards = _igCalendarCards(igState.client), off = igState.submitting ? 'disabled' : '';
+        const cardPick = cards.length
+            ? `<div style="margin-bottom:12px"><div class="tk-step-note" style="margin:0 0 6px">This client's Calendar already has thumbnails. Use one as the cover:</div>
+                ${_svSelectHtml('igCard', [{ value: '', label: 'No Calendar thumbnail' }].concat(cards.map(x => ({ value: x.id, label: x.label }))), c.cardId || '', 'Pick a Calendar card…', { disabled: igState.submitting })}</div>`
+            : '';
+        const modes = [{ v: 'image', label: 'Image' }, { v: 'frame', label: 'Frame from video' }]
+            .map(m => `<label class="tk-radio${c.mode === m.v ? ' active' : ''}"><input type="radio" name="igCoverMode" value="${m.v}" ${c.mode === m.v ? 'checked' : ''} ${off} style="position:absolute;opacity:0">${m.label}</label>`).join('');
+        let body;
+        if (c.mode === 'image') {
+            body = c.blob
+                ? `<div class="tk-file-card"><div class="tk-file-meta"><div class="tk-file-meta-text"><div class="tk-file-name">${_igEsc(c.name)}</div><div class="tk-file-size">${_igEsc(c.dims)} · ${_igDeps.formatBytes(c.blob.size)} · ${c.source === 'calendar' ? 'from the Calendar' : 'uploaded'}</div></div><div class="tk-file-actions"><button type="button" class="tk-mini-btn" id="igCoverRemove" ${off}>Remove</button></div></div></div>`
+                : `<div class="tk-drop" id="igCoverDrop"><input type="file" id="igCoverFile" accept="image/jpeg,image/png" ${off}><div class="tk-drop-title">Drop a cover image here, or click to browse</div><div class="tk-drop-sub">JPEG or PNG · 9:16 (1080×1920 is ideal) · up to ${_igDeps.formatBytes(IG_COVER_MAX_BYTES)}</div></div>`;
+        } else {
+            const maxMs = Math.max(0, Math.floor((c.duration || 0) * 1000));
+            body = igState.file
+                ? `<input type="range" id="igFrame" min="0" max="${maxMs}" step="100" value="${Math.min(c.frameMs, maxMs)}" aria-label="Cover frame" ${off} style="width:100%"><div class="tk-step-note" id="igFrameLabel">${c.frameMs > 0 ? 'Frame at ' + (c.frameMs / 1000).toFixed(1) + ' s' : 'Drag to choose a frame. At 0 s Instagram uses the first frame.'}</div>`
+                : '<div class="tk-step-note">Attach a video first, then pick a frame from it.</div>';
+        }
+        return `<div class="tk-card"><h3>Cover image <span class="tk-card-hint">Optional</span></h3>${cardPick}
+            <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Cover source" style="margin-bottom:12px">${modes}</div>${body}
+            ${c.note ? `<div class="tk-step-note" role="status" id="igCoverNote">${_igEsc(c.note)}</div>` : ''}</div>`;
+    }
+    // The preview: what the cover will look like, in a 9:16 frame, with the caption underneath.
+    function _igRenderPreview() {
+        const host = document.getElementById('igPreviewCol');
+        if (!host) return;
+        const url = _igCoverPreviewUrl();
+        host.innerHTML = `<div class="tk-card" id="igPreviewCard"><h3>Preview <span class="tk-card-hint">${_igEsc(_igCoverSummary())}</span></h3>
+            <div style="width:180px;max-width:100%;aspect-ratio:9/16;margin:0 auto;border-radius:12px;overflow:hidden;background:var(--bg);display:grid;place-items:center">
+                ${url ? `<img id="igPreviewImg" src="${_igEsc(url)}" alt="Cover preview" style="width:100%;height:100%;object-fit:cover">` : '<span class="tk-step-note" style="text-align:center;padding:10px">No cover chosen. Instagram will use the first frame of the video.</span>'}
+            </div>
+            ${igState.title.trim() ? `<div class="tk-queue-title" style="margin-top:10px">${_igEsc(igState.title.trim().slice(0, 140))}</div>` : ''}
+        </div>`;
     }
 
     // The schedule is held as date + 12-hour time, like TikTok's; this composes "YYYY-MM-DDTHH:MM".
@@ -71269,6 +71478,7 @@
                 <h3>Video</h3>
                 ${media}
             </div>
+            ${_igCoverCardHtml()}
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
@@ -71299,17 +71509,19 @@
             </div>
         `;
         _igWireForm();
+        _igRenderPreview();
     }
 
     function _igWireForm() {
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; _igRenderForm(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
             syncSubmit();
+            _igRenderPreview();
         });
         document.querySelectorAll('input[name="igPlacement"]').forEach(r => r.addEventListener('change', (e) => { igState.placement = e.target.value; _igRenderForm(); }));
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
@@ -71319,6 +71531,17 @@
         $('igAmPm')?.addEventListener('change', (e) => { igState.schedule.ampm = e.target.value; syncSubmit(); });
         $('igTz')?.addEventListener('change', (e) => { igState.schedule.tz = e.target.value; });
         $('igFile')?.addEventListener('change', (e) => { _igHandleFile(e.target.files && e.target.files[0]); });
+        document.querySelectorAll('input[name="igCoverMode"]').forEach(r => r.addEventListener('change', (e) => { igState.cover.mode = e.target.value; igState.cover.note = ''; _igRenderForm(); }));
+        $('igCoverFile')?.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) _igSetCoverImage(f, f.name, 'upload'); });
+        $('igCoverRemove')?.addEventListener('click', () => { _igCoverClear(true); _igRenderForm(); _igRenderPreview(); });
+        $('igCard')?.addEventListener('change', (e) => { _igUseCalendarCard(e.target.value); });
+        $('igFrame')?.addEventListener('input', (e) => { const l = $('igFrameLabel'); const ms = Number(e.target.value) || 0; if (l) l.textContent = ms > 0 ? 'Frame at ' + (ms / 1000).toFixed(1) + ' s' : 'Drag to choose a frame. At 0 s Instagram uses the first frame.'; });
+        $('igFrame')?.addEventListener('change', (e) => { _igSetFrame(Number(e.target.value) || 0); });
+        const coverDrop = $('igCoverDrop');
+        if (coverDrop) {
+            coverDrop.addEventListener('dragover', (e) => { e.preventDefault(); });
+            coverDrop.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) _igSetCoverImage(f, f.name, 'upload'); });
+        }
         $('igRemoveFile')?.addEventListener('click', _igClearFile);
         $('igSubmit')?.addEventListener('click', _igSubmit);
         $('igAbort')?.addEventListener('click', () => { if (_igAbort) _igAbort.abort(); if (_igActiveXhr) _igActiveXhr.abort(); });
@@ -71344,12 +71567,22 @@
         igState.file = file;
         igState.objectUrl = URL.createObjectURL(file);
         igState.error = null;
+        igState.cover.frameMs = 0; igState.cover.frameUrl = ''; igState.cover.duration = 0;
         _igRenderForm();
+        // The length of the video sets the range of the frame picker.
+        const probe = document.createElement('video');
+        probe.preload = 'metadata';
+        probe.onloadedmetadata = () => {
+            if (igState.file === file && Number.isFinite(probe.duration)) { igState.cover.duration = probe.duration; if (igState.cover.mode === 'frame') _igRenderForm(); }
+            probe.removeAttribute('src');
+        };
+        probe.src = igState.objectUrl;
     }
     function _igClearFile() {
         if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl);
         igState.file = null; igState.objectUrl = null; igState.error = null;
-        _igRenderForm();
+        igState.cover.frameMs = 0; igState.cover.frameUrl = ''; igState.cover.duration = 0;
+        _igRenderForm(); _igRenderPreview();
     }
 
     // Three steps, the same shape as TikTok's direct transport: (1) ask the function for a one-time Post For Me
@@ -71364,7 +71597,9 @@
         const utc = wall ? (_igDeps.wallClockToUTC(wall, igState.schedule.tz) || '') : '';
         if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
         const file = igState.file;
-        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), igState.placement, utc].join('|');
+        const cv = igState.cover;
+        const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : '') : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
+        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), igState.placement, utc, coverKey].join('|');
         if (!igState.attempt || igState.attempt.fp !== fp) {
             igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -71398,11 +71633,23 @@
             });
             _igActiveXhr = null;
             if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
+            // A cover image goes to Post For Me storage the same way the video did; its address rides on the post.
+            let coverUrl = '';
+            if (cv.mode === 'image' && cv.blob) {
+                const cmint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
+                if (!cmint.ok || !cmint.json || !cmint.json.upload_url || !cmint.json.media_url) {
+                    _igRecordFailure('instagram_mint', cmint.status);
+                    throw new Error((cmint.json && cmint.json.error) || 'Could not prepare the cover upload. Try again.');
+                }
+                const put = await fetch(cmint.json.upload_url, { method: 'PUT', headers: { 'Content-Type': cv.blob.type || 'image/jpeg' }, body: cv.blob, signal: ctrl ? ctrl.signal : undefined });
+                if (!put.ok) { _igRecordFailure('instagram_cover_put', put.status); throw new Error('Cover upload to storage failed (HTTP ' + put.status + '). Try again.'); }
+                coverUrl = cmint.json.media_url;
+            }
             igState.phase = 'creating';
             _igRenderForm();
             const created = await _igCall({
                 action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
-                mediaUrl: mint.json.media_url, options: { placement: igState.placement },
+                mediaUrl: mint.json.media_url, coverUrl, options: { placement: igState.placement, cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0 },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
@@ -71416,6 +71663,7 @@
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
             igState.title = '';
+            _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
             igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
             igState.queueTab = 'upcoming';
             _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
@@ -71545,6 +71793,7 @@
         if (form) form.hidden = false;
         if (right) right.hidden = false;
         _igRenderForm();
+        _igRenderPreview();
         _igRenderQueue();
         Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll);
     }
@@ -82405,4 +82654,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-686ad6a8d223.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-051546a0e750.js");

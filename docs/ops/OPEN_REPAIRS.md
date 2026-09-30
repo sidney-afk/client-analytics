@@ -30053,7 +30053,35 @@ through the `calendar-upsert` function) and is recorded in the phase 2 plan; it 
 
 **Done 2026-09-30:** `migrations/2026-09-30-instagram-uploads.sql` applied (table only, EXECUTION_LOG.md). **Still to do (owner's go).** Set the `POST_FOR_ME_API_KEY` secret; deploy `instagram-upload` through `deploy-single-function.yml`; add the sheet column. Runbook and the list of Post For Me details not yet proven for Instagram: `docs/ops/INSTAGRAM_UPLOAD.md`.
 
-## 302. [2026-09-30] Instagram upload: optional Reel cover (image, Calendar thumbnail, or video frame)
+## 302. [2026-09-30] n8n exit phase 2, step B2: Generate Caption reports progress to `caption-jobs` and uses saved logins (n8n edit, published)
+
+**What:** the Generate Caption n8n workflow was edited (version `2ac32e2c` to `8d2ffd70`, published 2026-09-30) so progress and cancel
+checks go to the `caption-jobs` function through HTTP steps with the saved staff key login, the Claude call uses the saved
+"Claude" login and Apify uses "APIFY @HOUSE"; no key is typed in the workflow. The edit, the real test results on the test client
+(full run, cancel, duplicate guard, error path) and the undo are in `docs/ops/N8N_EDIT_LOG.md`.
+**Still on n8n after this:** the Calendar page still reads progress from and cancels through the old n8n `caption-job-status` and
+`caption-job-update` webhooks, which read a data table the workflow no longer writes. **That means the page cannot show progress
+or cancel for a caption started after this edit until the page switches (next PR, behind a server-readable flag).** Until then a
+caption still generates and saves; only the progress strip and the Cancel button are affected.
+**Also still to do:** the finished caption is saved through the n8n `calendar-upsert-post` webhook (separate later step).
+**Way back:** restore version `2ac32e2c` in n8n (see the edit log).
+
+## 303. [2026-09-30] n8n exit phase 2, step B, page side: the Calendar reads caption progress and cancels through `caption-jobs`
+
+**What:** closes the gap named in 301. The Calendar's caption poll (`_calCapJobsPoll`) and the three Cancel sends (user cancel,
+cancel grace, stale timeout) now call the `caption-jobs` function with the staff headers (`_syncviewEfHeaders`), uncached and with
+no cache-buster; the two n8n caption job webhooks are gone from the page. Shapes are unchanged (`{ ok, jobs }` in, `{ jobId,
+cancel_requested: true }` out), so nothing else in the caption flow changes. `qa/boot/client-entry-sequence.js` also records the new
+function path among its caption boundary requests.
+**Proof:** `node test/caption-jobs-page-wiring.js` (15 checks); the caption suites, `prod-write-gateway-browser`, both client
+approve and request-changes byte tests, `client-review-requests-unchanged` and `write-path-refusal-coverage` pass.
+**Order:** ships after the edit-log PR (301); until then progress and Cancel for new runs do not show on the page.
+**Way back:** revert this PR and restore version `2ac32e2c` of the Generate Caption workflow together (the old flow writes the old
+n8n table); reverting only one of them puts progress and Cancel out of step again.
+**Left:** the n8n `Caption Jobs Status` and `Update` workflows can be switched off 30 days after this ships (zero runs for 7 days
+first); the finished caption save still goes through the n8n `calendar-upsert-post` webhook (separate later step).
+
+## 304. [2026-09-30] Instagram upload: optional Reel cover (image, Calendar thumbnail, or video frame)
 
 **What.** The Instagram form has a "Cover image" field below the video and a preview beside it. The cover is an uploaded JPEG or PNG, the thumbnail of one of the client's Calendar cards, or a frame of the video. The function sends Post For Me one of `thumbnail_url` (image copied into Post For Me storage) or `thumbnail_timestamp_ms` (frame), never both. Field names confirmed from Post For Me's own API client; which one wins if both were sent is not documented, which is why only one is sent. No table change, no n8n change. Test: `test/instagram-cover-browser.js`.
 

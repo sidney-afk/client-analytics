@@ -9,10 +9,11 @@
 //   POST { jobId, client?, postId?, status?, stage?, caption?, error?, cancel_requested?, started_at? }
 //                                                 { ok: true }   (only the keys sent are written)
 //
-// Auth: a staff role key (X-Syncview-Key), the same as the other staff functions. The n8n workflow sends it too.
+// Auth: a staff role key (X-Syncview-Key), the same as the other staff functions, or the credentials staff key
+// (CREDENTIALS_STAFF_KEY, a legacy per-surface secret) that the Generate Caption n8n workflow sends.
 //
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, a staff role key secret (ROLE_KEY_ADMIN / ROLE_KEY_SMM /
-// ROLE_KEY_CREATIVE).
+// ROLE_KEY_CREATIVE) and CREDENTIALS_STAFF_KEY (already set for client-credentials).
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
@@ -38,7 +39,11 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   if (!supabaseUrl || !serviceKey) return json({ ok: false, error: "server not configured" }, 500);
 
-  const auth = authorizeStaffKey(clean(req.headers.get("x-syncview-key")), ["admin", "smm", "creative"]);
+  // The Generate Caption n8n workflow calls with the saved n8n login "SyncView Client Credentials Staff Key", the
+  // same key client-credentials accepts (CREDENTIALS_STAFF_KEY), so it is accepted here the same way: as a legacy
+  // per-surface secret. A role key still owns the decision when one matches.
+  const legacyKey = clean(Deno.env.get("CREDENTIALS_STAFF_KEY"));
+  const auth = authorizeStaffKey(clean(req.headers.get("x-syncview-key")), ["admin", "smm", "creative"], [legacyKey]);
   if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
 
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });

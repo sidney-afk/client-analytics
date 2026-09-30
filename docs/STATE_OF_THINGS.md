@@ -173,7 +173,7 @@ hiring senders when the editor hire closes.
   because of load order), and re-run `prod-boot-budget.js` on a machine with
   the live backend first.
 
-- **Instagram upload is built but not switched on (2026-09-30, OPEN_REPAIRS 300).** The TikTok Upload
+- **Instagram upload is built but not switched on (2026-09-30, OPEN_REPAIRS 301).** The TikTok Upload
   tab has a TikTok / Instagram switch; the Instagram side runs on a new Supabase function, no n8n. To
   switch on: apply `migrations/2026-09-30-instagram-uploads.sql`, set the `POST_FOR_ME_API_KEY` secret,
   deploy `instagram-upload` (`deploy-single-function.yml`), add the Clients Info column

@@ -50,7 +50,15 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(J.selectJobs(Array.from({ length: 250 }, (_, i) => row('j' + i, 'p', i * 1000)), {}, NOWMS).length, 200, 'at most 200 rows');
 
   // --- handler wiring
-  ok(/authorizeStaffKey\(clean\(req\.headers\.get\("x-syncview-key"\)\), \["admin", "smm", "creative"\]\)/.test(HANDLER), 'a staff role key is required');
+  ok(/authorizeStaffKey\(clean\(req\.headers\.get\("x-syncview-key"\)\), \["admin", "smm", "creative"\], \[legacyKey\]\)/.test(HANDLER), 'a staff role key, or the legacy credentials key, is required');
+  ok(/const legacyKey = clean\(Deno\.env\.get\("CREDENTIALS_STAFF_KEY"\)\);/.test(HANDLER), 'the legacy key is CREDENTIALS_STAFF_KEY, the one client-credentials accepts');
+  ok(!/ONBOARDING_STAFF_KEY/.test(HANDLER), 'no other legacy secret is accepted');
+  // Same shape as client-credentials, which the n8n login already works against.
+  const CC = read('supabase/functions/client-credentials/index.ts');
+  ok(/Deno\.env\.get\("CREDENTIALS_STAFF_KEY"\)/.test(CC) && /authorizeStaffKey\(supplied, \["admin", "smm"\], \[kOnb, kStaff\]\)/.test(CC), 'client-credentials accepts the same key through the same helper');
+  // The helper: a legacy match is ok with no role; an empty legacy secret never matches.
+  const AUTH = read('supabase/functions/_shared/staff-role-auth.ts');
+  ok(/if \(legacyMatch\) return \{ ok: true, role: null, via: "legacy" \}/.test(AUTH) && /if \(secret && timingSafeEqual\(key, secret\)\) legacyMatch = true/.test(AUTH), 'the shared helper lets a legacy secret through and ignores an unset one');
   ok(/staffAuthFailureStatus/.test(HANDLER), 'an unknown key is refused with the shared status');
   ok(/"Cache-Control": "no-store"/.test(HANDLER), 'answers are not cached');
   ok(/onConflict: "job_id"/.test(HANDLER), 'an update is an upsert on job_id');

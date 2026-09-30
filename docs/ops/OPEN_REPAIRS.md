@@ -30029,7 +30029,23 @@ staff key answers 401. Recorded in `EXECUTION_LOG.md`.
 **Left:** step B2, the Generate Caption workflow edit. Its staff key login ("SyncView Client Credentials Staff Key") is a
 candidate until a real call answers 200 with it.
 
-## 300. [2026-09-30] Instagram upload on the TikTok Upload tab, through Post For Me (built, not switched on)
+## 300. [2026-09-30] caption-jobs also accepts the credentials staff key (the key the Generate Caption n8n login holds)
+
+**What:** the first real test of the Generate Caption edit (test client, execution 654323, draft version, nothing live) got
+`401 unauthorized` from `caption-jobs` for the job-list read and both progress updates, sent with the saved n8n login "SyncView
+Client Credentials Staff Key". That login holds the key `client-credentials` accepts (`CREDENTIALS_STAFF_KEY`, a legacy
+per-surface secret), not one of the three role keys. Owner decision: accept it in `caption-jobs` the same way. The function now
+passes `CREDENTIALS_STAFF_KEY` to the shared `authorizeStaffKey` helper as a legacy secret (a role key still owns the decision
+when one matches; an unset secret never matches; `ONBOARDING_STAFF_KEY` is not accepted). `test/caption-jobs-source.js` (36
+checks) asserts the exact call, that no other legacy secret is accepted, and that `client-credentials` uses the same helper
+with the same key.
+**Not changed:** no n8n workflow; the drafted Generate Caption edit stays unpublished until a real test passes after the
+deploy. **Way back:** revert the commit and redeploy `caption-jobs`.
+**Found on the way, for a later step:** the Generate Caption workflow still saves the finished caption through the old n8n
+`calendar-upsert-post` webhook, which blocks switching that workflow off after the 30 days. It needs its own change (save
+through the `calendar-upsert` function) and is recorded in the phase 2 plan; it is not part of this PR.
+
+## 301. [2026-09-30] Instagram upload on the TikTok Upload tab, through Post For Me (built, not switched on)
 
 **What.** The TikTok Upload tab has a TikTok / Instagram switch (the tab keeps its name). The Instagram side uploads a video to Post For Me's storage, then a new Supabase function `instagram-upload` creates the post, keeps the queue in a new table `instagram_uploads`, reports status and cancels a scheduled post. No n8n workflow was changed or used (TikTok still runs on n8n). The client's Instagram connection id lives in a new Clients Info column `postforme_instagram_account_id`, next to the TikTok `postforme_account_id`.
 

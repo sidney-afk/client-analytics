@@ -1,5 +1,6 @@
 -- ============================================================
--- NOT APPLIED. Written 2026-09-30 by Anvil for the caption-jobs Edge Function
+-- APPLIED 2026-09-30 by Lighthouse with the owner's go (see EXECUTION_LOG.md).
+-- Written 2026-09-30 by Anvil for the caption-jobs Edge Function
 -- (docs/plans/2026-09-30-n8n-exit-phase-2.md, step B). Lighthouse applies it with
 -- the owner's go, then the function is deployed.
 --

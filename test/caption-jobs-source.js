@@ -63,7 +63,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/enable row level security/.test(MIGRATION), 'row level security is on');
   ok(/revoke all on table public\.caption_jobs from public, anon, authenticated, service_role/.test(MIGRATION), 'every role is revoked first');
   ok(/grant select, insert, update, delete on table public\.caption_jobs to service_role/.test(MIGRATION), 'service_role gets back only what it needs');
-  ok(/NOT APPLIED/.test(MIGRATION), 'the file says it is not applied');
+  ok(/APPLIED 2026-09-30 by Lighthouse/.test(MIGRATION), 'the file records that it was applied, and when');
 
   // --- deploy lane and config
   // supabase/config.toml is deliberately NOT edited: two other workflows redeploy on any change to it, and the

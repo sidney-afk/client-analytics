@@ -81,7 +81,7 @@ here with where it stopped, so it can be restarted.
    then Finalizer trigger (A), Filming Docs edit function (E), read fallbacks (F), Booking Recovery
    gating (C), and last the client approve and request-changes move. Every n8n edit is logged in
    `docs/ops/N8N_EDIT_LOG.md`. Typed-in keys move to the existing n8n logins "Claude" and
-   "APIFY @HOUSE"; the staff key login is "SyncView Client Credentials Staff Key".
+   "APIFY @HOUSE"; the staff key login is expected to be "SyncView Client Credentials Staff Key", a candidate only until a real call to `caption-jobs` answers 200 with it (that function accepts role keys only, unlike `client-credentials`).
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.

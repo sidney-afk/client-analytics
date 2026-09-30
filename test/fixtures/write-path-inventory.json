@@ -306,7 +306,7 @@
       "status": "read",
       "note": "Reads a repair receipt."
     },
-    "299-instagram-upload.js.part|idempotencyKey|mint.json.upload_url|PUT": {
+    "299-instagram-upload.js.part|ctrl|mint.json.upload_url|PUT": {
       "status": "reports",
       "within": [
         "_igSubmit"

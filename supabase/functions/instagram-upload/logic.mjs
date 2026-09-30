@@ -9,7 +9,6 @@ export const PLACEMENTS = Object.freeze(['reels', 'timeline']);
 export const MAX_CAPTION_CHARS = 2200;
 export const STATUSES = Object.freeze(['uploading', 'scheduled', 'processing', 'posted', 'failed', 'cancelled']);
 export const TERMINAL = Object.freeze(['posted', 'failed', 'cancelled']);
-export const DEFAULT_ALLOWED_CLIENTS = 'sidneylaruel';
 
 const clean = (v) => String(v == null ? '' : v).trim();
 
@@ -18,13 +17,32 @@ export function clientKey(name) {
   return clean(name).toLowerCase().replace(/[^a-z0-9&]/g, '');
 }
 
-// The safety switch. Until the owner widens it, only the test client can post. "*" means every client.
+// The safety switch, fail closed: nobody can post until the owner lists clients in the server's
+// INSTAGRAM_UPLOAD_ALLOWED_CLIENTS setting ("*" means every client). Nothing is listed in the repository.
 export function clientAllowed(client, allowedRaw) {
-  const list = clean(allowedRaw || DEFAULT_ALLOWED_CLIENTS);
+  const list = clean(allowedRaw);
+  if (!list) return false;
   if (list === '*') return true;
   const key = clientKey(client);
   if (!key) return false;
   return list.split(',').map(clientKey).filter(Boolean).includes(key);
+}
+
+// The Instagram account this client is supposed to post to, from the synced copy of Clients Info
+// (an unknown sheet column is kept in `extra`, under its sheet header).
+export const ACCOUNT_COLUMN = 'postforme_instagram_account_id';
+export function expectedAccountId(profile) {
+  const extra = profile && typeof profile.extra === 'object' && profile.extra ? profile.extra : {};
+  return clean(extra[ACCOUNT_COLUMN]);
+}
+
+// Which unfinished rows are worth asking Post For Me about, most overdue first: anything in flight, and a
+// scheduled post only once its time has come. Rows never asked about go first, then the longest unasked,
+// so a pile of future posts can never starve an old one.
+export function refreshCandidates(rows, nowMs, limit) {
+  const due = (r) => r.status !== 'scheduled' || !r.scheduled_for || Date.parse(r.scheduled_for) <= nowMs;
+  const asked = (r) => (r.last_checked_at ? Date.parse(r.last_checked_at) || 0 : 0);
+  return (rows || []).filter((r) => needsRefresh(r) && due(r)).sort((a, b) => asked(a) - asked(b)).slice(0, limit);
 }
 
 // An Instagram account id never doubles as a TikTok one: Post For Me tells us which network an account is on.

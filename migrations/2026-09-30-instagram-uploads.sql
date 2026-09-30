@@ -27,6 +27,7 @@ create table if not exists public.instagram_uploads (
   instagram_url  text not null default '',
   error          text not null default '' check (char_length(error) <= 600),
   posted_at      timestamptz,
+  last_checked_at timestamptz,
   created_by     text not null default '',
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()

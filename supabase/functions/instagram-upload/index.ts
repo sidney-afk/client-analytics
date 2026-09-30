@@ -12,7 +12,8 @@
 //   POST { action: "cancel", id }                    { ok, row }            only a still-scheduled post
 //
 // Safety: a staff role key is required; the account must be an Instagram account according to Post For Me itself;
-// and only the clients in INSTAGRAM_UPLOAD_ALLOWED_CLIENTS can post (default: the test client; "*" = everyone).
+// the account must be the one on file for that client (synced Clients Info); and only the clients in
+// INSTAGRAM_UPLOAD_ALLOWED_CLIENTS can post (nobody until it is set; "*" = everyone).
 //
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, POST_FOR_ME_API_KEY, a staff role key secret
 // (ROLE_KEY_ADMIN / ROLE_KEY_SMM / ROLE_KEY_CREATIVE). Optional: INSTAGRAM_UPLOAD_ALLOWED_CLIENTS.
@@ -20,8 +21,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 import {
-  ACCOUNT_ID_RE, applyCreateResponse, applyResults, buildCreate, clientAllowed, needsRefresh, platformMismatch,
-  publicRow,
+  applyCreateResponse, applyResults, buildCreate, clientAllowed, clientKey, expectedAccountId, needsRefresh,
+  platformMismatch, publicRow, refreshCandidates,
 } from "./logic.mjs";
 
 const PFM = "https://api.postforme.dev/v1";
@@ -79,13 +80,14 @@ Deno.serve(async (req) => {
   const refresh = async (row: any) => {
     if (!needsRefresh(row)) return row;
     const r = await pfm(pfmKey, "GET", "/social-post-results?post_id=" + encodeURIComponent(row.post_id));
+    const nowIso = new Date().toISOString();
     if (!r.ok) return row;
-    const next = applyResults(row, r.data, new Date().toISOString());
-    if (next === row) return row;
+    const next = applyResults(row, r.data, nowIso);
     const { error } = await db.from("instagram_uploads").update({
-      status: next.status, instagram_url: next.instagram_url, error: next.error, posted_at: next.posted_at, updated_at: next.updated_at,
+      status: next.status, instagram_url: next.instagram_url, error: next.error, posted_at: next.posted_at,
+      updated_at: next === row ? row.updated_at : next.updated_at, last_checked_at: nowIso,
     }).eq("id", row.id);
-    return error ? row : next;
+    return error || next === row ? row : next;
   };
 
   try {
@@ -107,18 +109,38 @@ Deno.serve(async (req) => {
       // Same idempotency key twice = the same post, never two.
       const { data: existing, error: exErr } = await db.from("instagram_uploads").select("*").eq("id", row.id).maybeSingle();
       if (exErr) throw exErr;
-      if (existing) return json({ ok: existing.status !== "failed", id: existing.id, status: existing.status, scheduled_for: existing.scheduled_for, row: publicRow(existing) });
+      if (existing && existing.post_id) return json({ ok: existing.status !== "failed", id: existing.id, status: existing.status, scheduled_for: existing.scheduled_for, row: publicRow(existing) });
+
+      // The account must be the one on file for this client: a caller cannot swap in another client's account.
+      const { data: profile, error: pErr } = await db.from("client_profiles").select("extra").eq("slug", clientKey(row.client)).is("archived_at", null).maybeSingle();
+      if (pErr) throw pErr;
+      const expected = expectedAccountId(profile);
+      if (!expected) return json({ ok: false, error: "The synced Clients Info copy has no Instagram account for this client yet. It refreshes daily; run the Sheets copy lane to refresh it now." }, 409);
+      if (expected !== row.account_id) return json({ ok: false, error: "That account is not the one on file for this client." }, 403);
 
       // Post For Me must say this account is an Instagram one. Fail closed on anything else.
       const acct = await pfm(pfmKey, "GET", "/social-accounts/" + encodeURIComponent(row.account_id));
-      if (!ACCOUNT_ID_RE.test(row.account_id) || !acct.ok) {
+      if (!acct.ok) {
         return json({ ok: false, error: acct.status === 404 ? "Post For Me does not know that account id." : "Could not check the account with Post For Me. Try again." }, acct.status === 404 ? 400 : 502);
       }
       const mismatch = platformMismatch(acct.data);
       if (mismatch) return json({ ok: false, error: mismatch }, 400);
 
-      const { error: insErr } = await db.from("instagram_uploads").insert(row);
-      if (insErr) throw insErr;
+      if (existing) {
+        // An earlier attempt with this key never got a post id back. If Post For Me did accept it, adopt it: never a second post.
+        const found = await pfm(pfmKey, "GET", "/social-posts?external_id=" + encodeURIComponent(row.id));
+        const hit = Array.isArray(found.data?.data) ? found.data.data.find((x: any) => x && x.id && (!x.external_id || String(x.external_id) === row.id)) : null;
+        if (hit) {
+          const adopted = applyCreateResponse({ ...existing }, hit, new Date().toISOString());
+          await db.from("instagram_uploads").update({ status: adopted.status, post_id: adopted.post_id, error: "", updated_at: adopted.updated_at }).eq("id", row.id);
+          return json({ ok: true, id: adopted.id, status: adopted.status, scheduled_for: adopted.scheduled_for, row: publicRow(adopted) });
+        }
+        const { error: rErr } = await db.from("instagram_uploads").update({ status: row.status, error: "", updated_at: row.updated_at }).eq("id", row.id);
+        if (rErr) throw rErr;
+      } else {
+        const { error: insErr } = await db.from("instagram_uploads").insert(row);
+        if (insErr) throw insErr;
+      }
       const created = await pfm(pfmKey, "POST", "/social-posts", postBody);
       const next = applyCreateResponse(row, created.ok ? created.data : { message: created.data?.message || created.data?.error || ("Post For Me answered " + created.status) }, new Date().toISOString());
       const { error: upErr } = await db.from("instagram_uploads").update({
@@ -135,7 +157,7 @@ Deno.serve(async (req) => {
       const { data, error } = await q;
       if (error) throw error;
       const rows = data || [];
-      const stale = rows.filter(needsRefresh).slice(0, REFRESH_PER_LIST);
+      const stale = refreshCandidates(rows, Date.now(), REFRESH_PER_LIST);
       const fresh = new Map<string, any>();
       await Promise.all(stale.map(async (r: any) => { fresh.set(r.id, await refresh(r)); }));
       return json({ ok: true, rows: rows.map((r: any) => publicRow(fresh.get(r.id) || r)) });

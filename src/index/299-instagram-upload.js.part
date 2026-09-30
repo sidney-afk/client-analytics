@@ -1,7 +1,7 @@
-import { clientMap, showNotify } from './040-shared-briefs.js';
+import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor } from './095-shared-client.js';
-import { CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
     /* ============================================================
        INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab)
@@ -37,7 +37,9 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         objectUrl: null,
         title: '',
         placement: 'reels',
-        schedule: { postNow: true, at: '', tz: 'America/New_York' },
+        schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
+        attempt: null,               // { fp, key }: the retry-safe key, kept while an attempt's outcome is unknown
+        phase: '',                   // '', 'preparing', 'uploading', 'creating'
         uploads: [],
         queueReadState: 'loading',   // only a successful read proves an empty queue
         queueTab: 'upcoming',
@@ -51,6 +53,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
     let _igMounted = false;
     let _igPollTimer = null;
     let _igActiveXhr = null;
+    let _igAbort = null;           // aborts every step before the post is created
 
     const _igEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -72,14 +75,16 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         _writeUiRecordFailure('tiktok', operation, shape, {});
     }
 
-    // One call to the function. Returns { ok, status, json }; never throws on a bad answer.
-    async function _igCall(payload, track) {
+    // One call to the function. Returns { ok, status, json }; a bad answer never throws, a network failure does.
+    async function _igCall(payload, track, userSignal) {
+        const timeout = (AbortSignal.timeout ? AbortSignal.timeout(IG_CALL_TIMEOUT_MS) : undefined);
+        const signal = (userSignal && timeout && AbortSignal.any) ? AbortSignal.any([userSignal, timeout]) : (userSignal || timeout);
         const send = () => fetch(IG_FUNCTION_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }, IG_FUNCTION_URL),
             body: JSON.stringify(payload),
             cache: 'no-store',
-            signal: (AbortSignal.timeout ? AbortSignal.timeout(IG_CALL_TIMEOUT_MS) : undefined),
+            signal,
         });
         const resp = track ? await _writeUiTrackSave('tiktok', track, {}, send) : await send();
         let json = null;
@@ -98,6 +103,22 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         `;
     }
 
+    // The schedule is held as date + 12-hour time, like TikTok's; this composes "YYYY-MM-DDTHH:MM".
+    function _igAt() {
+        const s = igState.schedule;
+        if (!s.date || s.hour === '' || s.minute === '') return '';
+        let h = parseInt(s.hour, 10);
+        if (!Number.isFinite(h)) return '';
+        if (s.ampm === 'PM' && h < 12) h += 12;
+        if (s.ampm === 'AM' && h === 12) h = 0;
+        return s.date + 'T' + String(h).padStart(2, '0') + ':' + String(s.minute).padStart(2, '0');
+    }
+    function _igTodayIso() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    const _igItems = (pairs) => pairs.map(([value, label]) => ({ value: String(value), label: String(label) }));
+
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
         if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'This client has no Instagram account connected yet. Add its Post For Me connection id to the ' + IG_ACCOUNT_COLUMN + ' column of the Clients Info sheet.';
@@ -106,8 +127,9 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         if (!igState.title.trim()) return 'Add a caption.';
         if (igState.title.length > IG_MAX_CAPTION) return 'Caption is over the ' + IG_MAX_CAPTION + '-character limit.';
         if (!igState.schedule.postNow) {
-            if (!igState.schedule.at) return 'Pick a schedule time, or switch on "Post immediately".';
-            const t = new Date(igState.schedule.at).getTime();
+            const at = _igAt();
+            if (!at) return 'Pick a schedule date and time, or switch on "Post immediately".';
+            const t = new Date(at).getTime();
             if (!Number.isFinite(t)) return 'That schedule time is not valid.';
             if (t < Date.now() - 60000) return 'The schedule time is in the past.';
         }
@@ -149,10 +171,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         col.innerHTML = `
             <div class="tk-card">
                 <h3>Client</h3>
-                <select class="tk-select" id="igClient" ${igState.submitting ? 'disabled' : ''}>
-                    <option value="">Pick a client…</option>
-                    ${names.map(n => `<option value="${_igEsc(n)}" ${n === igState.client ? 'selected' : ''}>${_igEsc(n)}</option>`).join('')}
-                </select>
+                ${_svSelectHtml('igClient', _igItems(names.map(n => [n, n])), igState.client || '', 'Pick a client…', { disabled: igState.submitting })}
                 ${accountLine}
             </div>
             <div class="tk-card">
@@ -171,16 +190,19 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
                     <label class="tk-radio"><input type="checkbox" id="igPostNow" ${igState.schedule.postNow ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}> Post immediately</label>
                 </div>
                 <div id="igScheduleFields" ${igState.schedule.postNow ? 'hidden' : ''}>
-                    <input class="tpl-input" id="igScheduleAt" type="datetime-local" value="${_igEsc(igState.schedule.at)}">
-                    <select class="tk-select" id="igScheduleTz" style="margin-top:10px" aria-label="Timezone">
-                        ${_igDeps.timezones.map(tz => `<option value="${tz}" ${tz === igState.schedule.tz ? 'selected' : ''}>${tz}</option>`).join('')}
-                    </select>
+                    ${_svDateHtml('igDate', igState.schedule.date, { min: _igTodayIso(), placeholder: 'Choose date', disabled: igState.submitting })}
+                    <div style="display:flex;gap:8px;margin-top:10px">
+                        ${_svSelectHtml('igHour', _igItems(Array.from({ length: 12 }, (_, i) => [i + 1, i + 1])), igState.schedule.hour, 'Hour', { disabled: igState.submitting })}
+                        ${_svSelectHtml('igMin', _igItems(Array.from({ length: 12 }, (_, i) => { const m = String(i * 5).padStart(2, '0'); return [m, m]; })), igState.schedule.minute, 'Min', { disabled: igState.submitting })}
+                        ${_svSelectHtml('igAmPm', _igItems([['AM', 'AM'], ['PM', 'PM']]), igState.schedule.ampm, 'AM', { disabled: igState.submitting })}
+                    </div>
+                    <div style="margin-top:10px">${_svSelectHtml('igTz', _igItems(_igDeps.timezones.map(tz => [tz, tz])), igState.schedule.tz, 'Timezone', { disabled: igState.submitting })}</div>
                 </div>
             </div>
             <div class="tk-submit-bar">
                 <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : (igState.schedule.postNow ? 'Post now' : 'Schedule post')}</button>
                 ${igState.submitting
-                    ? `<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div><button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>`
+                    ? `<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div>${igState.phase === 'creating' ? '<span class="tk-step-note">Finishing…</span>' : '<button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>'}`
                     : ''}
                 ${igState.error ? `<div class="tk-error" role="alert">${_igEsc(igState.error)}</div>` : (igState.notice ? `<div class="tk-step-note" role="status">${_igEsc(igState.notice)}</div>` : '')}
             </div>
@@ -192,7 +214,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; _igRenderForm(); _igFetchQueue(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; _igRenderForm(); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
@@ -200,12 +222,15 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         });
         document.querySelectorAll('input[name="igPlacement"]').forEach(r => r.addEventListener('change', (e) => { igState.placement = e.target.value; _igRenderForm(); }));
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
-        $('igScheduleAt')?.addEventListener('change', (e) => { igState.schedule.at = e.target.value; syncSubmit(); });
-        $('igScheduleTz')?.addEventListener('change', (e) => { igState.schedule.tz = e.target.value; });
+        $('igDate')?.addEventListener('change', (e) => { igState.schedule.date = e.target.value; syncSubmit(); });
+        $('igHour')?.addEventListener('change', (e) => { igState.schedule.hour = e.target.value; syncSubmit(); });
+        $('igMin')?.addEventListener('change', (e) => { igState.schedule.minute = e.target.value; syncSubmit(); });
+        $('igAmPm')?.addEventListener('change', (e) => { igState.schedule.ampm = e.target.value; syncSubmit(); });
+        $('igTz')?.addEventListener('change', (e) => { igState.schedule.tz = e.target.value; });
         $('igFile')?.addEventListener('change', (e) => { _igHandleFile(e.target.files && e.target.files[0]); });
         $('igRemoveFile')?.addEventListener('click', _igClearFile);
         $('igSubmit')?.addEventListener('click', _igSubmit);
-        $('igAbort')?.addEventListener('click', () => { if (_igActiveXhr) _igActiveXhr.abort(); });
+        $('igAbort')?.addEventListener('click', () => { if (_igAbort) _igAbort.abort(); if (_igActiveXhr) _igActiveXhr.abort(); });
         const drop = $('igDrop');
         if (drop) {
             drop.addEventListener('dragover', (e) => { e.preventDefault(); });
@@ -238,23 +263,32 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
 
     // Three steps, the same shape as TikTok's direct transport: (1) ask the function for a one-time Post For Me
     // storage URL, (2) PUT the video straight there from the browser, (3) tell the function to create the post.
+    // Cancel works for steps 1 and 2. Once step 3 is sent its outcome may be unknown (a timeout, a dropped
+    // connection), so the same retry-safe key is kept and sent again: a second press can never post twice.
     async function _igSubmit() {
         const err = _igValidate();
         if (err) { igState.error = err; _igRenderForm(); return; }
         const account = _igResolveAccount(igState.client);
-        const idempotencyKey = (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2));
-        const wall = igState.schedule.postNow ? '' : igState.schedule.at;
+        const wall = igState.schedule.postNow ? '' : _igAt();
         const utc = wall ? (_igDeps.wallClockToUTC(wall, igState.schedule.tz) || '') : '';
         if (wall && !utc) { igState.error = 'That schedule time is not valid.'; _igRenderForm(); return; }
         const file = igState.file;
-        igState.submitting = true; igState.error = null; igState.notice = null; igState.progress = 0;
+        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), igState.placement, utc].join('|');
+        if (!igState.attempt || igState.attempt.fp !== fp) {
+            igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
+        }
+        const idempotencyKey = igState.attempt.key;
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        _igAbort = ctrl;
+        igState.submitting = true; igState.error = null; igState.notice = null; igState.progress = 0; igState.phase = 'preparing';
         _igRenderForm();
         try {
-            const mint = await _igCall({ action: 'mint' });
+            const mint = await _igCall({ action: 'mint' }, null, ctrl && ctrl.signal);
             if (!mint.ok || !mint.json || !mint.json.upload_url || !mint.json.media_url) {
                 _igRecordFailure('instagram_mint', mint.status);
                 throw new Error((mint.json && mint.json.error) || 'Could not prepare the upload. Try again.');
             }
+            igState.phase = 'uploading';
             await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 _igActiveXhr = xhr;
@@ -268,28 +302,40 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
                 };
                 xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : (_igRecordFailure('instagram_storage_put', xhr.status), reject(new Error('Video upload to storage failed (HTTP ' + xhr.status + '). Try again.')));
                 xhr.onerror = () => { _igRecordFailure('instagram_storage_put', 0, true); reject(new Error('Network error while uploading the video. Try again.')); };
-                xhr.onabort = () => reject(new Error('Upload cancelled.'));
+                xhr.onabort = () => reject(Object.assign(new Error('Upload cancelled.'), { igCancelled: true }));
                 xhr.send(file);
             });
             _igActiveXhr = null;
+            if (ctrl && ctrl.signal.aborted) throw Object.assign(new Error('Upload cancelled.'), { igCancelled: true });
+            igState.phase = 'creating';
+            _igRenderForm();
             const created = await _igCall({
                 action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
                 mediaUrl: mint.json.media_url, options: { placement: igState.placement },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
-            if (!created.ok) throw new Error((created.json && created.json.error) || ('The post could not be created (HTTP ' + (created.status || 'no response') + ').'));
+            if (!created.ok) {
+                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
+                if (created.json && created.status >= 400 && created.status < 500) igState.attempt = null;
+                throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !(created.json && created.status >= 400 && created.status < 500) });
+            }
+            igState.attempt = null;
             const row = created.json.row;
             if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
-            igState.submitting = false; igState.progress = 0;
+            igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
             igState.title = '';
             igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
             igState.queueTab = 'upcoming';
             _igRenderForm(); _igRenderQueue(); _igSchedulePoll();
         } catch (e) {
-            _igActiveXhr = null;
-            igState.submitting = false; igState.progress = 0;
-            igState.error = e && e.message ? e.message : 'The upload failed. Try again.';
+            const inCreate = igState.phase === 'creating';
+            _igActiveXhr = null; _igAbort = null;
+            igState.submitting = false; igState.progress = 0; igState.phase = '';
+            const cancelled = !!(e && (e.igCancelled || e.name === 'AbortError')) && !inCreate;
+            if (cancelled) { igState.attempt = null; igState.error = 'Upload cancelled.'; }
+            else if (inCreate && !(e && e.igUnknown === false)) igState.error = 'We could not confirm whether Instagram received this post. Press the button again: it will not post twice. You can also check the queue.';
+            else igState.error = e && e.message ? e.message : 'The upload failed. Try again.';
             _igRenderForm();
         }
     }
@@ -371,13 +417,15 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         if (_igMounted) _igRenderQueue();
     }
 
-    async function _igCancelRow(id) {
-        try {
-            const r = await _igCall({ action: 'cancel', id }, 'instagram_cancel');
-            if (!r.ok) throw new Error((r.json && r.json.error) || 'Post For Me did not cancel it.');
-            igState.uploads = igState.uploads.map(x => x.id === id ? r.json.row : x);
-            _igRenderQueue();
-        } catch (e) { showNotify('Could not cancel', (e && e.message) || 'The cancel did not go through.'); }
+    function _igCancelRow(id) {
+        showConfirm('Cancel this scheduled post?', 'This removes the scheduled post from Post For Me, so it will not go out. The video file stays on your computer.', async () => {
+            try {
+                const r = await _igCall({ action: 'cancel', id }, 'instagram_cancel');
+                if (!r.ok) throw new Error((r.json && r.json.error) || 'Post For Me did not cancel it.');
+                igState.uploads = igState.uploads.map(x => x.id === id ? r.json.row : x);
+                _igRenderQueue();
+            } catch (e) { showNotify('Could not cancel', (e && e.message) || 'The cancel did not go through.'); }
+        });
     }
 
     // Poll gently: often while something is being posted, rarely while only future posts wait, never when idle.
@@ -417,8 +465,15 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './
         if (form) form.hidden = true;
         if (right) right.hidden = true;
     }
+    // The roster can arrive after this side first drew. Redrawn unless the caption is being typed into.
+    function refreshInstagramForm() {
+        if (!_igMounted) return;
+        const a = document.activeElement;
+        if (a && a.id === 'igTitle') return;
+        _igRenderForm();
+    }
     function instagramResumePolling() { if (_igMounted) { Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll); } }
 
 export {
-  instagramResumePolling, mountInstagramPanel, renderInstagramPanel, teardownInstagramPanel
+  instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, teardownInstagramPanel
 };

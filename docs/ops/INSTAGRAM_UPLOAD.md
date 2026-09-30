@@ -32,13 +32,15 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 3. In the **Clients Info** sheet, add a column named exactly `postforme_instagram_account_id` (once, at the end), then paste the id on the client's row.
 4. Reload SyncView. On the Instagram side, the client now shows "Posts to Post For Me account spc_...". Without an id it shows a warning and the button stays off: there is no fallback, so a video can never land on another client's account.
 
-## Safety switch: who can post
+## Safety switches: who can post, and to which account
 
-Until you widen it, **only the test client (`sidneylaruel`) can post**; any other client is refused by the server with "not switched on for this client yet". To open a client up, set the Supabase secret `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` to a comma list of client names or slugs (for example the test client plus the one client you are trying), or `*` for everyone. Take it back the same way.
+- **Nobody can post until you list clients.** The server refuses every Instagram post unless the Supabase secret `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` names the client (a comma list of client names, or `*` for everyone). Nothing is listed in the repository. Start with the test client only; add a real client when you are ready to try one. Take it back the same way.
+- **The account must be the one on file.** The server checks that the Instagram account sent with a post is the one in the synced copy of Clients Info for that client, and that Post For Me says it is an Instagram account. A caller cannot swap in another client's account.
+- **Heads up: the synced copy refreshes once a day.** After you paste a new ID in the sheet, run the Sheets copy lane (Actions, "sheets-mirror-daily", Run workflow) or wait a day, otherwise the first post is refused with "no Instagram account for this client yet".
 
 ## Try one post yourself
 
-1. Do the setup and connect the account as above. Widen the switch to that client if it is not the test client.
+1. Do the setup and connect the account as above, refresh the synced copy, and list the client in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS`.
 2. TikTok Upload tab, **Instagram**, pick the client, attach a short video, write a caption such as "test, please ignore".
 3. First try **scheduling** 15 minutes ahead (turn off "Post immediately"). The queue shows it as **Scheduled**. Press **Cancel** and check it disappears from Post For Me's own list: that proves cancel works without publishing anything.
 4. Then do it for real: schedule or "Post now". The queue shows **Posting**, then **Posted** with an **Open** link to the reel. If Instagram refuses, the row shows **Failed** with Post For Me's reason.
@@ -54,6 +56,6 @@ mismatch is a one-line fix.
 
 ## Way back
 
-Delete nothing: set `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` to a name nobody has, or remove the
+Delete nothing: empty `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS`, or remove the
 `POST_FOR_ME_API_KEY` secret, and every Instagram post is refused. The page switch can stay.
 The table can be dropped (`drop table public.instagram_uploads;`); posts already sent stay on Instagram.

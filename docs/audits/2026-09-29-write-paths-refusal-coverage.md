@@ -145,7 +145,7 @@ and SMM weekly reports.
 | `270-samples-model.js` | `_sxrUpsertFetchGuarded` | `SXR_UPSERT_EF_URL` POST | client-transport |  | Staff Samples upsert behind the saving-on check (n8n exit PR 4). Each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save, urgent_marker_save). |
 | `270-samples-model.js` | `_sxrUpsertFetchPinned` | `url` POST | client-transport |  | Pinned Samples upsert transport (status writes, including the client approve path). Not modified. |
 | `290-samples-writes-review.js` | `_writeUiReadRepairReceipt` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | read |  | Reads a repair receipt. |
-| `299-instagram-upload.js` | `idempotencyKey` | `mint.json.upload_url` PUT | reports | `_igSubmit` | Instagram video upload to Post For Me storage. Recorded as instagram_storage_put. |
+| `299-instagram-upload.js` | `ctrl` | `mint.json.upload_url` PUT | reports | `_igSubmit` | Instagram video upload to Post For Me storage. Recorded as instagram_storage_put. |
 | `299-instagram-upload.js` | `send` | `IG_FUNCTION_URL` POST | reports | `_igCall` | Instagram upload function (mint, create, list, cancel). Create and cancel are recorded as instagram_create and instagram_cancel; list and mint are reads of state. |
 | `300-tiktok-upload.js` | `_tkCancelRow` | `TIKTOK_UPLOAD_CANCEL_URL` POST | reports | `_tkCancelRow` | TikTok cancel. Recorded as tiktok_cancel. |
 | `300-tiktok-upload.js` | `_tkFinishDirectSubmit` | `TIKTOK_UPLOAD_DIRECT_WEBHOOK` POST | reports | `_tkFinishDirectSubmit` | TikTok post creation after a direct upload. Recorded as tiktok_upload. |

@@ -24,6 +24,11 @@ const CLIENTS_CSV = ['client_name,postforme_account_id,postforme_instagram_accou
   `${csv(TEST_CLIENT)},${csv('spc_fixtureTikTok0001')},${csv(ACCOUNT_ID)}`,
   ].join('\r\n') + '\r\n';
 
+// The shared SyncView select: open its button, click the option.
+async function pickSv(page, id, value) {
+  await page.click(`#${id}Btn`);
+  await page.click(`#${id}Menu [data-sv-select-option][data-value=${JSON.stringify(value)}]`);
+}
 const future = new Date(Date.now() + 26 * 3600000).toISOString();
 const SERVER_ROWS = [
   { id: 'ig_a', client: TEST_CLIENT, title: 'Waiting post', status: 'scheduled', timezone: 'UTC', scheduled_for: future, placement: 'reels', error: '', instagram_url: '' },
@@ -35,7 +40,7 @@ const SERVER_ROWS = [
   const server = await serveStatic();
   const browser = await chromium.launch();
   let checks = 0;
-  const calls = { list: 0, mint: 0, create: [], cancel: [], put: [], tiktokList: 0, headers: null };
+  const calls = { attempts: [], failCreate: false, list: 0, mint: 0, create: [], cancel: [], put: [], tiktokList: 0, headers: null };
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, async route => {
@@ -54,12 +59,15 @@ const SERVER_ROWS = [
         if (body.action === 'list') { calls.list++; return ok({ rows: SERVER_ROWS }); }
         if (body.action === 'mint') { calls.mint++; return ok({ upload_url: 'https://storage.fixture.test/put/abc', media_url: 'https://data.postforme.dev/fixture.mp4' }); }
         if (body.action === 'create') {
+          calls.attempts.push(body.idempotencyKey);
+          if (calls.failCreate) { calls.failCreate = false; return route.abort('failed'); }
           calls.create.push(body);
           return ok({ id: body.idempotencyKey, status: 'processing', row: { id: body.idempotencyKey, client: body.clientName, title: body.title, status: 'processing', placement: body.options.placement, created_at: new Date().toISOString(), error: '', instagram_url: '' } });
         }
         if (body.action === 'cancel') { calls.cancel.push(body.id); return ok({ row: { ...SERVER_ROWS[0], status: 'cancelled' } }); }
         return route.fulfill({ status: 400, contentType: 'application/json', headers: cors, body: '{"ok":false}' });
       }
+      if (/functions\/v1\/write-diagnostics/.test(url)) return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: '{"ok":true}' });   // the failed-saves log, which an unconfirmed create is reported to
       if (/storage\.fixture\.test/.test(url)) { calls.put.push(req.method()); return route.fulfill({ status: 200, headers: cors, body: '' }); }
       if (req.method() !== 'GET') throw new Error('unexpected write: ' + req.method() + ' ' + url);
       return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: /\/rest\/v1\//.test(url) ? '[]' : '{}' });
@@ -103,9 +111,9 @@ const SERVER_ROWS = [
     await page.click('[data-ig-tab="upcoming"]');
 
     // --- no Instagram id: no post
-    NO_ACCOUNT_CLIENT = await page.$$eval('#igClient option', os => os.map(o => o.value).find(v => v && !/^sidney/i.test(v)));
+    NO_ACCOUNT_CLIENT = await page.$$eval('#igClientMenu [data-sv-select-option]', os => os.map(o => o.getAttribute('data-value')).find(v => v && !/^sidney/i.test(v)));
     assert.ok(NO_ACCOUNT_CLIENT, 'the roster has another client'); checks++;
-    await page.selectOption('#igClient', NO_ACCOUNT_CLIENT);
+    await pickSv(page, 'igClient', NO_ACCOUNT_CLIENT);
     assert.match(await page.innerText('#igFormCol'), /No Instagram account/, 'a client with no id is flagged'); checks++;
     assert.match(await page.innerText('#igFormCol'), /postforme_instagram_account_id/, 'the flag names the sheet column'); checks++;
     await page.setInputFiles('#igFile', { name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not really a video') });
@@ -113,15 +121,20 @@ const SERVER_ROWS = [
     assert.equal(await page.isDisabled('#igSubmit'), true, 'no id means the button stays off'); checks++;
 
     // --- the test client posts end to end
-    await page.selectOption('#igClient', TEST_CLIENT);
+    await pickSv(page, 'igClient', TEST_CLIENT);
     assert.match(await page.innerText('#igFormCol'), new RegExp(ACCOUNT_ID), 'the test client shows its connected account'); checks++;
     await page.fill('#igTitle', 'Fixture caption');
     assert.equal(await page.inputValue('#igTitle'), 'Fixture caption', 'the caption and video stay when the client changes'); checks++;
     assert.equal(await page.isDisabled('#igSubmit'), false, 'video, caption and account make it ready'); checks++;
+    calls.failCreate = true;
+    await page.click('#igSubmit');
+    await page.waitForFunction(() => /could not confirm/i.test(document.querySelector('#igFormCol')?.innerText || ''), null, { timeout: 10000 });
+    assert.equal(await page.isDisabled('#igSubmit'), false, 'the button is available again after an unconfirmed attempt'); checks++;
     await page.click('#igSubmit');
     await page.waitForFunction(() => /Sent to Instagram/.test(document.querySelector('#igFormCol')?.innerText || ''), null, { timeout: 10000 });
-    assert.equal(calls.mint, 1, 'one storage URL was requested'); checks++;
-    assert.deepEqual(calls.put, ['PUT'], 'the video went straight to storage'); checks++;
+    assert.equal(calls.attempts.length, 2, 'the unconfirmed attempt was retried'); checks++;
+    assert.equal(calls.attempts[0], calls.attempts[1], 'the retry reuses the same key, so it cannot post twice'); checks++;
+    assert.equal(calls.put.length >= 1 && calls.put.every(m => m === 'PUT'), true, 'the video went straight to storage'); checks++;
     assert.equal(calls.create.length, 1, 'one post was created'); checks++;
     const c = calls.create[0];
     assert.equal(c.clientName, TEST_CLIENT); checks++;
@@ -133,8 +146,15 @@ const SERVER_ROWS = [
     assert.ok(/^[A-Za-z0-9_-]{1,80}$/.test(c.idempotencyKey), 'a retry-safe key is sent'); checks++;
     assert.match(await queue.innerText(), /Fixture caption[\s\S]*Posting/, 'the new post shows in the queue right away'); checks++;
 
-    // --- cancel a scheduled row
+    // --- no browser-native menus or date popups on the Instagram side
+    assert.equal(await page.locator('#igFormCol select, #igFormCol input[type="datetime-local"]').count(), 0, 'the Instagram form uses the SyncView controls, not native ones'); checks++;
+    assert.equal(await page.locator('#igFormCol [data-sv-select]').count() >= 1, true, 'the client picker is the shared select'); checks++;
+
+    // --- cancel a scheduled row: asks first, then sends
     await page.click('[data-ig-cancel="ig_a"]');
+    assert.deepEqual(calls.cancel, [], 'nothing is cancelled before the person confirms'); checks++;
+    await page.waitForSelector('#confirmOverlay.active #confirmYes', { timeout: 5000 });
+    await page.click('#confirmYes');
     await page.waitForFunction(() => !document.querySelector('[data-ig-cancel="ig_a"]'), null, { timeout: 5000 });
     assert.deepEqual(calls.cancel, ['ig_a'], 'Cancel goes to the function'); checks++;
 

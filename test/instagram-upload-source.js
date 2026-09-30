@@ -20,16 +20,35 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   const L = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/instagram-upload/logic.mjs')).href);
   const NOW = Date.parse('2026-09-30T12:00:00.000Z');
   const NOWISO = new Date(NOW).toISOString();
-  const base = { clientName: 'sidneylaruel', socialAccountId: 'spc_fixtureInstagram01', title: 'Hello', mediaUrl: 'https://data.postforme.dev/x.mp4', idempotencyKey: 'key1' };
+  const base = { clientName: 'Fixture Client A', socialAccountId: 'spc_fixtureInstagram01', title: 'Hello', mediaUrl: 'https://data.postforme.dev/x.mp4', idempotencyKey: 'key1' };
 
-  // --- the safety switch: only the test client until the owner widens it
-  ok(L.clientAllowed('sidneylaruel', undefined), 'the test client is allowed by default');
-  ok(L.clientAllowed('SidneyLaruel ', ''), 'spelling and spacing do not matter');
-  ok(!L.clientAllowed('Fixture Client B', undefined), 'any other client is refused by default');
-  ok(!L.clientAllowed('', undefined), 'no client is refused');
-  ok(L.clientAllowed('Fixture Client B', 'sidneylaruel, fixtureclientb'), 'a listed client is allowed');
-  ok(!L.clientAllowed('Fixture Client C', 'sidneylaruel, fixtureclientb'), 'an unlisted client is refused');
+  // --- the safety switch: fail closed, nothing is listed in the repository
+  ok(!L.clientAllowed('Fixture Client A', undefined), 'nobody can post until the setting exists');
+  ok(!L.clientAllowed('Fixture Client A', ''), 'an empty setting allows nobody');
+  ok(!L.clientAllowed('', 'fixtureclienta'), 'no client is refused');
+  ok(L.clientAllowed('Fixture Client A', 'fixtureclienta, fixtureclientb'), 'a listed client is allowed, spelling and spacing aside');
+  ok(L.clientAllowed('FIXTURE-CLIENT-B', 'fixtureclienta, fixtureclientb'), 'a listed slug spelling is the same client');
+  ok(!L.clientAllowed('Fixture Client C', 'fixtureclienta, fixtureclientb'), 'an unlisted client is refused');
   ok(L.clientAllowed('Fixture Client C', '*'), '* allows everyone');
+  ok(!('DEFAULT_ALLOWED_CLIENTS' in L), 'no default client list exists in the source');
+
+  // --- the account must be the one on file for that client
+  eq(L.expectedAccountId({ extra: { postforme_instagram_account_id: ' spc_fixtureInstagram01 ' } }), 'spc_fixtureInstagram01', 'the id on file is read from the synced Clients Info copy');
+  eq(L.expectedAccountId({ extra: {} }), '', 'no id on file reads as empty');
+  eq(L.expectedAccountId(null), '', 'no profile reads as empty');
+
+  // --- status refreshes cannot be starved
+  {
+    const T = Date.parse('2026-09-30T12:00:00.000Z');
+    const mk = (id, status, extra = {}) => ({ id, status, post_id: 'p_' + id, scheduled_for: null, last_checked_at: null, ...extra });
+    const future = Array.from({ length: 12 }, (_, i) => mk('f' + i, 'scheduled', { scheduled_for: '2026-10-05T00:00:00Z' }));
+    const old = mk('old', 'processing', { last_checked_at: '2026-09-29T00:00:00Z' });
+    const picked = L.refreshCandidates([...future, old], T, 10);
+    eq(picked.map(r => r.id), ['old'], 'future scheduled posts are never asked about, so they cannot crowd out an older one');
+    const due = mk('due', 'scheduled', { scheduled_for: '2026-09-30T11:00:00Z', last_checked_at: '2026-09-30T11:30:00Z' });
+    const never = mk('never', 'processing');
+    eq(L.refreshCandidates([due, never, old], T, 2).map(r => r.id), ['never', 'old'], 'never-asked first, then the longest unasked, capped');
+  }
 
   // --- the account must be an Instagram one
   eq(L.platformMismatch({ platform: 'instagram' }), '', 'instagram passes');
@@ -97,6 +116,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/Deno\.env\.get\("POST_FOR_ME_API_KEY"\)/.test(HANDLER), 'the Post For Me key comes from the environment');
   ok(!/pfm_[A-Za-z0-9]{10,}|Bearer [A-Za-z0-9]{20,}/.test(HANDLER + read('supabase/functions/instagram-upload/logic.mjs')), 'no key is written in the source');
   ok(/clientAllowed\(row\.client, Deno\.env\.get\("INSTAGRAM_UPLOAD_ALLOWED_CLIENTS"\)\)/.test(HANDLER), 'the client allowlist is enforced before anything is sent');
+  ok(/expected !== row\.account_id/.test(HANDLER) && HANDLER.indexOf('expectedAccountId(') < HANDLER.indexOf('"/social-posts", postBody'), 'the account must match the one on file before the post is created');
+  ok(/external_id=/.test(HANDLER), 'an earlier attempt with the same key is looked up before a second post is created');
   ok(HANDLER.indexOf('clientAllowed(') < HANDLER.indexOf('"/social-posts"'), 'the allowlist check comes before the post is created');
   ok(HANDLER.indexOf('platformMismatch(') < HANDLER.indexOf('"/social-posts"'), 'the platform check comes before the post is created');
   ok(!/n8n/i.test(HANDLER.replace(/^\/\/.*$/gm, '')), 'the handler does not call n8n');

@@ -29998,3 +29998,24 @@ about at 0, 10, 20, then every 30 minutes, then hourly (only answers from Post F
 **Way back:** revert this commit. **Left:** measure the two workflows again 7 days after it ships.
 
 **Update, same day:** the CI job `entry-links-boot` hit its 10 minute limit and was cancelled (not failed) once this step's new test was added to the many browser suites it already runs; its time limit is now 15 minutes (`.github/workflows/calendar-unit-tests.yml`).
+
+
+## 298. [2026-09-30] n8n exit phase 2, step B1: caption job progress gets a function and a table (backend only, nothing switched)
+
+**What:** new Edge Function `caption-jobs` and migration `migrations/2026-09-30-caption-jobs.sql` (written, not applied). One
+function for both old n8n webhooks: `GET ?client=&postId=&jobId=` answers `{ ok, jobs: [{ jobId, client, postId, status, stage,
+caption, error, cancel_requested, started_at, updated_at }] }` (the last 24 hours when no jobId, newest first, at most 200) and
+`POST` writes only the keys sent, then drops rows older than 14 days. Staff role key (`X-Syncview-Key`) required. The table is
+service_role only (the migration's own assert checks no browser role holds anything). Added to the one-function deploy lane
+(`caption-jobs`, dispatch only) and to the deploy manifest.
+
+**`supabase/config.toml` is deliberately not edited** (review finding on the PR): two other workflows (thumbnail and description image functions) redeploy on any push to main that touches it, so a config edit would have redeployed three unrelated live functions at merge. The one-function lane deploys with `--no-verify-jwt`, so the function needs no entry there.
+
+**Nothing is switched.** The Calendar page and the Generate Caption n8n workflow still use the n8n webhooks and data table; no
+n8n workflow was edited. Step B2 (next PR, after the migration is applied and the function deployed and read back) edits the
+Generate Caption workflow and points the page at the function behind a flag. The n8n Status and Update workflows stay on.
+
+**Proof:** `node test/caption-jobs-source.js` (32 checks: the patch and selection rules, the key set the page reads, the auth,
+the migration's privileges, the deploy lane). `ef-deploy-provenance` and `deploy-single-function` updated for 45 slugs.
+**Way back:** nothing to undo before deploy; after it, `drop table public.caption_jobs` and do not deploy the function.
+**Left:** apply the migration and deploy (Lighthouse, owner's go), read the function back once, then build B2.

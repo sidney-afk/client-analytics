@@ -192,6 +192,7 @@ const rows = [
        the SQL below and in test/editor-count-excludes-parents.js. */
   };
   const EXEMPT = {
+    clean: [1, 'the name the sweep gives the <head> boot script (the last function declared before it). Its one mention is the Today early read (added 2026-09-30, OPEN_REPAIRS 295): it starts the same first-page reads _tdyLoad makes, and only after the staff check passes. Nothing is counted or listed there: _tdyLoad takes each answer by exact URL and runs it through child(), which drops batch parents, before anything is listed or counted'],
     _prodBrowserProjectionRows: [3, 'Two safe-view reads plus an exact missing-column error identifier; loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
     _prodBrowserProjectionMissing: [1, 'an error classifier — matches the view name inside a failure detail, reads nothing'],
     wlFetchNativeMetadata: [1, 'Workload metadata keyed by issue id; the board filters is_sub_issue upstream, so a batch parent never reaches this call'],

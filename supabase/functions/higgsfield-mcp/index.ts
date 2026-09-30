@@ -147,8 +147,11 @@ const VIEWER_TOOLS = new Set(["check_job", "check_video", "wait_for_job", "check
 function linksIn(t: string): string[] {
   return (t.match(/https:\/\/[^\s)"'<>\\]+/g) || []).map((l) => l.replace(/[.,;:]+$/, ""));
 }
-const isVideoLink = (l: string) => /\.(mp4|mov|webm)(\?|$)/i.test(l);
-const isImageLink = (l: string) => /\.(png|jpe?g|webp|gif)(\?|$)/i.test(l) || /\.cloudfront\.net\//i.test(l);
+// Only our CloudFront hosts (our uploads and Higgsfield outputs): the viewer's
+// security rules allow media from nowhere else. Kind comes from the extension.
+const onViewerHost = (l: string) => /^https:\/\/[a-z0-9-]+\.cloudfront\.net\//i.test(l);
+const isVideoLink = (l: string) => onViewerHost(l) && /\.(mp4|mov|webm)(\?|$)/i.test(l);
+const isImageLink = (l: string) => onViewerHost(l) && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(l);
 
 const TOOLS = [
   { name: "start_here", description: "Read first. What this connector can make, which model to use for what, and the team's remaining budget this month.", inputSchema: EMPTY },

@@ -81,6 +81,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (!id || !id.member || String(id.member.id) !== e.memberId || (needKey && String(id.key) !== e.key)) return null;
         const p = e.reads[url];
         delete e.reads[url];
+        tdyState.tookEarly = true;   // realtime was not listening yet: catch up once it is (_tdyEnsureLive)
         return p;
     }
     async function _tdyRest(table, query) {
@@ -505,7 +506,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, _tdyOnRealtime)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, _tdyOnRealtime)
                 .subscribe(status => {
-                    if (status === 'SUBSCRIBED') { if (_tdyRtSubscribedOnce) _tdyOnRealtime(); _tdyRtSubscribedOnce = true; }
+                    if (status === 'SUBSCRIBED') {
+                        // A change that landed between an early read and this
+                        // subscription is never replayed, so a load that used an
+                        // early answer reads once more, quietly.
+                        if (_tdyRtSubscribedOnce || tdyState.tookEarly) _tdyOnRealtime();
+                        tdyState.tookEarly = false;
+                        _tdyRtSubscribedOnce = true;
+                    }
                 });
         } catch (e) { _tdyChannel = null; }
     }
@@ -535,9 +543,13 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         // Paint what we have now (the cached day, or the skeleton), then read.
         _tdyPaint();
         _tdyEnsureLive();
+        const startDay = _tdyIso(_tdyDays(0));
         try {
             const data = await _tdyLoad(me);
             if (gen !== tdyState.gen) return;
+            // Its date filters were built for the day it started; across
+            // midnight the answer is for the wrong day, so read again.
+            if (_tdyIso(_tdyDays(0)) !== startDay) { mountTodayView(); return; }
             tdyState.data = data; tdyState.who = who; tdyState.day = _tdyIso(_tdyDays(0)); tdyState.error = '';
             _tdyCacheWrite(who, data);
         } catch (e) {

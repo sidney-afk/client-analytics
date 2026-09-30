@@ -111,9 +111,8 @@ function images(inputs: JsonMap): string[] {
   return Array.isArray(inputs.image_urls) ? inputs.image_urls.map(String) : [];
 }
 
-// Edits send input_fidelity=high so the person's face and the framing stay as
-// in the source (without it the model redraws and reframes); it raises input
-// image tokens, which OPENAI_IN_IMAGE_TOKENS already covers.
+// Edits send no input_fidelity: the 2.5 snapshots keep the source at full
+// fidelity on their own and refuse the parameter outright.
 // OpenAI output tokens by quality for a square / non-square image (published
 // gpt-image table); "auto" size is priced as non-square, the larger of the two.
 const OPENAI_OUT: Record<string, [number, number]> = { low: [272, 408], medium: [1056, 1584], high: [4160, 6240] };
@@ -196,7 +195,6 @@ export async function runDirect(id: string, inputs: JsonMap, fetchImage: (url: s
       form.append("prompt", prompt);
       form.append("quality", quality);
       form.append("size", size);
-      form.append("input_fidelity", "high");
       form.append("output_format", "jpeg");
       form.append("output_compression", "90");
       refs.forEach((r, i) => form.append("image[]", new Blob([r.bytes], { type: r.type }), `input-${i}.${r.type.split("/")[1] || "png"}`));

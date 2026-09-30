@@ -30087,3 +30087,9 @@ first); the finished caption save still goes through the n8n `calendar-upsert-po
 
 **Still unproven until the first real post:** accepted cover image sizes, and whether the browser may read a Calendar thumbnail from its Google Drive link (if not, the form says so and asks for an upload).
 
+## 305. [2026-09-30] n8n exit phase 2, step A: Slack Creative Channel Finalizer gets a direct trigger and a daily check (published), 15 minute timer kept until a real client proves it
+
+Status: webhook `slack-creative-finalize` and a once a day safety check are live on the finalizer (version `7afd1d3c`, restore `8f194a42`, see `docs/ops/N8N_EDIT_LOG.md`). The 15 minute timer is deliberately still on (owner: no real channels for a test; the next real client is the proof, then a small follow-up PR removes the timer).
+Measured: 705 timer runs found nothing; the queue holds 3 rows, all `manual`, none pending since 2026-09-03.
+Found while reading: the runbook said only `creative_channel_id` blocks a run; the workflow also stops on a set `slack_channel_id`. The runbook now says both. Also the timer path picks only the oldest pending row, so a client waiting for a manager's Slack id holds up every newer client; the webhook picks by client name and the daily check calls it per row, so neither has that problem.
+Not proven: the ready path through the webhook (no real channels were created for the test).

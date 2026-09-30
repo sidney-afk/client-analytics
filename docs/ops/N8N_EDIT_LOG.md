@@ -65,3 +65,31 @@ Tested (test client only, real services, draft first, then the published version
 Undo: in n8n, restore version `2ac32e2c-331f-4fd4-8b31-637330e5ef27` (workflow history) and publish it. That brings back the old
 flow, which still has the two typed-in keys and uses the n8n caption job webhooks (their workflows and data table are untouched
 and stay on for 30 days). Nothing is deleted.
+
+## 2026-09-30 step A (Finalizer trigger and daily safety check): Slack Creative Channel Finalizer edited and published, 15 minute timer kept
+
+Workflow: Client, Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`)
+Version before: `8f194a42-e578-446d-97af-2c30f4f0767a`      Version after: `7afd1d3c-1099-400d-b682-f7f57585b7a8` (published 2026-09-30, about 22:29 UTC)
+Changed (five steps added, one changed, nothing removed):
+- Added **Finalize Webhook**: `POST https://synchrosocial.app.n8n.cloud/webhook/slack-creative-finalize`, answers at once. It feeds the same
+  first step as the timer (Get Pending Slack Jobs), so every readiness check and every channel step is the old code, untouched.
+- Changed **Pick One Pending Job** (Code): if the run came from the webhook and the body has `client_name`, it picks only that client's
+  pending queue row (trimmed, case insensitive) and does nothing if there is none; with no name, or from the timer, it still picks the
+  oldest pending row exactly as before.
+- Added the **daily safety check**: Every Day Safety Check (15:07 instance time) then List Pending Clients, One Item Per Pending Client
+  and Trigger Finalizer For Client, which calls the webhook once per pending row, 20 seconds apart, continue on error. Each call is its
+  own run, so one waiting client can no longer hold up another (the timer path picks the oldest pending row only).
+- Not changed: **Every 15 Minutes stays on** (owner decision 2026-09-30: no real Slack channels for a test; the next real client is the
+  proof, then the timer is removed in a small follow-up PR).
+Why: owner decision 2026-09-30, the finalizer starts from the onboarding runbook instead of polling 96 times a day.
+What "ready" means (read from the workflow, not from the plan): a queue row in status `pending` (written by Onboarding Provisioning),
+exactly one Clients Info row with the same name and email and no `creative_channel_id` and no `slack_channel_id`, exactly one assigned
+SMM row with a Slack id, exactly one filming plan row for the row's `viewer_slug` with a link and a doc id. Not ready yet: row goes back
+to `pending` and nothing is posted. Wrong or duplicate data: `manual` plus one private DM to the owner.
+Tested (no Slack channel created, by owner decision): before the edit the queue held 3 rows, all `manual`, none pending (last activity
+2026-09-03), and the timer had run 705 times finding nothing. After publishing, one webhook call with a name matching no pending row
+answered `{"message":"Workflow was started"}`; execution 654438 (mode webhook) succeeded in 0.07 s and changed nothing, and the next
+timer run (654436, mode trigger) also succeeded. NOT yet proven: the ready path through the webhook. That is proven by the next real
+client (see the onboarding runbook section 6c and the plan, step A).
+Undo: in n8n restore version `8f194a42-e578-446d-97af-2c30f4f0767a` (workflow history) and publish it. That removes the webhook and the
+daily check and leaves the 15 minute timer as it was. Nothing else to undo; the queue table is untouched.

@@ -427,9 +427,9 @@ This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5
 
 3. For a newly assigned SMM: copy their **Slack user ID** (`U…`) → into the SMM tab's `slack_profile_url`. A missing value here parks the job in `waiting` (safe, non-destructive) until it's filled in — it does not silently create a channel without them.
 
-The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists (now naming it a **Slack** job, not Roam). The separate **Client — Slack Creative Channel Finalizer** (`udkwwzdFuPW3K2CE`) checks for a snapshot whose setup is complete (every 15 minutes today; started directly by the onboarding session after the Finalizer PR, see the end of this section):
+The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists (now naming it a **Slack** job, not Roam). The separate **Client — Slack Creative Channel Finalizer** (`udkwwzdFuPW3K2CE`) checks for a snapshot whose setup is complete (started by the onboarding session through a webhook, by a daily safety check, and, until the next real client proves the webhook, every 15 minutes; see the end of this section):
 
-1. Exactly one matching **Clients Info** row with the canonical display name and email, and no `creative_channel_id` already set (a set value means manual reconciliation, never overwrite/rename).
+1. Exactly one matching **Clients Info** row with the canonical display name and email, and neither `creative_channel_id` nor `slack_channel_id` already set (a set value means manual reconciliation, never overwrite/rename).
 2. Exactly one assigned-SMM row, with `slack_profile_url` populated.
 3. Exactly one linked filming plan in Supabase.
 
@@ -477,25 +477,36 @@ or message send. Do not rerun the non-idempotent provisioning workflow. For hist
 or manual reconciliation rather than rerunning intake — backfilling that cohort to Slack is a
 separate, deliberately deferred pass (their `roam_channel_id` on Clients Info is the list).
 
-**Triggering the finalizer yourself (owner decision 2026-09-30; live only after the Finalizer PR of `docs/plans/2026-09-30-n8n-exit-phase-2.md` ships).**
-Today the finalizer still checks every 15 minutes and you do nothing. After that PR merges and the owner or Lighthouse confirms
-it, the 15 minute check is **removed** and the onboarding session starts the finalizer itself:
+**Triggering the finalizer yourself (live since 2026-09-30; owner decision: the next real client is the proof).**
+The finalizer now has three ways to start, all running the same steps. The webhook and a once a day safety check were added on
+2026-09-30 (`docs/ops/N8N_EDIT_LOG.md`, step A). The **15 minute check is still on** and stays on until the next real client's
+channels have been created through the webhook and the timer found nothing left to do; then a small follow-up PR removes the timer.
+Until then calling the trigger is optional but wanted, because that run is the proof. What makes a client "ready" (read from the
+workflow on 2026-09-30):
 
-- **When.** Right after the last of the three readiness checks above becomes true, and not before: the **Clients Info** row exists
-  with no `creative_channel_id`, the assigned **Social Media Managers** row has `slack_profile_url` filled in, and the filming plan
-  is linked (verify each by reading it, never from memory). This is the last step of this runbook's section 6 for a new client,
-  just before "Verify on the live dashboard" (6i).
+- A queue row in status `pending`. It is written by the onboarding provisioning workflow when the form is submitted; if there is no
+  pending row for the client the trigger does nothing.
+- Exactly one **Clients Info** row with the same client name and email, with **no** `creative_channel_id` **and no** `slack_channel_id`
+  (either one set means manual reconciliation, nothing is created).
+- Exactly one **Social Media Managers** row for the client with the manager named and `slack_profile_url` filled in.
+- Exactly one filming plan (Supabase `filming_plans`) for the queue row's `viewer_slug` with its link and doc id.
+
+- **When.** Right after the last of those is true and not before (verify each by reading it, never from memory). This is the last step
+  of section 6 for a new client, just before "Verify on the live dashboard" (6i). A client who is not ready yet is harmless: the row
+  stays `pending` and nothing is posted.
 - **How.** Send one `POST` to `https://synchrosocial.app.n8n.cloud/webhook/slack-creative-finalize` with the JSON body
-  `{"client_name": "<the canonical display name exactly as in Clients Info>"}`. The call starts one pass for that client's waiting
-  queue row. It answers at once; the channel appears within a minute or two. It is safe to send twice: a finished row is skipped.
+  `{"client_name": "<the canonical display name exactly as in Clients Info>"}`. It answers at once and starts one pass for that
+  client's pending queue row only; the channels appear within a minute or two. Without a name it takes the oldest pending row, so
+  always send the name. It is safe to send twice: a row that is processing or done is skipped.
 - **What to check after.** The `creative_channel_id` cell on the **Clients Info** row is filled, and the kickoff message and the
   full form answers are in the new channel. If neither happens within ten minutes, do not call it again and do not hand create a
-  channel: read the queue row (status `waiting` with a reason, or manual reconciliation plus the owner's private DM) and follow the
-  reconciliation paragraph above.
-- **The safety net.** One run a day (the same workflow on a daily schedule) processes every row that is ready but was never
-  triggered. It is a catch, not the plan: a row that waits until the daily run means the trigger step was missed, so note it.
-- **Undo.** The n8n edit and how to restore the earlier version (which brings the 15 minute check back) are written in
-  `docs/ops/N8N_EDIT_LOG.md` once that PR lands.
+  channel: read the queue row (`pending` with a reason, or `manual` plus the owner's private DM) and follow the reconciliation
+  paragraph above.
+- **The safety net.** One run a day (15:07 instance time) calls the trigger for every row still pending. It is a catch, not the plan:
+  a row that waits for it means the trigger step was missed, so note it.
+- **Proof for removing the 15 minute timer.** After a real client's channels were created by the webhook call, write the client's
+  queue row id and the date in `docs/ops/N8N_EDIT_LOG.md` and open the small follow-up PR that removes the **Every 15 Minutes** step.
+- **Undo.** In n8n restore version `8f194a42-e578-446d-97af-2c30f4f0767a` (brings back the workflow exactly as it was before step A).
 
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)

@@ -55,7 +55,8 @@ here with where it stopped, so it can be restarted.
    of them); forms, the SMM weekly report and signed-out visitors still get the whole
    script. Numbers: `docs/audits/2026-09-29-step5-client-first-load.md`. Three ways
    back: everyone `node scripts/split-switch.js off`; client links only
-   `node scripts/split-switch.js clients off`; one browser `?split=0` (on a client link only after the
+   `node scripts/split-switch.js clients off`; parts minified since 2026-09-30, back with
+   `node scripts/split-switch.js minify off`; one browser `?split=0` (on a client link only after the
    follow-up fix: #1868 shipped with the link check refusing that key, found by Vigil on the live site). The client
    approve and request-changes tests pass on the parts. Left after this: step 6
    (measure everything again).
@@ -222,7 +223,7 @@ hiring senders when the editor hire closes.
 ## Done (was listed as open somewhere)
 
 - **Today shows fresh items about 2x sooner and never yesterday's list (2026-09-30;
-  OPEN_REPAIRS 295).** Reads start from the head script, one parent check instead of eleven, and
+  OPEN_REPAIRS 296).** Reads start from the head script, one parent check instead of eleven, and
   a saved copy from an earlier day is not painted. Desktop cold 3,727 to 1,709 ms. Remaining floor
   is the wait for Clients Info (priority 1). Way back: revert the commit.
 - **The two dormant censuses are retired (owner, 2026-09-29; OPEN_REPAIRS 293).**

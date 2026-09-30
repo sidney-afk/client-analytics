@@ -184,6 +184,19 @@ async function main() {
     fs.writeFileSync(path.join(repo, 'js', 'sv-04-regenerated-0123456789ab.js'), `${baseScriptLine}\n`);
     fs.writeFileSync(path.join(repo, 'docs-note-3.txt'), `${baseScriptLine}\n`);
     fs.writeFileSync(path.join(repo, 'src', 'index', '997-from-script.part'), `<script>\n${baseScriptLine}\n</script>\n`);
+    //   (i) minified parts (owner-ratified 2026-09-30, #1873): a regenerated
+    //       js/sv-*.js line that is REWRITTEN (no base line matches) is exempt
+    //       when its name already appears in base's js/sv-*.js (base held it in
+    //       baseScriptLine); the same rewritten line in a fragment or any other
+    //       file is not; a brand-new name is still caught in a generated js
+    //       file and in a fragment.
+    const rewritten = `var a="${SYNTHETIC_SLUG}";function b(){return a}`;
+    fs.writeFileSync(path.join(repo, 'js', 'sv-05-minified-0123456789ab.js'), `${rewritten}\n`);
+    fs.writeFileSync(path.join(repo, 'docs-note-4.txt'), `${rewritten}\n`);
+    fs.writeFileSync(path.join(repo, 'src', 'index', '996-rewritten.part'), `<script>\n${rewritten}\n</script>\n`);
+    const brandNewMin = `var c="${SYNTHETIC_NEW_SLUG}";function d(){return c}`;
+    fs.writeFileSync(path.join(repo, 'js', 'sv-06-minified-0123456789ab.js'), `${brandNewMin}\n`);
+    fs.writeFileSync(path.join(repo, 'src', 'index', '995-new-min.part'), `<script>\n${brandNewMin}\n</script>\n`);
     commit(repo, 'split index.html and add unrelated new notes');
 
     const result = await runCheck(repo, base, env);
@@ -211,6 +224,12 @@ async function main() {
     ok(!at('js/sv-04-regenerated-0123456789ab.js'), '(g) a line base held only in its own js/sv-*.js is NOT reported in a regenerated top-level js/sv-*.js');
     ok(!!at('docs-note-3.txt') && at('docs-note-3.txt').client_slug === 1, '(h) the same line in a non-script file IS reported');
     ok(!!at('src/index/997-from-script.part') && at('src/index/997-from-script.part').client_slug === 1, '(h) the same line in a source fragment IS reported: base js copies exempt generated scripts only');
+
+    ok(!at('js/sv-05-minified-0123456789ab.js'), '(i1) a REWRITTEN line in a regenerated js/sv-*.js is NOT reported when its name is already in base\'s js/sv-*.js');
+    ok(!!at('docs-note-4.txt') && at('docs-note-4.txt').client_slug === 1, '(i2) the same rewritten line in a non-script file IS reported');
+    ok(!!at('src/index/996-rewritten.part') && at('src/index/996-rewritten.part').client_slug === 1, '(i3) the same rewritten line in a src/index fragment IS reported (the name-level exemption is for generated scripts only)');
+    ok(!!at('js/sv-06-minified-0123456789ab.js') && at('js/sv-06-minified-0123456789ab.js').client_slug === 1, '(i4) a brand-new name in a generated js/sv-*.js file IS still reported');
+    ok(!!at('src/index/995-new-min.part') && at('src/index/995-new-min.part').client_slug === 1, '(i5) a brand-new name in a src/index fragment IS still reported');
 
     ok(result.matched_by_kind.client_slug === 2,
       'two matched client-slug terms: the moved slug (copied outside the exempt places) and the new one');

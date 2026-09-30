@@ -38,8 +38,17 @@ if (!cfg.enabled) {
   t(off.size === 1 && off.get('index.html').equals(concat), 'switch off: index.html is exactly the fragments concatenated, nothing else written');
 }
 
+// A build with split.json as it is on disk, but with "minify" set as asked.
+function buildWith(minify, force) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'svmin-'));
+  fs.copyFileSync(path.join(SRC, 'areas.txt'), path.join(tmp, 'areas.txt'));
+  fs.writeFileSync(path.join(tmp, 'split.json'), JSON.stringify({ ...cfg, enabled: true, minify }));
+  try { return buildOutputs(tmp, entries, bufs, modules, force); } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
 for (const force of ['split', 'parts']) {
-  const out = buildOutputs(SRC, entries, bufs, modules, force);
+  // The byte-for-byte checks below are about the cut, so they build readable.
+  const out = buildWith(false, force);
   const html = out.get('index.html').toString('utf8');
   const files = [...out.keys()].filter(k => k !== 'index.html');
   const full = files.find(f => /^js\/sv-full-[0-9a-f]{12}\.js$/.test(f));
@@ -66,6 +75,29 @@ for (const force of ['split', 'parts']) {
   t(html.endsWith(Buffer.concat(served.slice(jsIdx[jsIdx.length - 1] + 1)).toString('utf8')), `${force}: every byte after the main script is unchanged`);
   t(parts.every(p => html.includes(JSON.stringify(p))) && html.includes(JSON.stringify(full)), `${force}: the loader names every file`);
   t(/var FORCE = (null|"parts");/.test(html) && (force === 'parts') === html.includes('var FORCE = "parts";'), `${force}: only --force-split=parts sends everyone the parts`);
+}
+
+// "minify": true shrinks the parts and on-demand files only. The readable full
+// file, the file list and the loader's file names' shape stay as they are.
+{
+  const { loadEsbuild } = require('../scripts/index-minify');
+  if (!loadEsbuild({ install: false })) console.log('  skip  minify checks: esbuild is not installed here (check-modules and check-index run them in CI)');
+  else {
+    const plain = buildWith(false, 'split');
+    const mini = buildWith(true, 'split');
+    const kind = (out, re) => [...out.keys()].filter(k => re.test(k)).sort();
+    const isFull = k => /^js\/sv-full-/.test(k);
+    const isPart = k => /^js\/sv-\d\d-/.test(k);
+    t(kind(plain, /^js\/sv-full-/).join() === kind(mini, /^js\/sv-full-/).join(), 'minify: the readable full file is byte for byte the same (name and content)');
+    t(kind(plain, /^js\/sv-\d\d-/).length === kind(mini, /^js\/sv-\d\d-/).length, 'minify: the same parts and on-demand files are written');
+    const size = out => [...out].filter(([k]) => isPart(k)).reduce((n, [, b]) => n + b.length, 0);
+    t(size(mini) < size(plain) * 0.7, `minify: the parts shrink by at least 30% (${size(plain)} -> ${size(mini)} bytes)`);
+    t([...mini].filter(([k]) => isPart(k)).every(([k, b]) => { try { new vm.Script(b.toString('utf8')); return strip(k, b) !== null; } catch (e) { return false; } }),
+      'minify: every part still parses and still ends with its ran-marker');
+    t([...mini].filter(([k]) => isPart(k)).every(([k, b]) => k.includes(require('crypto').createHash('sha256').update(strip(k, b)).digest('hex').slice(0, 12))), 'minify: each file name carries the hash of its own (minified) content');
+    t(buildWith(true, 'split').get('index.html').equals(mini.get('index.html')), 'minify: building twice gives the same page (the same files)');
+    t(!plain.get('index.html').equals(mini.get('index.html')), 'minify: the loader names the minified files, not the readable ones');
+  }
 }
 
 // Who gets which script (plan step 5): run the real loader, from a build made with

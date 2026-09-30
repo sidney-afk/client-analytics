@@ -7,6 +7,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const { render, read } = require('../scripts/split-switch');
+const { spawnSync } = require('child_process');
 const { namedIn, prunable } = require('../scripts/prune-split-js');
 
 const ROOT = path.join(__dirname, '..');
@@ -26,6 +27,14 @@ ok(JSON.parse(render(cfg, false)).clients === true, 'switching the split off lea
 ok(JSON.parse(render(cfg, true, false)).clients === false && JSON.parse(render(cfg, true, false)).enabled === true, 'clients off flips only "clients"');
 ok(JSON.stringify(JSON.parse(render(cfg, true, false)).lazy) === JSON.stringify(cfg.lazy), 'the on-demand list survives clients off');
 ok(render({ enabled: true, lazy: ['a'] }, true) === '{\n  "enabled": true,\n  "lazy": ["a"]\n}\n', 'a config without "clients" renders without one');
+
+// Owner decision 2026-09-29: "minify" is its own switch (the way back for the compressed parts).
+ok(cfg.minify === true, 'split.json has minify on (the parts are served compressed)');
+const off = JSON.parse(render(cfg, cfg.enabled, cfg.clients, false));
+ok(off.minify === false && off.enabled === cfg.enabled && off.clients === cfg.clients && JSON.stringify(off.lazy) === JSON.stringify(cfg.lazy), 'minify off flips only "minify"');
+ok(JSON.parse(render(cfg, false)).minify === true && JSON.parse(render(cfg, true, false)).minify === true, 'neither the split switch nor clients off disturbs minify');
+ok(render({ enabled: true, lazy: ['a'], clients: true }, true) === '{\n  "enabled": true,\n  "lazy": ["a"],\n  "clients": true\n}\n', 'a config without "minify" renders without one');
+ok(/minify on\|minify off/.test(spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'split-switch.js')], { encoding: 'utf8' }).stderr), 'the switch script names the minify command in its usage');
 
 // 2. The prune lists only files no recent index.html names.
 const page = '<script>var P=["js/sv-01-core-0123456789ab.js","js/sv-02-templates-abcdef012345.js"];var L={"kasper":"js/sv-16-kasper-aaaaaaaaaaaa.js"}</script>';

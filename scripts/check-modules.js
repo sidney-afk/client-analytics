@@ -71,6 +71,15 @@
  *      runs. Guards on another fragment's name are already forced to be
  *      imports by the "uses it without importing it" rule above.
  *
+ *   9. MINIFIED PARTS KEEP THEIR NAMES. With "minify": true in split.json the
+ *      served parts are shrunk (scripts/index-minify.js), and they share one
+ *      global scope: a function in one part is called by name from another,
+ *      and inline handlers look their function up by name. This parses every
+ *      minified part and requires each top-level name of the unminified
+ *      script to be declared, with the same kind (function, class, let,
+ *      const, var), in the union of the parts. Needs esbuild at the pinned
+ *      version (found, or installed, by scripts/index-minify.js).
+ *
  * REPORT (--report, informational, never fails): per-fragment top-level
  * declaration counts, functions named in inline handler strings that are not
  * copied onto `window`, and `typeof x === 'function'` guards. These are the
@@ -567,6 +576,40 @@ if (ast && modules.size) {
   }
   for (const d of new Set(deadGuards)) fail(d);
   console.log(`typeof guards in modules: ${guardCount}; unresolvable: ${new Set(deadGuards).size}`);
+}
+
+// ---- 9. minified parts keep their names -------------------------------------
+if (ast) {
+  const { readSplitConfig, buildOutputs } = require('./index-split');
+  const cfg = readSplitConfig(SRC_DIR);
+  if (cfg.enabled && cfg.minify) {
+    const outputs = buildOutputs(SRC_DIR, manifest, manifest.map(f => fs.readFileSync(path.join(SRC_DIR, f))), modules, null);
+    const kindOf = (node) => node.type === 'FunctionDeclaration' ? 'function' : node.type === 'ClassDeclaration' ? 'class' : node.kind;
+    const have = new Map();   // name -> kind, across every minified part
+    let files = 0, bytesMin = 0;
+    for (const [rel, buf] of outputs) {
+      if (rel === 'index.html' || /\/sv-full-/.test(rel)) continue;
+      files++; bytesMin += buf.length;
+      let past;
+      try { past = acorn.parse(buf.toString('utf8'), { ecmaVersion: 'latest', sourceType: 'script', allowReturnOutsideFunction: true }); }
+      catch (e) { fail(`${rel}: the minified part does not parse as a script (${e.message})`); continue; }
+      for (const node of past.body) {
+        const names = new Set();
+        if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id) names.add(node.id.name);
+        else if (node.type === 'VariableDeclaration') for (const d of node.declarations) bindingNames(d.id, names);
+        for (const n of names) have.set(n, kindOf(node));
+      }
+    }
+    let lost = 0, changed = 0;
+    for (const [name, list] of decls) {
+      const kind = kindOf(list[list.length - 1].node);
+      if (!have.has(name)) { lost++; if (lost <= 8) fail(`minified parts: the top-level ${kind} ${name} (from ${list[list.length - 1].frag}) is gone; parts share names, so it must stay`); }
+      else if (have.get(name) !== kind) { changed++; if (changed <= 8) fail(`minified parts: ${name} was a ${kind} and is now a ${have.get(name)}`); }
+    }
+    if (lost > 8) fail(`minified parts: ${lost - 8} more top-level names are gone`);
+    if (changed > 8) fail(`minified parts: ${changed - 8} more top-level names changed kind`);
+    console.log(`minified parts: ${files} files, ${(bytesMin / 1024).toFixed(0)} KB, ${decls.size} top-level names, ${lost} lost, ${changed} changed kind`);
+  }
 }
 
 // ---- 5. byte identity against a base commit ---------------------------------

@@ -35,7 +35,9 @@ the staff check had answered. Then:
 ## What changed
 
 1. Reads start from the `<head>` script, while the app script is still downloading (same pattern as
-   Workload's early read). The tab takes each answer once, by exact URL, only for the same member and
+   Workload's early read), as soon as the early staff check (already started there) says yes. A
+   rejected or unreachable check loads no staff data at all; `qa/boot/staff-entry-gate.js` holds that
+   line (a first version that started the reads before the check failed it, and was fixed). The tab takes each answer once, by exact URL, only for the same member and
    inside a minute; a mismatch just makes the tab read for itself. A test asserts every early URL is
    the exact URL the tab asks for, so drift cannot silently lose the speed-up.
 2. The parent check drops rows that could never reach the page (stale open cards) and sends the rest in
@@ -55,17 +57,17 @@ Cold (a first visit), fresh items on screen:
 
 | profile | before | after |
 |---|---|---|
-| desktop | 3,727 | 1,553 |
-| phone, typical 4G (modeled) | 14,185 | 4,971 |
+| desktop | 3,727 | 1,709 |
+| phone, typical 4G (modeled) | 14,185 | 5,224 |
 
 Morning case (saved copy from an earlier day present):
 
 | profile | before: yesterday's list shown at / fresh at | after: what shows first / fresh at |
 |---|---|---|
-| desktop | 610 (yesterday's list, all 5 runs) / 3,055 | loading shape at 421, never yesterday's list / 1,519 |
-| phone, typical 4G (modeled) | 3,724 (yesterday's list, all 5 runs) / 9,349 | loading shape at 2,390, never yesterday's list / 5,253 |
+| desktop | 610 (yesterday's list, all 5 runs) / 3,055 | loading shape at 475, never yesterday's list / 1,690 |
+| phone, typical 4G (modeled) | 3,724 (yesterday's list, all 5 runs) / 9,349 | loading shape at 2,220, never yesterday's list / 5,001 |
 
-Requests: 19 before, 9 after (6 of the 9 start at about 55 ms instead of 540 ms).
+Requests: 19 before, 9 after (7 of the 9 start together at about 470 ms, when the staff check answers, instead of in two waves from 540 ms).
 Live desktop before, one run: fresh at 2,858 ms with 19 requests (same shape as the local row).
 
 ## Way back

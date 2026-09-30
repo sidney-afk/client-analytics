@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
-| 3 | `005-head-boot.html.part` | 352 | NOT render-blocking, and the reason is measured rather than assumed. |
+| 3 | `005-head-boot.html.part` | 361 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3926 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4412 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |

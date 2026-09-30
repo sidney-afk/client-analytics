@@ -223,7 +223,7 @@ hiring senders when the editor hire closes.
 
 - **Today shows fresh items about 2x sooner and never yesterday's list (2026-09-30;
   OPEN_REPAIRS 295).** Reads start from the head script, one parent check instead of eleven, and
-  a saved copy from an earlier day is not painted. Desktop cold 3,727 to 1,553 ms. Remaining floor
+  a saved copy from an earlier day is not painted. Desktop cold 3,727 to 1,709 ms. Remaining floor
   is the wait for Clients Info (priority 1). Way back: revert the commit.
 - **The two dormant censuses are retired (owner, 2026-09-29; OPEN_REPAIRS 293).**
   The outbox-debt and retirement-admission monitors only wrote heartbeats. Their

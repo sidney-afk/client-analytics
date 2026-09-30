@@ -29959,6 +29959,6 @@ day it was written; reads only started after the app script ran; 11 slow parent 
 trailing email read sat on the critical path.
 **Fixed:** day-stamped saved copy (earlier day means loading shape), reads started from the head
 script, one parent check instead of eleven, email read in parallel. Fresh items on screen, desktop
-3,727 to 1,553 ms cold; phone (modeled) 14,185 to 4,971 ms. Requests 19 to 9.
+3,727 to 1,709 ms cold; phone (modeled) 14,185 to 5,224 ms. Requests 19 to 9.
 **Left:** Today still waits for Clients Info (about 1.1 s); priority 1 in STATE_OF_THINGS removes most of it.
 

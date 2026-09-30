@@ -29991,6 +29991,8 @@ caption, error, cancel_requested, started_at, updated_at }] }` (the last 24 hour
 service_role only (the migration's own assert checks no browser role holds anything). Added to the one-function deploy lane
 (`caption-jobs`, dispatch only) and to the deploy manifest.
 
+**`supabase/config.toml` is deliberately not edited** (review finding on the PR): two other workflows (thumbnail and description image functions) redeploy on any push to main that touches it, so a config edit would have redeployed three unrelated live functions at merge. The one-function lane deploys with `--no-verify-jwt`, so the function needs no entry there.
+
 **Nothing is switched.** The Calendar page and the Generate Caption n8n workflow still use the n8n webhooks and data table; no
 n8n workflow was edited. Step B2 (next PR, after the migration is applied and the function deployed and read back) edits the
 Generate Caption workflow and points the page at the function behind a flag. The n8n Status and Update workflows stay on.

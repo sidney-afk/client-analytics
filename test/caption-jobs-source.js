@@ -10,7 +10,6 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const HANDLER = read('supabase/functions/caption-jobs/index.ts');
 const MIGRATION = read('migrations/2026-09-30-caption-jobs.sql');
-const CONFIG = read('supabase/config.toml');
 const DEPLOY = read('.github/workflows/deploy-single-function.yml');
 
 let checks = 0;
@@ -67,7 +66,9 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/NOT APPLIED/.test(MIGRATION), 'the file says it is not applied');
 
   // --- deploy lane and config
-  ok(/\[functions\.caption-jobs\]\s*\nverify_jwt = false/.test(CONFIG), 'the function is in supabase/config.toml');
+  // supabase/config.toml is deliberately NOT edited: two other workflows redeploy on any change to it, and the
+  // one-function lane already deploys with --no-verify-jwt.
+  ok(/--no-verify-jwt/.test(DEPLOY), 'the one-function lane deploys with --no-verify-jwt, so no config entry is needed');
   ok((DEPLOY.match(/caption-jobs/g) || []).length === 3, 'the one-function lane lists it in its options, its case and its loop');
 
   console.log(`caption-jobs-source: ${checks} checks passed ✅`);

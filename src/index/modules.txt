@@ -1,5 +1,6 @@
 # Fragments written as ES modules (phase C step C3). The build serves them
 # without their import header and export footer: see scripts/index-modules.js.
+299-instagram-upload.js.part
 300-tiktok-upload.js.part
 340-kasper-editors-board.js.part
 345-core-tooltip-date-picker.js.part

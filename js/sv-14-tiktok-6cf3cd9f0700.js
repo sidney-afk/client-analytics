@@ -1,0 +1,553 @@
+const IG_FUNCTION_URL=CAL_SUPABASE_URL+"/functions/v1/instagram-upload",IG_ACCOUNT_RE=/^spc_[A-Za-z0-9]{6,80}$/,IG_ACCOUNT_COLUMN="postforme_instagram_account_id",IG_MAX_CAPTION=2200,IG_PLACEMENTS=[{v:"reels",label:"Reel"},{v:"timeline",label:"Feed video"}],IG_STATUS_LABELS={uploading:"Uploading",processing:"Posting",scheduled:"Scheduled",posted:"Posted",failed:"Failed",cancelled:"Cancelled"},IG_UPCOMING=["uploading","processing","scheduled"],IG_CALL_TIMEOUT_MS=3e4,IG_QUEUE_PAGE=5,igState={client:null,file:null,objectUrl:null,title:"",placement:"reels",schedule:{postNow:!0,at:"",tz:"America/New_York"},uploads:[],queueReadState:"loading",queueTab:"upcoming",queueLimit:IG_QUEUE_PAGE,submitting:!1,error:null,notice:null,progress:0};let _igDeps=null,_igMounted=!1,_igPollTimer=null,_igActiveXhr=null;const _igEsc=t=>String(t??"").replace(/[&<>"']/g,e=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[e]);function _igResolveAccount(t){const e=t&&clientMap[t]||null;if(!e)return"";const o=String(e[IG_ACCOUNT_COLUMN]||"").trim();if(o)return o;const i=e.extra&&typeof e.extra=="object"?e.extra:null;return i?String(i[IG_ACCOUNT_COLUMN]||"").trim():""}function _igRecordFailure(t,e,o){const i={message:e?"HTTP "+e:o?"network error":"upload rejected"};e?i.status=e:o&&(i.network=!0),_writeUiRecordFailure("tiktok",t,i,{})}async function _igCall(t,e){const o=()=>fetch(IG_FUNCTION_URL,{method:"POST",headers:_syncviewEfHeaders({"Content-Type":"application/json",Accept:"application/json"},IG_FUNCTION_URL),body:JSON.stringify(t),cache:"no-store",signal:AbortSignal.timeout?AbortSignal.timeout(IG_CALL_TIMEOUT_MS):void 0}),i=e?await _writeUiTrackSave("tiktok",e,{},o):await o();let a=null;try{a=await i.json()}catch{a=null}return{ok:!!(i.ok&&a&&a.ok!==!1),status:i.status,json:a}}function _igClientNames(){return(WL_CLIENT_NAMES||[]).slice().sort((t,e)=>t.localeCompare(e))}function renderInstagramPanel(){return`
+            <div class="tk-col tk-form-col" id="igFormCol" hidden></div>
+            <div class="tk-col tk-right-col" id="igRightCol" hidden><div id="igQueueCol"></div></div>
+        `}function _igValidate(){if(!igState.client)return"Pick a client first.";if(!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client)))return"This client has no Instagram account connected yet. Add its Post For Me connection id to the "+IG_ACCOUNT_COLUMN+" column of the Clients Info sheet.";if(!igState.file)return"Attach a video.";if(igState.file.size>_igDeps.maxBytes)return"That video is over the "+_igDeps.formatBytes(_igDeps.maxBytes)+" limit.";if(!igState.title.trim())return"Add a caption.";if(igState.title.length>IG_MAX_CAPTION)return"Caption is over the "+IG_MAX_CAPTION+"-character limit.";if(!igState.schedule.postNow){if(!igState.schedule.at)return'Pick a schedule time, or switch on "Post immediately".';const t=new Date(igState.schedule.at).getTime();if(!Number.isFinite(t))return"That schedule time is not valid.";if(t<Date.now()-6e4)return"The schedule time is in the past."}return null}function _igRenderForm(){const t=document.getElementById("igFormCol");if(!t)return;const e=igState.client?_igResolveAccount(igState.client):"",o=IG_ACCOUNT_RE.test(e),i=_igClientNames(),a=igState.title.length>IG_MAX_CAPTION,n=!!(igState.client&&o&&igState.file&&igState.title.trim()&&!a&&!igState.submitting);let s="";igState.client&&(s=o?`<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_igEsc(e)}</span></div>`:`<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No Instagram account</span> Connect this client's Instagram in Post For Me, then put its <strong>Connection ID</strong> (<code>spc_…</code>) in the <code>${IG_ACCOUNT_COLUMN}</code> column of the Clients Info sheet.</div>`);const r=igState.file?`<div class="tk-file-card">
+                    <video id="igFilePreview" src="${_igEsc(igState.objectUrl)}" playsinline controls preload="metadata"></video>
+                    <div class="tk-file-meta">
+                        <div class="tk-file-meta-text">
+                            <div class="tk-file-name">${_igEsc(igState.file.name)}</div>
+                            <div class="tk-file-size">${_igDeps.formatBytes(igState.file.size)} · ${_igEsc(igState.file.type||"video")}</div>
+                        </div>
+                        <div class="tk-file-actions">
+                            <button type="button" class="tk-mini-btn" id="igRemoveFile" ${igState.submitting?"disabled":""}>Remove</button>
+                        </div>
+                    </div>
+                </div>`:`<div class="tk-drop" id="igDrop">
+                    <input type="file" id="igFile" accept="video/mp4,video/quicktime,video/*" ${igState.submitting?"disabled":""}>
+                    <div class="tk-drop-title">Drop a video here, or click to browse</div>
+                    <div class="tk-drop-sub">MP4 or MOV · up to ${_igDeps.formatBytes(_igDeps.maxBytes)}</div>
+                </div>`;t.innerHTML=`
+            <div class="tk-card">
+                <h3>Client</h3>
+                <select class="tk-select" id="igClient" ${igState.submitting?"disabled":""}>
+                    <option value="">Pick a client…</option>
+                    ${i.map(l=>`<option value="${_igEsc(l)}" ${l===igState.client?"selected":""}>${_igEsc(l)}</option>`).join("")}
+                </select>
+                ${s}
+            </div>
+            <div class="tk-card">
+                <h3>Video</h3>
+                ${r}
+            </div>
+            <div class="tk-card">
+                <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
+                <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting?"disabled":""}>${_igEsc(igState.title)}</textarea>
+                <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Post type" style="margin-top:12px">
+                    ${IG_PLACEMENTS.map(l=>`<label class="tk-radio${igState.placement===l.v?" active":""}"><input type="radio" name="igPlacement" value="${l.v}" ${igState.placement===l.v?"checked":""} ${igState.submitting?"disabled":""} style="position:absolute;opacity:0">${l.label}</label>`).join("")}
+                </div>
+            </div>
+            <div class="tk-card">
+                <div class="tk-sched-head"><h3>Schedule</h3>
+                    <label class="tk-radio"><input type="checkbox" id="igPostNow" ${igState.schedule.postNow?"checked":""} ${igState.submitting?"disabled":""}> Post immediately</label>
+                </div>
+                <div id="igScheduleFields" ${igState.schedule.postNow?"hidden":""}>
+                    <input class="tpl-input" id="igScheduleAt" type="datetime-local" value="${_igEsc(igState.schedule.at)}">
+                    <select class="tk-select" id="igScheduleTz" style="margin-top:10px" aria-label="Timezone">
+                        ${_igDeps.timezones.map(l=>`<option value="${l}" ${l===igState.schedule.tz?"selected":""}>${l}</option>`).join("")}
+                    </select>
+                </div>
+            </div>
+            <div class="tk-submit-bar">
+                <button type="button" class="tk-submit-btn" id="igSubmit" ${n?"":"disabled"}>${igState.submitting?"Uploading…":igState.schedule.postNow?"Post now":"Schedule post"}</button>
+                ${igState.submitting?`<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div><button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>`:""}
+                ${igState.error?`<div class="tk-error" role="alert">${_igEsc(igState.error)}</div>`:igState.notice?`<div class="tk-step-note" role="status">${_igEsc(igState.notice)}</div>`:""}
+            </div>
+        `,_igWireForm()}function _igWireForm(){const t=i=>document.getElementById(i),e=()=>{const i=t("igSubmit");i&&(i.disabled=!!_igValidateSoft())};t("igClient")?.addEventListener("change",i=>{igState.client=i.target.value||null,igState.error=null,igState.notice=null,_igRenderForm(),_igFetchQueue()}),t("igTitle")?.addEventListener("input",i=>{igState.title=i.target.value;const a=t("igCount");a&&(a.textContent=igState.title.length+" / "+IG_MAX_CAPTION),e()}),document.querySelectorAll('input[name="igPlacement"]').forEach(i=>i.addEventListener("change",a=>{igState.placement=a.target.value,_igRenderForm()})),t("igPostNow")?.addEventListener("change",i=>{igState.schedule.postNow=i.target.checked,_igRenderForm()}),t("igScheduleAt")?.addEventListener("change",i=>{igState.schedule.at=i.target.value,e()}),t("igScheduleTz")?.addEventListener("change",i=>{igState.schedule.tz=i.target.value}),t("igFile")?.addEventListener("change",i=>{_igHandleFile(i.target.files&&i.target.files[0])}),t("igRemoveFile")?.addEventListener("click",_igClearFile),t("igSubmit")?.addEventListener("click",_igSubmit),t("igAbort")?.addEventListener("click",()=>{_igActiveXhr&&_igActiveXhr.abort()});const o=t("igDrop");o&&(o.addEventListener("dragover",i=>{i.preventDefault()}),o.addEventListener("drop",i=>{i.preventDefault(),_igHandleFile(i.dataTransfer&&i.dataTransfer.files&&i.dataTransfer.files[0])}))}function _igValidateSoft(){return igState.submitting?"busy":!igState.client||!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))?"account":!igState.file||!igState.title.trim()||igState.title.length>IG_MAX_CAPTION?"fields":""}function _igHandleFile(t){if(t){if(!/^video\//.test(t.type||"")){igState.error="That file is not a video.",_igRenderForm();return}igState.objectUrl&&URL.revokeObjectURL(igState.objectUrl),igState.file=t,igState.objectUrl=URL.createObjectURL(t),igState.error=null,_igRenderForm()}}function _igClearFile(){igState.objectUrl&&URL.revokeObjectURL(igState.objectUrl),igState.file=null,igState.objectUrl=null,igState.error=null,_igRenderForm()}async function _igSubmit(){const t=_igValidate();if(t){igState.error=t,_igRenderForm();return}const e=_igResolveAccount(igState.client),o=crypto.randomUUID&&crypto.randomUUID().replace(/-/g,"")||"ig"+Date.now()+Math.random().toString(36).slice(2),i=igState.schedule.postNow?"":igState.schedule.at,a=i&&_igDeps.wallClockToUTC(i,igState.schedule.tz)||"";if(i&&!a){igState.error="That schedule time is not valid.",_igRenderForm();return}const n=igState.file;igState.submitting=!0,igState.error=null,igState.notice=null,igState.progress=0,_igRenderForm();try{const s=await _igCall({action:"mint"});if(!s.ok||!s.json||!s.json.upload_url||!s.json.media_url)throw _igRecordFailure("instagram_mint",s.status),new Error(s.json&&s.json.error||"Could not prepare the upload. Try again.");await new Promise((p,m)=>{const h=new XMLHttpRequest;_igActiveXhr=h,h.open("PUT",s.json.upload_url),h.setRequestHeader("Content-Type",n.type||"video/mp4"),h.upload.onprogress=c=>{if(!c.lengthComputable)return;igState.progress=Math.min(90,Math.round(c.loaded/c.total*90));const d=document.getElementById("igProgress");d&&(d.style.width=igState.progress+"%")},h.onload=()=>h.status>=200&&h.status<300?p():(_igRecordFailure("instagram_storage_put",h.status),m(new Error("Video upload to storage failed (HTTP "+h.status+"). Try again."))),h.onerror=()=>{_igRecordFailure("instagram_storage_put",0,!0),m(new Error("Network error while uploading the video. Try again."))},h.onabort=()=>m(new Error("Upload cancelled.")),h.send(n)}),_igActiveXhr=null;const r=await _igCall({action:"create",clientName:igState.client,socialAccountId:e,title:igState.title.trim(),mediaUrl:s.json.media_url,options:{placement:igState.placement},scheduledAtUTC:a,timezone:igState.schedule.tz,idempotencyKey:o},"instagram_create");if(!r.ok)throw new Error(r.json&&r.json.error||"The post could not be created (HTTP "+(r.status||"no response")+").");const l=r.json.row;l&&(igState.uploads=[l].concat(igState.uploads.filter(p=>p.id!==l.id))),igState.submitting=!1,igState.progress=0,igState.file=null,igState.objectUrl&&URL.revokeObjectURL(igState.objectUrl),igState.objectUrl=null,igState.title="",igState.notice=a?"Scheduled. It will appear in the queue.":"Sent to Instagram. It will show as Posted here once Instagram confirms.",igState.queueTab="upcoming",_igRenderForm(),_igRenderQueue(),_igSchedulePoll()}catch(s){_igActiveXhr=null,igState.submitting=!1,igState.progress=0,igState.error=s&&s.message?s.message:"The upload failed. Try again.",_igRenderForm()}}function _igEffective(t){return t.status}function _igWhen(t){const e=t.scheduled_for||t.posted_at||t.created_at||"";if(!e)return{day:"—",time:""};const o=new Date(e);if(Number.isNaN(o.getTime()))return{day:"—",time:""};const i=t.timezone?{timeZone:t.timezone}:{};let a,n;try{a=o.toLocaleDateString(void 0,{weekday:"short",month:"short",day:"numeric",...i}),n=o.toLocaleTimeString(void 0,{hour:"numeric",minute:"2-digit",...i})}catch{a=o.toLocaleDateString(),n=o.toLocaleTimeString()}return{day:a,time:n}}function _igRenderQueue(){const t=document.getElementById("igQueueCol");if(!t)return;const e=c=>new Date(c.scheduled_for||c.posted_at||c.created_at||0).getTime()||0,o=igState.uploads,i={upcoming:o.filter(c=>IG_UPCOMING.includes(_igEffective(c))).sort((c,d)=>e(c)-e(d)),failed:o.filter(c=>_igEffective(c)==="failed").sort((c,d)=>e(d)-e(c)),done:o.filter(c=>["posted","cancelled"].includes(_igEffective(c))).sort((c,d)=>e(d)-e(c))},a=i[igState.queueTab]?igState.queueTab:"upcoming",n=i[a],s=n.slice(0,igState.queueLimit),r=n.length-s.length,l=c=>{const d=_igEffective(c),u=_igWhen(c),v=_igEsc(c.id),b=[];return d==="scheduled"&&b.push(`<button type="button" class="tk-q-btn tk-q-danger" data-ig-cancel="${v}">Cancel</button>`),c.instagram_url&&b.push(`<a class="tk-q-btn" href="${_igEsc(c.instagram_url)}" target="_blank" rel="noopener">Open</a>`),`
+                <div class="tk-queue-item">
+                    <div class="tk-q-when"><div class="tk-q-day">${_igEsc(u.day)}</div><div class="tk-q-time">${_igEsc(u.time)}</div></div>
+                    <div class="tk-q-main">
+                        <div class="tk-queue-client">${_igEsc(c.client||"—")}</div>
+                        ${c.title?`<div class="tk-queue-title">${_igEsc(c.title)}</div>`:""}
+                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(d)}">${_igEsc(IG_STATUS_LABELS[d]||d)}</span><span>${c.placement==="timeline"?"Feed video":"Reel"}</span></div>
+                        ${c.error?`<div class="tk-queue-error">${_igEsc(c.error)}</div>`:""}
+                    </div>
+                    ${b.length?`<div class="tk-queue-actions">${b.join("")}</div>`:""}
+                </div>`},p=(c,d)=>`<button type="button" class="tk-q-tab${a===c?" on":""}${c==="failed"&&i.failed.length?" alert":""}" role="tab" aria-selected="${a===c}" data-ig-tab="${c}">${d}<b>${i[c].length}</b></button>`,m={upcoming:"Nothing scheduled yet.",failed:"No failed uploads.",done:"No posts yet."}[a],h=igState.queueReadState==="loading"?'<div class="tk-queue-empty" role="status">Loading uploads…</div>':igState.queueReadState==="error"?`<div class="tk-queue-empty" role="alert">Couldn't load your Instagram uploads. ${o.length?"Showing what we have. ":""}Trying again shortly.</div>`:"";t.innerHTML=`
+            <div class="tk-card">
+                <h3>Instagram uploads</h3>
+                <div class="tk-q-tabs" role="tablist">${p("upcoming","Upcoming")}${p("failed","Failed")}${p("done","Done")}</div>
+                ${h}
+                ${s.length?s.map(l).join(""):igState.queueReadState==="ready"?`<div class="tk-queue-empty">${m}</div>`:""}
+                ${r>0?`<button type="button" class="tk-q-more" data-ig-more>Show ${Math.min(r,IG_QUEUE_PAGE)} more <span>· ${r} left</span></button>`:""}
+            </div>`,t.querySelectorAll("[data-ig-tab]").forEach(c=>c.addEventListener("click",()=>{igState.queueTab=c.getAttribute("data-ig-tab"),igState.queueLimit=IG_QUEUE_PAGE,_igRenderQueue()})),t.querySelector("[data-ig-more]")?.addEventListener("click",()=>{igState.queueLimit+=IG_QUEUE_PAGE,_igRenderQueue()}),t.querySelectorAll("[data-ig-cancel]").forEach(c=>c.addEventListener("click",()=>_igCancelRow(c.getAttribute("data-ig-cancel"))))}async function _igFetchQueue(){try{const t=await _igCall({action:"list",client:""});if(!t.ok||!t.json||!Array.isArray(t.json.rows))throw new Error("read failed");igState.uploads=t.json.rows,igState.queueReadState="ready"}catch{igState.queueReadState=igState.queueReadState==="ready"?"ready":"error"}_igMounted&&_igRenderQueue()}async function _igCancelRow(t){try{const e=await _igCall({action:"cancel",id:t},"instagram_cancel");if(!e.ok)throw new Error(e.json&&e.json.error||"Post For Me did not cancel it.");igState.uploads=igState.uploads.map(o=>o.id===t?e.json.row:o),_igRenderQueue()}catch(e){showNotify("Could not cancel",e&&e.message||"The cancel did not go through.")}}function _igPollDelay(){return igState.queueReadState==="error"?6e4:igState.uploads.some(t=>t.status==="uploading"||t.status==="processing")?15e3:igState.uploads.some(t=>t.status==="scheduled")?3e5:0}function _igStopPolling(){_igPollTimer&&(clearTimeout(_igPollTimer),_igPollTimer=null)}function _igSchedulePoll(){if(_igStopPolling(),!_igMounted||typeof document<"u"&&document.visibilityState==="hidden")return;const t=_igPollDelay();t<=0||(_igPollTimer=setTimeout(()=>{_igPollTimer=null,Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll)},t))}function mountInstagramPanel(t){_igDeps=t;const e=svSharedClientFor("tiktok-upload");!igState.client&&e&&(WL_CLIENT_NAMES||[]).includes(e)&&(igState.client=e),_igMounted=!0;const o=document.getElementById("igFormCol"),i=document.getElementById("igRightCol");o&&(o.hidden=!1),i&&(i.hidden=!1),_igRenderForm(),_igRenderQueue(),Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll)}function teardownInstagramPanel(){_igMounted=!1,_igStopPolling();const t=document.getElementById("igFormCol"),e=document.getElementById("igRightCol");t&&(t.hidden=!0),e&&(e.hidden=!0)}function instagramResumePolling(){_igMounted&&Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll)}const TK_PRIVACY_LEVELS=[{v:"PUBLIC_TO_EVERYONE",label:"Public"},{v:"SELF_ONLY",label:"Private (only me)"}],TK_POST_MODES=[{v:"DIRECT_POST",label:"Direct post"},{v:"MEDIA_UPLOAD",label:"Send to TikTok drafts"}],TK_TIMEZONES=["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","America/Anchorage","Pacific/Honolulu","Europe/London","Europe/Paris","Europe/Berlin","Europe/Madrid","Asia/Dubai","Asia/Singapore","Asia/Tokyo","Australia/Sydney","UTC"],TK_QUEUE_PAGE=5,TK_PLATFORM_KEY="syncview_uploadPlatform_v1",tkState={platform:"tiktok",client:null,profile:null,profileSource:null,mediaType:"video",file:null,fileMeta:null,objectUrl:null,photos:[],photosMeta:null,title:"",options:{privacy_level:"PUBLIC_TO_EVERYONE",post_mode:"DIRECT_POST",cover_timestamp_ms:1e3,disable_duet:!1,disable_comment:!1,disable_stitch:!1,brand_content_toggle:!1,brand_organic_toggle:!1,is_aigc:!1,auto_add_music:!0},schedule:{postNow:!0,at:"",tz:"America/New_York"},uploads:[],queueReadState:"loading",queueFailures:0,queueTab:"upcoming",queueLimit:TK_QUEUE_PAGE,submitting:!1,error:null,progress:0};let _tkPollTimer=null,_tkSaveTimer=null,_tkActiveXhr=null,_tkActivePhotoAbort=null,_tkMounted=!1,_tkVisHooked=!1;const ttpState={client:null,account:null,accounts:{},accountsLoaded:!1,accountsError:null,creatorInfo:null,creatorInfoLoading:!1,creatorInfoError:null,file:null,fileMeta:null,objectUrl:null,durationSec:null,title:"",options:{privacy_level:"",allow_comment:!1,allow_duet:!1,allow_stitch:!1,commercial:!1,your_brand:!1,branded_content:!1,cover_timestamp_ms:1e3},uploads:[],submitting:!1,error:null,progress:0};let _ttpPollTimer=null,_ttpSaveTimer=null,_ttpActiveXhr=null,_ttpMounted=!1,_ttpVisHooked=!1;function _tkInjectCSSOnce(){if(document.getElementById("tkUploadStyles"))return;const t=document.createElement("style");t.id="tkUploadStyles",t.textContent=`
+        .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
+        .tk-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        .tk-form-col { grid-column: 1; grid-row: 2; }
+        .tk-col[hidden] { display: none; }
+        .tk-platform-switch { width: 220px; flex-shrink: 0; margin-bottom: 0; }
+        .tk-right-col { grid-column: 2; grid-row: 1 / span 2; }
+        /* Collapse to a single stacked column on narrow screens. This block must
+           come AFTER the base column-placement rules above: it has the same
+           selector specificity, so it only wins on source order. When it lived
+           before them, the unconditional right-column rule (grid-column 2)
+           always overrode the override — the layout never collapsed, the right
+           column forced an implicit 2nd track, and the form column (with the
+           upload drop zone) got squeezed to a ~85px sliver on phones. */
+        @media (max-width: 1024px) {
+            .tk-page { grid-template-columns: 1fr; grid-template-rows: auto; }
+            .tk-header { grid-column: 1; grid-row: 1; }
+            .tk-form-col { grid-column: 1; grid-row: 2; }
+            .tk-right-col { grid-column: 1; grid-row: 3; }
+        }
+        .tk-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
+        .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+        .tk-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+        /* Form column: numbered steps on a thin rail instead of boxed cards. */
+        #tkFormCol, #igFormCol { counter-reset: tkstep; }
+        #tkFormCol > .tk-card, #igFormCol > .tk-card { background: none; border: 0; border-radius: 0; padding: 0 0 26px 40px; position: relative; counter-increment: tkstep; }
+        #tkFormCol > .tk-card::before, #igFormCol > .tk-card::before { content: counter(tkstep); position: absolute; left: 0; top: -3px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background: var(--bg); }
+        #tkFormCol > .tk-card::after, #igFormCol > .tk-card::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 6px; width: 1.5px; background: var(--border); }
+        #tkFormCol > .tk-opts-card::after { display: none; }
+        .tk-step-note { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-radio-row.tk-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--field-bg); border-radius: 12px; padding: 4px; }
+        .tk-seg .tk-radio { justify-content: center; border: 0; border-radius: 9px; padding: 10px; background: none; }
+        .tk-seg .tk-radio:hover { color: var(--text-primary); }
+        .tk-seg .tk-radio.active { background: var(--text-primary); color: var(--white); }
+        .tk-sched-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        #tkFormCol .tk-sched-head h3 { margin: 0; }
+        #tkScheduleFields { margin-top: 14px; }
+        .tk-opts-head { all: unset; box-sizing: border-box; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+        .tk-opts-head:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 4px; border-radius: 6px; }
+        #tkFormCol .tk-opts-head h3 { margin: 0; }
+        .tk-opts-more { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+        .tk-opts-more svg { transition: transform 0.15s; }
+        .tk-opts-head[aria-expanded="true"] .tk-opts-more svg { transform: rotate(180deg); }
+        .tk-opts-body { margin-top: 16px; }
+        .tk-card h3 { margin: 0 0 14px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .tk-card h3 .tk-card-hint { float: right; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-secondary); font-size: 0.74rem; }
+        .tk-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+        .tk-row:last-child { margin-bottom: 0; }
+        .tk-row label { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+        .tk-row .tk-help { font-size: 0.72rem; color: var(--text-muted); }
+        .tk-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 640px) { .tk-grid-2 { grid-template-columns: 1fr; } }
+        .tk-select { width: 100%; border: 1.5px solid transparent; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); outline: none; cursor: pointer; transition: border-color 0.13s, background 0.13s; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+        .tk-select:hover { background-color: var(--sv-bg-ededea); }
+        .tk-select:focus { border-color: var(--text-primary); background-color: var(--white); }
+        .tk-profile-line { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-profile-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; background: var(--bg); border-radius: 99px; font-weight: 600; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.74rem; }
+        .tk-warn-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); border-radius: 99px; font-weight: 700; font-size: 0.72rem; }
+        .tk-drop { position: relative; border: 1.8px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); }
+        .tk-drop:hover, .tk-drop.tk-drag { border-color: var(--text-primary); background: var(--white); }
+        .tk-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .tk-drop-icon { width: 36px; height: 36px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 50%; background: var(--white); border: 1px solid var(--border); }
+        .tk-drop-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
+        .tk-drop-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-file-card { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+        .tk-file-card video { width: 100%; max-width: 320px; aspect-ratio: 9 / 16; border-radius: 10px; background: var(--sv-bg-000); object-fit: contain; }
+        .tk-file-meta { width: 100%; min-width: 0; display: flex; align-items: center; gap: 12px; }
+        .tk-file-meta-text { flex: 1; min-width: 0; }
+        .tk-file-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tk-file-size { font-size: 0.76rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-file-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .tk-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
+        .tk-mini-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+        .tk-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+        .tk-counter.over { color: var(--sv-fg-dc2626); font-weight: 700; }
+        .tk-toggles { display: flex; flex-wrap: wrap; gap: 18px 24px; }
+        .tk-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 0.82rem; color: var(--text-primary); font-weight: 600; position: relative; }
+        .tk-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+        .tk-toggle-track { position: relative; width: 30px; height: 16px; border-radius: 8px; background: var(--border); transition: background 0.15s; flex-shrink: 0; }
+        .tk-toggle-thumb { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--white); transition: left 0.15s; box-shadow: 0 1px 2px var(--sv-shadow-rgba-0-0-0-0_18); }
+        .tk-toggle input:checked ~ .tk-toggle-track { background: var(--text-primary); }
+        .tk-toggle input:checked ~ .tk-toggle-track .tk-toggle-thumb { left: 15px; }
+        .tk-radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .tk-radio { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border: 1.5px solid var(--border); border-radius: 99px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); background: var(--white); transition: all 0.13s; }
+        /* Visually hidden, not display:none — a display:none input drops out of the tab
+           order entirely, which made every .tk-radio group (including the new Video /
+           Photo carousel toggle) unreachable by keyboard. This keeps it focusable and
+           announced by screen readers while looking identical for mouse/touch. */
+        .tk-radio input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        .tk-radio:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
+        .tk-radio:focus-within { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .tk-radio.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .tk-submit-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; position: sticky; bottom: 16px; box-shadow: 0 6px 24px var(--sv-shadow-rgba-0-0-0-0_06); }
+        .tk-submit-btn { flex-shrink: 0; padding: 12px 28px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+        .tk-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .tk-submit-btn:not(:disabled):hover { opacity: 0.88; }
+        .tk-progress { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+        .tk-progress-bar { height: 100%; background: var(--text-primary); width: 0%; transition: width 0.2s; }
+        .tk-error { color: var(--sv-fg-dc2626); font-size: 0.82rem; font-weight: 600; }
+        .tk-client-search .search-bar-pill { width: 100%; box-sizing: border-box; }
+        .tk-client-search .search-suggestion.active { background: var(--bg); color: var(--text-primary); }
+        .tk-q-tabs { display: flex; gap: 4px; padding: 3px; background: var(--bg); border-radius: 10px; margin-bottom: 6px; }
+        .tk-q-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; font-family: inherit; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+        .tk-q-tab:hover { color: var(--text-primary); }
+        .tk-q-tab.on { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_1); }
+        .tk-q-tab b { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: var(--border); font-size: 0.64rem; }
+        .tk-q-tab.alert b { background: var(--sv-bg-fee2e2); color: var(--sv-fg-991b1b); }
+        .tk-q-tab:focus-visible, .tk-q-btn:focus-visible, .tk-q-more:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .tk-queue-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 12px 2px; border-top: 1px solid var(--border); }
+        .tk-q-tabs + .tk-queue-item { border-top: 0; }
+        .tk-q-when { text-align: center; line-height: 1.15; }
+        .tk-q-day { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .tk-q-time { font-size: 0.88rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .tk-q-main { min-width: 0; }
+        .tk-queue-client { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tk-queue-title { font-size: 0.76rem; color: var(--text-secondary); margin: 2px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tk-q-meta { display: flex; gap: 10px; align-items: center; font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+        .tk-st { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; flex-shrink: 0; }
+        .tk-st::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .tk-st.scheduled { color: var(--sv-fg-92400e); }
+        .tk-st.queued, .tk-st.cancelled, .tk-st.canceled { color: var(--text-secondary); }
+        .tk-st.uploading, .tk-st.processing { color: var(--sv-fg-1e40af); }
+        .tk-st.posted { color: var(--sv-fg-065f46); }
+        .tk-st.failed { color: var(--sv-fg-dc2626); }
+        .tk-st.noresult { color: var(--sv-fg-92400e); }
+        .tk-queue-actions { grid-column: 2; display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+        .tk-q-when { padding-top: 2px; }
+        .tk-q-day { white-space: nowrap; }
+        .tk-q-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-family: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
+        .tk-q-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+        .tk-q-danger { color: var(--sv-fg-dc2626); }
+        /* Row actions: plain text, no box, shown on hover (always on touch screens). */
+        .tk-queue-item { position: relative; }
+        .tk-queue-actions { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0; gap: 14px; opacity: 0; transition: opacity 0.15s; }
+        .tk-queue-item:hover .tk-queue-actions, .tk-queue-item:focus-within .tk-queue-actions { opacity: 1; }
+        .tk-queue-actions .tk-q-btn { border: 0; background: none; min-height: 0; padding: 4px; width: auto; color: var(--text-secondary); font-weight: 500; }
+        .tk-queue-actions .tk-q-btn:hover { color: var(--text-primary); text-decoration: underline; border: 0; }
+        .tk-queue-actions .tk-q-primary { color: var(--text-primary); font-weight: 600; }
+        @media (hover: none), (max-width: 640px) {
+            .tk-queue-actions { opacity: 1; position: static; transform: none; grid-column: 2; margin-top: 4px; }
+            .tk-queue-actions .tk-q-btn { min-height: 40px; padding: 0 6px; }
+        }
+        .tk-submit-bar .tk-mini-btn { border: 0; background: none; padding: 4px; }
+        .tk-q-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .tk-q-primary:hover { color: var(--white); opacity: 0.88; }
+        .tk-q-x { width: 32px; padding: 0; font-size: 1rem; color: var(--text-muted); }
+        .tk-q-more { display: block; width: 100%; margin-top: 8px; min-height: 36px; border: 1px dashed var(--border); border-radius: 10px; background: transparent; font-family: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+        .tk-q-more:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+        .tk-q-more span { font-weight: 600; color: var(--text-muted); }
+        .tk-queue-empty { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
+        .tk-queue-error { font-size: 0.72rem; color: var(--sv-fg-991b1b); margin-top: 6px; padding: 6px 8px; background: var(--sv-bg-fee2e2); border-radius: 6px; white-space: normal; }
+        @media (max-width: 640px) {
+            .tk-q-btn, .tk-q-tab { min-height: 40px; }
+            .tk-q-x { width: 40px; }
+        }
+        .tk-time-row { display: flex; align-items: center; gap: 8px; }
+        .tk-time-select { width: auto; min-width: 64px; padding-right: 26px; flex-shrink: 0; }
+        .tk-time-sep { font-weight: 700; color: var(--text-secondary); font-size: 1rem; }
+        .tk-ampm { display: inline-flex; border: 1.5px solid var(--border); border-radius: 99px; padding: 2px; gap: 2px; background: var(--white); margin-left: 4px; }
+        .tk-ampm-btn { padding: 5px 12px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
+        .tk-ampm-btn:hover { color: var(--text-primary); }
+        .tk-ampm-btn.active { background: var(--text-primary); color: var(--white); }
+        .tk-schedule-preview { margin-top: 14px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+        .tk-schedule-preview::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--sv-bg-f59e0b); flex-shrink: 0; }
+        .tk-preview-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 18px; }
+        .tk-preview-card h3 { margin: 0 0 12px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .tk-preview-frame { position: relative; aspect-ratio: 9 / 16; background: var(--sv-bg-000); border-radius: 18px; overflow: hidden; max-width: 260px; margin: 0 auto; box-shadow: 0 8px 24px var(--sv-shadow-rgba-0-0-0-0_18); }
+        .tk-preview-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .tk-preview-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sv-fg-aaa); font-size: 0.78rem; padding: 24px 56px; text-align: center; background: linear-gradient(135deg, var(--sv-bg-222), var(--sv-bg-000)); }
+        /* 56px on both sides: the action rail (avatar "?", like, comment, share) sits at right: 8px and is ~34px wide, so 24px let it cover the end of the placeholder line. Symmetric so the text stays centred. */
+        .tk-preview-gradient { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, var(--sv-bg-rgba-0-0-0-0_55) 0%, var(--sv-bg-rgba-0-0-0-0) 35%, var(--sv-bg-rgba-0-0-0-0) 78%, var(--sv-misc-rgba-0-0-0-0_35) 100%); }
+        .tk-preview-topbar { position: absolute; top: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 18px; font-size: 0.72rem; font-weight: 700; color: var(--sv-fg-rgba-255-255-255-0_7); }
+        .tk-preview-topbar .active { color: var(--sv-fg-fff); border-bottom: 2px solid var(--sv-border-fff); padding-bottom: 2px; }
+        .tk-preview-icons { position: absolute; right: 8px; bottom: 76px; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--sv-fg-fff); }
+        .tk-preview-icon { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.66rem; font-weight: 700; text-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_55); }
+        .tk-preview-icon svg { filter: drop-shadow(0 1px 2px var(--sv-shadow-rgba-0-0-0-0_5)); }
+        .tk-preview-pic { width: 34px; height: 34px; border-radius: 50%; background: var(--sv-bg-fff); color: var(--sv-fg-000); display: grid; place-items: center; font-weight: 800; font-size: 0.85rem; border: 1.5px solid var(--sv-border-fff); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_3); }
+        .tk-preview-pic-plus { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 14px; height: 14px; border-radius: 50%; background: var(--sv-bg-fe2c55); color: var(--sv-fg-fff); font-size: 0.65rem; font-weight: 800; display: grid; place-items: center; }
+        .tk-preview-text { position: absolute; left: 12px; right: 56px; bottom: 30px; color: var(--sv-fg-fff); }
+        .tk-preview-handle { font-size: 0.84rem; font-weight: 800; margin-bottom: 4px; text-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_55); }
+        .tk-preview-caption { font-size: 0.74rem; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_55); white-space: pre-wrap; word-break: break-word; }
+        .tk-preview-caption-empty { font-style: italic; opacity: 0.55; }
+        .tk-preview-music { position: absolute; left: 12px; right: 56px; bottom: 10px; font-size: 0.66rem; color: var(--sv-fg-rgba-255-255-255-0_92); display: flex; align-items: center; gap: 5px; text-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tk-preview-meta { margin-top: 12px; padding: 10px 12px; background: var(--bg); border-radius: 8px; font-size: 0.72rem; color: var(--text-secondary); display: flex; justify-content: space-between; gap: 8px; }
+        .tk-preview-meta-private { color: var(--sv-fg-92400e); font-weight: 700; }
+        html[data-theme="dark"] .tk-select,
+        html[data-theme="dark"] .tk-drop,
+        html[data-theme="dark"] .tk-file-card,
+        html[data-theme="dark"] .tk-profile-chip,
+        html[data-theme="dark"] .tk-schedule-preview,
+        html[data-theme="dark"] .tk-preview-meta { background: var(--field-bg); }
+        html[data-theme="dark"] .tk-select:hover,
+        html[data-theme="dark"] .tk-drop:hover,
+        html[data-theme="dark"] .tk-drop.tk-drag { background: var(--field-bg-hover); }
+        html[data-theme="dark"] .tk-select:focus { border-color: var(--field-border-focus); background-color: var(--field-bg-focus); }
+        html[data-theme="dark"] .tk-toggle-thumb { background: var(--text-secondary); }
+        html[data-theme="dark"] .tk-toggle input:checked ~ .tk-toggle-track .tk-toggle-thumb { background: var(--white); }
+        html[data-theme="dark"] .tk-progress { background: var(--upload-progress-track); }
+        html[data-theme="dark"] .tk-progress-bar { background: var(--upload-progress-fill); box-shadow: 0 0 14px var(--upload-progress-glow); }
+        .tk-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .tk-photo-item { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
+        .tk-photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .tk-photo-badge { position: absolute; top: 6px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 800; display: grid; place-items: center; }
+        .tk-photo-actions { position: absolute; inset-inline: 0; bottom: 0; display: flex; gap: 4px; padding: 6px; background: linear-gradient(to top, var(--sv-bg-rgba-0-0-0-0_55), transparent); opacity: 0; transition: opacity 0.13s; }
+        .tk-photo-item:hover .tk-photo-actions, .tk-photo-item:focus-within .tk-photo-actions { opacity: 1; }
+        /* Hover-to-reveal has no equivalent on touch — a tap would focus and activate an
+           unseen button in one gesture — so keep the strip visible whenever the device has
+           no real hover capability, per UI_DESIGN_STANDARDS.md's keyboard/mobile-states rule. */
+        @media (hover: none) { .tk-photo-actions { opacity: 1; } }
+        /* Full 44px per UI_DESIGN_STANDARDS.md: width is what three controls must share in one
+           thumbnail, but height has no such constraint — making the strip taller only covers
+           more of the image vertically, so there's no reason to fall short of the target here. */
+        .tk-photo-btn { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 44px; border: none; border-radius: 5px; background: var(--white); color: var(--text-primary); font-size: 0.76rem; font-weight: 700; padding: 3px 0; cursor: pointer; }
+        .tk-photo-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .tk-photo-btn-remove { color: var(--sv-fg-dc2626); }
+        `,document.head.appendChild(t)}function _tkResolveProfile(t){if(!t)return{profile:null,source:null};const e=(clientMap[t]?.postforme_account_id||"").trim();return e?{profile:e,source:"sheet"}:{profile:null,source:"missing"}}function _tkFormatBytes(t){if(!Number.isFinite(t)||t<=0)return"0 B";const e=["B","KB","MB","GB"];let o=0;for(;t>=1024&&o<e.length-1;)t/=1024,o++;return`${t.toFixed(o===0?0:1).replace(/\.0$/,"")} ${e[o]}`}function _tkEscape(t){return String(t??"").replace(/[&<>"']/g,e=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[e])}function _tkParseAt(t){const e=/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(t||"");if(!e)return{date:"",hour12:"",minute:"",ampm:"AM"};let o=parseInt(e[2],10);const i=o>=12?"PM":"AM";return o=o%12||12,{date:e[1],hour12:String(o),minute:e[3],ampm:i}}function _tkComposeAt(t){if(!t.date||t.hour12===""||t.hour12==null||t.minute===""||t.minute==null)return"";let e=parseInt(t.hour12,10);return Number.isFinite(e)?(t.ampm==="PM"&&e<12&&(e+=12),t.ampm==="AM"&&e===12&&(e=0),`${t.date}T${String(e).padStart(2,"0")}:${String(t.minute).padStart(2,"0")}`):""}function _tkFormatScheduledLong(t,e){const o=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(t||"");if(!o)return"";const i=new Date(+o[1],+o[2]-1,+o[3],+o[4],+o[5]);if(Number.isNaN(i.getTime()))return"";const a=i.toLocaleString(void 0,{weekday:"long",month:"long",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});return e?`${a} · ${e}`:a}function _tkFormatQueueWhen(t,e){if(!t)return"";const o={weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"};if(/Z$|[+\-]\d{2}:?\d{2}$/.test(t))try{return new Date(t).toLocaleString(void 0,{...o,timeZone:e||void 0})}catch{return new Date(t).toLocaleString(void 0,o)}const i=/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(t);return i?new Date(+i[1],+i[2]-1,+i[3],+i[4],+i[5]).toLocaleString(void 0,o):t}function _tkUpdateSchedulePreview(){const t=document.getElementById("tkSchedulePreview");if(!t)return;const e=_tkFormatScheduledLong(tkState.schedule.at,tkState.schedule.tz);e?(t.textContent=e,t.style.display=""):(t.textContent="",t.style.display="none")}function _tkWallClockToUTC(t,e){const o=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(t||"");if(!o||!e)return null;const i=+o[1],a=+o[2],n=+o[3],s=+o[4],r=+o[5],l=Date.UTC(i,a-1,n,s,r);try{const p=new Intl.DateTimeFormat("en-US",{timeZone:e,hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}),m=Object.fromEntries(p.formatToParts(new Date(l)).map(c=>[c.type,c.value])),h=Date.UTC(+m.year,+m.month-1,+m.day,+m.hour,+m.minute,+m.second);return new Date(l-(h-l)).toISOString()}catch{return null}}const TK_PRIVACY_LABELS={PUBLIC_TO_EVERYONE:"Public",SELF_ONLY:"Private"};function _tkRenderPreview(){const t=document.getElementById("tkPreviewWrap");if(!t)return;const e=(clientMap[tkState.client]?.tiktok_handle||"").trim().replace(/^@+/,""),o=e?"@"+e:tkState.client||"@your_account",i=(tkState.title||"").trim(),a=i.length>2200,n=tkState.mediaType==="photo",s=tkState.objectUrl||"",r=n&&tkState.photos[0]?tkState.photos[0].objectUrl:"",l=(tkState.client||"?").charAt(0).toUpperCase(),p=TK_PRIVACY_LABELS[tkState.options.privacy_level]||"Public",m=tkState.options.privacy_level==="SELF_ONLY",h=tkState.options.post_mode==="MEDIA_UPLOAD"?"Drafts (no auto-post)":"Direct post",c='<svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M12 21s-7-4.5-9.5-9C.5 8 3 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4 0 6.5 4 4.5 8C19 16.5 12 21 12 21z"/></svg>',d='<svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z"/></svg>',u='<svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M2 12l20-9-7 20-3-9-10-2z"/></svg>',v='<svg width="11" height="11" viewBox="0 0 24 24" fill="white"><path d="M9 17V5l12-2v12"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="15" r="3"/></svg>';t.innerHTML=`
+            <div class="tk-preview-card">
+                <h3>Preview <span style="float:right;text-transform:none;letter-spacing:0;font-weight:600;color:var(--text-secondary);font-size:0.72rem">live</span></h3>
+                <div class="tk-preview-frame">
+                    ${n?r?`<img class="tk-preview-video" id="tkPreviewVideo" src="${_tkEscape(r)}" alt="">`:'<div class="tk-preview-empty">Attach images to see how this post will look on TikTok.</div>':s?`<video class="tk-preview-video" id="tkPreviewVideo" src="${_tkEscape(s)}" autoplay muted loop playsinline></video>`:'<div class="tk-preview-empty">Attach a video to see how this post will look on TikTok.</div>'}
+                    <div class="tk-preview-gradient"></div>
+                    <div class="tk-preview-topbar">
+                        <span>Following</span>
+                        <span class="active">For You</span>
+                    </div>
+                    <div class="tk-preview-icons">
+                        <div class="tk-preview-icon" style="position:relative">
+                            <div class="tk-preview-pic">${_tkEscape(l)}</div>
+                            <div class="tk-preview-pic-plus">+</div>
+                        </div>
+                        <div class="tk-preview-icon">${c}<span>—</span></div>
+                        <div class="tk-preview-icon">${d}<span>—</span></div>
+                        <div class="tk-preview-icon">${u}<span>Share</span></div>
+                    </div>
+                    <div class="tk-preview-text">
+                        <div class="tk-preview-handle" id="tkPreviewHandle">${_tkEscape(o)}</div>
+                        <div class="tk-preview-caption ${i?"":"tk-preview-caption-empty"}" id="tkPreviewCaption">${i?_tkEscape(i):"Caption will appear here…"}</div>
+                    </div>
+                    ${n?tkState.options.auto_add_music!==!1?`<div class="tk-preview-music">${v}<span>Music added automatically</span></div>`:"":`<div class="tk-preview-music">${v}<span>Original sound · ${_tkEscape(o)}</span></div>`}
+                </div>
+                <div class="tk-preview-meta">
+                    <span>${_tkEscape(p)}${m?' <span class="tk-preview-meta-private">(only you)</span>':""}</span>
+                    <span>${n&&tkState.photos.length?_tkEscape(`${tkState.photos.length} photo${tkState.photos.length===1?"":"s"}`):_tkEscape(h)}</span>
+                </div>
+                ${a?'<div class="tk-error" style="margin-top:10px">Caption is over the 2200-character limit.</div>':""}
+            </div>
+        `}function _tkLoadDraft(){try{const t=localStorage.getItem(TIKTOK_FORM_KEY);if(!t)return;const e=JSON.parse(t);e.client&&WL_CLIENT_NAMES.includes(e.client)&&(tkState.client=e.client),typeof e.title=="string"&&(tkState.title=e.title),e.options&&typeof e.options=="object"&&Object.assign(tkState.options,e.options),e.schedule&&typeof e.schedule=="object"&&Object.assign(tkState.schedule,e.schedule),e.fileMeta&&typeof e.fileMeta=="object"&&(tkState.fileMeta=e.fileMeta),(e.mediaType==="photo"||e.mediaType==="video")&&(tkState.mediaType=e.mediaType),Array.isArray(e.photosMeta)&&(tkState.photosMeta=e.photosMeta)}catch(t){console.warn("[SyncView] TikTok draft load error:",t)}}function _tkSaveDraft(){try{const t={client:tkState.client,title:tkState.title,options:tkState.options,schedule:tkState.schedule,fileMeta:tkState.file?{name:tkState.file.name,size:tkState.file.size,type:tkState.file.type}:tkState.fileMeta,mediaType:tkState.mediaType,photosMeta:tkState.photos.length?tkState.photos.map(e=>({name:e.file.name,size:e.file.size,type:e.file.type})):tkState.photosMeta};localStorage.setItem(TIKTOK_FORM_KEY,JSON.stringify(t))}catch{}}function _tkSaveDraftSoon(){clearTimeout(_tkSaveTimer),_tkSaveTimer=setTimeout(_tkSaveDraft,400)}function _tkClearDraft(){try{localStorage.removeItem(TIKTOK_FORM_KEY)}catch{}tkState.fileMeta=null,tkState.photosMeta=null}function _tkLoadPending(){try{return JSON.parse(localStorage.getItem(TIKTOK_PENDING_KEY)||"[]")}catch{return[]}}function _tkSavePending(t){try{localStorage.setItem(TIKTOK_PENDING_KEY,JSON.stringify(t.slice(0,50)))}catch{}}function _tkLoadHidden(){try{return new Set(JSON.parse(localStorage.getItem(TIKTOK_HIDDEN_KEY)||"[]"))}catch{return new Set}}function _tkSaveHidden(t){try{localStorage.setItem(TIKTOK_HIDDEN_KEY,JSON.stringify([...t].slice(0,200)))}catch{}}function _tkPrunePending(t){const e=Date.now()-TIKTOK_OPTIMISTIC_TTL_MS;return t.filter(o=>{if(!o.optimistic)return!0;const i=Date.parse(o.created_at||"");return!Number.isFinite(i)||i>e})}function _tkEffectiveStatus(t){const e=String(t.status||"").toLowerCase()||"queued";if(!_tkIsOverdue(t))return e;const o=(tkState.pfm||{})[t.id];return o&&o.state==="posted"?"posted":o&&o.state==="failed"?"failed":"noresult"}const TK_OVERDUE_MS=3*36e5;function _tkIsOverdue(t){if(t.optimistic)return!1;const e=String(t.status||"").toLowerCase()||"queued";if(!TK_UPCOMING.includes(e))return!1;const o=Date.parse(t.scheduled_for||t.created_at||"");return Number.isFinite(o)&&Date.now()-o>TK_OVERDUE_MS}function _tkPlatformSub(t){return t==="instagram"?"Post a video to a client's Instagram — uploads through Post For Me.":"Schedule a TikTok post for a client — uploads through Post For Me."}function _tkLoadPlatform(){try{return localStorage.getItem(TK_PLATFORM_KEY)==="instagram"?"instagram":"tiktok"}catch{return"tiktok"}}function _tkApplyPlatform(t,e){if(tkState.platform=t==="instagram"?"instagram":"tiktok",e)try{localStorage.setItem(TK_PLATFORM_KEY,tkState.platform)}catch{}const o=tkState.platform==="instagram",i=a=>document.getElementById(a);i("tkFormCol")&&(i("tkFormCol").hidden=o),i("tkRightCol")&&(i("tkRightCol").hidden=o),i("tkPlatTiktok")&&(i("tkPlatTiktok").classList.toggle("on",!o),i("tkPlatTiktok").setAttribute("aria-selected",String(!o))),i("tkPlatInstagram")&&(i("tkPlatInstagram").classList.toggle("on",o),i("tkPlatInstagram").setAttribute("aria-selected",String(o))),i("tkPlatformSub")&&(i("tkPlatformSub").textContent=_tkPlatformSub(tkState.platform)),o?(_tkStopPolling(),mountInstagramPanel({maxBytes:TIKTOK_MAX_BYTES,formatBytes:_tkFormatBytes,timezones:TK_TIMEZONES,wallClockToUTC:_tkWallClockToUTC})):(teardownInstagramPanel(),_tkMounted&&Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll))}function _tkSetPlatform(t){(t==="instagram"?"instagram":"tiktok")!==tkState.platform&&_tkApplyPlatform(t,!0)}function renderTiktokUploadView(){return _tkInjectCSSOnce(),`
+            <div class="tk-page">
+                <div class="tk-header">
+                    <div>
+                        <div class="tk-title">TikTok Upload</div>
+                        <div class="tk-sub" id="tkPlatformSub">${_tkPlatformSub(tkState.platform)}</div>
+                    </div>
+                    <div class="tk-q-tabs tk-platform-switch" role="tablist" aria-label="Platform">
+                        <button type="button" class="tk-q-tab${tkState.platform==="tiktok"?" on":""}" id="tkPlatTiktok" role="tab" aria-selected="${tkState.platform==="tiktok"}" onclick="_tkSetPlatform('tiktok')">TikTok</button>
+                        <button type="button" class="tk-q-tab${tkState.platform==="instagram"?" on":""}" id="tkPlatInstagram" role="tab" aria-selected="${tkState.platform==="instagram"}" onclick="_tkSetPlatform('instagram')">Instagram</button>
+                    </div>
+                </div>
+                <div class="tk-col tk-form-col" id="tkFormCol"${tkState.platform==="instagram"?" hidden":""}></div>
+                <div class="tk-col tk-right-col" id="tkRightCol"${tkState.platform==="instagram"?" hidden":""}>
+                    <div class="tk-preview-wrap" id="tkPreviewWrap"></div>
+                    <div id="tkQueueCol"></div>
+                </div>
+                ${renderInstagramPanel()}
+            </div>
+        `}function _tkOptionsSummary(t){const e=[(TK_PRIVACY_LEVELS.find(i=>i.v===t.privacy_level)||TK_PRIVACY_LEVELS[0]).label,(TK_POST_MODES.find(i=>i.v===t.post_mode)||TK_POST_MODES[0]).label];tkState.mediaType==="video"?e.push(`Cover at ${Math.round((Number(t.cover_timestamp_ms)||0)/100)/10} s`):e.push(t.auto_add_music!==!1?"Auto music on":"Auto music off");const o=[t.disable_comment&&"comments",t.disable_duet&&"duet",t.disable_stitch&&"stitch"].filter(Boolean);return e.push(o.length===0?"Comments, duet, stitch on":o.length===3?"Comments, duet, stitch off":`${o.join(", ")} off`),t.brand_content_toggle&&e.push("Branded content"),t.brand_organic_toggle&&e.push("Your brand"),t.is_aigc&&e.push("AI-generated"),e.join(" · ")}function _tkRenderForm(){const t=document.getElementById("tkFormCol");if(!t)return;if(tkState.client){const g=_tkResolveProfile(tkState.client);tkState.profile=g.profile,tkState.profileSource=g.source}const e=_tkClientNames(),o=(tkState.title||"").length,i=o>2200,a=tkState.mediaType==="photo"?tkState.photos.length>0:!!tkState.file,n=!!(tkState.client&&tkState.profile&&a&&tkState.title.trim()&&!i&&!tkState.submitting);let s="";tkState.client&&(tkState.profileSource==="sheet"?s=`<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`:tkState.profileSource==="missing"&&(s=`<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Add this client's <code>postforme_account_id</code> — the account's <strong>Connection ID</strong> (<code>spc_…</code>) from Post For Me — to the Clients Info sheet before uploading.</div>`));let r;if(tkState.file)r=`
+                <div class="tk-file-card">
+                    <video id="tkFilePreview" src="${_tkEscape(tkState.objectUrl)}" playsinline controls preload="metadata"></video>
+                    <div class="tk-file-meta">
+                        <div class="tk-file-meta-text">
+                            <div class="tk-file-name">${_tkEscape(tkState.file.name)}</div>
+                            <div class="tk-file-size">${_tkFormatBytes(tkState.file.size)} · ${_tkEscape(tkState.file.type||"video")}</div>
+                        </div>
+                        <div class="tk-file-actions">
+                            <button class="tk-mini-btn" onclick="_tkReplaceFile()" ${tkState.submitting?"disabled":""}>Replace</button>
+                            <button class="tk-mini-btn" onclick="_tkClearFile()" ${tkState.submitting?"disabled":""}>Remove</button>
+                        </div>
+                    </div>
+                </div>`;else{const g=tkState.fileMeta?`<div class="tk-drop-sub" style="color:var(--sv-fg-92400e)">Draft restored — please re-attach <strong>${_tkEscape(tkState.fileMeta.name)}</strong> (${_tkFormatBytes(tkState.fileMeta.size)}).</div>`:`<div class="tk-drop-sub">MP4, MOV or WebM · up to ${_tkFormatBytes(TIKTOK_MAX_BYTES)}</div>`;r=`
+                <div class="tk-drop" id="tkDrop">
+                    <input type="file" id="tkFile" accept="video/mp4,video/quicktime,video/webm,video/*" ${tkState.submitting?"disabled":""}>
+                    <div class="tk-drop-icon">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="tk-drop-title">Drop a video here, or click to browse</div>
+                    ${g}
+                </div>`}const l=`
+            <div class="tk-drop" id="tkPhotoDrop">
+                <input type="file" id="tkPhotoFile" accept="image/jpeg,image/png,image/webp" multiple ${tkState.submitting?"disabled":""}>
+                <div class="tk-drop-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="tk-drop-title">${tkState.photos.length?"Drop more images, or click to add":"Drop images here, or click to browse"}</div>
+                <div class="tk-drop-sub">JPEG, PNG or WEBP · 1 to ${TIKTOK_MAX_PHOTOS} images, up to ${_tkFormatBytes(TIKTOK_PHOTO_MAX_BYTES)} each</div>
+            </div>`,p=!tkState.photos.length&&tkState.photosMeta&&tkState.photosMeta.length?`<div class="tk-drop-sub" style="color:var(--sv-fg-92400e)">Draft restored — please re-attach ${tkState.photosMeta.length} image${tkState.photosMeta.length===1?"":"s"}.</div>`:"",h=`${tkState.photos.length?`
+            <div class="tk-photo-grid">
+                ${tkState.photos.map((g,w)=>`
+                <div class="tk-photo-item">
+                    <img src="${_tkEscape(g.objectUrl)}" alt="Image ${w+1}">
+                    <div class="tk-photo-badge">${w+1}</div>
+                    <div class="tk-photo-actions">
+                        <button type="button" class="tk-photo-btn" data-photo-idx="${w}" data-action="move-earlier" onclick="_tkMovePhoto(${w},-1)" ${w===0||tkState.submitting?"disabled":""} title="Move earlier">&larr;</button>
+                        <button type="button" class="tk-photo-btn" data-photo-idx="${w}" data-action="move-later" onclick="_tkMovePhoto(${w},1)" ${w===tkState.photos.length-1||tkState.submitting?"disabled":""} title="Move later">&rarr;</button>
+                        <button type="button" class="tk-photo-btn tk-photo-btn-remove" data-photo-idx="${w}" data-action="remove" onclick="_tkRemovePhoto(${w})" ${tkState.submitting?"disabled":""} title="Remove">&times;</button>
+                    </div>
+                </div>`).join("")}
+            </div>`:""}${l}${p}`,c=tkState.options,d=tkState.error?`<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}</div>`:"",u=_tkParseAt(tkState.schedule.at),v=[12,1,2,3,4,5,6,7,8,9,10,11],b=["00","05","10","15","20","25","30","35","40","45","50","55"];u.minute&&!b.includes(u.minute)&&b.push(u.minute);const f=new Date,k=`${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,"0")}-${String(f.getDate()).padStart(2,"0")}`,y=_tkFormatScheduledLong(tkState.schedule.at,tkState.schedule.tz);t.innerHTML=`
+            <div class="tk-card">
+                <h3>Client <span class="tk-card-hint">${e.length} clients</span></h3>
+                <div class="tk-row">
+                    <div class="tk-client-search search-bar-wrap" id="tkClientWrap">
+                        <div class="search-bar-pill">
+                            <input class="search-bar-input" id="tkClientInput" type="text" placeholder="Search clients…" value="${_tkEscape(tkState.client||"")}" autocomplete="off" aria-label="Client" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tkClientResults" ${tkState.submitting?"disabled":""}>
+                            <div class="search-ghost-overlay" id="tkClientGhost"></div>
+                            <button type="button" class="search-bar-icon" id="tkClientIcon" title="Search" aria-label="Search clients" ${tkState.submitting?"disabled":""}>
+                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </button>
+                        </div>
+                        <div class="search-dropdown" id="tkClientBox"><div id="tkClientResults" role="listbox"></div></div>
+                    </div>
+                    ${s}
+                </div>
+            </div>
+
+            <div class="tk-card">
+                <h3>Media</h3>
+                <div class="tk-row">
+                    <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Media type">
+                        <label class="tk-radio ${tkState.mediaType==="video"?"active":""}">
+                            <input type="radio" name="tkMediaType" value="video" ${tkState.mediaType==="video"?"checked":""} ${tkState.submitting?"disabled":""}>
+                            <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg>Video
+                        </label>
+                        <label class="tk-radio ${tkState.mediaType==="photo"?"active":""}">
+                            <input type="radio" name="tkMediaType" value="photo" ${tkState.mediaType==="photo"?"checked":""} ${tkState.submitting?"disabled":""}>
+                            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="currentColor"/></svg>Photo carousel
+                        </label>
+                    </div>
+                </div>
+                ${tkState.mediaType==="photo"?h:r}
+            </div>
+
+            <div class="tk-card">
+                <h3>Caption</h3>
+                <div class="tk-row">
+                    <label for="tkTitle">Title / caption</label>
+                    <textarea class="tpl-textarea" id="tkTitle" placeholder="What this post is about — include hashtags here." rows="4" ${tkState.submitting?"disabled":""}>${_tkEscape(tkState.title)}</textarea>
+                    <div class="tk-counter ${i?"over":""}">${o} / 2200</div>
+                </div>
+            </div>
+
+            <div class="tk-card">
+                <div class="tk-sched-head">
+                    <h3>Scheduling</h3>
+                    <label class="tk-toggle">
+                        <input type="checkbox" id="tkPostNow" ${tkState.schedule.postNow?"checked":""}>
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Post immediately
+                    </label>
+                </div>
+                ${tkState.schedule.postNow?'<div class="tk-step-note">Posts as soon as you press Post now. Switch off to pick a date and time.</div>':""}
+                <div id="tkScheduleFields" ${tkState.schedule.postNow?"hidden":""}>
+                    <div class="tk-grid-2">
+                        <div class="tk-row">
+                            <label for="tkScheduleDate">Date</label>
+                            <input class="tpl-input" id="tkScheduleDate" type="date" value="${_tkEscape(u.date)}" min="${_tkEscape(k)}">
+                        </div>
+                        <div class="tk-row">
+                            <label>Time</label>
+                            <div class="tk-time-row">
+                                <select class="tk-select tk-time-select" id="tkScheduleHour">
+                                    ${v.map(g=>`<option value="${g}" ${String(g)===u.hour12?"selected":""}>${g}</option>`).join("")}
+                                </select>
+                                <span class="tk-time-sep">:</span>
+                                <select class="tk-select tk-time-select" id="tkScheduleMin">
+                                    ${b.map(g=>`<option value="${g}" ${g===u.minute?"selected":""}>${g}</option>`).join("")}
+                                </select>
+                                <div class="tk-ampm" id="tkAmpm">
+                                    <button type="button" class="tk-ampm-btn ${u.ampm==="AM"?"active":""}" data-ampm="AM">AM</button>
+                                    <button type="button" class="tk-ampm-btn ${u.ampm==="PM"?"active":""}" data-ampm="PM">PM</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tk-row" style="margin-top:6px">
+                        <label for="tkScheduleTz">Timezone</label>
+                        <select class="tk-select" id="tkScheduleTz">
+                            ${TK_TIMEZONES.map(g=>`<option value="${g}" ${g===tkState.schedule.tz?"selected":""}>${g}</option>`).join("")}
+                        </select>
+                    </div>
+                    <div class="tk-schedule-preview" id="tkSchedulePreview" style="${y?"":"display:none"}">${_tkEscape(y)}</div>
+                </div>
+            </div>
+
+            <div class="tk-card tk-opts-card">
+                <button type="button" class="tk-opts-head" id="tkOptsToggle" aria-expanded="${tkState.optsOpen?"true":"false"}" aria-controls="tkOptsBody">
+                    <span class="tk-opts-text"><h3>TikTok options</h3><span class="tk-step-note">${_tkEscape(_tkOptionsSummary(c))}</span></span>
+                    <span class="tk-opts-more"><span id="tkOptsLabel">${tkState.optsOpen?"Hide options":"Show options"}</span><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>
+                </button>
+                <div class="tk-opts-body" id="tkOptsBody" ${tkState.optsOpen?"":"hidden"}>
+                <div class="tk-grid-2">
+                    <div class="tk-row">
+                        <label>Privacy level</label>
+                        <div class="tk-radio-row">
+                            ${TK_PRIVACY_LEVELS.map(g=>`
+                                <label class="tk-radio ${c.privacy_level===g.v?"active":""}">
+                                    <input type="radio" name="tkPrivacy" value="${g.v}" ${c.privacy_level===g.v?"checked":""}>
+                                    ${g.label}
+                                </label>`).join("")}
+                        </div>
+                    </div>
+                    <div class="tk-row">
+                        <label>Post mode</label>
+                        <div class="tk-radio-row">
+                            ${TK_POST_MODES.map(g=>`
+                                <label class="tk-radio ${c.post_mode===g.v?"active":""}">
+                                    <input type="radio" name="tkPostMode" value="${g.v}" ${c.post_mode===g.v?"checked":""}>
+                                    ${g.label}
+                                </label>`).join("")}
+                        </div>
+                    </div>
+                </div>
+                ${tkState.mediaType==="video"?`
+                <div class="tk-row">
+                    <label for="tkCover">Cover timestamp (ms) <span class="tk-help">— which frame TikTok grabs as the thumbnail.</span></label>
+                    <input class="tpl-input" id="tkCover" type="number" min="0" step="100" value="${Number(c.cover_timestamp_ms)||0}">
+                </div>`:`
+                <div class="tk-row">
+                    <label>Music</label>
+                    <div class="tk-toggles">
+                        <label class="tk-toggle"><input type="checkbox" id="tkAutoMusic" ${c.auto_add_music!==!1?"checked":""}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Auto-add trending music</label>
+                    </div>
+                </div>`}
+                <div class="tk-row">
+                    <label>Interaction</label>
+                    <div class="tk-toggles">
+                        <label class="tk-toggle"><input type="checkbox" id="tkDuet"    ${c.disable_duet?"checked":""}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable duet</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkDisableComment" ${c.disable_comment?"checked":""}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable comments</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkStitch"  ${c.disable_stitch?"checked":""}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable stitch</label>
+                    </div>
+                </div>
+                <div class="tk-row">
+                    <label>Commercial content disclosure</label>
+                    <div class="tk-toggles">
+                        <label class="tk-toggle"><input type="checkbox" id="tkBrandContent" ${c.brand_content_toggle?"checked":""}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Branded content</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkBrandOrganic" ${c.brand_organic_toggle?"checked":""}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Your brand</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkAigc"          ${c.is_aigc?"checked":""}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>AI-generated</label>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+            ${d}
+
+            <div class="tk-submit-bar">
+                <button class="tk-submit-btn" id="tkSubmit" ${n?"":"disabled"}>
+                    ${tkState.submitting?"Uploading…":tkState.schedule.postNow?"Post now":"Schedule post"}
+                </button>
+                <div class="tk-progress"><div class="tk-progress-bar" id="tkProgress" style="width:${tkState.progress}%"></div></div>
+                ${tkState.submitting?'<button class="tk-mini-btn" onclick="_tkCancelUpload()">Cancel</button>':""}
+            </div>
+        `,_tkWireFormEvents(),_tkRenderPreview()}function _tkClientNames(){return[...WL_CLIENT_NAMES].sort((t,e)=>t.localeCompare(e))}function _tkPickClient(t){tkState.client=t||null,tkState.client&&svSharedClientNote(tkState.client);const e=_tkResolveProfile(tkState.client);tkState.profile=e.profile,tkState.profileSource=e.source,_tkSaveDraft(),_tkRenderForm()}function _tkWireClientSearch(){const t=document.getElementById("tkClientWrap"),e=document.getElementById("tkClientInput"),o=document.getElementById("tkClientGhost"),i=document.getElementById("tkClientBox"),a=document.getElementById("tkClientResults"),n=document.getElementById("tkClientIcon");if(!t||!e||!i||!a)return;const s=_tkClientNames();let r=0;const l=f=>`data-tk-client-pick="${_tkEscape(f)}" role="option" id="tkClientOpt${r++}" aria-selected="false"`;let p=-1;const m=()=>[...a.querySelectorAll("[data-tk-client-pick]")],h=f=>{const k=m();p=k.length?(f+k.length)%k.length:-1,k.forEach((y,g)=>{y.classList.toggle("active",g===p),y.setAttribute("aria-selected",String(g===p))}),p>=0?(e.setAttribute("aria-activedescendant",k[p].id),k[p].scrollIntoView({block:"nearest"})):e.removeAttribute("aria-activedescendant")},c=()=>{const f=e.value===(tkState.client||"")?"":e.value;r=0,a.innerHTML=clientSearchResultsHtml(f,s,getRecent().filter(k=>s.includes(k)),l),h(-1),o&&(o.innerHTML=clientSearchGhostHtml(f,s))},d=()=>{i.classList.remove("open"),e.setAttribute("aria-expanded","false"),h(-1),o&&(o.innerHTML=""),e.value=tkState.client||"",document.removeEventListener("click",u)},u=f=>{t.contains(f.target)||d()},v=()=>{i.classList.contains("open")||(i.classList.add("open"),e.setAttribute("aria-expanded","true"),setTimeout(()=>document.addEventListener("click",u),0))},b=()=>{const f=clientSearchMatches(e.value,s)[0];return f?(d(),_tkPickClient(f),!0):!1};e.addEventListener("focus",()=>{e.select(),c(),v()}),e.addEventListener("input",()=>{c(),v()}),e.addEventListener("keydown",f=>{if(f.key==="Escape"){d(),e.blur();return}if(f.key==="ArrowDown"||f.key==="ArrowUp"){f.preventDefault(),i.classList.contains("open")||(c(),v()),h(p+(f.key==="ArrowDown"?1:-1));return}if(f.key==="Enter"){f.preventDefault();const k=m()[p];if(k){d(),_tkPickClient(k.getAttribute("data-tk-client-pick"));return}b()}}),n?.addEventListener("click",()=>{b()||(e.focus(),v())}),a.addEventListener("click",f=>{const k=f.target.closest("[data-tk-client-pick]");k&&(d(),_tkPickClient(k.getAttribute("data-tk-client-pick")))})}function _tkWireFormEvents(){const t=r=>document.getElementById(r);_tkWireClientSearch(),document.querySelectorAll("input[name=tkMediaType]").forEach(r=>r.addEventListener("change",l=>{tkState.mediaType=l.target.value,tkState.error=null,_tkSaveDraft(),_tkRenderForm()}));const e=t("tkDrop"),o=t("tkFile");o&&o.addEventListener("change",r=>_tkHandleFile(r.target.files?.[0])),e&&(["dragenter","dragover"].forEach(r=>e.addEventListener(r,l=>{l.preventDefault(),e.classList.add("tk-drag")})),["dragleave","drop"].forEach(r=>e.addEventListener(r,l=>{l.preventDefault(),e.classList.remove("tk-drag")})),e.addEventListener("drop",r=>_tkHandleFile(r.dataTransfer?.files?.[0])));const i=t("tkPhotoDrop"),a=t("tkPhotoFile");a&&a.addEventListener("change",r=>{_tkHandlePhotoFiles(r.target.files),r.target.value=""}),i&&(["dragenter","dragover"].forEach(r=>i.addEventListener(r,l=>{l.preventDefault(),i.classList.add("tk-drag")})),["dragleave","drop"].forEach(r=>i.addEventListener(r,l=>{l.preventDefault(),i.classList.remove("tk-drag")})),i.addEventListener("drop",r=>_tkHandlePhotoFiles(r.dataTransfer?.files))),t("tkTitle")?.addEventListener("input",r=>{tkState.title=r.target.value;const l=document.querySelector(".tk-counter");l&&(l.textContent=`${tkState.title.length} / 2200`,l.classList.toggle("over",tkState.title.length>2200));const p=t("tkSubmit");p&&(p.disabled=!_tkCanSubmit());const m=document.getElementById("tkPreviewCaption");if(m){const h=tkState.title.trim();m.textContent=h||"Caption will appear here…",m.classList.toggle("tk-preview-caption-empty",!h)}_tkSaveDraftSoon()}),document.querySelectorAll("input[name=tkPrivacy]").forEach(r=>r.addEventListener("change",l=>{tkState.options.privacy_level=l.target.value,_tkSaveDraft(),_tkRenderForm()})),document.querySelectorAll("input[name=tkPostMode]").forEach(r=>r.addEventListener("change",l=>{tkState.options.post_mode=l.target.value,_tkSaveDraft(),_tkRenderForm()})),t("tkCover")?.addEventListener("input",r=>{tkState.options.cover_timestamp_ms=Math.max(0,Number(r.target.value)||0),_tkSaveDraftSoon()});const n=(r,l)=>t(r)?.addEventListener("change",p=>{tkState.options[l]=p.target.checked,_tkSaveDraft()});n("tkDuet","disable_duet"),n("tkDisableComment","disable_comment"),n("tkStitch","disable_stitch"),n("tkBrandContent","brand_content_toggle"),n("tkBrandOrganic","brand_organic_toggle"),n("tkAigc","is_aigc"),n("tkAutoMusic","auto_add_music"),t("tkOptsToggle")?.addEventListener("click",()=>{tkState.optsOpen=!tkState.optsOpen;const r=t("tkOptsBody");r&&(r.hidden=!tkState.optsOpen),t("tkOptsToggle").setAttribute("aria-expanded",tkState.optsOpen?"true":"false"),t("tkOptsLabel").textContent=tkState.optsOpen?"Hide options":"Show options"}),t("tkPostNow")?.addEventListener("change",r=>{tkState.schedule.postNow=r.target.checked,_tkSaveDraft(),_tkRenderForm()});const s=()=>{const r=t("tkScheduleDate")?.value||"",l=t("tkScheduleHour")?.value||"",p=t("tkScheduleMin")?.value||"",m=document.querySelector("#tkAmpm .tk-ampm-btn.active")?.dataset.ampm||"AM";tkState.schedule.at=_tkComposeAt({date:r,hour12:l,minute:p,ampm:m}),_tkUpdateSchedulePreview(),_tkSaveDraftSoon()};t("tkScheduleDate")?.addEventListener("change",s),t("tkScheduleHour")?.addEventListener("change",s),t("tkScheduleMin")?.addEventListener("change",s),document.querySelectorAll("#tkAmpm .tk-ampm-btn").forEach(r=>{r.addEventListener("click",()=>{document.querySelectorAll("#tkAmpm .tk-ampm-btn").forEach(l=>l.classList.toggle("active",l===r)),s()})}),t("tkScheduleTz")?.addEventListener("change",r=>{tkState.schedule.tz=r.target.value,_tkUpdateSchedulePreview(),_tkSaveDraft()}),t("tkSubmit")?.addEventListener("click",_tkSubmit)}function _tkHandleFile(t){if(t){if(!/^video\//.test(t.type)&&!/\.(mp4|mov|webm|m4v)$/i.test(t.name)){tkState.error="That file does not look like a video.",_tkRenderForm();return}if(t.size>TIKTOK_MAX_BYTES){tkState.error=`Video is ${_tkFormatBytes(t.size)} — TikTok's limit is ${_tkFormatBytes(TIKTOK_MAX_BYTES)}.`,_tkRenderForm();return}tkState.objectUrl&&URL.revokeObjectURL(tkState.objectUrl),tkState.file=t,tkState.objectUrl=URL.createObjectURL(t),tkState.fileMeta={name:t.name,size:t.size,type:t.type},tkState.error=null,_tkSaveDraft(),_tkRenderForm()}}function _tkReplaceFile(){const t=document.getElementById("tkFile");if(t){t.click();return}const e=document.createElement("input");e.type="file",e.accept="video/mp4,video/quicktime,video/webm,video/*",e.addEventListener("change",()=>_tkHandleFile(e.files?.[0])),e.click()}function _tkClearFile(){tkState.objectUrl&&URL.revokeObjectURL(tkState.objectUrl),tkState.file=null,tkState.objectUrl=null,tkState.fileMeta=null,_tkSaveDraft(),_tkRenderForm()}function _tkImageMimeFor(t){if(/^image\/(jpeg|png|webp)$/.test(t.type))return t.type;const e=(/\.([a-z0-9]+)$/i.exec(t.name)||[])[1]?.toLowerCase();return e==="png"?"image/png":e==="webp"?"image/webp":"image/jpeg"}function _tkHandlePhotoFiles(t){if(!t||!t.length)return;const e=TIKTOK_MAX_PHOTOS-tkState.photos.length,o=Array.from(t),i=o.length>e,a=o.slice(0,Math.max(e,0));let n=null,s=0;for(const r of a){if(!(/^image\/(jpeg|png|webp)$/.test(r.type)||/\.(jpe?g|png|webp)$/i.test(r.name))){n=`"${r.name}" does not look like a JPEG, PNG or WEBP image.`;continue}if(r.size>TIKTOK_PHOTO_MAX_BYTES){n=`"${r.name}" is ${_tkFormatBytes(r.size)} — the per-image limit is ${_tkFormatBytes(TIKTOK_PHOTO_MAX_BYTES)}.`;continue}tkState.photos.push({file:r,objectUrl:URL.createObjectURL(r)}),s++}i&&(n=`Only added ${e} image${e===1?"":"s"} — the ${TIKTOK_MAX_PHOTOS}-image limit was reached.`),tkState.error=n,s&&(tkState.photosMeta=null),_tkSaveDraft(),_tkRenderForm()}function _tkFocusPhotoControl(t,e){const o=document.querySelector(`.tk-photo-btn[data-photo-idx="${t}"][data-action="${e}"]`);return o&&!o.disabled?(o.focus(),!0):!1}function _tkRemovePhoto(t){const e=tkState.photos[t];e&&(e.objectUrl&&URL.revokeObjectURL(e.objectUrl),tkState.photos.splice(t,1),_tkSaveDraft(),_tkRenderForm(),_tkFocusPhotoControl(Math.min(t,tkState.photos.length-1),"remove")||document.getElementById("tkPhotoFile")?.focus())}function _tkMovePhoto(t,e){const o=t+e;if(o<0||o>=tkState.photos.length)return;const i=tkState.photos;[i[t],i[o]]=[i[o],i[t]],_tkSaveDraft(),_tkRenderForm();const a=e<0?"move-earlier":"move-later",n=e<0?"move-later":"move-earlier";_tkFocusPhotoControl(o,a)||_tkFocusPhotoControl(o,n)||_tkFocusPhotoControl(o,"remove")}function _tkClearAllPhotos(){tkState.photos.forEach(t=>{t.objectUrl&&URL.revokeObjectURL(t.objectUrl)}),tkState.photos=[],tkState.photosMeta=null}function _tkCanSubmit(){const t=tkState.mediaType==="photo"?tkState.photos.length>0:!!tkState.file;return!!(tkState.client&&tkState.profile&&t&&tkState.title.trim()&&tkState.title.length<=2200&&!tkState.submitting)}function _tkValidate(){if(!tkState.client)return"Pick a client first.";if(!tkState.profile)return"This client has no Post For Me account mapping — add a postforme_account_id in the Clients Info sheet.";if(tkState.mediaType==="photo"){if(!tkState.photos.length)return"Attach at least one image."}else if(!tkState.file)return"Attach a video.";if(!tkState.title.trim())return"Add a caption.";if(tkState.title.length>2200)return"Caption is over the 2200-character limit.";if(!tkState.schedule.postNow){if(!tkState.schedule.at)return'Pick a schedule time, or switch on "Post immediately".';const t=new Date(tkState.schedule.at).getTime();if(!Number.isFinite(t))return"That schedule time is not valid.";if(t<Date.now()-6e4)return"The schedule time is in the past."}return null}function _tkSubmit(){if(tkState.client){const r=_tkResolveProfile(tkState.client);tkState.profile=r.profile,tkState.profileSource=r.source}const t=_tkValidate();if(t){tkState.error=t,_tkRenderForm();return}const e=crypto.randomUUID&&crypto.randomUUID()||`tk-${Date.now()}-${Math.random().toString(36).slice(2)}`,o=tkState.schedule.postNow?"":tkState.schedule.at,i=o&&_tkWallClockToUTC(o,tkState.schedule.tz)||"";if(tkState.mediaType==="photo"){_tkSubmitPhotoCarousel(e,o,i);return}if(tkState.file&&tkState.file.size>TIKTOK_LEGACY_MAX_BYTES){_tkSubmitDirect(e,o,i);return}const a={client:tkState.client,profile:tkState.profile,title:tkState.title,options:{...tkState.options},tz:tkState.schedule.tz,schedule:{postNow:tkState.schedule.postNow,at:tkState.schedule.at}},n=new FormData;n.append("clientName",a.client),n.append("socialAccountId",a.profile),n.append("title",a.title),n.append("options",JSON.stringify(a.options)),n.append("scheduledAt",o),n.append("scheduledAtUTC",i),n.append("scheduledAtUnix",i?String(Math.floor(Date.parse(i)/1e3)):""),n.append("timezone",a.tz),n.append("idempotencyKey",e),n.append("media",tkState.file,tkState.file.name),tkState.submitting=!0,tkState.error=null,tkState.progress=0,_tkRenderForm();const s=new XMLHttpRequest;_tkActiveXhr=s,s.open("POST",TIKTOK_UPLOAD_WEBHOOK),s.upload.onprogress=r=>{if(!r.lengthComputable)return;tkState.progress=Math.min(99,Math.round(r.loaded/r.total*100));const l=document.getElementById("tkProgress");l&&(l.style.width=tkState.progress+"%")},s.onload=()=>{if(_tkActiveXhr=null,tkState.submitting=!1,s.status>=200&&s.status<300){let r={};try{r=JSON.parse(s.responseText||"{}")}catch{}if(r.ok===!1){tkState.progress=0,_tkRecordFailure("tiktok_upload",0),tkState.error=r.error?`Upload failed: ${r.error}`:"Post For Me rejected this post. Try again.",_tkRenderForm();return}tkState.progress=100,_tkOnSubmitSuccess(e,o,i,r,a)}else tkState.progress=0,_tkRecordFailure("tiktok_upload",s.status),tkState.error=_tkExplainError(s),_tkRenderForm()},s.onerror=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_upload",0,!0),tkState.error="Network error — the upload could not reach n8n. Try again.",_tkRenderForm()},s.onabort=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,tkState.error="Upload cancelled.",_tkRenderForm()},s.send(n)}function _tkOnSubmitSuccess(t,e,o,i,a){tkState.progress=100;const n={id:i.id||t,client:a.client,profile:a.profile,title:a.title,status:i.status||(a.schedule.postNow?"uploading":"scheduled"),scheduled_for:a.schedule.postNow?null:o||a.schedule.at,timezone:a.tz,created_at:new Date().toISOString(),optimistic:!0},s=_tkLoadPending().filter(r=>r.id!==n.id);s.unshift(n),_tkSavePending(s),tkState.uploads=_tkMergeUploads(tkState.uploads,[n]),tkState.objectUrl&&URL.revokeObjectURL(tkState.objectUrl),tkState.file=null,tkState.objectUrl=null,tkState.fileMeta=null,_tkClearAllPhotos(),tkState.title="",tkState.progress=0,_tkClearDraft(),_tkRenderForm(),_tkRenderQueue(),showNotify("Upload queued",e?`Scheduled for ${_tkFormatScheduledLong(e,a.tz)}.`:"The post is uploading to TikTok now."),Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll)}function _tkSubmitDirect(t,e,o){const i=tkState.file,a={client:tkState.client,profile:tkState.profile,title:tkState.title,options:{...tkState.options},tz:tkState.schedule.tz,schedule:{postNow:tkState.schedule.postNow,at:tkState.schedule.at}};tkState.submitting=!0,tkState.error=null,tkState.progress=0,_tkRenderForm();const n=new XMLHttpRequest;_tkActiveXhr=n,n.open("GET",TIKTOK_UPLOAD_URL_WEBHOOK),n.onload=()=>{if(n.status<200||n.status>=300){_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_upload_prepare",n.status),tkState.error=_tkExplainError(n),_tkRenderForm();return}let s={};try{s=JSON.parse(n.responseText||"{}")}catch{}if(!s.ok||!s.upload_url||!s.media_url){_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_upload_prepare",0),tkState.error="Could not prepare the upload — "+(s.error||"no upload url returned")+".",_tkRenderForm();return}_tkPutDirect(i,s.upload_url,s.media_url,t,e,o,a)},n.onerror=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_upload_prepare",0,!0),tkState.error="Network error — could not reach n8n to prepare the upload. Try again.",_tkRenderForm()},n.onabort=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,tkState.error="Upload cancelled.",_tkRenderForm()},n.send()}function _tkPutDirect(t,e,o,i,a,n,s){const r=new XMLHttpRequest;_tkActiveXhr=r,r.open("PUT",e),r.setRequestHeader("Content-Type",t.type||"video/mp4"),r.upload.onprogress=l=>{if(!l.lengthComputable)return;tkState.progress=Math.min(90,Math.round(l.loaded/l.total*90));const p=document.getElementById("tkProgress");p&&(p.style.width=tkState.progress+"%")},r.onload=()=>{if(r.status<200||r.status>=300){_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_storage_put",r.status),tkState.error=`Video upload to storage failed (HTTP ${r.status}). Try again.`,_tkRenderForm();return}_tkFinishDirectSubmit(o,i,a,n,s)},r.onerror=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_storage_put",0,!0),tkState.error="Network error while uploading the video to storage. Try again.",_tkRenderForm()},r.onabort=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,tkState.error="Upload cancelled.",_tkRenderForm()},r.send(t)}function _tkFinishDirectSubmit(t,e,o,i,a){const n=new FormData;n.append("clientName",a.client),n.append("socialAccountId",a.profile),n.append("title",a.title),n.append("options",JSON.stringify(a.options)),n.append("scheduledAt",o),n.append("scheduledAtUTC",i),n.append("scheduledAtUnix",i?String(Math.floor(Date.parse(i)/1e3)):""),n.append("timezone",a.tz),n.append("idempotencyKey",e),n.append("mediaUrl",t);const s=new XMLHttpRequest;_tkActiveXhr=s,s.open("POST",TIKTOK_UPLOAD_DIRECT_WEBHOOK),s.onload=()=>{if(_tkActiveXhr=null,tkState.submitting=!1,s.status>=200&&s.status<300){let r={};try{r=JSON.parse(s.responseText||"{}")}catch{}if(r.ok===!1){tkState.progress=0,_tkRecordFailure("tiktok_upload",0),tkState.error=r.error?`Upload failed: ${r.error}`:"Post For Me rejected this post. Try again.",_tkRenderForm();return}tkState.progress=100,_tkOnSubmitSuccess(e,o,i,r,a)}else tkState.progress=0,_tkRecordFailure("tiktok_upload",s.status),tkState.error=_tkExplainError(s),_tkRenderForm()},s.onerror=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_upload",0,!0),tkState.error="The video finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the video (that part is not saved between attempts).",_tkRenderForm()},s.onabort=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,tkState.error="Upload cancelled.",_tkRenderForm()},s.send(n)}async function _tkSubmitPhotoCarousel(t,e,o){const i=tkState.photos.slice(),a={client:tkState.client,profile:tkState.profile,title:tkState.title,options:{...tkState.options},tz:tkState.schedule.tz,schedule:{postNow:tkState.schedule.postNow,at:tkState.schedule.at}};tkState.submitting=!0,tkState.error=null,tkState.progress=0,_tkRenderForm();const n=new AbortController;_tkActivePhotoAbort=n;const s=[];try{for(let r=0;r<i.length;r++){const{file:l}=i[r],p=await fetch(TIKTOK_UPLOAD_URL_WEBHOOK,{signal:n.signal});if(!p.ok)throw new Error(`Could not prepare image ${r+1} (HTTP ${p.status}).`);let m={};try{m=await p.json()}catch{}if(!m.ok||!m.upload_url||!m.media_url)throw new Error(`Could not prepare image ${r+1} — ${m.error||"no upload url returned"}.`);const h=await fetch(m.upload_url,{method:"PUT",headers:{"Content-Type":_tkImageMimeFor(l)},body:l,signal:n.signal});if(!h.ok)throw new Error(`Image ${r+1} upload to storage failed (HTTP ${h.status}).`);s.push(m.media_url),tkState.progress=Math.round((r+1)/i.length*90);const c=document.getElementById("tkProgress");c&&(c.style.width=tkState.progress+"%")}}catch(r){_tkActivePhotoAbort=null,tkState.submitting=!1,tkState.progress=0,r.name!=="AbortError"&&_writeUiRecordSaveFailure("tiktok","tiktok_photo_upload",r,null,{}),tkState.error=r.name==="AbortError"?"Upload cancelled.":r.message||"Image upload failed. Try again.",_tkRenderForm();return}_tkActivePhotoAbort=null,_tkFinishPhotoSubmit(s,t,e,o,a)}function _tkFinishPhotoSubmit(t,e,o,i,a){const n=new FormData;n.append("clientName",a.client),n.append("socialAccountId",a.profile),n.append("title",a.title),n.append("options",JSON.stringify(a.options)),n.append("scheduledAt",o),n.append("scheduledAtUTC",i),n.append("scheduledAtUnix",i?String(Math.floor(Date.parse(i)/1e3)):""),n.append("timezone",a.tz),n.append("idempotencyKey",e),n.append("mediaUrls",JSON.stringify(t));const s=new XMLHttpRequest;_tkActiveXhr=s,s.open("POST",TIKTOK_UPLOAD_DIRECT_WEBHOOK),s.onload=()=>{if(_tkActiveXhr=null,tkState.submitting=!1,s.status>=200&&s.status<300){let r={};try{r=JSON.parse(s.responseText||"{}")}catch{}if(r.ok===!1){tkState.progress=0,_tkRecordFailure("tiktok_upload",0),tkState.error=r.error?`Upload failed: ${r.error}`:"Post For Me rejected this post. Try again.",_tkRenderForm();return}tkState.progress=100,_tkOnSubmitSuccess(e,o,i,r,a)}else tkState.progress=0,_tkRecordFailure("tiktok_upload",s.status),tkState.error=_tkExplainError(s),_tkRenderForm()},s.onerror=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,_tkRecordFailure("tiktok_upload",0,!0),tkState.error="The images finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the images (that part is not saved between attempts).",_tkRenderForm()},s.onabort=()=>{_tkActiveXhr=null,tkState.submitting=!1,tkState.progress=0,tkState.error="Upload cancelled.",_tkRenderForm()},s.send(n)}function _tkRecordFailure(t,e,o){const i={message:e?"HTTP "+e:o?"network error":"upload rejected"};e?i.status=e:o&&(i.network=!0),_writeUiRecordFailure("tiktok",t,i,{})}function _tkExplainError(t){try{const e=JSON.parse(t.responseText||"{}");if(e.message)return`Upload failed: ${e.message}`;if(e.error)return`Upload failed: ${e.error}`}catch{}return`Upload failed (HTTP ${t.status||"no response"}). Check the n8n workflow.`}function _tkCancelUpload(){_tkActiveXhr&&_tkActiveXhr.abort(),_tkActivePhotoAbort&&_tkActivePhotoAbort.abort()}function _tkMergeUploads(t,e){const o=new Map;for(const i of t)o.set(i.id,i);for(const i of e){const a=o.get(i.id);o.set(i.id,a?{...a,...i,optimistic:i.optimistic&&a.optimistic}:i)}return[...o.values()].sort((i,a)=>{const n=i.scheduled_for||i.created_at||"";return(a.scheduled_for||a.created_at||"").localeCompare(n)})}function _tkLoadQueueCache(){try{const t=JSON.parse(localStorage.getItem(TIKTOK_QUEUE_CACHE_KEY)||"null");return t&&Array.isArray(t.rows)?t.rows:[]}catch{return[]}}function _tkSaveQueueCache(t){try{localStorage.setItem(TIKTOK_QUEUE_CACHE_KEY,JSON.stringify({at:Date.now(),rows:t.slice(0,100)}))}catch{}}async function _tkFetchQueue(){try{const t=await fetch(TIKTOK_UPLOADS_LIST_URL+"?_t="+Date.now(),{method:"GET",signal:AbortSignal.timeout?AbortSignal.timeout(2e4):void 0});if(!t.ok)throw new Error("HTTP "+t.status);const e=await t.json(),o=Array.isArray(e)?e:e.rows||e.items||[];_tkSaveQueueCache(o);const i=_tkPrunePending(_tkLoadPending()),a=tkState.queueFromCache?null:JSON.stringify(tkState.uploads),n=tkState.queueReadState!=="ready";tkState.uploads=_tkMergeUploads(i,o);const s=new Set(o.map(l=>l.id));_tkSavePending(i.filter(l=>!s.has(l.id))),tkState.queueFromCache=!1,tkState.queueReadState="ready",tkState.queueFailures=0;const r=JSON.stringify(tkState.uploads);tkState.unchangedPolls=r===tkState.lastReadSig?(tkState.unchangedPolls||0)+1:0,tkState.lastReadSig=r,(n||JSON.stringify(tkState.uploads)!==a)&&_tkRenderQueue(),await _tkLookupOverdue()}catch{tkState.queueReadState="error",tkState.queueFailures++,tkState.queueFromCache=!0,_tkRenderQueue()}}const TK_UPCOMING=["queued","uploading","processing","scheduled"],TK_STATUS_LABELS={noresult:"No result from Post For Me",queued:"Queued",uploading:"Uploading",processing:"Uploading",scheduled:"Scheduled",posted:"Posted",failed:"Failed",cancelled:"Cancelled",canceled:"Cancelled"};function _tkRowTime(t){const e=t.scheduled_for||t.posted_at||t.updated_at||t.created_at;if(!e)return null;if(/Z$|[+\-]\d{2}:?\d{2}$/.test(e)){const a=new Date(e);return Number.isNaN(a.getTime())?null:a}const o=/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(e);if(o)return new Date(+o[1],+o[2]-1,+o[3],+o[4],+o[5]);const i=new Date(e);return Number.isNaN(i.getTime())?null:i}function _tkRelative(t){const e=Math.abs(t),o=Math.round(e/6e4),i=o<1?"less than a minute":o<60?`${o} min`:o<2160?`${Math.round(o/60)} h`:`${Math.round(o/1440)} days`;return t>=0?`in ${i}`:`${i} ago`}function _tkWhenParts(t,e){const o=_tkRowTime(t);if(TK_UPCOMING.includes(e)&&!t.scheduled_for)return{day:"Today",time:"Now",rel:e==="queued"?"waiting its turn":""};if(!o)return{day:"",time:"—",rel:""};const i=t.scheduled_for&&t.timezone?t.timezone:void 0;let a,n,s;try{a=o.toLocaleDateString("en-CA",{timeZone:i}),n=new Date().toLocaleDateString("en-CA",{timeZone:i}),s=o.toLocaleTimeString(void 0,{hour:"numeric",minute:"2-digit",timeZone:i})}catch{a=o.toLocaleDateString("en-CA"),n=new Date().toLocaleDateString("en-CA"),s=o.toLocaleTimeString(void 0,{hour:"numeric",minute:"2-digit"})}const r=Math.round((Date.parse(a)-Date.parse(n))/864e5);return{day:r===0?"Today":r===1?"Tomorrow":r===-1?"Yesterday":o.toLocaleDateString(void 0,{month:"short",day:"numeric",timeZone:i}),time:s,rel:_tkRelative(o.getTime()-Date.now())}}function _tkSetQueueTab(t){tkState.queueTab=t,tkState.queueLimit=TK_QUEUE_PAGE,_tkRenderQueue(),document.querySelector("#tkQueueCol .tk-q-tab.on")?.focus()}function _tkQueueShowMore(){const t=tkState.queueLimit;tkState.queueLimit+=TK_QUEUE_PAGE,_tkRenderQueue(),(document.querySelectorAll("#tkQueueCol .tk-queue-item")[t]?.querySelector("button, a")||document.querySelector("#tkQueueCol .tk-q-more")||document.querySelector("#tkQueueCol .tk-q-tab.on"))?.focus()}function _tkRenderQueue(){const t=document.getElementById("tkQueueCol");if(!t)return;const e=_tkLoadHidden(),o=tkState.uploads.filter(d=>!e.has(d.id)),i=d=>{const u=_tkRowTime(d);return u?u.getTime():0},a={upcoming:o.filter(d=>TK_UPCOMING.includes(_tkEffectiveStatus(d))).sort((d,u)=>(d.scheduled_for?i(d):-1/0)-(u.scheduled_for?i(u):-1/0)),failed:o.filter(d=>["failed","noresult"].includes(_tkEffectiveStatus(d))).sort((d,u)=>i(u)-i(d)),done:o.filter(d=>!TK_UPCOMING.includes(_tkEffectiveStatus(d))&&!["failed","noresult"].includes(_tkEffectiveStatus(d))).sort((d,u)=>i(u)-i(d))},n=a[tkState.queueTab]?tkState.queueTab:"upcoming",s=a[n],r=s.slice(0,tkState.queueLimit),l=s.length-r.length,p=d=>{const u=_tkEffectiveStatus(d),v=(tkState.pfm||{})[d.id]||{};!d.tiktok_url&&v.url&&(d={...d,tiktok_url:v.url}),!d.error&&u==="failed"&&v.error&&(d={...d,error:v.error});const b=_tkWhenParts(d,u),f=[],k=tkState.queueFromCache&&!d.optimistic,y=_tkEscape(d.id);!k&&(u==="scheduled"||u==="queued")&&f.push(`<button type="button" class="tk-q-btn tk-q-danger" onclick="_tkCancelRow('${y}')">Cancel</button>`),!k&&u==="failed"&&!_tkIsOverdue(d)&&f.push(`<button type="button" class="tk-q-btn tk-q-primary" onclick="_tkRetryRow('${y}')">Retry</button>`),d.tiktok_url&&f.push(`<a class="tk-q-btn" href="${_tkEscape(d.tiktok_url)}" target="_blank" rel="noopener">Open</a>`),k||f.push(`<button type="button" class="tk-q-btn tk-q-x" onclick="_tkDismissRow('${y}')" title="Dismiss" aria-label="Dismiss">&times;</button>`);const g=d.scheduled_for&&d.timezone?` · ${_tkEscape(d.timezone.split("/").pop().replace(/_/g," "))}`:"";return`
+                <div class="tk-queue-item${k?" tk-queue-item-cached":""}">
+                    <div class="tk-q-when"><div class="tk-q-day">${_tkEscape(b.day)}</div><div class="tk-q-time">${_tkEscape(b.time)}</div></div>
+                    <div class="tk-q-main">
+                        <div class="tk-queue-client">${_tkEscape(d.client||"—")}</div>
+                        ${d.title?`<div class="tk-queue-title">${_tkEscape(d.title)}</div>`:""}
+                        <div class="tk-q-meta"><span class="tk-st ${_tkEscape(u)}">${_tkEscape(TK_STATUS_LABELS[u]||u)}</span><span>${_tkEscape(b.rel)}${g}</span></div>
+                        ${d.error?`<div class="tk-queue-error">${_tkEscape(d.error)}</div>`:""}
+                    </div>
+                    ${f.length?`<div class="tk-queue-actions">${f.join("")}</div>`:""}
+                </div>`},m=(d,u)=>`<button type="button" class="tk-q-tab${n===d?" on":""}${d==="failed"&&a.failed.length?" alert":""}" role="tab" aria-selected="${n===d}" onclick="_tkSetQueueTab('${d}')">${u}<b>${tkState.queueReadState==="ready"?a[d].length:"—"}</b></button>`,h={upcoming:"Nothing scheduled yet.",failed:"No failed uploads.",done:"No posts yet."}[n],c=tkState.queueReadState==="loading"?'<div class="tk-queue-empty" role="status">Loading uploads…</div>':tkState.queueReadState==="error"?`<div class="tk-queue-empty" role="alert">Couldn't load your uploads. ${o.length?"Showing available rows. ":""}Trying again shortly.</div>`:"";t.innerHTML=`
+            <div class="tk-card">
+                <h3>Uploads</h3>
+                <div class="tk-q-tabs" role="tablist">${m("upcoming","Upcoming")}${m("failed","Failed")}${m("done","Done")}</div>
+                ${c}
+                ${r.length?r.map(p).join(""):tkState.queueReadState==="ready"?`<div class="tk-queue-empty">${h}</div>`:""}
+                ${l>0?`<button type="button" class="tk-q-more" onclick="_tkQueueShowMore()">Show ${Math.min(l,TK_QUEUE_PAGE)} more <span>· ${l} left</span></button>`:""}
+            </div>
+        `}async function _tkCancelRow(t){showConfirm("Cancel upload?","This marks the upload as cancelled in your queue. If it was already scheduled in Post For Me you may also need to cancel it there. The video file stays on your computer.",async()=>{try{const e=await _writeUiTrackSave("tiktok","tiktok_cancel",{},()=>fetch(TIKTOK_UPLOAD_CANCEL_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:t})}));if(!e.ok)throw new Error("HTTP "+e.status);_tkSavePending(_tkLoadPending().filter(o=>o.id!==t)),Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll)}catch(e){showNotify("Could not cancel",e.message||"The n8n cancel webhook failed.")}},"Cancel upload")}function _tkDismissRow(t){_tkSavePending(_tkLoadPending().filter(o=>o.id!==t));const e=_tkLoadHidden();e.add(t),_tkSaveHidden(e),tkState.uploads=tkState.uploads.filter(o=>o.id!==t),_tkRenderQueue()}async function _tkRetryRow(t){try{const e=await _writeUiTrackSave("tiktok","tiktok_retry",{},()=>fetch(TIKTOK_UPLOAD_STATUS_URL+"?id="+encodeURIComponent(t)+"&retry=1",{method:"POST"}));if(!e.ok)throw new Error("HTTP "+e.status);Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll)}catch(e){showNotify("Retry failed",e.message||"The n8n status webhook did not accept the retry.")}}function _tkActiveUploadCount(){return(tkState.uploads||[]).filter(t=>{const e=_tkEffectiveStatus(t);return e==="queued"||e==="uploading"||e==="processing"}).length}function _tkHasScheduled(){return(tkState.uploads||[]).some(t=>_tkEffectiveStatus(t)==="scheduled")}function _tkUnresolvedOverdue(){const t=tkState.pfm||{};return(tkState.uploads||[]).filter(e=>_tkIsOverdue(e)&&!["posted","failed"].includes((t[e.id]||{}).state))}const TK_LOOKUP_EVERY_MS=10*6e4;function _tkLookupGap(t){return TK_LOOKUP_EVERY_MS*((t||0)<3?1:(t||0)<5?3:6)}async function _tkLookupOverdue(){tkState.pfm=tkState.pfm||{};const t=_tkUnresolvedOverdue().filter(o=>o.upload_post_id&&!(Date.now()-((tkState.pfm[o.id]||{}).at||0)<_tkLookupGap((tkState.pfm[o.id]||{}).n))).sort((o,i)=>((tkState.pfm[o.id]||{}).at||0)-((tkState.pfm[i.id]||{}).at||0)).slice(0,5);let e=!1;for(const o of t)try{const i=await fetch(TIKTOK_UPLOAD_STATUS_URL+"?id="+encodeURIComponent(o.id)+"&_t="+Date.now(),{method:"GET",signal:AbortSignal.timeout?AbortSignal.timeout(2e4):void 0}),a=i.ok?await i.json():null,n=a&&a.pfm||null,s=tkState.pfm[o.id]||{};tkState.pfm[o.id]={...n||{state:"unknown"},at:Date.now(),n:a?(s.n||0)+1:s.n||0},s.state!==tkState.pfm[o.id].state&&(e=!0)}catch{tkState.pfm[o.id]={...tkState.pfm[o.id]||{},state:(tkState.pfm[o.id]||{}).state||"unknown",at:Date.now(),n:(tkState.pfm[o.id]||{}).n||0}}e&&_tkRenderQueue()}function _tkNextPollDelay(){if(tkState.queueReadState==="error")return Math.min(3e5,3e4*2**Math.min(tkState.queueFailures-1,4));const t=tkState.unchangedPolls||0;return _tkActiveUploadCount()>0?t<=6?3e4:t<=12?6e4:12e4:_tkHasScheduled()?t<=3?12e4:t<=9?3e5:6e5:_tkUnresolvedOverdue().length?t<=2?3e5:t<=6?6e5:9e5:0}function _tkStopPolling(){_tkPollTimer&&(clearTimeout(_tkPollTimer),_tkPollTimer=null)}function _tkScheduleNextPoll(){if(_tkStopPolling(),!_tkMounted||typeof document<"u"&&document.visibilityState==="hidden"||!document.getElementById("tkQueueCol"))return;const t=_tkNextPollDelay();t<=0||(_tkPollTimer=setTimeout(()=>{_tkPollTimer=null,Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll)},t))}function _tkTeardown(){_tkMounted=!1,_tkStopPolling(),teardownInstagramPanel(),tkState.objectUrl&&(URL.revokeObjectURL(tkState.objectUrl),tkState.objectUrl=null),tkState.file&&(tkState.objectUrl=URL.createObjectURL(tkState.file)),tkState.photos.forEach(t=>{t.objectUrl&&URL.revokeObjectURL(t.objectUrl)}),tkState.photos.forEach(t=>{t.objectUrl=URL.createObjectURL(t.file)})}function mountTiktokUploadView(){_tkLoadDraft();const t=svSharedClientFor("tiktok-upload"),e=!!(tkState.title||tkState.fileMeta||tkState.photosMeta&&tkState.photosMeta.length);if(t&&t!==tkState.client&&WL_CLIENT_NAMES.includes(t)&&!e&&(tkState.client=t,_tkSaveDraft()),tkState.client){const i=_tkResolveProfile(tkState.client);tkState.profile=i.profile,tkState.profileSource=i.source}const o=_tkLoadQueueCache();tkState.uploads=_tkMergeUploads(_tkPrunePending(_tkLoadPending()),o),tkState.queueFromCache=o.length>0,tkState.queueReadState="loading",tkState.queueFailures=0,tkState.unchangedPolls=0,_tkRenderForm(),_tkRenderPreview(),_tkRenderQueue(),_tkMounted=!0,tkState.platform=_tkLoadPlatform(),tkState.platform==="instagram"?_tkApplyPlatform("instagram",!1):Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll),_tkVisHooked||(_tkVisHooked=!0,document.addEventListener("visibilitychange",()=>{_tkMounted&&(tkState.platform==="instagram"?document.visibilityState==="visible"&&instagramResumePolling():document.visibilityState==="visible"?(tkState.unchangedPolls=0,Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll)):_tkStopPolling())}))}window._tkReplaceFile=_tkReplaceFile,window._tkClearFile=_tkClearFile,window._tkRemovePhoto=_tkRemovePhoto,window._tkMovePhoto=_tkMovePhoto,window._tkCancelUpload=_tkCancelUpload,window._tkCancelRow=_tkCancelRow,window._tkRetryRow=_tkRetryRow,window._tkDismissRow=_tkDismissRow,window._tkSetQueueTab=_tkSetQueueTab,window._tkQueueShowMore=_tkQueueShowMore,window._tkSetPlatform=_tkSetPlatform,svAreaRegister("tiktok",{render:renderTiktokUploadView,mount:mountTiktokUploadView,teardown:_tkTeardown,isMounted:()=>_tkMounted,renderForm:_tkRenderForm}),Object.assign(window,{_tkCancelRow,_tkCancelUpload,_tkClearFile,_tkDismissRow,_tkMovePhoto,_tkQueueShowMore,_tkRemovePhoto,_tkReplaceFile,_tkRetryRow,_tkSetQueueTab});
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-14-tiktok-6cf3cd9f0700.js");

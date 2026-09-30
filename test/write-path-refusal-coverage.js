@@ -29,7 +29,7 @@ const { scan, keyOf, functionSource } = require('./helpers/write-path-scan');
 const ROOT = path.resolve(__dirname, '..');
 const INVENTORY = path.join(__dirname, 'fixtures', 'write-path-inventory.json');
 const DOC = path.join(ROOT, 'docs', 'audits', '2026-09-29-write-paths-refusal-coverage.md');
-const RECORDERS = /_writeUiTrackSave\(|_writeUiRecordSaveFailure\(|_writeUiRecordFailure\(|_writeUiReportFailure\(|_tkRecordFailure\(/;
+const RECORDERS = /_writeUiTrackSave\(|_writeUiRecordSaveFailure\(|_writeUiRecordFailure\(|_writeUiReportFailure\(|_tkRecordFailure\(|_igRecordFailure\(/;
 const STATUSES = {
   'reports': 'records its own refusals',
   'reports-in-callers': 'refusals are recorded by the caller that shows the error',
@@ -105,7 +105,7 @@ ok(counts['reports'] >= 28, `at least 28 sites now record their own refusals (${
   for (const fragment of fragments()) {
     const text = read(fragment);
     for (const m of text.matchAll(/(?:_writeUiTrackSave|_writeUiRecordSaveFailure|_writeUiRecordFailure)\(\s*'([a-z_]+)'\s*,\s*'([a-z0-9_]+)'/g)) names.add(m[2]);
-    for (const m of text.matchAll(/_tkRecordFailure\('([a-z0-9_]+)'/g)) names.add(m[1]);
+    for (const m of text.matchAll(/_(?:tk|ig)RecordFailure\('([a-z0-9_]+)'/g)) names.add(m[1]);
   }
   const bad = [...names].filter(n => !/^[a-z0-9_]{1,40}$/.test(n));
   ok(names.size >= 30 && bad.length === 0, `every operation name the page records is one the log accepts as an action (${names.size} names, ${bad.length} outside a-z, 0-9, _ and 40 characters)`);

@@ -55,6 +55,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { servedBytes } = require('./index-modules');
+const { minifyScript } = require('./index-minify');
 
 const CONFIG_FILE = 'split.json';
 const AREAS_FILE = 'areas.txt';
@@ -69,6 +70,7 @@ function readSplitConfig(srcDir) {
   if (typeof cfg.enabled !== 'boolean') throw new Error(`${CONFIG_FILE}: "enabled" must be true or false`);
   if (cfg.lazy !== undefined && (!Array.isArray(cfg.lazy) || cfg.lazy.some(a => typeof a !== 'string'))) throw new Error(`${CONFIG_FILE}: "lazy" must be a list of area names`);
   if (cfg.clients !== undefined && typeof cfg.clients !== 'boolean') throw new Error(`${CONFIG_FILE}: "clients" must be true or false`);
+  if (cfg.minify !== undefined && typeof cfg.minify !== 'boolean') throw new Error(`${CONFIG_FILE}: "minify" must be true or false`);
   return cfg;
 }
 
@@ -111,12 +113,15 @@ function buildOutputs(srcDir, entries, bufs, modules, force) {
   const areas = readAreas(srcDir);
   const out = new Map();
   const marker = name => Buffer.from(`\n;(self.__svParts || (self.__svParts = [])).push(${JSON.stringify(name)});\n`);
-  const file = (stem, body) => {
+  // "minify": true shrinks the parts and the on-demand files, never sv-full
+  // (the readable whole script: forms, ?split=0, and the way back).
+  const file = (stem, body, minify) => {
+    if (minify && cfg.minify === true) body = minifyScript(body);
     const name = `${JS_DIR}/${stem}-${hash(body)}.js`;
     out.set(name, Buffer.concat([body, marker(name)]));
     return name;
   };
-  const full = file('sv-full', Buffer.concat(served.slice(first, last + 1)));
+  const full = file('sv-full', Buffer.concat(served.slice(first, last + 1)), false);
   const lazyAreas = new Set(cfg.lazy || []);
   const parts = [];
   const lazy = {};
@@ -136,12 +141,12 @@ function buildOutputs(srcDir, entries, bufs, modules, force) {
       if (!lazyRuns.has(area)) lazyRuns.set(area, { n: ++n, bufs: [] });
       lazyRuns.get(area).bufs.push(body);
     } else {
-      parts.push(file(`sv-${String(++n).padStart(2, '0')}-${area}`, body));
+      parts.push(file(`sv-${String(++n).padStart(2, '0')}-${area}`, body, true));
     }
     i = j + 1;
   }
   for (const [area, run] of lazyRuns) {
-    lazy[area] = file(`sv-${String(run.n).padStart(2, '0')}-${area}`, Buffer.concat(run.bufs));
+    lazy[area] = file(`sv-${String(run.n).padStart(2, '0')}-${area}`, Buffer.concat(run.bufs), true);
   }
   for (const a of lazyAreas) {
     if (a === 'core') throw new Error('index-split: core can never be lazy');

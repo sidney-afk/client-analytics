@@ -43,6 +43,13 @@ The app-facing webhook surface is enumerated and machine-enforced in `docs/truth
 `linear-issue-statuses` was retired from the app (PR #1497); `ENDPOINTS.md` owns the number and
 `test/truth-sync.js` enforces it against `index.html`, so read it there rather than from this line.
 
+**Corrected 2026-09-30 (census, owner request for n8n exit phase 2).** A live read-only census returns
+**119 workflows, 76 active, 43 inactive**, read twice in two sort orders with identical ids (details and the per-workflow
+7 day run counts are in `docs/plans/2026-09-30-n8n-exit-phase-2.md`). The drop from 138 / 96 is the owner's clean-up, not a
+reading change. One active workflow (`Edge Alert Relay to DM`) is hidden from this read access, so its runs are not measured.
+The Calendar, Caption Prompts (Save), Sample Review (Upsert, Reorder) and Filming Plan routes moved to Supabase in phase 1
+(2026-09-29); their old workflows stay on for 30 days as the fallback for pinned repairs.
+
 **Corrected 2026-09-23 — the workflow census has moved a long way.** A live read-only census today
 returns **138 workflows, 96 active, 42 inactive**, superseding the 2026-08-20 count of 99/83. That
 is +39 workflows and +13 active in about a month, and the inactive half has more than doubled,

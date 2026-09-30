@@ -95,7 +95,7 @@ const EXPECT = {
     else console.log('templates-social-links: late client info fills the strip');
 
     // The refresh is wired to the moment client info lands (040).
-    const wired = await page.evaluate(() => /svAreaApi\('templates'\)[\s\S]{0,40}refreshSocialLinks\(\)/.test(String(_applyEssentialRows)));
+    const wired = await page.evaluate(() => /svAreaApi\(['"]templates['"]\)[\s\S]{0,40}refreshSocialLinks\(\)/.test(String(_applyEssentialRows)));
     if (!wired) failures.push('client-info refresh (_applyEssentialRows) does not repaint the Templates links');
 
     if (process.env.SHOT) await page.screenshot({ path: path.resolve(process.env.SHOT) });

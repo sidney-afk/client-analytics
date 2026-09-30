@@ -426,7 +426,7 @@ This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5
 
 3. For a newly assigned SMM: copy their **Slack user ID** (`U…`) → into the SMM tab's `slack_profile_url`. A missing value here parks the job in `waiting` (safe, non-destructive) until it's filled in — it does not silently create a channel without them.
 
-The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists (now naming it a **Slack** job, not Roam). The separate **Client — Slack Creative Channel Finalizer** (`udkwwzdFuPW3K2CE`) checks every 15 minutes for a snapshot whose setup is complete:
+The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists (now naming it a **Slack** job, not Roam). The separate **Client — Slack Creative Channel Finalizer** (`udkwwzdFuPW3K2CE`) checks for a snapshot whose setup is complete (every 15 minutes today; started directly by the onboarding session after the Finalizer PR, see the end of this section):
 
 1. Exactly one matching **Clients Info** row with the canonical display name and email, and no `creative_channel_id` already set (a set value means manual reconciliation, never overwrite/rename).
 2. Exactly one assigned-SMM row, with `slack_profile_url` populated.
@@ -475,6 +475,26 @@ or message send. Do not rerun the non-idempotent provisioning workflow. For hist
 (onboarded 2026-07-28 → 2026-08-24 and living in a Roam group instead), use a controlled queue record
 or manual reconciliation rather than rerunning intake — backfilling that cohort to Slack is a
 separate, deliberately deferred pass (their `roam_channel_id` on Clients Info is the list).
+
+**Triggering the finalizer yourself (owner decision 2026-09-30; live only after the Finalizer PR of `docs/plans/2026-09-30-n8n-exit-phase-2.md` ships).**
+Today the finalizer still checks every 15 minutes and you do nothing. After that PR merges and the owner or Lighthouse confirms
+it, the 15 minute check is **removed** and the onboarding session starts the finalizer itself:
+
+- **When.** Right after the last of the three readiness checks above becomes true, and not before: the **Clients Info** row exists
+  with no `creative_channel_id`, the assigned **Social Media Managers** row has `slack_profile_url` filled in, and the filming plan
+  is linked (verify each by reading it, never from memory). This is the last step of this runbook's section 6 for a new client,
+  just before "Verify on the live dashboard" (6i).
+- **How.** Send one `POST` to `https://synchrosocial.app.n8n.cloud/webhook/slack-creative-finalize` with the JSON body
+  `{"client_name": "<the canonical display name exactly as in Clients Info>"}`. The call starts one pass for that client's waiting
+  queue row. It answers at once; the channel appears within a minute or two. It is safe to send twice: a finished row is skipped.
+- **What to check after.** The `creative_channel_id` cell on the **Clients Info** row is filled, and the kickoff message and the
+  full form answers are in the new channel. If neither happens within ten minutes, do not call it again and do not hand create a
+  channel: read the queue row (status `waiting` with a reason, or manual reconciliation plus the owner's private DM) and follow the
+  reconciliation paragraph above.
+- **The safety net.** One run a day (the same workflow on a daily schedule) processes every row that is ready but was never
+  triggered. It is a catch, not the plan: a row that waits until the daily run means the trigger step was missed, so note it.
+- **Undo.** The n8n edit and how to restore the earlier version (which brings the 15 minute check back) are written in
+  `docs/ops/N8N_EDIT_LOG.md` once that PR lands.
 
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)

@@ -1,0 +1,3 @@
+function _kasperRefreshTabCounts(){if(Array.isArray(_kasperState.items)&&_kasperState.lastLoaded){const e=_kasperPartitionItems(_kasperState.items),n=typeof _kasperSampleOpenCount=="function"?_kasperSampleOpenCount():0;_kasperSetTabCount("review",e.urgent.length+e.waiting.length+n)}const t=_kasperState.filmingData;t&&Array.isArray(t.rows)&&_kasperSetTabCount("filming",t.rows.filter(e=>e&&e.status!=="green").length),_ptoEnabled()&&_ptoAdminState.overview&&_kasperSetTabCount("time-off",_ptoAdminPending(_ptoAdminState.overview).length);const a=_kasperOnboardingUnreadCount();a!==null&&_kasperSetTabCount("onboarding",a)}
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-18-core-4050f4429c3a.js");

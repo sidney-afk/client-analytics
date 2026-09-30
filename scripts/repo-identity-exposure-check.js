@@ -249,20 +249,39 @@ function baseIndexHtmlLines(base) {
    terms as above: exact bytes, nothing normalized, nothing fuzzy, no name- or
    path-based exemption, and not for any other destination. */
 let baseScriptLineSet = null;
+let baseScriptText = '';
 let baseScriptLineSetBase = null;
-function baseGeneratedScriptLines(base) {
+function loadBaseGeneratedScripts(base) {
   if (baseScriptLineSetBase !== base) {
     const set = new Set();
+    const texts = [];
     const names = git(['ls-tree', '--name-only', base, 'js/'], {});
     for (const name of (names || '').split('\n').map(x => x.trim()).filter(Boolean)) {
       if (!/^js\/sv-[^/]+\.js$/.test(name)) continue;
       const body = git(['show', `${base}:${name}`], {});
-      if (body !== null) for (const l of body.split('\n')) set.add(l);
+      if (body !== null) { texts.push(body); for (const l of body.split('\n')) set.add(l); }
     }
     baseScriptLineSet = set;
+    baseScriptText = texts.join('\n');
     baseScriptLineSetBase = base;
   }
+}
+function baseGeneratedScriptLines(base) {
+  loadBaseGeneratedScripts(base);
   return baseScriptLineSet;
+}
+
+/* Owner-ratified 2026-09-30 (Lighthouse, #1873): the parts are minified now, so
+   a regenerated `js/sv-*.js` line is rewritten and never matches a base line,
+   even when the name on it has been public in base's own `js/sv-*.js` all along.
+   So, for the generated script destination ONLY, a roster term that already
+   appears anywhere in one of base's top-level `js/sv-*.js` files is not new
+   exposure in a regenerated one. A term base's js never held is still reported
+   there, and every `src/index` fragment and every other file stays checked
+   exactly as before: this never applies to them. */
+function baseGeneratedScriptsContain(term, base) {
+  loadBaseGeneratedScripts(base);
+  return baseScriptText.includes(term);
 }
 
 function addedLinesContaining(term, base) {
@@ -295,6 +314,7 @@ function addedLinesContaining(term, base) {
          the fragment AND in its js/ copy. */
       const isGeneratedScriptDestination = /^js\/sv-[^/]+\.js$/.test(current);
       if ((isFragmentDestination || isGeneratedScriptDestination) && preexisting.has(line.slice(1))) continue;
+      if (isGeneratedScriptDestination && baseGeneratedScriptsContain(term, base)) continue;   // the name is already public in base's own js/sv-*.js (minified parts rewrite the line, not the name)
       if (isGeneratedScriptDestination && preexistingScripts.has(line.slice(1))) continue;   // already public in base's own js/sv-*.js — not new exposure; // moved verbatim from base's index.html into a fragment or its generated copy — not new exposure
       count++;
     }

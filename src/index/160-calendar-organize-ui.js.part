@@ -2571,6 +2571,43 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             ? 'The ' + label + ' is on this post; the Linear mirror is still draining.'
             : 'The ' + label + ' is on this post.');
     }
+    /* Frame.io folder button, the top of the pile. One quick lookup per client,
+       reused for every card on that calendar: the brain helper's `folders`
+       action, the same saved Frame folder links (the batches' delivery folder)
+       the Templates page lists. The link is NOT tested, it is only opened in a
+       new tab. Nothing here touches how the SyncLinear grid reads its own
+       per-post copy. Staff only, and a client with no saved folder shows
+       nothing. A failed lookup also shows nothing and is tried again after a
+       minute, never in a loop. */
+    const _calFrameFolders = {};   // client -> { state: 'loading'|'ready'|'error', url, at }
+    function _calFramePick(list) {
+        const rows = Array.isArray(list) ? list.map(i => String(i && i.url || '').trim()).filter(u => /^https?:\/\//i.test(u)) : [];
+        return rows.find(u => { try { return /(^|\.)(frame\.io|f\.io)$/i.test(new URL(u).hostname); } catch (e) { return false; } }) || rows[0] || '';
+    }
+    function _calFrameFolderEnsure(name) {
+        const cur = _calFrameFolders[name];
+        if (cur && (cur.state !== 'error' || Date.now() - cur.at < 60000)) return cur;
+        const url = CAL_SUPABASE_URL + '/functions/v1/brain';
+        const entry = _calFrameFolders[name] = { state: 'loading', url: '', at: Date.now() };
+        fetch(url, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
+            body: JSON.stringify({ action: 'folders', clientName: name })
+        }).then(async r => {
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+            entry.state = 'ready';
+            entry.url = _calFramePick(j.frame);
+        }).catch(() => { entry.state = 'error'; })
+          .then(() => { entry.at = Date.now(); if (entry.url && calState.client === name) _calRenderBody({ preserveScroll: true, skipIfUnchanged: true }); });
+        return entry;
+    }
+    function _calFrameFolderSlotHtml() {
+        if (_isClientLink || !calState.client) return '';
+        const entry = _calFrameFolderEnsure(calState.client);
+        if (!entry || entry.state !== 'ready' || !entry.url) return '';
+        return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="Open this client\'s Frame.io folder in a new tab" aria-label="Open this client\'s Frame.io folder in a new tab">${_calFrameMarkSvg()}</a>`;
+    }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
         const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
@@ -2581,8 +2618,9 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         // close rather than as a card that is simply missing something.
         const fv = _calFillComponentSlotHtml(p, 'video');
         const fg = _calFillComponentSlotHtml(p, 'graphic');
-        if (!v && !g && !pv && !pg && !fv && !fg) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
+        const fr = _calFrameFolderSlotHtml();
+        if (!fr && !v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${fr}${v}${pv}${fv}${g}${pg}${fg}</div>`;
     }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only

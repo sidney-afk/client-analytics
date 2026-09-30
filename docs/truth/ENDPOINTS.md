@@ -85,7 +85,8 @@ inventory, which is compared for SET EQUALITY against the paths index.html actua
 AI generation (briefs, captions, summaries):
 - `webhook/generate-caption`, `webhook/generate-content-summary`,
   `webhook/generate-tab-summary`
-- `webhook/caption-job-status`, `webhook/caption-job-update`, `webhook/caption-prompts-get`
+- `webhook/caption-prompts-get`
+- `functions/v1/caption-jobs` (caption job progress and cancel, staff key; it replaced the two n8n caption job status and update webhooks, which the page no longer calls)
 - **Caption prompts (n8n exit PR 3, 2026-09-29):** the Calendar reads prompts from the `caption_prompts` table (plain REST read, `cache: 'no-store'`, query `select=client_slug,prompt&order=client_slug.asc`). `caption-prompts-get` stays only as an error-only fallback, after a last-known-good copy kept in the browser, so a failed table read cannot make Generate send an empty prompt. The save goes to `functions/v1/caption-prompts-save` only, after a fresh, bounded read of `settings_ef_clients` (an unreadable flag holds the save, an unlisted client pauses it with a message, never n8n). The n8n `caption-prompts-save` call is gone.
 
 The three brief generators (the Keywords, Competitors and Synthesis briefs) are **no longer

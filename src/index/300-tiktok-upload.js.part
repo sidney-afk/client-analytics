@@ -9,6 +9,7 @@ import {
 import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, getRecent } from './050-market-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
+import { instagramResumePolling, mountInstagramPanel, renderInstagramPanel, teardownInstagramPanel } from './299-instagram-upload.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
        Posts videos to Post For Me (api.postforme.dev) through a
@@ -49,7 +50,9 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 
     const TK_QUEUE_PAGE = 5;
 
+    const TK_PLATFORM_KEY = 'syncview_uploadPlatform_v1';   // which side of the tab this browser last used
     const tkState = {
+        platform: 'tiktok',         // 'tiktok' | 'instagram' — which side of the tab is showing
         client: null,
         profile: null,
         profileSource: null,        // 'sheet' | 'missing'  (profile holds the Post For Me spc_… account id)
@@ -140,6 +143,8 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
         .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
         .tk-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
         .tk-form-col { grid-column: 1; grid-row: 2; }
+        .tk-col[hidden] { display: none; }
+        .tk-platform-switch { width: 220px; flex-shrink: 0; margin-bottom: 0; }
         .tk-right-col { grid-column: 2; grid-row: 1 / span 2; }
         /* Collapse to a single stacked column on narrow screens. This block must
            come AFTER the base column-placement rules above: it has the same
@@ -159,10 +164,10 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
         .tk-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
         /* Form column: numbered steps on a thin rail instead of boxed cards. */
-        #tkFormCol { counter-reset: tkstep; }
-        #tkFormCol > .tk-card { background: none; border: 0; border-radius: 0; padding: 0 0 26px 40px; position: relative; counter-increment: tkstep; }
-        #tkFormCol > .tk-card::before { content: counter(tkstep); position: absolute; left: 0; top: -3px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background: var(--bg); }
-        #tkFormCol > .tk-card::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 6px; width: 1.5px; background: var(--border); }
+        #tkFormCol, #igFormCol { counter-reset: tkstep; }
+        #tkFormCol > .tk-card, #igFormCol > .tk-card { background: none; border: 0; border-radius: 0; padding: 0 0 26px 40px; position: relative; counter-increment: tkstep; }
+        #tkFormCol > .tk-card::before, #igFormCol > .tk-card::before { content: counter(tkstep); position: absolute; left: 0; top: -3px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background: var(--bg); }
+        #tkFormCol > .tk-card::after, #igFormCol > .tk-card::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 6px; width: 1.5px; background: var(--border); }
         #tkFormCol > .tk-opts-card::after { display: none; }
         .tk-step-note { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
         .tk-radio-row.tk-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--field-bg); border-radius: 12px; padding: 4px; }
@@ -605,6 +610,41 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
         return Number.isFinite(at) && Date.now() - at > TK_OVERDUE_MS;
     }
 
+    function _tkPlatformSub(platform) {
+        return platform === 'instagram'
+            ? 'Post a video to a client\'s Instagram — uploads through Post For Me.'
+            : 'Schedule a TikTok post for a client — uploads through Post For Me.';
+    }
+    function _tkLoadPlatform() {
+        try { return localStorage.getItem(TK_PLATFORM_KEY) === 'instagram' ? 'instagram' : 'tiktok'; } catch { return 'tiktok'; }
+    }
+    // Shows one side of the tab and hides the other. Nothing is torn down on the TikTok side: its form, draft and
+    // queue stay exactly as they were, so switching back loses nothing.
+    function _tkApplyPlatform(platform, persist) {
+        tkState.platform = platform === 'instagram' ? 'instagram' : 'tiktok';
+        if (persist) { try { localStorage.setItem(TK_PLATFORM_KEY, tkState.platform); } catch {} }
+        const ig = tkState.platform === 'instagram';
+        const $ = (id) => document.getElementById(id);
+        if ($('tkFormCol')) $('tkFormCol').hidden = ig;
+        if ($('tkRightCol')) $('tkRightCol').hidden = ig;
+        if ($('tkPlatTiktok')) { $('tkPlatTiktok').classList.toggle('on', !ig); $('tkPlatTiktok').setAttribute('aria-selected', String(!ig)); }
+        if ($('tkPlatInstagram')) { $('tkPlatInstagram').classList.toggle('on', ig); $('tkPlatInstagram').setAttribute('aria-selected', String(ig)); }
+        if ($('tkPlatformSub')) $('tkPlatformSub').textContent = _tkPlatformSub(tkState.platform);
+        if (ig) {
+            _tkStopPolling();
+            mountInstagramPanel({
+                maxBytes: TIKTOK_MAX_BYTES, formatBytes: _tkFormatBytes, timezones: TK_TIMEZONES, wallClockToUTC: _tkWallClockToUTC,
+            });
+        } else {
+            teardownInstagramPanel();
+            if (_tkMounted) Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        }
+    }
+    function _tkSetPlatform(platform) {
+        if ((platform === 'instagram' ? 'instagram' : 'tiktok') === tkState.platform) return;
+        _tkApplyPlatform(platform, true);
+    }
+
     function renderTiktokUploadView() {
         _tkInjectCSSOnce();
         return `
@@ -612,14 +652,19 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
                 <div class="tk-header">
                     <div>
                         <div class="tk-title">TikTok Upload</div>
-                        <div class="tk-sub">Schedule a TikTok post for a client — uploads through Post For Me.</div>
+                        <div class="tk-sub" id="tkPlatformSub">${_tkPlatformSub(tkState.platform)}</div>
+                    </div>
+                    <div class="tk-q-tabs tk-platform-switch" role="tablist" aria-label="Platform">
+                        <button type="button" class="tk-q-tab${tkState.platform === 'tiktok' ? ' on' : ''}" id="tkPlatTiktok" role="tab" aria-selected="${tkState.platform === 'tiktok'}" onclick="_tkSetPlatform('tiktok')">TikTok</button>
+                        <button type="button" class="tk-q-tab${tkState.platform === 'instagram' ? ' on' : ''}" id="tkPlatInstagram" role="tab" aria-selected="${tkState.platform === 'instagram'}" onclick="_tkSetPlatform('instagram')">Instagram</button>
                     </div>
                 </div>
-                <div class="tk-col tk-form-col" id="tkFormCol"></div>
-                <div class="tk-col tk-right-col">
+                <div class="tk-col tk-form-col" id="tkFormCol"${tkState.platform === 'instagram' ? ' hidden' : ''}></div>
+                <div class="tk-col tk-right-col" id="tkRightCol"${tkState.platform === 'instagram' ? ' hidden' : ''}>
                     <div class="tk-preview-wrap" id="tkPreviewWrap"></div>
                     <div id="tkQueueCol"></div>
                 </div>
+                ${renderInstagramPanel()}
             </div>
         `;
     }
@@ -1987,6 +2032,7 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
     function _tkTeardown() {
         _tkMounted = false;
         _tkStopPolling();
+        teardownInstagramPanel();
         if (tkState.objectUrl) { URL.revokeObjectURL(tkState.objectUrl); tkState.objectUrl = null; }
         // Keep tkState.file around so navigating away and back doesn't lose the
         // user's selection — but the object URL needs to be recreated.
@@ -2023,16 +2069,24 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
         _tkRenderPreview();
         _tkRenderQueue();
         _tkMounted = true;
-        // Fetch once on mount, then let the adaptive scheduler decide whether
-        // (and how often) to keep polling based on what's in the queue.
-        Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        tkState.platform = _tkLoadPlatform();
+        if (tkState.platform === 'instagram') {
+            // The Instagram side has its own queue and its own polling; TikTok's stays quiet until the switch is flipped back.
+            _tkApplyPlatform('instagram', false);
+        } else {
+            // Fetch once on mount, then let the adaptive scheduler decide whether
+            // (and how often) to keep polling based on what's in the queue.
+            Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        }
         // Pause polling whenever the tab is hidden; resume + refetch on return.
         // Registered once — the listener is a no-op unless the view is mounted.
         if (!_tkVisHooked) {
             _tkVisHooked = true;
             document.addEventListener('visibilitychange', () => {
                 if (!_tkMounted) return;
-                if (document.visibilityState === 'visible') {
+                if (tkState.platform === 'instagram') {
+                    if (document.visibilityState === 'visible') instagramResumePolling();
+                } else if (document.visibilityState === 'visible') {
                     tkState.unchangedPolls = 0;
                     Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
                 } else {
@@ -2053,6 +2107,7 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
     window._tkDismissRow = _tkDismissRow;
     window._tkSetQueueTab = _tkSetQueueTab;
     window._tkQueueShowMore = _tkQueueShowMore;
+    window._tkSetPlatform = _tkSetPlatform;
     // What the rest of the page may use, through 040's svAreaApi / svArea:
     // this area can arrive after the page has started (on-demand loading).
     svAreaRegister('tiktok', {
@@ -2066,5 +2121,5 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _tkCancelRow, _tkCancelUpload, _tkClearFile, _tkDismissRow, _tkMovePhoto, _tkQueueShowMore,
-        _tkRemovePhoto, _tkReplaceFile, _tkRetryRow, _tkSetQueueTab
+        _tkRemovePhoto, _tkReplaceFile, _tkRetryRow, _tkSetPlatform, _tkSetQueueTab
     });

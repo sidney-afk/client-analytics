@@ -306,6 +306,20 @@
       "status": "read",
       "note": "Reads a repair receipt."
     },
+    "299-instagram-upload.js.part|idempotencyKey|mint.json.upload_url|PUT": {
+      "status": "reports",
+      "within": [
+        "_igSubmit"
+      ],
+      "note": "Instagram video upload to Post For Me storage. Recorded as instagram_storage_put."
+    },
+    "299-instagram-upload.js.part|send|IG_FUNCTION_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_igCall"
+      ],
+      "note": "Instagram upload function (mint, create, list, cancel). Create and cancel are recorded as instagram_create and instagram_cancel; list and mint are reads of state."
+    },
     "300-tiktok-upload.js.part|_tkCancelRow|TIKTOK_UPLOAD_CANCEL_URL|POST": {
       "status": "reports",
       "within": [

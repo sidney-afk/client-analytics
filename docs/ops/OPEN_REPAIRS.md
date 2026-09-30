@@ -30028,3 +30028,12 @@ dispatched the one-function deploy for `caption-jobs` at main `72d8f80d6ba471f1f
 staff key answers 401. Recorded in `EXECUTION_LOG.md`.
 **Left:** step B2, the Generate Caption workflow edit. Its staff key login ("SyncView Client Credentials Staff Key") is a
 candidate until a real call answers 200 with it.
+
+## 300. [2026-09-30] Instagram upload on the TikTok Upload tab, through Post For Me (built, not switched on)
+
+**What.** The TikTok Upload tab has a TikTok / Instagram switch (the tab keeps its name). The Instagram side uploads a video to Post For Me's storage, then a new Supabase function `instagram-upload` creates the post, keeps the queue in a new table `instagram_uploads`, reports status and cancels a scheduled post. No n8n workflow was changed or used (TikTok still runs on n8n). The client's Instagram connection id lives in a new Clients Info column `postforme_instagram_account_id`, next to the TikTok `postforme_account_id`.
+
+**Safety.** The function needs a staff key, checks with Post For Me that the account really is Instagram, and only lets clients in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` post (default: the test client only).
+
+**Still to do (owner's go).** Apply `migrations/2026-09-30-instagram-uploads.sql`; set the `POST_FOR_ME_API_KEY` secret; deploy `instagram-upload` through `deploy-single-function.yml`; add the sheet column. Runbook and the list of Post For Me details not yet proven for Instagram: `docs/ops/INSTAGRAM_UPLOAD.md`.
+

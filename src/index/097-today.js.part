@@ -51,7 +51,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     // no-hardcoded-colors: allow-start (client avatar dots, same hues as the design mockups)
     const TDY_PALETTE = ['#7c5cff', '#e1306c', '#0e9f8e', '#2f7de1', '#d98a12', '#5b6b82', '#c2410c', '#16a34a', '#9333ea', '#0891b2'];
     // no-hardcoded-colors: allow-end
-    const tdyState = { gen: 0, data: null, error: '', view: '', walk: 0, skipped: [], who: '', loading: null };
+    const tdyState = { gen: 0, data: null, day: '', error: '', view: '', walk: 0, skipped: [], who: '', loading: null };
     let _tdyClientsInfo = null;   // Promise that settles once Clients Info has loaded (set at boot)
 
     function _tdyIdentity() {
@@ -68,10 +68,30 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyDays(n) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; }
     function _tdyMonday() { const d = _tdyDays(0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+    /* The <head> boot script starts Today's first-page reads while the app
+       script is still downloading (window.__svEarlyToday, keyed by the exact
+       URL). Take one at most once, only inside the first minute and only for
+       the member it was started for. A miss or a failed early read just runs
+       the normal read below, so this only moves when a request is sent. */
+    function _tdyTakeEarly(url, needKey) {
+        let e = null;
+        try { e = window.__svEarlyToday; } catch (x) {}
+        if (!e || !e.reads || !e.reads[url] || !(Date.now() - e.at < 60000)) return null;
+        const id = _syncviewStaffIdentityForHeaders();
+        if (!id || !id.member || String(id.member.id) !== e.memberId || (needKey && String(id.key) !== e.key)) return null;
+        const p = e.reads[url];
+        delete e.reads[url];
+        tdyState.tookEarly = true;   // realtime was not listening yet: catch up once it is (_tdyEnsureLive)
+        return p;
+    }
     async function _tdyRest(table, query) {
         const out = [];
         for (let page = 0; page < 8; page++) {
             let rows = null;
+            if (page === 0) {
+                const early = _tdyTakeEarly(CAL_SUPABASE_URL + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=0', false);
+                if (early) { try { rows = await early; } catch (e) { rows = null; } if (!Array.isArray(rows)) rows = null; }
+            }
             for (let attempt = 0; attempt < 3 && !rows; attempt++) {
                 try {
                     const res = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=' + (page * 1000), {
@@ -102,12 +122,17 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     /* A batch PARENT (the old Linear post issue) sits in the same view as its
        video and thumbnail children. It is not work anybody owes, so every list
        and count here drops it: a row is a parent when another row names it as
-       its parent. Only the rows this page read are checked, in parallel
-       batches, instead of paging through every child in the table. */
+       its parent. Only the rows that can reach the page are checked (callers
+       drop the stale ones first), in a few parallel batches, instead of paging
+       through every child in the table. */
     async function _tdyParentIds(rows) {
         const ids = [...new Set(rows.map(r => r.linear_issue_uuid).filter(Boolean))];
         const reads = [];
-        for (let i = 0; i < ids.length; i += 80) reads.push(_tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=' + _tdyIn(ids.slice(i, i + 80))));
+        // The view rebuilds every row's JSON for each filter, so a check costs
+        // about the same whatever it carries (measured 2026-09-30: 0.8 s for 80
+        // ids, 0.7 s for 400). 300 ids is 11 KB of address, under the 15 KB the
+        // gateway accepts; fewer, fuller checks share the database better.
+        for (let i = 0; i < ids.length; i += 300) reads.push(_tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=' + _tdyIn(ids.slice(i, i + 300))));
         return new Set((await Promise.all(reads)).flat().map(r => r.raw_issue_parent_id));
     }
     let _tdyRosterReading = null;   // one roster read in flight, shared
@@ -120,7 +145,10 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const ident = _syncviewStaffIdentityForHeaders();
         if (!ident || !ident.key) return null;
         try {
-            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+            const early = _tdyTakeEarly(SMM_WEEKLY_REPORTS_URL + '?action=options', true);
+            let resp = null;
+            if (early) { try { resp = await early; } catch (e) { resp = null; } if (resp && !resp.ok) resp = null; }
+            if (!resp) resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
                 headers: { Accept: 'application/json', apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'X-Syncview-Key': ident.key }
             });
             const data = await resp.json().catch(() => null);
@@ -149,12 +177,17 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (!cur.size) throw new Error('clients');
         return cur;
     }
+    let _tdyEmailReading = null;   // { id, p }: the member's own email, read once with the rest
+    function _tdyEmail(me) {
+        if (!_tdyEmailReading || _tdyEmailReading.id !== me.id) {
+            const p = _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id))
+                .then(rows => String(rows[0] && rows[0].email || ''), () => '');
+            _tdyEmailReading = { id: me.id, p };
+        }
+        return _tdyEmailReading.p;
+    }
     async function _tdyRosterEntry(me, managers) {
-        let email = '';
-        try {
-            const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
-            email = String(rows[0] && rows[0].email || '');
-        } catch (e) {}
+        const email = await _tdyEmail(me);
         return svRosterEntryFor(managers, { email, name: me.name });
     }
     /* The current Clients Info clients one SMM owns, by the shared rule in
@@ -197,6 +230,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const clientsP = _tdyClients();
         if (!me.editor) {
             _tdyRoster();   // start the roster read now; _tdyVisibleClients reuses it
+            _tdyEmailReading = null; _tdyEmail(me);   // and the member's email, so the match does not wait for it
             // Start every read now; only the client filter waits on the roster.
             const today = _tdyIso(_tdyDays(0));
             const reads = Promise.all([
@@ -206,7 +240,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                     + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
             ]);
             reads.catch(() => {});
-            const parentsP = reads.then(([o, d]) => _tdyParentIds(o.concat(d)));
+            const parentsP = reads.then(([o, d]) => _tdyParentIds(o.filter(_tdyFresh).concat(d)));
             const [clients, parents] = await Promise.all([clientsP, parentsP]);
             const visible = await _tdyVisibleClients(me, clients);
             const names = {};
@@ -224,7 +258,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(['todo', 'in_progress', 'tweak'])),
             _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(TDY_PAST_EDIT) + '&status_at=gte.' + encodeURIComponent(monday))
         ]);
-        const parents = await _tdyParentIds(open.concat(done));
+        const parents = await _tdyParentIds(open.filter(r => r.status === 'tweak' || _tdyFresh(r)).concat(done));
         const names = {};
         clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
         const test = new Set(clients.filter(c => String(c.kind || '').toLowerCase() === 'test').map(c => c.slug));
@@ -398,25 +432,35 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdyCacheRead(who) {
         try {
             const c = JSON.parse(localStorage.getItem(TDY_CACHE_KEY) || 'null');
-            if (c && c.who === who && c.data && Date.now() - Number(c.at || 0) < TDY_CACHE_TTL_MS) return c.data;
+            // A saved day is only good on the day it was written: yesterday's
+            // list (its "cleared today", its overdue dates) must never stand in
+            // for today's, so anything from an earlier calendar day is dropped.
+            if (c && c.who === who && c.data && c.day === _tdyIso(_tdyDays(0)) && Date.now() - Number(c.at || 0) < TDY_CACHE_TTL_MS) return c.data;
         } catch (e) {}
         return null;
     }
     function _tdyCacheWrite(who, data) {
-        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ who, at: Date.now(), data })); } catch (e) {}
+        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ who, at: Date.now(), day: _tdyIso(_tdyDays(0)), data })); } catch (e) {}
     }
     function _tdyCacheClear() { try { localStorage.removeItem(TDY_CACHE_KEY); } catch (e) {} }
     /* What to paint the moment the tab opens: the last answer for this
        person if there is one, the skeleton otherwise. */
+    /* A tab left open past midnight still holds yesterday's answer in memory;
+       drop it so the page shows the loading shape, not yesterday as today. */
+    function _tdyDropOldDay() {
+        if (tdyState.data && tdyState.day !== _tdyIso(_tdyDays(0))) { tdyState.data = null; tdyState.who = ''; tdyState.day = ''; }
+    }
     function renderTodayView() {
+        _tdyDropOldDay();
         const who = _tdyWho(_tdyIdentity());
         if (who && tdyState.who !== who) {
             const cached = _tdyCacheRead(who);
-            tdyState.data = cached; tdyState.who = cached ? who : '';
+            tdyState.data = cached; tdyState.who = cached ? who : ''; tdyState.day = cached ? _tdyIso(_tdyDays(0)) : '';
         }
         return `<div class="tdy" id="tdyRoot">${who && tdyState.data && tdyState.who === who ? '' : _tdySkeletonHtml()}</div>`;
     }
     function _tdyPaint() {
+        _tdyDropOldDay();
         const root = document.getElementById('tdyRoot');
         if (!root) return;
         const me = _tdyIdentity();
@@ -462,7 +506,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, _tdyOnRealtime)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, _tdyOnRealtime)
                 .subscribe(status => {
-                    if (status === 'SUBSCRIBED') { if (_tdyRtSubscribedOnce) _tdyOnRealtime(); _tdyRtSubscribedOnce = true; }
+                    if (status === 'SUBSCRIBED') {
+                        // A change that landed between an early read and this
+                        // subscription is never replayed, so a load that used an
+                        // early answer reads once more, quietly.
+                        if (_tdyRtSubscribedOnce || tdyState.tookEarly) _tdyOnRealtime();
+                        tdyState.tookEarly = false;
+                        _tdyRtSubscribedOnce = true;
+                    }
                 });
         } catch (e) { _tdyChannel = null; }
     }
@@ -483,18 +534,23 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     async function mountTodayView() {
         if (!tdyState.listening) { tdyState.listening = true; document.addEventListener('visibilitychange', _tdyOnVisible); }
         const gen = ++tdyState.gen;
+        _tdyDropOldDay();
         try { tdyState.view = localStorage.getItem(TDY_VIEW_KEY) || ''; } catch (e) {}
         const me = _tdyIdentity();
         const who = _tdyWho(me);
         if (!me) { tdyState.data = null; tdyState.who = ''; tdyState.error = ''; _tdyPaint(); return; }
-        if (who !== tdyState.who) { tdyState.data = _tdyCacheRead(who); tdyState.who = tdyState.data ? who : ''; tdyState.error = ''; }
+        if (who !== tdyState.who) { tdyState.data = _tdyCacheRead(who); tdyState.who = tdyState.data ? who : ''; tdyState.day = tdyState.data ? _tdyIso(_tdyDays(0)) : ''; tdyState.error = ''; }
         // Paint what we have now (the cached day, or the skeleton), then read.
         _tdyPaint();
         _tdyEnsureLive();
+        const startDay = _tdyIso(_tdyDays(0));
         try {
             const data = await _tdyLoad(me);
             if (gen !== tdyState.gen) return;
-            tdyState.data = data; tdyState.who = who; tdyState.error = '';
+            // Its date filters were built for the day it started; across
+            // midnight the answer is for the wrong day, so read again.
+            if (_tdyIso(_tdyDays(0)) !== startDay) { mountTodayView(); return; }
+            tdyState.data = data; tdyState.who = who; tdyState.day = _tdyIso(_tdyDays(0)); tdyState.error = '';
             _tdyCacheWrite(who, data);
         } catch (e) {
             if (gen !== tdyState.gen) return;

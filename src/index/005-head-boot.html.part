@@ -265,6 +265,71 @@
                     window.__wlEarlyIssues.catch(function () {});
                 }
             }
+            if (target === 'today' && window.fetch) {
+                // Start Today's first-page reads NOW, while the app script is
+                // still downloading, instead of after it has run and the staff
+                // check has answered (2026-09-30 measurement: on a phone that
+                // wait was most of the time before fresh items appeared). These
+                // are the same public reads the tab makes; the browser key is
+                // read-only. The tab takes each answer once, by exact URL, only
+                // for this same member and inside the first minute (see
+                // _tdyTakeEarly in the app script); a URL that drifts just
+                // misses and the tab reads for itself, so this can only make
+                // Today faster, never different. Nothing is shown until the
+                // staff check passes, exactly as before. The reads themselves
+                // wait for that same staff check (the early key-verify above):
+                // a rejected or unreachable check loads no staff data at all
+                // (qa/boot/staff-entry-gate.js holds that line).
+                try {
+                    var tdId = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+                    if (tdId && tdId.key && tdId.member && tdId.member.id) {
+                        var tdBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+                        var tdKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
+                        var tdIso = function (d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+                        var tdDay = function (n) { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; };
+                        var tdMon = tdDay(0); tdMon.setDate(tdMon.getDate() - ((tdMon.getDay() + 6) % 7));
+                        var tdRole = String(tdId.role || tdId.member.role || '').toLowerCase();
+                        var tdTeam = String(tdId.member.team || '').toLowerCase();
+                        var tdEditor = tdRole !== 'admin' && tdRole !== 'smm' && (tdTeam === 'video' || tdTeam === 'graphics');
+                        var tdIn = function (list) { return 'in.(' + list.join(',') + ')'; };
+                        var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+                        var tdKv = window.__svEarlyKeyVerify;
+                        var tdGate = tdKv && tdKv.response ? tdKv.response.then(function (r) {
+                            if (!r.ok) throw new Error('verify');
+                            return r.clone().json();
+                        }).then(function (j) { if (!(j && j.ok === true)) throw new Error('verify'); }) : Promise.reject(new Error('verify'));
+                        tdGate.catch(function () {});
+                        var tdE = window.__svEarlyToday = { memberId: String(tdId.member.id), key: String(tdId.key), at: Date.now(), reads: {} };
+                        var tdRest = function (table, query) {
+                            var url = tdBase + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=0';
+                            var p = tdGate.then(function () { return fetch(url, { headers: { apikey: tdKey, Authorization: 'Bearer ' + tdKey } }); }).then(function (r) {
+                                if (!r.ok) throw new Error('HTTP ' + r.status);
+                                return r.json();
+                            });
+                            p.catch(function () {});
+                            tdE.reads[url] = p;
+                        };
+                        var tdMonday = encodeURIComponent(tdMon.toISOString());
+                        var tdD = 'production_deliverables_browser_v1';
+                        tdRest('clients', 'select=slug,display_name,active,kind');
+                        if (tdEditor) {
+                            var tdMine = 'assignee_id=eq.' + encodeURIComponent(String(tdId.member.id));
+                            tdRest(tdD, tdSel + '&' + tdMine + '&status=' + tdIn(['todo', 'in_progress', 'tweak']));
+                            tdRest(tdD, tdSel + '&' + tdMine + '&status=' + tdIn(['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted']) + '&status_at=gte.' + tdMonday);
+                        } else {
+                            tdRest(tdD, tdSel + '&status=' + tdIn(['todo', 'in_progress', 'tweak', 'smm_approval']));
+                            tdRest(tdD, tdSel + '&status=' + tdIn(['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted']) + '&status_at=gte.' + tdMonday);
+                            tdRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
+                                + '&scheduled_date=gte.' + tdIso(tdDay(0)) + '&scheduled_date=lte.' + tdIso(tdDay(14)) + '&status=not.in.(Archived,Posted)');
+                            tdRest('team_members', 'select=email&id=eq.' + encodeURIComponent(String(tdId.member.id)));
+                            var tdRosterUrl = tdBase + '/functions/v1/smm-weekly-reports?action=options';
+                            var tdRoster = tdGate.then(function () { return fetch(tdRosterUrl, { headers: { Accept: 'application/json', apikey: tdKey, Authorization: 'Bearer ' + tdKey, 'X-Syncview-Key': String(tdId.key) } }); });
+                            tdRoster.catch(function () {});
+                            tdE.reads[tdRosterUrl] = tdRoster;
+                        }
+                    }
+                } catch (e) {}
+            }
         } catch (e) {}
     })();
     </script>

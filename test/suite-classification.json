@@ -495,6 +495,7 @@
     "pto-lifecycle-harness.js",
     "pto-ui-wiring.js",
     "public-b1-artifact.js",
+    "pages-site-allowlist.js",
     "public-intake-open-submission.js",
     "qa-drag-to-front-reorders.js",
     "qa-harness-routes-like-production.js",

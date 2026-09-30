@@ -59,8 +59,8 @@ here with where it stopped, so it can be restarted.
    follow-up fix: #1868 shipped with the link check refusing that key, found by Vigil on the live site). The client
    approve and request-changes tests pass on the parts. Left after this: step 6
    (measure everything again).
-6. **Make this repo private, maintainably (owner wants it, 2026-09-29; this
-   replaces the 2026-09-24 "keep it public for now").** Move scheduled jobs and
+6. **Make this repo private: NOT NOW. Owner decision 2026-09-29 (later the same day): the repo stays public.** Only the site publishing fix from the plan is being done: **BUILT, waiting for Lighthouse to merge and the owner to switch the Pages source** (OPEN_REPAIRS 294, `docs/ops/PAGES_SITE_ALLOWLIST.md`). The live site served the whole repo (docs, scripts, migrations); it will publish the allowlisted files only (about 137). One-setting way back: Pages source to "Deploy from a branch". The rest of this item is the earlier plan, kept for reference: **Make this repo private, maintainably (owner wanted it earlier on 2026-09-29; this
+   replaced the 2026-09-24 "keep it public for now").** Move scheduled jobs and
    automation off GitHub Actions (for example Supabase pg_cron and Edge
    Functions) so going private costs little. Keep hosting on GitHub Pages
    (owner, 2026-09-24: "I want to keep using GitHub"; the owner already pays

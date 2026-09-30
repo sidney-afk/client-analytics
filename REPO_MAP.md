@@ -29,9 +29,10 @@ current in the same commit as any structural change.
 
 ## Runtime asset folders (served by GitHub Pages — do NOT move)
 
-The SPA uses root-relative URLs such as `/nav-icons/` for these assets.
-`thumbnails/` is a separate static app at `/thumbnails/`. Moving a referenced
-asset folder breaks those served paths.
+The SPA uses root-relative URLs such as `/nav-icons/` for these assets. Moving a
+referenced asset folder breaks those served paths. What GitHub Pages publishes is
+the allowlist in `scripts/pages-site.js` (`docs/ops/PAGES_SITE_ALLOWLIST.md`), not
+the whole repository; a new runtime folder must be added to it.
 
 | Path | What it is |
 |---|---|
@@ -40,7 +41,7 @@ asset folder breaks those served paths.
 | `onboarding-video/` | Subtitle-style/sample preview MP4s for the onboarding form. |
 | `nav-icons/` | The owner's header tab icons (2026-08-21). One `<slug>.png` per tab (rendered at 16px in `#headerNav`) plus one `<slug>-favicon.png` per tab (swapped into `link[rel=icon]` by `navTo`, so the browser tab icon follows the section). Slugs are the icon set's own names, mapped to routes in `SYNCVIEW_TAB_FAVICONS`; note `synclinear.*` belongs to the **`production`** route. |
 | `thumbnail-styles/` | Thumbnail font/style preview JPGs for the onboarding form. |
-| `thumbnails/` | **SyncThumbnails** — a self-contained sister app (own README/CLAUDE.md, no build step). Nothing in SyncView references it; it is served at `/thumbnails/`. |
+| `thumbnails/` | **SyncThumbnails** — a self-contained sister app (own README/CLAUDE.md, no build step). Nothing in SyncView references it, so it is NOT in the published site (`scripts/pages-site.js`); add it to `PUBLISHED_DIRS` to serve it at `/thumbnails/` again. |
 
 ## Backend & data
 
@@ -97,6 +98,7 @@ asset folder breaks those served paths.
 | `npm test` | `test/run-all.js` runs the unit entries in `test/suite-classification.json`; required isolated profiles are reported `NOT_RUN_BY_UNIT_LANE` | `calendar-unit-tests.yml` runs the unit lane on main pushes and PRs. It never targets a live backend; F63 may use the explicitly required disposable PostgreSQL 16 service. Run before every commit. |
 | `npm run build:index` | `scripts/build-index.js` — assembles `index.html` from `src/index/` fragments per `src/index/manifest.txt` and regenerates `src/index/INDEX.md` | Run after editing any `src/index/` fragment; never edit `index.html` by hand. |
 | `npm run check:index` | `scripts/check-index.js` — assembles in memory and proves it equals both the working-tree and committed `index.html`, printing SHA-256/byte length of each | Runs in the `unit` job of `calendar-unit-tests.yml` before `test/run-all.js`, on every push and PR. |
+| `node scripts/pages-site.js build` / `check` / `probe` | Builds the folder GitHub Pages publishes from an allowlist (a git-ignored folder), checks it, or probes a live site for which app and source addresses answer | `.github/workflows/pages-site.yml` builds and checks it on every pull request that touches a published file and deploys only from `main`, once the Pages source is "GitHub Actions". `test/pages-site-allowlist.js` (unit lane) and `docs/syncview-design/tests/pages-site-browser.js` (real browser, run by that workflow; `--compare` also runs today's whole-repo serving) are its gates. Runbook and the one-setting way back: `docs/ops/PAGES_SITE_ALLOWLIST.md`. |
 | `node scripts/check-modules.js` | Phase C step C3 readiness check over the `src/index/` script fragments, plus the module rules for every fragment listed in `src/index/modules.txt` (imports everything it uses from other fragments, nothing unused, never reassigns an import, exports exactly what other fragments use). Readiness checks: each parses on its own, the assembled script parses as an ES module, no new duplicate top-level name (known ones listed in the script, list only shrinks), no load-time use of a name a later fragment declares. `--against=<ref>` proves the built page is byte-identical to that ref's `index.html`; `--report` counts handler-called functions not on `window` and `typeof` guards | Needs `acorn` (and `eslint-scope` once any module is listed), neither declared (package.json is content-pinned): the `module-check` job in `calendar-unit-tests.yml` installs it into a temp prefix; the `--against` step runs on PRs labelled `annotate-only`. Plan: the phase C step C3 plan in `docs/plans/` (2026-09-24). |
 | `node docs/syncview-design/tests/entry-links-boot-browser.js` | Real-browser boot check of the signed-out special entry links (`?intake=1`, `?onboarding=1`, `?onboarding=ai`, `#smm-weekly-report`): each must draw its own screen within 20 s with no mount error. Fully offline (every backend call answered empty), no key, no client data. Added after `?intake=1` hung on 2026-09-24 when boot read a later fragment's `let` before it initialised | Playwright is pinned in `package.json`; the `entry-links-boot` job in `calendar-unit-tests.yml` installs an independent pinned copy and Chromium in a temp prefix. It runs on main pushes and PRs. |
 | `node docs/syncview-design/tests/templates-social-links-browser.js` | Offline real-browser check of the Templates client page's social links (made-up clients): the client's Instagram / TikTok / YouTube appear next to the name with the same addresses the Calendar builds (`_calSocialLinksFor`), open in a new tab, a platform with no handle is left out, and client info that arrives late fills them in place. CI: `entry-links-boot` job. |

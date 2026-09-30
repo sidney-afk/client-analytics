@@ -29895,3 +29895,28 @@ every other Calendar write; they now use the guarded step. `Sample Review - Upse
 (n8n) can be deactivated 30 days after this ships. The urgent ping now asks the save guard BEFORE the Slack
 message goes out (`preflight`), so a paused or held save cannot leave a delivered ping without its marker
 and allow a duplicate; the marker writes sit inside the failed-saves tracker.
+
+## 293. [2026-09-29] The two dormant censuses are retired
+
+**Owner decision, 2026-09-29.** `syncview-retirement-census.yml` and `outbox-debt-census.yml` were dormant:
+each only wrote its heartbeat (their business step is off unless a repository variable is set, and neither
+variable was ever set). They cost about 320 billed Actions minutes a month for nothing, and their subject, the
+Linear mirror outbox and the retirement boundary, goes with Linear.
+
+**What changed.** Both dead-man lanes (`outbox_debt_census`, `syncview_retirement_census`) are now `retired`
+in `scripts/monitoring-watchdog.js` with the date and reason `dormant-census-retired-by-owner`, so each
+`--check` names them as deliberately not watched. Both host workflows are deleted, and the two entries are
+removed from `lane-ticker.yml`, so nothing dispatches or heartbeats them. The F27 reconciler closure pin
+for `scripts/monitoring-watchdog.js` moved with it (one blob, membership unchanged). `test/outbox-debt-census.js`
+now asserts the retirement (workflows gone, lanes retired with a reason, not watched, not in the ticker);
+its script-logic checks are unchanged.
+
+**What did not change.** The census scripts, the SQL (`production_syncview_retirement_census()`), and their
+tests stay as a frozen reference. **The heartbeat rows already in `deliverable_events` are kept** (69 for
+`outbox_debt_census`, 72 for `syncview_retirement_census`, counted read-only 2026-09-29): the table is an
+event log behind the application DML admission guard, every earlier retired lane kept its rows (for example
+`b1_incremental_refresh`, 2,992), and nothing reads them once the lane is retired. Deleting them is a
+production write and is left for the owner's separate go if wanted.
+
+**Way back.** Restore the two workflow files from git, set each lane's `retired` back to `null`, re-pin the
+watchdog blob in `scripts/f27-reconciler-closure.js`, and re-add the two `lane-ticker.yml` entries.

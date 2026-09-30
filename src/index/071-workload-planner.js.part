@@ -5,6 +5,21 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     function wlPlanDate(sub) {
         return String(wlState.planByIssueId.get(String(sub && sub.id || '')) || '').slice(0, 10);
     }
+    /* CARRIED OVER (owner request 2026-09-30). A saved plan day is never edited
+       or deleted by the view, but a saved day that is already in the past must
+       not park unfinished work on a day nobody looks at any more (a past week
+       is not on screen at all, so the card simply vanished). Only ACTIVE work
+       reaches this code -- finished statuses are parked upstream -- so the rule
+       is: an unfinished item pinned before today is SHOWN on the first working
+       day from today, marked "Carried over", while workload_plan.plan_date is
+       left exactly as saved. Returns '' when the pin is today or later. */
+    function wlCarriedDate(sub, todayISO) {
+        const manual = wlPlanDate(sub);
+        if (!manual) return '';
+        const today = String(todayISO || wlWorkloadTodayISO()).slice(0, 10);
+        if (manual >= today) return '';
+        return wlIsWorkingDay(today) ? today : wlAddWorkingDays(today, 1);
+    }
     function wlAutoPlanDate(sub, todayISO) {
         const dueDate = String(sub && sub.dueDate || '').slice(0, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return '';
@@ -27,7 +42,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         return placed >= wlWorkloadTodayISO() ? placed : '';
     }
     function wlPlacementMode(sub) {
-        if (wlPlanDate(sub)) return 'manual';
+        if (wlPlanDate(sub)) return wlCarriedDate(sub) ? 'carried' : 'manual';
         if (!String(sub && sub.dueDate || '').slice(0, 10)) return 'none';
         // Only call a derived day "automatic" after the role-gated sidecar
         // answered authoritatively. While plans are still loading (fast first
@@ -52,7 +67,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     }
     function wlDisplayDate(sub) {
         const manual = wlPlanDate(sub);
-        if (manual) return manual;
+        if (manual) return wlCarriedDate(sub) || manual;
         const dueDate = String(sub && sub.dueDate || '').slice(0, 10);
         if (!dueDate) return '';
         // During the fast first paint (planLoading) place at the same
@@ -178,7 +193,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const automatic = [];
         for (const sub of plannedSubs || []) {
             const manual = wlPlanDate(sub);
-            if (manual) { reserve(sub, manual); continue; }
+            if (manual) { reserve(sub, wlCarriedDate(sub, today) || manual); continue; }
             const ideal = wlAutoPlanDate(sub, today);
             if (!ideal) continue;
             automatic.push({ sub, ideal });
@@ -382,7 +397,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         placedBySlot = new Map();
         for (const sub of plannedSubs || []) {
             const manual = wlPlanDate(sub);
-            if (manual) reserve(sub, manual);
+            if (manual) reserve(sub, wlCarriedDate(sub, today) || manual);
         }
         const unanchored = [];
         for (const entry of automatic) {

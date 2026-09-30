@@ -120,7 +120,14 @@
         d.setDate(d.getDate() + diff);
         return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
     }
+    /* The week Workload opens on. On a weekend the week that just ended is no
+       use for planning, and automatic and carried-over cards both land on the
+       coming Monday, so the default view is the coming week. */
+    function wlDefaultWeekStartISO(todayISO) {
+        const day = wlIsWorkingDay(todayISO) ? todayISO : wlAddWorkingDays(todayISO, 1);
+        return wlWeekMondayISO(day);
+    }
 export {
-  wlAddWorkingDays, wlISO, wlIsWeekend, wlIsWorkingDay, wlParseISO, wlSubWorkingDays, wlTodayISO,
-  wlWeekMondayISO, wlWorkloadTodayISO
+  wlAddWorkingDays, wlDefaultWeekStartISO, wlISO, wlIsWeekend, wlIsWorkingDay, wlParseISO, wlSubWorkingDays, wlTodayISO,
+  wlWorkloadTodayISO
 };

@@ -74,6 +74,12 @@ const wlState = {
   planHasSnapshot: true,
 };
 const wlPlanDate = compile('wlPlanDate', { wlState });
+const wlCarriedDate = compile('wlCarriedDate', {
+  wlPlanDate,
+  wlIsWorkingDay,
+  wlAddWorkingDays,
+  wlWorkloadTodayISO: () => '2026-07-15',
+});
 const wlAutoPlanDate = compile('wlAutoPlanDate', {
   wlSubWorkingDays,
   wlWorkloadTodayISO: () => '2026-07-15',
@@ -87,10 +93,11 @@ const wlAutoPlacementDate = compile('wlAutoPlacementDate', {
 const wlDisplayDate = compile('wlDisplayDate', {
   wlState,
   wlPlanDate,
+  wlCarriedDate,
   wlAutoPlanDate,
   wlAutoPlacementDate,
 });
-const wlPlacementMode = compile('wlPlacementMode', { wlState, wlPlanDate, wlAutoPlacementDate });
+const wlPlacementMode = compile('wlPlacementMode', { wlState, wlPlanDate, wlCarriedDate, wlAutoPlacementDate });
 const wlFormatShort = compile('wlFormatShort', { wlParseISO });
 const wlCalendarDayDiff = compile('wlCalendarDayDiff');
 const wlPlacementLabel = compile('wlPlacementLabel');
@@ -166,6 +173,7 @@ const wlComputeAutoPlacements = compile('wlComputeAutoPlacements', {
   // the state that record lives on.
   wlState,
   wlWorkloadTodayISO: () => '2026-07-15',
+  wlCarriedDate,
   wlCapacityKey,
   wlWorkloadWeight,
   wlEditorCapacity,

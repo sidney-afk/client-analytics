@@ -29909,13 +29909,13 @@ repository would still have been readable at the site address.
 
 **Repair:** `scripts/pages-site.js` builds the site folder from an allowlist (`index.html`, `404.html`, one stub
 per top-level address, `CNAME`, three logo/favicon images, and `js/`, `nav-icons/`, `thumbnail-styles/`,
-`onboarding-ai/`, `onboarding-audio/`, `onboarding-video/`: 120 files). `.github/workflows/pages-site.yml`
+`onboarding-ai/`, `onboarding-audio/`, `onboarding-video/`: 120 files when written, 137 after the merge with main). `.github/workflows/pages-site.yml`
 builds and checks it on every pull request (never deploys there) and deploys from `main` only once the
 Pages source is set to "GitHub Actions"; until the owner switches that setting nothing changes and the
 branch build keeps serving. `thumbnails/` (a separate mock-up the app never loads) is no longer served.
 
 **Proof:** `test/pages-site-allowlist.js` (unit lane) serves today's whole repository and the site folder the
-way Pages does and requires the same status and bytes for 50 app addresses and all 120 published files, 404 for
+way Pages does and requires the same status and bytes for 50 app addresses and every published file, 404 for
 17 source addresses, and that every repository path the page and scripts reference is published;
 `docs/syncview-design/tests/pages-site-browser.js --compare` boots 32 addresses (staff pages, deep links, forms,
 weekly report, legacy entry links, client share links) in a real browser from both and shows identical outcomes.

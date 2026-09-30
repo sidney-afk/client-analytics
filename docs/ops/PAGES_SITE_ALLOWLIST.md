@@ -15,7 +15,7 @@ public or private.
 
 ## What is published, and what is not
 
-Published (120 files): `index.html`, `404.html` (the deep-link and onboarding-form
+Published (137 files at the time of writing; the count moves with each build of `js/`): `index.html`, `404.html` (the deep-link and onboarding-form
 router), one stub page per top-level address (the list is the router's own `TOP`
 list, `scripts/build-route-stubs.js`), `CNAME`, the three logo/favicon images, and
 the folders the app loads at run time: `js/` (the split parts), `nav-icons/`,

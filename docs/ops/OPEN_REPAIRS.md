@@ -29950,3 +29950,15 @@ sees the source is no longer Actions and skips the deploy. This restores the who
 emergency exit. Runbook and switch-on steps: `docs/ops/PAGES_SITE_ALLOWLIST.md`.
 
 **Left:** the owner's Pages source switch and a live `node scripts/pages-site.js probe`.
+
+## 295. [2026-09-30] Today showed yesterday's saved list, then took about 3 s to show fresh items
+
+**Found:** the owner saw yesterday's list in the morning, replaced 1 to 2 s later. Measured
+(`docs/audits/2026-09-30-today-first-fresh.md`): the saved copy was good for 24 hours, not for the
+day it was written; reads only started after the app script ran; 11 slow parent checks and a
+trailing email read sat on the critical path.
+**Fixed:** day-stamped saved copy (earlier day means loading shape), reads started from the head
+script, one parent check instead of eleven, email read in parallel. Fresh items on screen, desktop
+3,727 to 1,553 ms cold; phone (modeled) 14,185 to 4,971 ms. Requests 19 to 9.
+**Left:** Today still waits for Clients Info (about 1.1 s); priority 1 in STATE_OF_THINGS removes most of it.
+

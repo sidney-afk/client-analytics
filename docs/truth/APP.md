@@ -922,7 +922,7 @@ that the code contains it (OPEN_REPAIRS 228).
 |---|---|
 | Calendar | `_calClientPossessive` `_calCommentTotal` `_calLinkLabel` `_calOnTextareaInput` `_calOnUrlInput` `_calOpenUrlField` `_calStatusChip` `_calZoomHintHtml` |
 | Linear mirror (internal `production`; `?prod=1`) — **check active prod sprint before touching** | `_prodById` `_prodClientEmoji` `_prodOpenBatch` `_prodSetFocusCard` `_prodSetTeam` |
-| Samples/SXR | `_sxrReorderUrlForClient` `_sxrSetAllSettable` (`_sxrReassertLinearStatus` deleted 2026-09-21) |
+| Samples/SXR | `_sxrSetAllSettable` (`_sxrReassertLinearStatus` deleted 2026-09-21; `_sxrReorderUrlForClient` deleted 2026-09-29, n8n exit PR 4) |
 | Onboarding | `_obAddCreatorRow` `_obToggle` `_obvToggle` |
 | Market-research tab (looks unwired) | `_mrHookBadge` `renderMRTab_landscape` `renderMRTab_topics` |
 | Client credentials | `_ccKnownClientOptions` `_ccOpenBulkImport` |

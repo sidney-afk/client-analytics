@@ -70,6 +70,14 @@ const FIRST = 'sr_focus_first', TARGET = 'sr_focus_created';
     if (u.pathname === '/rest/v1/sample_reviews') { sampleReads += 1; return json(ROWS.map(x => Object.assign({}, x))); }
     if (u.pathname === '/rest/v1/clients') return json([{ slug: SLUG, display_name: CLIENT, kind: 'client', active: true }]);
     if (u.pathname === '/rest/v1/team_members') return json([Object.assign({ active: true }, STAFF_GATE_MEMBER)]);
+    if (u.pathname === '/rest/v1/syncview_runtime_flags') {
+      // n8n exit PR 4: every Sample save reads this flag afresh and holds when it has no
+      // roster, so the mock serves the real shape (the live row lists every active client).
+      const raw = u.searchParams.get('key') || '';
+      const keys = raw.startsWith('in.(') ? raw.slice(4, -1).split(',') : [raw.replace(/^eq\./, '')];
+      return json(keys.filter(k => k === 'sample_review_ef_clients' || k === 'calendar_upsert_ef_clients')
+        .map(k => ({ key: k, value: { clients: [SLUG] } })));
+    }
     if (/\/rest\/v1\//.test(u.pathname)) return json([]);
     if (/\/functions\/v1\/|\/webhook\//.test(u.pathname)) return json({});
     if (/docs\.google\.com/.test(u.host)) return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body: '' });

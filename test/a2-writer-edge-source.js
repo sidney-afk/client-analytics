@@ -45,25 +45,24 @@ ok(/showToast\('Couldn.t save the new order[\s\S]*reverted/.test(INDEX),
 
 ok(/SXR_SAMPLE_REVIEW_FLAG_KEY = 'sample_review_ef_clients'/.test(INDEX), 'samples runtime flag key missing');
 ok(/SXR_UPSERT_N8N_URL/.test(INDEX) && /SXR_UPSERT_EF_URL/.test(INDEX), 'sample upsert n8n/EF URLs missing');
-ok(/SXR_REORDER_N8N_URL/.test(INDEX) && /SXR_REORDER_EF_URL/.test(INDEX), 'sample reorder n8n/EF URLs missing');
+ok(/SXR_REORDER_EF_URL/.test(INDEX) && !/SXR_REORDER_N8N_URL|SXR_REORDER_URL\b|n8n\.cloud\/webhook\/sample-review-reorder/.test(INDEX), 'sample reorder must have only the EF URL (n8n exit PR 4)');
 ok(/_sxrSampleFlagPromise/.test(INDEX), 'samples runtime flag must be cached');
 ok(/postgres_changes'[\s\S]*key=eq\.' \+ SXR_SAMPLE_REVIEW_FLAG_KEY/.test(INDEX), 'samples runtime flag realtime refresh missing');
 ok(!/fetch\(SXR_UPSERT_URL/.test(INDEX), 'frontend must not fetch SXR_UPSERT_URL directly');
 ok(!/fetch\(SXR_REORDER_URL/.test(INDEX), 'frontend must not fetch SXR_REORDER_URL directly');
 ok((INDEX.match(/_sxrUpsertFetch\(/g) || []).length >= 4, 'expected samples upsert router definition plus call sites');
 ok((INDEX.match(/_sxrReorderFetch\(/g) || []).length >= 2, 'expected samples reorder router definition plus call site');
-ok(/if \(!_sxrSampleUseEf\(clientOrSlug\)\) return post\(SXR_REORDER_N8N_URL\)/.test(INDEX)
-  && /return post\(SXR_REORDER_EF_URL\)\.then/.test(INDEX)
+ok(/async function _sxrReorderFetch[\s\S]{0,700}await _sxrAssertSavingOn\(clientOrSlug\);[\s\S]{0,300}SXR_REORDER_EF_URL/.test(INDEX)
   && !/\[Samples\] EF reorder failed; falling back to n8n/.test(INDEX),
-  'sample EF reorder must fail closed without n8n downgrade once the client is flagged');
+  'sample reorder must read the flag afresh and post to the EF only, never n8n (n8n exit PR 4)');
 ok(/const json = await resp\.clone\(\)\.json\(\)\.catch\(\(\) => null\);[\s\S]*json && json\.ok === false/.test(INDEX),
   'sample reorder fallback failure must remain visible to the UI');
-ok(/showNotify\("Couldn't save the new order", 'It was put back/.test(INDEX),
+ok(/showNotify\("Couldn't save the new order", e && e\.calWritePaused \? e\.message : 'It was put back/.test(INDEX),
   'sample reorder EF failure must notify the user after the fail-closed rejection');
 // F141: a reorder whose id set does not fully match live rows must fail closed,
 // exactly as the calendar reorder does. The EF must report the true match count
 // and the browser must reject updated < items.length instead of trusting ok.
-ok(/_sxrSampleUseEf\(slug\) && Number\(\(json && json\.updated\) \|\| 0\) < items\.length/.test(INDEX),
+ok(/if \(Number\(\(json && json\.updated\) \|\| 0\) < items\.length\)/.test(INDEX),
   'sample EF reorder must verify the updated count (F141 silent-loss guard)');
 
 [

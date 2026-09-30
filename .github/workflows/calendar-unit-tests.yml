@@ -260,6 +260,14 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-client-carveout-byte-identical-browser.js
+      - name: Samples write guard (fresh flag read, hold, pause, zero n8n)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/samples-write-guard-browser.js
+      - name: Samples client approve and request-changes requests are byte-identical to main
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/samples-client-carveout-byte-identical-browser.js
 
 
   split-preview:

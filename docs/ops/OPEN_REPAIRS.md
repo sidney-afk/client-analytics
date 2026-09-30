@@ -29951,7 +29951,37 @@ emergency exit. Runbook and switch-on steps: `docs/ops/PAGES_SITE_ALLOWLIST.md`.
 
 **Left:** the owner's Pages source switch and a live `node scripts/pages-site.js probe`.
 
-## 295. [2026-09-30] n8n exit phase 2, step D: the TikTok queue polls less when nothing changes
+## 295. [2026-09-30] Workload: unfinished work pinned to a past day is carried over to today
+
+**Found:** a saved plan day (`workload_plan.plan_date`) was treated as absolute, so a pin on a day that had
+passed kept the card on that past day. The week view starts on this week's Monday, so a card pinned to an
+earlier week was on no visible day at all.
+
+**Measured live (read only, counts only, 2026-09-30):** 90 past-day pins on active, non-terminal sub-issues.
+Of those, only 5 are work the board places on the calendar (assigned, To Do). 13 are Tweak Needed (their own
+strip by design), 4 are unassigned (unassigned strip), 24 are Backlog (kept off the page by the 2026-08-23
+ruling) and 44 wait on an approver (parked by the 2026-08-27 ruling). Finished work (Posted, Approved,
+Scheduled, Canceled) is the rest.
+
+**Fix (display only):** a pin before today is shown on the first working day from today, marked "Carried
+over" (amber arrow icon and tooltip). The saved row is never edited or deleted; a drag or "Use automatic
+plan" starts from the real saved day. Carried cards spend capacity on the day they are shown. Finished work
+is unaffected. Way back: revert the PR; nothing was written to the database.
+
+**Proof:** `test/workload-carried-over.js`.
+
+## 296. [2026-09-30] Today showed yesterday's saved list, then took about 3 s to show fresh items
+
+**Found:** the owner saw yesterday's list in the morning, replaced 1 to 2 s later. Measured
+(`docs/audits/2026-09-30-today-first-fresh.md`): the saved copy was good for 24 hours, not for the
+day it was written; reads only started after the app script ran; 11 slow parent checks and a
+trailing email read sat on the critical path.
+**Fixed:** day-stamped saved copy (earlier day means loading shape), reads started from the head
+script, one parent check instead of eleven, email read in parallel. Fresh items on screen, desktop
+3,727 to 1,709 ms cold; phone (modeled) 14,185 to 5,224 ms. Requests 19 to 9.
+**Left:** Today still waits for Clients Info (about 1.1 s); priority 1 in STATE_OF_THINGS removes most of it.
+
+## 297. [2026-09-30] n8n exit phase 2, step D: the TikTok queue polls less when nothing changes
 
 **What:** the TikTok Upload queue asked n8n for its list every 30 seconds while any upload was in flight, every 2 minutes while
 only future posts waited, and every 5 minutes for an overdue row with no result; each overdue row was also looked up at Post For

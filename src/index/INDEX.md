@@ -8,8 +8,8 @@
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
-| 3 | `005-head-boot.html.part` | 296 | NOT render-blocking, and the reason is measured rather than assumed. |
-| 4 | `010-styles-foundation.css.part` | 3926 | Video and Thumbnail share the same vibrant pink/blue pair the |
+| 3 | `005-head-boot.html.part` | 361 | NOT render-blocking, and the reason is measured rather than assumed. |
+| 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4412 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2055 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
@@ -18,16 +18,16 @@
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
 | 12 | `067-workload-board-source.js.part` | 2580 | The roster saved with a cached board, checked with the same rules the |
-| 13 | `068-core-workload-dates.js.part` | 126 | ONE FORMATTER, NOT ONE PER CALL. |
-| 14 | `069-workload-planning-helpers.js.part` | 380 | MEMOISED PURE HELPERS. |
+| 13 | `068-core-workload-dates.js.part` | 133 | ONE FORMATTER, NOT ONE PER CALL. |
+| 14 | `069-workload-planning-helpers.js.part` | 384 | MEMOISED PURE HELPERS. |
 | 15 | `070-core-client-names.js.part` | 104 | — |
-| 16 | `071-workload-planner.js.part` | 636 | ONE automatic state (owner ruling ). |
+| 16 | `071-workload-planner.js.part` | 651 | CARRIED OVER (owner request ). A saved plan day is never edited |
 | 17 | `080-workload-render.js.part` | 3469 | Smart default: a creative lands on their own work (see |
 | 18 | `090-workload-popovers.js.part` | 1017 | Sub-issue popover |
 | 19 | `092-core-submit-form-navigation.js.part` | 899 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 20 | `095-shared-client.js.part` | 408 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 22 | `097-today.js.part` | 565 | TODAY (owner design , session Compass). |
+| 22 | `097-today.js.part` | 621 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `100-onboarding-staff-controls.js.part` | 2389 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 25 | `110-time-off.js.part` | 1378 | Kasper Time Off calendar |

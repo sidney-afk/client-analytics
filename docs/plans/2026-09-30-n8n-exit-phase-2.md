@@ -1,6 +1,6 @@
 # n8n exit, phase 2: move what is left that we can move
 
-Session: Anvil, 2026-09-30, from main `9500994`. Plan only. Nothing here is built, and no n8n workflow was edited,
+Session: Anvil, 2026-09-30, from main `95009946a5ee71daa44268f026fda5232270a9d5`. Plan only. Nothing here is built, and no n8n workflow was edited,
 published, unpublished or run: every number below is a read of n8n's execution list.
 Counts only, no client names or slugs.
 
@@ -27,7 +27,15 @@ Sample Review Upsert **84**. The 84 is the one number that has not dropped: see 
 Read only, through n8n's execution list (status and time, no payloads). Window: runs that started 2026-09-23 00:00 UTC
 through 2026-09-30 about 14:35 UTC. "Per month" is the 7-day figure times 30 / 7, rounded. Nothing failed anywhere
 except where noted. Runs counted by the API total for the four busiest, row by row for the rest.
-119 workflows exist; 76 are active (Filming Plan Tabs is listed inactive, see the checks below); at least 18 of the active ones had zero runs in the window.
+119 workflows exist; 76 are active and 43 inactive (Filming Plan Tabs is listed inactive, see the checks below); at least 18 of the active ones had zero runs in the window.
+
+**How the set was closed.** The workflow list was read twice in different shapes (sorted by last edit, then sorted by
+creation date, 200 per page, so 119 is below the page size and nothing was cut off). Both returned the same 119 ids, 76 active and
+43 inactive. Every active id was then looked up for runs, so a workflow missing from the list would still have to show up as
+an unknown id in the run list, and none did. Two workflows are hidden from this read access: one inactive (an old backup
+workflow) and one active (`Edge Alert Relay to DM`), so the active census is complete but that one workflow's runs and
+contents are not measured, and a workflow hidden from this access in future would be missed the same way. This supersedes the
+138 / 96 / 42 count in `docs/truth/N8N.md` (updated in this PR).
 
 ## The two Hiring timers: left alone
 
@@ -147,7 +155,7 @@ write functions and accepting only Docs we own. Flag gated, with the same hold o
 with the service account for writes (today's read work already asked for this).
 
 **F. Retire the read fallbacks: Calendar Get, Sample Review Get, Kasper Queue.** Saves about 120 a month, but the real win is that
-the last n8n reads that depend on Google Sheets go. Effort M. Risk low once tested.
+the n8n reads of the Calendar sheets go (Caption Prompts Get and the TikTok list still read sheets and stay). Effort M. Risk low once tested.
 Phase 1 kept these as the recovery path when the Supabase read fails. Build the replacement first: a retry of the Supabase read
 with a short wait, then a saved copy in the browser, then a clear "data is unavailable, try again" message. Add a test that forces
 the Supabase read to fail and proves the page recovers with no n8n request. Only then can the three be switched off.

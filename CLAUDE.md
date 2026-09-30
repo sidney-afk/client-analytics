@@ -151,6 +151,11 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 
 ## Things that will waste a cycle if you forget them
 
+- **Before changing the Higgsfield connector (`supabase/functions/higgsfield-mcp`),
+  read `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md`** and append a row when a bug
+  reaches the team. Above all: make one real cheap call on the live connector
+  after any model or setting change, because CI never talks to the providers.
+
 - **Before telling the owner something is not built or not done, check the
   live system or `git log origin/main`, not a doc line or your own summary.**
   Stale "not built yet" lines have misled sessions several times (the refusal

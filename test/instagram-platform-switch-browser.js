@@ -62,7 +62,7 @@ const SERVER_ROWS = [
           calls.attempts.push(body.idempotencyKey);
           if (calls.failCreate) { calls.failCreate = false; return route.abort('failed'); }
           calls.create.push(body);
-          return ok({ id: body.idempotencyKey, status: 'processing', row: { id: body.idempotencyKey, client: body.clientName, title: body.title, status: 'processing', placement: body.options.placement, created_at: new Date().toISOString(), error: '', instagram_url: '' } });
+          return ok({ id: body.idempotencyKey, status: body.scheduledAtUTC ? 'scheduled' : 'processing', row: { id: body.idempotencyKey, client: body.clientName, title: body.title, status: body.scheduledAtUTC ? 'scheduled' : 'processing', scheduled_for: body.scheduledAtUTC || '', timezone: body.timezone, created_at: new Date().toISOString(), error: '', instagram_url: '' } });
         }
         if (body.action === 'cancel') { calls.cancel.push(body.id); return ok({ row: { ...SERVER_ROWS[0], status: 'cancelled' } }); }
         return route.fulfill({ status: 400, contentType: 'application/json', headers: cors, body: '{"ok":false}' });
@@ -141,7 +141,9 @@ const SERVER_ROWS = [
     assert.equal(c.socialAccountId, ACCOUNT_ID, 'the Instagram id is sent, not the TikTok one'); checks++;
     assert.equal(c.mediaUrl, 'https://data.postforme.dev/fixture.mp4'); checks++;
     assert.equal(c.title, 'Fixture caption'); checks++;
-    assert.equal(c.options.placement, 'reels', 'a Reel by default'); checks++;
+    assert.equal(c.options.placement, undefined, 'no placement is chosen on the form: every post is a Reel'); checks++;
+    assert.equal(await page.locator('input[name="igPlacement"]').count(), 0, 'there is no Feed video choice'); checks++;
+    assert.doesNotMatch(await page.innerText('#igFormCol'), /Feed video/, 'Feed video is not offered'); checks++;
     assert.equal(c.scheduledAtUTC, '', 'posting now sends no time'); checks++;
     assert.ok(/^[A-Za-z0-9_-]{1,80}$/.test(c.idempotencyKey), 'a retry-safe key is sent'); checks++;
     assert.match(await queue.innerText(), /Fixture caption[\s\S]*Posting/, 'the new post shows in the queue right away'); checks++;
@@ -149,6 +151,35 @@ const SERVER_ROWS = [
     // --- no browser-native menus or date popups on the Instagram side
     assert.equal(await page.locator('#igFormCol select, #igFormCol input[type="datetime-local"]').count(), 0, 'the Instagram form uses the SyncView controls, not native ones'); checks++;
     assert.equal(await page.locator('#igFormCol [data-sv-select]').count() >= 1, true, 'the client picker is the shared select'); checks++;
+
+    // --- scheduling: the same on/off switch as TikTok, then SyncView's own date and time controls
+    await page.setInputFiles('#igFile', { name: 'clip2.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not really a video') });
+    await page.fill('#igTitle', 'Scheduled caption');
+    assert.equal(await page.isVisible('#igPostNow + .tk-toggle-track'), true, 'the Post immediately switch is visible'); checks++;
+    assert.match(await page.innerText('#igFormCol'), /Posts as soon as you press Post now/, 'the note explains the switch'); checks++;
+    assert.equal(await page.isHidden('#igScheduleFields'), true, 'no date fields while posting now'); checks++;
+    await page.click('label.tk-toggle:has(#igPostNow)');
+    await page.waitForSelector('#igScheduleFields:not([hidden])');
+    assert.equal(await page.isVisible('#igDateBtn'), true, 'switching it off shows the date control'); checks++;
+    await page.click('#igSubmit');
+    await page.waitForSelector('#igFormCol .tk-error');
+    assert.match(await page.innerText('#igFormCol .tk-error'), /Pick a schedule date and time/, 'pressing it without a date and time says what is missing'); checks++;
+    assert.match(await page.innerText('#igSubmit'), /Schedule post/, 'the button now says Schedule post'); checks++;
+    await page.click('#igDateBtn');
+    await page.waitForSelector('#svDatePickerPopup [data-dp-day]');
+    const pickedDay = await page.evaluate(() => {
+      const t = new Date(); const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+      const days = [...document.querySelectorAll('#svDatePickerPopup [data-dp-day]')].filter(b => !b.disabled && b.getAttribute('data-dp-day') > today);
+      const b = days[days.length - 1]; b.click(); return b.getAttribute('data-dp-day');
+    });
+    await pickSv(page, 'igHour', '3'); await pickSv(page, 'igMin', '30'); await pickSv(page, 'igAmPm', 'PM');
+    await page.click('#igSubmit');
+    await page.waitForFunction(() => /Scheduled\. It will appear/.test(document.querySelector('#igFormCol')?.innerText || ''), null, { timeout: 10000 });
+    const sc = calls.create[calls.create.length - 1];
+    assert.match(sc.scheduledAtUTC, /^\d{4}-\d{2}-\d{2}T(19|20):30:00\.000Z$/, '3:30 PM New York is sent as a UTC time'); checks++;
+    assert.equal(new Date(sc.scheduledAtUTC).toISOString().slice(0, 10), pickedDay, 'on the chosen day'); checks++;
+    assert.equal(sc.timezone, 'America/New_York', 'with its timezone'); checks++;
+    assert.match(await queue.innerText(), /Scheduled caption[\s\S]*Scheduled/, 'the queue shows it as Scheduled'); checks++;
 
     // --- cancel a scheduled row: asks first, then sends
     await page.click('[data-ig-cancel="ig_a"]');

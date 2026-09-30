@@ -45,12 +45,17 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 3. First try **scheduling** 15 minutes ahead (turn off "Post immediately"). The queue shows it as **Scheduled**. Press **Cancel** and check it disappears from Post For Me's own list: that proves cancel works without publishing anything.
 4. Then do it for real: schedule or "Post now". The queue shows **Posting**, then **Posted** with an **Open** link to the reel. If Instagram refuses, the row shows **Failed** with Post For Me's reason.
 
+## Scheduling and post type
+
+- **Scheduling:** the same switch as TikTok's. "Post immediately" is on by default; switch it off to pick a date and time (SyncView's own date and time controls, plus a timezone). The queue shows a scheduled post as Scheduled, with a Cancel button until it goes out.
+- **Post type:** every post is a Reel. There is no Feed video choice: Instagram treats videos as Reels now. The function still tells Post For Me `placement: reels` explicitly, so it never falls back to a default.
+
 ## Cover image (Reel cover)
 
 Below the video there is an optional **Cover image** field, with a **Preview** beside the form showing the cover that will be used.
 
 - **Image:** upload a JPEG or PNG, 9:16 (1080x1920 is ideal), up to 8 MB. Another shape is accepted with a warning, because Instagram crops it.
-- **Calendar thumbnail:** if the client's Calendar (the live one, or this device's saved copy) has cards with thumbnails, they are offered in a picker; choosing one makes its thumbnail the cover. The browser copies the picture into Post For Me storage, so the Calendar link itself does not need to be public. If the browser is not allowed to read that picture, the form says so and asks for an upload.
+- **Calendar card:** if the client's Calendar (the live one, or this device's saved copy) has cards that can still go out, they are offered in a picker, named the way the Calendar names them (for example "Video 15"). Only Approved or Scheduled cards are listed, never Posted ones and never ones with a posting date in the past. Order: cards with a posting date from today onward come first, soonest first; then cards with no posting date, in the order they appear on the Calendar. Picking a card uses its thumbnail as the cover (the browser copies the picture into Post For Me storage, so the Calendar link itself does not need to be public; if the browser is not allowed to read it, the form says so and asks for an upload) and fills the caption box with the card's caption, but only when the caption box is empty.
 - **Frame from video:** pick a moment in the video. At 0 s Instagram uses the first frame.
 - Only one of image or frame is ever sent. Nothing chosen means no cover field is sent at all.
 

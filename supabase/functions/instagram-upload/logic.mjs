@@ -5,7 +5,9 @@
 
 export const ACCOUNT_ID_RE = /^spc_[A-Za-z0-9]{6,80}$/;
 export const MEDIA_URL_RE = /^https:\/\/data\.postforme\.dev\//;
-export const PLACEMENTS = Object.freeze(['reels', 'timeline']);
+// Instagram treats a video post as a Reel, so a Reel is the only placement offered (Post For Me is told it
+// explicitly rather than left to pick a default).
+export const PLACEMENT = 'reels';
 export const MAX_CAPTION_CHARS = 2200;
 export const STATUSES = Object.freeze(['uploading', 'scheduled', 'processing', 'posted', 'failed', 'cancelled']);
 export const TERMINAL = Object.freeze(['posted', 'failed', 'cancelled']);
@@ -77,7 +79,7 @@ export function buildCreate(input, nowMs, actor) {
   let options = body.options;
   if (typeof options === 'string') { try { options = JSON.parse(options); } catch { options = {}; } }
   if (!options || typeof options !== 'object') options = {};
-  const placement = PLACEMENTS.includes(clean(options.placement)) ? clean(options.placement) : 'reels';
+  const placement = PLACEMENT;
   const coverMs = Number(options.cover_timestamp_ms);
   // The cover: an uploaded image (already in Post For Me storage) or a frame of the video, never both.
   // Post For Me documents both fields on a media item and does not say which wins, so only one is ever sent.

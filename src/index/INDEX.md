@@ -58,7 +58,7 @@
 | 50 | `270-samples-model.js.part` | 2963 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 51 | `280-samples-cards-notes.js.part` | 2930 | SURFACE 3: the save engine |
 | 52 | `290-samples-writes-review.js.part` | 1886 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 53 | `299-instagram-upload.js.part` | 679 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
+| 53 | `299-instagram-upload.js.part` | 696 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
 | 54 | `300-tiktok-upload.js.part` | 2126 | TIKTOK UPLOAD MODULE |
 | 55 | `305-core-kasper-shared.js.part` | 618 | SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push |
 | 56 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |

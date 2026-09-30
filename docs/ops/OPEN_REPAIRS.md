@@ -30087,7 +30087,11 @@ first); the finished caption save still goes through the n8n `calendar-upsert-po
 
 **Still unproven until the first real post:** accepted cover image sizes, and whether the browser may read a Calendar thumbnail from its Google Drive link (if not, the form says so and asks for an upload).
 
-## 305. [2026-09-30] n8n exit phase 2, step A: Slack Creative Channel Finalizer gets a direct trigger and a daily check (published), 15 minute timer kept until a real client proves it
+## 305. [2026-09-30] Instagram upload: scheduling was invisible, Feed video removed, Calendar card picker reworked
+
+**Found in first real use.** (1) The schedule switch was built but drawn with the wrong style (the radio-button look), so it did not show as a switch and the form read as "Post now" only; it now uses TikTok's switch and note, and the test actually flips it and schedules a post. (2) "Feed video" is gone: every post is a Reel, sent to Post For Me as `placement: reels`. (3) The Calendar card picker names cards by card name ("Video 15"), lists only Approved or Scheduled cards, leaves out posted and past-dated cards, orders dated cards from today soonest first and then undated cards in Calendar order, and fills an empty caption box from the picked card. No table, function-shape or n8n change. Tests: `test/instagram-platform-switch-browser.js`, `test/instagram-cover-browser.js`, `test/instagram-upload-source.js`.
+
+## 306. [2026-09-30] n8n exit phase 2, step A: Slack Creative Channel Finalizer gets a direct trigger and a daily check (published), 15 minute timer kept until a real client proves it
 
 Status: webhook `slack-creative-finalize` and a once a day safety check are live on the finalizer (version `7afd1d3c`, restore `8f194a42`, see `docs/ops/N8N_EDIT_LOG.md`). The 15 minute timer is deliberately still on (owner: no real channels for a test; the next real client is the proof, then a small follow-up PR removes the timer).
 Measured: 705 timer runs found nothing; the queue holds 3 rows, all `manual`, none pending since 2026-09-03.

@@ -80,13 +80,12 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(r.row.created_by, 'QA Admin', 'the actor is recorded');
 
   // --- create: scheduled, feed video, cover frame
-  r = L.buildCreate({ ...base, scheduledAtUTC: '2026-10-01T15:00:00Z', timezone: 'America/New_York', options: { placement: 'timeline', cover_timestamp_ms: 2500 } }, NOW);
+  r = L.buildCreate({ ...base, scheduledAtUTC: '2026-10-01T15:00:00Z', timezone: 'America/New_York', options: { cover_timestamp_ms: 2500 } }, NOW);
   eq(r.postBody.scheduled_at, '2026-10-01T15:00:00.000Z', 'the UTC instant is sent');
-  eq(r.postBody.account_configurations[0].configuration.placement, 'timeline', 'a feed video keeps its placement');
   eq(r.postBody.media[0].thumbnail_timestamp_ms, 2500, 'the cover frame is sent');
   eq(r.row.status, 'scheduled', 'a scheduled row is scheduled');
-  eq(L.buildCreate({ ...base, options: { placement: 'stories' } }, NOW).postBody.account_configurations[0].configuration.placement, 'reels', 'an unknown placement falls back to a Reel');
-  eq(L.buildCreate({ ...base, options: '{"placement":"timeline"}' }, NOW).postBody.account_configurations[0].configuration.placement, 'timeline', 'options sent as text are read');
+  eq(L.buildCreate({ ...base, options: { placement: 'stories' } }, NOW).postBody.account_configurations[0].configuration.placement, 'reels', 'every post is a Reel, whatever placement is asked for');
+  eq(L.buildCreate({ ...base, options: '{"placement":"timeline"}' }, NOW).postBody.account_configurations[0].configuration.placement, 'reels', 'a feed-video request is turned into a Reel too');
   ok(/^ig_/.test(L.buildCreate({ ...base, idempotencyKey: '' }, NOW).row.id), 'a missing key gets a generated one');
 
   // --- cover: an image or a frame, never both, from Post For Me storage only

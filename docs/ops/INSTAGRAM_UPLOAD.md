@@ -45,14 +45,22 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 3. First try **scheduling** 15 minutes ahead (turn off "Post immediately"). The queue shows it as **Scheduled**. Press **Cancel** and check it disappears from Post For Me's own list: that proves cancel works without publishing anything.
 4. Then do it for real: schedule or "Post now". The queue shows **Posting**, then **Posted** with an **Open** link to the reel. If Instagram refuses, the row shows **Failed** with Post For Me's reason.
 
-## Not confirmed yet (first real post is the proof)
+## Cover image (Reel cover)
 
-Post For Me's API reference could not be read without a key, so these follow the shape TikTok
-already uses and are unproven for Instagram until the first post: the Instagram setting
-`placement` (`reels` or `timeline`), the lookup of a post's result, the account lookup that
-checks the account really is Instagram, and cancelling a scheduled post. All four live in one
-small file (`supabase/functions/instagram-upload/logic.mjs`, plus the calls in `index.ts`), so a
-mismatch is a one-line fix.
+Below the video there is an optional **Cover image** field, with a **Preview** beside the form showing the cover that will be used.
+
+- **Image:** upload a JPEG or PNG, 9:16 (1080x1920 is ideal), up to 8 MB. Another shape is accepted with a warning, because Instagram crops it.
+- **Calendar thumbnail:** if the client's Calendar (the live one, or this device's saved copy) has cards with thumbnails, they are offered in a picker; choosing one makes its thumbnail the cover. The browser copies the picture into Post For Me storage, so the Calendar link itself does not need to be public. If the browser is not allowed to read that picture, the form says so and asks for an upload.
+- **Frame from video:** pick a moment in the video. At 0 s Instagram uses the first frame.
+- Only one of image or frame is ever sent. Nothing chosen means no cover field is sent at all.
+
+How Post For Me takes it (from their own API client, `post-for-me-go`, and their "Customizing Video Thumbnails" guide): on the media item, `thumbnail_url` (a public link to an image; we use Post For Me storage) or `thumbnail_timestamp_ms` (a frame, in milliseconds). Both are documented as supported on Instagram.
+
+## Confirmed and not confirmed
+
+Confirmed from Post For Me's own API client (2026-09-30): the media fields above, the Instagram `placement` values (`reels`, `stories`, `timeline`), `share_to_feed`, and the `account_configurations` shape the function sends.
+
+Still unproven until the first real post (the function is not deployed, and the key lives only on the server, so no live call has been made): which of image or frame Post For Me prefers if both are sent (we never send both), what image sizes it accepts, the result lookup, the account lookup that checks the account really is Instagram, and cancelling a scheduled post. All live in `supabase/functions/instagram-upload/`, so a mismatch is a small fix.
 
 ## Way back
 

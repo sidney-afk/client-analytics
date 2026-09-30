@@ -30080,3 +30080,10 @@ approve and request-changes byte tests, `client-review-requests-unchanged` and `
 n8n table); reverting only one of them puts progress and Cancel out of step again.
 **Left:** the n8n `Caption Jobs Status` and `Update` workflows can be switched off 30 days after this ships (zero runs for 7 days
 first); the finished caption save still goes through the n8n `calendar-upsert-post` webhook (separate later step).
+
+## 304. [2026-09-30] Instagram upload: optional Reel cover (image, Calendar thumbnail, or video frame)
+
+**What.** The Instagram form has a "Cover image" field below the video and a preview beside it. The cover is an uploaded JPEG or PNG, the thumbnail of one of the client's Calendar cards, or a frame of the video. The function sends Post For Me one of `thumbnail_url` (image copied into Post For Me storage) or `thumbnail_timestamp_ms` (frame), never both. Field names confirmed from Post For Me's own API client; which one wins if both were sent is not documented, which is why only one is sent. No table change, no n8n change. Test: `test/instagram-cover-browser.js`.
+
+**Still unproven until the first real post:** accepted cover image sizes, and whether the browser may read a Calendar thumbnail from its Google Drive link (if not, the form says so and asks for an upload).
+

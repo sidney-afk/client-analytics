@@ -310,6 +310,13 @@
       "status": "read",
       "note": "Reads a repair receipt."
     },
+    "299-instagram-upload.js.part|ctrl|cmint.json.upload_url|PUT": {
+      "status": "reports",
+      "within": [
+        "_igSubmit"
+      ],
+      "note": "Instagram cover image upload to Post For Me storage. Recorded as instagram_cover_put."
+    },
     "299-instagram-upload.js.part|ctrl|mint.json.upload_url|PUT": {
       "status": "reports",
       "within": [

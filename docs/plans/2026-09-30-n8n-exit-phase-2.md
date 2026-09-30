@@ -184,9 +184,13 @@ reads its own small data table. Update writes progress into that table.
 the function and it is read back once):* the n8n edit and the page switch behind a server-readable flag. **Owner decision
 2026-09-30 (keys):** use the existing n8n credentials `Claude` (header auth) and `APIFY @HOUSE` (query auth) for the two typed
 keys; if either fails the test run on the test client, stop and tell the owner, never put the typed key back; no key value
-anywhere in the repo, PR or reply. **Open for B2:** the workflow must send a staff role key header (`x-syncview-key`) to the
-function; I need to know which existing n8n credential holds one (candidate: `SyncView Client Credentials Staff Key`),
-because I cannot read a credential's header name or value.
+anywhere in the repo, PR or reply. **Resolved 2026-09-30:** the owner named `SyncView Client Credentials Staff Key` as the login for the new function. Its first
+real test answered 401 because that login holds the `CREDENTIALS_STAFF_KEY` that `client-credentials` accepts (a legacy secret),
+not a role key. Owner decision: `caption-jobs` also accepts `CREDENTIALS_STAFF_KEY` (OPEN_REPAIRS 300). The workflow edit is
+drafted and stays unpublished until a real end to end test passes after that deploy.
+**Later step (recorded, not started):** Generate Caption still saves the finished caption through the old n8n
+`calendar-upsert-post` webhook from a Code step. That call must move to the `calendar-upsert` function (staff key login,
+same hold on failure rule, test on the test client) before the n8n Calendar upsert workflow can be switched off.
 Original plan: a Supabase table `caption_jobs` with two small functions (status read, update write) behind a server-readable flag with
 the same rules as phase 1 (fresh bounded read before each write, hold on failure, no write ever falls back to n8n). The Generate
 Caption workflow (an n8n edit, owner go given) writes progress through the update function instead of its data table; the page

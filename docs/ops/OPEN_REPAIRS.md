@@ -30087,3 +30087,7 @@ first); the finished caption save still goes through the n8n `calendar-upsert-po
 
 **Still unproven until the first real post:** accepted cover image sizes, and whether the browser may read a Calendar thumbnail from its Google Drive link (if not, the form says so and asks for an upload).
 
+## 305. [2026-09-30] Instagram upload: scheduling was invisible, Feed video removed, Calendar card picker reworked
+
+**Found in first real use.** (1) The schedule switch was built but drawn with the wrong style (the radio-button look), so it did not show as a switch and the form read as "Post now" only; it now uses TikTok's switch and note, and the test actually flips it and schedules a post. (2) "Feed video" is gone: every post is a Reel, sent to Post For Me as `placement: reels`. (3) The Calendar card picker names cards by card name ("Video 15"), lists only Approved or Scheduled cards, leaves out posted and past-dated cards, orders dated cards from today soonest first and then undated cards in Calendar order, and fills an empty caption box from the picked card. No table, function-shape or n8n change. Tests: `test/instagram-platform-switch-browser.js`, `test/instagram-cover-browser.js`, `test/instagram-upload-source.js`.
+

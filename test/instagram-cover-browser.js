@@ -124,31 +124,55 @@ async function pickSv(page, id, value) {
     assert.equal(c.options.cover_timestamp_ms, 0, 'no frame time is sent with an image cover'); checks++;
     assert.equal(c.mediaUrl, 'https://data.postforme.dev/m/1', 'the video address is the first one'); checks++;
 
-    // --- the Calendar card thumbnail is offered and can be the cover
+    // --- the Calendar card picker: named like the Calendar names cards, Approved or Scheduled only, soonest first
     await page.evaluate((client) => {
+      const d = (n) => { const t = new Date(); t.setDate(t.getDate() + n); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); };
+      const st = (s) => ({ video_status: s, graphic_status: s, caption_status: s });
+      const img = 'https://images.fixture.test/card.png';
       calState.client = client;
-      calState.posts = [{ id: 'p_card1', scheduled_date: '2026-10-05', title: 'Fixture card', thumbnail_url: 'https://images.fixture.test/card.png', archived: false },
-                        { id: 'p_card2', scheduled_date: '2026-10-06', title: 'No thumbnail here', thumbnail_url: '' }];
+      calState.posts = [
+        { id: 'p_15', name: 'Video 15', scheduled_date: d(3), order_index: 1, caption: 'Caption for 15', thumbnail_url: img, ...st('Approved') },
+        { id: 'p_12', name: 'Video 12', scheduled_date: d(1), order_index: 9, caption: 'Caption for 12', thumbnail_url: img, ...st('Scheduled') },
+        { id: 'p_9', name: 'Video 9', scheduled_date: d(-1), order_index: 3, caption: 'Past card', thumbnail_url: img, ...st('Approved') },
+        { id: 'p_7', name: 'Video 7', scheduled_date: d(2), order_index: 4, caption: 'Posted card', thumbnail_url: img, ...st('Posted') },
+        { id: 'p_20', name: 'Video 20', scheduled_date: d(4), order_index: 5, caption: 'Still in progress', thumbnail_url: img, ...st('In Progress') },
+        { id: 'p_31', name: 'Video 31', scheduled_date: '', order_index: 5, caption: 'Undated caption 31', thumbnail_url: img, ...st('Approved') },
+        { id: 'p_30', name: 'Video 30', scheduled_date: '', order_index: 2, caption: 'Undated caption 30', thumbnail_url: '', ...st('Scheduled') },
+      ];
     }, TEST_CLIENT);
     await attachVideo();
-    await page.fill('#igTitle', 'Calendar cover caption');
     await pickSv(page, 'igClient', TEST_CLIENT);   // redraws the form, which now sees the Calendar
     await page.waitForSelector('#igCardBtn', { timeout: 5000 });
     const offered = await page.$$eval('#igCardMenu [data-sv-select-option]', os => os.map(o => o.textContent.trim()));
-    assert.ok(offered.some(t => /Fixture card/.test(t)), 'a Calendar card with a thumbnail is offered'); checks++;
-    assert.ok(!offered.some(t => /No thumbnail here/.test(t)), 'a card with no thumbnail is not offered'); checks++;
-    await pickSv(page, 'igCard', 'p_card1');
+    assert.deepEqual(offered, ['No Calendar card', 'Video 12', 'Video 15', 'Video 30', 'Video 31'],
+      'cards are named by card name; only Approved or Scheduled; dated from today soonest first, then undated in Calendar order; no posted, past or in-progress cards'); checks++;
+    assert.equal(await page.inputValue('#igTitle'), '', 'the caption box starts empty'); checks++;
+    await pickSv(page, 'igCard', 'p_15');
     await page.waitForSelector('#igPreviewImg', { timeout: 5000 });
+    assert.equal(await page.inputValue('#igTitle'), 'Caption for 15', 'picking a card fills an empty caption'); checks++;
     assert.match(await page.innerText('#igPreviewCard'), /Calendar thumbnail/, 'the preview says the cover came from the Calendar'); checks++;
+    await pickSv(page, 'igCard', 'p_12');
+    await page.waitForFunction(() => /Calendar thumbnail/.test(document.querySelector('#igPreviewCard')?.innerText || ''));
+    assert.equal(await page.inputValue('#igTitle'), 'Caption for 15', 'a caption already there is never overwritten'); checks++;
+    await pickSv(page, 'igCard', 'p_30');
+    await page.waitForSelector('#igCoverNote');
+    assert.match(await page.innerText('#igCoverNote'), /no thumbnail yet/, 'a card without a thumbnail says so'); checks++;
+    await pickSv(page, 'igCard', 'p_15');
+    await page.waitForFunction(() => document.querySelector('#igPreviewImg'));
     await submitAndWait();
     c = calls.creates[1];
     assert.match(c.coverUrl, /^https:\/\/data\.postforme\.dev\/m\/\d+$/, 'the Calendar image was copied into Post For Me storage and sent as coverUrl'); checks++;
+    assert.equal(c.title, 'Caption for 15', 'the card caption is what was posted'); checks++;
     assert.equal(calls.puts[calls.puts.length - 1].size, CAL_PNG.length, 'the Calendar thumbnail itself was uploaded'); checks++;
+
+    // --- an empty caption is filled from a card with an empty caption box, even with no thumbnail
+    await attachVideo();
+    await pickSv(page, 'igCard', 'p_30');
+    assert.equal(await page.inputValue('#igTitle'), 'Undated caption 30', 'a card with no thumbnail still fills the empty caption'); checks++;
+    await page.fill('#igTitle', 'Frame cover caption');
 
     // --- the fallback: a frame of the video (sent as a time, with no image)
     const mintsBefore = calls.mints;
-    await attachVideo();
-    await page.fill('#igTitle', 'Frame cover caption');
     await page.evaluate(() => {
       igState.cover.duration = 10;
       window._igCaptureFrame = async () => 'data:image/png;base64,' + 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';

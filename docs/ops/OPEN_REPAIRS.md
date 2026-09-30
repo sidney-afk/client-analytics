@@ -29981,6 +29981,24 @@ script, one parent check instead of eleven, email read in parallel. Fresh items 
 3,727 to 1,709 ms cold; phone (modeled) 14,185 to 5,224 ms. Requests 19 to 9.
 **Left:** Today still waits for Clients Info (about 1.1 s); priority 1 in STATE_OF_THINGS removes most of it.
 
+## 297. [2026-09-30] n8n exit phase 2, step D: the TikTok queue polls less when nothing changes
+
+**What:** the TikTok Upload queue asked n8n for its list every 30 seconds while any upload was in flight, every 2 minutes while
+only future posts waited, and every 5 minutes for an overdue row with no result; each overdue row was also looked up at Post For
+Me every 10 minutes for ever. That was about 400 list runs and 128 status runs a week (measured 2026-09-23 to 09-30, see
+`docs/plans/2026-09-30-n8n-exit-phase-2.md`). Now each pace stretches after reads that changed nothing (in flight: 30 s for
+about 3 minutes, then 60 s, then 120 s; scheduled: 2, 5, then 10 minutes; overdue: 5, 10, then 15 minutes), and goes back to the
+base pace on any change, a submit, a remount or returning to the tab. A row that keeps coming back without a result is asked
+about at 0, 10, 20, then every 30 minutes, then hourly (only answers from Post For Me count; a failed request is retried at the 10 minute gap), instead of every 10 minutes.
+
+**Proof:** `test/tiktok-poll-backoff-browser.js` (fake clock, offline, run in CI by `entry-links-boot`) fails on the old code
+(20 reads in 10 quiet minutes) and passes now (7 or fewer). The four existing TikTok browser suites and the carousel journey still pass; one of them (`tiktok-overdue-status-browser.js`) waited 11 minutes for a second lookup and now waits 16, because the poll is slower by design.
+
+**Not changed:** the uploads, result callback and cancel stay on n8n; the list still reads the sheet. No n8n workflow was edited.
+**Way back:** revert this commit. **Left:** measure the two workflows again 7 days after it ships.
+
+**Update, same day:** the CI job `entry-links-boot` hit its 10 minute limit and was cancelled (not failed) once this step's new test was added to the many browser suites it already runs; its time limit is now 15 minutes (`.github/workflows/calendar-unit-tests.yml`).
+
 
 ## 298. [2026-09-30] n8n exit phase 2, step B1: caption job progress gets a function and a table (backend only, nothing switched)
 

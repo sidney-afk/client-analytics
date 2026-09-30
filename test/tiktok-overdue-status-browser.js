@@ -72,7 +72,8 @@ const PFM = {
 
     // Still unresolved: the page asks again later instead of going quiet.
     const before = looked.length;
-    await page.clock.runFor(11 * 60000);
+    // (The poll stretches after quiet reads, so allow for the slower pace: 16 minutes.)
+    await page.clock.runFor(16 * 60000);
     await page.waitForTimeout(500);
     assert.ok(looked.filter(id => id === 'late-silent').length >= 2, 'keeps checking the unresolved row'); checks++;
     assert.equal(looked.filter(id => id === 'late-posted').length, 1, 'a settled row is not asked again'); checks++;

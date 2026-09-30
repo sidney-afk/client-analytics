@@ -102,7 +102,7 @@ Ask: "Do you have the titles, or should I write them?"
 
 ## 4. Canva
 
-1. \`search-designs\` for the client's editable thumbnail design (names look like \`XX-IG-Thumbnail-Editable\` or "<Client> - Thumbnails"); sort by newest and confirm the design with her if more than one matches.
+1. \`search-designs\` for the client's editable thumbnail design. The team names these with the client's initials, in several orders: \`XX_Editable_IG_Thumbnail\`, \`XX_Editable_IG_ReelThumbnail\`, \`XX-IG-Thumbnail-Editable\`, or "<Client> - Thumbnails" (first-name initial + last-name initial, e.g. "Jane Doe" is JD). Search "Editable" and "Thumbnail" as well as the client's name, match the initials, and prefer the one with the most pages and the latest edit (the live file grows a page per thumbnail). Never use a design whose title starts with TEST or says "by Claude": those are old experiments. Name the design you picked and use it; only ask if two real candidates match the initials.
 2. \`read-design\` with \`page_metadata\` to find the page count; the last page is the latest style. Use that page unless she names another.
 3. For each screenshot:
    1. \`copy-design\` with the design id and \`page_numbers: [last page]\` (one copy per thumbnail; the same page cannot be repeated in one copy).

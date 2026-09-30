@@ -29,7 +29,7 @@
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 22 | `097-today.js.part` | 621 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 24 | `100-onboarding-staff-controls.js.part` | 2389 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 24 | `100-onboarding-staff-controls.js.part` | 2390 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 25 | `110-time-off.js.part` | 1378 | Kasper Time Off calendar |
 | 26 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |

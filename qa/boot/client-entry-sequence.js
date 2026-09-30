@@ -898,6 +898,7 @@ function installBfcacheSyntheticNetwork(config) {
         '/webhook/generate-caption',
         '/webhook/caption-job-status',
         '/webhook/caption-job-update',
+        '/functions/v1/caption-jobs',
       ].includes(url.pathname)) {
         state.captionBoundaryRequests.push({ at, method, path: url.pathname, url: url.href });
         if (url.pathname === '/webhook/caption-prompts-get') return jsonResponse({ ok: true, prompts: {} });

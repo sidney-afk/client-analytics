@@ -16,7 +16,7 @@ import {
   _calAssertSavingOn, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
   _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
-  _settingsAssertSavingOn, _settingsWriteHeaders,
+  _settingsAssertSavingOn, _settingsWriteHeaders, _syncviewEfHeaders,
   _writeUiNativeId, _writeUiQueueDiagnostic, _writeUiRecordFailure,
   _writeUiRerouteUseGatewayWhenReady, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
@@ -1745,7 +1745,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
             const rows = new Map();
             await Promise.all(clients.map(async (slug) => {
                 try {
-                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug), { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_JOB_STATUS_URL) });
                     const j = await r.json();
                     if (j && j.ok && Array.isArray(j.jobs)) for (const row of j.jobs) rows.set(row.jobId, row);
                 } catch {}
@@ -1769,7 +1769,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                 // the full 12-min stale timeout. cancel_requested is (re)sent so a
                 // late checkpoint still won't save a caption.
                 if (_calCapJobCancelExpired(job, now)) {
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'cancelled', {});
                     continue;
                 }
@@ -1787,7 +1787,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                 if (now - (job.lastMovementAt || job.startedAt) > CAL_CAPJOB_STALE_MS) {
                     // Stand the backend down too, so a zombie run can't write a
                     // caption to the sheet long after the UI gave up.
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'error', { error: 'Timed out — the caption generator stopped responding. Try again.' });
                 }
             }
@@ -1815,7 +1815,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         _calUpdateBulkCaptionBar();
         fetch(CAPTION_JOB_UPDATE_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL),
             body: JSON.stringify({ jobId: job.jobId, cancel_requested: true })
         }).then(r => { if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); })
           .catch(() => {

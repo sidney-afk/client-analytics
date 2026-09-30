@@ -22,7 +22,7 @@ import {
   wlTestClientsMode,
 } from './067-workload-board-source.js';
 import {
-  wlAddWorkingDays, wlISO, wlIsWeekend, wlParseISO, wlWeekMondayISO, wlWorkloadTodayISO
+  wlAddWorkingDays, wlDefaultWeekStartISO, wlISO, wlIsWeekend, wlParseISO, wlWeekMondayISO, wlWorkloadTodayISO
 } from './068-core-workload-dates.js';
 import {
   wlAddDays, wlCalendarDayDiff, wlCompareClientGroups, wlDeadlineDotHtml, wlDeadlineMeta,
@@ -99,7 +99,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
-        if (wlState.weekStart == null) { wlState.weekStart = wlWeekMondayISO(todayISO); }
+        if (wlState.weekStart == null) { wlState.weekStart = wlDefaultWeekStartISO(todayISO); }
         // Seed the client search dropdown with the canonical client list as
         // soon as the view mounts. Otherwise the dropdown is empty until the
         // background fetch returns, which feels broken if you start typing
@@ -1546,7 +1546,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     const today = wlWorkloadTodayISO();
                     const n = wlParseISO(today);
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
-                    wlState.weekStart = wlWeekMondayISO(today);
+                    wlState.weekStart = wlDefaultWeekStartISO(today);
                     renderWorkloadAll();
                     return;
                 }

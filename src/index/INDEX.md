@@ -18,7 +18,7 @@
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
 | 12 | `067-workload-board-source.js.part` | 2580 | The roster saved with a cached board, checked with the same rules the |
-| 13 | `068-core-workload-dates.js.part` | 126 | ONE FORMATTER, NOT ONE PER CALL. |
+| 13 | `068-core-workload-dates.js.part` | 133 | ONE FORMATTER, NOT ONE PER CALL. |
 | 14 | `069-workload-planning-helpers.js.part` | 384 | MEMOISED PURE HELPERS. |
 | 15 | `070-core-client-names.js.part` | 104 | — |
 | 16 | `071-workload-planner.js.part` | 651 | CARRIED OVER (owner request ). A saved plan day is never edited |

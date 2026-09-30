@@ -127,7 +127,5 @@
         const day = wlIsWorkingDay(todayISO) ? todayISO : wlAddWorkingDays(todayISO, 1);
         return wlWeekMondayISO(day);
     }
-export {
-  wlAddWorkingDays, wlDefaultWeekStartISO, wlISO, wlIsWeekend, wlIsWorkingDay, wlParseISO, wlSubWorkingDays, wlTodayISO,
-  wlWeekMondayISO, wlWorkloadTodayISO
-};
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-05-core-aceaf5ca65c1.js");

@@ -84,7 +84,7 @@ for (const name of [
   'wlTeamBucket', 'wlEditorCapacity', 'wlDayOverCapacity', 'wlWorkloadMeta', 'wlWorkloadWeight',
   'wlWorkloadUnits', 'wlPlanDate', 'wlCarriedDate', 'wlAutoPlanDate', 'wlAutoPlacementDate',
   'wlDisplayDate', 'wlPlacementMode', 'wlCapacityKey', 'wlComputeAutoPlacements',
-  'wlBucketByDisplayDate', 'wlFormatShort', 'wlAutoPlacementTip', 'wlPlacementLabel', 'wlPlanOriginHtml',
+  'wlBucketByDisplayDate', 'wlWeekMondayISO', 'wlDefaultWeekStartISO', 'wlFormatShort', 'wlAutoPlacementTip', 'wlPlacementLabel', 'wlPlanOriginHtml',
 ]) vm.runInContext(extract(name), context);
 
 // 2026-09-30 is a Wednesday. 09-28 Monday, 09-19 a Saturday, 10-02 Friday.
@@ -115,6 +115,14 @@ check('on a weekend it lands on the first working day', () => {
   reset(); TODAY = '2026-10-03'; // Saturday
   const s = sub({ plan: '2026-09-15' });
   assert.strictEqual(context.wlDisplayDate(s), '2026-10-05');
+});
+check('at a weekend the default week is the coming one, so the carried card is on screen', () => {
+  reset(); TODAY = '2026-10-03'; // Saturday
+  const s = sub({ plan: '2026-09-15' });
+  const start = context.wlDefaultWeekStartISO(TODAY);
+  assert.strictEqual(start, '2026-10-05');
+  assert.strictEqual(context.wlDisplayDate(s), start, 'the carried day is the first day of the default week');
+  assert.strictEqual(context.wlDefaultWeekStartISO('2026-09-30'), '2026-09-28', 'a weekday keeps its own week');
 });
 check('the saved plan day is never changed', () => {
   reset();

@@ -129,5 +129,5 @@
     }
 export {
   wlAddWorkingDays, wlDefaultWeekStartISO, wlISO, wlIsWeekend, wlIsWorkingDay, wlParseISO, wlSubWorkingDays, wlTodayISO,
-  wlWeekMondayISO, wlWorkloadTodayISO
+  wlWorkloadTodayISO
 };

@@ -1099,7 +1099,9 @@ Deno.serve(async (req) => {
       const previews = isCheck ? await imagePreviews(text) : [];
       const found = isCheck ? linksIn(text) : [...linksIn(JSON.stringify(args)), ...linksIn(text)];
       const media = [...new Set(found)].filter((l) => isVideoLink(l) || isImageLink(l)).slice(0, 25);
-      const structuredContent = { images: media.filter((l) => !isVideoLink(l)), videos: media.filter(isVideoLink), status: isCheck ? text.split("\n")[0] : "" };
+      // Some chat apps hand the model only structuredContent when it is present,
+      // so the full reply (plan card, price, links) must travel inside it too.
+      const structuredContent = { result: text, images: media.filter((l) => !isVideoLink(l)), videos: media.filter(isVideoLink), status: isCheck ? text.split("\n")[0] : "" };
       return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews.map(({ url: _url, ...block }) => block)], structuredContent } });
     } catch (e) {
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });

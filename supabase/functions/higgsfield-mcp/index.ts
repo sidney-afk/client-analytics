@@ -142,6 +142,13 @@ const INPUTS_ARG = { type: "object", description: "The model's settings, as list
 // Job-check tools point at the in-chat viewer (MCP Apps); hosts without MCP
 // Apps ignore _meta and still get the text and image content.
 const VIEWER_META = { ui: { resourceUri: VIEWER_URI }, "ui/resourceUri": VIEWER_URI };
+// Every tool that involves a picture or video shows the viewer.
+const VIEWER_TOOLS = new Set(["check_job", "check_video", "wait_for_job", "check_jobs", "price_check", "create", "recipe_plan", "run_recipe", "import_file"]);
+function linksIn(t: string): string[] {
+  return (t.match(/https:\/\/[^\s)"'<>\\]+/g) || []).map((l) => l.replace(/[.,;:]+$/, ""));
+}
+const isVideoLink = (l: string) => /\.(mp4|mov|webm)(\?|$)/i.test(l);
+const isImageLink = (l: string) => /\.(png|jpe?g|webp|gif)(\?|$)/i.test(l) || /\.cloudfront\.net\//i.test(l);
 
 const TOOLS = [
   { name: "start_here", description: "Read first. What this connector can make, which model to use for what, and the team's remaining budget this month.", inputSchema: EMPTY },
@@ -157,11 +164,13 @@ const TOOLS = [
   },
   {
     name: "price_check",
+    _meta: VIEWER_META,
     description: "Exact cost in dollars of a request, without making anything.",
     inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG } },
   },
   {
     name: "create",
+    _meta: VIEWER_META,
     description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for wait_for_job.",
     inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG } },
   },
@@ -186,6 +195,7 @@ const TOOLS = [
   { name: "recipes", description: "Saved team workflows, such as the thumbnail expression fix for designers and photo-then-video b-roll for editors.", inputSchema: EMPTY },
   {
     name: "recipe_plan",
+    _meta: VIEWER_META,
     description: "Price a recipe for one or many images and show its plan card. Always call before run_recipe.",
     inputSchema: {
       type: "object", required: ["recipe"], additionalProperties: false,
@@ -200,6 +210,7 @@ const TOOLS = [
   },
   {
     name: "run_recipe",
+    _meta: VIEWER_META,
     description: "Run a recipe on the images after the person said go to its plan card. Returns one job_id per image.",
     inputSchema: {
       type: "object", required: ["recipe", "images"], additionalProperties: false,
@@ -230,6 +241,7 @@ const TOOLS = [
   },
   {
     name: "import_file",
+    _meta: VIEWER_META,
     description: "Turn a Google Drive, Dropbox or other public file link (image jpg/png/webp/gif, video mp4, audio wav) into a link the models can read. Returns the new link.",
     inputSchema: { type: "object", required: ["link"], additionalProperties: false, properties: { link: { type: "string" } } },
   },
@@ -1075,14 +1087,16 @@ Deno.serve(async (req) => {
     try {
       const toolName = String(params.name || "");
       const text = await callTool(toolName, (params.arguments || {}) as JsonMap, member);
-      if (!/^(check_(job|jobs|video)|wait_for_job)$/.test(toolName)) return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
-      const previews = await imagePreviews(text);
-      // The viewer gets every result link (a batch can have 25), independent of
-      // the four size-limited previews the model sees. Links in a job check are
-      // only result files; video files are told apart by extension.
-      const links = [...new Set((text.match(/https:\/\/[^\s)"'<>]+/g) || []).map((l) => l.replace(/[.,;:]+$/, "")))].slice(0, 25);
-      const isVideo = (l: string) => /\.(mp4|mov|webm)(\?|$)/i.test(l);
-      const structuredContent = { images: links.filter((l) => !isVideo(l)), videos: links.filter(isVideo), status: text.split("\n")[0] };
+      const args = (params.arguments || {}) as JsonMap;
+      if (!VIEWER_TOOLS.has(toolName)) return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
+      // Job checks: the result files (plus small previews the model can look
+      // at). Plans, creates, recipes and imports: the input and imported media,
+      // so the person sees what goes in before paying.
+      const isCheck = /^(check_(job|jobs|video)|wait_for_job)$/.test(toolName);
+      const previews = isCheck ? await imagePreviews(text) : [];
+      const found = isCheck ? linksIn(text) : [...linksIn(JSON.stringify(args)), ...linksIn(text)];
+      const media = [...new Set(found)].filter((l) => isVideoLink(l) || isImageLink(l)).slice(0, 25);
+      const structuredContent = { images: media.filter((l) => !isVideoLink(l)), videos: media.filter(isVideoLink), status: isCheck ? text.split("\n")[0] : "" };
       return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews.map(({ url: _url, ...block }) => block)], structuredContent } });
     } catch (e) {
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });

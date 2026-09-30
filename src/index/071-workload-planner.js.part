@@ -647,5 +647,5 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 export {
   renderWorkloadShell, wlAutoPlacementTip, wlAutoPlanDate, wlBucketByDisplayDate,
   wlComputeAutoPlacements, wlDayOverCapacity, wlDisplayDate, wlDisplayName, wlEditorCapacity,
-  wlCarriedDate, wlInitials, wlPlacementMode, wlPlanDate, wlTeamBucket
+  wlInitials, wlPlacementMode, wlPlanDate, wlTeamBucket
 };

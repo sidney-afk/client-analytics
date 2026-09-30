@@ -1,0 +1,1257 @@
+    function onLinearSearchInput() {
+        const input = document.getElementById('linearClientSearch');
+        const q = input?.value || '';
+        if (input) {
+            const selected = _linearResolveClientRow(q, input.dataset.clientSlug || '');
+            input.dataset.clientSlug = selected ? selected.slug : '';
+        }
+        renderLinearSearchResults(q);
+        updateLinearSearchGhost(q);
+        openLinearSearchDropdown();
+        updateLinearTitle();
+        updateLinearFilmingPlan();
+        saveLinearForm();
+    }
+
+    function onLinearSearchFocus() {
+        renderLinearSearchResults(document.getElementById('linearClientSearch')?.value || '');
+        openLinearSearchDropdown();
+    }
+
+    function onLinearSearchKey(e) {
+        if (e.key === 'Escape') {
+            const box = document.getElementById('linearSearchDropdown');
+            const ghost = document.getElementById('linearSearchGhost');
+            if (box) box.classList.remove('open');
+            if (ghost) ghost.innerHTML = '';
+            document.getElementById('linearClientSearch')?.blur();
+            return;
+        }
+        if (e.key !== 'Enter') return;
+        const q = document.getElementById('linearClientSearch')?.value.trim();
+        if (!q) return;
+        const names = linearProjects;
+        const starts = names.filter(n => n.toLowerCase().startsWith(q.toLowerCase()));
+        const contains = names.filter(n => !n.toLowerCase().startsWith(q.toLowerCase()) && n.toLowerCase().includes(q.toLowerCase()));
+        const first = [...starts, ...contains][0];
+        if (first) selectLinearProject(first);
+    }
+
+    function openLinearSearchDropdown() {
+        const box = document.getElementById('linearSearchDropdown');
+        if (!box || box.classList.contains('open')) return;
+        box.classList.add('open');
+        const close = (e) => {
+            const wrap = document.getElementById('linearSearchWrap');
+            if (wrap && !wrap.contains(e.target)) { box.classList.remove('open'); document.removeEventListener('click', close); }
+        };
+        setTimeout(() => document.addEventListener('click', close), 0);
+    }
+
+    function updateLinearSearchGhost(q) {
+        const ghost = document.getElementById('linearSearchGhost');
+        if (!ghost) return;
+        const q2 = q.trim().toLowerCase();
+        if (!q2) { ghost.innerHTML = ''; return; }
+        const names = linearProjects;
+        const starts = names.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = names.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        const first = [...starts, ...contains][0];
+        if (!first) { ghost.innerHTML = ''; return; }
+        if (first.toLowerCase().startsWith(q2)) {
+            const typed = first.slice(0, q.length);
+            const rest = first.slice(q.length);
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;
+        } else {
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;
+        }
+    }
+
+    function renderLinearSearchResults(q) {
+        const el = document.getElementById('linearSearchResults');
+        if (!el) return;
+        if (linearProjectsLoading) { el.innerHTML = _svLoadingSkeletonHtml('linear-search'); return; }
+        if (!linearProjects.length) { el.innerHTML = '<div class="linear-search-empty">No projects loaded</div>'; return; }
+        const q2 = q.trim().toLowerCase();
+        if (!q2) {
+            el.innerHTML = linearProjects.slice(0, 8).map(name =>
+                `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)},${_jsAttrArg((_linearResolveClientRow(name) || {}).slug || '')})"><span>${_calEscAttr(name)}</span></div>`
+            ).join('');
+            return;
+        }
+        const starts = linearProjects.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = linearProjects.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        const matches = [...starts, ...contains];
+        if (!matches.length) { el.innerHTML = '<div class="linear-search-empty">No projects found</div>'; return; }
+        el.innerHTML = matches.slice(0, 6).map(name =>
+            `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)},${_jsAttrArg((_linearResolveClientRow(name) || {}).slug || '')})"><span>${highlightMatch(name, q.trim())}</span></div>`
+        ).join('');
+    }
+
+    function _linearResolveClientRow(name, slug) {
+        const wantedSlug = String(slug || '').trim();
+        const wantedName = String(name || '').trim().toLowerCase();
+        if (wantedSlug) {
+            const bySlug = linearClientRows.find(row => String(row && row.slug || '') === wantedSlug);
+            if (bySlug && String(bySlug.display_name || '').trim().toLowerCase() === wantedName) return bySlug;
+        }
+        const matches = linearClientRows.filter(row => String(row && row.display_name || '').trim().toLowerCase() === wantedName);
+        return matches.length === 1 ? matches[0] : null;
+    }
+
+    function selectLinearProject(name, slug) {
+        const inp = document.getElementById('linearClientSearch');
+        const box = document.getElementById('linearSearchDropdown');
+        const ghost = document.getElementById('linearSearchGhost');
+        if (inp) {
+            inp.value = name;
+            inp.dataset.clientSlug = String(slug || ((_linearResolveClientRow(name) || {}).slug || ''));
+        }
+        if (box) box.classList.remove('open');
+        if (ghost) ghost.innerHTML = '';
+        updateLinearTitle();
+        updateLinearFilmingPlan();
+        saveLinearForm();
+    }
+
+    // Filming plans are staff-only data. A client intake link must never try to
+    // load them in the browser: the receiving writer resolves the plan from the
+    // client server-side instead. Keep the state explicit so a failed staff
+    // read cannot masquerade as a successful "no plan for this client" read.
+    let _linearPlanMap = null;          // normalized client name -> doc_url; {} means loaded, none matched
+    let _linearPlanMapLoading = false;
+    let _linearPlanMapState = 'idle';   // idle | loading | loaded | failed | server
+    let _linearPlanMapError = '';
+    let _linearResolvedPlanUrl = '';
+    // Setter for the Submit screen module (200), which restores a held draft's
+    // plan URL; ES module imports are read-only (phase C step C3).
+    function _linearSetResolvedPlanUrl(value) { _linearResolvedPlanUrl = value; }
+
+    function _linearIntakeUsesServerPlanResolution() {
+        return !!(document.body && document.body.classList.contains('intake-mode'));
+    }
+
+    function _linearInvalidatePlanMap() {
+        _linearPlanMap = null;
+        _linearPlanMapLoading = false;
+        _linearPlanMapState = 'idle';
+        _linearPlanMapError = '';
+        _linearResolvedPlanUrl = '';
+    }
+
+    function _normLinearName(s) {
+        return String(s || '').toLowerCase()
+            .replace(/\b(dr|mr|mrs|ms|prof)\.?\s+/g, '')
+            .replace(/&/g, 'and')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async function loadLinearPlanMap(force) {
+        if (_linearIntakeUsesServerPlanResolution()) {
+            _linearPlanMap = null;
+            _linearPlanMapLoading = false;
+            _linearPlanMapState = 'server';
+            _linearPlanMapError = '';
+            _linearResolvedPlanUrl = '';
+            updateLinearFilmingPlan();
+            return;
+        }
+        if (_linearPlanMap !== null && !force) { updateLinearFilmingPlan(); return; }
+        if (_linearPlanMapLoading) return;
+        _linearPlanMapLoading = true;
+        _linearPlanMapState = 'loading';
+        _linearPlanMapError = '';
+        try {
+            const data = await (await svArea('templates')).fpEnsureLoaded(!!force);
+            const map = {};
+            (data.rows || []).forEach(row => {
+                if (row.clientName && row.docUrl) map[_normLinearName(row.clientName)] = row.docUrl;
+            });
+            _linearPlanMap = map;
+            _linearPlanMapState = 'loaded';
+        } catch (e) {
+            _linearPlanMap = null;
+            _linearPlanMapState = 'failed';
+            _linearPlanMapError = String((e && e.message) || e || 'Could not load filming plans.');
+        } finally {
+            _linearPlanMapLoading = false;
+            updateLinearFilmingPlan();
+        }
+    }
+
+    function updateLinearFilmingPlan() {
+        const el = document.getElementById('linearFilmingPlansDisplay');
+        if (!el) return;
+        const client = document.getElementById('linearClientSearch')?.value?.trim() || '';
+        if (!client) {
+            _linearResolvedPlanUrl = '';
+            el.textContent = 'Select a client…';
+            el.classList.add('empty'); el.classList.remove('warn');
+            el.removeAttribute('title');
+            saveLinearForm();
+            return;
+        }
+        if (_linearPlanMapState === 'server') {
+            _linearResolvedPlanUrl = '';
+            el.textContent = 'Resolved securely when submitted.';
+            el.classList.add('empty'); el.classList.remove('warn');
+            el.removeAttribute('title');
+            saveLinearForm();
+            return;
+        }
+        if (_linearPlanMapState === 'failed') {
+            _linearResolvedPlanUrl = '';
+            el.textContent = '⚠ Could not load filming plans. The server will resolve this when submitted.';
+            el.title = _linearPlanMapError;
+            el.classList.add('warn'); el.classList.remove('empty');
+            saveLinearForm();
+            return;
+        }
+        if (_linearPlanMap === null) {
+            el.innerHTML = _svSkel('linear-plan-skeleton');
+            el.classList.add('empty'); el.classList.remove('warn');
+            loadLinearPlanMap();
+            return;
+        }
+        const url = _linearPlanMap[_normLinearName(client)] || '';
+        _linearResolvedPlanUrl = url;
+        if (url) {
+            el.textContent = url;
+            el.title = url;
+            el.classList.remove('empty', 'warn');
+        } else {
+            el.textContent = '⚠ No filming plan found for this client';
+            el.removeAttribute('title');
+            el.classList.add('warn'); el.classList.remove('empty');
+        }
+        saveLinearForm();
+    }
+
+    function buildLinearTitle() {
+        const client = document.getElementById('linearClientSearch')?.value || '';
+        return _linearIntakeBatchTitle(client);
+    }
+
+    function updateLinearTitle() {
+        const el = document.getElementById('linearTitleDisplay');
+        if (!el) return;
+        const input = document.getElementById('linearClientSearch');
+        const hold = _linearSubmissionHoldRead();
+        const holdMatches = hold
+            && hold.client_name === String(input && input.value || '').trim()
+            && hold.client_slug === String(input && input.dataset && input.dataset.clientSlug || '').trim();
+        const t = holdMatches ? hold.computed_title : buildLinearTitle();
+        el.textContent = t || 'Select a client…';
+        el.classList.toggle('empty', !t);
+        saveLinearForm();
+    }
+
+    function saveLinearForm() {
+        const cards = document.querySelectorAll('[id^="videoCard_"]');
+        const clientInput = document.getElementById('linearClientSearch');
+        const selectedClient = _linearResolveClientRow(clientInput?.value || '', clientInput?.dataset.clientSlug || '');
+        const f = {
+            client: clientInput?.value || '',
+            clientSlug: selectedClient ? selectedClient.slug : '',
+            filmingPlans: _linearResolvedPlanUrl || '',
+            generalDrive: document.getElementById('linearGeneralDrive')?.value || '',
+            notes: document.getElementById('linearNotes')?.value || '',
+            videos: []
+        };
+        cards.forEach(card => {
+            const num = card.id.replace('videoCard_', '');
+            f.videos.push({
+                main_cam: document.getElementById('vid_main_' + num)?.value || '',
+                side_cam: document.getElementById('vid_side_' + num)?.value || '',
+                audio: document.getElementById('vid_audio_' + num)?.value || '',
+                notes: document.getElementById('vid_notes_' + num)?.value || ''
+            });
+        });
+        localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f));
+        return f;
+    }
+
+    function loadLinearForm() {
+        try {
+            const hold = typeof _linearSubmissionHoldRead === 'function' ? _linearSubmissionHoldRead() : null;
+            const raw = hold && typeof hold.draft_raw === 'string'
+                ? hold.draft_raw : localStorage.getItem(LINEAR_FORM_KEY);
+            return JSON.parse(raw || '{}');
+        } catch { return {}; }
+    }
+
+    /* True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user
+       wants the browser's own link behaviour — open in new tab/window — so
+       inline nav handlers must NOT preventDefault. The hrefs are real hash
+       routes that init() restores in the new tab. */
+    function _modClick(e) { return !!(e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button && e.button !== 0))); }
+    function _resolveRetiredSamplesRoute(page) {
+        const route = String(page || '');
+        return route === 'samples' || route.startsWith('samples/') ? 'sample-reviews' : page;
+    }
+    /* Park the sliding pill under the active header tab.
+       offsetLeft/offsetTop are measured against #headerNav (position: relative,
+       so it is the offset parent) — the same scrolled coordinate space the pill
+       is absolutely positioned in, which is why the pill stays glued to its tab
+       while the strip scrolls horizontally.
+       Fail-soft by contract: if anything is missing or the active tab is not
+       rendered (client-link header removal, a hidden flag tab, a zero-width
+       first paint), we drop `pill-ready` and the app falls back to the original
+       per-button .active background. This must never throw — the boot probes
+       fail on any console error. `animate` defaults to "animate unless this is
+       the first placement", so the pill appears parked rather than flying in. */
+    /* TAB ROW FIT (owner, 2026-09-27; regression from the client picker in
+     * #1779). The tab row must fit without sideways scroll at 1280px and wider
+     * for every role. CSS tightens spacing up to 1600px; if the row still
+     * overflows, the tabs you are not on drop to icons only (full name on
+     * hover via title, and still in the accessible name). No tab is hidden.
+     * Measured, not a fixed breakpoint, so roles with fewer tabs keep labels. */
+    function _navFitSync() {
+        try {
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            nav.querySelectorAll(':scope > .header-nav-btn').forEach(b => {
+                const name = String(b.textContent || '').replace(/\s+/g, ' ').trim();
+                if (!b.title) b.title = name;
+                // Icon-only tabs on touch have no hover title: keep an explicit name.
+                if (!b.getAttribute('aria-label') && name) b.setAttribute('aria-label', name);
+            });
+            const wasCompact = nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons');
+            // Tabs animate size changes (transition: all); measure the settled
+            // full-label width with transitions off, or the check reads a
+            // mid-animation size and flips back and forth.
+            nav.classList.add('is-measuring');
+            nav.classList.remove('is-compact', 'is-icons');
+            void nav.offsetWidth;
+            // Measure the tabs themselves, not scrollWidth: the sliding pill is
+            // absolutely positioned and can sit at a stale offset mid-route.
+            const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
+            if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
+            const last = btns[btns.length - 1];
+            // Compare fractional boxes on both sides. The row is width:max-content,
+            // so when everything fits its clientWidth is the tabs' width ROUNDED
+            // DOWN (1131.09 -> 1131); rounding the tabs up against that made a row
+            // that fits read as 1px over and dropped to icons (seen at 1600px once
+            // the Today tab landed). A real overflow clamps the row at its column,
+            // so the tabs' span then exceeds its content box by whole pixels.
+            const overflows = () => {
+                const cs = getComputedStyle(nav);
+                const box = nav.getBoundingClientRect();
+                const room = box.width - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0)
+                    - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+                // Tab span, not positions: the row may be scrolled sideways.
+                return last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left > room + 0.05;
+            };
+            if (overflows()) {
+                nav.classList.add('is-compact');
+                void nav.offsetWidth;
+                // Touch screens (no hover) keep small labels in compact mode,
+                // since a title tooltip can never show there; only if even those
+                // overflow do they drop to icons (name kept in title/accessible name).
+                if (overflows()) nav.classList.add('is-icons');
+            }
+            void nav.offsetWidth;
+            nav.classList.remove('is-measuring');
+            // Tab widths just changed: move the sliding pill under the active tab again.
+            if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
+        } catch (e) {}
+    }
+    let _navFitQueued = false, _navFitTrailing = false, _navFitWindowAt = 0, _navFitWindowRuns = 0;
+    function _navFitSchedule() {
+        if (_navFitQueued) return;
+        _navFitQueued = true;
+        const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f => setTimeout(f, 16));
+        raf(() => {
+            _navFitQueued = false;
+            const now = Date.now();
+            if (now - _navFitWindowAt > 1000) { _navFitWindowAt = now; _navFitWindowRuns = 0; }
+            // Loop guard: past 30 fits a second, stop fitting per signal but
+            // keep ONE trailing fit for when the window resets, so a burst
+            // (a fast drag-resize) still ends on the right layout.
+            if (++_navFitWindowRuns > 30) {
+                if (!_navFitTrailing) {
+                    _navFitTrailing = true;
+                    setTimeout(() => { _navFitTrailing = false; _navFitSchedule(); }, Math.max(0, 1001 - (Date.now() - _navFitWindowAt)));
+                }
+                return;
+            }
+            _navPillSync(false);
+        });
+    }
+    function _navPillSync(animate) {
+        _navFitSync();
+        try {
+            // While the pre-paint gate is still up, the CSS route highlight owns
+            // the active look and the .active CLASS may still be on the statically
+            // marked tab. Establishing the pill here would park it under the wrong
+            // tab and make the first real route animate a fly-in, so wait for
+            // navTo()/render() to lift the gate.
+            if (document.documentElement.hasAttribute('data-boot-nav')) return;
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            const pill = nav.querySelector(':scope > .header-nav-pill');
+            if (!pill) return;
+            const active = nav.querySelector(':scope > .header-nav-btn.active');
+            if (!active || !active.getClientRects().length || !active.offsetWidth) {
+                nav.classList.remove('pill-ready');
+                return;
+            }
+            const first = !nav.classList.contains('pill-ready');
+            const shouldAnimate = animate === undefined ? !first : !!animate;
+            if (!shouldAnimate) pill.style.transition = 'none';
+            pill.style.width = active.offsetWidth + 'px';
+            pill.style.height = active.offsetHeight + 'px';
+            pill.style.transform = 'translate(' + active.offsetLeft + 'px, ' + active.offsetTop + 'px)';
+            nav.classList.add('pill-ready');
+            if (!shouldAnimate) requestAnimationFrame(() => { try { pill.style.transition = ''; } catch (e) {} });
+        } catch (e) {}
+    }
+    // Re-measure on anything that can change a tab's width or position: viewport
+    // changes, the webfont swapping in, and tabs revealed later by a flag.
+    //
+    // LATE FIRST FIT (owner, 2026-09-27): on a wide desktop the first fit could
+    // run before the web font or the rest of the header settled, go icons only,
+    // and never retry: the row's ResizeObserver only sees the row's OWN width,
+    // and an icons-only row keeps the same width when room frees up beside it.
+    // Every fit starts from full labels (see _navFitSync), so re-running it is
+    // always safe; we re-run once per frame on every signal that can change
+    // the room: fonts (ready + each loadingdone, since the Google Fonts sheet
+    // is attached after onload and can outlive fonts.ready), window load, any
+    // resize, the client picker rendering, and the header's other children
+    // resizing. A per-second cap guards against any feedback loop.
+    try {
+        window.addEventListener('resize', _navFitSchedule);
+        window.addEventListener('load', _navFitSchedule);
+        if (document.fonts) {
+            if (document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+                document.fonts.ready.then(_navFitSchedule).catch(() => {});
+            }
+            if (typeof document.fonts.addEventListener === 'function') document.fonts.addEventListener('loadingdone', _navFitSchedule);
+        }
+        // A tab revealed after first paint (Kasper, Samples) changes the row's
+        // width with no route change; watch the row itself so the fit and the
+        // pill follow. Coalesced to one pass per frame.
+        if (typeof MutationObserver === 'function') {
+            let queued = false;
+            const resync = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; _navPillSync(false); }); };
+            const watch = () => {
+                const nav = document.getElementById('headerNav');
+                if (!nav) return;
+                new MutationObserver(records => { if (records.some(r => !r.target.classList || !r.target.classList.contains('header-nav-pill'))) resync(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
+                // The row's own width changes when a neighbour in the bar does
+                // (the client picker's label). Compact toggling changes the tab
+                // widths, not the row's, so re-fitting only on a real width
+                // change cannot loop.
+                if (typeof ResizeObserver === 'function') {
+                    let lastW = -1;
+                    new ResizeObserver(entries => {
+                        const w = Math.round(entries[entries.length - 1].contentRect.width);
+                        if (w === lastW) return;
+                        lastW = w;
+                        resync();
+                    }).observe(nav);
+                    // Room beside the row: the header's other children (logo,
+                    // client picker, actions). Their size never depends on the
+                    // row's compact state, so this cannot loop either.
+                    const header = nav.parentElement;
+                    if (header) {
+                        const sib = new ResizeObserver(() => _navFitSchedule());
+                        [...header.children].forEach(ch => { if (ch !== nav) sib.observe(ch); });
+                    }
+                }
+            };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
+            else watch();
+        }
+    } catch (e) {}
+    /* PER-TAB FAVICON (owner request 2026-08-21: "whenever we are in a tab the
+       favicon should change to the respective one").
+
+       Keyed on the ROUTE, never on the visible label -- the label/route split
+       is deliberate here ('SyncLinear' is route `production`; 'Submit' is route
+       `linear`) and AGENTS.md forbids deriving routing from what a tab says.
+       A route with no owner-designed icon (kasper, time-off, and
+       every client-owned screen) falls back to the SyncView mark, so the tab
+       icon is never left showing art from the previous section.
+
+       Deliberately NOT duplicated into the pre-paint boot gate: that script
+       must never throw and never log (see the block at the top of <head>), and
+       test/boot-gate-parity.js exists to catch a drifted copy. The cost is a
+       sub-second default-mark flash on a hard refresh into a deep link, which
+       self-corrects the moment navTo runs. */
+    const SYNCVIEW_DEFAULT_FAVICON = '/syncview-favicon.png';
+    const SYNCVIEW_TAB_FAVICONS = {
+        home: '/nav-icons/analytics-favicon.png',
+        production: '/nav-icons/synclinear-favicon.png',
+        linear: '/nav-icons/submit-favicon.png',
+        templates: '/nav-icons/templates-favicon.png',
+        'filming-plans': '/nav-icons/filming-plans-favicon.png',
+        // today: the default SyncView mark (owner, 2026-09-28: its own icon was
+        // nearly invisible in a browser tab).
+        workload: '/nav-icons/workload-favicon.png',
+        calendar: '/nav-icons/calendar-favicon.png',
+        'sample-reviews': '/nav-icons/samples-favicon.png',
+        'tiktok-upload': '/nav-icons/tiktok-favicon.png',
+        // The two onboarding-facing routes keep SynchroSocial branding, which
+        // the entry router already applies; naming them here keeps navTo from
+        // overwriting it with the SyncView default.
+        onboarding: '/synchro-social-favicon.png',
+    };
+    /* CLEAN ADDRESSES ACROSS TABS (owner, 2026-09-28). Every setting in the
+       address belongs to the tab that put it there (SyncLinear's d, batch,
+       order and view; a switch like sxr=1). Switching to ANOTHER tab starts
+       from an empty query, so /workload never carries SyncLinear's card or
+       sort. Staying on the same tab (a re-render, or boot opening an old link)
+       keeps the address as it was, so old links still open exactly. Client
+       share links (c / t / v), the public intake form and the onboarding
+       views are never touched (their address IS their access).
+
+       The per-browser switches (wl2, v2, sxr, prodcache) are read lazily by
+       their own tabs, which is also when they are saved to this browser. So
+       before a switch leaves the address, each one is read here once: it is
+       saved exactly as if its tab had opened, and nothing is lost (Codex on
+       PR 1798). */
+    function _svAddressPage(search, hash) {
+        const q = new URLSearchParams(search || '');
+        if (q.get('prod') === '1') return 'production';
+        const head = String(hash || '').replace(/^#/, '').split('?')[0].split('/')[0];
+        if (head === 'samples') return 'sample-reviews';
+        return head || 'home';
+    }
+    function _svNavQuery(page) {
+        const search = svRoute.search();
+        const cur = new URLSearchParams(search);
+        const ownAccess = ['c', 't', 'v', 'intake', 'onboarding', 'onboarding_view'].some(k => cur.has(k));
+        const keep = ownAccess || _svAddressPage(search, svRoute.hash()) === page;
+        if (!keep && ['wl2', 'v2', 'sxr', 'prodcache'].some(k => cur.has(k))) {
+            for (const read of [_wlV2Enabled, _calV2Enabled, _sxrEnabled, _prodCacheEnabled]) { try { read(); } catch (e) {} }
+        }
+        const query = keep ? cur : new URLSearchParams();
+        if (page === 'production') query.set('prod', '1');
+        else query.delete('prod');
+        return query;
+    }
+    function _syncviewFaviconFor(page) {
+        return SYNCVIEW_TAB_FAVICONS[String(page || '')] || SYNCVIEW_DEFAULT_FAVICON;
+    }
+    function _syncviewApplyTabFavicon(page) {
+        try {
+            let link = document.querySelector('link[rel="icon"]');
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.head.appendChild(link);
+            }
+            const next = _syncviewFaviconFor(page);
+            link.type = 'image/png';
+            // Assigning an identical href still restarts the fetch in some
+            // browsers, which makes the tab icon blink on every re-render.
+            if (link.getAttribute('href') !== next) link.setAttribute('href', next);
+        } catch (e) {}
+    }
+    /* A teardown whose fragment has not run yet has nothing mounted, so there
+       is nothing to tear down. Boot can call navTo() before a later fragment's
+       top-level `let`s initialise (a fragment moved or turned into a module,
+       phase C), and reading one then throws "Cannot access X before
+       initialization". Unguarded, that aborted navTo() half way: ?intake=1 kept
+       its loading skeleton forever once PR 1551 made the boot router stand down
+       after any navTo(). Only that load-order error is absorbed; any other
+       error still throws. */
+    function _navTeardownSafe(fn) {
+        try { fn(); }
+        catch (e) {
+            if (e instanceof ReferenceError && /before initiali[sz]ation|uninitiali[sz]ed variable/i.test(String(e.message || ''))) return;
+            throw e;
+        }
+    }
+    function navTo(page, push = true) {
+        if (page !== 'kasper' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
+        if (_isClientLink) {
+            const cap = _syncviewClientEntryCapability;
+            if (cap && cap.verified && cap.view === 'sample-reviews' && _resolveRetiredSamplesRoute(page) === 'sample-reviews') {
+                mountSxrClientView(cap.client);
+                return;
+            }
+            // Client-owned documents never fall through to staff Home,
+            // Production, generic SXR, or any hash route.
+            _syncviewInvalidClientLinkScreen();
+            return;
+        }
+        _syncviewNextNavEpoch(); // Phase D: tell a still-loading boot router that someone has moved on.
+        if (page === 'brief') page = 'home';
+        // Client intake link locks the whole SPA to the Linear submission flow,
+        // so every navigation (back button, restored hash, logo) lands on it.
+        if (document.body.classList.contains('intake-mode')) page = 'linear';
+        if (document.body.classList.contains('onboarding-mode')) page = 'onboarding';
+        // Routing has decided: hand off from the pre-paint boot gate (the
+        // <head> boot script's data-boot-nav tag) to the real nav toggles below.
+        document.documentElement.removeAttribute('data-boot-nav');
+        document.documentElement.removeAttribute('data-boot-subtab');
+        if (page === 'time-off' && !_ptoEnabled()) page = 'home';
+        page = _resolveRetiredSamplesRoute(page); // Samples Old retired: the old page was removed 2026-09-24; its links land on Sample reviews. dormant.
+        if (page === 'production' && !_prodAccessAllowed()) page = 'home';
+        if (page === 'kasper' && !_kasperApplyAccess()) page = 'home'; // admins only
+        _syncviewSetCurrentNav(page);
+        // Guarded: on a FULL localStorage (a heavy user whose caches filled the
+        // quota) this setItem throws QuotaExceededError, and unguarded it aborted
+        // the REST of navTo — so every tab click silently did nothing until the
+        // user cleared storage. Persisting the last tab is a nice-to-have; never
+        // let it break navigation. (Every other localStorage write here is
+        // likewise wrapped — this one was the lone gap.)
+        try {
+            if (_isSmmWeeklyRoute(page)) {
+                if (_isSmmWeeklyRoute(localStorage.getItem(NAV_KEY))) localStorage.removeItem(NAV_KEY);
+            } else {
+                localStorage.setItem(NAV_KEY, page);
+            }
+        } catch (e) {}
+        document.getElementById('navHome').classList.toggle('active', page === 'home');
+        document.getElementById('navLinear').classList.toggle('active', page === 'linear');
+        const navProd = document.getElementById('navProd');
+        if (navProd) navProd.classList.toggle('active', page === 'production');
+        const navTpl = document.getElementById('navTemplates');
+        if (navTpl) navTpl.classList.toggle('active', page === 'templates');
+        const navFp = document.getElementById('navFilmingPlans');
+        if (navFp) navFp.classList.toggle('active', page === 'filming-plans');
+        const navToday = document.getElementById('navToday');
+        if (navToday) navToday.classList.toggle('active', page === 'today');
+        const navWl = document.getElementById('navWorkload');
+        if (navWl) navWl.classList.toggle('active', page === 'workload');
+        const navCal = document.getElementById('navCalendar');
+        if (navCal) navCal.classList.toggle('active', page === 'calendar');
+        const navTk = document.getElementById('navTiktokUpload');
+        if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
+        const navKp = document.getElementById('navKasper');
+        if (navKp) navKp.classList.toggle('active', page === 'kasper');
+        const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
+        document.getElementById('headerOnboardingMenuItem')?.classList.toggle('active', page === 'staff-onboarding');
+        document.getElementById('headerCredentialsMenuItem')?.classList.toggle('active', page === 'client-credentials');
+        const navTimeOff = document.getElementById('navTimeOff'); if (navTimeOff) navTimeOff.classList.toggle('active', page === 'time-off'); // menu-only route; intentionally no visible nav button
+        _syncviewApplyTabFavicon(page);
+        const activeHeaderNav = document.querySelector('#headerNav > .header-nav-btn.active');
+        if (activeHeaderNav && activeHeaderNav.getClientRects().length && typeof activeHeaderNav.scrollIntoView === 'function') {
+            requestAnimationFrame(() => activeHeaderNav.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+        }
+        _navPillSync();
+        svClientBarSync(page);   // the shared client bar shows on client tabs only
+        // The standalone Calendar page hides the page header (pageTop) and drops
+        // the toolbar straight under the sticky nav, so the global .main top
+        // gutter reads as dead space. Tag the body so we can tighten that band
+        // (and the toolbar margins) for this page only — see body.cal-page CSS.
+        document.body.classList.toggle('cal-page', page === 'calendar');
+        if (page === 'sample-reviews') document.body.classList.add('cal-page'); // SXR_LINE
+        // Production is the one viewport-owned page: body scroll is disabled so
+        // the inner scrollers of the module are the only scrollbars. Every non-navTo
+        // route (render(), the popstate client branch) must clear this class.
+        document.body.classList.toggle('prod-page', page === 'production');
+        document.body.classList.toggle('smm-weekly-mode', _isSmmWeeklyRoute(page));
+
+        // Tear down the TikTok-upload polling timer whenever we leave the page so
+        // it doesn't keep hitting the queue webhook in the background.
+        const tkArea = svAreaApi('tiktok');
+        if (page !== 'tiktok-upload' && tkArea) _navTeardownSafe(tkArea.teardown);
+        if (page !== 'today' && typeof _tdyTeardown === 'function') _navTeardownSafe(_tdyTeardown);
+        // Same for Kasper review's 30 s background poller + visibility listeners.
+        const kArea = svAreaApi('kasper');
+        if (page !== 'kasper' && kArea) _navTeardownSafe(kArea.teardown);
+        // Phase 2: drop the calendar's Supabase realtime subscription when
+        // leaving the calendar so it isn't held open in the background.
+        if (page !== 'calendar' && typeof _calV2Teardown === 'function') _navTeardownSafe(_calV2Teardown);
+        /* LEAVING THE CALENDAR ENDS THE FOCUS PIN. onCalViewChange drops it when
+           you leave the Sheet and _calSetClient drops it when the client
+           changes, but neither fires when you navigate to Home or another
+           top-level route — and coming back to the SAME pinned client is a
+           no-op switch, so the pin survived the round trip and kept forcing one
+           card past the saved month, status and ready-only filters long after
+           the reader had moved on. Codex P2 on PR 1252; the third and last way
+           it can go stale. (Written "PR 1252", not with a hash: the hardcoded-
+           colour guard reads a four-hex-digit token after a # as a colour
+           literal, which is a fair reading and cost one CI cycle to learn.) */
+        if (page !== 'calendar') calState.focusPid = null;
+        /* Codex review, PR for item 176 (fourth pass, generalized on the
+         * seventh): a card link's "Opening linked card…" toast has no
+         * reason to follow the reader onto an unrelated page once they've
+         * left the calendar — it would otherwise sit there, for up to ~21s,
+         * saying something about a page that is no longer showing. Same
+         * leaving-the-calendar signal as focusPid just above. Seventh pass:
+         * navTo is not the only exit — render() and the state.client
+         * popstate branch both bypass it too (their own comments say so),
+         * so this is a shared function, not inline here, called from every
+         * route that already shares the _calV2Teardown line beside it. */
+        if (typeof _calAbandonLinkOnCalendarExit === 'function') _calAbandonLinkOnCalendarExit(page === 'calendar');
+        if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
+        const wlArea = svAreaApi('workload');
+        if (page !== 'workload' && wlArea) _navTeardownSafe(wlArea.teardown);
+
+        svSharedClientApply(page, push);   // Templates / Filming Plans open on the shared client
+        const state = {nav: page, client: null};
+        // Templates keeps the selected client + active tab in the URL / history
+        // state so a refresh or back/forward restores exactly where you were —
+        // navTo otherwise resets the hash to #templates and drops the client,
+        // which made a second refresh fall back to the index. The client rides in
+        // the hash (#templates/<client>); the tab rides in state (survives reload).
+        if (page === 'templates' && _templatesSelected) { state.templatesClient = _templatesSelected; state.templatesTab = _templatesActiveTab; }
+        if (page === 'onboarding') {
+            // Standalone onboarding form gets a clean path URL, served on GitHub Pages via the
+            // 404.html redirect. The AI funnel keeps its own /ai_onboarding_form path so the two
+            // forms are individually shareable. Guarded: replaceState to a different path throws
+            // on file:// (local tests), which we can safely ignore.
+            try { history.replaceState(state, '', OB_VARIANT === 'ai' ? '/ai_onboarding_form' : '/onboarding_form'); } catch (e) {}
+        } else {
+            let hash = (page !== 'home' ? '#' + page : '');
+            if (page === 'templates' && _templatesSelected) hash = '#templates/' + encodeURIComponent(_templatesSelected);
+            // A card deep link (#calendar/<slug>/<card>, #sample-reviews/<slug>/<card>)
+            // stays in the address while that card is open, so a reload opens it
+            // again. The screen drops the card itself when the card is closed.
+            if (page === 'calendar' || page === 'sample-reviews') {
+                const cur = svRoute.hash();
+                if (cur.indexOf('#' + page + '/') === 0) hash = cur;
+            }
+            // Same for Kasper's subtab: writing a bare #kasper here is what made
+            // every reload of a Kasper subtab land on review (speed map
+            // 2026-09-23 §7) -- the first load rendered the subtab, then this
+            // line erased it from the URL the reload reads.
+            if (page === 'kasper' && typeof _kasperState !== 'undefined' && _kasperState
+                && _kasperState.tab && _kasperState.tab !== 'review') hash = '#kasper/' + _kasperState.tab;
+            const query = _svNavQuery(page);
+            const queryText = query.toString();
+            const url = '/' + (queryText ? '?' + queryText : '') + hash;
+            if (push) history.pushState(state, '', url);
+            else history.replaceState(state, '', url);
+        }
+
+        const pageTop = document.getElementById('pageTop');
+        const content = document.getElementById('content');
+
+        if (page === 'linear') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderLinearView();
+            if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
+            loadLinearPlanMap();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'production') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderProductionView();
+            mountProductionView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'templates') {
+            pageTop.style.display = 'none';
+            // Templates and Filming plans are one on-demand area (040, svWithArea).
+            svWithArea('templates', content, tpl => {
+                content.innerHTML = tpl.renderTemplates();
+                tpl.mountTemplates();
+            }, () => navTo('templates'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'filming-plans') {
+            pageTop.style.display = 'none';
+            svWithArea('templates', content, tpl => {
+                content.innerHTML = tpl.renderFilmingPlans();
+                tpl.mountFilmingPlans();
+            }, () => navTo('filming-plans'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'today') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderTodayView();
+            mountTodayView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'workload') {
+            pageTop.style.display = 'none';
+            // Workload is an on-demand area (040, svWithArea).
+            svWithArea('workload', content, wl => {
+                content.innerHTML = wl.render();
+                wl.init();
+            }, () => navTo('workload'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'time-off') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderTimeOffView();
+            mountTimeOffView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'calendar') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderCalendarView();
+            mountCalendar();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        // >>> SXR_BEGIN
+        } else if (page === 'sample-reviews') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSxrView();
+            mountSxrView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        // <<< SXR_END
+        } else if (page === 'tiktok-upload') {
+            pageTop.style.display = 'none';
+            // TikTok Upload is an on-demand area (040, svWithArea): drawn at
+            // once when its code is here, else after it arrives.
+            svWithArea('tiktok', content, tk => {
+                content.innerHTML = tk.render();
+                tk.mount();
+            }, () => navTo('tiktok-upload'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'smm-weekly-report') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSmmWeeklyReportFormView();
+            mountSmmWeeklyReportFormView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'smm-weekly-reports') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSmmWeeklyReportsView();
+            mountSmmWeeklyReportsView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'staff-onboarding' || page === 'client-credentials') {
+            pageTop.style.display = 'none';
+            // The standalone staff pages are drawn by the on-demand Kasper area.
+            svWithArea('kasper', content, k => {
+                content.innerHTML = k.staffPageShell(page);
+                k.staffPageRender(page);
+            }, () => navTo(page));
+        } else if (page === 'kasper') {
+            pageTop.style.display = 'none';
+            // Kasper is an on-demand area (040, svWithArea).
+            svWithArea('kasper', content, k => {
+                content.innerHTML = k.render();
+                k.mount();
+            }, () => navTo('kasper'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'onboarding') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderOnboardingView();
+            mountOnboardingView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else {
+            pageTop.style.display = '';
+            render('all');
+        }
+    }
+
+
+    // Open a client's card in the Content Calendar (Workload rows and Today).
+    // Moved here from Workload (080) because it only needs core pieces, so
+    // Today opens a card without waiting for the on-demand Workload code.
+    function wlOpenInContentCalendar(clientName, identifier, nativeId) {
+        const canon = wlCanonicalClient(clientName);
+        if (!canon) return;
+        const ident = String(identifier || '').toUpperCase();
+        // Codex review, PR for OPEN_REPAIRS 218 (fix 3): a native row carries
+        // no Linear identifier at all, so `ident` alone left every native
+        // deliverable unmatchable and this notice fired unconditionally for
+        // it. `nativeId` (the row's OWN id, not a Linear string) is carried
+        // as its own field rather than folded into `identifier` -- folding it
+        // in would have sent it through `ident`'s uppercase-only sanitizing
+        // in _calApplyFocusRequest, which strips underscores and lowercase
+        // hex and mangles a UUID/native id. The notice now only fires when
+        // NEITHER identity is available to match on.
+        const nid = String(nativeId || '').trim();
+        if (!ident && !nid) {
+            showNotify('Opening the calendar, not the card',
+                'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
+                + canon + "'s calendar is opening; find the card by title.");
+        }
+        _calSetFocusRequest({ client: canon, identifier: ident, nativeId: nid });
+        try {
+            const pins = _calGetPins();
+            if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
+        } catch (e) {}
+        navTo('calendar');
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        _modClick, navTo, onLinearSearchFocus, onLinearSearchInput, onLinearSearchKey, saveLinearForm,
+        selectLinearProject, wlOpenInContentCalendar
+    });
+    /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
+     *
+     * Staff used to re-pick the same client on every tab: Calendar and Samples
+     * each kept their own pinned client strip, Templates its own open client,
+     * TikTok Upload its own draft client, Filming Plans a typed search. Now one
+     * "current client" lives in a small first-name dropdown in the main bar,
+     * right after the logo (recent clients and search inside it; owner
+     * redesign 2026-09-27), and these tabs follow it:
+     *
+     *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
+     *
+     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, the leave
+     * calendar, reports) ignore it on purpose: they are about people, not one
+     * client. The dropdown still shows there, so the tab row never moves.
+     *
+     * The client is a canonical roster display name (WL_CLIENT_NAMES), the same
+     * identity every following tab already stored. It is a per-browser
+     * convenience (localStorage), never sent anywhere.
+     *
+     * Client share links (?c=...) never show the bar and never read or write the
+     * shared client: every entry point below returns early on _isClientLink. A
+     * deep link that names a card (#calendar/<slug>/<card>) still wins over the
+     * shared client; opening it simply makes that client the shared one. */
+    const SV_SHARED_CLIENT_KEY = 'syncview_shared_client';
+    const SV_RECENT_CLIENTS_KEY = 'syncview_recent_clients';
+    // Stored list: the current client plus enough others that, after My
+    // clients are taken out, up to three still show under Recent.
+    const SV_RECENT_MAX = 8;
+    const SV_RECENT_SHOWN = 3;
+    const SV_CLIENT_FOLLOW_TABS = ['calendar', 'sample-reviews', 'templates', 'filming-plans', 'tiktok-upload', 'home'];
+
+    function _svClientLinkMode() {
+        try { return !!_isClientLink; } catch (e) { return true; }   // unknown: stay out of the way
+    }
+    function _svStaffShell() {
+        const b = document.body;
+        return !_svClientLinkMode() && !!b && !b.classList.contains('intake-mode') && !b.classList.contains('onboarding-mode');
+    }
+    function svSharedClientGet() {
+        if (_svClientLinkMode()) return null;
+        try {
+            const v = localStorage.getItem(SV_SHARED_CLIENT_KEY);
+            return v && v.trim() ? v : null;
+        } catch (e) { return null; }
+    }
+    function svRecentClients() {
+        try {
+            const a = JSON.parse(localStorage.getItem(SV_RECENT_CLIENTS_KEY) || '[]');
+            return Array.isArray(a) ? a.filter(n => typeof n === 'string' && n.trim()).slice(0, SV_RECENT_MAX) : [];
+        } catch (e) { return []; }
+    }
+    // What a following tab should open on, or null (client link, or none picked).
+    function svSharedClientFor(page) {
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return null;
+        return svSharedClientGet();
+    }
+    function _svCanon(name) {
+        const s = String(name || '').trim();
+        if (!s) return null;
+        try { return wlCanonicalClient(s) || s; } catch (e) { return s; }
+    }
+    // Forget clients from the Recent list only. The current client is never in
+    // that list (it is shown on top, not as a recent), and nothing else is
+    // touched: no pins, no drafts, no data.
+    function svRecentClientRemove(name) {
+        const cur = svSharedClientGet();
+        if (!name || name === cur) return;
+        try { localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(svRecentClients().filter(r => r !== name))); } catch (e) {}
+    }
+    function svRecentClientsClear() {
+        const cur = svSharedClientGet();
+        try { localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(cur ? [cur] : [])); } catch (e) {}
+    }
+    // A tab changed its own client (a deep link, the Analytics grid, the
+    // Templates index): remember it as the shared client. Never re-mounts.
+    function svSharedClientNote(name) {
+        if (_svClientLinkMode()) return;
+        const n = _svCanon(name);
+        if (!n) return;
+        try {
+            localStorage.setItem(SV_SHARED_CLIENT_KEY, n);
+            const rec = svRecentClients().filter(r => r !== n);
+            rec.unshift(n);
+            localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(rec.slice(0, SV_RECENT_MAX)));
+        } catch (e) {}
+        svClientBarRender();
+    }
+    // The person picked a client in the top bar: remember it and re-open the
+    // tab they are on so it shows that client.
+    function svSharedClientPick(name) {
+        const n = _svCanon(name);
+        if (!n) return;
+        _svClientPopClose();
+        const before = svSharedClientGet();
+        svSharedClientNote(n);
+        const page = currentNav;
+        // Calendar and Samples switch in place through the same path their old
+        // per-tab strips used (flush pending saves, tear down, reload), so a
+        // pick never remounts the page and the boot suite's traces still hold.
+        if (page === 'calendar' && !calState.embedded) {
+            if (calState.client === n) return;
+            // No client yet: the shell was drawn without its client-only
+            // controls (More, bulk actions), and _calOpenClientTab redraws it.
+            if (!calState.client) { _calOpenClientTab(n); return; }
+            const pins = _calGetPins();
+            if (!pins.includes(n)) { pins.unshift(n); _calSavePins(pins); }
+            onCalTabClick(n);
+            return;
+        }
+        if (page === 'sample-reviews' && !sxrState.embedded) {
+            if (sxrState.client === n) return;
+            const hadClient = !!sxrState.client;
+            _sxrPinClient(n);
+            onSxrTabClick(n);
+            // Same for Samples: its Share menu and archive control need a client.
+            if (!hadClient) _sxrRenderShell();
+            return;
+        }
+        if (before === n) return;
+        if (page === 'home') { selectClient(n); return; }
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
+        svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
+        navTo(page, false);
+    }
+    // Called by navTo before a tab mounts. Calendar, Samples and TikTok Upload
+    // read svSharedClientFor() in their own mount; the two below have no mount
+    // hook of their own. Only on a click (push): a refresh or Back restores the
+    // client already in the address.
+    function svSharedClientApply(page, push) {
+        const c = svSharedClientFor(page);
+        if (!c || !push) return;
+        if (page === 'templates') _templatesSetSelected(c);
+        else if (page === 'filming-plans') {
+            // Filming plans is on demand (040): set the search before it draws.
+            // svArea's promise is shared, so this runs ahead of navTo's draw.
+            const tpl = svAreaApi('templates');
+            if (tpl) tpl.fpSetQueryQuiet(c);
+            else svArea('templates').then(t => t.fpSetQueryQuiet(c), () => {});
+        }
+    }
+    // The Analytics tab: overview when no client is picked, else that client.
+    function svOpenAnalytics() {
+        navTo('home');
+        const c = svSharedClientFor('home');
+        if (c && WL_CLIENT_NAMES.includes(c)) selectClient(c);
+    }
+
+    function _svClientHue(name) {
+        let h = 0;
+        const s = String(name || '');
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+        return h;
+    }
+    function _svClientInitials(name) {
+        const words = String(name || '').split(/\s+/).filter(w => /[A-Za-z0-9]/.test(w.charAt(0)));
+        return (words.slice(0, 2).map(w => w.charAt(0)).join('') || '?').toUpperCase();
+    }
+    function _svClientDot(name) {
+        return `<span class="sv-client-dot" style="--sv-client-h:${_svClientHue(name)}" aria-hidden="true">${_calEsc(_svClientInitials(name))}</span>`;
+    }
+    // The badge shows the first name only (full name on hover and for
+    // assistive tech), tinted in the client's own colour.
+    function _svClientShortName(name) {
+        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (!words.length) return '';
+        return /\.$/.test(words[0]) && words[1] ? words[0] + ' ' + words[1] : words[0];
+    }
+    function svClientBarRender() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const cur = svSharedClientGet();
+        const badge = document.getElementById('svClientBadge');
+        const label = document.getElementById('svClientBadgeLabel');
+        const dot = document.getElementById('svClientBadgeDot');
+        const nextLabel = cur ? _svClientShortName(cur) : 'Client';
+        // A new label width changes the room left for the tab row: re-fit it.
+        if (label && label.textContent !== nextLabel) { label.textContent = nextLabel; requestAnimationFrame(() => _navPillSync(false)); }
+        if (badge) {
+            badge.setAttribute('data-sv-current', cur || '');
+            badge.title = cur || 'Pick a client';
+            badge.setAttribute('aria-label', cur ? 'Client: ' + cur + '. Change client' : 'Pick a client');
+            badge.classList.toggle('has-client', !!cur);
+            if (cur) badge.style.setProperty('--sv-client-h', String(_svClientHue(cur)));
+            else badge.style.removeProperty('--sv-client-h');
+        }
+        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
+        // Re-fit the tab row whenever the picker draws: its width sets the room.
+        _navFitSchedule();
+    }
+    // Staff see the picker on every tab, so the tab row never shifts; team
+    // tabs simply ignore the client. Client links never show it.
+    function svClientBarSync(page) {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const show = _svStaffShell();
+        const changed = bar.hidden === show;
+        bar.hidden = !show;
+        // The picker shares the bar with the tab row: re-fit the tabs when it
+        // appears or hides (090 _navFitSync, via the pill sync).
+        if (changed) requestAnimationFrame(() => _navPillSync(false));
+        document.body.classList.toggle('sv-shared-client', show);
+        if (!show) _svClientPopClose();
+        else svClientBarRender();
+    }
+
+    let _svClientActive = 0;
+    function _svClientMatches(q) {
+        const all = [...new Set(WL_CLIENT_NAMES.map(_svCanon).filter(Boolean))];
+        const needle = String(q || '').trim().toLowerCase();
+        if (!needle) return [];
+        const starts = all.filter(n => n.toLowerCase().startsWith(needle));
+        const has = all.filter(n => !starts.includes(n) && n.toLowerCase().includes(needle));
+        return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
+    }
+    /* MY CLIENTS (owner request 2026-09-27). The signed-in SMM's own clients
+     * sit above Recent, always, with no remove button. Which clients are
+     * "mine" is the ONE shared rule in 098-smm-clients, computed by Today's
+     * own loader (tdyMyClientNames in 097-today: the SMM roster from the
+     * smm-weekly-reports options call, cached in _srpState, matched against
+     * current Clients Info clients), so Today and this dropdown can never
+     * disagree. Nothing new is stored: the answer is kept in memory for the
+     * signed-in member only, and a failed or not-yet-loaded roster is retried
+     * on the next open. Anyone on the SMM roster gets My clients, admins
+     * included (an admin can also be an SMM). Anyone not on the roster, or
+     * with no listed client, gets search and Recent only. */
+    let _svMine = null;          // { id, names } once loaded
+    let _svMineLoading = null;
+    function svMyClients() {
+        let me = null;
+        let role = '';
+        try { const id = _syncviewStaffIdentityForHeaders(); me = id && id.member; role = String(id && id.role || me && me.role || '').toLowerCase(); } catch (e) {}
+        if (!me || !me.id) return [];
+        const meId = String(me.id) + '|' + role + '|' + String(me.name || '');   // a role or name change re-reads
+        if (_svMine && _svMine.id === meId) return _svMine.names;
+        if (!_svMineLoading && typeof tdyMyClientNames === 'function') {
+            _svMineLoading = Promise.resolve().then(() => tdyMyClientNames()).then(r => {
+                _svMineLoading = null;
+                if (!r || String(r.id) + '|' + role + '|' + String(me.name || '') !== meId) return;
+                const names = [...new Set((r.names || []).map(n => _svCanon(n) || String(n).trim()).filter(Boolean))];
+                _svMine = { id: meId, names: names.sort((x, y) => x.localeCompare(y)) };
+                const pop = document.getElementById('svClientPop');
+                if (pop && !pop.hidden) _svClientRenderResults();
+            }).catch(() => { _svMineLoading = null; });
+        }
+        return [];
+    }
+    // No query: My clients (if any), then Recent (at most three rows, the
+    // current client first when it is not one of My clients). The current
+    // client is tinted wherever it shows. A query: the matches only.
+    //
+    // Accessibility (review on #1782): each listbox holds options only. The
+    // remove buttons sit beside their option, not inside it, and Clear recent
+    // sits outside every listbox, so screen readers announce both.
+    function _svClientRenderResults() {
+        const input = document.getElementById('svClientSearch');
+        const box = document.getElementById('svClientResults');
+        if (!input || !box) return;
+        const q = input.value.trim();
+        const cur = svSharedClientGet();
+        const sections = [];
+        if (q) sections.push({ key: 'match', label: '', names: _svClientMatches(q), removable: false });
+        else {
+            const mine = svMyClients();
+            const recent = [];
+            if (cur && !mine.includes(cur)) recent.push(cur);
+            for (const r of svRecentClients()) {
+                if (recent.length >= SV_RECENT_SHOWN) break;
+                if (r !== cur && !mine.includes(r)) recent.push(r);
+            }
+            if (mine.length) sections.push({ key: 'mine', label: 'My clients', names: mine, removable: false });
+            if (recent.length) sections.push({ key: 'recent', label: mine.length ? 'Recent' : '', names: recent, removable: true });
+        }
+        const flat = [].concat(...sections.map(sec => sec.names));
+        if (_svClientActive >= flat.length) _svClientActive = 0;
+        const forgetBtn = n => `<button type="button" class="sv-client-forget" data-sv-forget="${_calEscAttr(n)}" aria-label="Remove ${_calEscAttr(n)} from recent" title="Remove from recent"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9"/></svg></button>`;
+        let html = '';
+        let idx = 0;
+        const ids = [];
+        if (!flat.length) html = `<div class="sv-client-none">${q ? 'No clients match' : 'Type a client name'}</div>`;
+        sections.forEach((sec, si) => {
+            if (!sec.names.length) return;
+            const listId = 'svClientList-' + sec.key;
+            ids.push(listId);
+            if (si > 0) html += '<div class="sv-client-divider" aria-hidden="true"></div>';
+            if (sec.label) html += `<div class="sv-client-sec" id="${listId}-label">${sec.label}</div>`;
+            html += `<div class="sv-client-list" role="listbox" id="${listId}" ${sec.label ? `aria-labelledby="${listId}-label"` : 'aria-label="Clients"'}>`;
+            for (const n of sec.names) {
+                const canForget = sec.removable && n !== cur;
+                html += `<div class="sv-client-item${canForget ? ' has-forget' : ''}${idx === _svClientActive ? ' is-active' : ''}"><div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}${n === cur ? ' is-current' : ''}" style="--sv-client-h:${_svClientHue(n)}" role="option" id="svClientOpt${idx}" aria-selected="${n === cur}" data-sv-section="${sec.key}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span class="sv-client-row-name">${_calEsc(n)}</span></div>${canForget ? forgetBtn(n) : ''}</div>`;
+                idx++;
+            }
+            html += '</div>';
+        });
+        if (!q && sections.some(sec => sec.removable && sec.names.some(n => n !== cur))) html += '<button type="button" class="sv-client-clear" data-sv-forget-all="1">Clear recent</button>';
+        box.innerHTML = html;
+        box._svFlat = flat;
+        input.setAttribute('aria-controls', ids.join(' ') || 'svClientResults');
+        if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
+        else input.removeAttribute('aria-activedescendant');
+    }
+    function svClientPopToggle(e) {
+        if (e) e.stopPropagation();
+        const pop = document.getElementById('svClientPop');
+        if (!pop) return;
+        if (!pop.hidden) { _svClientPopClose(); return; }
+        // Fixed, not absolute: the bar scrolls sideways on a phone and would clip it.
+        const r = document.getElementById('svClientBadge')?.getBoundingClientRect();
+        if (r) {
+            const w = Math.min(280, window.innerWidth - 28);
+            pop.style.left = Math.max(14, Math.min(r.left, window.innerWidth - w - 14)) + 'px';
+            pop.style.top = Math.round(r.bottom + 6) + 'px';
+        }
+        pop.hidden = false;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'true');
+        document.getElementById('svClientBadge')?.classList.add('is-open');
+        const input = document.getElementById('svClientSearch');
+        _svClientActive = 0;
+        if (input) { input.value = ''; _svClientRenderResults(); setTimeout(() => input.focus(), 0); }
+    }
+    function _svClientPopClose() {
+        const pop = document.getElementById('svClientPop');
+        if (!pop || pop.hidden) return;
+        pop.hidden = true;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'false');
+        document.getElementById('svClientBadge')?.classList.remove('is-open');
+    }
+    function _svClientBarWire() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar || bar.dataset.wired === '1') return;
+        bar.dataset.wired = '1';
+        bar.addEventListener('click', e => {
+            // Remove buttons sit inside a row: handle them first, never as a pick.
+            const forget = e.target.closest('[data-sv-forget]');
+            const forgetAll = e.target.closest('[data-sv-forget-all]');
+            if (forget || forgetAll) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (forgetAll) svRecentClientsClear();
+                else svRecentClientRemove(forget.getAttribute('data-sv-forget'));
+                _svClientActive = 0;
+                _svClientRenderResults();
+                document.getElementById('svClientSearch')?.focus();
+                return;
+            }
+            const pick = e.target.closest('[data-sv-client]');
+            if (pick) { e.preventDefault(); svSharedClientPick(pick.getAttribute('data-sv-client')); }
+        });
+        const input = document.getElementById('svClientSearch');
+        if (input) {
+            input.addEventListener('input', () => { _svClientActive = 0; _svClientRenderResults(); });
+            input.addEventListener('keydown', e => {
+                const flat = (document.getElementById('svClientResults') || {})._svFlat || [];
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!flat.length) return;
+                    _svClientActive = (_svClientActive + (e.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length;
+                    _svClientRenderResults();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (flat[_svClientActive]) svSharedClientPick(flat[_svClientActive]);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _svClientPopClose();
+                    document.getElementById('svClientBadge')?.focus();
+                }
+            });
+        }
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#svClientBadgeWrap')) _svClientPopClose();
+        });
+        // Escape closes the dropdown even before focus has reached the search
+        // box (the focus move is deferred a tick); without this, a quick
+        // Escape left it open and the next badge click closed it instead.
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape' || e.target && e.target.id === 'svClientSearch') return;
+            const pop = document.getElementById('svClientPop');
+            if (!pop || pop.hidden) return;
+            _svClientPopClose();
+            document.getElementById('svClientBadge')?.focus();
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svClientBarWire);
+    else _svClientBarWire();
+
+    window.svClientPopToggle = svClientPopToggle;
+    window.svOpenAnalytics = svOpenAnalytics;
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        svClientPopToggle, svOpenAnalytics
+    });
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-07-core-2e8239ab5d39.js");

@@ -31,7 +31,7 @@ function ok(cond, msg) {
    186-archived-restore.js.part) writes the card's live status through the same
    helper archive uses, with the same minimal body. */
 const frontendCalls = (INDEX.match(/_calUpsertFetch\(/g) || []).length;
-ok(frontendCalls === 11, 'expected _calUpsertFetch definition plus ten frontend call sites including native Submit materialization, deliverable-link adoption, component fill, the Kasper self-conflict retry, and the archived-card restore, got ' + frontendCalls);
+ok(frontendCalls === 13, 'expected _calUpsertFetch definition plus twelve frontend call sites including native Submit materialization, deliverable-link adoption, component fill, the Kasper self-conflict retry, the archived-card restore, and the two urgent-marker writes (n8n exit PR 4: they now use the guarded step instead of a bare fetch), got ' + frontendCalls);
 ok(!/fetch\(CALENDAR_UPSERT_URL/.test(INDEX), 'frontend must not fetch CALENDAR_UPSERT_URL directly');
 ok(/CALENDAR_UPSERT_N8N_URL/.test(INDEX), 'frontend n8n fallback URL constant missing');
 ok(/CALENDAR_UPSERT_EF_URL/.test(INDEX), 'frontend EF URL constant missing');

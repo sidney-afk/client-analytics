@@ -10,7 +10,9 @@
  * QA scripts) extract functions, and one fingerprints the leave-page lines,
  * by reading the WHOLE app from index.html. This preload answers a read of the
  * repository's index.html with the plain concatenation of the fragments, the
- * exact bytes index.html held before the switch existed, so those checks see
+ * exact bytes index.html held before the switch existed (less the generated
+ * window export blocks the modules end with, which change no behaviour and
+ * would only stale fingerprints and break sandboxed evals), so those checks see
  * the same source as ever. It touches nothing else: a browser test that SERVES
  * index.html from disk gets the real loader page and the real js/ files, which
  * is the point of testing them.
@@ -31,10 +33,13 @@ let cached = null;
 function singleFile() {
   if (cached) return cached;
   const orig = fs.readFileSync;
-  const { readModuleList, servedBytes } = require(path.join(ROOT, 'scripts', 'index-modules'));
+  const { readModuleList, servedBytes, stripWindowBlock } = require(path.join(ROOT, 'scripts', 'index-modules'));
   const entries = orig(path.join(SRC, 'manifest.txt'), 'utf8').split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
   const modules = readModuleList(SRC);
-  cached = Buffer.concat(entries.map(e => servedBytes(e, orig(path.join(SRC, e)), modules)));
+  cached = Buffer.concat(entries.map(e => {
+    const bytes = servedBytes(e, orig(path.join(SRC, e)), modules);
+    return modules.has(e) ? Buffer.from(stripWindowBlock(bytes.toString('utf8'))) : bytes;
+  }));
   return cached;
 }
 function splitOn() {

@@ -58,7 +58,7 @@ const CODE_NO_STRINGS = CODE
 const termUses = CODE_NO_STRINGS.split('\n')
   .map((line, i) => ({ line: line.trim(), n: i + 1 }))
   .filter(x => /\bterm\b/.test(x.line));
-ok(termUses.length > 0 && termUses.length <= 14,
+ok(termUses.length > 0 && termUses.length <= 17,
   `the matched string is used in exactly ${termUses.length} places, few enough to enumerate`);
 const allowed = [
   /terms\.push\(\{ kind: '', term: slug \}\);/,
@@ -73,6 +73,12 @@ const allowed = [
   /for \(const \{ kind, term \} of terms\)/,
   /\? addedLinesContaining\(term, DIFF_BASE\)\.map\(h => h\.file\)\.concat\(addedPathsContaining\(term, DIFF_BASE\)\)/,
   /: filesContaining\(term\)\.concat\(pathsContaining\(term\)\);/,
+  // Owner-ratified 2026-09-30 (#1873): a name already in base's js/sv-*.js is not
+  // new in a regenerated generated script. Three uses, all a yes/no lookup that
+  // returns a boolean; none of them can put the term in an output.
+  /function baseGeneratedScriptsContain\(term, base\) \{/,
+  /return baseScriptText\.includes\(term\);/,
+  /if \(isGeneratedScriptDestination && baseGeneratedScriptsContain\(term, base\)\) continue;/,
 ];
 const unexpected = termUses.filter(u => !allowed.some(re => re.test(u.line)));
 ok(unexpected.length === 0,

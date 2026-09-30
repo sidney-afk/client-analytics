@@ -1292,6 +1292,14 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "tiktok-poll-backoff-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that the TikTok queue poll and the Post For Me lookup slow down when nothing changes and return to the normal pace on a change.",
+      "reproduce": "node test/tiktok-poll-backoff-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-queue-first-read-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

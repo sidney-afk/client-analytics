@@ -1739,6 +1739,10 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
             tkState.queueFromCache = false;
             tkState.queueReadState = 'ready';
             tkState.queueFailures = 0;
+            // Count consecutive reads that changed nothing, so the poll can back off.
+            const readSig = JSON.stringify(tkState.uploads);
+            tkState.unchangedPolls = (readSig === tkState.lastReadSig) ? (tkState.unchangedPolls || 0) + 1 : 0;
+            tkState.lastReadSig = readSig;
             // The live list is usually the same; repaint only on a change
             // (or to turn the cached, read-only rows into live ones).
             if (wasUnverified || JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
@@ -1933,9 +1937,11 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
     // Ask Post For Me (through the read-only status webhook) what happened
     // to overdue rows. At most a few per pass, each at most every 10 min.
     const TK_LOOKUP_EVERY_MS = 10 * 60000;
+    // A row that keeps coming back without a result is asked less and less often.
+    function _tkLookupGap(n) { return TK_LOOKUP_EVERY_MS * ((n || 0) < 2 ? 1 : (n || 0) < 4 ? 3 : 6); }
     async function _tkLookupOverdue() {
         tkState.pfm = tkState.pfm || {};
-        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < TK_LOOKUP_EVERY_MS))
+        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < _tkLookupGap((tkState.pfm[r.id] || {}).n)))
             .sort((x, y) => ((tkState.pfm[x.id] || {}).at || 0) - ((tkState.pfm[y.id] || {}).at || 0))   // longest-unasked first, so no row starves
             .slice(0, 5);
         let changed = false;
@@ -1945,17 +1951,20 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
                 const json = resp.ok ? await resp.json() : null;
                 const pfm = (json && json.pfm) || null;
                 const prev = tkState.pfm[r.id] || {};
-                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now() };
+                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now(), n: (prev.n || 0) + 1 };
                 if (prev.state !== tkState.pfm[r.id].state) changed = true;
-            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now() }; }
+            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now(), n: ((tkState.pfm[r.id] || {}).n || 0) + 1 }; }
         }
         if (changed) _tkRenderQueue();
     }
     function _tkNextPollDelay() {
         if (tkState.queueReadState === 'error') return Math.min(300_000, 30_000 * 2 ** Math.min(tkState.queueFailures - 1, 4));
-        if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
-        if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
-        if (_tkUnresolvedOverdue().length) return 300_000; // overdue, no result yet — keep asking
+        // Each base delay stretches after reads that changed nothing; any change,
+        // submit, return to the tab or remount starts it again from the base.
+        const quiet = tkState.unchangedPolls || 0;
+        if (_tkActiveUploadCount() > 0) return quiet <= 6 ? 30_000 : quiet <= 12 ? 60_000 : 120_000;   // something in-flight — watch closely
+        if (_tkHasScheduled()) return quiet <= 3 ? 120_000 : quiet <= 9 ? 300_000 : 600_000;           // only future posts — check lazily
+        if (_tkUnresolvedOverdue().length) return quiet <= 2 ? 300_000 : quiet <= 6 ? 600_000 : 900_000; // overdue, no result yet — keep asking
         return 0;                                        // nothing pending — stop until activity resumes
     }
     function _tkStopPolling() {
@@ -2008,6 +2017,7 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
         tkState.queueFromCache = cachedRows.length > 0;
         tkState.queueReadState = 'loading';
         tkState.queueFailures = 0;
+        tkState.unchangedPolls = 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();
@@ -2022,6 +2032,7 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
             document.addEventListener('visibilitychange', () => {
                 if (!_tkMounted) return;
                 if (document.visibilityState === 'visible') {
+                    tkState.unchangedPolls = 0;
                     Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
                 } else {
                     _tkStopPolling();

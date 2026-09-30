@@ -268,6 +268,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/samples-client-carveout-byte-identical-browser.js
+      # n8n exit phase 2, step D: the TikTok queue poll backs off when nothing changes.
+      - name: TikTok queue poll backs off when quiet and resumes on a change
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/tiktok-poll-backoff-browser.js
 
 
   split-preview:

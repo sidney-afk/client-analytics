@@ -29950,3 +29950,19 @@ sees the source is no longer Actions and skips the deploy. This restores the who
 emergency exit. Runbook and switch-on steps: `docs/ops/PAGES_SITE_ALLOWLIST.md`.
 
 **Left:** the owner's Pages source switch and a live `node scripts/pages-site.js probe`.
+
+## 295. [2026-09-30] n8n exit phase 2, step D: the TikTok queue polls less when nothing changes
+
+**What:** the TikTok Upload queue asked n8n for its list every 30 seconds while any upload was in flight, every 2 minutes while
+only future posts waited, and every 5 minutes for an overdue row with no result; each overdue row was also looked up at Post For
+Me every 10 minutes for ever. That was about 400 list runs and 128 status runs a week (measured 2026-09-23 to 09-30, see
+`docs/plans/2026-09-30-n8n-exit-phase-2.md`). Now each pace stretches after reads that changed nothing (in flight: 30 s for
+about 3 minutes, then 60 s, then 120 s; scheduled: 2, 5, then 10 minutes; overdue: 5, 10, then 15 minutes), and goes back to the
+base pace on any change, a submit, a remount or returning to the tab. A row that keeps coming back without a result is asked
+about at 10, 20, then every 30 minutes, then hourly, instead of every 10 minutes.
+
+**Proof:** `test/tiktok-poll-backoff-browser.js` (fake clock, offline, run in CI by `entry-links-boot`) fails on the old code
+(20 reads in 10 quiet minutes) and passes now (7 or fewer). The four existing TikTok browser suites still pass.
+
+**Not changed:** the uploads, result callback and cancel stay on n8n; the list still reads the sheet. No n8n workflow was edited.
+**Way back:** revert this commit. **Left:** measure the two workflows again 7 days after it ships.

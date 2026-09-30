@@ -1385,6 +1385,9 @@
             color: var(--sv-fg-0d9488); border-color: var(--sv-fg-0d9488); }
         /* Linear sub-issue buttons moved to a vertical pile at the bottom-right
            of the thumbnail box (video on top, graphic below). */
+        /* Frame.io folder button, top of the pile: neutral raised chip like the Production ones, no component colour because it belongs to the client. */
+        .cal-linear-btn.cal-frame-btn { background: var(--surface-raised); color: var(--sv-fg-6b6b66); }
+        .cal-linear-btn.cal-frame-btn:hover { background: var(--field-bg-hover); color: var(--sv-fg-3a3a37); }
         .cal-linear-pile { position: absolute; right: 8px; bottom: 8px; z-index: 3; flex-direction: column; gap: 4px; }
         .cal-linear-pile .cal-linear-btn { box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_18); }
         /* YouTube title status — small colour square to the left of the title. */

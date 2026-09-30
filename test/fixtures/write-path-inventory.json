@@ -167,6 +167,10 @@
       ],
       "note": "Calendar component fill. Already recorded (component_fill)."
     },
+    "160-calendar-organize-ui.js.part|_calFrameFolderEnsure|url|POST": {
+      "status": "read",
+      "note": "Calendar Frame folder button: reads the client's saved Frame folder (brain, action folders). Nothing is saved."
+    },
     "160-calendar-organize-ui.js.part|_calResolveThumbnailFolder|THUMBNAIL_FOLDER_RESOLVE_EF_URL|POST": {
       "status": "read",
       "note": "Looks up a thumbnail folder."

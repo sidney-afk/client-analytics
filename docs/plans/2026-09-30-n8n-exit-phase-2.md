@@ -173,6 +173,14 @@ Not yet traced: which step adds queue rows (the onboarding provisioning workflow
 moment "ready" is true is the three checks in the runbook). The PR's first job is to read that and write the exact trigger
 moment in the runbook from what it finds, not from this plan.
 
+**A status 2026-09-30:** the webhook and the daily safety check are built and published next to the 15 minute timer
+(`docs/ops/N8N_EDIT_LOG.md`, version `7afd1d3c`; restore `8f194a42`). Owner decision: no real Slack channels are created for a test. The
+trigger moment was read from the workflow and is written in the onboarding runbook section 6c (a pending queue row, one Clients Info
+row with neither channel id set, one SMM row with a Slack id, one filming plan row). **Still to do: the 15 minute timer is removed in
+a small follow-up PR only after the next real client's channels were created through the webhook and the timer found nothing left
+to do.** Measured before the edit: the queue holds 3 rows ever, all `manual`, none pending since 2026-09-03; the timer ran 705 times
+for nothing.
+
 **B. Caption Jobs: progress in Supabase, generation stays on n8n.** Saves about 700 a month (141 and 22 a week). Effort M.
 Risk low to medium. Owner decision: AI generation stays on n8n; progress goes to Supabase; the page reads it there; tested end to
 end on the test client.

@@ -343,7 +343,7 @@ function installBootObserver(config) {
       const id = nativeSetTimeout(callback, delay, ...args);
       if (Number(delay) === 60 * 1000
         && typeof callback === 'function'
-        && String(callback).includes('_linearOutboxFlush(owner)')) {
+        && /_linearOutboxFlush\(\w+\)/.test(String(callback))) {
         window.__syncviewCapturedLegacyRetryTimeouts.push({
           callback,
           delay: Number(delay),
@@ -362,7 +362,7 @@ function installBootObserver(config) {
     window.__syncviewInvokeLegacyResumeInterval = () => {
       const entry = window.__syncviewCapturedIntervals.find(item => (
         item.delay === 60 * 1000
-        && String(item.callback).includes("_writeUiResumeLegacyQueues('timer')")
+        && /_writeUiResumeLegacyQueues\(['"]timer['"]\)/.test(String(item.callback))
       ));
       if (!entry) throw new Error('legacy queue 60-second interval callback was not registered');
       return entry.callback();

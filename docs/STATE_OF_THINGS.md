@@ -55,7 +55,8 @@ here with where it stopped, so it can be restarted.
    of them); forms, the SMM weekly report and signed-out visitors still get the whole
    script. Numbers: `docs/audits/2026-09-29-step5-client-first-load.md`. Three ways
    back: everyone `node scripts/split-switch.js off`; client links only
-   `node scripts/split-switch.js clients off`; one browser `?split=0` (on a client link only after the
+   `node scripts/split-switch.js clients off`; parts minified since 2026-09-30, back with
+   `node scripts/split-switch.js minify off`; one browser `?split=0` (on a client link only after the
    follow-up fix: #1868 shipped with the link check refusing that key, found by Vigil on the live site). The client
    approve and request-changes tests pass on the parts. Left after this: step 6
    (measure everything again).

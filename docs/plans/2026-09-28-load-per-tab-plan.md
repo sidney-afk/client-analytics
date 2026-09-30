@@ -391,3 +391,37 @@ link was accepted; it now also checks that the review card draws and no "isn't v
   sticking and clearing, and the refused cases). Run against `main` before the fix it fails with "This link
   isn't valid".
 
+
+## Compression of the parts (Keystone, 2026-09-30; owner: "compress first, real modules later")
+
+The parts (staff and client links) are now minified. Measured on the local rig (HTTP/2, gzip,
+fresh browser, medians of 9; phone = 4x slower CPU, 100 ms, 10 Mbit/s; "ready" = the tab bar
+drawn for staff, the review card drawn for a client link), main against this change:
+
+| | download | desktop ready, cold | phone ready, cold | phone ready, repeat |
+|---|---|---|---|---|
+| staff, before | 1,017 KB | 441 ms | 1,916 ms | 1,738 ms |
+| staff, after | 488 KB (-52%) | 353 ms | 1,438 ms (-25%) | 1,257 ms (-28%) |
+| client link, before | 1,017 KB | 432 ms | 1,943 ms | 1,658 ms |
+| client link, after | 488 KB (-52%) | 342 ms | 1,467 ms (-25%) | 1,220 ms (-26%) |
+
+`prod-boot-budget.js` cannot finish in the sandbox (it needs the live backend and fails the same
+way on main), so its own numbers were not taken; run it on a machine with the live backend.
+
+- **How.** `src/index/split.json` gains `"minify": true`. `scripts/index-minify.js` runs esbuild
+  (one pinned version, found on `NODE_PATH` or in `~/.cache/syncview-build`, installed there on
+  first use) over each part and each on-demand file. It renames only what is local to a function.
+- **Every shared name stays.** The parts share one global scope. `check-modules.js` rule 9 parses
+  every minified part and fails if any top-level name of the unminified script is gone or changed
+  kind (4,790 names, 0 lost). Inline handlers keep working: the window export blocks are untouched
+  and `inline-handlers-browser.js` passes against the minified parts.
+- **Not shrunk on purpose:** `js/sv-full-*.js`, the readable whole script (forms and signed-out
+  visitors, and `?split=0`).
+- **Ways back, in order of speed.** One browser, no deploy: `?split=0` (sticks; `?split=1` clears
+  it) serves the readable whole file, which is also how to debug a problem in readable code.
+  Everyone: `node scripts/split-switch.js minify off`, commit, merge (the parts are readable
+  again; nothing else changes). Or set `"minify": false` in `src/index/split.json` and
+  `npm run build:index`.
+- **Cost.** Errors in the parts now point into one long line. Use `?split=0` to reproduce with
+  readable code. Tests that recognised a function by its source text
+  (`qa/boot/client-entry-sequence.js`) now match on the call, not on quote style or a local name.

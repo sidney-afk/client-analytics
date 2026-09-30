@@ -29962,7 +29962,7 @@ base pace on any change, a submit, a remount or returning to the tab. A row that
 about at 10, 20, then every 30 minutes, then hourly, instead of every 10 minutes.
 
 **Proof:** `test/tiktok-poll-backoff-browser.js` (fake clock, offline, run in CI by `entry-links-boot`) fails on the old code
-(20 reads in 10 quiet minutes) and passes now (7 or fewer). The four existing TikTok browser suites still pass.
+(20 reads in 10 quiet minutes) and passes now (7 or fewer). The four existing TikTok browser suites and the carousel journey still pass; one of them (`tiktok-overdue-status-browser.js`) waited 11 minutes for a second lookup and now waits 16, because the poll is slower by design.
 
 **Not changed:** the uploads, result callback and cancel stay on n8n; the list still reads the sheet. No n8n workflow was edited.
 **Way back:** revert this commit. **Left:** measure the two workflows again 7 days after it ships.

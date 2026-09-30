@@ -98,7 +98,7 @@ for (const name of [
   'wlISO', 'wlParseISO', 'wlSubWorkingDays', 'wlAddWorkingDays', 'wlIsWorkingDay',
   'wlTeamBucket', 'wlEditorCapacity', 'wlDayOverCapacity',
   'wlWorkloadMeta', 'wlWorkloadWeight', 'wlWorkloadUnits',
-  'wlPlanDate', 'wlAutoPlanDate', 'wlAutoPlacementDate', 'wlDisplayDate',
+  'wlPlanDate', 'wlCarriedDate', 'wlAutoPlanDate', 'wlAutoPlacementDate', 'wlDisplayDate',
   'wlPlacementMode', 'wlCapacityKey', 'wlComputeAutoPlacements',
   'wlBucketByDisplayDate', 'wlFormatShort', 'wlAutoPlacementTip',
 ]) vm.runInContext(extract(name), context);

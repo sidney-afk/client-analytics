@@ -564,7 +564,7 @@ ok(capacityPlacement.length > 0 && placementRead.length > 0,
    what this guard states: the weight is still wlWorkloadWeight, the ceiling is
    still wlEditorCapacity, and a pin still reserves before anything automatic
    is placed. */
-ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, manual\); continue; \}/.test(capacityPlacement)
+ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, wlCarriedDate\(sub, today\) \|\| manual\); continue; \}/.test(capacityPlacement)
     && /weight: wlWorkloadWeight\(sub\),/.test(capacityPlacement)
     && /capacity: wlEditorCapacity\(sub && sub\.teamKey, sub && sub\.teamName\),/.test(capacityPlacement)
     && /const fits = \(sub, day\) => \{\s*const facts = factsOf\(sub\);\s*return \(used\.get\(facts\.key \+ '@' \+ day\) \|\| 0\) \+ facts\.weight <= facts\.capacity;/.test(capacityPlacement)

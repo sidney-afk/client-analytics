@@ -83,16 +83,17 @@ for (const force of ['split', 'parts']) {
     const u = new URL('https://example.invalid' + url);
     const store = new Map(off ? [['syncview_split_off', '1']] : []);
     if (staff) store.set('syncview_staff_identity_v1', '{}');
-    const written = [];
+    const written = [], replaced = [];
     const ctx = {
-      location: { search: u.search, hash: u.hash },
+      location: { search: u.search, hash: u.hash, pathname: u.pathname },
       localStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) },
       sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
       document: { write: s => written.push(s) }, URLSearchParams,
+      history: { state: null, replaceState: (_s, _t, url) => { replaced.push(url); } },
     };
     ctx.self = ctx;
     vm.runInNewContext(src, ctx);
-    return { mode: ctx.__svLoad.mode, client: ctx.__svLoad.client, lazy: Object.keys(ctx.__svLoad.lazy).length, files: ctx.__svLoad.files.length, sticky: store.get('syncview_split_off') === '1', store };
+    return { mode: ctx.__svLoad.mode, client: ctx.__svLoad.client, lazy: Object.keys(ctx.__svLoad.lazy).length, files: ctx.__svLoad.files.length, sticky: store.get('syncview_split_off') === '1', replaced, store };
   };
   const CLIENT = '/index.html?c=Some+Client&t=tok&v=calendar';
   const on = loaderFor(true), offCfg = loaderFor(false), unset = loaderFor(undefined);
@@ -121,6 +122,16 @@ for (const force of ['split', 'parts']) {
   }
   const s0 = run(on, { url: CLIENT + '&split=0' });
   t(s0.sticky, 'loader: ?split=0 on a client link is remembered for that browser');
+  // ?split=0|1 is taken out of a client link's address once read; nothing else in it moves.
+  t(JSON.stringify(s0.replaced) === JSON.stringify(['/index.html?c=Some+Client&t=tok&v=calendar']), 'loader: ?split=0 leaves a client link\'s address, the rest of the link untouched (got ' + JSON.stringify(s0.replaced) + ')');
+  t(JSON.stringify(run(on, { url: '/index.html?split=1&c=Some+Client&t=tok' }).replaced) === JSON.stringify(['/index.html?c=Some+Client&t=tok']), 'loader: ?split=1 first in the address is removed cleanly');
+  t(JSON.stringify(run(on, { url: '/index.html?c=A&split=0&t=tok&v=calendar#x' }).replaced) === JSON.stringify(['/index.html?c=A&t=tok&v=calendar#x']), 'loader: split in the middle is removed, hash kept');
+  // A repeated or odd split is left exactly as it is (the client link check refuses it): no opt-out, no rewrite.
+  for (const odd of ['&split=0&split=1', '&split=2', '&split=', '&SPLIT=0']) {
+    const r = run(on, { url: CLIENT + odd });
+    t(r.replaced.length === 0 && !r.sticky && r.mode === 'parts', `loader: ${odd} on a client link is left alone (no opt-out stored, address not rewritten)`);
+  }
+  t(run(on, { url: '/?split=0', staff: true }).replaced.length === 0, 'loader: a staff address is not rewritten');
   t(run(on, { url: CLIENT + '&split=1', off: true }).mode === 'parts', 'loader: ?split=1 on a client link clears the opt-out');
   // The way back for everyone: with "enabled" false, whatever "clients" says, the
   // build is the plain single file, byte for byte, and writes nothing else.

@@ -182,9 +182,21 @@ function loaderSource({ full, parts, lazy, clients, force }) {
                 // A per-browser way back, no deploy needed: ?split=0 sticks (this
                 // browser gets the whole script as one file), ?split=1 clears it.
                 // It works on a client link too.
-                var sp = q.get('split');
+                // Exactly one split key counts: a repeated one is left alone (the client
+                // link check refuses it), so nothing here can turn a refused link into a valid one.
+                var splits = q.getAll('split');
+                var sp = splits.length === 1 ? splits[0] : null;
                 if (sp === '0') localStorage.setItem('syncview_split_off', '1');
                 else if (sp === '1') localStorage.removeItem('syncview_split_off');
+                // The client link check refuses keys it does not know, so once the
+                // choice is read, take ?split=0|1 out of a client link's address
+                // (only those two values, nothing else in the address is touched).
+                if (isClient && (sp === '0' || sp === '1')) {
+                    try {
+                        var kept = location.search.replace(/[?&]split=[01](?=&|$)/, '').replace(/^&/, '?');
+                        history.replaceState(history.state, '', location.pathname + kept + location.hash);
+                    } catch (e) {}
+                }
                 if (localStorage.getItem('syncview_split_off') === '1') return false;
                 // A client share link gets the parts only when split.json says
                 // "clients": true (the way back for clients alone is to set it false).

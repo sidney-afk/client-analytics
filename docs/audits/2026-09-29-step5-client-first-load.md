@@ -31,4 +31,5 @@ staff-only code still sits in the always-loaded part.
   `src/index/INDEX.md`, merge. `index.html` is the single file again.
 - Client links only: `node scripts/split-switch.js clients off`, commit, merge. Staff keep the parts.
 - One browser: open the link once with `?split=0` (it remembers, on that browser only, and loads the
-  single file); `?split=1` undoes it. Works on a client link.
+  single file); `?split=1` undoes it. On a client link this works only after the fix in the plan's "Step 5 fix"
+  section (the first release of step 5 refused the key with "This link isn't valid").

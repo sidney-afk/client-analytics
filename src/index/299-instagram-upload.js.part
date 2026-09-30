@@ -2,7 +2,7 @@ import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor } from './095-shared-client.js';
 import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml } from './100-onboarding-staff-controls.js';
-import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
+import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calCacheRead } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
@@ -25,10 +25,6 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     const IG_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
     const IG_ACCOUNT_COLUMN = 'postforme_instagram_account_id';
     const IG_MAX_CAPTION = 2200;
-    const IG_PLACEMENTS = [
-        { v: 'reels', label: 'Reel' },
-        { v: 'timeline', label: 'Feed video' },
-    ];
     const IG_STATUS_LABELS = { uploading: 'Uploading', processing: 'Posting', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled' };
     const IG_UPCOMING = ['uploading', 'processing', 'scheduled'];
     const IG_COVER_MAX_BYTES = 8 * 1024 * 1024;     // Instagram's own limit for a cover image
@@ -41,7 +37,6 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         file: null,
         objectUrl: null,
         title: '',
-        placement: 'reels',
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
@@ -121,8 +116,13 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (c.url) { try { URL.revokeObjectURL(c.url); } catch (e) {} }
         igState.cover = Object.assign({}, c, { blob: null, url: '', name: '', source: '', note: '', dims: '', cardId: '', frameUrl: keepMode ? c.frameUrl : '' });
     }
-    // The client's Calendar cards that already have a thumbnail: the live Calendar if it is showing this client,
-    // otherwise its saved copy on this device. Read only; nothing is fetched here.
+    // The client's Calendar cards that can still go out: the live Calendar if it is showing this client, otherwise
+    // its saved copy on this device. Read only; nothing is fetched here.
+    //  - only cards that are Approved or Scheduled (never Posted, never still in review);
+    //  - a card with a posting date in the past is left out;
+    //  - order: cards dated today or later first, soonest first; then cards with no posting date, in the order
+    //    they appear on the Calendar (its manual order).
+    // Each card is named the way the Calendar names it (for example "Video 15").
     function _igCalendarCards(client) {
         if (!client) return [];
         let posts = [];
@@ -131,13 +131,24 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             if (calState && calState.client && calClientSlug(calState.client) === slug && Array.isArray(calState.posts) && calState.posts.length) posts = calState.posts;
             else { const cached = _calCacheRead(slug); posts = (cached && cached.posts) || []; }
         } catch (e) { posts = []; }
-        return posts
+        const today = _igTodayIso();
+        const byManual = (a, b) => Number(a.order || 0) - Number(b.order || 0);
+        const cards = posts
             .filter(p => p && p.id && !p.archived && String(p.id).indexOf('p_cal_settings') !== 0)
-            .map(p => ({ id: String(p.id), thumb: (function () { try { return _calDeriveThumb(p); } catch (e) { return ''; } })(), date: String(p.scheduled_date || '').slice(0, 10), title: String(p.title || p.caption || '').replace(/\s+/g, ' ').trim().slice(0, 50) }))
-            .filter(c => c.thumb)
-            .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-            .slice(0, 60)
-            .map(c => Object.assign(c, { label: (c.date ? c.date + ' · ' : '') + (c.title || 'Untitled card') }));
+            .filter(p => { let st = ''; try { st = computeOverallStatus(p); } catch (e) { st = String(p.status || ''); } return st === 'Approved' || st === 'Scheduled'; })
+            .map(p => {
+                const iso = String(p.scheduled_date || '').slice(0, 10);
+                return {
+                    id: String(p.id), date: /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '', order: p.order_index,
+                    name: String(p.name || '').replace(/\s+/g, ' ').trim() || 'Untitled card',
+                    caption: String(p.caption || '').trim(),
+                    thumb: (function () { try { return _calDeriveThumb(p); } catch (e) { return ''; } })(),
+                };
+            })
+            .filter(c => !c.date || c.date >= today);
+        const dated = cards.filter(c => c.date).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : byManual(a, b));
+        const undated = cards.filter(c => !c.date).sort(byManual);
+        return dated.concat(undated).slice(0, 80).map(c => Object.assign(c, { label: c.name }));
     }
     function _igImageSize(url) {
         return new Promise(resolve => {
@@ -180,14 +191,18 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (!cardId) { if (c.source === 'calendar') _igCoverClear(true); c.cardId = ''; c.note = ''; _igRenderForm(); _igRenderPreview(); return; }
         const card = _igCalendarCards(igState.client).find(x => x.id === cardId);
         if (!card) return;
-        c.cardId = cardId; c.note = 'Copying the Calendar thumbnail…'; _igRenderForm();
+        c.cardId = cardId;
+        // The card's caption fills the caption box, but only while that box is empty: typed text is never overwritten.
+        if (!igState.title.trim() && card.caption) igState.title = card.caption.slice(0, IG_MAX_CAPTION);
+        if (!card.thumb) { c.note = 'This card has no thumbnail yet' + (card.caption ? ', so only its caption was used.' : '.'); _igRenderForm(); return; }
+        c.note = 'Copying the Calendar thumbnail…'; _igRenderForm();
         try {
             const resp = await fetch(card.thumb, { mode: 'cors', credentials: 'omit', cache: 'force-cache' });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             await _igSetCoverImage(await resp.blob(), 'calendar-thumbnail', 'calendar', cardId);
         } catch (e) {
             _igCover().note = "Couldn't copy that Calendar thumbnail (the browser was not allowed to read it). Upload the image instead.";
-            _igCover().cardId = '';
+            _igCover().cardId = cardId;
             _igRenderForm();
         }
     }
@@ -230,8 +245,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function _igCoverCardHtml() {
         const c = _igCover(), cards = _igCalendarCards(igState.client), off = igState.submitting ? 'disabled' : '';
         const cardPick = cards.length
-            ? `<div style="margin-bottom:12px"><div class="tk-step-note" style="margin:0 0 6px">This client's Calendar already has thumbnails. Use one as the cover:</div>
-                ${_svSelectHtml('igCard', [{ value: '', label: 'No Calendar thumbnail' }].concat(cards.map(x => ({ value: x.id, label: x.label }))), c.cardId || '', 'Pick a Calendar card…', { disabled: igState.submitting })}</div>`
+            ? `<div style="margin-bottom:12px"><div class="tk-step-note" style="margin:0 0 6px">Pick one of this client's Calendar cards (Approved or Scheduled) to use its thumbnail as the cover and its caption if the caption box is empty:</div>
+                ${_svSelectHtml('igCard', [{ value: '', label: 'No Calendar card' }].concat(cards.map(x => ({ value: x.id, label: x.label }))), c.cardId || '', 'Pick a Calendar card…', { disabled: igState.submitting })}</div>`
             : '';
         const modes = [{ v: 'image', label: 'Image' }, { v: 'frame', label: 'Frame from video' }]
             .map(m => `<label class="tk-radio${c.mode === m.v ? ' active' : ''}"><input type="radio" name="igCoverMode" value="${m.v}" ${c.mode === m.v ? 'checked' : ''} ${off} style="position:absolute;opacity:0">${m.label}</label>`).join('');
@@ -342,14 +357,17 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
-                <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Post type" style="margin-top:12px">
-                    ${IG_PLACEMENTS.map(p => `<label class="tk-radio${igState.placement === p.v ? ' active' : ''}"><input type="radio" name="igPlacement" value="${p.v}" ${igState.placement === p.v ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">${p.label}</label>`).join('')}
-                </div>
+
             </div>
             <div class="tk-card">
-                <div class="tk-sched-head"><h3>Schedule</h3>
-                    <label class="tk-radio"><input type="checkbox" id="igPostNow" ${igState.schedule.postNow ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}> Post immediately</label>
+                <div class="tk-sched-head"><h3>Scheduling</h3>
+                    <label class="tk-toggle">
+                        <input type="checkbox" id="igPostNow" ${igState.schedule.postNow ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}>
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Post immediately
+                    </label>
                 </div>
+                ${igState.schedule.postNow ? '<div class="tk-step-note">Posts as soon as you press Post now. Switch off to pick a date and time.</div>' : ''}
                 <div id="igScheduleFields" ${igState.schedule.postNow ? 'hidden' : ''}>
                     ${_svDateHtml('igDate', igState.schedule.date, { min: _igTodayIso(), placeholder: 'Choose date', disabled: igState.submitting })}
                     <div style="display:flex;gap:8px;margin-top:10px">
@@ -383,7 +401,6 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             syncSubmit();
             _igRenderPreview();
         });
-        document.querySelectorAll('input[name="igPlacement"]').forEach(r => r.addEventListener('change', (e) => { igState.placement = e.target.value; _igRenderForm(); }));
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
         $('igDate')?.addEventListener('change', (e) => { igState.schedule.date = e.target.value; syncSubmit(); });
         $('igHour')?.addEventListener('change', (e) => { igState.schedule.hour = e.target.value; syncSubmit(); });
@@ -459,7 +476,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const file = igState.file;
         const cv = igState.cover;
         const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : '') : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
-        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), igState.placement, utc, coverKey].join('|');
+        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), utc, coverKey].join('|');
         if (!igState.attempt || igState.attempt.fp !== fp) {
             igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -509,7 +526,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             _igRenderForm();
             const created = await _igCall({
                 action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
-                mediaUrl: mint.json.media_url, coverUrl, options: { placement: igState.placement, cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0 },
+                mediaUrl: mint.json.media_url, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0 },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
@@ -581,7 +598,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                     <div class="tk-q-main">
                         <div class="tk-queue-client">${_igEsc(r.client || '—')}</div>
                         ${r.title ? `<div class="tk-queue-title">${_igEsc(r.title)}</div>` : ''}
-                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${r.placement === 'timeline' ? 'Feed video' : 'Reel'}</span></div>
+                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>Reel</span></div>
                         ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}
                     </div>
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}

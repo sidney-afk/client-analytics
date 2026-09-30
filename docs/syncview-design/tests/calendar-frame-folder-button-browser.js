@@ -38,6 +38,7 @@ const CLIENT = 'Frame Fixture';
 const SLUG = 'framefixture';
 const TOKEN = 'fixture-frame-token';
 const FRAME_URL = 'https://app.frame.io/reviews/fixture-folder';
+const CHANGED_URL = 'https://app.frame.io/reviews/changed-folder';
 const DRIVE_URL = 'https://drive.google.com/drive/folders/fixture-folder';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const failures = [];
@@ -53,7 +54,7 @@ const cards = (forClient) => [
 ].map(c => forClient ? Object.assign(c, { status: 'Client Approval', video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval',
   asset_url: 'https://example.invalid/video.mp4', caption: 'A fictional caption.' }) : c);
 
-/* mode: 'folder' | 'both' | 'none' | 'error' */
+/* mode: 'folder' | 'both' | 'drive' | 'change' | 'none' | 'error' */
 async function newPage(browser, origin, mode, state, client) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
   const page = await ctx.newPage();
@@ -77,7 +78,8 @@ async function newPage(browser, origin, mode, state, client) {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
       state.brain.push(body);
       if (mode === 'error') return json({ ok: false, error: 'fixture_down' }, 500);
-      const frame = mode === 'none' ? [] : mode === 'both'
+      const frame = mode === 'none' ? [] : mode === 'drive' ? [{ url: DRIVE_URL, name: 'Only batch', at: '2026-09-29' }]
+        : mode === 'change' && state.brain.length > 1 ? [{ url: CHANGED_URL, name: 'New batch', at: '2026-09-30' }] : mode === 'both'
         ? [{ url: DRIVE_URL, name: 'Newest batch', at: '2026-09-29' }, { url: FRAME_URL, name: 'Older batch', at: '2026-09-01' }]
         : [{ url: FRAME_URL, name: 'Newest batch', at: '2026-09-29' }];
       return json({ ok: true, frame, raw: [] });
@@ -146,6 +148,30 @@ async function main() {
     await openStaff(t.page, origin);
     const hrefs = await t.page.$$eval('.cal-frame-btn', els => els.map(e => e.getAttribute('href')));
     expect(hrefs.length === 2 && hrefs.every(h => h === FRAME_URL), 'a frame.io folder is chosen over a newer Drive one');
+    await t.ctx.close();
+
+    // 2b. only a non-Frame folder: still opens, but is not dressed up as Frame.io
+    console.log('--- Staff, Drive folder only ---');
+    state = { brain: [] };
+    t = await newPage(browser, origin, 'drive', state);
+    await openStaff(t.page, origin);
+    const drive = await t.page.$$eval('.cal-frame-btn', els => els.map(e => ({ href: e.getAttribute('href'), title: e.getAttribute('title') })));
+    expect(drive.length === 2 && drive.every(d => d.href === DRIVE_URL), 'a Drive-only client still gets a working folder button');
+    expect(drive.every(d => /Google Drive folder/.test(d.title) && !/Frame/.test(d.title)), 'its label names Google Drive, not Frame.io');
+    await t.ctx.close();
+
+    // 2c. a saved folder that changes while the calendar stays open is picked up
+    console.log('--- Staff, folder changes while open ---');
+    state = { brain: [] };
+    t = await newPage(browser, origin, 'change', state);
+    await t.page.clock.install();
+    await openStaff(t.page, origin);
+    expect(await t.page.$eval('.cal-frame-btn', e => e.getAttribute('href')) === FRAME_URL, 'first read shows the saved folder');
+    await t.page.clock.fastForward(6 * 60 * 1000);
+    await t.page.evaluate(() => _calRenderBody({ preserveScroll: true }));
+    await t.page.waitForFunction(u => { const e = document.querySelector('.cal-frame-btn'); return e && e.getAttribute('href') === u; }, CHANGED_URL, { timeout: 10000 }).catch(() => {});
+    expect(await t.page.$eval('.cal-frame-btn', e => e.getAttribute('href')) === CHANGED_URL, 'after five minutes the folder is read again and the new link shows');
+    expect(state.brain.length === 2, 'exactly one extra read (' + state.brain.length + ' total)');
     await t.ctx.close();
 
     // 3. no folder saved: hidden

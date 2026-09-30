@@ -2579,16 +2579,21 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        per-post copy. Staff only, and a client with no saved folder shows
        nothing. A failed lookup also shows nothing and is tried again after a
        minute, never in a loop. */
-    const _calFrameFolders = {};   // client -> { state: 'loading'|'ready'|'error', url, at }
+    const _calFrameFolders = {};   // client -> { busy, url, at, ok }
+    const _CAL_FRAME_FOLDER_TTL = 300000;   // a saved folder can change while the calendar stays open
+    const _CAL_FRAME_FOLDER_RETRY = 60000;
     function _calFramePick(list) {
         const rows = Array.isArray(list) ? list.map(i => String(i && i.url || '').trim()).filter(u => /^https?:\/\//i.test(u)) : [];
-        return rows.find(u => { try { return /(^|\.)(frame\.io|f\.io)$/i.test(new URL(u).hostname); } catch (e) { return false; } }) || rows[0] || '';
+        return rows.find(u => _calIsFrameLink(u)) || rows[0] || '';
     }
     function _calFrameFolderEnsure(name) {
         const cur = _calFrameFolders[name];
-        if (cur && (cur.state !== 'error' || Date.now() - cur.at < 60000)) return cur;
+        if (cur && (cur.busy || Date.now() - cur.at < (cur.ok ? _CAL_FRAME_FOLDER_TTL : _CAL_FRAME_FOLDER_RETRY))) return cur;
+        // Keep showing the last answer while a fresh one is fetched; a failed
+        // fetch keeps it too.
+        const entry = _calFrameFolders[name] = { busy: true, url: cur ? cur.url : '', at: Date.now(), ok: cur ? cur.ok : false };
         const url = CAL_SUPABASE_URL + '/functions/v1/brain';
-        const entry = _calFrameFolders[name] = { state: 'loading', url: '', at: Date.now() };
+        let before = entry.url;
         fetch(url, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
@@ -2596,17 +2601,25 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         }).then(async r => {
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-            entry.state = 'ready';
             entry.url = _calFramePick(j.frame);
-        }).catch(() => { entry.state = 'error'; })
-          .then(() => { entry.at = Date.now(); if (entry.url && calState.client === name) _calRenderBody({ preserveScroll: true, skipIfUnchanged: true }); });
+            entry.ok = true;
+        }).catch(() => { entry.ok = false; })
+          .then(() => {
+              entry.busy = false; entry.at = Date.now();
+              if (entry.url !== before && calState.client === name) _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
+          });
         return entry;
     }
     function _calFrameFolderSlotHtml() {
         if (_isClientLink || !calState.client) return '';
         const entry = _calFrameFolderEnsure(calState.client);
-        if (!entry || entry.state !== 'ready' || !entry.url) return '';
-        return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="Open this client\'s Frame.io folder in a new tab" aria-label="Open this client\'s Frame.io folder in a new tab">${_calFrameMarkSvg()}</a>`;
+        if (!entry || !entry.url) return '';
+        // Only a Frame.io link gets the Frame icon and name; a Drive or Dropbox
+        // delivery link says what it is instead of posing as Frame.io.
+        const isFrame = _calIsFrameLink(entry.url);
+        const what = isFrame ? 'Frame.io' : _calLinkLabel(entry.url);
+        const tip = 'Open this client\'s ' + what + ' folder in a new tab';
+        return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</a>`;
     }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');

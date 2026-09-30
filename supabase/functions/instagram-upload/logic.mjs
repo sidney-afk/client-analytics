@@ -13,7 +13,7 @@ export const DEFAULT_ALLOWED_CLIENTS = 'sidneylaruel';
 
 const clean = (v) => String(v == null ? '' : v).trim();
 
-// "Sidney Laruel", "sidneylaruel" and "SIDNEY-LARUEL" are the same client.
+// "Fixture Client", "fixtureclient" and "FIXTURE-CLIENT" are the same client.
 export function clientKey(name) {
   return clean(name).toLowerCase().replace(/[^a-z0-9&]/g, '');
 }

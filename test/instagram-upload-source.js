@@ -20,11 +20,11 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   const L = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/instagram-upload/logic.mjs')).href);
   const NOW = Date.parse('2026-09-30T12:00:00.000Z');
   const NOWISO = new Date(NOW).toISOString();
-  const base = { clientName: 'Sidney Laruel', socialAccountId: 'spc_fixtureInstagram01', title: 'Hello', mediaUrl: 'https://data.postforme.dev/x.mp4', idempotencyKey: 'key1' };
+  const base = { clientName: 'sidneylaruel', socialAccountId: 'spc_fixtureInstagram01', title: 'Hello', mediaUrl: 'https://data.postforme.dev/x.mp4', idempotencyKey: 'key1' };
 
   // --- the safety switch: only the test client until the owner widens it
-  ok(L.clientAllowed('Sidney Laruel', undefined), 'the test client is allowed by default');
-  ok(L.clientAllowed('sidneylaruel', ''), 'the slug spelling is the same client');
+  ok(L.clientAllowed('sidneylaruel', undefined), 'the test client is allowed by default');
+  ok(L.clientAllowed('SidneyLaruel ', ''), 'spelling and spacing do not matter');
   ok(!L.clientAllowed('Fixture Client B', undefined), 'any other client is refused by default');
   ok(!L.clientAllowed('', undefined), 'no client is refused');
   ok(L.clientAllowed('Fixture Client B', 'sidneylaruel, fixtureclientb'), 'a listed client is allowed');

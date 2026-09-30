@@ -11,7 +11,12 @@ const { seedStaffIdentity } = require('../qa/staff-gate-seed.js');
 
 const ADMIN = { id: 'qa_admin', name: 'QA Admin', role: 'admin', team: null };
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS' };
-const TEST_CLIENT = 'Sidney Laruel';        // the test client, the only one a check may post for
+const fs = require('fs');
+const path = require('path');
+// The test client's display name, read from the page's own roster (the only client a check may post for).
+const TEST_CLIENT = (fs.readFileSync(path.join(__dirname, '..', 'src', 'index', '070-core-client-names.js.part'), 'utf8').match(/'[^']+'/g) || [])
+  .map(q => q.slice(1, -1)).find(n => n.toLowerCase().replace(/[^a-z]/g, '') === 'sidneylaruel');
+assert.ok(TEST_CLIENT, 'the test client is on the roster');
 let NO_ACCOUNT_CLIENT = '';                 // picked from the page's own roster below: any roster name other than the test client has no Instagram id in the fixture sheet
 const ACCOUNT_ID = 'spc_fixtureInstagram01';
 const csv = (v) => '"' + String(v).replace(/"/g, '""') + '"';

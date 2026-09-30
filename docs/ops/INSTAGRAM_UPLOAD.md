@@ -34,7 +34,7 @@ workflow is used or changed.** TikTok is untouched and still runs on n8n.
 
 ## Safety switch: who can post
 
-Until you widen it, **only the test client (Sidney Laruel) can post**; any other client is refused by the server with "not switched on for this client yet". To open a client up, set the Supabase secret `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` to a comma list of names (for example the test client plus the one client you are trying), or `*` for everyone. Take it back the same way.
+Until you widen it, **only the test client (`sidneylaruel`) can post**; any other client is refused by the server with "not switched on for this client yet". To open a client up, set the Supabase secret `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` to a comma list of client names or slugs (for example the test client plus the one client you are trying), or `*` for everyone. Take it back the same way.
 
 ## Try one post yourself
 

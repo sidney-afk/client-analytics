@@ -68,6 +68,11 @@ verify_jwt = false
 [functions.filming-plan-tabs]
 verify_jwt = false
 
+# Caption generation progress (replaces the n8n caption-job-status and caption-job-update
+# webhooks). Staff role key required; reads and writes caption_jobs with service_role.
+[functions.caption-jobs]
+verify_jwt = false
+
 # Browser-callable transport for the SMM report form/viewer. Every action now
 # requires the shared staff role key: admin/SMM may submit, while report-text
 # reads and manager synchronization are admin-only (plus the transition legacy

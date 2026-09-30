@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 44 |
+| Deployable function slugs | 45 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 15 |
+| Manual-dispatch-only paths | 16 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -27,6 +27,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `brain` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/parse.mjs` |
 | `calendar-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `calendar-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
+| `caption-jobs` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `caption-jobs/jobs.mjs` |
 | `caption-prompts-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `client-credentials` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `client-profile-write` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/client-profile-edit.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |

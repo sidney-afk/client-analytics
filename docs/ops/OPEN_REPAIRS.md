@@ -29981,3 +29981,21 @@ script, one parent check instead of eleven, email read in parallel. Fresh items 
 3,727 to 1,709 ms cold; phone (modeled) 14,185 to 5,224 ms. Requests 19 to 9.
 **Left:** Today still waits for Clients Info (about 1.1 s); priority 1 in STATE_OF_THINGS removes most of it.
 
+
+## 296. [2026-09-30] n8n exit phase 2, step B1: caption job progress gets a function and a table (backend only, nothing switched)
+
+**What:** new Edge Function `caption-jobs` and migration `migrations/2026-09-30-caption-jobs.sql` (written, not applied). One
+function for both old n8n webhooks: `GET ?client=&postId=&jobId=` answers `{ ok, jobs: [{ jobId, client, postId, status, stage,
+caption, error, cancel_requested, started_at, updated_at }] }` (the last 24 hours when no jobId, newest first, at most 200) and
+`POST` writes only the keys sent, then drops rows older than 14 days. Staff role key (`X-Syncview-Key`) required. The table is
+service_role only (the migration's own assert checks no browser role holds anything). Added to the one-function deploy lane
+(`caption-jobs`, dispatch only) and to the deploy manifest.
+
+**Nothing is switched.** The Calendar page and the Generate Caption n8n workflow still use the n8n webhooks and data table; no
+n8n workflow was edited. Step B2 (next PR, after the migration is applied and the function deployed and read back) edits the
+Generate Caption workflow and points the page at the function behind a flag. The n8n Status and Update workflows stay on.
+
+**Proof:** `node test/caption-jobs-source.js` (32 checks: the patch and selection rules, the key set the page reads, the auth,
+the migration's privileges, the deploy lane). `ef-deploy-provenance` and `deploy-single-function` updated for 45 slugs.
+**Way back:** nothing to undo before deploy; after it, `drop table public.caption_jobs` and do not deploy the function.
+**Left:** apply the migration and deploy (Lighthouse, owner's go), read the function back once, then build B2.

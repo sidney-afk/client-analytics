@@ -178,7 +178,16 @@ Risk low to medium. Owner decision: AI generation stays on n8n; progress goes to
 end on the test client.
 What it does today: while a caption is being generated, the Calendar page asks every few seconds "how far along is it?" and n8n
 reads its own small data table. Update writes progress into that table.
-Plan: a Supabase table `caption_jobs` with two small functions (status read, update write) behind a server-readable flag with
+**Split in two, like Filming (PR 1a and 1b), because the page ships at merge while the migration and deploy are manual.**
+*B1 (backend only, built 2026-09-30):* table `caption_jobs` and ONE function `caption-jobs` that does both old webhooks
+(`GET` is status, `POST` is update, same keys). Nothing is switched. *B2 (after Lighthouse applies the migration and deploys
+the function and it is read back once):* the n8n edit and the page switch behind a server-readable flag. **Owner decision
+2026-09-30 (keys):** use the existing n8n credentials `Claude` (header auth) and `APIFY @HOUSE` (query auth) for the two typed
+keys; if either fails the test run on the test client, stop and tell the owner, never put the typed key back; no key value
+anywhere in the repo, PR or reply. **Open for B2:** the workflow must send a staff role key header (`x-syncview-key`) to the
+function; I need to know which existing n8n credential holds one (candidate: `SyncView Client Credentials Staff Key`),
+because I cannot read a credential's header name or value.
+Original plan: a Supabase table `caption_jobs` with two small functions (status read, update write) behind a server-readable flag with
 the same rules as phase 1 (fresh bounded read before each write, hold on failure, no write ever falls back to n8n). The Generate
 Caption workflow (an n8n edit, owner go given) writes progress through the update function instead of its data table; the page
 reads from the status function. **The page switches only after the workflow edit is live and the function has been proven to

@@ -30044,3 +30044,12 @@ deploy. **Way back:** revert the commit and redeploy `caption-jobs`.
 **Found on the way, for a later step:** the Generate Caption workflow still saves the finished caption through the old n8n
 `calendar-upsert-post` webhook, which blocks switching that workflow off after the 30 days. It needs its own change (save
 through the `calendar-upsert` function) and is recorded in the phase 2 plan; it is not part of this PR.
+
+## 301. [2026-09-30] Instagram upload on the TikTok Upload tab, through Post For Me (built, not switched on)
+
+**What.** The TikTok Upload tab has a TikTok / Instagram switch (the tab keeps its name). The Instagram side uploads a video to Post For Me's storage, then a new Supabase function `instagram-upload` creates the post, keeps the queue in a new table `instagram_uploads`, reports status and cancels a scheduled post. No n8n workflow was changed or used (TikTok still runs on n8n). The client's Instagram connection id lives in a new Clients Info column `postforme_instagram_account_id`, next to the TikTok `postforme_account_id`.
+
+**Safety.** The function needs a staff key, checks with Post For Me that the account really is Instagram, and only lets clients in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` post (default: the test client only).
+
+**Done 2026-09-30:** `migrations/2026-09-30-instagram-uploads.sql` applied (table only, EXECUTION_LOG.md). **Still to do (owner's go).** Set the `POST_FOR_ME_API_KEY` secret; deploy `instagram-upload` through `deploy-single-function.yml`; add the sheet column. Runbook and the list of Post For Me details not yet proven for Instagram: `docs/ops/INSTAGRAM_UPLOAD.md`.
+

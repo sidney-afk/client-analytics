@@ -54,6 +54,7 @@
 270-samples-model.js.part                  core!
 280-samples-cards-notes.js.part            core!
 290-samples-writes-review.js.part          core!
+299-instagram-upload.js.part            tiktok
 300-tiktok-upload.js.part                  tiktok
 305-core-kasper-shared.js.part             core
 310-sales-intake-hiring.js.part            kasper

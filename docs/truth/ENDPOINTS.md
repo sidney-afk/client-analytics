@@ -349,6 +349,7 @@ Other:
   Its migration was applied 2026-07-24, the gateway deployed from `1738ad3`, and the F42
   linked-cohort import executed 2026-07-25; the TEST drill remains separately owner-gated.
 - `functions/v1/filming-plan-tabs` — Doc tab lists for Kasper > Filming, in one bulk request (`?docs=`, or `?doc=` for one; `refresh=1` re-reads from Google). Staff role key required. Reads the Docs with the Google service account and keeps a 3 hour copy in `filming_plan_tabs_cache` (service_role only); a Doc it cannot read falls back to the n8n webhook for that Doc and the answer names the service account's email (`share_with`, never a key). Used by the page only when the runtime flag `filming_plan_tabs_source` says `{"mode":"function"}` (default `{"mode":"n8n"}`; read afresh at every Filming load, Refresh and cached-rows reuse).
+- `functions/v1/instagram-upload` — Instagram side of the TikTok Upload tab (through Post For Me). POST `{action}`: `mint` (one-time storage URL), `create`, `list`, `status`, `cancel`. Staff role key required; holds the Post For Me key; refuses every client not listed in `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` and any account that is not the one on file for the client. Queue table `instagram_uploads`. See `docs/ops/INSTAGRAM_UPLOAD.md`.
 - `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
   constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.

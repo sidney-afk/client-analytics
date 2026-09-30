@@ -58,14 +58,15 @@
 | 50 | `270-samples-model.js.part` | 2963 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 51 | `280-samples-cards-notes.js.part` | 2930 | SURFACE 3: the save engine |
 | 52 | `290-samples-writes-review.js.part` | 1886 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 53 | `300-tiktok-upload.js.part` | 2070 | TIKTOK UPLOAD MODULE |
-| 54 | `305-core-kasper-shared.js.part` | 618 | SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push |
-| 55 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
-| 56 | `320-core-kasper-subtabs.js.part` | 20 | — |
-| 57 | `321-kasper-dashboard-replies.js.part` | 2728 | The Samples subtab was folded into Review (samples are listed in the |
-| 58 | `322-core-kasper-tab-counts.js.part` | 34 | — |
-| 59 | `323-kasper-dashboard-tail.js.part` | 576 | Review Session |
-| 60 | `330-kasper-review-history.js.part` | 2432 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 61 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
-| 62 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
-| 63 | `350-footer.html.part` | 398 | Transcript preview modal |
+| 53 | `299-instagram-upload.js.part` | 479 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
+| 54 | `300-tiktok-upload.js.part` | 2126 | TIKTOK UPLOAD MODULE |
+| 55 | `305-core-kasper-shared.js.part` | 618 | SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push |
+| 56 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
+| 57 | `320-core-kasper-subtabs.js.part` | 20 | — |
+| 58 | `321-kasper-dashboard-replies.js.part` | 2728 | The Samples subtab was folded into Review (samples are listed in the |
+| 59 | `322-core-kasper-tab-counts.js.part` | 34 | — |
+| 60 | `323-kasper-dashboard-tail.js.part` | 576 | Review Session |
+| 61 | `330-kasper-review-history.js.part` | 2432 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 62 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
+| 63 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
+| 64 | `350-footer.html.part` | 398 | Transcript preview modal |

@@ -72941,7 +72941,7 @@
     // to overdue rows. At most a few per pass, each at most every 10 min.
     const TK_LOOKUP_EVERY_MS = 10 * 60000;
     // A row that keeps coming back without a result is asked less and less often.
-    function _tkLookupGap(n) { return TK_LOOKUP_EVERY_MS * ((n || 0) < 2 ? 1 : (n || 0) < 4 ? 3 : 6); }
+    function _tkLookupGap(n) { return TK_LOOKUP_EVERY_MS * ((n || 0) < 3 ? 1 : (n || 0) < 5 ? 3 : 6); }
     async function _tkLookupOverdue() {
         tkState.pfm = tkState.pfm || {};
         const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < _tkLookupGap((tkState.pfm[r.id] || {}).n)))
@@ -72954,9 +72954,10 @@
                 const json = resp.ok ? await resp.json() : null;
                 const pfm = (json && json.pfm) || null;
                 const prev = tkState.pfm[r.id] || {};
-                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now(), n: (prev.n || 0) + 1 };
+                // Only an answer from Post For Me counts toward the slower pace; a failed request is retried at the same gap.
+                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now(), n: json ? (prev.n || 0) + 1 : (prev.n || 0) };
                 if (prev.state !== tkState.pfm[r.id].state) changed = true;
-            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now(), n: ((tkState.pfm[r.id] || {}).n || 0) + 1 }; }
+            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now(), n: (tkState.pfm[r.id] || {}).n || 0 }; }
         }
         if (changed) _tkRenderQueue();
     }
@@ -81796,4 +81797,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7d725d98599e.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-0943ec14d8c7.js");

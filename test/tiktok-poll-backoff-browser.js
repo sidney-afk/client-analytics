@@ -7,7 +7,8 @@
 //   2. after many reads with no change the gap grows (60 s, then 120 s);
 //   3. a changed list puts the pace back to 30 s at once;
 //   4. a lost result is asked about less and less often, never more than
-//      the old fixed 10 minutes.
+//      the old fixed 10 minutes, and a failed lookup is retried at the
+//      normal 10 minute gap.
 const assert = require('assert/strict');
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
@@ -25,7 +26,7 @@ async function open(browser, server, rowsRef, counts) {
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     if (/key-verify/.test(url)) return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, role: 'admin', member: ADMIN }) });
     if (/tiktok-uploads-list/.test(url)) { counts.list++; return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(rowsRef.rows) }); }
-    if (/tiktok-upload-status/.test(url)) { counts.status++; return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, row: null, pfm: { state: 'none' } }) }); }
+    if (/tiktok-upload-status/.test(url)) { counts.status++; if (counts.failStatus) return route.fulfill({ status: 500, headers: cors, contentType: 'application/json', body: '{}' }); return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, row: null, pfm: { state: 'none' } }) }); }
     if (/tiktok-upload(-direct|-cancel)?(\?|$)/.test(url)) throw new Error('the page must not post, retry or cancel: ' + url);
     return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: /\/rest\/v1\//.test(url) ? '[]' : '{}' });
   });
@@ -74,8 +75,16 @@ async function run(page, seconds) { for (let i = 0; i < seconds / 10; i++) { awa
     const B = await open(browser, server, rowsB, cB);
     await real(300);
     await run(B.page, 70 * 60);
-    assert.ok(cB.status >= 3 && cB.status <= 4, 'in 70 minutes: asked 10, 20, then every 30 min (old pace: 7), got ' + cB.status); checks++;
+    assert.ok(cB.status >= 4 && cB.status <= 5, 'in 70 minutes: asked at 0, 10, 20, then every 30 min (old pace: 7), got ' + cB.status); checks++;
     await B.context.close();
+
+    // C: failed lookups do not count as quiet answers, so they are retried at the normal gap.
+    const cC = { list: 0, status: 0, failStatus: true };
+    const C = await open(browser, server, rowsB, cC);
+    await real(300);
+    await run(C.page, 70 * 60);
+    assert.ok(cC.status >= 6, 'failing lookups stay at the 10 minute retry gap (at least 6 in 70 min), got ' + cC.status); checks++;
+    await C.context.close();
     console.log(`tiktok-poll-backoff-browser: ${checks} checks passed ✅`);
   } finally {
     await browser.close(); server.close();

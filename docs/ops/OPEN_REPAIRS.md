@@ -29959,7 +29959,7 @@ Me every 10 minutes for ever. That was about 400 list runs and 128 status runs a
 `docs/plans/2026-09-30-n8n-exit-phase-2.md`). Now each pace stretches after reads that changed nothing (in flight: 30 s for
 about 3 minutes, then 60 s, then 120 s; scheduled: 2, 5, then 10 minutes; overdue: 5, 10, then 15 minutes), and goes back to the
 base pace on any change, a submit, a remount or returning to the tab. A row that keeps coming back without a result is asked
-about at 10, 20, then every 30 minutes, then hourly, instead of every 10 minutes.
+about at 0, 10, 20, then every 30 minutes, then hourly (only answers from Post For Me count; a failed request is retried at the 10 minute gap), instead of every 10 minutes.
 
 **Proof:** `test/tiktok-poll-backoff-browser.js` (fake clock, offline, run in CI by `entry-links-boot`) fails on the old code
 (20 reads in 10 quiet minutes) and passes now (7 or fewer). The four existing TikTok browser suites and the carousel journey still pass; one of them (`tiktok-overdue-status-browser.js`) waited 11 minutes for a second lookup and now waits 16, because the poll is slower by design.

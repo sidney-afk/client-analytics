@@ -47,6 +47,7 @@ clicks, `qa/test-client-entry.js` for the client link) instead of new machinery.
 | 4 | Card rename | card name and its linked sub-issue title both change; then both put back |
 | 5–7 | Workload / SyncLinear / Analytics | first real content within 30 s; 🐢 "slow" if over 1.5× the speed-map cold median; ⚠️ "not measured" if the tab needs a role key the run lacks |
 | 8 | Templates coverage | read-only: every current client in Clients Info (test and internal accounts left out) has a `templates` row with a thumbnail Canva link; a gap is ⚠️ with counts only, never a failed run. Rows are only made by the first Templates save, and no onboarding step makes one |
+| 9 | Samples agree with their work items | read-only: a sample status change saves the work item first and the sample's own record second, and a page that closes in between leaves the work item ahead (only the same browser finishes it, so the sample never reaches the client). Counts every linked part whose work item maps to a different sample status, changed at or after the sample's own stamp, more than 30 minutes ago; archived samples and work items with no sample equivalent are left out. A stuck sample is ⚠️ with counts only, never a failed run |
 
 Client flows act on the **caption**: a disposable seed has no native work item,
 and a video approval without one is refused by design (`native_link_required`,

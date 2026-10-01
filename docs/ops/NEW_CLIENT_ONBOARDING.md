@@ -23,7 +23,7 @@
 | **Google Drive** | The actual master filming Docs, inside **Client Filming Plans / <client display name>** with one folder per client — never inside the general **Clients / <client>** folder. | ✅ Create/move Doc |
 | **n8n** | All the scrapers/automations (metrics, top videos, competitor & market research, weekly Slack, caption gen, calendar/samples sync). | ⚪ Mostly auto |
 | **Linear** (`synchro-social`) | ~~One **Project** per client across the **Video + Graphics** teams.~~ **RETIRED 2026-09-20.** Do not create Linear projects for new clients; the native card carries its client directly (see §6f and OPEN_REPAIRS 227). | ❌ Retired |
-| **Slack** | One **client channel** per client (weekly reports + tweak pings post there), plus one automated **public `-creative` channel**; onboarding kickoff + full form answers post here after readiness checks pass. | ✅ Create client channel; ⚪ Queue creative channel after setup, worker creates it |
+| **Slack** | One **client channel** per client (weekly reports + tweak pings post there), plus one automated **public `-creative` channel**; onboarding kickoff + full form answers post here after readiness checks pass. | ✅ Both channels are created by the Slack finalizer once setup is ready (corrected 2026-10-01); nothing to create by hand |
 | **Roam** | Sales-call venue only (no longer used for onboarding — see §6c). | — |
 | **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
 | **Post For Me** (`postforme.dev`) | A connected **TikTok account** per client (TikTok auto‑upload). | ⚪ Not urgent |
@@ -43,7 +43,7 @@
 - [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content_description)
 
 **SYNCVIEW Google Sheet** (`10QQ…QqAU8`)
-- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, Slack channel ID, …). → [§4](#4-clients-info-row-the-big-one)
+- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, …; **leave both Slack channel ids empty**, the finalizer writes them). → [§4](#4-clients-info-row-the-big-one)
 - [ ] **Social Media Managers** → add a row (who's their SMM). → [§5](#5-social-media-managers-row)
 - [ ] *(owner/Kasper opt-in only)* **Monthly Checkup** → add a row only after approval. → [§6j](#6j-monthly-check-in-email)
 
@@ -52,8 +52,8 @@
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
 **Slack / Post For Me**
-- [ ] Get the **SMM's Slack user ID** into the SMM tab (`slack_profile_url`). **Do NOT create the client Slack channel by hand and do NOT fill `slack_channel_id`:** the Slack finalizer creates both the private client channel and the public `-creative` channel and writes both ids (corrected 2026-10-01, owner decision). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
-- [ ] Confirm the **Clients Info** row, assigned SMM row (with `slack_profile_url` filled in), and linked filming plan are ready; the Slack finalizer then creates the public `-creative` channel and the private client channel and writes `creative_channel_id` and `slack_channel_id`. → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
+- [ ] Get the **SMM's Slack user ID** into the SMM tab (`slack_profile_url`). **Do NOT create the client Slack channel by hand and do NOT fill `slack_channel_id`:** the Slack finalizer creates both the private client channel and the public `-creative` channel and writes both ids (corrected 2026-10-01, owner decision). → [§6c](#6c-two-slack-channels-both-created-automatically)
+- [ ] Confirm the **Clients Info** row, assigned SMM row (with `slack_profile_url` filled in), and linked filming plan are ready; the Slack finalizer then creates the public `-creative` channel and the private client channel and writes `creative_channel_id` and `slack_channel_id`. → [§6c](#6c-two-slack-channels-both-created-automatically)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
 - [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
@@ -142,7 +142,7 @@
 **Finish**
 - [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, both Slack targets, metrics next morning). → [§6i](#6i-verify)
 
-> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel ~~+ Linear project~~ (Linear retired 2026-09-20) → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Slack finalizer creates/posts the public creative channel → client goes live in the dashboard → (samples/calendar fill in as work starts).**
+> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows ~~+ Slack channel by hand~~ (automatic, 2026-10-01) ~~+ Linear project~~ (Linear retired 2026-09-20) → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Slack finalizer creates both channels and posts the kickoff → client goes live in the dashboard → (samples/calendar fill in as work starts).**
 
 ---
 
@@ -222,7 +222,7 @@ header name, **not** by a fixed column position.
 | `instagram_handle` | IG handle, no `@` | e.g. `jane.doe.living`. |
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
-| `slack_channel_id` | `C…` channel ID for their Slack **client channel** | Fill after you create the channel ([§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)). **Retain it:** weekly reports, tweak pings, and alert DMs still use Slack. |
+| `slack_channel_id` | `C…` channel ID for their Slack **client channel** | **Leave empty when you add the row.** The Slack finalizer creates the private client channel and writes this id ([§6c](#6c-two-slack-channels-both-created-automatically)); a pre-filled value sends the job to manual reconciliation. **Retain it afterwards:** tweak pings and alert DMs still use Slack. |
 | `creative_channel_id` | `C…` channel ID for the **internal `-creative`** Slack channel | Written by the Slack finalizer after it verifies the new public channel. A different field from `slack_channel_id` above — don't conflate the two. A manual-reconciliation case is the only exception to it being auto-written. |
 | `roam_channel_id` | Bare Roam **Group Settings UUIDv4** (legacy) | Left over from the 2026-07-28 → 2026-08-24 Roam chapter. Not written to for new clients; only present on clients onboarded during that window, pending a separate backfill-to-Slack pass. |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
@@ -290,7 +290,7 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
    with Sidney which email the brand carries and make the Clients Info row match the submission.
 4. **A queued job whose `client_name` is the person's name will never match a brand-named row.** It
    parks at `waiting_for_readiness` ("Clients Info row is not ready") forever. Fix it with a
-   corrected queue record — **never** by re-running provisioning ([§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)).
+   corrected queue record — **never** by re-running provisioning ([§6c](#6c-two-slack-channels-both-created-automatically)).
 
 ---
 
@@ -309,7 +309,7 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
   this holds a bare Slack **user ID** (`U…`), not a URL. It briefly went unused
   (2026-08-20 → 2026-08-24, when the Kasper-card Slack DM button it originally
   powered was removed for the Roam move) but now backs something new: the
-  **Client — Slack Creative Channel Finalizer** ([§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic))
+  **Client — Slack Creative Channel Finalizer** ([§6c](#6c-two-slack-channels-both-created-automatically))
   reads this column to invite the assigned SMM into the client's `-creative`
   Slack channel. A blank value parks that client's onboarding job in
   `waiting` — safe, but nothing gets created until you fill this in. The old
@@ -397,7 +397,7 @@ The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's *
 - **Templates** — per‑client styling the editors/designers use (subtitle and thumbnail fonts and colours, reference links, preferences). **Since 2026-09-24 it lives only in the Supabase `templates` table**, read by the Templates page and saved through the `templates-save` Edge Function; the sheet's `Templates` tab and its n8n workflows are retired, so do not add a sheet row. Exception: the subtitle/thumbnail font and colour values typed in the **Quick look** form are **not** saved to the `templates` table. They go only to the client's brain facts, as a change the brain processes ([§6l](#6l-synchro-brain-folder-and-editor-brief)); the old `templates` style fields are just a read-only fallback shown when the brain is unreachable. So the proof that a Quick look save landed is the brain fact, not a Supabase row. Filled progressively — **not needed on day one**.
 - **`CaptionPrompts` tab** — a per‑client caption‑gen prompt (keyed by **slug**). Managed from the UI; optional.
 
-### 6c. Two Slack channels — the client channel (manual) and the creative channel (automatic)
+### 6c. Two Slack channels, both created automatically (the client channel and the creative channel)
 
 These are genuinely different channels for different audiences. Don't conflate them.
 
@@ -784,7 +784,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
   in isolation.
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Open the client's **Templates** page: the **Editor brief** should show (it is empty until [§6l](#6l-synchro-brain-folder-and-editor-brief) is done). If the page instead says it could not reach the brain, read the error it shows (and the `brain` function's logs) before deciding the cause. Known causes: your staff login is missing or expired; the function is not deployed or lacks its `BRAIN_GITHUB_TOKEN` secret (OPEN_REPAIRS 251); or reading this client's folder failed (for example the folder name does not match the slug). Only the last one is an onboarding problem; fix whichever it is before ticking this line.
-- Confirm the weekly Slack target resolves (`slack_channel_id` set).
+- Confirm `slack_channel_id` and `creative_channel_id` were both written by the finalizer (never filled by hand) and that the private client channel exists.
 - Confirm the exact **public** `{client}-creative` Slack channel exists with all five required members — the SyncView Bot, owner/Sidney, Kasper, Rocío, and the assigned SMM; that its channel id is in `creative_channel_id`; and that the kickoff (with credentials inlined) visibly precedes the full onboarding brief.
 - Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
   mapping, protected review token, and all required authenticated Track-A routing entries exist and

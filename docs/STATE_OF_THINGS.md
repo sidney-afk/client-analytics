@@ -96,6 +96,10 @@ here with where it stopped, so it can be restarted.
    plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
    in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), owner decided 2026-10-01: stays hourly, no n8n edits (replay test and design doc kept). Last K (client approve and request-changes move).
    Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
+6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 320).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
+   `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
+   by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
+   Needs from the owner: two secrets plus a new key, and the Apify spend decision (section 8 of the plan). Top Videos and Market Research are not started.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.

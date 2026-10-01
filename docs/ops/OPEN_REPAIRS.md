@@ -30131,3 +30131,16 @@ Script bundles: step B's page switch (PR 1889) deleted old hashed files in `js/`
 ## 311. [2026-10-01] n8n exit phase 2: Booking Recovery stays hourly (owner decision); step K read and reported, nothing changed
 
 Booking Recovery stays hourly with no n8n edits. Step K report is in `docs/plans/2026-10-01-n8n-exit-step-k-report.md`; code untouched until the owner replies.
+
+
+## 312. [2026-10-01, BUILT, NOT YET APPLIED] A sample status change was two saves, so closing the tab between them left the sample stuck
+
+**Problem.** Found by Vigil. Changing a sample's status saves the work item first (through the write gateway) and the sample's own record second (`sample-review-upsert`). Closing the tab, or losing the network, between the two left the work item moved and the sample on its old status, and the browser's repair journal lives in one browser profile so another browser or device could not finish it. The Calendar closed the same gap for its component statuses on 2026-09-18 and explicitly left `sample_reviews` out.
+
+**Measured 2026-10-01 (read-only SQL, counts only).** 0 samples behind their work item today (108 video and 43 graphic links among 7,873 samples), so this is prevention, not a clean-up.
+
+**Fix (`migrations/2026-10-01-native-sample-status-bridge.sql`, SQL only, no Edge Function change, so no sealed deploy lane).** A trigger on `deliverables` moves the sample's matching component status, its overall `status` and any now-stale client and Kasper approval stamps in the same transaction as the work item write. The browser's second save then finds the value already there and changes nothing. `production_native_sample_status_backfill(since, apply)` finishes any sample whose work item is ahead (the sample's own change stamp is older than the work item's); a sample edited after its work item moved is left alone. The trigger and the catch-up call one function, which locks the sample row and re-reads the work item live, so neither can write an older value over a newer one.
+
+**Proof.** `test/native-sample-status-bridge.js` (22 checks): the SQL overall status equals the page's `computeSampleOverallStatus` for all 324 status pairs; against a throwaway PostgreSQL, a work item write alone moves the sample, a connection killed mid-transaction changes neither side, the browser's later second save does not restamp, archived and unmapped statuses are skipped, and the catch-up dry run, apply and re-run behave. Test client slug only.
+
+**Not done, on purpose.** Not applied to the live database. Not added to `scripts/linear-exit-deploy-preflight.js` or the install manifest: the preflight refuses a deploy when a pinned routine is missing live, so those rows go in with the apply, in the same sitting. No scheduled run of the catch-up yet: it writes, so it needs the owner's go. **Calendar:** the same two-step shape exists for the overall `status` column, which the 2026-09-18 trigger leaves to the next calendar write; 5 of 910 linked Calendar cards disagree with their parts today. Not changed here.

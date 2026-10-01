@@ -44,8 +44,10 @@ declare r jsonb; v record; n int; ts timestamptz;
 begin
   -- catalog
   if (select count(*) from public.onboarding_steps) <> 27 then raise exception 'catalog count'; end if;
-  if (select count(*) from public.onboarding_steps where required) <> 26 then raise exception 'required count'; end if;
-  if (select count(*) from public.onboarding_steps where step_key = 'syncview_link_sent' and not required) <> 1 then raise exception 'optional step'; end if;
+  if (select count(*) from public.onboarding_steps where required) <> 25 then raise exception 'required count'; end if;
+  if (select count(*) from public.onboarding_steps where not required) <> 2 or (select count(*) from public.onboarding_steps where step_key in ('syncview_link_sent','social_posting_ids') and not required) <> 2 then raise exception 'optional steps'; end if;
+  if exists (select 1 from public.onboarding_steps where step_key like '%monthly%') then raise exception 'monthly check-in must be out'; end if;
+  if not exists (select 1 from public.onboarding_steps where step_key = 'social_handle_saved' and required and detectable) then raise exception 'handle step'; end if;
   if exists (select 1 from public.onboarding_steps where step_key like '%kickoff_call%') then raise exception 'kickoff call must be out'; end if;
 
   -- ensure is idempotent
@@ -79,15 +81,15 @@ begin
 
   -- a profile with no progress rows yet still shows every required step as todo
   select * into v from public.client_onboarding_summary_v1 where client_slug = 'beta';
-  if v.required_steps <> 26 or v.required_todo <> 26 or v.onboarded then raise exception 'unensured summary %', v; end if;
-  -- summary: one done, 25 required still todo, not onboarded
+  if v.required_steps <> 25 or v.required_todo <> 25 or v.onboarded then raise exception 'unensured summary %', v; end if;
+  -- summary: one done, 24 required still todo, not onboarded
   select * into v from public.client_onboarding_summary_v1 where client_slug = 'alpha';
-  if v.required_steps <> 26 or v.required_done <> 1 or v.required_todo <> 25 or v.onboarded then raise exception 'summary %', v; end if;
+  if v.required_steps <> 25 or v.required_done <> 1 or v.required_todo <> 24 or v.onboarded then raise exception 'summary %', v; end if;
   -- decide every required step (skipped needs a note, unknown does not): onboarded
   update public.client_onboarding_progress set status = 'unknown' where client_slug='alpha'
      and step_key in (select step_key from public.onboarding_steps where required) and status = 'todo';
   select * into v from public.client_onboarding_summary_v1 where client_slug = 'alpha';
-  if not v.onboarded or v.required_decided_other <> 25 then raise exception 'unknown must not count as todo'; end if;
+  if not v.onboarded or v.required_decided_other <> 24 then raise exception 'unknown must not count as todo'; end if;
 
   -- resource view: present or missing only
   select * into v from public.client_resource_status_v1 where client_slug = 'alpha';
@@ -106,7 +108,7 @@ begin
   -- a required step added to the catalog later reopens "onboarded" for a client that had finished
   insert into public.onboarding_steps (step_key, position, label, kind, required) values ('later_required_step', 99, 'Later step', 'owner', true);
   select * into v from public.client_onboarding_summary_v1 where client_slug = 'alpha';
-  if v.onboarded or v.required_steps <> 27 or v.required_todo <> 1 then raise exception 'new catalog step must reopen %', v; end if;
+  if v.onboarded or v.required_steps <> 26 or v.required_todo <> 1 then raise exception 'new catalog step must reopen %', v; end if;
   delete from public.onboarding_steps where step_key = 'later_required_step';
 
   -- sales: an import must stay unknown

@@ -35,7 +35,9 @@
 --
 -- ONBOARDED means no required step is still 'todo' (a missing progress row is todo). 'unknown' (backfill could
 -- not tell) and 'skipped' (an admin decision, note required) are explicit and do
--- not count as todo. The one optional step never blocks.
+-- not count as todo. The two optional steps (SyncView link sent, Post For Me
+-- accounts connected) never block. Any required step can be skipped by an admin
+-- with a note.
 --
 -- DELETING A TEST CLIENT. Progress, resources, sales state and proposals cascade
 -- with the client_profiles row. The event history has no foreign key on purpose
@@ -329,32 +331,32 @@ grant execute on function public.client_onboarding_set_step(text, text, text, te
 
 -- ---------- catalog seed (list 1 of the 2026-10-01 audit, minus the kickoff call) ----------
 insert into public.onboarding_steps (step_key, position, label, kind, required, detectable, proof, default_owner) values
-  ('intro_call_booked',        1, 'Intro call booked',                         'auto',   true,  true,  'HubSpot deal reached Call Scheduled', 'owner'),
-  ('sales_intake_submitted',   2, 'Sales intake submitted, contract and payment link sent', 'owner', true, false, 'Sales intake row', 'owner'),
-  ('contract_signed',          3, 'Client signed the contract',                'client', true,  true,  'HubSpot contract flag', 'owner'),
-  ('first_payment_received',   4, 'Client paid the first invoice',             'client', true,  true,  'HubSpot payment flag', 'owner'),
-  ('onboarding_email_sent',    5, 'Onboarding email sent',                     'auto',   true,  true,  'HubSpot onboarding_sent flag', 'owner'),
-  ('expectations_video_seen',  6, 'Client watched the what-to-expect video',   'client', true,  false, 'Owner confirms', 'owner'),
-  ('onboarding_form_received', 7, 'Onboarding form received',                  'client', true,  true,  'Row in the onboarding tables', 'owner'),
-  ('provisioning_ran',         8, 'Provisioning ran (Drive folder, HubSpot end state, Slack job queued)', 'auto', true, false, 'Drive folder id saved', 'owner'),
-  ('research_done',            9, 'Keywords, competitors and description written', 'claude', true, true, 'Profile fields filled', 'owner'),
+  ('intro_call_booked',         1, 'Intro call booked',                         'auto',   true,  true,  'HubSpot deal reached Call Scheduled', 'owner'),
+  ('sales_intake_submitted',    2, 'Sales intake submitted, contract and payment link sent', 'owner', true, false, 'Sales intake row', 'owner'),
+  ('contract_signed',           3, 'Client signed the contract',                'client', true,  true,  'HubSpot contract flag', 'owner'),
+  ('first_payment_received',    4, 'Client paid the first invoice',             'client', true,  true,  'HubSpot payment flag', 'owner'),
+  ('onboarding_email_sent',     5, 'Onboarding email sent',                     'auto',   true,  true,  'HubSpot onboarding_sent flag', 'owner'),
+  ('expectations_video_seen',   6, 'Client watched the what-to-expect video',   'client', true,  false, 'Owner confirms', 'owner'),
+  ('onboarding_form_received',  7, 'Onboarding form received',                  'client', true,  true,  'Row in the onboarding tables', 'owner'),
+  ('provisioning_ran',          8, 'Provisioning ran (Drive folder, HubSpot end state, Slack job queued)', 'auto', true, false, 'Drive folder id saved', 'owner'),
+  ('research_done',             9, 'Keywords, competitors and description written', 'claude', true, true, 'Profile fields filled', 'owner'),
   ('roster_row_created',      10, 'Client exists on the roster and has a profile', 'owner', true, true, 'clients and client_profiles rows', 'owner'),
-  ('routing_enrolled',        11, 'Client enrolled in all four routing lists', 'auto',   true,  true,  'Four routing lists name the client', 'owner'),
-  ('review_token_present',    12, 'Review token exists',                       'auto',   true,  true,  'client_access row', 'owner'),
-  ('smm_assigned',           13, 'Social media manager assigned',             'owner',  true,  false, 'SMM assignment', 'owner'),
-  ('client_channel_created', 14, 'Private client Slack channel created',      'auto',   true,  true,  'slack_channel_id filled by the finalizer', 'owner'),
-  ('creative_channel_created',15,'Creative Slack channel created',            'auto',   true,  true,  'creative_channel_id filled by the finalizer', 'owner'),
-  ('kickoff_message_filled', 16, 'Kickoff message placeholders filled',       'owner',  true,  false, 'Owner confirms', 'owner'),
-  ('filming_plan_linked',    17, 'Filming plan Doc created and linked',       'claude', true,  true,  'filming_plans link', 'owner'),
-  ('templates_and_canva',    18, 'Templates saved with the thumbnail Canva link', 'owner', true, true, 'templates row with a Canva link', 'owner'),
-  ('brain_folder_and_brief', 19, 'Brain folder and Editor brief created',     'claude', true,  false, 'Brain folder exists', 'owner'),
-  ('ideas_pipeline_setup',   20, 'Ideas pipeline set up (ideas Sheet, Sandcastles project)', 'claude', true, false, 'Pipeline config exists', 'owner'),
-  ('first_card_created',     21, 'First real card created',                   'owner',  true,  true,  'A calendar card exists', 'owner'),
-  ('samples_started',        22, 'Samples started',                           'owner',  true,  true,  'A sample review exists', 'owner'),
-  ('metrics_appearing',      23, 'Metrics appear the next morning',           'auto',   true,  true,  'analytics_metrics rows', 'owner'),
-  ('social_posting_ids',     24, 'Social posting account ids connected',      'owner',  true,  true,  'postforme ids filled (skip with a note if not used)', 'owner'),
-  ('sandcastles_watchlist',  25, 'Client and competitors on the Sandcastles watchlist', 'owner', true, false, 'Owner confirms (skip with a note if not used)', 'owner'),
-  ('monthly_checkin_optin',  26, 'Monthly check-in opt-in decided',           'owner',  true,  false, 'Owner confirms (skip with a note to opt out)', 'owner'),
+  ('social_handle_saved',    11, 'At least one social media handle saved (Instagram, TikTok or YouTube)', 'owner', true, true, 'instagram, tiktok or youtube handle filled on the profile', 'owner'),
+  ('routing_enrolled',        12, 'Client enrolled in all four routing lists', 'auto',   true,  true,  'Four routing lists name the client', 'owner'),
+  ('review_token_present',    13, 'Review token exists',                       'auto',   true,  true,  'client_access row', 'owner'),
+  ('smm_assigned',           14, 'Social media manager assigned',             'owner',  true,  false, 'SMM assignment', 'owner'),
+  ('client_channel_created', 15, 'Private client Slack channel created',      'auto',   true,  true,  'slack_channel_id filled by the finalizer', 'owner'),
+  ('creative_channel_created',16,'Creative Slack channel created',            'auto',   true,  true,  'creative_channel_id filled by the finalizer', 'owner'),
+  ('kickoff_message_filled', 17, 'Kickoff message placeholders filled',       'owner',  true,  false, 'Owner confirms', 'owner'),
+  ('filming_plan_linked',    18, 'Filming plan Doc created and linked',       'claude', true,  true,  'filming_plans link', 'owner'),
+  ('templates_and_canva',    19, 'Templates saved with the thumbnail Canva link', 'owner', true, true, 'templates row with a Canva link', 'owner'),
+  ('brain_folder_and_brief', 20, 'Brain folder and Editor brief created',     'claude', true,  false, 'Brain folder exists', 'owner'),
+  ('ideas_pipeline_setup',   21, 'Ideas pipeline set up (ideas Sheet, Sandcastles project)', 'claude', true, false, 'Pipeline config exists', 'owner'),
+  ('first_card_created',     22, 'First real card created',                   'owner',  true,  true,  'A calendar card exists', 'owner'),
+  ('samples_started',        23, 'Samples started',                           'owner',  true,  true,  'A sample review exists', 'owner'),
+  ('metrics_appearing',      24, 'Metrics appear the next morning',           'auto',   true,  true,  'analytics_metrics rows', 'owner'),
+  ('social_posting_ids',     25, 'Social posting accounts connected in Post For Me (optional)', 'owner', false, true, 'postforme ids filled; optional, never blocks', 'owner'),
+  ('sandcastles_watchlist',  26, 'Client and competitors on the Sandcastles watchlist', 'owner', true, false, 'Nothing is checked automatically: an admin ticks it to confirm the client and their competitors were added to the Sandcastles watchlist', 'owner'),
   ('syncview_link_sent',     27, 'SyncView link sent to the client (optional, never blocks)', 'owner', false, false, 'Owner confirms', 'owner')
 on conflict (step_key) do nothing;
 

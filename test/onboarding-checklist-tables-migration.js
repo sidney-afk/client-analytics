@@ -37,7 +37,9 @@ ok('the summary crosses profiles with the catalog and counts a missing row as to
 const seed = code.slice(code.indexOf('insert into public.onboarding_steps'));
 const steps = seed.match(/^\s+\('[a-z_]+',\s*\d+,/gm) || [];
 ok('27 catalog steps', steps.length === 27);
-ok('exactly one optional step, the SyncView link', (seed.match(/,\s*false,\s*(true|false),\s*'/g) || []).length === 1 && /'syncview_link_sent',\s+27[^\n]*'owner',\s+false/.test(seed));
+ok('exactly two optional steps: the SyncView link and Post For Me', (seed.match(/,\s*false,\s*(true|false),\s*'/g) || []).length === 2 && /'syncview_link_sent',\s+\d+[^\n]*'owner',\s+false/.test(seed) && /'social_posting_ids',\s+\d+[^\n]*'owner',\s+false/.test(seed));
+ok('the monthly check-in is not a step', !/monthly/i.test(seed));
+ok('a required handle step exists and is detectable', /'social_handle_saved',\s+\d+,[^\n]*'owner',\s+true,\s+true/.test(seed));
 ok('the kickoff call is not a step', !/kickoff_call|kickoff call/i.test(seed.replace('Kickoff message placeholders filled', '')));
 ok('never deletes, truncates or drops', !/\bdelete\s+from\b/i.test(code) && !/\btruncate\s+table\b/i.test(code) && !/\bdrop\s+(table|view|function)\b/i.test(code));
 ok('no long dash anywhere', !sql.includes('—'));

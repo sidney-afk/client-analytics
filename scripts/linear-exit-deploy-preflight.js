@@ -81,11 +81,6 @@ const ROUTINES = Object.freeze([
   // bridge migration's version refuses on every API call with 21000, so the
   // body a live database must hold is the one in the file below.
   ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],
-  ['production_native_sample_status_norm(text)', 'migrations/2026-10-01-native-sample-status-bridge.sql', 'production_native_sample_status_norm', 'public, pg_temp', false],
-  ['production_native_sample_overall_status(text,text)', 'migrations/2026-10-01-native-sample-status-bridge.sql', 'production_native_sample_overall_status', 'public, pg_temp', false],
-  ['production_native_sample_status_apply(text,text,text,text,text,text,timestamp with time zone)', 'migrations/2026-10-01-native-sample-status-bridge.sql', 'production_native_sample_status_apply', 'public, pg_temp', false],
-  ['production_native_sample_status_project()', 'migrations/2026-10-01-native-sample-status-bridge.sql', 'production_native_sample_status_project', 'public, pg_temp', false],
-  ['production_native_sample_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-10-01-native-sample-status-bridge.sql', 'production_native_sample_status_backfill', 'public, pg_temp', false],
   // The intake open-work count. Not SECURITY DEFINER: service_role already
   // reads `deliverables` and the browser projection directly, so the aggregate
   // needs no elevation and is granted none.
@@ -141,7 +136,6 @@ const TRIGGERS = Object.freeze([
   // status test lives in the body rather than in a WHEN clause because the
   // compatibility query below requires tgqual to be null.
   ['deliverables.zzz_native_calendar_status_project', 'deliverables', 'zzz_native_calendar_status_project', 'production_native_calendar_status_project', 17],
-  ['deliverables.zzz_native_sample_status_project', 'deliverables', 'zzz_native_sample_status_project', 'production_native_sample_status_project', 17],
 ]);
 
 const COLUMNS = Object.freeze([

@@ -199,11 +199,11 @@ This is the part that's easy to forget the *method* for. You're producing three 
 > `POST /webhook/onboarding-row-sync-x7q2` upserts (keyed by `client_name`) into **both** Clients
 > Info and Social Media Managers in one call — built so Claude/an agent can do this step instead
 > of Sidney typing rows by hand. Body accepts every Clients Info column below plus
-> `social_media_manager` / `linear_api_key` / `slack_profile_url` for the SMM tab. **Only fill in
+> `social_media_manager` / `slack_profile_url` for the SMM tab (`linear_api_key` is retired: Linear is cancelled and the column holds nothing; leave it out). **Only fill in
 > fields you actually have real, sourced values for** (the §3 research method still applies —
 > don't invent competitors/keywords/content_description to fill the call). ⚠️ **The webhook itself
 > has `authentication: none`** — it's an open, unauthenticated write into the live roster
-> (including the `linear_api_key` secret column), the same class of exposure §-flagged elsewhere in
+> (the old `linear_api_key` column is empty now), the same class of exposure §-flagged elsewhere in
 > this repo (F81/F128) for other onboarding-adjacent webhooks. Call it through the n8n MCP
 > `execute_workflow` tool (authenticated) rather than the raw public URL, and consider adding auth
 > to the webhook itself.
@@ -304,7 +304,7 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
 **Columns:** `client_name | social_media_manager | linear_api_key | slack_profile_url`
 
 - `social_media_manager` — first name of the SMM (e.g. `Analia`, `Sebastian`, `Ludmila`, `Molly`, `Laura`, `Raha`, `Sidney`).
-- `linear_api_key` — **copy the value from any existing row for that same SMM** (the key is per‑SMM, shared across their clients). 🔒 Don't paste it anywhere public.
+- `linear_api_key` — **retired (Linear is cancelled).** The header may still exist on the tab; leave the cell empty.
 - `slack_profile_url` — **needed again (revived 2026-08-24).** Despite the name,
   this holds a bare Slack **user ID** (`U…`), not a URL. It briefly went unused
   (2026-08-20 → 2026-08-24, when the Kasper-card Slack DM button it originally

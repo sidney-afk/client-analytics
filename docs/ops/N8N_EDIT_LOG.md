@@ -153,3 +153,13 @@ Why: it was active and failing on every poll (24 errors in the 8 days n8n keeps,
 Read back after: `active: false`, `activeVersionId: null`, trigger count unchanged.
 Not done: not archived or deleted, so its definition stays for the F60 retirement proof. No private JSON export was made by this session (nothing was edited; the only version is unchanged in n8n history and the Sunday weekly backup exports every workflow). Public-safe stub: `n8n-backups/new-client-notion-dm.2026-10-01.deactivation.stub.json`. Inventory updated: `docs/truth/N8N.md`, `docs/ATLAS.md`.
 Undo: in n8n open the workflow and publish it again (version `bc52163a-70e6-4e63-a03a-3f3b5c91d253`). It will resume failing until a Notion credential is attached.
+
+## 2026-10-02 Project Central, Sheet API turned off (owner's go, session Roster)
+
+Workflow: Project Central, Sheet API (`Jr7JviDpBHee508N`)
+Version: `b6d3c2e7-5a85-4c1b-a1be-6816e7091f53` (the only version, published and active before; the graph was not edited)
+Changed: **unpublished only** (active true to false). No step, connection or credential touched. Its two inactive siblings (Inspect, 3-Tab Migration) were already off and are unchanged.
+Why: owner decision 2026-10-02 to archive Project Central. Its save path cleared all three live tabs of its own workbook before rewriting them, with no staging or restore (audit F123), and nothing in this repository calls its address (`/webhook/project-central`; searched 2026-10-02).
+Read back after: search by name shows `active: false` for all three Project Central workflows.
+Not done: not archived or deleted in n8n, and the workbook itself is untouched, so the definition and the data stay for the retirement proof.
+Undo: in n8n open the workflow and publish it again (version `b6d3c2e7-5a85-4c1b-a1be-6816e7091f53`); its webhook address works again at once. Nothing else to restore.

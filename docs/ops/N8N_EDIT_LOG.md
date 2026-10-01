@@ -93,3 +93,14 @@ timer run (654436, mode trigger) also succeeded. NOT yet proven: the ready path 
 client (see the onboarding runbook section 6c and the plan, step A).
 Undo: in n8n restore version `8f194a42-e578-446d-97af-2c30f4f0767a` (workflow history) and publish it. That removes the webhook and the
 daily check and leaves the 15 minute timer as it was. Nothing else to undo; the queue table is untouched.
+
+## 2026-10-01 step E (Filming Plan Docs BatchUpdate): workflow switched off (deactivated, not deleted)
+
+Workflow: Filming Plan - Docs BatchUpdate, webhook (`qR1Wgr71HTohlCzH`)
+Version before and after: `9eb8dc13-0435-4c90-b132-8c6682f8f66c` (no content change; only the published state changed)
+Changed: unpublished (active: false). Nothing deleted, nothing edited.
+Why: its only caller, the filming plan pipeline (`synchro-pipelines/filming_plan_write_doc.py`), already writes Docs through the `pipeline-google` function (password header from the `PIPELINE_GOOGLE_KEY` environment variable), recorded in that repo's `GOOGLE_WRITES.md` on 2026-09-30. The n8n webhook had no sign-in and wrote any Doc the connected Google account could reach.
+Evidence: 58 runs in the last week measured on 2026-09-30, the last on 2026-09-29 15:55 UTC; none after that, checked again immediately before switching off (search for runs after 2026-09-29 16:00 UTC returned 0). Owner go given 2026-10-01.
+Undo: in n8n open this workflow and publish it (the saved version `9eb8dc13-0435-4c90-b132-8c6682f8f66c` is the one that comes back), then point `DOCS_UPDATE_HOOK` in `filming_plan_write_doc.py` back at it if the pipeline ever needs the old path.
+Not built: a second signed-in function. An earlier attempt (client-analytics PR 1893, closed unmerged) was redundant with `pipeline-google` and was built from an out-of-date checkout of the pipelines repo.
+

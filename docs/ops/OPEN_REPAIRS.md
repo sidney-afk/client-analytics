@@ -30127,3 +30127,7 @@ Step C: `scripts/booking-recovery-gate.js` plus `test/booking-recovery-replay.js
 Backup stubs: key-free stubs for the Finalizer (step A) and Generate Caption (step B2) edits are in `n8n-backups/`, as `ROLLBACK.md` section 2 requires. The old Generate Caption graph had typed-in keys and is deliberately not committed; restore it by version id in n8n.
 Script bundles: step B's page switch (PR 1889) deleted old hashed files in `js/`. Five of them were still named by the last six `index.html` versions. Three part bundles (`sv-09-core-065622431f82`, `sv-11-core-5e5280bc7834`, `sv-14-tiktok-c2e4ac7240df`) are restored byte for byte from git history; they hold no client roster. The other two, `sv-full-6e0c8ad6cf49` and `sv-full-8bc4446d1b4e`, are the whole-app fallback bundles and each embed the hard-coded client roster, so they are deliberately NOT restored (a public-repo rule); a browser still holding a page from those two versions that also fails to load its parts would 404 until it reloads. The current `sv-full` bundles on main carry the same roster; that existing exposure is not new here and belongs to the repo-private plan (`docs/plans/2026-09-29-repo-private-plan.md`).
 
+
+## 311. [2026-10-01] n8n exit phase 2: Booking Recovery stays hourly (owner decision); step K read and reported, nothing changed
+
+Booking Recovery stays hourly with no n8n edits. Step K report is in `docs/plans/2026-10-01-n8n-exit-step-k-report.md`; code untouched until the owner replies.

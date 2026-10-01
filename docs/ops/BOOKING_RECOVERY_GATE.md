@@ -46,3 +46,5 @@ Doctors capture workflow was created that day, so another session is working on 
 
 Cheaper alternatives are in the step C summary (leave it hourly, or go to every 2 hours, or wait per lead from the capture
 workflow). The saving at stake is about 600 n8n runs a month.
+
+Decision 2026-10-01 (owner): Booking Recovery stays hourly with no n8n edits. It moves off n8n later with the rest. The replay test and this note stay.

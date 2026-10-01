@@ -346,3 +346,7 @@ merges. No n8n workflow is edited without the owner's go in that same request: s
    before step B (I cannot create them from here). No key is rotated.
 2. Sample Review Upsert still ran 84 times on 2026-09-30 (check 1 above): someone reads the callers before step K.
 3. The two "hidden from this access" items: one old inactive backup workflow is unreadable, and is left alone.
+
+## Step C status 2026-10-01
+
+Owner decision: Booking Recovery stays hourly with no n8n edits (saves 600 runs a month, not worth editing four live sales workflows). Replay test and design doc kept. Step K report: `docs/plans/2026-10-01-n8n-exit-step-k-report.md`.

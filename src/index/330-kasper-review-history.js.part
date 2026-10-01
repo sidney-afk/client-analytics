@@ -1,7 +1,7 @@
 import { _analyticsReleaseExtras, showNotify, showToast } from './040-shared-briefs.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
 import {
-  CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, KASPER_QUEUE_URL,
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svReadWithRetry,
   _syncviewStaffIdentityForHeaders
 } from './100-onboarding-staff-controls.js';
 import {
@@ -20,7 +20,7 @@ import {
   URGENT_EDITOR_NEEDS_NATIVE, _calPersistUrgentSentForPost, _calPostLinearComment,
   _calUrgentButtonHtml, _calUrgentSlackDispatch
 } from './140-calendar-legacy-outbox.js';
-import { _calSupabaseFetchAllRows, _calV2Ready } from './150-calendar-hydration-import.js';
+import { _calSupabaseFetchAllRows, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import {
   _calDeriveThumb, _calDeriveThumbInfo, _calFolderOpenUrl, _calFrameOpenUrl, _calIsFolderLink,
   _calIsFrameLink, _calMiniLinkBadgeHtml, _calOpenCardMeta, _calReviewFrameHtml, _calThumbImgTag,
@@ -419,17 +419,11 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                 const cached = _kasperCalCacheRead(slug);
                 if (cached && cached.ok) return extract(client, cached);
             }
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            if (!resp.ok) throw new Error('Bad response for ' + client);
-            const json = await resp.json();
-            /* item 86, the queue half. This used to cache whatever came back and
-               return an empty queue for a not-ok answer, so a client whose
-               webhook read failed looked exactly like a client with no work --
-               the worst possible failure mode for a review queue, and invisible.
-               A zero-row answer now THROWS into the rejection path, which the
-               caller counts and reports; only a non-empty truth is cached. */
-            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload for ' + client);
-            if (!json.posts.length) throw new Error('calendar_get_zero_posts for ' + client);
+            /* n8n exit step F: the per-client read is Supabase (one retry, then it throws into the
+               rejection path below, which names the client). A zero-row answer from Supabase is a
+               real answer (a client with no cards), unlike the retired Sheets read that answered
+               empty on failure, so it is cached like any other. */
+            const json = await _calV2FetchPosts(slug);
             _kasperCalCacheWrite(slug, json);
             return extract(client, json);
         };
@@ -449,22 +443,22 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             }
         }
         // v2: every client lives in ONE Supabase table, so ONE paginated REST
-        // read covers all of them — no per-client calendar-get fan-out, no n8n
+        // read covers all of them — no per-client fan-out, no n8n
         // load. Group rows by their client column and reuse the same extract()
         // the Sheet path uses. On ANY Supabase error we leave `remaining`
-        // untouched and fall through to the kasper-queue batch + per-client
-        // fan-out below, so the queue can never blank. Gated on _calV2Ready() so
-        // v1 is byte-identical. _calSupabaseFetchAllRows pages past PostgREST's
+        // untouched and fall through to the per-client Supabase reads below
+        // (one retry each, then a named rejection), so the queue can never blank
+        // silently. _calSupabaseFetchAllRows pages past PostgREST's
         // 1000-row max-rows cap, so the queue stays complete as the table grows
         // (the unpaginated single read silently dropped every row past 1000,
         // hiding freshly-added cards from Kasper once the table crossed 1000).
-        if (remaining.length && _calV2Ready()) {
+        if (remaining.length) {
             try {
                 const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
                 const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
                 let allRows;
                 try {
-                    allRows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined);
+                    allRows = await _svReadWithRetry(() => _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined), { signal: ctrl ? ctrl.signal : undefined });
                 } finally { if (timer) clearTimeout(timer); }
                 if (!Array.isArray(allRows)) throw new Error('Supabase: unexpected payload');
                 const byClient = new Map();
@@ -483,39 +477,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                 }
                 remaining = remaining.filter(c => !covered.includes(c));
             } catch (e) {
-                console.warn('[Kasper] Supabase read failed — falling back to kasper-queue/calendar-get', e);
-            }
-        }
-        if (remaining.length) {
-            try {
-                const slugByClient = new Map(remaining.map(c => [c, wlNormalizeClient(c)]));
-                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
-                const resp = await fetch(KASPER_QUEUE_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ slugs: [...slugByClient.values()] }),
-                    signal: ctrl ? ctrl.signal : undefined,
-                });
-                if (timer) clearTimeout(timer);
-                const json = await resp.json();
-                if (!resp.ok || !json || !json.ok || !json.clients) throw new Error('kasper-queue not ok');
-                const missing = new Set(Array.isArray(json.missing) ? json.missing : []);
-                const covered = [];
-                for (const [client, slug] of slugByClient) {
-                    const entry = json.clients[slug];
-                    // A slug in `missing` has no Calendar tab — same outcome
-                    // as the fan-out's empty read, so treat it as covered.
-                    const shaped = (entry && Array.isArray(entry.posts))
-                        ? { ok: true, posts: entry.posts }
-                        : (missing.has(slug) ? { ok: true, posts: [] } : null);
-                    if (!shaped) continue;
-                    _kasperCalCacheWrite(slug, shaped);
-                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
-                    covered.push(client);
-                }
-                remaining = remaining.filter(c => !covered.includes(c));
-            } catch (e) {
-                console.warn('[Kasper] batch queue fetch failed — falling back to per-client loads', e);
+                console.warn('[Kasper] Supabase batch read failed — falling back to per-client Supabase reads', e);
             }
         }
         // Per-client fan-out for whatever the batch didn't cover

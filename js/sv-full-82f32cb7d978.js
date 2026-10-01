@@ -17534,9 +17534,8 @@
        CONTENT CALENDAR MODULE
        Saves and reorders go to the Supabase functions calendar-upsert and
        calendar-reorder (n8n exit, PR 2); reads come from calendar_posts, with
-       the n8n calendar-get webhook kept only as the read fallback. The
-       original n8n contract, for reference:
-         GET  /webhook/calendar-get?client=<slug>
+       with no n8n read fallback (retired in step F, 2026-10). The original
+       n8n write contract, for reference:
          POST /webhook/calendar-upsert-post  { client, post }
        Legacy storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
@@ -17555,7 +17554,28 @@
        always recomputed from the three sub-statuses (lower-priority wins,
        with Tweaks Needed lowest).
        ============================================================ */
-    const CALENDAR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';
+    /* n8n exit, phase 2 step F: the n8n read fallbacks calendar-get, sample-review-get and
+       kasper-queue are retired. A Supabase read that fails is tried once more after a short
+       wait; if it still fails the caller keeps the saved copy it already has on screen and
+       says the data is unavailable, and nothing is sent to n8n. */
+    const SV_READ_RETRY_WAIT_MS = 1500;
+    const SV_READ_UNAVAILABLE_TEXT = 'The data is unavailable right now. Try again in a moment.';
+    async function _svReadWithRetry(read, opts) {
+        const o = opts || {};
+        const aborted = () => !!(o.signal && o.signal.aborted);
+        try { return await read(); }
+        catch (e) {
+            if ((e && e.name === 'AbortError') || aborted()) throw e;
+        }
+        await new Promise(resolve => setTimeout(resolve, o.waitMs != null ? o.waitMs : SV_READ_RETRY_WAIT_MS));
+        if (aborted()) { const a = new Error('Aborted'); a.name = 'AbortError'; throw a; }
+        try { return await read(); }
+        catch (e) {
+            if ((e && e.name === 'AbortError') || aborted()) throw e;
+            console.warn('[read] Supabase read failed twice', e);
+            throw new Error(SV_READ_UNAVAILABLE_TEXT);
+        }
+    }
     const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
     const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
@@ -17564,10 +17584,6 @@
        the n8n route the page no longer takes) and were removed in the n8n exit,
        PR 2. Reorders go to CALENDAR_REORDER_EF_URL only. */
     const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
-    // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
-    // (2 Google API calls server-side). The FE falls back to per-client
-    // CALENDAR_GET_URL calls whenever this endpoint fails.
-    const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     /* linear-subissues (LINEAR_SUBISSUES_URL) was removed 2026-09-23 (B2):
        its callers -- Import from Linear, Bulk Linear sync and link-time
        status adoption -- are gone. See docs/ops/B2_LINEAR_CLEANUP_PLAN.md. */
@@ -28450,25 +28466,17 @@
         const gate = item && item.source_gate || {};
         const clientSlug = String(gate.client_slug || '');
         if (!clientSlug) return null;
-        if (gate.source_transport === 'supabase') {
-            const table = gate.surface === 'sxr' ? SXR_TABLE : 'calendar_posts';
-            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.'
-                + encodeURIComponent(clientSlug) + '&id=eq.' + encodeURIComponent(String(gate.post_id || ''));
-            return gate.surface === 'sxr'
-                ? _sxrSupabaseFetchAllRows(baseUrl)
-                : _calSupabaseFetchAllRows(baseUrl);
-        }
-        if (gate.surface === 'sxr') {
-            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
-            if (!resp.ok) return null;
-            const json = await resp.json();
-            const rows = json && (json.items || json.samples || json.posts);
-            return json && json.ok !== false && Array.isArray(rows) ? rows : null;
-        }
-        const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
-        if (!resp.ok) return null;
-        const json = await resp.json();
-        return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
+        /* n8n exit, step F: the n8n readers (calendar-get, sample-review-get) are retired, so every
+           gate is verified against Supabase, including one still pinned to the n8n writer. That is
+           the same row: the n8n Calendar writer mirrors each save into calendar_posts and the n8n
+           Samples writer upserts straight into sample_reviews, so reading it back there is a true
+           completion check. */
+        const table = gate.surface === 'sxr' ? SXR_TABLE : 'calendar_posts';
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.'
+            + encodeURIComponent(clientSlug) + '&id=eq.' + encodeURIComponent(String(gate.post_id || ''));
+        return gate.surface === 'sxr'
+            ? _sxrSupabaseFetchAllRows(baseUrl)
+            : _calSupabaseFetchAllRows(baseUrl);
     }
     /* MIGRATION ON LOAD (n8n exit, PRs 2 and 4): a staff browser that returns after
        the change and still holds a Calendar or Samples repair pinned to the n8n
@@ -31635,42 +31643,18 @@
         }
         return all;
     }
-    /* Read one client's posts from Supabase REST, shaped exactly like the
-       calendar-get webhook. On ANY failure, fall back to the webhook so a
-       Supabase hiccup can never blank the calendar. */
+    /* Read one client's posts from Supabase REST, shaped like the old
+       calendar-get webhook ({ ok, posts }). n8n exit step F: no n8n fallback.
+       A failed read is retried once after a short wait; if it still fails this
+       throws, and the caller keeps the cards it already has (live or saved copy)
+       and shows a refresh notice, or the unavailable message on a cold load. */
     async function _calV2FetchPosts(slug, signal) {
         // Archived rows are filtered on every render path; excluding them here
-        // (NULL-safe — PostgREST neq drops NULL-status rows) keeps long-lived
+        // (NULL-safe: PostgREST neq drops NULL-status rows) keeps long-lived
         // clients from dragging their whole archive over the wire on each load.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
-        try {
-            const rows = await _calSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
-        } catch (e) {
-            if (e && e.name === 'AbortError') throw e;
-            console.warn('[Calendar v2] Supabase read failed — falling back to n8n calendar-get', e);
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            if (!resp.ok) throw new Error('calendar-get HTTP ' + resp.status);
-            const json = await resp.json();
-            /* OPEN_REPAIRS item 86. The Sheets-backed webhook answers 200 with
-               an EMPTY BODY for some clients and {ok:true, posts:[]} for others,
-               while those same clients have live cards -- measured 2026-08-30:
-               32, 17 and 24 non-archived rows against three empty answers. An
-               empty body already throws in resp.json(); the posts:[] shape did
-               not, and a zero-row census is indistinguishable downstream from a
-               client who genuinely has nothing. It became calState.posts and was
-               then WRITTEN TO THE CACHE, so one bad fallback could blank a
-               calendar and keep it blank across a cold load.
-               A zero-row fallback is therefore treated as a FAILED READ, which
-               is the same ratified guard the workload native read uses: the
-               caller keeps the cards on screen, says it could not refresh, and
-               leaves the cache alone. The cost is that a genuinely empty client,
-               on a load where Supabase ALSO failed, sees a refresh notice rather
-               than a correct empty calendar -- the right side to be wrong on. */
-            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload');
-            if (!json.posts.length) throw new Error('calendar_get_zero_posts');
-            return json;
-        }
+        const rows = await _svReadWithRetry(() => _calSupabaseFetchAllRows(baseUrl, signal), { signal });
+        return { ok: true, posts: rows };
     }
     /* Realtime subscription lifecycle. One channel per client; switching
        clients (or leaving the calendar) tears the old one down. A change
@@ -32057,9 +32041,7 @@
                 // read from Supabase REST instead of the n8n calendar-get
                 // webhook. Identical { ok, posts[] } shape → identical
                 // downstream handling. Falls back to the webhook on error.
-                if (_calV2Ready()) return _calV2FetchPosts(slug, ctrl ? ctrl.signal : null);
-                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
-                return resp.json();
+                return _calV2FetchPosts(slug, ctrl ? ctrl.signal : null);
             })();
             const json = await Promise.race([fetchPromise, timeoutPromise]);
             if (!_calLoadRunCurrent(loadRun)) return; // replacement/route/client ownership superseded this one
@@ -63608,7 +63590,6 @@
     /* Live backend (docs/features/SAMPLES_GO_LIVE.md): reads hit Supabase REST and fall back to
        the get webhook; writes are field-level patches to the upsert webhook. The
        Supabase project + anon key are SHARED with the calendar (same browser key). */
-    const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
     const SXR_UPSERT_N8N_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
     const SXR_UPSERT_URL  = SXR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const SXR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-upsert';
@@ -64473,16 +64454,10 @@
         // NULL-safe or= form because PostgREST neq drops NULL-status rows.
         // Client-side _sxrIsArchivedRef stays as defense for the webhook fallback.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
-        try {
-            const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
-        } catch (e) {
-            if (e && e.name === 'AbortError') throw e;
-            console.warn('[Samples] Supabase read failed — falling back to sample-review-get', e);
-            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            const j = await resp.json();
-            return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
-        }
+        // n8n exit step F: no sample-review-get fallback. One retry after a short wait, then
+        // throw; the load keeps the saved copy on screen and shows its refresh notice.
+        const rows = await _svReadWithRetry(() => _sxrSupabaseFetchAllRows(baseUrl, signal), { signal });
+        return { ok: true, posts: rows };
     }
     async function loadSxrCards(opts) {
         opts = opts || {};
@@ -77890,18 +77865,10 @@
         try {
             // v2: read this client's posts from Supabase instead of the Sheet
             // (gated on _calV2Ready() so v1 is byte-identical). _calV2FetchPosts
-            // already falls back to the n8n calendar-get webhook on any Supabase
-            // error, so the content bank can never blank. The bank is a computed
+            // retries once and then throws (no n8n); a failed read leaves the bank unchanged. The bank is a computed
             // summary, so a refresh-on-open is enough —
             // no realtime subscription needed here.
-            let json;
-            if (_calV2Ready()) {
-                json = await _calV2FetchPosts(slug);
-            } else {
-                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-                if (!resp.ok) return null;
-                json = await resp.json();
-            }
+            const json = await _calV2FetchPosts(slug);
             if (!json || !json.ok || !Array.isArray(json.posts)) return null;
             const today = _filmsTodayISO();
             let total = 0;
@@ -79330,17 +79297,11 @@
                 const cached = _kasperCalCacheRead(slug);
                 if (cached && cached.ok) return extract(client, cached);
             }
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            if (!resp.ok) throw new Error('Bad response for ' + client);
-            const json = await resp.json();
-            /* item 86, the queue half. This used to cache whatever came back and
-               return an empty queue for a not-ok answer, so a client whose
-               webhook read failed looked exactly like a client with no work --
-               the worst possible failure mode for a review queue, and invisible.
-               A zero-row answer now THROWS into the rejection path, which the
-               caller counts and reports; only a non-empty truth is cached. */
-            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload for ' + client);
-            if (!json.posts.length) throw new Error('calendar_get_zero_posts for ' + client);
+            /* n8n exit step F: the per-client read is Supabase (one retry, then it throws into the
+               rejection path below, which names the client). A zero-row answer from Supabase is a
+               real answer (a client with no cards), unlike the retired Sheets read that answered
+               empty on failure, so it is cached like any other. */
+            const json = await _calV2FetchPosts(slug);
             _kasperCalCacheWrite(slug, json);
             return extract(client, json);
         };
@@ -79360,22 +79321,22 @@
             }
         }
         // v2: every client lives in ONE Supabase table, so ONE paginated REST
-        // read covers all of them — no per-client calendar-get fan-out, no n8n
+        // read covers all of them — no per-client fan-out, no n8n
         // load. Group rows by their client column and reuse the same extract()
         // the Sheet path uses. On ANY Supabase error we leave `remaining`
-        // untouched and fall through to the kasper-queue batch + per-client
-        // fan-out below, so the queue can never blank. Gated on _calV2Ready() so
-        // v1 is byte-identical. _calSupabaseFetchAllRows pages past PostgREST's
+        // untouched and fall through to the per-client Supabase reads below
+        // (one retry each, then a named rejection), so the queue can never blank
+        // silently. _calSupabaseFetchAllRows pages past PostgREST's
         // 1000-row max-rows cap, so the queue stays complete as the table grows
         // (the unpaginated single read silently dropped every row past 1000,
         // hiding freshly-added cards from Kasper once the table crossed 1000).
-        if (remaining.length && _calV2Ready()) {
+        if (remaining.length) {
             try {
                 const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
                 const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
                 let allRows;
                 try {
-                    allRows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined);
+                    allRows = await _svReadWithRetry(() => _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined), { signal: ctrl ? ctrl.signal : undefined });
                 } finally { if (timer) clearTimeout(timer); }
                 if (!Array.isArray(allRows)) throw new Error('Supabase: unexpected payload');
                 const byClient = new Map();
@@ -79394,39 +79355,7 @@
                 }
                 remaining = remaining.filter(c => !covered.includes(c));
             } catch (e) {
-                console.warn('[Kasper] Supabase read failed — falling back to kasper-queue/calendar-get', e);
-            }
-        }
-        if (remaining.length) {
-            try {
-                const slugByClient = new Map(remaining.map(c => [c, wlNormalizeClient(c)]));
-                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
-                const resp = await fetch(KASPER_QUEUE_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ slugs: [...slugByClient.values()] }),
-                    signal: ctrl ? ctrl.signal : undefined,
-                });
-                if (timer) clearTimeout(timer);
-                const json = await resp.json();
-                if (!resp.ok || !json || !json.ok || !json.clients) throw new Error('kasper-queue not ok');
-                const missing = new Set(Array.isArray(json.missing) ? json.missing : []);
-                const covered = [];
-                for (const [client, slug] of slugByClient) {
-                    const entry = json.clients[slug];
-                    // A slug in `missing` has no Calendar tab — same outcome
-                    // as the fan-out's empty read, so treat it as covered.
-                    const shaped = (entry && Array.isArray(entry.posts))
-                        ? { ok: true, posts: entry.posts }
-                        : (missing.has(slug) ? { ok: true, posts: [] } : null);
-                    if (!shaped) continue;
-                    _kasperCalCacheWrite(slug, shaped);
-                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
-                    covered.push(client);
-                }
-                remaining = remaining.filter(c => !covered.includes(c));
-            } catch (e) {
-                console.warn('[Kasper] batch queue fetch failed — falling back to per-client loads', e);
+                console.warn('[Kasper] Supabase batch read failed — falling back to per-client Supabase reads', e);
             }
         }
         // Per-client fan-out for whatever the batch didn't cover
@@ -82671,4 +82600,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-6d950e2bd748.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-82f32cb7d978.js");

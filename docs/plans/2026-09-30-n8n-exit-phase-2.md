@@ -251,6 +251,10 @@ Phase 1 kept these as the recovery path when the Supabase read fails. Build the 
 with a short wait, then a saved copy in the browser, then a clear "data is unavailable, try again" message. Add a test that forces
 the Supabase read to fail and proves the page recovers with no n8n request. Only then can the three be switched off.
 
+**F status 2026-10-01:** the page side is built (see OPEN_REPAIRS, step F): one retry, then the saved copy and a clear message, no n8n
+request, proved by `test/read-fallbacks-retired.js`. The three n8n workflows stay on until the page change is live and a later check
+of their runs shows zero calls; switching them off is a separate small PR with its own `N8N_EDIT_LOG.md` entry.
+
 **G. Small scheduled jobs: Kasper Ad Performance, SMM Reports Manager Sync.** Saves about 90 a month. Effort M each.
 Optional. Kasper Ad Performance already stores everything in Supabase; it could be a function on a `pg_cron` timer. SMM Manager
 Sync reads a sheet into Supabase once a day; it moves when the sheet does. Not worth doing before A to F.

@@ -5,7 +5,7 @@ import {
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlIsAllowedClient, wlNormalizeClient } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _syncviewRequireStaffIdentity, _syncviewStaffCan } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _svReadWithRetry, _syncviewRequireStaffIdentity, _syncviewStaffCan } from './100-onboarding-staff-controls.js';
 import {
   WRITE_UI_NO_WORK_ITEM_TEXT, _calAssertFlagAllows, _calRuntimeFlagClient, _calRuntimeFlagClients, _kasperUrgentPingOn,
   _kasperUrgentPingOnLive, _prodMarkLegacyReadIncomplete, _prodStripEphemeralCanonicalPosts,
@@ -73,7 +73,6 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
     /* Live backend (docs/features/SAMPLES_GO_LIVE.md): reads hit Supabase REST and fall back to
        the get webhook; writes are field-level patches to the upsert webhook. The
        Supabase project + anon key are SHARED with the calendar (same browser key). */
-    const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
     const SXR_UPSERT_N8N_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
     const SXR_UPSERT_URL  = SXR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const SXR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-upsert';
@@ -938,16 +937,10 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         // NULL-safe or= form because PostgREST neq drops NULL-status rows.
         // Client-side _sxrIsArchivedRef stays as defense for the webhook fallback.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
-        try {
-            const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
-        } catch (e) {
-            if (e && e.name === 'AbortError') throw e;
-            console.warn('[Samples] Supabase read failed — falling back to sample-review-get', e);
-            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            const j = await resp.json();
-            return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
-        }
+        // n8n exit step F: no sample-review-get fallback. One retry after a short wait, then
+        // throw; the load keeps the saved copy on screen and shows its refresh notice.
+        const rows = await _svReadWithRetry(() => _sxrSupabaseFetchAllRows(baseUrl, signal), { signal });
+        return { ok: true, posts: rows };
     }
     async function loadSxrCards(opts) {
         opts = opts || {};
@@ -2948,7 +2941,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
     });
 export {
-  SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_GET_URL, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
+  SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
   SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrAdoptLinksAfterCreate,
   _sxrApplyClearSentinels, _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheRead,
   _sxrCacheWrite, _sxrClearStaleApprovals, _sxrClientCompPillsHtml, _sxrDeriveThumbInfo,

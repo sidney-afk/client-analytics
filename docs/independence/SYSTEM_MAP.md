@@ -347,8 +347,7 @@ n8n in the metric read path.*
 - **Entry.** Team tab / `#calendar[/<slug>/<cardId>]` deep link (unresolved slugs defer until the
   roster loads); client link `?c=…&v=calendar&t=…`; embedded per-client profile tab.
 - **Reads.** Posts: `calendar_posts` REST (v2, **default ON**, keyset-paginated on `(id, client)`
-  because post ids aren't globally unique) with automatic fallback to n8n `calendar-get` on REST
-  failure or `?v2=0`; realtime `cal-<slug>` (350 ms-debounced reload, 4 s self-echo suppression,
+  because post ids aren't globally unique) with no n8n fallback (step F, 2026-10: one retry after a short wait, then the saved copy and a refresh notice); realtime `cal-<slug>` (350 ms-debounced reload, 4 s self-echo suppression,
   catch-up snapshot on reconnect). Linear card-banner meta is no longer read from n8n at all: the
   `linear-issue-statuses` fetch and the v1-only Linear-to-card reconcile were both removed on
   2026-09-22 ahead of the endpoint's 2026-09-27 revoke (OPEN_REPAIRS 236), leaving only the
@@ -773,8 +772,7 @@ n8n in the metric read path.*
 - **Entry.** Team tab `#sample-reviews[/<slug>/<id>]`; client portal `?sxr=1&c=…&v=sample-reviews&t=…`;
   Kasper "samples" subtab. Module **default ON** since GA 2026-07-02 (`syncview_sxr_on`; `?sxr=0`
   sticky opt-out) — the in-code "default-OFF" comment is stale.
-- **Reads.** Per-client `sample_reviews` REST (Archived excluded server-side) with n8n
-  `sample-review-get` fallback; realtime `sxr-<slug>`. Kasper queue: **unscoped cross-client**
+- **Reads.** Per-client `sample_reviews` REST (Archived excluded server-side) with no n8n fallback (one retry, then the saved copy); realtime `sxr-<slug>`. Kasper queue: **unscoped cross-client**
   `sample_reviews` REST (no client filter, **no webhook fallback**) + unfiltered `kasper-sxr`
   realtime. (n8n `linear-subissues` link-adopt retired 2026-09-23, B2.) Runtime-flag read (sample-review key).
   Shared: SMM-directory CSV, client-token-verify EF, bounded ID-only
@@ -886,8 +884,8 @@ present are history; its n8n workflows, Sheet tabs and `content_samples` rows st
   label. Quiz Leads and Hiring Process are separately gated by the admin-only `quiz-leads` and
   `hiring` staff capabilities, respectively — not open to every unlocked Kasper session like Ad
   Performance.
-- **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
-  n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
+- **Reads.** Review queue: `calendar_posts` REST (paginated, one retry) → per-client `calendar_posts` reads (5 workers, one retry each);
+  no n8n fallback since step F (2026-10).
   Cross-client `sample_reviews` REST (samples subtab). `deliverable_events` REST (editors — the
   n8n `editors-week` webhook was retired 2026-09-07, LX-C / OPEN_REPAIRS 171). Staff-gated
   `filming-plans` EF + `filming-plan-tabs` EF or n8n `filming-plan-tabs` (filming, per `filming_plan_tabs_source`). `onboarding-full` EF (full sensitive inbox,
@@ -957,7 +955,7 @@ present are history; its n8n workflows, Sheet tabs and `content_samples` rows st
   PTO errors stay inside that subtab with retry; there is no direct-table or n8n fallback. Hiring
   errors stay inline with no browser send, raw-table/n8n fallback, or automatic resend.
 - **Notable / corrections.** "SMM reports" is **not** a Kasper subtab (it's a separate top-level
-  route, §4.14). `kasper-queue` is the **middle** fallback, not primary. The role-header quirk
+  route, §4.14). The n8n `kasper-queue` fallback was retired in step F (2026-10). The role-header quirk
   (§3) misattributes writes made from `#kasper/<subtab>` as `smm`. The Kasper unlock has no
   password; the verified role key is the sensitive-subtab credential. The priority + More
   navigation is viewport-contained at 390/768 px, exposes visible focus and menu-button keyboard
@@ -1654,7 +1652,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (25, after n8n exit PRs 2, 3, 4 and the caption job page switch removed eight):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-get` · `calendar-upsert-post` · `caption-prompts-get` · `filming-plan-tabs` · `generate-caption` · `generate-content-summary` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-upsert` · `send-urgent-kasper-slack` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
+- **n8n webhooks (22, after n8n exit PRs 2, 3, 4, the caption job page switch and step F removed eleven):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-upsert-post` · `caption-prompts-get` · `filming-plan-tabs` · `generate-caption` · `generate-content-summary` · `generate-tab-summary` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-upsert` · `send-urgent-kasper-slack` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
 - **Edge functions (36):** `ai-onboarding-list` · `analytics-read` · `brain` · `calendar-reorder` · `calendar-upsert` · `caption-jobs` · `caption-prompts-save` · `client-credentials` · `client-profile-write` · `client-review-link` · `client-token-verify` · `description-image-upload` · `filming-plan-tabs` · `filming-plans` · `hiring-applications` · `instagram-upload` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan` · `write-diagnostics`
 - **Not counted above:** 26 of the 30 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. `description-image-upload` (2026-09-05) is app-called candidate source with a path-triggered deploy lane (`.github/workflows/deploy-description-image-upload.yml`) and is not live until that lane's first run on `main` plus the owner-applied `migrations/2026-09-05-description-images.sql`. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the deployed `hiring-automation` bridge now captures the dedicated application, alerts Kasper, and records the dedicated interview booking without running sales nodes. Candidate email remains disabled until the flag is deliberately enabled and the inactive dispatcher is run. `write-diagnostics` (2026-09-22, OPEN_REPAIRS 101/240) is app-called candidate source: the Calendar/Samples write path posts a fire-and-forget refusal claim to it when a write is refused in the browser. It is deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent), was deployed 2026-09-23 from `344006c511dcd03d668ee8bafec11e6f7c9218d6` with `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner `supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql` is on the live project. Live.
 - **Supabase REST tables, literal (12):** `batches` · `calendar_posts` · `caption_prompts` · `clients` · `deliverables` · `production_deliverables_browser_v1` · `rename_propagation_status_v1` · `rpc` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues` (rpc is the PostgREST function prefix, used only by the rename propagation poke and retry calls; see 4.2)

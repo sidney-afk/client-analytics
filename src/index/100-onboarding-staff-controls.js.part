@@ -1055,9 +1055,8 @@ import {
        CONTENT CALENDAR MODULE
        Saves and reorders go to the Supabase functions calendar-upsert and
        calendar-reorder (n8n exit, PR 2); reads come from calendar_posts, with
-       the n8n calendar-get webhook kept only as the read fallback. The
-       original n8n contract, for reference:
-         GET  /webhook/calendar-get?client=<slug>
+       with no n8n read fallback (retired in step F, 2026-10). The original
+       n8n write contract, for reference:
          POST /webhook/calendar-upsert-post  { client, post }
        Legacy storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
@@ -1076,7 +1075,28 @@ import {
        always recomputed from the three sub-statuses (lower-priority wins,
        with Tweaks Needed lowest).
        ============================================================ */
-    const CALENDAR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';
+    /* n8n exit, phase 2 step F: the n8n read fallbacks calendar-get, sample-review-get and
+       kasper-queue are retired. A Supabase read that fails is tried once more after a short
+       wait; if it still fails the caller keeps the saved copy it already has on screen and
+       says the data is unavailable, and nothing is sent to n8n. */
+    const SV_READ_RETRY_WAIT_MS = 1500;
+    const SV_READ_UNAVAILABLE_TEXT = 'The data is unavailable right now. Try again in a moment.';
+    async function _svReadWithRetry(read, opts) {
+        const o = opts || {};
+        const aborted = () => !!(o.signal && o.signal.aborted);
+        try { return await read(); }
+        catch (e) {
+            if ((e && e.name === 'AbortError') || aborted()) throw e;
+        }
+        await new Promise(resolve => setTimeout(resolve, o.waitMs != null ? o.waitMs : SV_READ_RETRY_WAIT_MS));
+        if (aborted()) { const a = new Error('Aborted'); a.name = 'AbortError'; throw a; }
+        try { return await read(); }
+        catch (e) {
+            if ((e && e.name === 'AbortError') || aborted()) throw e;
+            console.warn('[read] Supabase read failed twice', e);
+            throw new Error(SV_READ_UNAVAILABLE_TEXT);
+        }
+    }
     const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
     const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
@@ -1085,10 +1105,6 @@ import {
        the n8n route the page no longer takes) and were removed in the n8n exit,
        PR 2. Reorders go to CALENDAR_REORDER_EF_URL only. */
     const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
-    // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
-    // (2 Google API calls server-side). The FE falls back to per-client
-    // CALENDAR_GET_URL calls whenever this endpoint fails.
-    const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     /* linear-subissues (LINEAR_SUBISSUES_URL) was removed 2026-09-23 (B2):
        its callers -- Import from Linear, Bulk Linear sync and link-time
        status adoption -- are gone. See docs/ops/B2_LINEAR_CLEANUP_PLAN.md. */
@@ -2365,12 +2381,12 @@ import {
         _syncviewOpenStaffAccount, _syncviewOpenStaffGate, _syncviewToggleStaffRoleKey
     });
 export {
-  CALENDAR_GET_URL, CALENDAR_REORDER_EF_URL,
+  CALENDAR_REORDER_EF_URL,
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
   CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
   CAPTION_PROMPTS_SAVE_EF_URL, CLIENT_REVIEW_LINK_URL,
-  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
-  PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
+  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
+  PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, _svReadWithRetry, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
   THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, URGENT_KASPER_SLACK_URL,
   WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obSetDraftKey, _obSetSubIdKey,
   _obSetVariant, _obZoom, _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites,

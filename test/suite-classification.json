@@ -97,7 +97,7 @@
     "calendar-deeplink-tab.js",
     "calendar-focus-highlight-dark-mode.js",
     "calendar-folder-thumb.js",
-    "calendar-get-empty-200.js",
+    "read-fallbacks-retired.js",
     "calendar-whole-card-status-guard.js",
     "calendar-kebab-import-menu.js",
     "calendar-linear-link-move.js",

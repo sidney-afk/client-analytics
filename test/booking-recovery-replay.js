@@ -122,7 +122,12 @@ const ROWS = () => {
     row({ dueMs: T0 + 10 * H, first_name: '12' }),                                           // 22 unusable name
     row({ dueMs: Date.parse('2026-10-06T06:50:00Z'), timezone: 'America/Los_Angeles' }),     // 23 crosses local midnight between schedules
     row({ dueMs: T0 + 11 * H, timezone: 'Asia/Tokyo' }),                                     // 24 text window in another zone
-  ].concat(Array.from({ length: 8 }, () => row({ dueMs: T0 + 12 * H })));                    // 25-32 eight leads due at once (cap is 5 per run)
+  ].concat(Array.from({ length: 8 }, () => row({ dueMs: T0 + 12 * H })), [
+    // 33, 34: emailed already, only a text owed, and outside the text window at the first check (21:00 in
+    // Auckland), but too old / armed before launch: the live code still closes them, so the gate must wake.
+    row({ dueMs: T0 - 80 * H, created_at: iso(T0 - 90 * H), email_sent_at: iso(T0 - 79 * H), timezone: 'Pacific/Auckland' }),
+    row({ dueMs: T0 - 60 * H, created_at: iso(Date.parse('2026-08-01T00:00:00Z')), email_sent_at: iso(T0 - 59 * H), timezone: 'Pacific/Auckland' }),
+  ]);                    // 25-32 eight leads due at once (cap is 5 per run)
 };
 const BOOKED = () => [
   { lead_key: 'booked-1', status: 'completed', suppressed_reason: 'booked', email: 'just.booked@example.invalid', phone: '', created_at: iso(T0 + 4 * H + 20 * 60000), updated_at: iso(T0 + 4 * H + 20 * 60000) },
@@ -135,7 +140,7 @@ function schedule(kind, only) {
   const rows = (only ? ROWS().filter((r) => r.lead_key === only) : ROWS()).concat(BOOKED());
   const sends = [], log = [], gateLog = [];
   const step = kind === 'C' ? 10 * 60000 : H;
-  let ran = 0, ticks = 0;
+  let ran = 0, ticks = 0, emptyWakes = 0;
   for (let t = T0; t <= T0 + HORIZON * H; t += step) {
     ticks++;
     const pending = rows.filter((r) => String(r.status || '') === 'pending');
@@ -148,9 +153,9 @@ function schedule(kind, only) {
       gateLog.push({ at: t, wouldDo: would.length });
       continue;
     }
-    ran++; runChain(rows, t, sends, log);
+    ran++; if (runChain(rows, t, sends, log) === 0) emptyWakes++;
   }
-  return { rows, sends, log, gateLog, ran, ticks };
+  return { rows, sends, log, gateLog, ran, ticks, emptyWakes };
 }
 
 const A = schedule('A'), B = schedule('B'), C = schedule('C');
@@ -172,6 +177,7 @@ ok(JSON.stringify(B.sends) === JSON.stringify(A.sends), 'A vs B: identical sends
 ok(JSON.stringify(B.log) === JSON.stringify(A.log), 'A vs B: identical row closures (suppressed, expired, stale)');
 ok(JSON.stringify(B.rows) === JSON.stringify(A.rows), 'A vs B: identical final queue rows');
 ok(B.gateLog.every((g) => g.wouldDo === 0), 'wherever the gate said nothing is due, the live code would have done nothing (' + B.gateLog.length + ' skipped hours checked)');
+ok(B.emptyWakes === 0 && C.emptyWakes === 0, 'the other direction too: whenever the gate wakes the workflow, the live code finds something to do (no empty wakes, including a row that only owes a text outside the lead\'s window)');
 ok(B.ran < A.ran, 'the gate skips runs: the chain ran ' + B.ran + ' of ' + A.ran + ' hours');
 
 // no duplicates, ever

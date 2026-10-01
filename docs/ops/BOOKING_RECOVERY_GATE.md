@@ -8,21 +8,22 @@ Plan: `docs/plans/2026-09-30-n8n-exit-phase-2.md`, step C. Owner decision: yes, 
 - `scripts/booking-recovery-gate.js`: the pure "is anything due?" test (`gateShouldRun(pendingRows, bookedRows, nowMs)`).
 - `test/fixtures/booking-recovery/select-due.n8n.js` and `safety-gate.n8n.js`: the live workflow's own Select Due and Safety Gate
   code, copied word for word from version `ca93c4bf-fa15-4961-91d2-71921ecbc711` (read 2026-09-30, 21:58 UTC edit).
-- `test/booking-recovery-replay.js` (unit job): runs that live code in a sandbox over 32 fictional queue rows plus 2 booked rows at
+- `test/booking-recovery-replay.js` (unit job): runs that live code in a sandbox over 34 fictional queue rows plus 2 booked rows at
   known times (due exactly on the hour, due in the same hour someone booked, a person who just booked with the phone written
   differently, booked or customer in HubSpot, already emailed with the text owed, opt-out, expired, armed before launch, nothing to
   send, phone only, email only, an unreadable time zone and date, not yet due, already finished, test-tagged, eight due at once
   against the cap of 5 per run, a different time zone). It applies the same row updates the Mark steps make and compares:
   - **A** the workflow every hour (today) against **B** the same hourly ticks with the chain run only when the gate is true:
     identical sends (text, channel, send time, order), identical closures, identical final rows, and wherever the gate said
-    nothing is due the live code would also have done nothing. The chain ran 23 of 121 hours.
+    nothing is due the live code would also have done nothing, and the other way round: whenever the gate wakes the workflow the
+    live code finds something to do (a row that only owes a text outside the lead's 08:00 to 21:00 window does not wake it). The chain ran 12 of 121 hours.
   - **C** a check every 10 minutes (what a database timer would do): the same messages and channels, none missed, none twice,
     none later than today; the only text difference is the "tomorrow or <day>" wording for a row whose send crosses local midnight,
-    because C sends earlier. The chain ran on 105 of 721 checks.
+    because C sends earlier. The chain ran on 13 of 721 checks.
   - Every row is also replayed alone, so a gate that wakes late for one kind of row cannot hide behind another due row.
   - Mutation check done by hand when it was written: dropping any one gate rule, or making the due test an hour late, fails it.
 - No message is ever sent by the test. Test people are `example.invalid` addresses and 555-01xx numbers. The test client
-  `sidneylaruel` is not involved.
+  The test client is not involved.
 
 ## Why it is not switched on
 

@@ -24,7 +24,7 @@ import {
   _writeUiLegacyRefreshActiveTweak, _writeUiLegacyRememberCommittedTweak,
   _writeUiLegacySourceGateState, _writeUiLegacyStoredTeamTerminalItem,
   _writeUiLegacySupersededSourceItem, _writeUiLegacySupersededTeamItem,
-  _writeUiLegacyTargetWithLock, _writeUiPersistCanonicalCommentProjection,
+  _urgentAdoptStampsAfterSave, _writeUiLegacyTargetWithLock, _writeUiPersistCanonicalCommentProjection,
   _writeUiQueueDeferredLegacyTweak, _writeUiRequestTweakMarkLocalStatus,
   _writeUiRollbackRequestTweak, _writeUiScheduleDeferredLegacyTweak
 } from './140-calendar-legacy-outbox.js';
@@ -560,6 +560,8 @@ import {
                 }
                 _sxrCacheWrite(_saveSlug, sxrState.posts, { clearRepairIds: [realId] });
                 _sxrSetCardStatus(realId, 'saved');
+                // The database stamped a new round on any status this save changed; the echo never says so.
+                _urgentAdoptStampsAfterSave('samples', _saveSlug, realId, edits);
                 if (bumpThumbRev) _sxrForceThumbRefresh(realId);
                 if ('thumbnail_url' in edits) {
                     const thumbPost = sxrState.posts.find(p => p.id === realId);
@@ -2912,7 +2914,7 @@ import {
         _sxrToggleCommentDone, _sxrToggleShowResolved, closeSxrComments, openSxrComments
     });
 export {
-  _sxrApplyAutoStatus, _sxrApprovalBadgeCount, _sxrAutoResolveDestStatus, _sxrAwaitCardSave,
+  _sxrApplyAutoStatus, _sxrApprovalBadgeCount, _sxrAutoResolveDestStatus, _sxrAwaitCardSave, _sxrMergePostComments,
   _sxrCanonicalCommentsFor, _sxrClientVisibleLegacyRows, _sxrCommentRole, _sxrCommentsBtnHtml,
   _sxrCommentsFor, _sxrCommentsForView, _sxrCurrentAuthor, _sxrDeleteComment, _sxrFlushAllPending,
   _sxrFlushCardSave, _sxrFmtCommentTime, _sxrIsBusy, _sxrIsClientReady, _sxrLastLocalWriteAt,

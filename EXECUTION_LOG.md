@@ -15,6 +15,18 @@ to `{"enabled": true}` with a compare-and-set update (updated_by `lighthouse:own
 returned the new value. It takes effect on each page's next load; no function was published. **Way back:** set the value back to
 `{"enabled": false, "clients": ["<test client slug>"], "staff": true}`; pages read the Sheets again on their next load.
 
+## 2026-10-01 — sample status bridge trigger made live on deliverables (owner's go; OPEN_REPAIRS 313)
+
+`migrations/2026-10-01-native-sample-status-bridge.sql` applied by Lighthouse after the owner's go ("yes, apply the sample fix"),
+in two steps (the five functions, then the trigger with a 5 s lock timeout). Read back: trigger `zzz_native_sample_status_project`
+on `deliverables`, tgtype 17, enabled, no WHEN clause; all five function bodies have the same md5 as the committed file; each
+function grants EXECUTE to `service_role` only (no `anon`, `authenticated` or PUBLIC). The catch-up dry run over 60 days returned
+0 rows. Live proof on the test client inside a transaction that was rolled back: moving one samples-origin work item to
+`tweak` moved its sample from Approved to Tweaks Needed (overall status too) with one `native-bridge` event row; afterwards
+the sample, the work item and the event count were exactly as before. Not yet pinned in the deploy preflight or the install
+inventory: pinning needs the install inventory regenerated in the same change (OPEN_REPAIRS 313). **Way back:** the rollback block at the bottom of the migration (drop the trigger and the
+five functions; samples already projected stay, they were correct).
+
 ## 2026-10-01 — 20 duplicate Metrics rows removed from analytics_metrics (owner's go; OPEN_REPAIRS 309)
 
 The owner first published `analytics-write` through the one-function lane at main `76ef0062693e961fee256bd62db13f65766effa2`

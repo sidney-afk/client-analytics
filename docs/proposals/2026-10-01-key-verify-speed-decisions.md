@@ -1,6 +1,13 @@
 # The staff sign-in check: owner decisions on the server proposals, and what each function needs
 
-**Date:** 2026-10-01 · **Session:** Comet. This records the owner's answers to the three server proposals in `docs/proposals/2026-10-01-key-verify-speed.md` (which arrives with the sign-in PR for OPEN_REPAIRS 323; read it for the measurements and the reasoning) and the source change that carries them out (OPEN_REPAIRS 324). **Source only. Nothing is deployed; the owner deploys each function.**
+**Date:** 2026-10-01 · **Session:** Comet. This records the owner's answers to three server proposals about the staff sign-in check (key-verify) and the source change that carries them out (OPEN_REPAIRS 324). **Source only. Nothing is deployed; the owner deploys each function.** The full proposal is in the sign-in speed-up PR (sidney-afk/client-analytics#1932, file docs/proposals/2026-10-01-key-verify-speed.md on its branch); the facts it rests on are repeated here so this record stands alone.
+
+## What the decisions rest on (measured 2026-10-01)
+
+- Every staff page and new tab waits for key-verify before reading any staff data. From the Edge Function log (24 h, 1,506 successful checks): the check itself has a server-time median of 362 ms (p75 458, p90 832, p99 2,983); an OPTIONS preflight that does nothing costs a median 157 ms of server time (1,336 a day), so about 157 ms of each check is platform overhead and about 205 ms is work: three database calls one after another (the auth_enforcement flag, the team member row, the audit insert).
+- Process start ("booted") is 20 to 27 ms, so cold starts are not the problem.
+- No function sets Access-Control-Max-Age, so browsers re-ask each function's permission every 5 s; the first call to each function in a tab pays an extra round trip (about 0.3 s from the test rig).
+- In a page against the live function, the check measured a median 736 ms with the preflight and 507 ms without (12 interleaved pairs).
 
 ## Decisions and build status
 

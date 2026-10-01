@@ -30097,3 +30097,11 @@ Status: webhook `slack-creative-finalize` and a once a day safety check are live
 Measured: 705 timer runs found nothing; the queue holds 3 rows, all `manual`, none pending since 2026-09-03.
 Found while reading: the runbook said only `creative_channel_id` blocks a run; the workflow also stops on a set `slack_channel_id`. The runbook now says both. Also the timer path picks only the oldest pending row, so a client waiting for a manager's Slack id holds up every newer client; the webhook picks by client name and the daily check calls it per row, so neither has that problem.
 Not proven: the ready path through the webhook (no real channels were created for the test).
+
+## 307. [2026-10-01] n8n exit phase 2, step E: the filming plan Docs write moves to a signed-in function (built, not deployed, not yet switched)
+
+Status: `supabase/functions/filming-plan-docs-write` is built and tested (`test/filming-plan-docs-write-source.js`). It needs the dispatch only deploy lane (`filming-plan-docs-write` is on its menu) and, once, the owner's check that the Google service account is Editor on the Docs the pipeline writes (the same account filming-plan-tabs reads with; reads need only Viewer).
+Closes: the n8n webhook `filming-plan-docs-update` has no sign-in and writes any Doc id the connected Google account can reach (plan section, step E). The function requires a staff key, allows only the four request kinds the pipeline sends (insertText, updateParagraphStyle, updateTextStyle, replaceAllText), at most 3000 per call, and only a Doc registered in `filming_plans` or listed in the optional `FILMING_PLAN_WRITE_EXTRA_DOC_IDS` secret (pipeline test Docs). A failed registry read holds the write.
+Not done: the only caller, `synchro-pipelines/filming_plan_write_doc.py`, still calls n8n until its own PR merges and the owner has run the pipeline once on the test client against the new function. The old n8n workflow stays on until then; switching it off is logged in `docs/ops/N8N_EDIT_LOG.md`.
+Deliberate difference from the plan: no runtime flag. The only caller is a script, so which URL the script calls is the switch.
+

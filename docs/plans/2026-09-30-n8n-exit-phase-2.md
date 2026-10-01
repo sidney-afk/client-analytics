@@ -245,6 +245,12 @@ What it does: passes the Filming Plan editor's edits straight to Google Docs. Wh
 write functions and accepting only Docs we own. Flag gated, with the same hold on failure rule. The owner must share the Docs
 with the service account for writes (today's read work already asked for this).
 
+**E status 2026-10-01:** the caller is the filming plan pipeline (`synchro-pipelines/filming_plan_write_doc.py`, a Python script run
+from the owner's machine; the 58 runs in the week were that script), not the page. Built: `filming-plan-docs-write` (staff key, four
+request kinds, registered Docs only, no runtime flag since the script's URL is the switch). Next: deploy, change the script in its own
+PR (staff key from an environment variable), the owner runs it once on the test client, then the n8n workflow is switched off and
+logged.
+
 **F. Retire the read fallbacks: Calendar Get, Sample Review Get, Kasper Queue.** Saves about 120 a month, but the real win is that
 the n8n reads of the Calendar sheets go (Caption Prompts Get and the TikTok list still read sheets and stay). Effort M. Risk low once tested.
 Phase 1 kept these as the recovery path when the Supabase read fails. Build the replacement first: a retry of the Supabase read

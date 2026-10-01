@@ -162,6 +162,12 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
+- **SyncLinear: two speed decisions (2026-10-01, `docs/audits/2026-10-01-synclinear-speed.md` section 6).**
+  (a) The saved copy lives 24 hours; after that the tab opens cold (rows at 3 to 5 s instead of 1.1 s). Raising
+  it (for example 7 days) makes most "first open of the day" cases warm; it changes what is shown for the first
+  second. (b) Every warm open still downloads 2.37 MB because the saved copy leaves out finished rows; keeping
+  them in the browser's larger store and reading only what changed would drop about 1.2 MB and the 0.75 s
+  end-of-load freeze. It reverses a documented choice. Neither was done.
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
   dispatchers (interview invite, practical test) are still active and run every
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).
@@ -248,10 +254,16 @@ hiring senders when the editor hire closes.
 ## Done (was listed as open somewhere)
 
 - **Kasper review board: a refused decision is no longer quiet, and the board says what it shows (2026-10-01,
-  OPEN_REPAIRS 314, PR open until merged).** A refused save is re-read and re-applied only when nobody changed the part;
+  OPEN_REPAIRS 316, PR open until merged).** A refused save is re-read and re-applied only when nobody changed the part;
   otherwise a "not saved" alert stays until he acts. Returned cards say "Sent back to you", urgent cards say who and when,
   "Tweaks pending" opens by default, and a part staff moved past him without his decision shows in his history with
   who and when (owner decision: staff may skip him, never silently). Browser only, no deploy. Not yet seen in his browser.
+- **SyncLinear opens and finishes faster, same page (2026-10-01, OPEN_REPAIRS 315).** Measured on the live
+  site first: quick to use (switch 60 ms, no dropped frame, card under 100 ms), slow to finish (complete
+  list 7.9 s in, 3.25 MB cold). The finished-items read now starts beside the live read (with a catch-up
+  point for the next refresh), page one of the big reads starts when sign-in passes, and the per-row scans use lookup tables.
+  Same rig, interleaved: cold complete list 8.2 to 5.9 s, cold first rows 3.7 to 3.1 s, warm fresh data
+  3.5 to 3.2 s; 1,642 rows compared old against new, 0 differences. Way back: revert the PR.
 - **Workload: unfinished work pinned to a past day is carried over (2026-09-30, #1875,
   OPEN_REPAIRS 295).** It shows on today (or Monday at a weekend, when Workload opens on the
   coming week) with a "Carried over" mark; the saved plan day is left unchanged. Cause found

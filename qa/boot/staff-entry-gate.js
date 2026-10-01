@@ -43,8 +43,10 @@ function serve() {
   });
 }
 
-// keyVerify: 'ok' | 401 | 'down'
-async function openPage(browser, origin, { identity, keyVerify }) {
+// keyVerify: 'ok' | 401 | 'down'. `suffix` is appended to the address (the
+// Linear tab is opened with '?prod=1'); `prodRows` answers the two big
+// SyncLinear reads with an empty list so a case can count how often each is asked.
+async function openPage(browser, origin, { identity, keyVerify, suffix, prodRows }) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await context.addInitScript(value => {
     if (value) localStorage.setItem('syncview_staff_identity_v1', value);
@@ -56,6 +58,13 @@ async function openPage(browser, origin, { identity, keyVerify }) {
   await context.route('**/rest/v1/team_members**', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify(ROSTER)
   }));
+  if (prodRows) {
+    for (const table of ['production_deliverables_browser_v1', 'batches']) {
+      await context.route('**/rest/v1/' + table + '**', route => route.fulfill({
+        status: 200, contentType: 'application/json', body: '[]'
+      }));
+    }
+  }
   await context.route('**/functions/v1/key-verify', route => {
     if (keyVerify === 401) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
     if (keyVerify === 'down') return route.abort();
@@ -69,7 +78,7 @@ async function openPage(browser, origin, { identity, keyVerify }) {
   // anything behind the cover.
   const requests = [];
   page.on('request', request => requests.push(request.url()));
-  await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
+  await page.goto(origin + '/index.html' + (suffix || ''), { waitUntil: 'domcontentloaded' });
   return { context, page, requests };
 }
 
@@ -198,6 +207,45 @@ function identity(verifiedAt) {
       await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
       const expired = await state(page);
       ok(expired.cover && expired.card, 'an older stored identity gates just the same when the verifier is unreachable');
+      await context.close();
+    }
+
+    // 4b. THE SAME TWO NEGATIVES ON THE LINEAR TAB (?prod=1). The <head> boot
+    //     script starts page one of the batches and live-deliverables reads
+    //     (SyncLinear early read, 2026-10-01) as soon as the early key-verify
+    //     passes. It must wait for that check exactly as Today's does: a
+    //     rejected or unreachable verifier sends neither request.
+    const bigReads = requests => requests.filter(url =>
+      /\/rest\/v1\/(production_deliverables_browser_v1|batches)\?/.test(url));
+    for (const [keyVerify, label] of [[401, 'a rejected'], ['down', 'an unreachable']]) {
+      const { context, page, requests } = await openPage(browser, origin, {
+        identity: identity(new Date().toISOString()), keyVerify, suffix: '?prod=1'
+      });
+      await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
+      await page.waitForTimeout(1500);
+      ok(bigReads(requests).length === 0,
+        label + ' verifier on the Linear tab sends neither the batches nor the deliverables read'
+        + (bigReads(requests).length ? ' (sent: ' + bigReads(requests).length + ')' : ''));
+      const leaked = staffDataReads(requests);
+      ok(leaked.length === 0, 'and loads no other staff data either' + (leaked.length ? ' (leaked: ' + leaked.length + ')' : ''));
+      await context.close();
+    }
+    {
+      // The positive that keeps those two honest: a verified boot on the same
+      // address DOES read both, and each first page is asked ONCE (the app
+      // takes the head's answer instead of asking again).
+      const { context, page, requests } = await openPage(browser, origin, {
+        identity: identity(new Date().toISOString()), keyVerify: 'ok', suffix: '?prod=1', prodRows: true
+      });
+      await page.waitForFunction(() => typeof _syncviewStaffIdentityValid === 'function' && _syncviewStaffIdentityValid(), { timeout: 15000 });
+      await page.waitForTimeout(2500);
+      const firstPages = requests.filter(url => /\/rest\/v1\/(production_deliverables_browser_v1|batches)\?/.test(url) && !/[?&]id=gt\./.test(url)
+        && !/status=in\./.test(url) && /order=id\.asc/.test(url));
+      const live = firstPages.filter(url => /production_deliverables_browser_v1/.test(url) && /status\.not\.in/.test(url));
+      const batches = firstPages.filter(url => /\/rest\/v1\/batches\?/.test(url));
+      ok(live.length === 1 && batches.length === 1,
+        'a verified boot on the Linear tab asks for the live deliverables first page once and the batches first page once '
+        + '(' + live.length + ' and ' + batches.length + '): the head\'s early answer is reused, not asked for twice');
       await context.close();
     }
 

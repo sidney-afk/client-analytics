@@ -1,6 +1,6 @@
-import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
+import { _urgentReadCardRow, _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { showConfirm, showNotify } from './040-shared-briefs.js';
+import { _svCaptureFocus, _svRestoreFocus, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   URGENT_KASPER_SLACK_URL, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature,
@@ -20,13 +20,13 @@ import {
 } from './120-calendar-flags-write-repair.js';
 import {
   _calCommentsFor, _calCompLinked, _calLinearUrlFor, _calMigratePostShape, _calNextTweakRound,
-  _calPendingEdits, _calSetCommentsFor, calClientSlug, calState
+  _calPendingEdits, _calSaveInFlight, _calSetCommentsFor, calClientSlug, calState
 } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import {
   LINEAR_OUTBOX_KEY, LINEAR_OUTBOX_MAX_ATTEMPTS, LINEAR_OUTBOX_RETRY_MS,
   WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY, WRITE_UI_LEGACY_QUARANTINE_KEY,
-  WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS, _calSetLinearOutboxFlushOwnerKey,
+  WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS, _calCoerceDate, _calSetLinearOutboxFlushOwnerKey,
   _calSetLinearOutboxFlushPromise, _calSetLinearOutboxFlushTimer, _linearOutboxFlushOwnerKey,
   _linearOutboxFlushPromise, _linearOutboxFlushTimer, _linearOutboxRead, _linearOutboxWrite,
   _writeUiLegacyRetiredRow
@@ -36,12 +36,12 @@ import {
   _calV2Log, loadCalendarPosts
 } from './150-calendar-hydration-import.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
-import { _calAutoResolveDestStatus, _calReviewBlockReason } from './170-calendar-links-status.js';
+import { _calAutoResolveDestStatus, _calAwaitCardSave, _calReviewBlockReason } from './170-calendar-links-status.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
 import {
   _calApplyAutoStatus, _calCommentRole, _calCurrentAuthor, _calDeleteComment, _calOpenCommentsPid,
   _calRefreshCommentsBtn, _calRenderCommentsModal, _calRetryCommentEdit, _calShowUrgent,
-  _calStringifyComments, _calToggleCommentDone, _calUpdateCardStatusDisplay, _calWatchNoteSave,
+  _calMergePostComments, _calStringifyComments, _calToggleCommentDone, _calUpdateCardStatusDisplay, _calWatchNoteSave,
   _kasperCompReviewable
 } from './190-calendar-approval-comments.js';
 import {
@@ -51,15 +51,15 @@ import {
 import { _isClientLink } from './260-production-refresh-boot.js';
 import {
   SXR_LINEAR_OUTBOX_KEY, SXR_TABLE, _sxrCacheRead, _sxrCacheWrite, _sxrMigrateShape,
-  _sxrNormStatus, _sxrPendingEdits, _sxrPrimeSampleRoutingFlag, _sxrReviewBlockReason,
+  _sxrNormStatus, _sxrPendingEdits, _sxrPrimeSampleRoutingFlag, _sxrSaveInFlight, _sxrReviewBlockReason,
   _sxrSampleUseEf, _sxrSupabaseFetchAllRows, _sxrUpdateCardStatusDisplay,
   computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
 } from './270-samples-model.js';
 import {
-  _sxrApplyAutoStatus, _sxrAutoResolveDestStatus, _sxrCanonicalCommentsFor, _sxrCommentRole,
+  _sxrApplyAutoStatus, _sxrAutoResolveDestStatus, _sxrAwaitCardSave, _sxrCanonicalCommentsFor, _sxrCommentRole,
   _sxrCommentsFor, _sxrCurrentAuthor, _sxrDeleteComment, _sxrLinearOutboxFlush,
   _sxrLinearOutboxRead, _sxrLinearOutboxScheduleRetry, _sxrLinearOutboxWrite, _sxrLinearUrlFor,
-  _sxrLocalStatusAt, _sxrMarkLocalStatus, _sxrNextTweakRound, _sxrOpenCommentsPid,
+  _sxrLocalStatusAt, _sxrMarkLocalStatus, _sxrMergePostComments, _sxrNextTweakRound, _sxrOpenCommentsPid,
   _sxrRefreshCommentsBtn, _sxrRenderBody, _sxrRenderCommentsModal, _sxrRetryCommentEdit,
   _sxrReviewState, _sxrSetCommentsFor, _sxrStringifyComments, _sxrToggleCommentDone,
   _sxrWatchNoteSave
@@ -2787,7 +2787,7 @@ import {
     function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation, kind, labels) {
         const k = kind === 'kasper' ? 'kasper' : 'editor';
         /* `labels` (optional) renames the button where "URGENT" reads as a status. On Kasper's
-           board the orange button is the ping to the EDITOR, so it says so (OPEN_REPAIRS 314).
+           board the orange button is the ping to the EDITOR, so it says so (OPEN_REPAIRS 316).
            The names ride on data attributes so the in-place state updater keeps them. */
         const idle = labels && labels.idle ? String(labels.idle) : 'URGENT';
         const done = labels && labels.done ? String(labels.done) : 'Sent';
@@ -2802,7 +2802,7 @@ import {
         return {
             id: post.id,
             video_urgent_pinged_at: String((ping && ping.sentAt) || new Date().toISOString()),
-            video_urgent_status_at: String((post && post.video_status_at) || ''),
+            video_urgent_status_at: String((ping && ping.roundStatusAt) || (post && post.video_status_at) || ''),
             video_urgent_issue: issue,
             video_urgent_editor: String((ping && ping.editor) || '')
         };
@@ -2976,6 +2976,238 @@ import {
         }
     }
 
+    /* ── The urgent ping needs the round stamp the DATABASE set ───────────
+       When a status changes, a trigger stamps `<comp>_status_at` on the row.
+       The save echo is built from the patch and never carries that stamp, and
+       the realtime merge keeps the local row for 90 seconds after a save, so
+       the page held the PREVIOUS round's stamp (or none) until a full reload.
+       The gateway refuses a ping whose stamp is not the row's, which is the
+       `urgent_target_changed` an SMM saw 8 seconds after setting Tweaks.
+       Two narrow reads close it: one right after a status save (adopt only the
+       stamp columns), one right before the ping goes out (the safety net).
+       Both are tolerant: a failed read leaves the page exactly as it was. */
+    const URGENT_SURFACE_HOOKS = {
+        calendar: {
+            slug: () => calClientSlug(calState.client),
+            posts: () => calState.posts,
+            awaitSave: (pid) => _calAwaitCardSave(pid),
+            cacheWrite: (slug) => _calCacheWrite(slug, calState.posts),
+            repaint: (pid) => _calUpdateCardStatusDisplay(pid)
+        },
+        samples: {
+            slug: () => sxrClientSlug(sxrState.client),
+            posts: () => sxrState.posts,
+            awaitSave: (pid) => _sxrAwaitCardSave(pid),
+            cacheWrite: (slug) => _sxrCacheWrite(slug, sxrState.posts),
+            repaint: (pid) => _sxrUpdateCardStatusDisplay(pid)
+        }
+    };
+    function _urgentHooksFor(surface) { return URGENT_SURFACE_HOOKS[(surface === 'samples' || surface === 'sxr') ? 'samples' : 'calendar']; }
+    function _urgentLivePost(surface, slug, pid) {
+        try {
+            const hooks = _urgentHooksFor(surface);
+            if (hooks.slug() !== slug) return null;
+            return (hooks.posts() || []).find(p => p && p.id === pid) || null;
+        } catch (e) { return null; }
+    }
+    /* Copy ONLY the round columns from a freshly read row into the post on
+       screen: each `<comp>_status_at` (when the row is at the same status the
+       screen shows, so a stamp is never paired with a different status) and an
+       urgent-ping marker group the row holds that is newer than the local one.
+       Everything else on the post, which may carry edits the server has not
+       seen, is left alone. Returns whether anything changed. */
+    function _urgentAdoptRoundColumns(post, row) {
+        if (!post || !row) return false;
+        let changed = false;
+        for (const comp of ['video', 'graphic', 'caption', 'title']) {
+            const at = row[comp + '_status_at'];
+            if (typeof at !== 'string' || !at.trim()) continue;
+            if (_calNormStatus(row[comp + '_status'] || '') !== _calNormStatus(post[comp + '_status'] || '')) continue;
+            if (post[comp + '_status_at'] !== at) { post[comp + '_status_at'] = at; changed = true; }
+        }
+        for (const prefix of ['video', 'kasper']) {
+            const serverPinged = Date.parse(String(row[prefix + '_urgent_pinged_at'] || ''));
+            if (!Number.isFinite(serverPinged)) continue;
+            const localPinged = Date.parse(String(post[prefix + '_urgent_pinged_at'] || ''));
+            if (Number.isFinite(localPinged) && localPinged >= serverPinged) continue;
+            Object.keys(row).forEach(key => {
+                if (key.indexOf(prefix + '_urgent_') !== 0) return;
+                if (post[key] !== row[key]) { post[key] = row[key]; changed = true; }
+            });
+        }
+        return changed;
+    }
+    /* Called, fire and forget, right after a status save succeeded. */
+    async function _urgentAdoptStampsAfterSave(surface, slug, pid, edits) {
+        try {
+            if (typeof _isClientLink !== 'undefined' && _isClientLink) return;
+            if (!edits || !Object.keys(edits).some(key => /^(video|graphic|caption|title)_status$/.test(key))) return;
+            const row = await _urgentReadCardRow(surface, slug, pid);
+            if (!row) return;
+            const post = _urgentLivePost(surface, slug, pid);
+            if (!post || !_urgentAdoptRoundColumns(post, row)) return;
+            const hooks = _urgentHooksFor(surface);
+            try { hooks.cacheWrite(slug); } catch (e) {}
+            try { hooks.repaint(pid); } catch (e) {}
+        } catch (e) {}
+    }
+
+    /* Wait for a card's save, but never longer than 20 seconds: a save that hangs must not hold the
+       ping (or the refresh) hostage. A save that failed is not this function's business either. */
+    async function _urgentWaitForSave(saving) {
+        let timer;
+        try {
+            await Promise.race([Promise.resolve(saving).catch(() => {}), new Promise(resolve => { timer = setTimeout(resolve, 20000); })]);
+        } finally { clearTimeout(timer); }
+    }
+    /* The last look before an editor ping goes out (shared by every caller of
+       the dispatch below). Waits for the card's own save to finish, reads the
+       row once, and answers one of two ways:
+         { proceed: true }   send. The round stamp in `native` (and on the post
+                             on screen) is now the one the database holds, when
+                             the read worked; when it did not, nothing changed
+                             and the ping goes with what the page has, because
+                             AGENTS.md says to choose permissive when a guard
+                             could go either way and the gateway re-checks.
+         { proceed: false, title, text }  the card no longer says what the person
+                             clicked on, so nothing is sent and the person is
+                             told plainly what it says now.
+       Never throws. */
+    async function _urgentFreshenRound(native, opts) {
+        try {
+            const hooks = _urgentHooksFor(native.surface);
+            await _urgentWaitForSave(Promise.resolve().then(() => hooks.awaitSave(native.card_id)));
+            const row = await _urgentReadCardRow(native.surface, native.client_slug, native.card_id);
+            if (!row) return { proceed: true, read: false };
+            const nowStatus = _calNormStatus(row.video_status || '');
+            if (nowStatus !== 'Tweaks Needed') {
+                return { proceed: false, title: 'Urgent ping not sent',
+                    text: 'This video now says "' + nowStatus + '" on the card, so there is no tweaks request to ping about. Nothing was sent.' };
+            }
+            if (String(row.status || '').toLowerCase() === 'archived') {
+                return { proceed: false, title: 'Urgent ping not sent', text: 'This card has been archived. Nothing was sent.' };
+            }
+            if (Object.prototype.hasOwnProperty.call(row, 'video_deliverable_id')
+                && String(row.video_deliverable_id || '').trim() !== native.deliverable_id) {
+                return { proceed: false, title: 'Urgent ping not sent',
+                    text: 'The work item linked to this video was changed, so the ping would point at the wrong one. Nothing was sent.' };
+            }
+            const at = row.video_status_at;
+            if (typeof at === 'string' && at.trim()) {
+                native.video_status_at = at;
+                const current = opts && typeof opts.currentPost === 'function' ? opts.currentPost() : null;
+                if (current && _calNormStatus(current.video_status || '') === 'Tweaks Needed' && current.video_status_at !== at) {
+                    current.video_status_at = at;
+                    try { if (hooks.slug() === native.client_slug) hooks.cacheWrite(native.client_slug); } catch (e) {}
+                    try { hooks.repaint(native.card_id); } catch (e) {}
+                }
+            }
+            return { proceed: true, read: true };
+        } catch (e) { return { proceed: true, read: false }; }
+    }
+
+    /* ── "Refresh this card" on a ping the gateway refused ────────────────
+       These codes all mean the card the page showed is not the card the
+       database holds (a new round, a changed work item or assignee, a lost
+       row). The notice offers one click that reads that one card, adopts the
+       server row for it, keeps whatever the person has typed and not yet
+       saved, re-arms URGENT for the round it now shows, and closes the
+       notice. */
+    const URGENT_CARD_CHANGED_CODES = new Set([
+        'urgent_target_changed', 'urgent_round_unavailable', 'urgent_context_unavailable',
+        'urgent_assignment_unavailable', 'notification_urgent_target_changed'
+    ]);
+    function _urgentCardChangedAction(native, btn, opts) {
+        return { actionLabel: 'Refresh this card', onAction: () => { _urgentRefreshCard(native, btn, opts); } };
+    }
+    /* Put a freshly read row on screen as the card, per surface. Returns true
+       when the card was replaced. Unsaved typed text survives: the pending
+       edit buckets and the kept-for-retry edits are laid back over the row. */
+    const URGENT_ADOPT_ROW = {
+        calendar: (slug, pid, row) => {
+            if (calClientSlug(calState.client) !== slug) return false;
+            const idx = calState.posts.findIndex(p => p.id === pid);
+            if (idx < 0) return false;
+            const local = calState.posts[idx];
+            const fresh = Object.assign({}, row);
+            fresh.scheduled_date = _calCoerceDate(fresh.scheduled_date);
+            fresh.status = _calNormStatus(fresh.status);
+            _calMigratePostShape(fresh);
+            const unsaved = Object.assign({}, local._writeUiRetryEdits || {}, local._writeUiHeldSourceEdits || {}, _calPendingEdits[pid] || {});
+            const merged = Object.assign({}, fresh, unsaved);
+            if (Object.keys(unsaved).some(key => /_tweaks$/.test(key))) _calMigratePostShape(merged);
+            Object.keys(local).forEach(key => { if (key.charAt(0) === '_' && key !== '_baseAt') merged[key] = local[key]; });
+            _calMergePostComments(merged, local);
+            merged._baseAt = String(row.updated_at || '');
+            calState.posts[idx] = merged;
+            try { _calCacheWrite(slug, calState.posts); } catch (e) {}
+            const focus = _svCaptureFocus();
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            if (focus) _svRestoreFocus(focus);
+            return true;
+        },
+        samples: (slug, pid, row) => {
+            if (sxrClientSlug(sxrState.client) !== slug) return false;
+            const idx = sxrState.posts.findIndex(p => p.id === pid);
+            if (idx < 0) return false;
+            const local = sxrState.posts[idx];
+            const fresh = Object.assign({}, row);
+            fresh.status = _sxrNormStatus(fresh.status);
+            _sxrMigrateShape(fresh);
+            const unsaved = Object.assign({}, local._writeUiRetryEdits || {}, local._writeUiHeldSourceEdits || {}, _sxrPendingEdits[pid] || {});
+            const merged = Object.assign({}, fresh, unsaved);
+            if (Object.keys(unsaved).some(key => /_tweaks$/.test(key))) _sxrMigrateShape(merged);
+            Object.keys(local).forEach(key => { if (key.charAt(0) === '_' && key !== '_baseAt') merged[key] = local[key]; });
+            _sxrMergePostComments(merged, local);
+            merged._baseAt = String(row.updated_at || '');
+            sxrState.posts[idx] = merged;
+            try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
+            const focus = _svCaptureFocus();
+            try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {}
+            if (focus) _svRestoreFocus(focus);
+            return true;
+        }
+    };
+    async function _urgentRefreshCard(native, btn, opts) {
+        try {
+            const surface = (native.surface === 'samples') ? 'samples' : 'calendar';
+            const slug = native.client_slug, pid = native.card_id;
+            // Let a save that is already running finish, but do not start one: the
+            // person's unsaved text must stay unsaved text until they save it.
+            const running = surface === 'samples' ? _sxrSaveInFlight[pid] : _calSaveInFlight[pid];
+            if (running) await _urgentWaitForSave(running);
+            const row = await _urgentReadCardRow(surface, slug, pid);
+            if (!row) {
+                showNotify('Could not refresh this card', 'The card could not be read just now, so it was left as it is. Reload the page to see its current state.');
+                return;
+            }
+            let adopted = false;
+            try { adopted = URGENT_ADOPT_ROW[surface](slug, pid, row); } catch (e) { adopted = false; }
+            const current = (opts && typeof opts.currentPost === 'function') ? opts.currentPost() : null;
+            if (!adopted && current) {
+                // The card is held by another screen (the Kasper tab): update that object in place.
+                const fresh = Object.assign({}, row);
+                fresh.status = _calNormStatus(fresh.status);
+                Object.keys(fresh).forEach(key => { if (key.indexOf('_') !== 0) current[key] = fresh[key]; });
+                try { _calMigratePostShape(current); } catch (e) {}
+                adopted = true;
+            }
+            const livePost = _urgentLivePost(surface, slug, pid) || current;
+            try { _urgentHooksFor(surface).repaint(pid); } catch (e) {}
+            // Re-arm the button for the round the card now shows. The re-render may have replaced it.
+            const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+            const live = document.querySelector('.cal-urgent-btn[data-urgent-pid="' + sel + '"][data-urgent-kind="editor"]');
+            [btn, live].forEach(el => {
+                if (!el || !el.isConnected || !livePost) return;
+                el.dataset.urgentSent = '0'; el.classList.remove('is-sent'); el.disabled = false; el.textContent = 'URGENT';
+                _calApplyUrgentButtonState(el, livePost, 'editor');
+            });
+            if (adopted) showToast('Card refreshed');
+        } catch (e) {
+            try { showNotify('Could not refresh this card', 'Something went wrong while reading the card. Reload the page to see its current state.'); } catch (ignore) {}
+        }
+    }
+
     function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
         const kind = (opts && opts.kind === 'kasper') ? 'kasper' : 'editor';
         const spec = _urgentKind(kind);
@@ -2985,9 +3217,16 @@ import {
         if (kind === 'editor' && !native) {
             showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text); return;
         }
-        const roundTime = native ? Date.parse(native.video_status_at) : NaN;
-        const attemptKey = native ? 'syncview-native-urgent:v1:' + JSON.stringify(Object.assign({}, native,
-            { video_status_at: Number.isFinite(roundTime) ? new Date(roundTime).toISOString() : native.video_status_at })) : '';
+        /* The local delivery hold is keyed by the native payload INCLUDING the round stamp, and
+           the stamp can be replaced by the fresh read below, so the key is computed by a function
+           and recomputed after the read: a retry or an uncertain-delivery hold must match the
+           payload that was actually sent. */
+        const holdKeyFor = () => {
+            const roundTime = Date.parse(native.video_status_at);
+            return 'syncview-native-urgent:v1:' + JSON.stringify(Object.assign({}, native,
+                { video_status_at: Number.isFinite(roundTime) ? new Date(roundTime).toISOString() : native.video_status_at }));
+        };
+        let attemptKey = native ? holdKeyFor() : '';
         let storageUnavailable = false;
         /* One confirmed dispatch at a time. The save-guard check below awaits before the local
            delivery hold is written, so without this two rapid confirm callbacks could both pass
@@ -3062,6 +3301,18 @@ import {
                         }
                         let resp;
                         if (nativeLane) {
+                            // Wait for this card's own save, read the row once, and send with the stamp the
+                            // database holds. A card that no longer says Tweaks Needed is not pinged.
+                            const fresh = await _urgentFreshenRound(native, opts);
+                            if (!fresh.proceed) {
+                                if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                                showNotify(fresh.title, fresh.text, _urgentCardChangedAction(native, btn, opts));
+                                return;
+                            }
+                            attemptKey = holdKeyFor();
+                            if (retainedAttempt()) { showUnknown(); return; }
+                        }
+                        if (nativeLane) {
                             // Retain before transport. This is a local recovery hold,
                             // not a cross-device delivery or exactly-once receipt.
                             holdValue = JSON.stringify({ state: 'delivery_unknown', attempt_id: crypto.randomUUID() });
@@ -3117,7 +3368,12 @@ import {
                                 && typeof j.dispatch_id === 'string' && j.dispatch_id.trim()
                                 && typeof j.slack_ts === 'string' && j.slack_ts.trim())) {
                                 const refusal = new Error('native_urgent_unconfirmed');
-                                if (knownNotSent) { refusal.code = String(j.error || 'native_urgent_unconfirmed'); refusal.status = resp.status; }
+                                /* The real gateway code and HTTP status ride on the error for the failed-saves
+                                   log, whether or not delivery is known to be not sent: before this, only the
+                                   known-not-sent branch carried them and the log recorded a generic 500 with
+                                   no reason. What the person is TOLD still depends on knownNotSent alone. */
+                                if (j && typeof j.error === 'string' && j.error) refusal.code = j.error;
+                                if (Number.isInteger(resp.status) && resp.status >= 400 && resp.status <= 599) refusal.status = resp.status;
                                 throw refusal;
                             }
                         }
@@ -3136,7 +3392,7 @@ import {
                         }
                         if (sameRound && opts && typeof opts.persist === 'function') {
                             try {
-                                await opts.persist({ sentAt, issue, editor: (j && j.editor) || '' });
+                                await opts.persist({ sentAt, issue, editor: (j && j.editor) || '', roundStatusAt: nativeLane ? native.video_status_at : '' });
                             } catch (persistErr) {
                                 persistFailed = true;
                                 try { console.warn('[Urgent] Sent Slack ping but could not persist marker', persistErr); } catch {}
@@ -3147,7 +3403,7 @@ import {
                         showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
                         // Failed-saves log: an urgent ping that went out and did not come back confirmed.
-                        if (attempted) _writeUiRecordSaveFailure(native && native.surface === 'sxr' ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
+                        if (attempted) _writeUiRecordSaveFailure(native && (native.surface === 'samples' || native.surface === 'sxr') ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
                             releaseOwnHold();
@@ -3159,7 +3415,8 @@ import {
                             if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                             const code = e.code || 'native_urgent_unconfirmed';
                             const guidance = _writeUiFailureText('urgent ping', code, e.status);
-                            showNotify(guidance.title, guidance.text + ' (code: ' + code + ')');
+                            showNotify(guidance.title, guidance.text + ' (code: ' + code + ')',
+                                URGENT_CARD_CHANGED_CODES.has(code) ? _urgentCardChangedAction(native, btn, opts) : undefined);
                             return;
                         }
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
@@ -3224,7 +3481,7 @@ export {
   _calKasperReviewUrl, _calKasperUrgentActive, _calLinearMetaByIdent, _calLinearMetaHydrated,
   _calParentLinks, _calPersistUrgentSentForPost, _calPostLinearComment, _calPushStatusToLinear,
   _calReassertLinearStatus, _calSetLinearMetaHydrated, _calShowKasperUrgent, _calUrgentButtonHtml,
-  _calUrgentSlackDispatch, _linearOutboxFlush, _urgentKind, _writeUiApplyOverallStatus,
+  _calUrgentSlackDispatch, _urgentAdoptStampsAfterSave, _linearOutboxFlush, _urgentKind, _writeUiApplyOverallStatus,
   _writeUiApplySupersededTeamDelivery, _writeUiCommentActionFailureHtml,
   _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
   _writeUiLegacyCommittedTweak, _writeUiLegacyDrainWithLock, _writeUiLegacyFinalizeFlush,

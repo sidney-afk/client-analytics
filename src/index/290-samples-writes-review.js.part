@@ -1230,7 +1230,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         const stampedAt = String(post.kasper_finished_at || '');
         const localFin = _kasperLocalFlagLive(_sxrKasperState.dismissed && _sxrKasperState.dismissed[post.id]);
         if (!stampedAt && !localFin) return false;
-        if (_kasperUrgentSupersedes(post, stampedAt) && _sxrKasperUndecidedComps(post).length) return false;   // OPEN_REPAIRS 314: a newer urgent ping is a fresh ask
+        if (_kasperUrgentSupersedes(post, stampedAt) && _sxrKasperUndecidedComps(post).length) return false;   // OPEN_REPAIRS 316: a newer urgent ping is a fresh ask
         // Once finished, the card STAYS in "Tweaks pending" and returns to
         // "Waiting" ONLY when a component is genuinely re-sent to Kasper Approval
         // (undecided). A later message — even a client tweak — must NOT pull it
@@ -1535,7 +1535,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         }
         const before = JSON.parse(JSON.stringify(p));
         const patch = mutate(p);
-        /* NEVER OVERWRITE SOMEONE ELSE'S CHANGE (OPEN_REPAIRS 314). Samples saves carry no
+        /* NEVER OVERWRITE SOMEONE ELSE'S CHANGE (OPEN_REPAIRS 316). Samples saves carry no
            stale-screen baseline, so nothing on the server stops a decision made on an old
            screen from landing over a newer one. A status decision is therefore checked
            first against the sample as it is NOW: if the part is no longer where his screen
@@ -1566,6 +1566,17 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 _kasperPaintReview();
                 return;
             }
+            /* The part he decides is unchanged, but the OTHER part may have moved since his screen
+               loaded (Codex P1 on PR 1916). His patch carries an overall `status` worked out from
+               the stale companion, and would overwrite the server's correct one. Adopt the fresh
+               companion status into the working copy and recompute the aggregate before sending. */
+            let companionMoved = false;
+            for (const c of SXR_REVIEW_COMPONENTS) {
+                const k = c + '_status';
+                if (k === statusKey || !Object.prototype.hasOwnProperty.call(fresh, k)) continue;
+                if (String(fresh[k] == null ? '' : fresh[k]) !== String(before[k] == null ? '' : before[k])) { p[k] = fresh[k]; companionMoved = true; }
+            }
+            if (companionMoved) { p.status = computeSampleOverallStatus(p); patch.status = p.status; }
         }
         p.updated_at = new Date().toISOString();
         const linearMeta = linearComment ? _sxrCommentsFor(p, comp).slice(-1)[0] : null;
@@ -1813,7 +1824,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             // load shows the sample again (a new version must never stay hidden).
             const prevFin = { at: prevFinishedAt, log: prevFinishLog };
             _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(e => {
-                // A refused Finish is never quiet: the sample comes back and he is told (OPEN_REPAIRS 314).
+                // A refused Finish is never quiet: the sample comes back and he is told (OPEN_REPAIRS 316).
                 delete _sxrKasperState.dismissed[pid];
                 p.kasper_finished_at = prevFin.at; p.kasper_finish_log = prevFin.log;
                 if (!_sxrKasperFindItem(pid)) _sxrKasperState.items.push(it);

@@ -1,7 +1,7 @@
 'use strict';
 /*
  * Kasper's review board in a REAL page: cards that are at Kasper Approval and urgent must
- * be on his screen (OPEN_REPAIRS 314).
+ * be on his screen (OPEN_REPAIRS 316).
  *
  * Run:  node test/kasper-board-browser.js
  *

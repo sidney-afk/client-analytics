@@ -3112,7 +3112,7 @@
         /* Icon-only "no more tweaks needed" chip on the Kasper queue card. */
         .kcard-aat-chip { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border-radius: 99px; flex-shrink: 0; }
         .kcard-aat-chip svg { width: 11px; height: 11px; }
-        /* Kasper board clarity (OPEN_REPAIRS 314): sent-back marker, urgent tag, unsaved-change alerts, skip notes. */
+        /* Kasper board clarity (OPEN_REPAIRS 316): sent-back marker, urgent tag, unsaved-change alerts, skip notes. */
         .kcard-returned-chip { display: inline-flex; align-items: center; font-size: 0.7rem; font-weight: 700; color: var(--sv-fg-92400e); background: var(--sv-bg-fef3c7); padding: 2px 8px; border-radius: 99px; }
         .kcard-returned-line { font-size: 0.75rem; color: var(--sv-fg-92400e); }
         .kcard-urgent-tag { display: inline-flex; align-items: center; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em; color: var(--sv-fg-b91c1c); background: var(--sv-bg-fee2e2); padding: 2px 8px; border-radius: 99px; }

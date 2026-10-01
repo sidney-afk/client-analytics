@@ -58,7 +58,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
                               // — i.e. a genuine change of status. Pruned on every load for
                               // any id no longer in the fetched queue (see _kasperLoadReview).
         // Approved history defaults to collapsed. "Tweaks pending" now opens by
-        // default (OPEN_REPAIRS 314): collapsed, a finished card looked as if it
+        // default (OPEN_REPAIRS 316): collapsed, a finished card looked as if it
         // had never left, and he went hunting for it.
         historyCollapsed: true,
         tweaksCollapsed: false,
@@ -129,6 +129,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
             pid: String(pid), name: String(name || 'Untitled post'), client: String(client || ''),
             kind: kind === 'conflict' ? 'conflict' : 'failed', text: String(text || ''), at: Date.now(),
         };
+        _kasperPersistCache();   // so a reload straight after a refusal still shows it (Codex P2 on PR 1916)
     }
     function _kasperSetTabCount(key, n) {
         document.querySelectorAll('[data-kasper-count="' + key + '"]').forEach(el => {
@@ -225,7 +226,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
        never landed hid the card from Waiting AND Urgent for as long as it stayed at Kasper
        Approval, and nothing said so. Now a mark with no server stamp behind it is honoured for
        two minutes, and an urgent ping newer than a hide always puts the card back in front of
-       him (OPEN_REPAIRS 314). `true` (what older versions stored) counts as expired. */
+       him (OPEN_REPAIRS 316). `true` (what older versions stored) counts as expired. */
     const KASPER_LOCAL_FLAG_MS = 2 * 60 * 1000;
     function _kasperLocalFlagLive(v) { return typeof v === 'number' && isFinite(v) && Date.now() - v < KASPER_LOCAL_FLAG_MS; }
     function _kasperUrgentSupersedes(post, stampIso) {
@@ -550,7 +551,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
            pruned, and ours still wins on a shared id because the server keeps
            the newer stamp. Raised as P1 by Codex review on PR 1493. */
         let retryIssued = false;
-        /* A REFUSED SAVE IS RE-CHECKED, NEVER JUST REPORTED (OPEN_REPAIRS 314).
+        /* A REFUSED SAVE IS RE-CHECKED, NEVER JUST REPORTED (OPEN_REPAIRS 316).
            calendar-upsert refuses a write when ANYTHING on the card changed
            after this screen loaded, even a column Kasper is not touching, so a
            plain Approve could be refused for good while every retry on the same

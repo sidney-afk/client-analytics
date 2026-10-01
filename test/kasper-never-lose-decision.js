@@ -1,7 +1,7 @@
 'use strict';
 /*
  * REGRESSION GUARD: a Kasper decision is never silently lost, and the board says
- * what it is (OPEN_REPAIRS 314).
+ * what it is (OPEN_REPAIRS 316).
  *
  * Run:  node --require ./test/helpers/single-file-index.js test/kasper-never-lose-decision.js   (exit 0 = holding)
  *       (npm test runs it with that preload; it hands the suite the plain concatenation of src/index/)
@@ -421,7 +421,8 @@ async function sectionsAndReload() {
 /* ───────────── E. Samples: same rule ───────────── */
 function samplesSandbox({ fresh, finishFails = false }) {
   const calls = { upsert: 0, status: 0, alerts: [], repaint: 0 };
-  const fns = [must('_sxrKasperApplyAndPersist'), maybe('_sxrKasperReadFresh'), must('_sxrKasperFindItem')].join('\n\n');
+  const fns = [constLine('SXR_COMPONENTS'), constLine('SXR_PRIORITY'), constLine('SXR_REVIEW_COMPONENTS'), must('computeSampleOverallStatus'),
+    must('_sxrKasperApplyAndPersist'), maybe('_sxrKasperReadFresh'), must('_sxrKasperFindItem')].join('\n\n');
   const p = { id: 's1', name: 'Fixture sample', video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', status: 'Kasper Approval', updated_at: '2026-10-01T16:00:00.000Z' };
   const it = { post: p, slug: 'testslug', client: 'Test Client' };
   const s = Object.assign({
@@ -434,7 +435,8 @@ function samplesSandbox({ fresh, finishFails = false }) {
     _kasperSetSaveAlert: (...a) => calls.alerts.push(a), _kasperPaintReview: () => {},
     _sxrLinearUrlFor: () => '', _sxrCommentsFor: () => [], COMP_LABELS: { video: 'Video', graphic: 'Thumbnail' },
     _writeUiPrincipalKey: () => 'k',
-    _sxrPushStatusToLinear: async () => { calls.status++; throw new Error('stop here: reached the write'); },
+    _sxrNormStatus: v => String(v || ''),
+    _sxrPushStatusToLinear: async (url, status, opts) => { calls.status++; calls.edits = opts && opts.repairEdits; throw new Error('stop here: reached the write'); },
     _sxrPostLinearComment: async () => { throw new Error('stop here'); },
     _sxrUpsertFetch: async () => { calls.upsert++; return { ok: true, json: async () => ({ ok: true }) }; },
     _writeUiTrackSave: (a, b, c, send) => send(), _writeUiReportFailure: () => {}, _writeUiRecordFailure: () => {}, showNotify: () => {},
@@ -512,6 +514,31 @@ async function refusedCloseIsNotRemovedByItsOwnAnimation() {
   assert.ok(s._kasperState.items.some(x => x.post.id === 'p30'), 'the card is still in his queue after a refused Close');
 }
 
+
+async function samplesRecomputeFromTheFreshCompanion() {
+  /* Codex P1, PR 1916: the part he decides is unchanged but the OTHER part moved; his stale aggregate
+     must not overwrite the server's. */
+  const approve = (p) => { p.video_status = 'Client Approval'; p.status = s0.computeSampleOverallStatus(p); return { video_status: 'Client Approval', status: p.status }; };
+  const fresh = { updated_at: '2026-10-01T16:00:09.000Z', status: 'Kasper Approval', video_status: 'Kasper Approval', graphic_status: 'Client Approval' };
+  const a = samplesSandbox({ fresh });
+  var s0 = a.s;
+  await a.s._sxrKasperApplyAndPersist('s1', 'video', approve, null);
+  assert.strictEqual(a.calls.status, 1, 'the decision itself still goes ahead (his part did not move)');
+  assert.strictEqual(a.calls.edits.status, 'Client Approval', 'but the aggregate is recomputed from the fresh companion, not the stale one he saw (got ' + (a.calls.edits && a.calls.edits.status) + ')');
+}
+async function alertsAreSavedWhenSetAndWhenAcknowledged() {
+  /* Codex P2, PR 1916: setting or acknowledging an alert must write the cache, or a reload right after
+     loses it / brings an acknowledged one back. */
+  let persisted = 0; const snapshots = [];
+  const s = { Date, Object, String, _kasperState: { saveAlerts: {} }, _kasperPersistCache: () => { persisted++; snapshots.push(Object.keys(s._kasperState.saveAlerts).length); return true; },
+    _kasperRepaintCard: () => {}, _kasperPaintReview: () => {} };
+  vm.createContext(s); vm.runInContext(must('_kasperSetSaveAlert') + '\n' + must('_kasperAckAlert'), s);
+  s._kasperSetSaveAlert('p40', 'Fixture', 'Test Client', 'failed', 'Not saved: x');
+  assert.deepStrictEqual(snapshots, [1], 'saved right after the alert is set, with the alert in it');
+  s._kasperAckAlert('p40');
+  assert.deepStrictEqual(snapshots, [1, 0], 'saved right after it is acknowledged, without it');
+}
+
 /* ───────────── F. a browser-only hide never outlives its moment ───────────── */
 async function localMarksExpireAndUrgentWins() {
   const fns = [constLine('KASPER_LOCAL_FLAG_MS'), constLine('CAL_STATUSES'), constLine('CAL_COMPONENTS'), constLine('CAL_REVIEW_COMPONENTS'),
@@ -554,6 +581,8 @@ async function localMarksExpireAndUrgentWins() {
   await runCase('Samples: a refused Finish or Close is reported and undone', samplesFinishAndCloseAreNotQuiet);
   await runCase('browser-only Finish and Close marks expire; an urgent ping wins', localMarksExpireAndUrgentWins);
   await runCase('a refused Close is not undone by its own removal animation', refusedCloseIsNotRemovedByItsOwnAnimation);
+  await runCase('Samples: the aggregate is recomputed from the fresh companion part', samplesRecomputeFromTheFreshCompanion);
+  await runCase('alerts are saved when set and when acknowledged', alertsAreSavedWhenSetAndWhenAcknowledged);
   if (failures.length) { console.error('\n' + failures.length + ' failure(s).'); process.exit(1); }
   console.log('\nAll kasper-never-lose-decision assertions passed.');
 })();

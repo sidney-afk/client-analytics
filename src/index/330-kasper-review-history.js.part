@@ -98,7 +98,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         _kasperState.loading = true;
         _kasperState.error = null;
         // The client list fills in late (Clients Info sheet). Remember its size, so a
-        // load that started before it grew is repeated once it has (OPEN_REPAIRS 314).
+        // load that started before it grew is repeated once it has (OPEN_REPAIRS 316).
         const rosterAtStart = WL_CLIENT_NAMES.length;
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
@@ -1047,7 +1047,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
     }
 
 
-    /* ── What the board has to say about itself (OPEN_REPAIRS 314) ───────── */
+    /* ── What the board has to say about itself (OPEN_REPAIRS 316) ───────── */
     function _kasperClock(iso) {
         const t = Date.parse(iso || '');
         return isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
@@ -1139,6 +1139,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
     }
     function _kasperAckAlert(pid) {
         if (_kasperState.saveAlerts) delete _kasperState.saveAlerts[pid];
+        _kasperPersistCache();   // an acknowledged alert must not come back on the next reload
         _kasperRepaintCard(pid);
         _kasperPaintReview();
     }
@@ -2162,7 +2163,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             try { await _kasperPersistPost(item); }
             catch (e) {
                 /* A refused Finish used to be swallowed: the card looked handed off on his
-                   screen only. Put it back and say so (OPEN_REPAIRS 314). */
+                   screen only. Put it back and say so (OPEN_REPAIRS 316). */
                 post.kasper_finished_at = prevFinish.at;
                 post.kasper_finish_log = prevFinish.log;
                 if (!prevFinish.wasDismissed) delete _kasperState.dismissed[pid];

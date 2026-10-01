@@ -118,7 +118,7 @@ function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true, fre
     _writeUiAdoptRepairAck: () => { throw new Error('unexpected repair ack adoption in this fixture'); },
     _writeUiAdoptReplayStatus: () => '',
     _calLinearUrlFor: () => '',
-    // OPEN_REPAIRS 314: the refused-save reconcile adopts the server's row, which needs these.
+    // OPEN_REPAIRS 316: the refused-save reconcile adopts the server's row, which needs these.
     _calComponentsFor: () => ['video', 'graphic', 'caption'],
     _calMigratePostShape: () => {},
     _calV2Log: () => {},
@@ -216,7 +216,7 @@ async function tweakSelfConflictRetrySucceeds(comp) {
 }
 
 async function tweakWithoutNativeCommitIsRecheckedToo(comp) {
-  /* CHANGED BY OPEN_REPAIRS 314. This case used to assert that a conflict with no native
+  /* CHANGED BY OPEN_REPAIRS 316. This case used to assert that a conflict with no native
      precommit was never retried, on the reasoning that it could be a genuinely concurrent
      edit. That reasoning left a plain Approve refused for good whenever ANY column of the card
      moved. Now every conflict is re-read and judged field by field: when nobody touched the

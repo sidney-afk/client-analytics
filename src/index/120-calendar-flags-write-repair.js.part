@@ -2346,7 +2346,12 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             // The status comes from the response, or from a message of the
             // form "... HTTP 503" that a save's own error text already carries.
             const fromText = /\bHTTP (\d{3})\b/.exec(String(error && error.message || ''));
-            const raw = response && Number.isInteger(response.status) ? response.status : (fromText ? Number(fromText[1]) : NaN);
+            // An error that carries the gateway's own status (`error.status`, set by
+            // `_writeUiGatewayError` and by the urgent ping) is the best evidence
+            // there is, so it is used when neither the response nor the message has one.
+            // Without it every such refusal was logged as the function's default 500.
+            const fromError = error && Number.isInteger(error.status) ? error.status : NaN;
+            const raw = response && Number.isInteger(response.status) ? response.status : (fromText ? Number(fromText[1]) : fromError);
             const status = Number.isInteger(raw) && raw >= 400 && raw <= 599 ? raw : undefined;
             const name = String(error && error.name || '');
             const shape = {
@@ -2354,6 +2359,10 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 message: String(error && error.message || (status ? 'HTTP ' + status : 'save failed')).slice(0, 200)
             };
             if (status !== undefined) shape.status = status;
+            // The real reason code, when the error has one. A code is a short
+            // snake_case word; anything else (a numeric driver code, free text)
+            // is left out and the log falls back to its generic code, as before.
+            if (error && typeof error.code === 'string' && /^[a-z][a-z0-9_]{1,79}$/.test(error.code)) shape.code = error.code;
             // A request that never got an answer rejects with one of these two
             // and nothing else; anything with a status did reach a server.
             else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
@@ -3080,6 +3089,32 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             return Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
         } catch (e) { return null; }
     }
+    /* Read ONE card row (Calendar or Samples) with the browser's read key.
+       Used by the urgent ping to learn the round stamp the database set when
+       a status changed, which no save echo carries. Returns the row, or null
+       when the read failed, timed out, or did not name exactly this card:
+       the callers treat null as "could not check" and carry on with what the
+       page already holds. Never throws. */
+    async function _urgentReadCardRow(surface, clientSlug, id) {
+        const slug = String(clientSlug || '').trim();
+        const postId = String(id || '').trim();
+        if (!slug || !postId) return null;
+        const table = (surface === 'samples' || surface === 'sxr') ? 'sample_reviews' : 'calendar_posts';
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.' + encodeURIComponent(slug)
+                + '&id=eq.' + encodeURIComponent(postId) + '&limit=2';
+            const response = await fetch(url, {
+                cache: 'no-store',
+                signal: AbortSignal.timeout(8000),
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (!response.ok) return null;
+            const rows = await response.json().catch(() => null);
+            if (!Array.isArray(rows)) return null;
+            const mine = rows.filter(r => r && String(r.id) === postId);
+            return mine.length === 1 ? mine[0] : null;
+        } catch (e) { return null; }
+    }
     /* Union a comment cell the server currently holds into the cell a retry is
        about to send, so that EVERY id the server knows about is present in the
        incoming list. calendar-upsert keeps whichever copy of a shared id has
@@ -3387,7 +3422,7 @@ export {
   _calCapJobPollTimer, _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calClearStaleApprovals, _calComponentsFor,
   _calIsTitleReviewOn, _calIsYouTubeCard, _calLoadCommentsField, _calNormStatus,
-  _calAssertFlagAllows, _calAssertSavingOn, _settingsAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp,
+  _calAssertFlagAllows, _calAssertSavingOn, _settingsAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp, _urgentReadCardRow,
   _calRuntimeFlagClient, _calRuntimeFlagClients, _calSetCapJobBatch, _calSetCapJobPollBusy,
   _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,

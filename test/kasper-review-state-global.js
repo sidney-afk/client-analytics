@@ -61,7 +61,7 @@ const HARNESS = `
 let _kasperState = { dismissed: {}, closed: {} };
 let _seenMap = {};
 function _kasperGetSeenAt(pid){ return _seenMap[pid] || ''; }
-function _calKasperUrgentActive(){ return false; }   // OPEN_REPAIRS 314: no live ping in these scenarios
+function _calKasperUrgentActive(){ return false; }   // OPEN_REPAIRS 316: no live ping in these scenarios
 function _calPostPlatforms(){ return []; }   // test posts aren't YouTube → _calComponentsFor = base 3
 `;
 

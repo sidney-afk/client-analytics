@@ -653,7 +653,8 @@
     "prod-subissue-parent-name.js",
     "synclinear-early-read.js",
     "prod-tail-prefetch.js",
-    "prod-lookup-equivalence.js"
+    "prod-lookup-equivalence.js",
+    "notes-loading-skeleton.js"
   ],
   "profiles": [
     {

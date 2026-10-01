@@ -6773,3 +6773,11 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
 - Tests: `test/synclinear-early-read.js`, `test/prod-tail-prefetch.js`, `qa/boot/staff-entry-gate.js` (Linear tab cases).
 - Record and owner decisions: `docs/audits/2026-10-01-synclinear-speed.md`.
+
+## 2026-10-01 - Notes dialog: loading skeleton instead of "All clear" (session Comet, OPEN_REPAIRS 322)
+
+- The dialog said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and comment reads were still
+  on their way. It now shows a shimmer (announced as busy) until they answer; rows already held show at once; a failed
+  read settles to the old empty state. Calendar and Samples dialogs.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/notes-loading-skeleton.js`. Live check: skeleton from 22 ms to 1,283 ms, then the thread.

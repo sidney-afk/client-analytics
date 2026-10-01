@@ -30254,3 +30254,14 @@ Proof (offline, synthetic ids, zero external calls): `test/native-notification-u
 Order of events: merge; deploy `notify` (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml, function `notify`, commit = main's tip after merge; deploy it BEFORE any F27 dispatch, whose prerequisite compares live `notify` with the dispatch commit); run the preview lane with `message: urgent` for the test client; the owner looks; only then set the secret.
 
 Not built, proposed: one message for several urgent pings to the same editor and client (see `docs/ops/NATIVE_NOTIFICATIONS.md`).
+
+
+## 322. [2026-10-01] The Notes dialog shows a loading skeleton, not "All clear", until the card's comments have arrived
+
+Status: page change built and tested, browser only. No database, Edge Function, flag, permission or write path touched. Merge is the owner's lighthouse.
+Problem (owner request): the Notes dialog paints at once and said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and the two comment reads were still on their way (measured live as staff on the test client: dialog at 17 ms, reads ending at 1.2 to 1.4 s). An empty-state sentence about a card whose notes have not arrived is a statement, not a wait.
+Fix: while a card's notes are pending (the crosswalk lookup is running, or any component read is still loading) and there are no rows to show, the feed shows a note-shaped shimmer with `role="status"`, `aria-busy` and "Loading notes", in both the Calendar and the Samples dialogs. Rows already held still show at once; a failed read settles to the old empty state rather than a skeleton forever (the projection already repaints an open dialog on every way out). New helpers `_prodCardCommentsPending` and `_prodCommentsSkeletonHtml` (`230`), styles `.cal-cm-skel*` (`020`), reduced-motion respected.
+Measured after, same live card: skeleton from 22 ms until 1,283 ms, then the thread (this card had only resolved notes, so "All clear" appears at 1.28 s, when it is true).
+Tests: `test/notes-loading-skeleton.js` (11 checks; fails on the old code, the helpers do not exist); full unit run 5 failures, the same five that fail on main in this sandbox.
+Not done, on purpose: no change to what the dialog shows once the notes have arrived.
+Way back: ROLLBACK.md.

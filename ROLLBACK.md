@@ -1450,3 +1450,8 @@ poll, without disabling Production:
   sent and how lookups are built, and the rendered page is identical (1,642 rows compared).
 - **Check after a revert:** the Linear tab loads as before (first rows about 1.1 s warm); the finished-items
   read starts after the first paint again (a `status=in.(approved,...)` request begins after the live pages).
+
+## 2026-10-01 - inverse for the Notes loading skeleton (browser only; OPEN_REPAIRS 322)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). No flag, table, Edge Function or n8n change.
+- **Check after a revert:** opening Notes on a card with no loaded notes shows "All clear" or "No notes yet" at once again.

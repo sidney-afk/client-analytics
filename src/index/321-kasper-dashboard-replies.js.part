@@ -7,7 +7,7 @@ import { _svCss, _svRgb } from './050-market-briefs.js';
 import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-core-client-names.js';
 import {
-  CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _ptoInvalidateOverviewCaches, _svSelectHtml,
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _ptoInvalidateOverviewCaches, _svSelectHtml,
   _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
   _syncviewStaffCan, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid,
@@ -2220,18 +2220,10 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         try {
             // v2: read this client's posts from Supabase instead of the Sheet
             // (gated on _calV2Ready() so v1 is byte-identical). _calV2FetchPosts
-            // already falls back to the n8n calendar-get webhook on any Supabase
-            // error, so the content bank can never blank. The bank is a computed
+            // retries once and then throws (no n8n); a failed read leaves the bank unchanged. The bank is a computed
             // summary, so a refresh-on-open is enough —
             // no realtime subscription needed here.
-            let json;
-            if (_calV2Ready()) {
-                json = await _calV2FetchPosts(slug);
-            } else {
-                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-                if (!resp.ok) return null;
-                json = await resp.json();
-            }
+            const json = await _calV2FetchPosts(slug);
             if (!json || !json.ok || !Array.isArray(json.posts)) return null;
             const today = _filmsTodayISO();
             let total = 0;

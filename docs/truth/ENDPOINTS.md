@@ -35,8 +35,7 @@ Calendar (**n8n exit PR 2, 2026-09-29:** every staff and Kasper Calendar save, r
 import-confirmation read goes to the Supabase functions `calendar-upsert` and `calendar-reorder` and
 `calendar_posts`; nothing falls back to n8n, and the page's calls to `calendar-append-post`,
 `calendar-delete-post`, `calendar-reorder` and `calendar-reorder-batch` are gone):
-- `webhook/calendar-get` stays only as the read fallback when the Supabase read fails (and the pinned-repair
-  verification read). `webhook/calendar-upsert-post` stays only to replay a repair already pinned
+- The page no longer calls the n8n calendar read (retired in step F, 2026-10: a failed Supabase read is retried once, then the saved copy and a notice show; pinned repairs are verified against `calendar_posts`). `webhook/calendar-upsert-post` stays only to replay a repair already pinned
   `webhook` in someone's browser, until the on-load migration moves it. The n8n workflows stay on 30 days
   from the day this ships, then are snapshotted and deactivated.
 - **Client approve and request-changes are carved out:** a write made from a client link keeps its old
@@ -50,8 +49,8 @@ import-confirmation read goes to the Supabase functions `calendar-upsert` and `c
 Sample reviews (SXR). **Corrected 2026-09-24:** the legacy Samples page was removed; its three
 `samples-*` webhooks (get, upsert, reorder) and its `content_samples` REST read are no longer called
 (old `#samples` links redirect to Sample reviews). The n8n workflows and the table still exist.
-- `webhook/sample-review-get`, `webhook/sample-review-upsert`
-- **Sample review saves and reorders (n8n exit PR 4, 2026-09-29):** every staff and Kasper Sample save and reorder goes to `functions/v1/sample-review-upsert` and `functions/v1/sample-review-reorder` only, after a fresh, bounded read of `sample_review_ef_clients` (own read per write, 2 s, `cache: 'no-store'`, only `select`, `key`, `limit`). An unreadable, slow or malformed flag HOLDS the write; a flag that does not list the client PAUSES it with a message; neither reaches n8n. The n8n `sample-review-reorder` call is gone. `sample-review-get` stays only as the read fallback and for verifying repairs still pinned `webhook`; `sample-review-upsert` stays only to replay such a repair, until the on-load migration moves it. The client link's approve and request-changes keep their old routing and request byte for byte (`test/samples-client-carveout-byte-identical-browser.js`). `sample-review-upsert` itself stays frozen and ungated.
+- `webhook/sample-review-upsert` (the n8n Samples read was retired in step F, 2026-10)
+- **Sample review saves and reorders (n8n exit PR 4, 2026-09-29):** every staff and Kasper Sample save and reorder goes to `functions/v1/sample-review-upsert` and `functions/v1/sample-review-reorder` only, after a fresh, bounded read of `sample_review_ef_clients` (own read per write, 2 s, `cache: 'no-store'`, only `select`, `key`, `limit`). An unreadable, slow or malformed flag HOLDS the write; a flag that does not list the client PAUSES it with a message; neither reaches n8n. The n8n `sample-review-reorder` call is gone. The n8n Samples read (`sample-review-get`) is retired (step F, 2026-10): a failed Supabase read is retried once, then the saved copy and a notice show, and repairs still pinned `webhook` are verified against `sample_reviews`; `sample-review-upsert` stays only to replay such a repair, until the on-load migration moves it. The client link's approve and request-changes keep their old routing and request byte for byte (`test/samples-client-carveout-byte-identical-browser.js`). `sample-review-upsert` itself stays frozen and ungated.
 
 Linear bridge:
 - `webhook/linear-issues`, `webhook/log-linear-submission`
@@ -150,7 +149,6 @@ Templates:
   retired 2026-09-24; Templates reads the `templates` table and writes `functions/v1/templates-save`.
 
 Other:
-- `webhook/kasper-queue` — Kasper review queue
 - The editor urgent ping no longer has a webhook: its n8n route (send-urgent-slack) was retired 2026-09-23 (B2); it is native only (`native_urgent_dispatch` in production-write).
 - `webhook/send-urgent-kasper-slack` — urgent ping DMing Kasper about a card parked at Kasper Approval, with a link to his review tab
 - `webhook/weekly-slack-top-reel` — weekly top-reel Slack post

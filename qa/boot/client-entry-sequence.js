@@ -1040,12 +1040,14 @@ function installHeldTailPostLoad(config) {
       return nativeFetch(input, init);
     }
 
+    /* The Calendar reads calendar_posts only (n8n exit, step F: the calendar-get webhook is
+       retired), so the held-tail harness answers that table and counts it as the calendar read. */
     if (method === 'GET'
-      && url.hostname === 'synchrosocial.app.n8n.cloud'
-      && url.pathname === '/webhook/calendar-get') {
-      const slug = String(url.searchParams.get('client') || '');
+      && url.hostname === 'uzltbbrjidmjwwfakwve.supabase.co'
+      && url.pathname === '/rest/v1/calendar_posts') {
+      const slug = String(url.searchParams.get('client') || '').replace(/^eq\./, '');
       state.calendarReads.push({ at: Date.now(), slug, url: url.href });
-      return jsonResponse({ ok: true, posts: config.rowsBySlug[slug] || [] });
+      return jsonResponse(config.rowsBySlug[slug] || []);
     }
 
     if (method === 'GET'
@@ -3529,7 +3531,6 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
     storage: {
       local: {
         ...staffStorage.local,
-        syncview_calendar_v2_off: '1',
       },
       session: staffStorage.session,
     },

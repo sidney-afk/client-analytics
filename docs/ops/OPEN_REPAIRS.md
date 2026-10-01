@@ -30131,3 +30131,13 @@ Script bundles: step B's page switch (PR 1889) deleted old hashed files in `js/`
 ## 311. [2026-10-01] n8n exit phase 2: Booking Recovery stays hourly (owner decision); step K read and reported, nothing changed
 
 Booking Recovery stays hourly with no n8n edits. Step K report is in `docs/plans/2026-10-01-n8n-exit-step-k-report.md`; code untouched until the owner replies.
+
+## 312. [2026-10-01, PR open] Samples whose work item is ahead of their own status: the weekday dawn check now counts them
+
+Cause (measured 2026-10-01 on the test client): a sample status change saves in two steps, the work item first (`production-write`) and the sample's own record second (`sample-review-upsert`, in `_sxrFlushCardSave`). If the page goes away between the two, only the first lands. The browser keeps a repair note in its own storage (`syncview_sxr_cache_v2_*`) that only the SAME browser finishes when it reopens the page (it caught up in 12 seconds); a fresh browser never does, so the sample stays behind its work item and never reaches the client. Two throwaway-browser hand tests hit it, and a controlled run (the sample save held back, then the page closed) reproduced it, event log and all.
+
+Read-only count, 2026-10-01: 28 samples not archived (7,844 archived), 39 linked parts compared, 0 behind their work item.
+
+Change: `qa/dawn/sample-sync.js` reads the same rows with the browser key and counts parts whose work item maps to a different sample status, changed at or after the sample's own stamp, more than 30 minutes ago. A stuck sample is a ⚠️ on the weekday report (counts only, never a failed run). The mapping mirrors the page's `_calMapNativeStatusStrict(…, 'samples')`, and `test/sample-sync.js` reads the page source and fails if the two ever differ.
+
+Not changed: nothing repairs a stuck sample automatically. A server-side catch-up (finish a sample whose work item is ahead) or one combined save is the real fix and is the owner's call.

@@ -23,6 +23,7 @@ const CHECKS = Object.freeze({
   'synclinear': 'SyncLinear first rows',
   'analytics': 'Analytics first numbers',
   'templates': 'Every current client has a Templates page',
+  'samples-sync': 'Samples agree with their work items',
   'harness': 'Harness ran to the end',
   'cleanup': 'Everything put back',
 });
@@ -58,6 +59,9 @@ const D = Object.freeze({
   templatesOk: (n) => `all ${fmt(n)} current clients have a Templates page and a thumbnail link`,
   templatesGap: (noRow, noLink, n) => `${fmt(noRow)} of ${fmt(n)} current clients have no Templates page; ${fmt(noLink)} more have no thumbnail link`,
   templatesUnread: () => 'not measured: the client list or the Templates rows could not be read',
+  samplesOk: (parts) => `all ${fmt(parts)} linked sample parts match their work items`,
+  samplesStuck: (samples, parts, minutes) => `${fmt(samples)} sample${int(samples) === 1 ? '' : 's'} (${fmt(parts)} part${int(parts) === 1 ? '' : 's'}) behind their work item for over ${fmt(minutes)} minutes`,
+  samplesUnread: () => 'not measured: the samples or their work items could not be read',
   cleanup: (archived, seeds, renamed, card, sub, blocked) =>
     `seeds archived ${fmt(archived)}/${fmt(seeds)}` +
     (renamed ? `, rename restored on card=${yn(card)} sub-issue=${yn(sub)}` : '') +
@@ -83,6 +87,9 @@ const DETAIL = [
   `all ${N} current clients have a Templates page and a thumbnail link`,
   `${N} of ${N} current clients have no Templates page; ${N} more have no thumbnail link`,
   'not measured: the client list or the Templates rows could not be read',
+  `all ${N} linked sample parts match their work items`,
+  `${N} samples? \\(${N} parts?\\) behind their work item for over ${N} minutes`,
+  'not measured: the samples or their work items could not be read',
   `seeds archived ${N}/${N}(?:, rename restored on card=(?:yes|no) sub-issue=(?:yes|no))?(?:, ${N} other-client write\\(s\\) blocked)?`,
 ].join('|');
 const CELL = `(?:never|not measured|not reached|${N} ms)`;

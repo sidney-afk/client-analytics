@@ -20,7 +20,7 @@ import {
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calMintId } from './132-calendar-dates-ids.js';
 import { _calArchivedRemove, _calDupeWarnText, _calLinkDuplicatePeers, _calLinkKey } from './134-calendar-prefs-mount.js';
-import { _calPushStatusToLinear, _calShowKasperUrgent, _calUrgentButtonHtml, _writeUiApplyOverallStatus } from './140-calendar-legacy-outbox.js';
+import { _calPushStatusToLinear, _calShowKasperUrgent, _calUrgentButtonHtml, _urgentAdoptStampsAfterSave, _writeUiApplyOverallStatus } from './140-calendar-legacy-outbox.js';
 import {
   _calCacheWrite, _calMarkLocalStatus, _calSetLastLocalWriteAt, _calV2Enabled, _calV2Log
 } from './150-calendar-hydration-import.js';
@@ -1561,6 +1561,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                Linear is gone. */
             _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
+            // The database stamped a new round on any status this save changed; the echo never says so.
+            _urgentAdoptStampsAfterSave('calendar', _saveSlug, realId, edits);
             // Only repaint the thumbnail when this save intentionally bumped
             // thumb_rev. Other saves can still move updated_at / _cb, but the
             // base-URL guard keeps those from re-decoding the image.
@@ -2852,7 +2854,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
 export {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
   CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
-  _calAutoResolveDestStatus, _calAutosizeTextareas, _calClientFieldEditBlocked,
+  _calAutoResolveDestStatus, _calAutosizeTextareas, _calAwaitCardSave, _calClientFieldEditBlocked,
   _calCloseNativePost, _calCloseStatusMenu, _calFlushCardSave, _calForceThumbRefresh,
   _calInsertLocalBlankCard, _calLivePreviewThumb, _calNativeBatchCompatible,
   _calNativeBatchDisplayName, _calNativeBatchLists, _calNativeBatchMatches, _calNativeBatchNameFor,

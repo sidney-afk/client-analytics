@@ -1721,7 +1721,7 @@ import {
             const states = new Map();
             let generation = 0;
             const stateFor = id => states.get(String(id || '')) || null;
-            const repaint = () => { try { _prodRender(); } catch (e) {} };
+            const repaint = id => { if (id && _prodState.quietIds.has(String(id))) return; try { _prodRender(); } catch (e) {} };
             const clientSurfaceFor = value => {
                 const source = value && typeof value === 'object' ? value : {};
                 const sourceSurface = String(source.source_surface || '').trim().toLowerCase();
@@ -1754,7 +1754,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface: null,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 const append = !!options.append;
@@ -1782,7 +1782,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface: null,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 let hasClientCredential = false;
@@ -1793,7 +1793,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 const requestGeneration = generation;
@@ -1808,7 +1808,7 @@ import {
                     refreshError: '', pagesLoaded: 0, clientSurface,
                     clientSurfaceVerified: false, token
                 });
-                repaint();
+                repaint(id);
                 const cursor = append && current ? current.cursor : null;
                 /* A read that never answers used to sit on the skeleton for the
                    life of the page. The error branch below and its Retry button
@@ -1854,7 +1854,7 @@ import {
                             refreshError: '', pagesLoaded: 0, clientSurface,
                             clientSurfaceVerified: false, token
                         });
-                        repaint();
+                        repaint(id);
                         return stateFor(id);
                     }
                     if (!response.ok) throw new Error('Comments read failed: HTTP ' + response.status);
@@ -1916,7 +1916,7 @@ import {
                 } finally {
                     if (timeoutTimer) clearTimeout(timeoutTimer);
                 }
-                repaint();
+                repaint(id);
                 return stateFor(id);
             }
             function ensure(id) {
@@ -1947,7 +1947,7 @@ import {
                 const state = stateFor(id);
                 if (!state || state.status !== 'ready') return;
                 states.set(String(id), { ...state, items: _prodCommentMerge(state.items, [row]) });
-                repaint();
+                repaint(id);
             }
             async function readCanonical(id, options) {
                 options = options || {};
@@ -1977,7 +1977,7 @@ import {
                 generation++;
                 if (id == null) states.clear();
                 else states.delete(String(id || ''));
-                repaint();
+                repaint(id);
             }
             function render(id) {
                 const state = stateFor(id);
@@ -2286,6 +2286,28 @@ import {
                 if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
                 if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             }
+        }
+        /* The Notes dialog must not say "All clear" or "No notes yet" while the
+           thread is still on its way (2026-10-01). A card's notes are pending
+           from the moment the crosswalk lookup starts until every component's
+           read has answered; an empty feed in that window is a skeleton, not a
+           statement. Rows that are already held are shown as they are. */
+        function _prodCardCommentsPending(post, surface) {
+            if (!post) return false;
+            if (post._canonicalCrosswalkInFlight) return true;
+            const reads = post._canonicalCommentReads;
+            if (!reads) return false;
+            /* Only the deliverables bound to the card NOW count. A projection that
+               aborts because the card was re-pointed mid-flight leaves the old
+               deliverable's entry at 'loading' for good, and that must not hold the
+               dialog on a skeleton. */
+            const components = surface === 'sxr' ? SXR_COMPONENTS : _calComponentsFor(post);
+            const bound = new Set(components.map(component => String(_writeUiNativeId(post, component) || '')).filter(Boolean));
+            return Object.keys(reads).some(key => bound.has(String(key)) && reads[key] && reads[key].status === 'loading');
+        }
+        function _prodCommentsSkeletonHtml() {
+            const row = (long) => '<div class="cal-cm-skel-row"><span class="cal-cm-skel cal-cm-skel-avatar"></span><span class="cal-cm-skel-col"><span class="cal-cm-skel cal-cm-skel-line is-short"></span><span class="cal-cm-skel cal-cm-skel-line' + (long ? ' is-long' : '') + '"></span></span></div>';
+            return '<div class="cal-cm-skeleton" role="status" aria-busy="true" aria-label="Loading notes">' + row(true) + row(false) + row(true) + '</div>';
         }
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);
@@ -2684,7 +2706,7 @@ import {
     });
 export {
   _prodApplyGatewayRow, _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop,
-  _prodCanonicalCommentGate, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
+  _prodCanonicalCommentGate, _prodCardCommentsPending, _prodCommentsSkeletonHtml, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
   _prodComments, _prodComposerHTML, _prodDescriptionHTML, _prodDescriptionState,
   _prodDescriptionText, _prodDueIso, _prodGatewayWrite, _prodInvalidateScopedReads,
   _prodLabelColorStyle, _prodLabelsButtonHTML, _prodLabelsPopHTML, _prodLinkify,

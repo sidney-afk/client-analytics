@@ -40,7 +40,7 @@ async function check(label, fn) { await fn(); checks++; console.log('  ok  ' + l
       const PROD_COMMENTS_EF_URL = 'https://fixture.invalid/production-comments';
       const PROD_COMMENTS_PAGE_SIZE = 50, PROD_COMMENTS_READ_TIMEOUT_MS = 15000;
       let _isClientLink = false, actor = { role: 'smm', member: { id: 'fixture-a' } };
-      const _prodState = { openId: 'fixture-issue' };
+      const _prodState = { openId: 'fixture-issue', quietIds: new Set() };
       const _syncviewStaffIdentityForHeaders = () => actor;
       const _syncviewEfHeaders = headers => headers;
       const _syncviewClientWriteToken = () => 'fictional-client';

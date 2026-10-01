@@ -132,6 +132,9 @@ function newHarness(opts) {
     // beside the live one. It only moves when a request is SENT and the tail
     // is stubbed here, so it is mirrored as a no-op.
     _prodStartTailPrefetch() {},
+    // Added 2026-10-01: the saved finished rows; none exist in this fixture.
+    _prodTerminalCopyRead: () => Promise.resolve(null),
+    _prodAdoptTerminalCopy: () => false,
     _prodCarryTerminalRows: (live) => live,
     _prodAdvanceBatchDeltaCursor() {},
     _prodInvalidateBatchDescriptionReads() {},

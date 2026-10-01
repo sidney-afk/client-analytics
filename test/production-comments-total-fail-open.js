@@ -311,6 +311,7 @@ async function call(extra = {}) {
       _isClientLink: false,
       _prodIssue: () => null,
       _prodRender: () => {},
+      _prodState: { quietIds: new Set() },
       _prodClientCommentSurfaceKey: surface => JSON.stringify(surface || null),
       _syncviewEfHeaders: () => ({ 'content-type': 'application/json' }),
       _syncviewStaffIdentityForHeaders: () => ({ actor: 'Fixture Reviewer' }),

@@ -164,6 +164,21 @@
             toLegacy: toLegacy,
             clean: clean,
             cleanAbs: function (url) { return location.origin + clean(url); },
+            // The address to put on a link that opens in a new tab. A clean
+            // path such as /synclinear/<id> is not a real file on the host, so it
+            // answers 404 and 404.html bounces it to the app (one extra round
+            // trip before anything loads). The same page's old form
+            // (/?prod=1&d=<id>#production) is the app document itself and loads
+            // at once; the app then rewrites the address bar to the clean path.
+            fast: function (url) {
+                var c = clean(url);
+                try {
+                    var u = new URL(c, location.origin);
+                    var l = toLegacy(u.pathname, u.search);
+                    if (l && u.pathname !== '/' && u.pathname !== '/index.html') return '/' + l.search + l.hash;
+                } catch (e) {}
+                return c;
+            },
             hash: function () { return current().hash; },
             search: function () { return current().search; }
         };
@@ -6996,6 +7011,15 @@
         .cal-comments-feed { flex: 1; overflow-y: auto; padding: 8px 0 0; display: flex; flex-direction: column; background: var(--white); }
         .cal-comments-feed-inner { display: flex; flex-direction: column; padding: 8px 4px 14px; flex: 1; }
         .cal-comments-empty { font-size: 0.84rem; color: var(--text-muted); padding: 36px 24px; text-align: center; line-height: 1.5; }
+        .cal-cm-skeleton { padding: 14px 20px; display: flex; flex-direction: column; gap: 18px; }
+        .cal-cm-skel-row { display: flex; gap: 12px; align-items: flex-start; }
+        .cal-cm-skel-col { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-top: 3px; }
+        .cal-cm-skel { display: block; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 14%, transparent) 0%, color-mix(in srgb, var(--text-muted) 26%, transparent) 48%, color-mix(in srgb, var(--text-muted) 14%, transparent) 100%); background-size: 220% 100%; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .cal-cm-skel-avatar { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; }
+        .cal-cm-skel-line { height: 11px; width: 70%; }
+        .cal-cm-skel-line.is-short { width: 28%; }
+        .cal-cm-skel-line.is-long { width: 92%; }
+        @media (prefers-reduced-motion: reduce) { .cal-cm-skel { animation: none; } }
         .cal-comments-empty-title { font-weight: 700; color: var(--text-primary); margin-bottom: 4px; font-size: 0.9rem; }
         .cal-cm-thread { display: flex; flex-direction: column; }
         .cal-cm-thread.is-done .cal-cm-row { opacity: 0.6; transition: opacity 0.15s; }
@@ -9492,9 +9516,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-56b8c77fcfc2.js";
-        var PARTS = ["js/sv-01-core-1455dcbae1bf.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-67f5bf3fd60a.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-1656e6cd1179.js","js/sv-12-synclinear-536b61a51bbd.js","js/sv-13-core-7c6706460baf.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-3ce687433e7a.js","workload":"js/sv-04-workload-74cd1d5cd211.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-81d6f43f0137.js"};
+        var FULL = "js/sv-full-08ab3ec48600.js";
+        var PARTS = ["js/sv-01-core-1455dcbae1bf.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b93b7a6881a5.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-33d6e87f3145.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-b44fd0e2b6ed.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var LAZY = {"templates":"js/sv-02-templates-3ce687433e7a.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-c6aed67b7522.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

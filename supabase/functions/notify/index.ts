@@ -144,7 +144,9 @@ Deno.serve(async (req: Request) => {
 // intent's own text and must equal the assigned editor's Slack ID, or the plain
 // line (with its explicit link) goes instead. Any failure returns null: a
 // formatting problem never stops an urgent delivery.
-async function urgentRichMessage(supabase: Db, row: Claim, intent: JsonMap, variant: NotifyVariant): Promise<SlackMessage | null> {
+// `intent` is loosely typed on purpose: its column list is built at run time, so the
+// Supabase client cannot infer the row shape and types it as an error placeholder.
+async function urgentRichMessage(supabase: Db, row: Claim, intent: Db, variant: NotifyVariant): Promise<SlackMessage | null> {
   try {
     const mention = /^<@([UW][A-Z0-9]{8,})>/.exec(clean(row.text));
     const clientSlug = clean(intent.client_slug), deliverableId = clean(intent.deliverable_id);

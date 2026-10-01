@@ -33,8 +33,10 @@ three Supabase onboarding functions were ever called (function statistics are sw
    section 3). The biggest: it says the client Slack channel is always manual, but the channel
    worker creates one itself and refuses to run if you already filled the field.
 4. Most per-client facts are **already in Supabase** (35 of 35 on roster, token, profile, metrics).
-   The facts with **no home anywhere** are the Drive client folder id, the HubSpot deal id, the
-   contract and payment state, and who the SMM is (text match only).
+   Two facts are stored in **no system's field at all**: the Drive client folder id and the
+   HubSpot deal id for a client. Two more live only outside SyncView and have **no SyncView field**:
+   the contract and payment state (HubSpot contact flags) and who the SMM is (a Sheet tab, matched
+   by text).
 
 ---
 
@@ -73,7 +75,7 @@ contacts, `first_invoice_paid` on 3, `onboarding_sent` on 3, and `is_ai_client` 
 | 4 | **Provisioning (automatic part)** | n8n "Client - Onboarding Provisioning": makes the Drive folder `{first}-{last}` in Clients, finds the HubSpot contact by email then phone, sets "customer", moves the deal to "Closed Won", queues one Slack job. | Auto | Drive folder, HubSpot end state, queue row | Partly: no run history kept; the Drive step has no error handling and blocks everything after it; error workflow now exists (docs still say it does not) | Partly |
 | 5 | **Research: keywords, competitors, description** | Pull 5 to 10 reels, write `keywords`, `specific_keywords`, `content_description`, `competitors`. | Claude or Owner | Text fields | Partly: keywords, specific keywords, description filled for 29 of 35; competitors for 16 of 35 | Partly (Claude drafts, human approves) |
 | 6 | **Clients Info row and SMM row** | The SYNCVIEW Sheet's `Clients Info` and `Social Media Managers` tabs. n8n "Append Client Row" can do both from one call, built for a Claude session. | Owner or Claude | The row that makes the client appear in SyncView | Partly: no retained runs; the call has no password (anyone with the address can write a client row) | Yes (this is priority A: move off Sheets) |
-| 7 | **Create the canonical client row, token, four routing lists** | Documented as hand-run SQL (runbook 6e, 6f, 6k). Live: all 35 are on the roster, 35 have a token, all four lists contain all 35 (each list also holds 8 stale entries). | Owner or Claude per docs; **how it actually happened was not found** (34 of 35 rows say "source: sheet", the roster sync log shows 5 runs and 0 applied) | `clients` row, token, flags | Yes today (0 clients missing from any list); the process is unverified | Yes: a finished but never-run function does all of it in one transaction (`production_native_client_provision`, 0 receipts ever) |
+| 7 | **Create the canonical client row, token, four routing lists** | Documented as hand-run SQL (runbook 6e, 6f, 6k). Live: all 35 are on the roster, 35 have a token, all four lists contain all 35 (each list holds 43 entries: the 35, the active TEST client, and 7 stale names of clients that are no longer active). | Owner or Claude per docs; **how it actually happened was not found** (34 of 35 rows say "source: sheet", the roster sync log shows 5 runs and 0 applied) | `clients` row, token, flags | Yes today (0 clients missing from any list); the process is unverified | Yes: a finished but never-run function does all of it in one transaction (`production_native_client_provision`, 0 receipts ever) |
 | 8 | **Client Slack channel (private)** | Docs: manual. Reality: the channel worker creates a private `{client}` channel, invites Kasper and the SMM, and writes `slack_channel_id`. | Docs say Owner; worker does it | Channel + id | No: see section 3 | Yes |
 | 9 | **Creative Slack channel** | Worker creates the public `{first}-{last}-creative` channel, invites 5 people, writes `creative_channel_id`, posts the kickoff, then the form answers. Waits until the Clients Info row, an SMM row with a Slack user id, and a filming plan link all exist. | Auto (webhook, daily check, and a 15 minute timer, all verified live) | Channel + id | **No**: 789 runs in 8 days all found nothing to do; queue has 3 rows ever, all ended "manual" (a missing Sheet column, a failed kickoff post, a channel that already existed). 98 creative channels are active but only 12 were bot made | Yes, already built |
 | 10 | **Fill in the kickoff message** | The kickoff has placeholders (Team, Action items, Timeline, brand deck, onboarding call). The form answers message in newest channels was posted by a human account, not the bot, about 7 minutes later. | Staff (Kasper per the placeholders) | A completed brief | Unknown | Partly |
@@ -127,7 +129,7 @@ current clients without asking anyone.
 | Roster row | Supabase `clients` | 35 / 0 | Yes |
 | Client profile (mirror of Clients Info) | Supabase `client_profiles` (authority still the Sheet) | 35 / 0 | Yes |
 | Review token (secret) | Supabase `client_access` | 35 / 0 | Yes (never print) |
-| Write routing (4 lists) | `syncview_runtime_flags` | 35 / 0 (plus 8 stale entries) | Yes |
+| Write routing (4 lists) | `syncview_runtime_flags` | 35 / 0 (plus the TEST client, which must stay, and 7 stale entries) | Yes |
 | Email | profile | 27 / 8 | Partly (HubSpot has it for customers) |
 | Instagram handle | profile | 32 / 3 | Partly |
 | TikTok handle | profile | 18 / 17 | Blank can be valid |
@@ -154,26 +156,30 @@ current clients without asking anyone.
 | Old Roam group id | profile | 5 / 30 | Legacy |
 | Kickoff call booking or recording | iClosed, Fathom | Not tracked per client | Partly (Fathom search by name) |
 
-**Where data is thinner than it looks:** the two missing-from-everywhere facts are the Drive folder
-id and the HubSpot deal id. Both could be found by matching and then saved once.
+**Where data is thinner than it looks:** the two facts stored nowhere are the Drive folder id and
+the HubSpot deal id; both could be found by matching and then saved once. The contract and payment
+state and the SMM link exist, but outside SyncView, so they need a SyncView field before a
+checklist can read them.
 
 ---
 
-## Decisions needed from the owner
+## Owner decisions (answered 2026-10-01)
 
-1. Should the checklist's source of truth be a new Supabase table (one row per client per step), with the checklist shown on the client profile in SyncView?
-2. Which steps are required for "onboarded" and which are optional (Post For Me, Sandcastles, monthly check-in, samples, ideas pipeline)?
-3. Keep the private client Slack channel being made by the channel worker, or turn that off and keep it manual as the docs say?
-4. For a new client, should the SyncView Clients admin tab replace the Clients Info Sheet row (priority A) so step 6 disappears?
-5. Switch on the finished native provisioning function as the "create client" button, or retire it?
-6. Approve a read-only matching pass that proposes a Drive folder id, Slack ids and HubSpot ids for every current client, for you to approve before anything is saved?
-7. Store the HubSpot deal and contract and payment state on the client profile (synced), or leave sales data in HubSpot only?
-8. For the 26 hand imported customers with no contract or payment record, accept "unknown" or backfill from the e-signature and Stripe records?
-9. Turn off the failing Notion "New Client" workflow in n8n (it needs your go)?
-10. Finish automatic brain folder creation on intake, or keep it a Claude step in the checklist?
-11. Who owns each step in the checklist (you, Kasper, the SMM, Claude)?
-12. Add the kickoff call as a tracked step (booking or recording) in the checklist?
-13. Clean up the 8 stale names in the four routing lists and the 13 inactive roster rows now, or leave them?
+1. **Checklist lives in a database table** (source of truth), shown on the client profile.
+2. **Required:** every step in list 1 except "SyncView link sent" (optional, never blocks). The kickoff call is out of scope and is left out.
+3. **The client Slack channel stays automatic.** The runbook is corrected to say so.
+4. **The Clients tab replaces the Clients Info Sheet row for new clients**, coordinated with the Roster session.
+5. **The native provisioning function becomes a "Create client" button**, tested on the test client first.
+6. **Read-only matching pass approved:** read `synchro-brain` first, then HubSpot, Drive and Slack to fill gaps. Nothing is saved until the owner approves the proposals.
+7. **HubSpot deal and contract and payment state are stored on the client profile.**
+8. **The 26 hand-imported customers are marked "unknown"** for contract and payment.
+9. **The failing Notion "New Client" n8n workflow is turned off** (done 2026-10-01, logged in `docs/ops/N8N_EDIT_LOG.md` with the undo).
+10. **Brain folder creation stays a Claude step**, along with every other step that is a Claude step today.
+11. **The owner owns every step by default.**
+12. **No kickoff call step.**
+13. **The current roster is exactly the active clients in Clients Info.** Anything else is stale except the test client. The exact removal list goes to the owner in chat (names are not committed); nothing is removed until the owner says yes.
+
+Plans that follow from these: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
 
 ---
 

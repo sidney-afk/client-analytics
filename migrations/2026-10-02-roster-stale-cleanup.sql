@@ -25,9 +25,21 @@
 -- lists get 'owner-roster-cleanup-2026-10-01'. The flag ledger trigger records
 -- the actor; do not set updated_at.
 --
--- ROLLBACK: nothing was deleted. Put a slug back with the one-transaction
--- statement in NEW_CLIENT_ONBOARDING.md 6e; set board_status back to its old
--- value (the readback below prints the before values first).
+-- ROLLBACK DATA: before it changes anything the script writes one row per
+-- change into public.roster_cleanup_log (service role and the browser roles
+-- have no access; read it in the SQL editor). Inverse, per row:
+--   board status:  update public.clients c set board_status = l.detail
+--                    from public.roster_cleanup_log l
+--                   where l.run = '2026-10-02' and l.what = 'board_status' and l.slug = c.slug;
+--   routing list:  re-enrol the slug with the one-transaction statement in
+--                  NEW_CLIENT_ONBOARDING.md 6e (the log names each slug and list).
+--
+-- REACTIVATION: the daily clients_roster_sync_v1 sets active = true on a row
+-- that comes back into Clients Info but never touches the routing lists (it
+-- does the same for a brand-new client). A reactivated former client therefore
+-- needs the same enrolment as a new one: the 6e statement, or the Create client
+-- step once it exists. The standing "who is missing from any list" query in 6e
+-- names such a client. This script does not change that behaviour.
 -- ============================================================
 
 begin;
@@ -48,7 +60,16 @@ do $$
 declare
   v_stale int;
   v_archive int;
+  v_rows int;
 begin
+  select count(distinct key) into v_rows
+    from public.syncview_runtime_flags
+   where key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
+                 'settings_ef_clients','write_ui_reroute_clients');
+  if v_rows <> 4 then
+    raise exception 'expected all four routing flag rows, found %; stop', v_rows;
+  end if;
+
   if not exists (select 1 from public.clients where kind = 'test' and active) then
     raise exception 'no active test client; refusing (it must stay in every list)';
   end if;
@@ -72,6 +93,33 @@ begin
     raise exception 'expected 12 inactive roster rows to archive, found %; the approval no longer matches, stop', v_archive;
   end if;
 end $$;
+
+-- (1b) Rollback data, written before anything changes.
+create table if not exists public.roster_cleanup_log (
+  run       text not null,
+  slug      text not null,
+  what      text not null,
+  detail    text not null,
+  logged_at timestamptz not null default now()
+);
+alter table public.roster_cleanup_log enable row level security;
+revoke all on public.roster_cleanup_log from public, anon, authenticated, service_role;
+
+insert into public.roster_cleanup_log (run, slug, what, detail)
+select '2026-10-02', c.slug, 'board_status', c.board_status
+  from public.clients c
+ where not c.active and c.kind <> 'internal' and c.board_status <> 'canceled';
+
+insert into public.roster_cleanup_log (run, slug, what, detail)
+select '2026-10-02', x, 'routing_list', f.key
+  from public.syncview_runtime_flags f,
+       jsonb_array_elements_text(f.value->'clients') as t(x)
+ where f.key in ('sample_review_ef_clients','calendar_upsert_ef_clients',
+                 'settings_ef_clients','write_ui_reroute_clients')
+   and x not in (select slug from public.clients where active and kind in ('client','test'));
+
+select 'rollback data' as phase, what, count(*) as rows
+  from public.roster_cleanup_log where run = '2026-10-02' group by what order by what;
 
 -- (2) Remove the stale slugs from all four lists. Sorted, like every other writer.
 update public.syncview_runtime_flags f

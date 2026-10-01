@@ -25,6 +25,8 @@ ok('archives by board_status canceled and leaves the internal row', /board_statu
 ok('checks all four lists equal the active roster before commit', /is distinct from v_expected/.test(code) && /rolling back/.test(code));
 const updates = code.split(';').map((s) => s.trim()).filter((s) => /^update\s+public\./i.test(s));
 ok('exactly two UPDATE statements, each with a WHERE (API connections reject a bare update)', updates.length === 2 && updates.every((s) => /\bwhere\b/i.test(s)));
+ok('refuses unless all four flag rows exist', /v_rows <> 4/.test(code));
+ok('logs every changed row (slug and old value) before changing it, in a table nobody else can read', /roster_cleanup_log/.test(code) && /revoke all on public\.roster_cleanup_log from public, anon, authenticated, service_role/.test(code) && /enable row level security/.test(code) && code.indexOf('insert into public.roster_cleanup_log') < code.indexOf('update public.syncview_runtime_flags'));
 ok('no long dash anywhere', !sql.includes('—'));
 console.log('\nroster-stale-cleanup-migration: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

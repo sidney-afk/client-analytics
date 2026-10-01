@@ -44,9 +44,7 @@ The app-facing webhook surface is enumerated and machine-enforced in `docs/truth
 `test/truth-sync.js` enforces it against `index.html`, so read it there rather than from this line.
 
 **Corrected 2026-09-30 (census, owner request for n8n exit phase 2).** A live read-only census returns
-**119 workflows, 76 active, 43 inactive**, read twice in two sort orders with identical ids (details and the per-workflow
-7 day run counts are in `docs/plans/2026-09-30-n8n-exit-phase-2.md`). The drop from 138 / 96 is the owner's clean-up, not a
-reading change. One active workflow (`Edge Alert Relay to DM`) is hidden from this read access, so its runs are not measured.
+**120 workflows, 76 active, 44 inactive** in the Atlas read-only pass. Two full list reads in different sort orders returned identical IDs; all 76 published active graphs, including Edge Alert Relay, were readable. Earlier seven-day execution counts in `docs/plans/2026-09-30-n8n-exit-phase-2.md` remain their own dated sample; Atlas did not remeasure execution health.
 The Calendar, Caption Prompts (Save), Sample Review (Upsert, Reorder) and Filming Plan routes moved to Supabase in phase 1
 (2026-09-29); their old workflows stay on for 30 days as the fallback for pinned repairs.
 
@@ -68,6 +66,133 @@ coupling and deterministic false-green conditions (F132). The Edge Alert Relay a
 downstream Slack delivery and lacks authenticated, versioned source contracts (F09/F66/F81).
 Neither graph directly calls Linear. Deep historical per-workflow reads:
 `docs/audits/2026-07-05-n8n.md`.
+
+### Atlas census, verified 2026-09-30
+
+This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) maps each active trigger, data owner and exit status. Disabled entries are retained history. `test/atlas-sync.js` checks these IDs in both directions; it does not query n8n.
+
+| Workflow ID | Live state |
+| --- | --- |
+| `udkwwzdFuPW3K2CE` | Active |
+| `nQ4vnZ8bmG3E3Lor` | Active |
+| `a2sJJ3oZMefASPl2` | Active |
+| `8nq6jGbpmCDZxnQz` | Active |
+| `xoPqojySDriQ8Mzh` | Active |
+| `31DnMJLU3YM89py1` | Active |
+| `rNrRCwKPGuau7sLH` | Active |
+| `s8lsPpKqWYhscLPV` | Active |
+| `Tfhc3vebZyG6obOg` | Active |
+| `Q4n1bagJYBkurEaI` | Active |
+| `DyVPx0neUZ94R0hJ` | Active |
+| `IjayuU6jkA21aKo3` | Active |
+| `eiisSbHsD1OnnNdQ` | Active |
+| `su5afuhg17V2xhgh` | Active |
+| `oi4BPg79dykdet6H` | Active |
+| `TJVMyfwl85qrFGeK` | Inactive |
+| `oUf7Bj0lsLf72gIl` | Active |
+| `L6XjD7Kp6wDLCy5d` | Active |
+| `YftXIbiMkgin50HI` | Inactive |
+| `1WjZZjfQjDlg1Crf` | Active |
+| `qR1Wgr71HTohlCzH` | Inactive |
+| `TMJFYCqgqhZUBQpl` | Active |
+| `tSQZx390d98JlHda` | Active |
+| `AWnfZXFbHFr43HuQ` | Active |
+| `qGJ7mUjml98DSiGo` | Active |
+| `fqoI8XrN5hpY9SOj` | Active |
+| `chwr81f1GG5tgKtV` | Active |
+| `LRf1OxhXlyv5YEyV` | Inactive |
+| `L8mem5VAJyNZiuk7` | Inactive |
+| `6UyCt01RNlt2YO9B` | Inactive |
+| `2JxqOqTUtlfUWI9N` | Inactive |
+| `Zw2TIvLuMlIo81Vp` | Inactive |
+| `e7IQzG58w5dRNSvV` | Inactive |
+| `xOVa10JrMFXAe2xJ` | Inactive |
+| `tzHL7vV2n4IZUCGW` | Inactive |
+| `iz42ILXhZ3eBj3IJ` | Inactive |
+| `E9MUbcDUVt4FJu2i` | Inactive |
+| `ABiN18oLVsE0X5Pt` | Inactive |
+| `3ZA0GIMuklByBScV` | Inactive |
+| `K1iSkFMQCroJvbPc` | Inactive |
+| `QibBgR4ahxWbCo30` | Inactive |
+| `2Ax4c78jgI7roXzv` | Active |
+| `4p3IWVnSaFNFhGWv` | Inactive |
+| `BrJSe8zCKUccfmIq` | Active |
+| `t2RP7QNHrbQx52f4` | Active |
+| `824XucXIPu0YBRHs` | Inactive |
+| `ghpbQQJizAnR6p2b` | Active |
+| `m6T2atZGGXKlDqfw` | Active |
+| `AHTwSZPubALe6OJU` | Inactive |
+| `1qZmOQPtG6rKYlK7` | Active |
+| `z9Rt1Np00nfvFe6J` | Active |
+| `I6EES5l97h2fCims` | Active |
+| `BfUkVRGAOSsH3pmi` | Inactive |
+| `7PMVMQ9NuuxBa2Gi` | Inactive |
+| `8OcmLPacyrug0V3M` | Inactive |
+| `NeTWOfflUndxTe1C` | Inactive |
+| `UYUTvvj7YGJOeZuz` | Inactive |
+| `K8eriMC5r8sudLDB` | Active |
+| `1T64i88a7oXh1TP8` | Active |
+| `qllIDZPkdNAPRj0b` | Inactive |
+| `RFi70kokkNFHoRC0` | Active |
+| `OmAExq4kdDdNk1HP` | Active |
+| `FlvoUXIFwRDg8KUb` | Active |
+| `310kO3OnG1yytE2D` | Active |
+| `GaYgLJy8NCPUUfw5` | Active |
+| `jlVfbg0Njxf1It7h` | Active |
+| `kI7M7R5UTJupOsFv` | Active |
+| `gAqqhjIcpBxW9wB6` | Active |
+| `alZ87zcRVKgcGVY7` | Active |
+| `II3sJbSLrptmtWLR` | Active |
+| `XM70AtHSrsCsfd3k` | Active |
+| `y3rEWCVdB0esN3tO` | Active |
+| `8stSpZUiyG7f2LQX` | Inactive |
+| `VQqqeY9B2GZbh2Bt` | Inactive |
+| `ydbhXgV3X7SVnkSy` | Active |
+| `hxLFIdKG9hUIzukO` | Active |
+| `ljNY7CKYLKzMOACZ` | Active |
+| `u4ACOKArXHidVJXl` | Active |
+| `r8b6IU2762qkmSvZ` | Active |
+| `itqDXSl2ybsRSAiQ` | Active |
+| `BTxic5NSaCMtZMh6` | Inactive |
+| `ukLGHr6uDJIEP1pM` | Inactive |
+| `rhDX5VfnmOylc8o7` | Active |
+| `oDZ1Oljvaig5KSLD` | Active |
+| `pWSqaqVw7dmqhYOA` | Active |
+| `slqt2zCDyIc7OAmY` | Active |
+| `gPY5DL4D0n5nwius` | Active |
+| `XOT7IDFGxTwOUCCP` | Active |
+| `EUGX35UmyUgSCjWD` | Active |
+| `GP8CSZDNcy5sGdFr` | Inactive |
+| `ROx3VQ36xm58AaIM` | Inactive |
+| `o6wWaGNlIlyZFTX7` | Active |
+| `meM78zr1Gcl72c6f` | Active |
+| `iA54ipMOybicmYBh` | Active |
+| `JcekBKUzELgX4HjH` | Active |
+| `lTtZNLrQLpIZqwAY` | Active |
+| `OXd0sUoSJYMspGTF` | Active |
+| `yQBGgdbZPqOgn2eE` | Inactive |
+| `aw2b98wxraQTEulJ` | Inactive |
+| `G1RRkIDs6Mh7RGk8` | Inactive |
+| `5KnYvvZ33B78Khny` | Active |
+| `vwRfBZsmUMtDqbYM` | Active |
+| `7Pdp6qnkBzwXP3YG` | Inactive |
+| `gB17L9M5yYxxk6GT` | Inactive |
+| `d7Dod7OuQsVsl1CN` | Inactive |
+| `TcWOfnKd4Csdnnbv` | Active |
+| `y1bEpXLggfR5HqYV` | Active |
+| `5S4JyVVR2CpHEv9b` | Inactive |
+| `FD2QUIOlobkdLOgs` | Active |
+| `Jr7JviDpBHee508N` | Active |
+| `fJNyB5fNCRSTYNfQ` | Inactive |
+| `6yhqWsM8RT2c7AOp` | Inactive |
+| `3hZnjXmHdNv4bttw` | Active |
+| `RGkuE8d4uJg6CPde` | Active |
+| `iYb1896sIAclGvy8` | Active |
+| `4ca3li54eRFtSfXE` | Active |
+| `Nk3pwR6Fbl4VAPqH` | Inactive |
+| `KViFEOqSRBNdCJRk` | Active |
+| `VAqlVLk8wczPq6DQ` | Inactive |
+| `vb3O0wkTK6Q7Rtro` | Inactive |
 
 ## Known state (spot-verify before relying — n8n changes outside git)
 

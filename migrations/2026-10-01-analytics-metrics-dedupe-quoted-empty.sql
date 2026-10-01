@@ -84,6 +84,7 @@ using _twins t
 where t.removed_hash = m.row_hash and t.removed_occ = m.row_occurrence and m.source = 'n8n';
 
 -- Proof: no client has two rows on either day any more, and the log holds 20.
+-- Either failing rolls the whole transaction back.
 do $$
 declare dup int; logged int;
 begin
@@ -91,7 +92,8 @@ begin
     where date in ('2026-09-29', '2026-09-30') group by client_slug, date having count(*) > 1) x;
   select count(*) into logged from public.analytics_metrics_dedupe_log;
   if logged <> 20 then raise exception 'log holds % rows, expected 20', logged; end if;
-  raise notice 'duplicate client-days left on 29 and 30 Sep: %; rows logged: %', dup, logged;
+  if dup <> 0 then raise exception '% client-days still have more than one row on 29 and 30 Sep - nothing changed', dup; end if;
+  raise notice 'duplicate client-days left on 29 and 30 Sep: 0; rows logged: %', logged;
 end $$;
 
 commit;

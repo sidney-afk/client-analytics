@@ -51,6 +51,11 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   const prepared = await m.prepareRows('metrics', [quotedYt], { source: 'n8n', runId: 'r1' });
   ok(prepared.records[0].yt_shorts_views === null && prepared.records[0].yt_longs_views === null,
     'a cell that is only two quote marks is stored empty, not as the two characters');
+  ok(await m.rowHash('metrics', { ...a, ig_followers: '""' }) !== await m.rowHash('metrics', { ...a, ig_followers: '' }),
+    'two quote marks in any other column are a real value, not an empty cell');
+  const tv = { scraped_date: '2026-09-30', client_name: 'Probe Client', platform: 'tiktok', caption: '""' };
+  ok((await m.prepareRows('top_videos', [tv], { source: 'n8n', runId: 'r1' })).records[0].caption === '""',
+    'a caption that is two quote marks is kept as written');
   ok(await m.rowHash('metrics', { ...a, yt_shorts_views: '"0"' }) !== await m.rowHash('metrics', emptyYt),
     'a real value that merely contains quote marks is still a different row');
 

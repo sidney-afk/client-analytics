@@ -58,14 +58,21 @@ export const CLIENT_LINK_PROFILE_FIELDS = Object.freeze(['slug', 'display_name',
 
 export const WRITE_SOURCES = Object.freeze(['n8n', 'sheet-copy', 'sheet-backfill']);
 
-// n8n's Google Sheets node hands the mirror an empty cell as the two characters
-// "" (found 2026-10-01: yt_shorts_views / yt_longs_views of clients with no
-// YouTube), while the Sheet itself, read back by the copy job, has the cell
-// empty. Same row, two fingerprints, so every such day was stored twice and
-// the daily parity went red. A value that is only a pair of quotes is empty.
 function clean(v) {
-  const t = String(v == null ? '' : v).trim();
-  return t === '""' ? '' : t;
+  return String(v == null ? '' : v).trim();
+}
+
+// n8n's Google Sheets node hands the mirror an empty cell as the two characters
+// "" (found 2026-10-01: metrics yt_shorts_views / yt_longs_views of clients
+// with no YouTube), while the Sheet itself, read back by the copy job, has the
+// cell empty. Same row, two fingerprints, so every such day was stored twice
+// and the daily parity went red. Only those two columns are read this way: a
+// caption or any other text that really is two quote marks is kept as written.
+const QUOTED_EMPTY_COLUMNS = Object.freeze({ metrics: ['yt_shorts_views', 'yt_longs_views'] });
+
+export function cellValue(dataset, column, v) {
+  const t = clean(v);
+  return t === '""' && (QUOTED_EMPTY_COLUMNS[dataset] || []).includes(column) ? '' : t;
 }
 
 // Same rule as client-token-verify and the page's wlNormalizeClient.
@@ -100,7 +107,7 @@ async function sha256Hex(text) {
 export function rowHash(dataset, row) {
   const spec = DATASETS[dataset];
   if (!spec) throw new Error('unknown_dataset');
-  return sha256Hex(JSON.stringify([dataset, ...spec.columns.map(c => clean(row[c]))]));
+  return sha256Hex(JSON.stringify([dataset, ...spec.columns.map(c => cellValue(dataset, c, row[c]))]));
 }
 
 // Turn caller rows into database records. Returns { records, rejected }.
@@ -137,13 +144,13 @@ export async function prepareRows(dataset, rows, { source, runId, runPart = 0, p
     const hash = await rowHash(dataset, row);
     if (spec.key === 'slug') {
       const rec = { slug, display_name: name, extra, row_hash: hash };
-      for (const c of spec.columns) if (c !== 'client_name') rec[c] = clean(row[c]) || null;
+      for (const c of spec.columns) if (c !== 'client_name') rec[c] = cellValue(dataset, c, row[c]) || null;
       records.push(rec);
       continue;
     }
     const rec = { client_slug: slug, client_name: name, extra, row_hash: hash, source, run_id: runId };
     if (spec.key === 'hash') rec.run_part = runPart;
-    for (const c of spec.columns) if (c !== 'client_name') rec[c] = clean(row[c]) || null;
+    for (const c of spec.columns) if (c !== 'client_name') rec[c] = cellValue(dataset, c, row[c]) || null;
     if (spec.key === 'id') {
       if (!clean(row.id)) { rejected.push({ index: i, reason: 'missing_id' }); continue; }
       rec.id = clean(row.id);

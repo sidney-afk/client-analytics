@@ -54,7 +54,7 @@ flowchart TD
   E --> F["6 · GATES<br/>contract signed (eSignatures) + first invoice paid (Stripe → Commas, §14)"]
   F --> G["7 · ONBOARDING EMAIL<br/>→ /onboarding or /ai_onboarding (4 steps)"]
   G --> H["8 · ONBOARDING FORM<br/>SyncView form → Supabase → Slack DM"]
-  H --> I["9 · PROVISIONING<br/>auto: Drive folder, HubSpot customer, Slack creative channel<br/>manual: Sheets rows, Linear projects, client Slack channel, filming doc…"]
+  H --> I["9 · PROVISIONING<br/>auto: Drive folder, HubSpot customer, Slack creative channel<br/>auto: client Slack channel (finalizer)<br/>manual: Sheets rows, filming doc…"]
   I --> J["10 · SAMPLES<br/>sample edits → Kasper → client approval"]
   J --> K["11 · PRODUCTION LOOP<br/>filming plans → filming → editing (Linear) → review → calendar → posted"]
   K --> L["12 · ONGOING<br/>metrics, weekly Slack, SMM reports, monthly check-in"]
@@ -401,7 +401,7 @@ Do not run a fictional submission as TEST: there is no complete captured inverse
    `manual reconciliation`; **Client — Slack Creative Channel Finalizer**
    (`udkwwzdFuPW3K2CE`) creates the actual `{client}-creative` public Slack
    channel — same `#{first-last}-creative` naming the pre-Roam automation
-   used, confirmed against the real channels already in the workspace.
+   used, confirmed against the real channels already in the workspace. The same run also creates the private client channel and writes `slack_channel_id` (read live 2026-10-01).
    Slack-post failures still fall back to a Slack DM (`DM Brief Fallback` →
    Sidney) — same rail, now the fallback path instead of the whole thing.
    **P0 correction (F129) still stands — now by deliberate choice, not
@@ -417,7 +417,7 @@ false branch wired to a Slack DM — `Contact Found?` → *"no matching HubSpot
 contact"* (quotes the form email and phone), and `Has Deal?` → *"contact
 found, but no deal linked"*. Previously both false branches went nowhere, so
 the run reported **success** while doing nothing. ⚠️ The workflow itself
-still has **no `errorWorkflow`** (§15.20).
+now carries an `errorWorkflow` (`itqDXSl2ybsRSAiQ`, read live 2026-10-01; §15.20 was fixed).
 
 ---
 
@@ -436,8 +436,8 @@ automated today:
 | 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ⚠️ fail-soft caller-derived owner; no canonical roster readback or joined receipt/resume (F69/F110) |
 | 4 | Google Drive "Clients" folder | client folder | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
 | 5 | **Slack creative channel** `{client}-creative` (Roam 2026-07-28→08-24, back to Slack 2026-08-24) | internal creative space + brief, credentials inlined in the first message | 🚨 public-triggered unawaited provisioning; the brief includes raw account-access answers by owner decision and is **persisted** in the `Slack Creative Channel Queue` Data Table as well as posted to Slack (F128/F129, §6) |
-| 6 | Slack **client channel** | the channel the client is in (weekly reports, tweak pings) | ❌ manual — note the ID `C…` |
-| 7 | SYNCVIEW sheet → `Clients Info` | the **public, non-secret** row that puts the client live in SyncView (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `postforme_account_id` | ❌ manual |
+| 6 | Slack **client channel** | the private channel for the client (tweak pings; the weekly top-reel post is off since 2026-09-03) | ✅ auto: the Slack finalizer creates it with the creative channel and writes `slack_channel_id` (corrected 2026-10-01; do not create by hand or the job goes to manual) |
+| 7 | SYNCVIEW sheet → `Clients Info` | the **public, non-secret** row that puts the client live in SyncView (allowlist is sheet-driven): name, handles, competitors, keywords, `postforme_account_id` (the Slack channel ids are written by the finalizer, never typed) | ❌ manual |
 | 7a | Supabase `client_access` + authenticated link builder | service-role-only review token and the staff-authorized path that copies one exact client's link; **never put the token in Clients Info** (audit F33) | ❌ Track-B onboarding/distribution gap |
 | 8 | SYNCVIEW sheet → `Social Media Managers` | client → SMM assignment (+ per-SMM Linear key, Slack id) | ❌ manual |
 | 9 | SYNCVIEW sheet → `Monthly Checkup` | opt-in row for monthly check-in emails | ❌ manual |
@@ -670,8 +670,7 @@ Onboarding Email · ★SyncView Onboarding — Submit · ★SyncView AI Onboardi
 Submit · ★SyncView Onboarding — Fallback Capture · ★Client — Onboarding
 Provisioning · SyncView Onboarding — List · SyncView AI Onboarding — List ·
 SyncView Onboarding — Legacy List (reads superseded by Edge Functions) ·
-★New Client → Slack DM (Notion Onboarding) *(replaced legacy object: active-labelled, but current
-sanitized metadata reports no production trigger and no retained executions — F111/§15.10)*.
+★New Client → Slack DM (Notion Onboarding) *(replaced legacy object: was active and failing on every poll; turned off by the owner 2026-10-01, `docs/ops/N8N_EDIT_LOG.md`; not archived, F111/§15.10)*.
 
 **Production core:** ★VIDEO PRODUCTION AUTOMATION (6 webhooks: video-form,
 graphic-form, linear-projects, linear-issues, add-to-calendar,
@@ -766,7 +765,7 @@ state; Supabase holds ops state; Sheets hold the client roster + analytics
 | **Track A — n8n → Supabase Edge Functions** (interactive writes) | A1/A2/A4 merged; current Calendar/SXR/settings allowlists carry the full active roster; unauthenticated fallbacks remain F67 | §9 write paths; n8n calendar/sample writers are fallback-only |
 | **Track B — replace Linear** with in-app `batches`/`deliverables` | mirror tables populated; Production has authority-gated writes but both real teams remain Linear-authoritative; #813 is not merge-safe (F02) | §7 row 10, §9 sync, §11 Linear, Workload source |
 | **Off Google Sheets** | calendar/samples/templates/filming-plans done; **client roster (`Clients Info`) + analytics still on Sheets** | §7 rows 7–9, §10 metrics, §11 Sheets section |
-| **Off Notion** | product path replaced; operator docs corrected in this audit | F60-safe archive of the active-labelled/no-production-trigger legacy object after zero-use proof (§15.10/F111) |
+| **Off Notion** | product path replaced; operator docs corrected in this audit | Legacy workflow turned off 2026-10-01 (owner's go); F60-safe archive after zero-use proof is what is left (§15.10/F111) |
 | **Slack → ro.am** | **REVERTED** (2026-07-28 → 2026-08-24): Kasper alerts and per-client creative-group provisioning moved to Roam, then moved back to Slack 2026-08-24 (owner call — see §15.9). Roam now sales-call venue only | §6, §11 — already updated |
 | **Stripe → Commas** (payment processor) | **IN FLIGHT, no receiver yet.** Commas (commas.com, FanBasis API) is taking payments; zero n8n workflows reference it and `Sales — Invoice Paid (Stripe)` is still `/webhook/stripe-invoice` end to end | §4 gates, §11 external services, §13 — see §15.21 for the blocker |
 | **Repo reorganization** | in progress in other sessions | file paths cited here |
@@ -814,13 +813,13 @@ table are all slated to become automated/Supabase-native.
    (moved to a Roam group, §6) between 2026-07-28 and 2026-08-24. As of
    2026-08-24 it's back to two genuinely different Slack channels by owner
    design, not drift: `#name-creative` (internal, auto-created, §6) and the
-   client-facing channel (`slack_channel_id`, still created by hand, §7).
+   client-facing channel (`slack_channel_id`, created by the same finalizer since the 2026-08-24 rebuild; the "by hand" wording here was wrong, corrected 2026-10-01, §7).
    They serve different audiences — don't collapse them into one column or
    one channel.
-10. **Legacy Notion trigger is misleadingly active-labelled** (F111): current sanitized metadata
-    reports no production trigger/manual-only execution, its description says setup is incomplete,
-    and retained execution metadata is empty. Do not describe it as polling or healthy; the old form
-    is replaced. Archive only after F60 backup/restore and identifier-free zero-use proof.
+10. **Legacy Notion trigger: turned off 2026-10-01** (F111). It was active and failing on every poll
+    (24 errors in the 8 days n8n keeps, no error workflow, so nobody was alerted); the owner had it
+    turned off (`docs/ops/N8N_EDIT_LOG.md`, undo: publish it again). The old form is replaced. Archive
+    only after F60 backup/restore and identifier-free zero-use proof.
 11. **Samples retirement is incomplete** (F57/F117): Sample Review is GA default-on and staff old
     routes are retired, but the old client redirect loses exact-client binding and dormant
     `content_samples` routes/state/backends remain. `?sv2=0` is not writable recovery. Fail the old
@@ -881,11 +880,11 @@ table are all slated to become automated/Supabase-native.
     Recovery Capture` hardcodes `SHARED_SECRET` in a Code node and accepts
     it via **`?secret=` query string** as well as the `x-webhook-secret`
     header. Query strings land in proxy and server logs. Extends §15.6.
-20. **`Client — Onboarding Provisioning` has no `errorWorkflow`.** Every
-    other production workflow carries `itqDXSl2ybsRSAiQ`; this one does not,
-    so a crash in the workflow that provisions a *paying* client alerts
-    nobody. `qllIDZPkdNAPRj0b` (the monitoring pager itself) is also
-    unguarded. §15.16's "DM Sidney within seconds" does not hold here.
+20. **~~`Client — Onboarding Provisioning` has no `errorWorkflow`.~~ Fixed:
+    it carries `itqDXSl2ybsRSAiQ` now (read live 2026-10-01).** Originally: every
+    other production workflow carried it and this one did not, so a crash in
+    the workflow that provisions a *paying* client alerted nobody. `qllIDZPkdNAPRj0b` (the monitoring pager itself) is also
+    unguarded.
 21. **Commas renewal gate will not port.** The Stripe workflow's renewal
     guard keys on `billing_reason === 'subscription_cycle'` — a field
     Commas/FanBasis never sends. Ported as-is, **every Commas renewal is

@@ -1,0 +1,14 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-01 for the deactivation logged in docs/ops/N8N_EDIT_LOG.md. The graph was NOT edited, only unpublished, and its only version (bc52163a-70e6-4e63-a03a-3f3b5c91d253, saved 2026-06-09) is unchanged in n8n workflow history. No private JSON export was made by the session that did this; the Sunday SyncView Weekly Backup exports every workflow to the private Drive folder, so the next export holds it. Node names and types only; parameters are left out. ROLLBACK: publish version bc52163a-70e6-4e63-a03a-3f3b5c91d253 (ROLLBACK.md section 2).",
+  "name": "New Client → Slack DM (Notion Onboarding)",
+  "id": "y1bEpXLggfR5HqYV",
+  "active_before": true,
+  "active_after": false,
+  "version": "bc52163a-70e6-4e63-a03a-3f3b5c91d253",
+  "trigger": "Notion database poll (every minute)",
+  "node_count": 4,
+  "credentials_by_reference": [
+    "Notion (OAuth, not attached or failing)",
+    "SyncView Bot Slack credential"
+  ]
+}

@@ -143,3 +143,13 @@ Read-back (n8n version diff, `74798eb9` to `4202aeaa`): exactly four steps chang
 Tested: a manual run of the live version, execution `655402` (16:06 UTC), status success. Supabase afterwards, read only: all campaigns rollup 46 days, spend 4178.55, 17 bookings (6 held); Prospecting | Leads 18 days, 7 bookings (4 held); 17 lead rows; 14 unfinished lead rows. Identical to before the PR.
 Not proven: a Doctors row in the panel. There are still no Doctors spend days or bookings in the data, and the only Doctors partial rows in the recovery table are tests, which the new test skip drops on purpose.
 Undo: restore `74798eb9-6b7f-449a-a526-64c7fdfd274b` in n8n and publish it (all four steps go back). To keep the booking part and drop only the partial leads part, restore `0fee453a-81d9-46d4-995a-66edce6bdfbd`.
+
+## 2026-10-01 New Client → Slack DM (Notion Onboarding) turned off (owner's go, session Beacon)
+
+Workflow: New Client → Slack DM (Notion Onboarding) (`y1bEpXLggfR5HqYV`)
+Version: `bc52163a-70e6-4e63-a03a-3f3b5c91d253` (the only version; the graph was not edited)
+Changed: **unpublished only** (active true to false). No step, connection or credential touched.
+Why: it was active and failing on every poll (24 errors in the 8 days n8n keeps, no error workflow, so nobody was alerted). The Notion form it watched was replaced by the SyncView onboarding form, and the docs already say it is not an operational fallback (F111). The owner decided on 2026-10-01 to turn it off.
+Read back after: `active: false`, `activeVersionId: null`, trigger count unchanged.
+Not done: not archived or deleted, so its definition stays for the F60 retirement proof. No private JSON export was made by this session (nothing was edited; the only version is unchanged in n8n history and the Sunday weekly backup exports every workflow). Public-safe stub: `n8n-backups/new-client-notion-dm.2026-10-01.deactivation.stub.json`. Inventory updated: `docs/truth/N8N.md`, `docs/ATLAS.md`.
+Undo: in n8n open the workflow and publish it again (version `bc52163a-70e6-4e63-a03a-3f3b5c91d253`). It will resume failing until a Notion credential is attached.

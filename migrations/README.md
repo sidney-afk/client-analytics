@@ -30,7 +30,7 @@ executes these files (see `README.md` › Repository layout).
 
 - **`2026-10-01-analytics-metrics-collect-shadow.sql`** and
   **`2026-10-01-analytics-metrics-collect-schedule.sql`** are source-only until
-  Lighthouse applies them with the owner's go (OPEN_REPAIRS 320). The first adds the
+  Lighthouse applies them with the owner's go (OPEN_REPAIRS 321). The first adds the
   shadow side of the daily metrics job: post-tracking state, a per-day queue, a shadow
   metrics table, claim and commit functions and the comparison, RLS on, every privilege
   revoked from the four roles then only what the function needs to `service_role`, flag

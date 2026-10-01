@@ -30,6 +30,8 @@ here with where it stopped, so it can be restarted.
   admin tab is the start of its replacement. The owner will improve that UI.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
 - **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
+  The measured picture of how a client is onboarded today (every step, every per-client resource with
+  counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
   (item 7).
 - **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
@@ -96,7 +98,7 @@ here with where it stopped, so it can be restarted.
    plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
    in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), owner decided 2026-10-01: stays hourly, no n8n edits (replay test and design doc kept). Last K (client approve and request-changes move).
    Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
-6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 320).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
+6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 321).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
    `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
    by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
    Needs from the owner: two secrets plus a new key, and the Apify spend decision (section 8 of the plan). Top Videos and Market Research are not started.

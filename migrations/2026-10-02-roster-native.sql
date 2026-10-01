@@ -173,6 +173,8 @@ begin
   cols := coalesce((select jsonb_object_agg(e.key, to_jsonb(nullif(btrim(e.value), '')))
                     from jsonb_each_text(cols) e), '{}'::jsonb);
 
+  -- Two creators of the same slug queue behind each other (no duplicate-key error).
+  perform pg_advisory_xact_lock(hashtextextended('client_profile:' || p_slug, 0));
   select * into cur from public.client_profiles where slug = p_slug for update;
   if not found then
     if coalesce(btrim(p_display_name), '') = '' then raise exception 'client_profile_missing'; end if;
@@ -274,6 +276,7 @@ declare
   slack    text := btrim(coalesce(p_slack_profile_url, ''));
   old_slug text;
   old_slack text;
+  canon    text;
   new_row  public.social_media_managers;
   stamp    timestamptz := clock_timestamp();
 begin
@@ -286,6 +289,20 @@ begin
   if p_client_slug is null or p_client_slug !~ '^[a-z0-9&]+$' then raise exception 'client_profile_bad_slug'; end if;
   if mname <> '' and (p_manager_slug is null or p_manager_slug !~ '^[a-z0-9&]+$') then
     raise exception 'smm_assign_bad_manager_slug';
+  end if;
+
+  -- One assignment per client at a time: two concurrent calls for the same
+  -- client queue behind each other, so the one-manager rule cannot be broken.
+  perform pg_advisory_xact_lock(hashtextextended('smm_assign:' || p_client_slug, 0));
+  -- Assigning needs an active client; the profile's own name is the one used
+  -- (a mistyped or archived client is refused, never added to the Sheet).
+  select pr.display_name into canon from public.client_profiles pr
+    where pr.slug = p_client_slug and pr.archived_at is null;
+  if mname <> '' then
+    if canon is null then raise exception 'client_profile_missing'; end if;
+    cname := canon;
+  elsif canon is not null then
+    cname := canon;
   end if;
 
   select m.slug, m.slack_profile_url into old_slug, old_slack

@@ -139,6 +139,17 @@ function refusal(message) {
 
 export function makeStore(supabase) {
   return {
+    authority: () => authority(supabase),
+    async hasNewer(tab, slug, afterId) {
+      const { data, error } = await supabase.from('roster_sheet_outbox').select('id')
+        .eq('tab', tab).eq('client_slug', slug).gt('id', afterId).limit(1);
+      if (error) throw error;
+      return (data || []).length > 0;
+    },
+    async requeue(g) {
+      const { error } = await supabase.from('roster_sheet_outbox').insert({ tab: g.tab, client_slug: g.client_slug, client_name: g.client_name });
+      if (error) throw error;
+    },
     async pending(limit) {
       const { data, error } = await supabase.from('roster_sheet_outbox').select('id,tab,client_slug,client_name')
         .eq('status', 'pending').lt('attempts', MAX_ATTEMPTS).order('id').limit(limit);

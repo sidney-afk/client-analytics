@@ -168,11 +168,16 @@ try {
   parse(assign('alphaone', 'alpha one', 'mgrtwo', 'Mgr Two', 'U222'));
   assert.equal(q(`select source_clients::text from public.social_media_managers where slug='mgrone'`), '["Alpha Two"]', 'moved off the old manager (case-insensitive)');
   assert.equal(q(`select count(*) from public.social_media_managers where source_clients @> '["Alpha One"]'::jsonb or source_clients @> '["alpha one"]'::jsonb`), '1', 'exactly one manager per client');
-  assert.equal(q(`select old_manager_slug || '>' || new_manager_slug from public.smm_assignment_edits where client_name='alpha one'`), 'mgrone>mgrtwo');
+  assert.equal(q(`select old_manager_slug || '>' || new_manager_slug from public.smm_assignment_edits where client_name='Alpha One'`), 'mgrone>mgrtwo', 'the profile\'s own name is recorded, not the caller\'s spelling');
 
   const editsBefore = count('smm_assignment_edits');
   parse(assign('alphaone', 'Alpha One', 'mgrtwo', 'Mgr Two'));
   assert.equal(count('smm_assignment_edits'), editsBefore, 'assigning the same manager again writes no history');
+  refused(assign('nobodyhere', 'Nobody Here', 'mgrtwo', 'Mgr Two'), 'client_profile_missing');
+  psql(DB, `update public.client_profiles set archived_at = now() where slug = 'alphatwo'`);
+  refused(assign('alphatwo', 'Alpha Two', 'mgrtwo', 'Mgr Two'), 'client_profile_missing');
+  psql(DB, `update public.client_profiles set archived_at = null where slug = 'alphatwo'`);
+  assert.equal(q(`select count(*) from public.social_media_managers where source_clients::text ilike '%nobody%'`), '0', 'a mistyped client is never added to a manager');
 
   parse(assign('alphaone', 'Alpha One', '', ''));
   assert.equal(q(`select count(*) from public.social_media_managers where source_clients::text ilike '%alpha one%'`), '0', 'a blank manager removes the client');
@@ -236,6 +241,14 @@ try {
   for (const e of seqs.split(',')) assert(e.endsWith(':f'), 'no role holds a sequence privilege: ' + e);
   assert.equal(q(`select bool_and(relrowsecurity)::text || '/' || (select count(*) from pg_policy p join pg_class c2 on c2.oid = p.polrelid where c2.relname in ('smm_assignment_edits','roster_sheet_outbox')) from pg_class where relnamespace='public'::regnamespace and relname in ('smm_assignment_edits','roster_sheet_outbox')`), 'true/0');
   console.log('  four roles measured: only service_role, only the minimum; RLS on, 0 policies');
+  // ---- 7. the way back: rollback restores the Clients tab save, then drops the new functions ----
+  psql(DB, read('migrations/2026-10-02-roster-native.ROLLBACK.sql'));
+  assert.equal(q(`select count(*) from pg_proc where proname in ('roster_authority','client_profile_service_write','smm_assign_client')`), '0');
+  assert.equal(q(`select position('roster_authority' in pg_get_functiondef(p.oid)) from pg_proc p where p.proname='client_profile_admin_edit'`), '0', 'the original admin edit body is back');
+  parse(adminEdit('alphaone', { keywords: 'after-rollback' }));
+  assert.equal(q(`select keywords from public.client_profiles where slug='alphaone'`), 'after-rollback', 'the Clients tab save still works after the rollback');
+  psql(DB, MIGRATION);
+  console.log('  rollback: restores the original save, drops the new functions; migration re-applies');
   console.log('roster-native-postgres checks passed');
 } catch (e) {
   failed = true;

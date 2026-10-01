@@ -59,10 +59,11 @@ function fakeDb(seed = {}) {
     const api = {
       select() { return api; },
       update(p) { state.op = 'update'; state.patch = p; return api; },
-      insert(rowsIn) { for (const r of rowsIn) rows.push({ id: nextId++, status: 'pending', attempts: 0, ...r }); return Promise.resolve({ data: null, error: null }); },
+      insert(rowsIn) { for (const r of (Array.isArray(rowsIn) ? rowsIn : [rowsIn])) rows.push({ id: nextId++, status: 'pending', attempts: 0, ...r }); return Promise.resolve({ data: null, error: null }); },
       upsert(rowsIn) { state.op = 'upsert'; state.upsert = rowsIn; return Promise.resolve(run()); },
       eq(k, v) { state.filters.push(r => r[k] === v); return api; },
       is(k, v) { state.filters.push(r => (r[k] == null ? null : r[k]) === v); return api; },
+      gt(k, v) { state.filters.push(r => Number(r[k] || 0) > v); return api; },
       lt(k, v) { state.filters.push(r => Number(r[k] || 0) < v); return api; },
       in(k, vs) { state.filters.push(r => vs.includes(r[k])); return api; },
       order(c) { state.order = c; return api; },
@@ -73,7 +74,7 @@ function fakeDb(seed = {}) {
     return api;
   }
   return {
-    t, calls, rpcImpl,
+    t, calls, rpcImpl, next: () => nextId++,
     client: {
       from,
       rpc(name, args) {
@@ -312,6 +313,7 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
   const der = new Uint8Array(await crypto.subtle.exportKey('pkcs8', kp.privateKey));
   const pem = '-----BEGIN PRIVATE KEY-----\n' + Buffer.from(der).toString('base64').replace(/(.{64})/g, '$1\n') + '\n-----END PRIVATE KEY-----\n';
   const SID = 'sheet-id-for-test';
+  const gEnv2 = () => ({ get: k => (k === 'ROSTER_SERVICE_KEY' ? KEY : gEnv.get(k)) });
   const gEnv = envOf({ GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: 'svc@example.test', private_key: pem }), CLIENTS_INFO_SHEET_ID: SID });
   const tabs = {
     'Clients Info': [['client_name', 'email', 'keywords', 'creative_channel_id', 'postforme_instagram_account_id'], ['Alpha Client', 'old@x.test', 'k', '', '']],
@@ -352,7 +354,7 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
   cdb.t.client_profiles.push({ slug: 'alphaclient', display_name: 'Alpha Client', email: 'new@x.test', keywords: 'k', creative_channel_id: 'C42', extra: { postforme_instagram_account_id: 'pf9' }, archived_at: null });
   cdb.t.client_profiles.push({ slug: 'gammaclient', display_name: 'Gamma Client', email: 'g@x.test', extra: {}, archived_at: null });
   cdb.t.social_media_managers.push({ slug: 'mgrone', name: 'Mgr One', active: true, slack_profile_url: 'U77', source_clients: ['Alpha Client'] });
-  const enqueue = (tabName, slug, name) => cdb.t.roster_sheet_outbox.push({ id: cdb.t.roster_sheet_outbox.length + 1, tab: tabName, client_slug: slug, client_name: name, status: 'pending', attempts: 0 });
+  const enqueue = (tabName, slug, name) => cdb.t.roster_sheet_outbox.push({ id: cdb.next(), tab: tabName, client_slug: slug, client_name: name, status: 'pending', attempts: 0 });
   enqueue('Clients Info', 'alphaclient', 'Alpha Client'); enqueue('Clients Info', 'alphaclient', 'Alpha Client');
   enqueue('Clients Info', 'gammaclient', 'Gamma Client');
   enqueue('Social Media Managers', 'alphaclient', 'Alpha Client');
@@ -394,6 +396,37 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
   log.length = 0;
   s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
   assert.deepEqual([s.done, log.length], [0, 0], 'a given-up row is not retried');
+
+  // a change queued while another copy is in flight is never lost to the older values
+  cdb.t.client_profiles[0].email = 'racea@x.test';
+  enqueue('Clients Info', 'alphaclient', 'Alpha Client');
+  const racedId = cdb.t.roster_sheet_outbox.at(-1).id;
+  const sizeBefore = cdb.t.roster_sheet_outbox.length;
+  const inner = fakeGoogle;
+  const racing = async (url, init = {}) => {
+    if (String(url).endsWith('/values:batchUpdate')) enqueue('Clients Info', 'alphaclient', 'Alpha Client'); // a newer change lands mid-copy
+    return inner(url, init);
+  };
+  s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: racing });
+  assert.equal(s.done, 1);
+  const open = cdb.t.roster_sheet_outbox.filter(o => o.status === 'pending');
+  assert(open.length >= 1 && open.every(o => o.id > racedId), 'a repair copy stays queued so the newest state is written last');
+  s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
+  assert.equal(cdb.t.roster_sheet_outbox.filter(o => o.status === 'pending').length, 0, 'and it drains');
+  void sizeBefore;
+
+  // after a rollback to "sheet" nothing queued may overwrite the Sheet
+  enqueue('Clients Info', 'alphaclient', 'Alpha Client');
+  cdb.t.syncview_runtime_flags[0].value = { source: 'sheet' };
+  log.length = 0;
+  s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
+  assert.deepEqual([s.refused, s.done, log.length], ['authority_not_syncview', 0, 0], 'no Google call at all');
+  assert.equal(cdb.t.roster_sheet_outbox.at(-1).status, 'pending', 'the row stays queued');
+  const viaDoor = await call(handlers.handleRosterWrite, { env: gEnv2(), fetchFn: fakeGoogle, getSupabase: () => cdb.client }, { action: 'copy_to_sheet' });
+  assert.equal(viaDoor.json.sheet_copy.refused, 'authority_not_syncview', 'the copy_to_sheet door is gated too');
+  cdb.t.syncview_runtime_flags[0].value = { source: 'syncview' };
+  s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
+  assert.equal(s.done, 1, 'once the database is main again, the queued row drains');
 
   // an archived client is never written to the Sheet
   cdb.t.client_profiles[1].archived_at = '2026-10-01';

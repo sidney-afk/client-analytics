@@ -91,8 +91,9 @@ async function writeTab(sheetId, token, entry, fetchFn) {
   }
 }
 
-// store: { pending(limit) -> [{id,tab,client_slug,client_name}], profile(slug) -> row|null,
-//          managers() -> [...], markDone(ids), markFailed(ids, code) }
+// store: { authority() -> 'sheet'|'syncview'|'', pending(limit) -> [{id,tab,client_slug,client_name}],
+//          profile(slug) -> row|null, managers() -> [...], markDone(ids), markFailed(ids, code),
+//          hasNewer(tab, slug, afterId) -> bool, requeue(group) }
 // One read and one write per tab per call, however many clients are queued
 // (Google allows about 60 requests a minute per account), so a full resync of
 // the whole roster is a handful of requests.
@@ -102,6 +103,13 @@ export async function copyToSheet({ store, env, fetchFn, limit = 50 }) {
   const summary = { configured: !!(sa && sheetId), done: 0, failed: 0, pending: 0 };
   let groups = [];
   try {
+    // The Sheet is only ever written FROM the database while the database is
+    // the main copy. After a rollback to "sheet" nothing queued may overwrite it.
+    if (await store.authority() !== 'syncview') {
+      summary.refused = 'authority_not_syncview';
+      summary.pending = collapseOutbox(await store.pending(limit)).length;
+      return summary;
+    }
     groups = collapseOutbox(await store.pending(limit));
     if (!summary.configured) { summary.pending = groups.length; return summary; }
     if (!groups.length) return summary;
@@ -150,7 +158,14 @@ export async function copyToSheet({ store, env, fetchFn, limit = 50 }) {
     for (const entry of tabs.values()) {
       try {
         await writeTab(sheetId, token, entry, fetchFn);
-        for (const g of entry.members) { await store.markDone(g.ids); summary.done++; }
+        for (const g of entry.members) {
+          // A change queued while this call was running may have been written by
+          // another call BEFORE our (older) values landed. Queue one more copy
+          // so the last write is always the newest state.
+          if (await store.hasNewer(g.tab, g.client_slug, Math.max(...g.ids))) await store.requeue(g);
+          await store.markDone(g.ids);
+          summary.done++;
+        }
       } catch (e) {
         for (const g of entry.members) await fail(g, e instanceof SheetError ? e.code : 'sheet_copy_failed');
       }

@@ -1451,7 +1451,7 @@ poll, without disabling Production:
 - **Check after a revert:** the Linear tab loads as before (first rows about 1.1 s warm); the finished-items
   read starts after the first paint again (a `status=in.(approved,...)` request begins after the live pages).
 
-## 2026-10-01 - inverse for the open-item speed changes (browser only; OPEN_REPAIRS 321)
+## 2026-10-01 - inverse for the open-item speed changes (browser only; OPEN_REPAIRS 323)
 
 - **Full inverse:** revert the PR (GitHub Pages redeploys on push). It adds no flag, table, Edge Function or n8n
   change and no write; every read it adds is one the page already made (the same row, batch and parent reads, started

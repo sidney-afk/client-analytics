@@ -40,7 +40,8 @@ yet. Causes:
   writer is disabled in n8n, so that tab does not change today.)
 - **Social Media Managers** is not part of the Analytics switch (only the
   review queue and n8n read it). Its Supabase copy lacks the Slack profile
-  link, so the review queue cannot move off the Sheet yet. Its
+  link, so the review queue cannot move off the Sheet yet (2026-10-02: the column and
+  the functions that carry it are built, see `docs/plans/2026-10-02-roster-native.md`). Its
   `linear_api_key` column is empty on every row.
 
 **Fix (this PR):** a daily job, `.github/workflows/sheets-mirror-daily.yml`,

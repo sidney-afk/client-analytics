@@ -28,6 +28,12 @@ here with where it stopped, so it can be restarted.
   moves to Supabase (dual-write, flagged read, parity, then retire, as in
   `docs/plans/2026-09-24-sheets-to-supabase.md`). Clients Info is first and already copied daily; the Clients
   admin tab is the start of its replacement. The owner will improve that UI.
+  **Scope, owner 2026-10-02:** only the main SYNCVIEW Sheet and the SyncView Calendar workbook are in scope; other
+  Drive files are left alone. Project Central: archive (needs an n8n edit, owner's go). **Clients Info and Social
+  Media Managers (session Roster):** Step 1 built, in PR (OPEN_REPAIRS 321, `docs/plans/2026-10-02-roster-native.md`):
+  database functions, `roster-read` and `roster-write`, a native save for the Clients tab and the read-only Sheet
+  copy; nothing switched on, no n8n edit. Next, each with its own go: apply the migration and deploy, then each n8n
+  edit, then the switch. Beacon (onboarding) will extend the Clients tab.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
 - **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
@@ -98,6 +104,10 @@ here with where it stopped, so it can be restarted.
    plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
    in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), owner decided 2026-10-01: stays hourly, no n8n edits (replay test and design doc kept). Last K (client approve and request-changes move).
    Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
+6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 322).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
+   `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
+   by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
+   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). Top Videos and Market Research are not started.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -249,7 +259,7 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
-- **Opening an item is faster, and the two SyncLinear saved-copy decisions are done (2026-10-01, OPEN_REPAIRS 321, PR open
+- **Opening an item is faster, and the two SyncLinear saved-copy decisions are done (2026-10-01, OPEN_REPAIRS 323, PR open
   until merged).** The saved list lives 7 days; finished rows are kept in the browser's larger store and a boot reads only
   what changed (hourly full pass kept); a link at a finished batch shows its title in about 1.5 s warm instead of 5.3 s;
   new-tab links skip a redirect; SyncLinear rows start their reads when you hover. The staff check (about 1.0 s) is the

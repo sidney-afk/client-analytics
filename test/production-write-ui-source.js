@@ -193,8 +193,8 @@ ok(context._prodCanWrite(video, 'status') === false, 'missing verified staff ide
 const deniedAttrs = context._prodWriteGateAttrs(video, 'due', { tip: 'Set due date' });
 ok(deniedAttrs.includes('data-prod-write="off"')
   && deniedAttrs.includes('aria-disabled="true"')
-  && deniedAttrs.includes('title="Sign in with your staff account to write."')
-  && deniedAttrs.includes('data-prod-tip="Sign in with your staff account to write."'),
+  && deniedAttrs.includes('title="Sign in with your staff account to edit."')
+  && deniedAttrs.includes('data-prod-tip="Sign in with your staff account to edit."'),
 'signed-out controls expose the exact staff sign-in lock to styling, accessibility, and tooltips');
 context.identity = { role: 'smm', member: { team: null } };
 context._prodState.authority.video = 'syncview';

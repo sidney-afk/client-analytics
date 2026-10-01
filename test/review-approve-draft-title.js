@@ -88,7 +88,7 @@ for (const name of RENDER_FNS) {
 
 for (const name of ['_calReviewPanelHtml', '_sxrReviewPanelHtml']) {
   const body = grabFunc(name);
-  ok(/const altIdle = 'Approve & send to '/.test(body),
+  ok(/const altIdle = 'Approve and send to '/.test(body),
     name + ' computes a REAL idle title for the alt segment, not an empty one');
   ok(/data-idle-title="\$\{_[a-zA-Z]+EscAttr\(altIdle\)\}"/.test(body),
     '...and writes it to data-idle-title so the updater can restore exactly that, not guess at it');

@@ -188,7 +188,7 @@ ok(/if \(operation === 'batch_asset' \|\| operation === 'batch_description'\) \{
     ok(g.canWrite(parent, op) === false,
       'a batch parent still refuses `' + op + '` -- it is not a deliverable and the gateway has no row to write');
   });
-  ok(/open its sub-issues to work on it/.test(g.gateText(parent, 'status')),
+  ok(/Open its sub-issues to work on them/.test(g.gateText(parent, 'status')),
     'and still says why, naming the sub-issues, rather than falling through to a generic refusal');
 }
 

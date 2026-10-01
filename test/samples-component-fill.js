@@ -768,7 +768,7 @@ const rendered = slot(thumbOnly, 'video');
 ok(/cal-fill-btn/.test(rendered),
   'the button reuses the shared fill-button styling rather than inventing a second look');
 ok(/aria-label="Add the missing video to this sample"/.test(rendered)
-  && /title="This sample has no video yet/.test(rendered),
+  && /title="No video yet/.test(rendered),
   'and it says what it does, to a screen reader and on hover');
 ok(rendered.includes("_sxrFillComponent('" + thumbOnly.id + "','video')"),
   'and it calls the samples handler with this card and the component being added');

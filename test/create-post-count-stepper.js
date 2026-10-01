@@ -207,7 +207,7 @@ ok(/\.cal-native-count-row \.sv-stepper \{ width: 126px/.test(html),
   'only its width is scoped for this inline row, because the primitive is full-width for the PTO fields it was built for');
 ok(/min: 1, max: postCountMax, step: 1/.test(html),
   'the ceiling is handed to the primitive, so the clamp and the disabled ends read the same max the setter does');
-ok(/downTip: 'One post fewer', upTip: 'One post more'/.test(html),
+ok(/downTip: 'One card fewer', upTip: 'One card more'/.test(html),
   'and both ends carry their own tooltip, since their visible content is a minus and a plus');
 ok(/onchange: '_calSetNativePostCount\(this\.value\)'/.test(html),
   'the dialog wires itself through the primitive\'s EXISTING onchange option');

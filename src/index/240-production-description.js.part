@@ -2577,8 +2577,8 @@ import { _prodRender } from './260-production-refresh-boot.js';
                         + ' onclick="return _prodBeginAssetEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(spec.key) + ')"'
                         + _prodWriteGateAttrs(issue, operation, {
                             tip: operation === 'batch_asset'
-                                ? 'Edit this link for every issue on this post'
-                                : 'Attach or replace the canonical deliverable'
+                                ? 'Edit this link for every sub-issue on this card'
+                                : 'Add or replace the final file'
                         }) + '>Edit</button>'
                     : '';
                 return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'

@@ -221,7 +221,7 @@ async function txt(page, sel) {
     });
     await waitForResetBaseline();
   };
-  const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to write.';
+  const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to edit.';
   const issueSnapshot = () => page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
   const signedOutWriteGuard = async (trigger, controlSelector) => {
     const signedOut = await page.evaluate(() => !_syncviewStaffIdentityForHeaders());

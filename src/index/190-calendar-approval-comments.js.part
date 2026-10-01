@@ -73,17 +73,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (gap.video && gap.thumb) return {
             strong: 'No media linked.',
             rest: 'Add a video and a thumbnail URL before this can go for approval.',
-            title: 'Sent for approval but neither the video nor the thumbnail is linked yet — add the URLs before this can be reviewed.'
+            title: 'Sent for approval, but no video or thumbnail Frame link yet. Add them so it can be reviewed.'
         };
         if (gap.video) return {
             strong: 'No video linked.',
             rest: 'Add the video URL before this can go for approval.',
-            title: "Sent for approval but the video isn't linked yet — add the video URL before this can be reviewed."
+            title: "Sent for approval, but no video Frame link yet. Add it so it can be reviewed."
         };
         return {
             strong: 'No thumbnail linked.',
             rest: 'Add the thumbnail URL before this can go for approval.',
-            title: "Sent for approval but the thumbnail isn't linked yet — add the thumbnail URL before this can be reviewed."
+            title: "Sent for approval, but no thumbnail Frame link yet. Add it so it can be reviewed."
         };
     }
     function _calSmmWarnIconSvg() {
@@ -106,7 +106,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _calSmmWarnDotHtml(p) {
         const parts = _calSmmWarnParts(_calSmmMediaGap(p));
-        const title = parts ? parts.title : 'Sent for approval but no media linked yet.';
+        const title = parts ? parts.title : 'Sent for approval, but no Frame link yet.';
         return `<span class="cal-smm-warn-dot" title="${_calEscAttr(title)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`;
     }
 
@@ -359,7 +359,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        mid-tweak-cycle, saving) keeps its title empty exactly as before --
        stating "there is an unsent note" when there is none would be a new
        false claim in the same spot this fix is removing one from. */
-    const REVIEW_APPROVE_DRAFT_TITLE = 'Approve is off while this note is unsent below — press Comment to send it, or clear the text, to approve.';
+    const REVIEW_APPROVE_DRAFT_TITLE = 'You have an unsent note. Press Comment to send it, or clear it, then approve.';
     function _calReviewPanelHtml(p, comp) {
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
@@ -438,7 +438,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
                 const isResolved = !!c.done;
                 const resolvedBadge = isResolved
-                    ? `<span class="cal-review-resolved-pill" title="Marked done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
+                    ? `<span class="cal-review-resolved-pill" title="Done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
                     : '';
                 return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
                     <div class="cal-review-comment-head">
@@ -463,13 +463,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // attached segment, so it's a one-click choice either way.
         const _seenByKasper = _reviewMode === 'smm' && _calHasBeenToKasper(p, comp);
         const firstReviewBadge = (_reviewMode === 'smm' && showApprove && !_seenByKasper)
-            ? `<span class="cal-review-firstpass" title="This hasn't been sent to Kasper for approval yet">First review</span>`
+            ? `<span class="cal-review-firstpass" title="Not sent to Kasper yet">First review</span>`
             : '';
         // Tells the SMM this component was pre-cleared by Kasper when he asked
         // for the tweak — verify the edit was applied, then send to the client
         // (no Kasper re-review needed). SMM surface only.
         const aatBadge = (_reviewMode === 'smm' && _calShowApprovedAfterTweaks(p, comp))
-            ? `<span class="cal-review-aat-pill" title="No more tweaks needed — Kasper pre-cleared this for the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`
+            ? `<span class="cal-review-aat-pill" title="Kasper already approved this for the client. No more tweaks."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`
             : '';
         let approveControl = '';
         if (showApprove) {
@@ -483,7 +483,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 // hint for the alt segment. The updater restores exactly this
                 // on every keystroke, rather than guessing or blanking it.
                 const mainIdle = '';
-                const altIdle = 'Approve & send to ' + lbl(alt) + ' instead';
+                const altIdle = 'Approve and send to ' + lbl(alt) + ' instead';
                 approveControl = `<div class="cal-review-approve-split">
                     <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} data-idle-title="${_calEscAttr(mainIdle)}" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _calEscAttr(mainIdle)}" onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button>
                     <button type="button" class="cal-review-approve-alt" ${dis} data-idle-title="${_calEscAttr(altIdle)}" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _calEscAttr(altIdle)}" onclick="_calReviewApprove('${escId}','${escComp}','${alt}')">${lbl(alt)}</button>
@@ -504,7 +504,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
                 <div class="cal-review-tweak-actions">
-                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewComment('${escId}','${escComp}')" title="Leave a comment or question — won't change the status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
+                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewComment('${escId}','${escComp}')" title="Ask or comment. This doesn’t change the status."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
                     <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
                 </div>
             </div>
@@ -1935,17 +1935,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // Scheduled/Posted, though the flag stays in the sheet as history).
     function _calAatBadgeHtml(post) {
         if (!post || !_calComponentsFor(post).some(c => _calShowApprovedAfterTweaks(post, c))) return '';
-        return `<span class="cal-aat-badge" title="No more tweaks needed — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
+        return `<span class="cal-aat-badge" title="Kasper already approved this. Check the edit was made, then send it to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
         const open = _calOpenCommentCount(post);
         const unread = _calHasUnreadNotes(post);
         const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
-        const tip  = unread ? 'New replies — open Notes'
+        const tip  = unread ? 'New replies. Open Notes.'
                    // The count is open top-level change requests only (replies and
                    // closed ones are not counted), so the badge says "N open" and
                    // the tooltip names what is being counted.
-                   : (open > 0 ? `${open} open change request${open === 1 ? '' : 's'}` : 'Notes');
+                   : (open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Notes');
         const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
         // Tweaks pill + "Approved after tweaks" badge are kept in one left-
         // aligned group so the badge sits right next to the pill (the footer is
@@ -2066,11 +2066,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             // Internal threads get a bare lock icon — no word. No lock = the
             // client can see it.
             const lock = (!isReply && !_isClientLink && _calMsgAudience(c) === 'internal')
-                ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
+                ? `<span class="cal-cm-lock" title="Team only. The client can’t see this."><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
                 : '';
             // Only change-requests get a tag — sits right after the name.
             const typeTag = (!isReply && _calMsgIsTweak(c))
-                ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>`
+                ? `<span class="cal-cm-type-tag is-tweak" title="Tweaks. Moves the card to Tweaks Needed.">Tweak${c.round ? ' #' + c.round : ''}</span>`
                 : '';
             const editedTag = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
             const attachments = Array.isArray(c.attachments) && c.attachments.length
@@ -2163,7 +2163,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calCommentActionsHtml(c, isReply, threadReady = true) {
         if (c.deleted) return '';
         const wait = threadReady ? '' : ' disabled aria-disabled="true"';
-        const waitTitle = title => threadReady ? title : 'Comments are still loading';
+        const waitTitle = title => threadReady ? title : 'Notes are still loading';
         const replyIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
         const checkIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const undoIco   = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
@@ -2246,8 +2246,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
                 <span class="cal-cm-audience-cap">Who sees this?</span>
                 <div class="cal-cm-aud-seg">
-                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_calSetComposeAudience('internal')" title="Team only — you and Kasper. The client never sees it.">${lockIco}Kasper / team</button>
-                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_calSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
+                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_calSetComposeAudience('internal')" title="Team only. The client never sees it.">${lockIco}Kasper / team</button>
+                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_calSetComposeAudience('client')" title="Shared. The client can see this too.">Client</button>
                 </div>
             </div>`
             : '';
@@ -2257,8 +2257,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request">
                 <span class="cal-cm-audience-cap">This is a…</span>
                 <div class="cal-cm-aud-seg">
-                    <button type="button" class="cal-cm-aud-btn${!_calComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_calSetComposeIsTweak(false)" title="A comment or question — won't change the status">Comment</button>
-                    <button type="button" class="cal-cm-aud-btn${_calComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_calSetComposeIsTweak(true)" title="Request a change — moves the post to Tweaks Needed">Request a change</button>
+                    <button type="button" class="cal-cm-aud-btn${!_calComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_calSetComposeIsTweak(false)" title="Ask or comment. This doesn’t change the status.">Comment</button>
+                    <button type="button" class="cal-cm-aud-btn${_calComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_calSetComposeIsTweak(true)" title="Ask for tweaks. Moves the card to Tweaks Needed.">Request a change</button>
                 </div>
             </div>`
             : '';
@@ -2271,7 +2271,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
                 <span class="cal-cm-audience-cap">About the…</span>
                 <div class="cal-cm-aud-seg">${_calComponentsFor(post).map(c =>
-                    `<button type="button" class="cal-cm-aud-btn${_calComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_calSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(COMP_LABELS[c] || c)}</button>`
+                    `<button type="button" class="cal-cm-aud-btn${_calComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_calSetComposeComp('${c}')" title="About the ${_calEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(COMP_LABELS[c] || c)}</button>`
                 ).join('')}</div>
             </div>`
             : '';
@@ -2285,7 +2285,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
                 <textarea id="calCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnComposerInput(this)" onkeydown="_calOnComposerKey(event)">${_calEsc(draft)}</textarea>
                 <div class="cal-cm-composer-actions">
-                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${sendPending ? 'Sending unlocks once this note thread has loaded' : (isEdit ? 'Save edit' : 'Send') + ' (Enter)'}" ${sendPending ? 'data-send-pending="1" ' : ''}${draft.trim() && !sendPending ? '' : 'disabled'}>${sendIco}</button>
+                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${sendPending ? 'You can send once the notes finish loading' : (isEdit ? 'Save edit' : 'Send') + ' (Enter)'}" ${sendPending ? 'data-send-pending="1" ' : ''}${draft.trim() && !sendPending ? '' : 'disabled'}>${sendIco}</button>
                 </div>
             </div>
             ${sendPending ? '<div class="cal-cm-pending-hint" data-cm-send-pending="1">Syncing this thread. Sending unlocks in a moment.</div>' : ''}
@@ -3070,7 +3070,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             titleSq.setAttribute('data-val', tcs);
             Array.from(titleSq.classList).forEach(cls => { if (cls.startsWith('cal-fld-status-')) titleSq.classList.remove(cls); });
             titleSq.classList.add('cal-fld-status-' + _calStatusSlug(tcs));
-            titleSq.setAttribute('title', 'YouTube title — ' + _calStatusLabel(tcs));
+            titleSq.setAttribute('title', 'YouTube title: ' + _calStatusLabel(tcs));
         }
         // The Review tab badge counts by status — keep it in lockstep with the
         // in-place status change too (back-port of the samples port's tail call;

@@ -465,7 +465,7 @@ function covered(source, extra) {
       '(d2) but the change-request is NOT marked done — refusing after resolving would close the thread and move nothing');
     ok(app.spy.autoStatus.length === 0,
       '(d2) and the router never ran, so nothing was half-applied');
-    ok(app.spy.notify.length === 1 && /video URL/i.test(app.spy.notify[0].body || ''),
+    ok(app.spy.notify.length === 1 && /video Frame link/i.test(app.spy.notify[0].body || ''),
       '(d2) and the SMM is TOLD why, naming the video — a silent no-op is what this guard exists to prevent');
   }
 

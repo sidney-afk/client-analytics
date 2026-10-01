@@ -2681,7 +2681,7 @@ import {
     const URGENT_PING_KINDS = {
         editor: {
             url: null,   // native route only (B2): no legacy webhook
-            btnTitle: 'Ping the editor in #video-editing that this needs urgent tweaks',
+            btnTitle: 'Message the editor in #video-editing: these tweaks are urgent',
             confirmTitle: 'Send urgent tweak ping?',
             confirmBody: 'This posts an \u201cURGENT TWEAKS NEEDED\u201d message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
             confirmCta: 'Send urgent ping',
@@ -2692,7 +2692,7 @@ import {
         },
         kasper: {
             url: () => URGENT_KASPER_SLACK_URL,
-            btnTitle: 'Ping Kasper in Slack that this card is waiting on his review',
+            btnTitle: 'Message Kasper in Slack: this card is waiting for his review',
             confirmTitle: 'Ping Kasper for this review?',
             confirmBody: 'This sends Kasper a direct Slack message from the SyncView Bot with a link to his review tab, and moves the card into the Urgent section at the top of it. Only use it when the card genuinely cannot wait for his next pass.',
             confirmCta: 'Ping Kasper',

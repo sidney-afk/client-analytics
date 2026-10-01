@@ -151,5 +151,5 @@ Version: `bc52163a-70e6-4e63-a03a-3f3b5c91d253` (the only version; the graph was
 Changed: **unpublished only** (active true to false). No step, connection or credential touched.
 Why: it was active and failing on every poll (24 errors in the 8 days n8n keeps, no error workflow, so nobody was alerted). The Notion form it watched was replaced by the SyncView onboarding form, and the docs already say it is not an operational fallback (F111). The owner decided on 2026-10-01 to turn it off.
 Read back after: `active: false`, `activeVersionId: null`, trigger count unchanged.
-Not done: not archived or deleted, so its definition stays for the F60 retirement proof.
+Not done: not archived or deleted, so its definition stays for the F60 retirement proof. No private JSON export was made by this session (nothing was edited; the only version is unchanged in n8n history and the Sunday weekly backup exports every workflow). Public-safe stub: `n8n-backups/new-client-notion-dm.2026-10-01.deactivation.stub.json`. Inventory updated: `docs/truth/N8N.md`, `docs/ATLAS.md`.
 Undo: in n8n open the workflow and publish it again (version `bc52163a-70e6-4e63-a03a-3f3b5c91d253`). It will resume failing until a Notion credential is attached.

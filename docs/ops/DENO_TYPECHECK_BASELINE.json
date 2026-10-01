@@ -252,6 +252,11 @@
       "total": 0,
       "measured_on": "2026-09-30"
     },
+    "analytics-metrics-collect": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-01"
+    },
     "roster-read": {
       "counts": {},
       "total": 0,

@@ -643,6 +643,8 @@
     "calendar-client-links-after-sheet.js",
     "client-phone-css-scope.js",
     "sheets-mirror-policy.js",
+    "analytics-metrics-collect.js",
+    "analytics-metrics-collect-function.js",
     "client-profile-edit.js",
     "onboarding-boot-skeleton.js",
     "syncview-session.js",
@@ -1455,6 +1457,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and ROSTER_SYNC_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "ROSTER_SYNC_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/clients-roster-sync-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "analytics-metrics-collect-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-metrics-collect-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

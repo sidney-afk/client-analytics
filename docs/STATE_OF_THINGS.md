@@ -93,8 +93,7 @@ here with where it stopped, so it can be restarted.
    live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's
    channels were created through the webhook. E (Filming Docs write) DONE with no new function: the only caller is the filming
    plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
-   in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) page side built (#1897); the three n8n readers stay on until it is live
-   and shows zero calls. Next: C (Booking Recovery gating after a replay test), last K (client approve and request-changes move).
+   in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), waiting on the owner's choice. Last K (client approve and request-changes move).
    Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from

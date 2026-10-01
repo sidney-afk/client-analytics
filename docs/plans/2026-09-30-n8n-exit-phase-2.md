@@ -230,6 +230,13 @@ the new trigger for one week, with a check that the two never disagree, before i
 client's and the owner's own address only.
 Undo: restore the saved earlier version of the workflow (brings back the hourly schedule); the timer is turned off in the database.
 
+**C status 2026-10-01:** the replay proof is built and passes (`test/booking-recovery-replay.js`, `docs/ops/BOOKING_RECOVERY_GATE.md`):
+the gated schedules send the same messages as the hourly one. **Not switched.** The plan assumed the queue could be read from
+Supabase; it is an n8n data table (`booking_recovery`) written by two capture workflows and read by Dispatch and the Heartbeat, and
+`pg_net` is not installed, so a database timer can neither see due rows nor wake the workflow. Switching means a Supabase mirror
+of the queue written by those workflows plus `pg_net`, which edits four live sales workflows. It waits for the owner's decision
+among: leave it hourly, go to every 2 hours, trigger per lead, or build the mirror.
+
 **D. TikTok Upload: list and status.** Saves about 1,000 a month. Effort S first, M later. Risk low.
 What it does: the TikTok tab asks n8n to read the upload sheet (the last 100 rows) and, for one upload, asks Post For Me
 whether it posted. The poll is already adaptive (only while the tab is visible and something is pending), so the remaining 400

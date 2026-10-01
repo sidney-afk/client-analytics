@@ -1,0 +1,320 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-01 for the step B2 edit of 2026-09-30 (docs/ops/N8N_EDIT_LOG.md). It describes the PUBLISHED graph (version 8d2ffd70-bb0c-49c5-b529-bbaad90176e0): node names, types, credential references by id and name, and connections; code bodies and parameters are left out. The graph holds no key: every call uses a saved n8n login. The version BEFORE the edit (2ac32e2c-331f-4fd4-8b31-637330e5ef27) had keys typed into Code steps and is deliberately NOT captured in this public repo; it exists only in n8n workflow history. ROLLBACK: restore and publish 2ac32e2c-331f-4fd4-8b31-637330e5ef27 (brings back the old flow and its typed-in keys; nothing is deleted). See ROLLBACK.md section 2.",
+  "name": "SyncView Calendar \u2014 Generate Caption",
+  "id": "rNrRCwKPGuau7sLH",
+  "version_before": "2ac32e2c-331f-4fd4-8b31-637330e5ef27",
+  "version_after_published": "8d2ffd70-bb0c-49c5-b529-bbaad90176e0",
+  "nodes_published": [
+    {
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "detail": "POST /webhook/generate-caption"
+    },
+    {
+      "name": "Prepare Apify Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Guard read jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Check duplicate run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Progress scraping",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Run Apify Scraper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "K4zoLPhfjLVXkAQg",
+          "name": "APIFY @HOUSE"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Extract Video URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Progress transcribing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Submit Replicate Whisper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "DUScI39ZbXRkza2Z",
+          "name": "Replicate"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Wait for Replicate Callback",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "name": "Cancel check 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Extract Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Progress writing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Generate Caption with Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Claude"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Read Claude Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Cancel check 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Save Caption to Sheet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueErrorOutput",
+      "detail": "still saves through the n8n calendar-upsert-post webhook (later step)"
+    },
+    {
+      "name": "Progress done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Build Done Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5
+    },
+    {
+      "name": "Mark Job Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "name": "Post job outcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Build Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "detail": "still describes the old flow"
+    }
+  ],
+  "connections_published_summary": {
+    "Receive POST": [
+      "Prepare Apify Input"
+    ],
+    "Prepare Apify Input": [
+      "Guard read jobs",
+      "Mark Job Failed (error)"
+    ],
+    "Guard read jobs": [
+      "Check duplicate run"
+    ],
+    "Check duplicate run": [
+      "Progress scraping",
+      "Mark Job Failed (error)"
+    ],
+    "Progress scraping": [
+      "Run Apify Scraper"
+    ],
+    "Run Apify Scraper": [
+      "Extract Video URL",
+      "Mark Job Failed (error)"
+    ],
+    "Extract Video URL": [
+      "Progress transcribing",
+      "Mark Job Failed (error)"
+    ],
+    "Progress transcribing": [
+      "Submit Replicate Whisper"
+    ],
+    "Submit Replicate Whisper": [
+      "Wait for Replicate Callback",
+      "Mark Job Failed (error)"
+    ],
+    "Wait for Replicate Callback": [
+      "Cancel check 1"
+    ],
+    "Cancel check 1": [
+      "Extract Transcript"
+    ],
+    "Extract Transcript": [
+      "Progress writing",
+      "Mark Job Failed (error)"
+    ],
+    "Progress writing": [
+      "Build Prompt"
+    ],
+    "Build Prompt": [
+      "Generate Caption with Claude",
+      "Mark Job Failed (error)"
+    ],
+    "Generate Caption with Claude": [
+      "Read Claude Answer",
+      "Mark Job Failed (error)"
+    ],
+    "Read Claude Answer": [
+      "Cancel check 2",
+      "Mark Job Failed (error)"
+    ],
+    "Cancel check 2": [
+      "Save Caption to Sheet"
+    ],
+    "Save Caption to Sheet": [
+      "Progress done",
+      "Mark Job Failed (error)"
+    ],
+    "Progress done": [
+      "Build Done Response"
+    ],
+    "Build Done Response": [
+      "Respond JSON"
+    ],
+    "Mark Job Failed": [
+      "Post job outcome"
+    ],
+    "Post job outcome": [
+      "Build Error Response"
+    ],
+    "Build Error Response": [
+      "Respond Error"
+    ]
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  }
+}

@@ -105,3 +105,13 @@ Backup: the whole graph (two nodes, no key in it) is committed as `n8n-backups/f
 Undo: in n8n open this workflow and publish it (the saved version `9eb8dc13-0435-4c90-b132-8c6682f8f66c` is the one that comes back), then point `DOCS_UPDATE_HOOK` in `filming_plan_write_doc.py` back at it if the pipeline ever needs the old path.
 Not built: a second signed-in function. An earlier attempt (client-analytics PR 1893, closed unmerged) was redundant with `pipeline-google` and was built from an out-of-date checkout of the pipelines repo.
 
+## 2026-10-01 backup stubs for step A and step B2 (no workflow edited)
+
+Workflows: Client, Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`) and SyncView Calendar, Generate Caption (`rNrRCwKPGuau7sLH`).
+Changed: nothing in n8n. Added the key-free status stubs `ROLLBACK.md` section 2 asks for:
+`n8n-backups/slack-creative-channel-finalizer.2026-09-30.step-a.stub.json` (the graph before the edit, the five added nodes, restore `8f194a42-e578-446d-97af-2c30f4f0767a`) and
+`n8n-backups/generate-caption.2026-09-30.step-b2.stub.json` (the published graph `8d2ffd70-bb0c-49c5-b529-bbaad90176e0`, credentials by reference only, restore `2ac32e2c-331f-4fd4-8b31-637330e5ef27`).
+The pre-edit Generate Caption graph had keys typed into Code steps and is NOT committed to this public repo; it exists only in n8n workflow history.
+Step C (Booking Recovery Dispatch): no n8n edit; the gate and its replay proof are in `docs/ops/BOOKING_RECOVERY_GATE.md`.
+Undo: delete the stub files; nothing else depends on them.
+

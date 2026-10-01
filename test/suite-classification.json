@@ -3,6 +3,7 @@
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
     "calendar-unarchive.js",
+    "roster-stale-cleanup-migration.js",
     "lost-work-retry-intent.js",
     "lost-work-conflict-gate.js",
     "lost-work-drafts.js",

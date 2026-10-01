@@ -251,6 +251,16 @@
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-30"
+    },
+    "roster-read": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-02"
+    },
+    "roster-write": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-02"
     }
   }
 }

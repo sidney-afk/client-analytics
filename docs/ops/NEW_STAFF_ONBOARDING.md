@@ -184,8 +184,8 @@ Columns: `client_name | social_media_manager | linear_api_key | slack_profile_ur
 
 - `client_name`: the client this row is for, this is the row's key
 - `social_media_manager`: their first name
-- `linear_api_key`: copied from any of their existing rows if they already cover another
-  client, otherwise their own personal key from §4
+- `linear_api_key`: retired (Linear is cancelled); leave it empty. Any personal Linear key
+  from §4 is no longer needed
 - `slack_profile_url`: their Slack user ID from §5, needed for the creative channel
   automation to run at all
 

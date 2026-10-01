@@ -24,12 +24,21 @@
 // action "refresh_from_sheet" copies one client's current Sheet row into
 // Supabase (source 'sheet'), so an editor who hit "the Sheet changed" can
 // load the newer values and edit on top of them.
+// Once the owner flips client_profiles_authority to "syncview" the database is
+// the main copy: an edit skips the Sheet read and write, checks the same
+// version, saves through the same transaction (history included) and then
+// copies the changed row to the Sheet, which stays a read-only mirror (a copy
+// that cannot be made stays queued; the saved edit stands). refresh_from_sheet
+// is refused in that state.
+//
 // action "status" says whether Sheet writing is configured, and which Google
 // account the Sheet must be shared with. It never returns a secret.
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
 import { clientSlug } from "../_shared/sheets-mirror.mjs";
 import { EDITABLE_FIELDS, normalizeChanges, planSheetEdit, sheetRange } from "../_shared/client-profile-edit.mjs";
+import { makeStore } from "../_shared/roster-handlers.mjs";
+import { copyToSheet } from "../_shared/roster-sheet-copy.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -132,6 +141,46 @@ async function authority(supabase: SupabaseClient): Promise<string> {
 
 const blankToNull = (v: unknown) => (clean(v) === "" ? null : clean(v));
 
+// The database is the main copy (client_profiles_authority = "syncview").
+async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { id: string; name: string }): Promise<Response> {
+  const slug = clientSlug(body.slug);
+  if (!slug) return json({ ok: false, error: "missing_client" }, 400);
+  const { data: row, error: rowErr } = await supabase.from("client_profiles").select(ROW_COLUMNS).eq("slug", slug).maybeSingle();
+  if (rowErr) throw rowErr;
+  const current = row as JsonMap | null;
+  if (!current) return json({ ok: false, error: "client_profile_missing" }, 404);
+  if (current.archived_at) return json({ ok: false, error: "client_profile_archived" }, 409);
+  if (clean(body.expected_updated_at) !== clean(current.updated_at) &&
+      Date.parse(clean(body.expected_updated_at)) !== Date.parse(clean(current.updated_at))) {
+    return json({ ok: false, error: "client_profile_version_conflict", row: current }, 409);
+  }
+  const norm = normalizeChanges(body.changes);
+  if (!norm.ok) return json({ ok: false, error: norm.error, field: norm.field || null }, 400);
+  const dbChanges: JsonMap = {};
+  for (const [f, v] of Object.entries(norm.changes as Record<string, string>)) dbChanges[f] = blankToNull(v);
+  const requestId = crypto.randomUUID();
+  const { data: saved, error: rpcErr } = await supabase.rpc("client_profile_admin_edit", {
+    p_slug: slug,
+    p_changes: dbChanges,
+    p_expected_updated_at: clean(current.updated_at),
+    p_actor: member.name,
+    p_role: "admin",
+    p_member_id: member.id,
+    p_sheet_row: null,
+    p_request_id: requestId,
+  });
+  if (rpcErr) {
+    if (String(rpcErr.message).includes("client_profile_version_conflict")) return json({ ok: false, error: "client_profile_version_conflict", row: current }, 409);
+    console.error("client-profile-write: native save failed", rpcErr.message);
+    return json({ ok: false, error: "write_failed" }, 500);
+  }
+  const result = saved as JsonMap;
+  const fields = Object.keys(dbChanges).filter(f => (result.row as JsonMap)[f] !== (current as JsonMap)[f]);
+  // Best effort: never turns a saved edit into a failure.
+  const sheetCopy = await copyToSheet({ store: makeStore(supabase), env: Deno.env, fetchFn: fetch });
+  return json({ ok: true, native: true, fields, request_id: requestId, row: result.row, sheet_copy: sheetCopy });
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -158,7 +207,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const member = await adminMember(supabase, clean(body.member_id));
     if (!member) return json({ ok: false, error: "admin_member_required" }, 403);
-    if (await authority(supabase) !== "sheet") return json({ ok: false, error: "authority_not_sheet" }, 409);
+    const mode = await authority(supabase);
+    if (mode === "syncview" && action === "update_client_profile") return await nativeUpdate(supabase, body, member);
+    if (mode !== "sheet") return json({ ok: false, error: "authority_not_sheet" }, 409);
     if (!sa || !sheetId) return json({ ok: false, error: "sheet_not_configured", service_account: sa ? sa.email : null, sheet_id_secret: SHEET_ID_SECRET }, 503);
 
     const slug = clientSlug(body.slug);

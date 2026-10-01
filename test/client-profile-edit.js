@@ -53,7 +53,11 @@ function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit
     'the admin role key is checked before the body is read');
   ok(!/client_access|x-syncview-client-token|ANALYTICS_MIRROR_WRITE_KEY/.test(fn), 'no client token or n8n key can reach it');
   ok(/adminMember\(/.test(serve) && /clean\(m\.role\) !== "admin"/.test(fn), 'the editor must be an active admin team member');
-  ok(/await authority\(supabase\) !== "sheet"/.test(serve), 'it refuses to run unless the Sheet is still the main copy');
+  ok(/const mode = await authority\(supabase\);/.test(serve) && /if \(mode !== "sheet"\) return json\(\{ ok: false, error: "authority_not_sheet" \}, 409\)/.test(serve), 'it still refuses unless the Sheet is the main copy, except the native save below');
+  ok(/mode === "syncview" && action === "update_client_profile"\) return await nativeUpdate\(/.test(serve), 'once the owner moves the main copy to SyncView, only the edit takes the native path; refresh_from_sheet stays refused');
+  const nat = fn.slice(fn.indexOf('async function nativeUpdate'), fn.indexOf('Deno.serve('));
+  ok(!/readTab\(|writeCells\(|googleToken\(/.test(nat), 'the native save never reads or writes the Sheet itself (the read-only copy is made afterwards, best effort)');
+  ok(/p_sheet_row: null/.test(nat) && /client_profile_version_conflict/.test(nat) && /copyToSheet\(/.test(nat), 'native save: same version check and transaction, then the queued copy');
   ok(/if \(error\) throw error;\s*const v = data && data\.value/.test(fn) && !/clean\(v\.source\) \|\| "sheet"/.test(fn), 'an unreadable or missing authority flag fails closed');
   const w = serve.indexOf('await writeCells('), r = serve.indexOf('supabase.rpc("client_profile_admin_edit"');
   ok(w > 0 && r > w && serve.indexOf('planSheetEdit(values, slug, current, changes') < w, 'order: check the Sheet row, write the Sheet, then Supabase');

@@ -30254,3 +30254,17 @@ Proof (offline, synthetic ids, zero external calls): `test/native-notification-u
 Order of events: merge; deploy `notify` (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml, function `notify`, commit = main's tip after merge; deploy it BEFORE any F27 dispatch, whose prerequisite compares live `notify` with the dispatch commit); run the preview lane with `message: urgent` for the test client; the owner looks; only then set the secret.
 
 Not built, proposed: one message for several urgent pings to the same editor and client (see `docs/ops/NATIVE_NOTIFICATIONS.md`).
+
+## 321. [2026-10-02, PR open] Clients Info and Social Media Managers: SyncView's database can now be the main copy (Step 1, nothing switched on)
+
+Owner request, 2026-10-01 and 2026-10-02 (session Roster). Goal: make the database the main copy of the two Sheet tabs, then keep the Sheet as a read-only mirror until every reader has moved. This entry is Step 1 only: the database pieces and two server doors, **no n8n edit, no switch flipped, no behaviour change today.** Plan, the exact n8n edits (each needs the owner's separate go) and the switch-over order: `docs/plans/2026-10-02-roster-native.md`.
+
+**What was built.** (1) `migrations/2026-10-02-roster-native.sql` (source-only, Lighthouse applies after the owner's go): the manager's Slack id column, a manager-assignment history, a retry list for the read-only Sheet copy, and two functions that create or change a client and assign a manager, both refusing unless `client_profiles_authority` reads "syncview". It also redefines `client_profile_admin_edit` with one addition (queue the Sheet copy once the database is main). Way back: its ROLLBACK file. (2) Edge Functions `roster-read` and `roster-write` (n8n only, key `ROSTER_SERVICE_KEY`, not deployed). (3) `client-profile-write` (the Clients tab save) gets a native path for the switched state; its Sheet path is unchanged. (4) The copy to the Sheet is one read and one write per tab per call, writes only the changed cells as plain text, never touches other columns, and keeps a failed copy queued.
+
+**Found on the way (nothing changed for these).** The live Social Media Managers tab still has a `linear_api_key` header, empty on every row; no Linear key exists in the database. The Onboarding row webhook accepts writes with no authentication; `roster-write` replaces it with a key. One n8n workflow (VIDEO PRODUCTION AUTOMATION) writes calendar rows to an older calendar workbook, not the live one. Project Central uses its own workbook. PTO data already lives in the database; nothing reads its Sheet.
+
+**Save-permission lists (owner, 2026-10-02).** Creating or restoring a client through `client_profile_service_write` also adds it to the four save lists (and makes its `clients` row active); archiving (`client_profile_archive`, `roster-write` `archive_client`) takes it off them and the Sheet copy removes its row; the test client is never enrolled, removed or archived; a malformed list refuses the whole call.
+
+**Proof.** `test/roster-native-postgres.js` (real PostgreSQL, all four roles measured, migration applied twice), `test/roster-native.js` (the real handlers and the Sheet copy against a fake Google). Last lines in the PR.
+
+**Not done.** The page still reads both tabs directly (own step). Beacon (onboarding) will extend the Clients tab; the extra-fields column and the ledger are kept open for that.

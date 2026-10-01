@@ -28,6 +28,12 @@ here with where it stopped, so it can be restarted.
   moves to Supabase (dual-write, flagged read, parity, then retire, as in
   `docs/plans/2026-09-24-sheets-to-supabase.md`). Clients Info is first and already copied daily; the Clients
   admin tab is the start of its replacement. The owner will improve that UI.
+  **Scope, owner 2026-10-02:** only the main SYNCVIEW Sheet and the SyncView Calendar workbook are in scope; other
+  Drive files are left alone. Project Central: archive (needs an n8n edit, owner's go). **Clients Info and Social
+  Media Managers (session Roster):** Step 1 built, in PR (OPEN_REPAIRS 321, `docs/plans/2026-10-02-roster-native.md`):
+  database functions, `roster-read` and `roster-write`, a native save for the Clients tab and the read-only Sheet
+  copy; nothing switched on, no n8n edit. Next, each with its own go: apply the migration and deploy, then each n8n
+  edit, then the switch. Beacon (onboarding) will extend the Clients tab.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
 - **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
   The measured picture of how a client is onboarded today (every step, every per-client resource with

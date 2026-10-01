@@ -3102,7 +3102,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             return _calUpsertFetchGuarded(clientOrSlug, payload, source);
         }
         /* Step K: a client link never replays to n8n, whatever the repair was pinned to. */
-        const url = (transport === 'supabase' || _isClientLink) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
+        const url = transport === 'supabase' || _isClientLink ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
         return fetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),

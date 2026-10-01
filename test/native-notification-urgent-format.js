@@ -32,6 +32,10 @@ const DEL = 'del_synthetic-1';
 const SITE_LINK = 'https://syncview.synchrosocial.com/synclinear/' + DEL;
 const input = (over = {}) => ({ editorSlackId: EDITOR, title: 'Synthetic Video 1', clientName: 'Synthetic Client', deliverableId: DEL, pingedBy: 'Synthetic Manager', ...over });
 
+// The layouts as they were before the card's lead line became mention-only (synthetic values).
+// compact and line must not change at all; the card itself (everything under the lead line) must not change.
+const BEFORE = {"compact": {"text": "<@U0SYNTHEDIT> URGENT: Synthetic Video 1 needs tweaks (Synthetic Client), pinged by Synthetic Manager. <https://syncview.synchrosocial.com/synclinear/del_synthetic-1|Open in SyncView>", "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "<@U0SYNTHEDIT>  🚨 *URGENT*: needs tweaks", "verbatim": true}}, {"type": "section", "text": {"type": "mrkdwn", "text": "*Synthetic Video 1*  ·  Synthetic Client\n🔧 *Needs tweaks*  ·  pinged by Synthetic Manager", "verbatim": true}}, {"type": "context", "elements": [{"type": "mrkdwn", "text": "<https://syncview.synchrosocial.com/synclinear/del_synthetic-1|Open in SyncView>", "verbatim": true}]}]}, "line": {"text": "<@U0SYNTHEDIT> URGENT: Synthetic Video 1 needs tweaks (Synthetic Client), pinged by Synthetic Manager. <https://syncview.synchrosocial.com/synclinear/del_synthetic-1|Open in SyncView>", "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "🚨 *URGENT* <@U0SYNTHEDIT> · *Synthetic Video 1* · Synthetic Client · 🔧 *Needs tweaks* · pinged by Synthetic Manager\n<https://syncview.synchrosocial.com/synclinear/del_synthetic-1|Open in SyncView>", "verbatim": true}}]}, "cardBlocks": [{"type": "header", "text": {"type": "plain_text", "text": "Synthetic Video 1", "emoji": true}}, {"type": "section", "fields": [{"type": "mrkdwn", "text": "*Client*\nSynthetic Client", "verbatim": true}, {"type": "mrkdwn", "text": "*Needs*\n🔧 Tweaks", "verbatim": true}, {"type": "mrkdwn", "text": "*Pinged by*\nSynthetic Manager", "verbatim": true}]}, {"type": "actions", "elements": [{"type": "button", "text": {"type": "plain_text", "text": "Open in SyncView"}, "url": "https://syncview.synchrosocial.com/synclinear/del_synthetic-1"}]}], "cardAttachments": [{"color": "#E01E5A", "fallback": "<@U0SYNTHEDIT> URGENT: Synthetic Video 1 needs tweaks (Synthetic Client), pinged by Synthetic Manager.", "blocks": [{"type": "header", "text": {"type": "plain_text", "text": "Synthetic Video 1", "emoji": true}}, {"type": "section", "fields": [{"type": "mrkdwn", "text": "*Client*\nSynthetic Client", "verbatim": true}, {"type": "mrkdwn", "text": "*Needs*\n🔧 Tweaks", "verbatim": true}, {"type": "mrkdwn", "text": "*Pinged by*\nSynthetic Manager", "verbatim": true}]}, {"type": "actions", "elements": [{"type": "button", "text": {"type": "plain_text", "text": "Open in SyncView"}, "url": "https://syncview.synchrosocial.com/synclinear/del_synthetic-1"}]}]}]};
+
 (async () => {
   const originalDeno = globalThis.Deno, originalFetch = globalThis.fetch;
   try {
@@ -52,6 +56,12 @@ const input = (over = {}) => ({ editorSlackId: EDITOR, title: 'Synthetic Video 1
         && /Synthetic Client/.test(m.text) && /Synthetic Manager/.test(m.text) && m.text.includes('<' + SITE_LINK + '|Open in SyncView>'));
       if (variant === 'card') {
         const card = m.attachments[0];
+        ok('card: the visible line above the card is ONE block holding only the editor mention',
+          m.blocks.length === 1 && m.blocks[0].type === 'section' && m.blocks[0].text.text === '<@' + EDITOR + '>' && m.blocks[0].text.verbatim === true
+          && !/URGENT|Synthetic|https?:|tweaks/i.test(flat(m.blocks)));
+        ok('card: the mention appears only in that lead line, never inside the card', !flat(card.blocks).includes('<@') && card.fallback.includes('<@' + EDITOR + '>'));
+        ok('card: the card itself (title, Client, Needs, Pinged by, button, colour) is exactly what it was',
+          JSON.stringify(card.blocks) === JSON.stringify(BEFORE.cardBlocks) && JSON.stringify(m.attachments) === JSON.stringify(BEFORE.cardAttachments));
         ok('card: a red bar and the plain line as the attachment fallback', card.color === '#E01E5A' && /Synthetic Client/.test(card.fallback) && card.fallback.includes('<@' + EDITOR + '>'));
         ok('card: the sentence above the card is the same text, and the attachment keeps the plain link-free fallback', m.text.startsWith(card.fallback) && !/https?:/.test(card.fallback));
         const button = card.blocks.find((b) => b.type === 'actions').elements[0];
@@ -64,6 +74,9 @@ const input = (over = {}) => ({ editorSlackId: EDITOR, title: 'Synthetic Video 1
         ok(variant + ': every occurrence of the address is inside that markup, never bare', all.split(SITE_LINK).length === all.split('<' + SITE_LINK + '|Open in SyncView>').length);
       }
     }
+    ok('compact and line are byte for byte what they were',
+      JSON.stringify(format.formatUrgent(input(), 'compact')) === JSON.stringify(BEFORE.compact)
+      && JSON.stringify(format.formatUrgent(input(), 'line')) === JSON.stringify(BEFORE.line));
     ok('an invalid editor id is refused before anything is built', (() => { try { format.formatUrgent(input({ editorSlackId: 'not an id' }), 'card'); return false; } catch (e) { return /urgent_editor_id_invalid/.test(String(e.message)); } })());
 
     /* ---- 2. hostile stored text cannot add a mention, a link or @channel --- */
@@ -89,7 +102,11 @@ const input = (over = {}) => ({ editorSlackId: EDITOR, title: 'Synthetic Video 1
     ok('send settings: parse none, link_names false, mrkdwn true, no unfurl, dedupe id kept',
       body.parse === 'none' && body.link_names === false && body.mrkdwn === true
       && body.unfurl_links === false && body.unfurl_media === false && body.client_msg_id === 'dedupe-id');
-    ok('card posts text + attachments (and no duplicate top-level blocks)', body.text === msg.text && Array.isArray(body.attachments) && body.blocks === undefined);
+    ok('card posts the full-facts text, the mention-only block and the card together (with blocks present, Slack shows the blocks and uses text only as the notification and screen-reader fallback)',
+      body.text === msg.text && Array.isArray(body.blocks) && body.blocks.length === 1 && body.blocks[0].text.text === '<@' + EDITOR + '>'
+      && Array.isArray(body.attachments) && body.attachments.length === 1);
+    ok('the fallback text still carries mention, URGENT, title, client, who pinged and the link',
+      /URGENT/.test(body.text) && /Synthetic Video 1/.test(body.text) && /Synthetic Client/.test(body.text) && /Synthetic Manager/.test(body.text) && body.text.includes('|Open in SyncView>'));
     const compactBody = api.urgentRequestBody('C1234567890', format.formatUrgent(input(), 'compact'), 'x');
     ok('compact/line post text + blocks', Array.isArray(compactBody.blocks) && compactBody.attachments === undefined);
     ok('the preview body is the channel body minus the dedupe id', (() => {

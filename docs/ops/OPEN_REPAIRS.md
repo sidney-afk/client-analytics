@@ -30254,3 +30254,16 @@ Proof (offline, synthetic ids, zero external calls): `test/native-notification-u
 Order of events: merge; deploy `notify` (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml, function `notify`, commit = main's tip after merge; deploy it BEFORE any F27 dispatch, whose prerequisite compares live `notify` with the dispatch commit); run the preview lane with `message: urgent` for the test client; the owner looks; only then set the secret.
 
 Not built, proposed: one message for several urgent pings to the same editor and client (see `docs/ops/NATIVE_NOTIFICATIONS.md`).
+
+
+## 321. [2026-10-02, BUILT] The urgent Slack card repeated its whole content in the line next to the @mention
+
+Status: function source and tests only; no database change. Needs a `notify` deploy to take effect (single-function lane, function `notify`, commit = main's tip after the merge). `NOTIFY_URGENT_FORMAT` is already `card` on the owner's preview and live setting, so the new look appears with the deploy.
+
+Problem: after #1918 the card layout posted the full sentence as the visible top-level text above the card ("@editor URGENT: <title> needs tweaks (<client>), pinged by <name>. Open in SyncView"), which the card below repeats field for field.
+
+Fix: in the card layout only, the line above the card is now a single top-level block holding just the mention (the tag still notifies the editor). The same full sentence and link stay in the message's top-level `text`; because the message now carries top-level blocks, Slack does not draw that text and uses it as the phone-notification and screen-reader fallback, so nothing is dropped, only no longer shown twice. The card (header, Client, Needs, Pinged by, Open in SyncView button, red bar) and its plain attachment fallback are byte for byte unchanged. `urgentRequestBody` now sends top-level blocks and a card together. The compact and line layouts are unchanged and each ping is still its own message (grouping stays a proposal).
+
+Proof (offline, synthetic ids, zero external calls): `test/native-notification-urgent-format.js`, 65 checks. New: the lead is exactly one block whose text is the mention and nothing else; the mention is not inside the card; the card blocks and attachment equal a snapshot of what #1918 sent; compact and line equal a snapshot of what they were; the request body carries the full-facts text, the lead block and the card together. The new checks fail on the previous source and pass on this one. The type ratchet stays at zero errors for `notify`.
+
+Not proved offline: how Slack draws and notifies, which only the preview lane can show. Run [Send notification preview](https://github.com/sidney-afk/client-analytics/actions/workflows/native-notification-preview.yml) with `message: urgent`, variant `card`, after the deploy and check that the phone notification reads the full sentence.

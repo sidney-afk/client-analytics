@@ -226,7 +226,7 @@ async function batchHarness(opts) {
     'a landed tail refreshes the saved copy, stamped with the last full pass (not "now")');
   const loadSrc = grab('_prodLoadData', 'async');
   ok(/Promise\.race\(\[[\s\S]{0,200}_prodTerminalCopyRead\(\)[\s\S]{0,200}setTimeout\(\(\) => resolve\(null\), 400\)/.test(loadSrc)
-    && /_prodAdoptTerminalCopy\(copy, copyGeneration\);\s*if \(_prodTerminalTailFullDue\(silent\)\) _prodStartTailPrefetch\(\);/.test(loadSrc),
+    && /_prodAdoptTerminalCopy\(copy, copyGeneration\);[\s\S]{0,260}?copyGeneration === _prodState\.projectionGeneration && _prodTerminalTailFullDue\(silent\)\) _prodStartTailPrefetch\(\);/.test(loadSrc),
     'the full-download prefetch waits (400 ms at most) for the saved copy before deciding');
 
   console.log('\nopen-item-speed: ' + passed + ' checks passed');

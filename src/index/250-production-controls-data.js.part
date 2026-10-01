@@ -2052,8 +2052,10 @@ import {
                 const copyGeneration = _prodState.projectionGeneration;
                 copyRead.then(copy => {
                     _prodAdoptTerminalCopy(copy, copyGeneration);
-                    if (_prodTerminalTailFullDue(silent)) _prodStartTailPrefetch();
-                }, () => { if (_prodTerminalTailFullDue(silent)) _prodStartTailPrefetch(); });
+                    // Once the live swap has happened the tail has been chosen and started
+                    // without a prefetch; a late one would be a download nobody takes.
+                    if (copyGeneration === _prodState.projectionGeneration && _prodTerminalTailFullDue(silent)) _prodStartTailPrefetch();
+                }, () => { if (copyGeneration === _prodState.projectionGeneration && _prodTerminalTailFullDue(silent)) _prodStartTailPrefetch(); });
                 const clientsRead = _prodClientRows();
                 const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
                 /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.

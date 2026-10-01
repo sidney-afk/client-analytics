@@ -53,7 +53,7 @@
 | 45 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
 | 46 | `230-production-create-comments.js.part` | 2695 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 47 | `240-production-description.js.part` | 2709 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
-| 48 | `250-production-controls-data.js.part` | 3091 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 48 | `250-production-controls-data.js.part` | 3093 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 49 | `260-production-refresh-boot.js.part` | 2702 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 50 | `270-samples-model.js.part` | 2956 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 51 | `280-samples-cards-notes.js.part` | 2932 | SURFACE 3: the save engine |

@@ -175,9 +175,6 @@ Other:
 - `functions/v1/analytics-read` — reads the Supabase copy of the Sheets. The page uses it only for
   Kasper > More > Clients (`action: list_client_profiles`, admin role key only, read-only); the
   per-client analytics reads are not yet wired into the page (plan 2026-09-24, Phase 2).
-- `functions/v1/client-onboarding` — (source only, not deployed) Kasper > Clients onboarding checklist and
-  resources, admin role key plus an active admin member id for reads AND writes (`action: get | set_step | summary`).
-  Writes go through `client_onboarding_set_step` (version checked, a skip needs a note, one history row).
 - `functions/v1/client-profile-write` — Kasper > More > Clients edits (admin role key plus an active
   admin member id). Writes the changed cells to the Clients Info Sheet first, then Supabase
   (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict.

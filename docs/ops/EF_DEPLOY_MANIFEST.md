@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 46 |
+| Deployable function slugs | 47 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 17 |
+| Manual-dispatch-only paths | 18 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 

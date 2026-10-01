@@ -54,7 +54,7 @@
 | Which GitHub Actions workflows exist, when they last ran, and which need review? | `docs/audits/2026-09-26-github-workflows-inventory.md` (dated, read-only inventory; refresh run dates before acting) |
 | What each surface *promises* (quality tiers) | `docs/QUALITY_TIERS.md` |
 | Live state, kill switches, one-step rollback | `ROLLBACK.md` (the law + Live State table) |
-| What happened on date X (deploys, flags, incidents) | `EXECUTION_LOG.md` |
+| What happened on date X (deploys, flags, incidents) | `EXECUTION_LOG.md`; entries older than 60 days are in `docs/ops/execution-log-archive/` (one file per month; search there too, the main file keeps only a heading line for them) |
 | Is surface X freshly proven to work? | `docs/testing/ASSURANCE_LEDGER.md` |
 | Production-tab design kit & gates | `docs/syncview-design/` (start at its README) |
 | The house skills (QA fleet, skill-forge, night-shift) | `.claude/skills/` — when-to-use map in `docs/testing/README.md` |

@@ -48,6 +48,12 @@ ok(lib.archive('repairs', { root, cutoff: '2026-08-02', keep: ['1. [2026-07-05] 
 ok(lib.rebuild('repairs', root) === original, 'a run with a kept entry still rebuilds the original byte for byte');
 fs.writeFileSync(file, original); fs.rmSync(path.join(root, lib.LEDGERS.repairs.dir), { recursive: true });
 lib.archive('repairs', { root, cutoff: '2026-08-02', apply: true });
+// An archived entry edited after the move must fail the check.
+const archPath = path.join(root, lib.LEDGERS.repairs.dir, '2026-07.md');
+const archText = fs.readFileSync(archPath, 'utf8');
+fs.writeFileSync(archPath, archText.replace('body one', 'body 1'));
+assert.throws(() => lib.rebuild('repairs', root), /fingerprint/); n++; console.log('  ok  an archived entry edited after the move fails the check');
+fs.writeFileSync(archPath, archText);
 // A broken link must be loud.
 const main2 = fs.readFileSync(file, 'utf8');
 fs.writeFileSync(file, main2.replace('#4-2026-07-20-repeated-title-1', '#nope'));

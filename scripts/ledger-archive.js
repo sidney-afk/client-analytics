@@ -24,6 +24,7 @@
  * --check use it to prove nothing was lost or changed.
  */
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -32,7 +33,9 @@ const LEDGERS = {
   repairs: { file: 'docs/ops/OPEN_REPAIRS.md', dir: 'docs/ops/repairs-archive', title: 'Open repairs archive' },
 };
 const MARK = '- Archived entry: ';
-const LINK = /\(\[read it\]\(([^)#]+)#([^)]+)\)\)$/;
+const LINK = /\(\[read it\]\(([^)#]+)#([^)]+)\)\) sha256:([0-9a-f]{12})$/;
+// A short fingerprint of an entry's exact text, kept on its summary line so a later edit or truncation in the archive fails --check.
+const sum = lines => crypto.createHash('sha256').update(lines.join('\n')).digest('hex').slice(0, 12);
 
 // GitHub's heading anchor: lower case, drop punctuation, spaces to hyphens.
 function slugOf(text) {
@@ -108,7 +111,7 @@ function archive(kind, opts = {}) {
     if (typeof piece === 'string') { out.push(piece); continue; }
     const e = piece.summary; const month = dateOf(e.heading).slice(0, 7);
     const slug = slugsByMonth.get(month).find(([, x]) => x === e)[0];
-    out.push(MARK + e.heading + ' ([read it](' + path.posix.relative(path.posix.dirname(cfg.file), cfg.dir) + '/' + month + '.md#' + slug + '))');
+    out.push(MARK + e.heading + ' ([read it](' + path.posix.relative(path.posix.dirname(cfg.file), cfg.dir) + '/' + month + '.md#' + slug + ')) sha256:' + sum(e.lines));
   }
   if (opts.apply && moved) fs.writeFileSync(file, join(out));
   return { moved, months: [...byMonth].map(([m, l]) => [m, l.length]) };
@@ -132,7 +135,8 @@ function rebuild(kind, root = ROOT) {
     }
     const e = cache.get(target).get(m[2]);
     if (!e) throw new Error('anchor #' + m[2] + ' not found in ' + target);
-    if (line !== MARK + e.heading + ' ([read it](' + m[1] + '#' + m[2] + '))') throw new Error('summary line does not match its entry heading: ' + line.slice(0, 100));
+    if (sum(e.lines) !== m[3]) throw new Error('archived entry was changed after the move (fingerprint differs): ' + line.slice(0, 100));
+    if (line !== MARK + e.heading + ' ([read it](' + m[1] + '#' + m[2] + ')) sha256:' + m[3]) throw new Error('summary line does not match its entry heading: ' + line.slice(0, 100));
     out.push(...e.lines);
   }
   return out.join('\n') + (trailing ? '\n' : '');

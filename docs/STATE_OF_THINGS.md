@@ -21,7 +21,20 @@ reorders or adds, edit this list, never a side document. **The supervisor
 session, in the same sitting.** A session that stops without pushing is recorded
 here with where it stopped, so it can be restarted.
 
-1. **2026-10-01: analytics database on for every client.** Check the daily
+**Owner direction, 2026-10-01 (the big picture, in order). This order outranks the numbered list below: work A before B, and treat the numbered items as the detail and history of each.**
+- **A. Move everything off Google Sheets.** Every tab of every sheet SyncView or the pipelines read or write
+  moves to Supabase (dual-write, flagged read, parity, then retire, as in
+  `docs/plans/2026-09-24-sheets-to-supabase.md`). Clients Info is first and already copied daily; the Clients
+  admin tab is the start of its replacement. The owner will improve that UI.
+- **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
+- **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
+- **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
+  (item 7).
+- **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
+  least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
+  daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.
+
+1. **2026-10-01: analytics database on for every client. BLOCKED until the analytics accuracy check (open question above) says the stored view counts are right.** Then check the daily
    Sheets-to-Supabase copy ran clean, then ask the owner's go to set
    `analytics_mirror_read_enabled` to `{"enabled": true}`. This also removes the
    client link's 2 to 4 s wait on the `Metrics` and `Clients Info` Sheets
@@ -74,14 +87,15 @@ here with where it stopped, so it can be restarted.
    Pro), 90 percent of it pull-request checks, so moving scheduled jobs saves only
    about $13; and the live site publishes the whole repo (docs, scripts,
    migrations), so the Pages deploy must become an allowlist before any switch.
-6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30).** Order: TikTok poll trim
-   (step D, DONE #1878), caption progress (step B: table `caption_jobs` applied live 2026-09-30 with the
-   owner's go, function `caption-jobs` deployed and answering; the Generate Caption workflow edit is in
-   progress with Anvil and waits on one owner-supplied Frame.io link for the real end-to-end test),
-   then Finalizer trigger (A), Filming Docs edit function (E), read fallbacks (F), Booking Recovery
-   gating (C), and last the client approve and request-changes move. Every n8n edit is logged in
-   `docs/ops/N8N_EDIT_LOG.md`. Typed-in keys move to the existing n8n logins "Claude" and
-   "APIFY @HOUSE"; the staff key login is expected to be "SyncView Client Credentials Staff Key", a candidate only until a real call to `caption-jobs` answers 200 with it (that function accepts role keys only, unlike `client-credentials`).
+6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30; status 2026-10-01).** Order: D, B, A, E, F, C, K.
+   D (TikTok poll trim) DONE #1878. B (caption progress in Supabase) DONE: `caption-jobs` live, Generate Caption edited and
+   published, Calendar page switched (#1889). A (Slack Creative Channel Finalizer): trigger webhook and daily safety check are
+   live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's
+   channels were created through the webhook. E (Filming Docs write) DONE with no new function: the only caller is the filming
+   plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
+   in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) page side built (#1897); the three n8n readers stay on until it is live
+   and shows zero calls. Next: C (Booking Recovery gating after a replay test), last K (client approve and request-changes move).
+   Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.

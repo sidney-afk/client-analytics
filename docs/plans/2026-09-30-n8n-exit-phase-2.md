@@ -90,7 +90,7 @@ about 8,700 a month each, 17,400 together. That is now the single largest block 
 | Caption Jobs, Status | 141 | 600 | **Move** (step B) |
 | TikTok Upload, Status | 128 | 550 | **Keep**, trim (step D) |
 | Sales, Booking Recovery Capture | 117 | 500 | Keep (real intake, external webhook) |
-| Filming Plan, Docs BatchUpdate | 58 | 250 | **Move and secure** (step E) |
+| Filming Plan, Docs BatchUpdate | 58 | 250 | **Switched off 2026-10-01** (step E, caller already moved) |
 | Error Alerts to DM | 41 | 175 | Keep (falls as the others move) |
 | TikTok Result, Submit, Submit (Direct), Media Upload URL | 68 | 290 | Keep (outside callback and real uploads) |
 | Hiring, Application Capture | 24 | 100 | Keep |
@@ -138,7 +138,7 @@ Phase 1 workflows are not repeated here; they are in the switch-off table.
      code steps. Owner decision 2026-09-30: no rotation; moving them into n8n credentials is approved when those workflows are
      edited anyway (see decision 4).
    - `Filming Plan, Docs BatchUpdate` has no sign-in check: anyone holding the URL and a Doc id the connected Google account
-     can edit could rewrite that Doc. Step E closes this while moving it.
+     can edit could rewrite that Doc. Closed 2026-10-01: step E switched the workflow off.
 
 ## The order, and why
 
@@ -238,12 +238,14 @@ posted or failed, never poll the list and the single status together). M step, l
 submit and result workflows, read by a function. The uploads themselves, the result callback from Post For Me and cancel stay on n8n
 (outside service, real work, about 70 runs a week).
 
-**E. Filming Plan, Docs BatchUpdate: move to a function, with sign-in.** Saves about 250 a month and closes an open write hole.
-Effort M. Risk medium.
-What it does: passes the Filming Plan editor's edits straight to Google Docs. Where it can live: a Supabase function next to
-`filming-plan-tabs` (same Google service account the owner already authorised), requiring the same staff sign-in as the other
-write functions and accepting only Docs we own. Flag gated, with the same hold on failure rule. The owner must share the Docs
-with the service account for writes (today's read work already asked for this).
+**E. Filming Plan, Docs BatchUpdate: switched off (done 2026-10-01).** Saved about 250 runs a month and closed an open write hole.
+What it was: a no sign-in n8n webhook that passed the filming plan pipeline's edits straight to Google Docs. The earlier text of this
+step assumed the Filming Plan editor page called it and proposed a new function; both were wrong. Measured: the only caller was the
+pipeline script `synchro-pipelines/filming_plan_write_doc.py`, which by 2026-09-30 already wrote Docs through the pipeline's own
+`pipeline-google` function (password from the `PIPELINE_GOOGLE_KEY` environment variable; see that repo's `GOOGLE_WRITES.md`).
+The workflow had no runs after 2026-09-29 15:55 UTC, so on 2026-10-01 it was deactivated (not deleted); the version to restore and
+the evidence are in `docs/ops/N8N_EDIT_LOG.md`. No new function was needed (a duplicate built from a stale checkout was closed
+unmerged, client-analytics PR 1893).
 
 **F. Retire the read fallbacks: Calendar Get, Sample Review Get, Kasper Queue.** Saves about 120 a month, but the real win is that
 the n8n reads of the Calendar sheets go (Caption Prompts Get and the TikTok list still read sheets and stay). Effort M. Risk low once tested.

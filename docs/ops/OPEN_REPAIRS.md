@@ -30098,7 +30098,11 @@ Measured: 705 timer runs found nothing; the queue holds 3 rows, all `manual`, no
 Found while reading: the runbook said only `creative_channel_id` blocks a run; the workflow also stops on a set `slack_channel_id`. The runbook now says both. Also the timer path picks only the oldest pending row, so a client waiting for a manager's Slack id holds up every newer client; the webhook picks by client name and the daily check calls it per row, so neither has that problem.
 Not proven: the ready path through the webhook (no real channels were created for the test).
 
-## 307. [2026-10-01] n8n exit phase 2, step F: the Calendar, Samples and Kasper queue reads no longer fall back to n8n (page side built; n8n workflows still on)
+## 307. [2026-10-01] n8n exit phase 2, step E: the open Docs BatchUpdate webhook is switched off (no new function needed)
+
+Status: done. `Filming Plan - Docs BatchUpdate` (`qR1Wgr71HTohlCzH`) was deactivated 2026-10-01 after no runs since 2026-09-29; its only caller already writes through the pipeline's `pipeline-google` function. Closes the no sign-in write hole named in the phase 2 plan. Restore and evidence in `docs/ops/N8N_EDIT_LOG.md`. The plan's step E text was wrong about the caller and is corrected in the same change. Lesson: read the other repo's `main` (fetch first) before building a replacement; a stale local checkout made a duplicate function (client-analytics PR 1893, closed unmerged).
+
+## 308. [2026-10-01] n8n exit phase 2, step F: the Calendar, Samples and Kasper queue reads no longer fall back to n8n (page side built; n8n workflows still on)
 
 Status: page change built and tested; the three n8n workflows (`calendar-get`, `sample-review-get`, `kasper-queue`) are NOT switched off yet and stay on until this is live and a later check shows no calls (30-day rule, `docs/plans/2026-09-30-n8n-exit-phase-2.md`).
 What changed: a failed Supabase read is retried once after 1.5 s (`_svReadWithRetry`); if it still fails the reader throws and the caller keeps the cards or saved copy it already has with its refresh notice, or shows "The data is unavailable right now. Try again in a moment." on a cold load. The per-client Kasper reads and the content bank read Supabase too. A repair still pinned to the n8n writer is now verified against `calendar_posts` / `sample_reviews` (the n8n writers write into those tables), so client links, which never migrate pins, still drain.

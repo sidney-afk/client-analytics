@@ -50,11 +50,11 @@ function ok(condition, message) {
 const text = (INDEX.match(/const WRITE_UI_NO_WORK_ITEM_TEXT = '([^']+)';/) || [])[1] || '';
 
 ok(!!text, 'the replacement text exists as a single shared constant');
-ok(/no work item behind it/.test(text),
+ok(/[Nn]o sub-issue is linked/.test(text),
   'it says what is actually wrong: there is nothing behind the component');
-ok(/status cannot be changed here/.test(text),
+ok(/change its status here/.test(text),
   '...and what that means for the control the reader just tried to press');
-ok(/cannot be created from this screen/.test(text),
+ok(/can’t create one/.test(text),
   '...and that one cannot be made here either, which is the half that stops the hunting');
 ok(!/Link a Linear/.test(text) && !/[Ll]ink .* first/.test(text),
   'and it no longer instructs the reader toward a control the flip deleted');

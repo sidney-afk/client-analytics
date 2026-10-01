@@ -651,8 +651,23 @@ import {
             const parts = _prodIsoParts(value);
             return parts ? new Date(parts.year, parts.month - 1, parts.day) : null;
         }
+        /* Asked once per row for overdue text, so ~1,600 times per list render,
+           and each answer ran an Intl formatter. The no-argument form is memoised
+           per WHOLE SECOND, which is exact: the policy zone (Guatemala) has no
+           daylight saving and its midnight falls on a second boundary, so the
+           day cannot change inside one. An explicit instant still formats that
+           instant and never touches the memo. */
+        let _prodTodayIsoSec = -1;
+        let _prodTodayIsoVal = '';
         function _prodPolicyTodayISO(now) {
-            return wlWorkloadTodayISO(now || new Date());
+            if (now) return wlWorkloadTodayISO(now);
+            const t = Date.now();
+            const sec = Math.floor(t / 1000);
+            if (sec !== _prodTodayIsoSec) {
+                _prodTodayIsoVal = wlWorkloadTodayISO(new Date(t));
+                _prodTodayIsoSec = sec;
+            }
+            return _prodTodayIsoVal;
         }
         function _prodToday(now) {
             return _prodDateFromIso(_prodPolicyTodayISO(now));
@@ -1676,6 +1691,50 @@ import {
            and is about to discard itself for exactly that reason -- so without
            this, the generation that asked never gets a tail at all. */
         let _prodTerminalTailRerun = false;
+        /* THE FINISHED-ITEMS READ STARTS BESIDE THE LIVE ONE, not after it.
+
+           Whenever a load will end in a FULL tail (`_prodTerminalTailFullDue`:
+           every non-silent load such as a boot, a page's first load, and one
+           pass an hour), the answer is known
+           when the load begins. That read (about 4,600 rows, five serial pages,
+           ~1.2 MB) used to wait for the live read to finish AND the board to
+           paint, and it is the last thing to land: the ~117 rows whose
+           ancestors are finished, and the sub-issue counts, only appeared then,
+           7-8 s into a cold open. Starting it with the live read overlaps the
+           two walks (measured 2026-10-01: cold full list 7.2 s -> 5.3 s, first
+           rows unchanged). Same request, same rows, same merge, same order (live
+           first, finished appended). The tail takes the held promise once, for
+           the exact filter, inside two minutes; anything else reads for itself.
+           A failed prefetch fails the tail exactly as a failed tail read does.
+
+           THE ONE THING OVERLAP COULD CHANGE, AND ITS REPAIR. With the reads
+           one after the other, a card that left a finished status mid-load could
+           fall between them; with them side by side a card that ENTERS one (the
+           common case: an approval) could too, for the few seconds the reads
+           overlap. So once the tail lands, `_prodState.catchUpSince` is set to a
+           little before the load began, and the next refresh (the 30-second
+           poll, or the realtime-triggered one) starts from it instead of from
+           the newest row held, which can be later than a card that moved during
+           the load. Same merge path, no extra request at load time. */
+        const PROD_TAIL_SKEW_MS = 30000;
+        let _prodTailPrefetch = null;
+        function _prodStartTailPrefetch() {
+            const promise = _prodLoadDeliverableProjection(PROD_TERMINAL_FILTER);
+            promise.catch(() => {});
+            _prodTailPrefetch = {
+                promise,
+                filter: PROD_TERMINAL_FILTER,
+                at: Date.now(),
+                // Server stamps vs this clock: leave room for skew.
+                since: new Date(Date.now() - PROD_TAIL_SKEW_MS).toISOString()
+            };
+        }
+        function _prodTakeTailPrefetch(filter) {
+            const held = _prodTailPrefetch;
+            _prodTailPrefetch = null;
+            if (!held || held.filter !== filter || !(Date.now() - held.at < 120000)) return null;
+            return held;
+        }
         async function _prodLoadTerminalTail(opts) {
             if (_prodTerminalTailRunning) { _prodTerminalTailRerun = true; return false; }
             _prodTerminalTailRunning = true;
@@ -1707,7 +1766,8 @@ import {
                 ? PROD_TERMINAL_FILTER + '&updated_at=gte.' + encodeURIComponent(watermark)
                 : PROD_TERMINAL_FILTER;
             try {
-                const tail = await _prodLoadDeliverableProjection(filter);
+                const prefetched = _prodTakeTailPrefetch(filter);
+                const tail = await (prefetched ? prefetched.promise : _prodLoadDeliverableProjection(filter));
                 if (generation !== _prodState.projectionGeneration) return false;
                 if (!Array.isArray(tail)) return false;
                 const scopeBefore = _prodScopeSignatures(_prodState.adapter);
@@ -1797,6 +1857,9 @@ import {
                 _prodState.terminalTailFailed = false;
                 _prodApplyDeepLinkFallback(true);
                 if (document.getElementById('prodRoot')) _prodRender();
+                if (prefetched && (!_prodState.catchUpSince || Date.parse(prefetched.since) < Date.parse(_prodState.catchUpSince))) {
+                    _prodState.catchUpSince = prefetched.since;
+                }
                 settled = true;
                 return true;
             } catch (e) {
@@ -1904,6 +1967,7 @@ import {
                         if (document.getElementById('prodRoot')) _prodRender();
                     }
                 }).catch(() => {});
+                if (_prodTerminalTailFullDue(silent)) _prodStartTailPrefetch();
                 const clientsRead = _prodClientRows();
                 const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
                 /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.
@@ -2066,6 +2130,7 @@ import {
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
                 return true;
             } catch (e) {
+                _prodTailPrefetch = null;   // a failed load will not take it; do not hold ~4,600 rows
                 _prodState.loading = false;
                 _prodState.refreshing = false;
                 /* The settling flag is set by the success path just above,

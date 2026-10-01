@@ -1097,7 +1097,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             const html = _tplEsc(part)
                 .replace(/(^|\s)([a-z0-9]+)=/gi, (m, sp, k) => `${sp}<span class="tpl-brain-k">${k.charAt(0).toUpperCase() + k.slice(1)}</span> `)
                 .replace(/#[0-9a-fA-F]{3,8}\b/g, hex =>
-                `<button type="button" class="tpl-brain-swatch" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
+                `<button type="button" class="tpl-brain-swatch" title="Copy color ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
             return `<span class="tpl-brain-chip">${html}</span>`;
         }).join('');
     }
@@ -1189,7 +1189,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             const k = i > 0 ? part.slice(0, i).trim() : '';
             const v = i > 0 ? part.slice(i + 1).trim() : part;
             const val = _tplEsc(v).replace(/#[0-9a-fA-F]{3,8}\b/g, hex =>
-                `<button type="button" class="tpl-brain-swatch" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
+                `<button type="button" class="tpl-brain-swatch" title="Copy color ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
             return `<div class="tpl-spec-item"><span class="tpl-spec-k">${_tplEsc(k ? k.charAt(0).toUpperCase() + k.slice(1) : '')}</span><span class="tpl-spec-v">${val}</span></div>`;
         }).join('');
         return `<div class="tpl-spec-list">${rows}</div>`;
@@ -1377,7 +1377,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         const m = /\s*\((starting point:[^)]*)\)\s*$/i.exec(t);
         if (m) { note = m[1].charAt(0).toUpperCase() + m[1].slice(1); t = t.slice(0, m.index); }
         // Colour codes become swatches only in plain text, never inside a link.
-        const swatch = hex => `<button type="button" class="tpl-brief-hex" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`;
+        const swatch = hex => `<button type="button" class="tpl-brief-hex" title="Copy color ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`;
         const html = t.split(/(https?:\/\/[^\s<]+)/).map((part, i) => i % 2
             ? _tplBrainInline(part)
             : _tplBrainInline(part).replace(/(^|[^&\w])(#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b)/g, (m, pre, hex) => pre + swatch(hex))).join('');
@@ -1488,7 +1488,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         return _calSocialLinksFor(name).map(l => {
             const p = CAL_PLATFORM_BY_KEY[l.key] || {};
             const lbl = p.label || l.key;
-            return `<a class="tpl-social-link" data-platform="${_tplEscAttr(l.key)}" href="${_tplEscAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="Open ${_tplEscAttr(lbl)} (${_tplEscAttr(l.sub)}) in a new tab">`
+            return `<a class="tpl-social-link" data-platform="${_tplEscAttr(l.key)}" href="${_tplEscAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="Open ${_tplEscAttr(lbl)} (${_tplEscAttr(l.sub)})">`
                 + `<span class="cal-client-link-ico" style="color:${p.color || 'var(--text-secondary)'}">${p.icon || ''}</span>`
                 + `<span class="cal-client-link-name">${_tplEsc(lbl)}</span>`
                 + `<span class="cal-client-link-ext" aria-hidden="true">${_mrExternalLink}</span></a>`;
@@ -1569,7 +1569,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         // new tab. Shown only when a matching onboarding record exists (by slug).
         _obvEnsureSlugIndex();
         const obBtn = _obvHasOnboarding(name)
-            ? `<button class="tpl-ob-btn" onclick="_obvOpenStandalone('${_tplEsc(wlNormalizeClient(name))}')" title="Open this client's onboarding in a new tab">Onboarding <span class="tpl-ob-arrow">↗</span></button>`
+            ? `<button class="tpl-ob-btn" onclick="_obvOpenStandalone('${_tplEsc(wlNormalizeClient(name))}')" title="Open this client’s onboarding">Onboarding <span class="tpl-ob-arrow">↗</span></button>`
             : '';
 
         return `<div class="tpl-view${isEdit?' editing':''}">

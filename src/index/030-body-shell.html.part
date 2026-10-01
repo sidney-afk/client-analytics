@@ -36,7 +36,7 @@
                 <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
                 <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
             </div>
-            <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Resolve the change request(s) without moving this to another stage">Mark done — don’t change the status</button>
+            <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Mark these tweaks as done. The card stays in its stage.">Mark done — don’t change the status</button>
         </div>
     </div>
 </div>
@@ -172,7 +172,7 @@
                     <span class="staff-account-action-copy"><span id="themeToggleLabel">Dark mode</span><span class="staff-account-action-note">Adjust SyncView's appearance</span></span>
                     <span class="staff-account-action-state" id="themeToggleState">Off</span>
                 </button>
-                <button class="staff-account-action palette-toggle" id="statusPaletteToggle" type="button" role="menuitemcheckbox" onclick="toggleSyncViewStatusPalette()" title="Switch to original status colors" aria-label="Switch to original status colors" aria-pressed="false">
+                <button class="staff-account-action palette-toggle" id="statusPaletteToggle" type="button" role="menuitemcheckbox" onclick="toggleSyncViewStatusPalette()" title="Use the old status colors" aria-label="Use the old status colors" aria-pressed="false">
                     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/></svg>
                     <span class="staff-account-action-copy"><span>Original status colors</span><span class="staff-account-action-note">Use the classic workflow palette</span></span>
                     <span class="staff-account-action-state" id="statusPaletteToggleState">Off</span>

@@ -158,7 +158,7 @@ check('an unpinned overdue card is untouched (still not on the calendar rule her
 check('the carried mark has a label, icon and tip', () => {
   const html = context.wlPlanOriginHtml('carried', false, 0, '');
   assert.ok(html.includes('is-carried') && html.includes('Carried over'), html);
-  assert.ok(/data-tip="Carried over:/.test(html), 'tip explains it');
+  assert.ok(/data-tip="Carried over\./.test(html), 'tip explains it');
   assert.ok(read('010-styles-foundation.css.part').includes('.wl-plan-origin.is-carried'), 'styled');
 });
 check('a pinned past-due card is kept on the calendar by the partition loop', () => {

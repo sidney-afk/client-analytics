@@ -205,6 +205,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/failed-saves-beacon-browser.js
+      - name: Urgent ping uses the stamp the database holds, and a refused ping can be refreshed
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/urgent-ping-fresh-round-browser.js
       - name: Client approve and request-changes requests are unchanged
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

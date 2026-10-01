@@ -1,12 +1,16 @@
 ﻿'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'),{extractFunction}=require('./helpers/extract-function');
-const names=['_calUrgentSlackDispatch','_calCheckQueuedUrgent','_calSendUrgentSlack','_sxrSendUrgentSlack','_sxrKasperSendUrgentSlack','_kasperSendUrgentSlack','_calShowUrgent','_sxrShowUrgent','_writeUiComponentHasWorkItem','_writeUiNativeId','_syncviewEfHeaders'];
+const names=['_calUrgentSlackDispatch','_calCheckQueuedUrgent','_calSendUrgentSlack','_sxrSendUrgentSlack','_sxrKasperSendUrgentSlack','_kasperSendUrgentSlack','_calShowUrgent','_sxrShowUrgent','_writeUiComponentHasWorkItem','_writeUiNativeId','_syncviewEfHeaders','_urgentWaitForSave','_urgentHooksFor','_urgentFreshenRound','_urgentCardChangedAction'];
 const gatewayDeclaration=html.match(/^\s*const WRITE_UI_PRODUCTION_WRITE_URL = [^;]+;/m);
 assert.ok(gatewayDeclaration, 'actual shared gateway URL declaration exists');
 const failureTables=html.slice(html.indexOf('const WRITE_UI_FAILURE_CLASS_TEXT'),html.indexOf('function _writeUiReportFailure('));
 const urgentKinds=html.slice(html.indexOf('    const URGENT_PING_KINDS ='),html.indexOf('    function _urgentKind'));
-const source=urgentKinds+'\n'+extractFunction(html,'_urgentKind')+'\n'+gatewayDeclaration[0]+'\n'+failureTables+'\n'+names.map(n=>(n==='_calCheckQueuedUrgent'?'async ':'')+extractFunction(html,n)).join('\n'),round='2030-01-01T00:00:00.000Z';let passed=0;
+// The pre-send read (urgent ping, fresh round): its constants are plain `const`s, so they are sliced rather than extracted.
+const freshHooks=html.slice(html.indexOf('    const URGENT_SURFACE_HOOKS ='),html.indexOf('    function _urgentHooksFor'));
+const cardChangedCodes=html.slice(html.indexOf('    const URGENT_CARD_CHANGED_CODES ='),html.indexOf('    function _urgentCardChangedAction'));
+assert.ok(freshHooks.length>50&&cardChangedCodes.length>50,'fresh-round constants found');
+const source=urgentKinds+'\n'+freshHooks+'\n'+cardChangedCodes+'\n'+extractFunction(html,'_urgentKind')+'\n'+gatewayDeclaration[0]+'\n'+failureTables+'\n'+names.map(n=>(['_calCheckQueuedUrgent','_urgentWaitForSave','_urgentFreshenRound'].includes(n)?'async ':'')+extractFunction(html,n)).join('\n'),round='2030-01-01T00:00:00.000Z';let passed=0;
 function world(surface='calendar',store=new Map()){
  const post={id:'card-1',video_deliverable_id:'native-video-1',video_status:'Tweaks Needed',video_status_at:round,name:'Synthetic card'},sent=[],persisted=[],notices=[],confirms=[];
  const button=()=>({disabled:false,textContent:'URGENT',dataset:{},classList:{add(){}}});
@@ -16,6 +20,8 @@ function world(surface='calendar',store=new Map()){
  calState:{client:'Fixture',posts:[post]},sxrState:{client:'Fixture',posts:[post]},_kasperState:{items:[item],replies:[]},_sxrKasperFindItem:()=>item,
  localStorage:{getItem:k=>{if(ctx.readFailure)throw Error('storage');return store.get(k)||null;},setItem:(k,v)=>{if(ctx.writeFailure)throw Error('quota');store.set(k,v);},removeItem:k=>store.delete(k)},
  showNotify:(...x)=>notices.push(x),showConfirm:(title,text,fn)=>confirms.push(fn),
+ // The pre-send read: by default the card row cannot be read, which is the permissive path the older checks cover.
+ _urgentReadCardRow:async()=>ctx.cardRow||null,_calAwaitCardSave:async()=>{},_sxrAwaitCardSave:async()=>{},_calCacheWrite(){},_sxrCacheWrite(){},_calUpdateCardStatusDisplay(){},_sxrUpdateCardStatusDisplay(){},setTimeout,clearTimeout,Promise,
  _calAssertSavingOn:async()=>true,_sxrAssertSavingOn:async()=>true, _calPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},_sxrPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},
  fetch:async(url,options)=>{sent.push({url,options,body:JSON.parse(options.body)});if(ctx.afterFetch)await ctx.afterFetch();if(ctx.lost)throw Error('lost');
  // `staged` answers successive requests in order, so one attempt can cross lanes.

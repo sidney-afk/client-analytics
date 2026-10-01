@@ -529,17 +529,17 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             ? `<div class="cal-kebab-wrap">
                     <button class="cal-kebab" type="button" onclick="_sxrToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
                     <div class="cal-kebab-menu" id="sxrKebabMenu" hidden>
-                        <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                        <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_sxrCopyShareLink()" title="Copy the client link for these samples"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
                         <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
                             <div class="cal-kebab-sep" role="separator"></div>
-                            <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_arxOpen('sxr')" title="See recently archived samples and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived samples</button>
+                            <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_arxOpen('sxr')" title="Archived samples. Restore one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived samples</button>
                         </div>
                     </div>
                 </div>`
             : '';
         // Archive-only select mode (no colour-tag, no multi-post caption — both excluded).
         const selectBtnHtml = (sxrState.client && !_isClientLink && sxrState.view === 'organizer')
-            ? `<button class="cal-select-btn${sxrState.selectMode ? ' active' : ''}" type="button" data-select-action="archive" onclick="_sxrToggleSelectMode()" title="Select multiple samples to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            ? `<button class="cal-select-btn${sxrState.selectMode ? ' active' : ''}" type="button" data-select-action="archive" onclick="_sxrToggleSelectMode()" title="Pick several samples to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
             : '';
         const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet' };
         // Two tabs only — Review + Sheet. No Month/Week (samples have no dates).
@@ -1229,7 +1229,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const label = isThumb ? 'Thumbnail' : 'Video';
         const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
         const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
-            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_sxrOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
+            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_sxrOpenThumbnailFolder('${pid}')" title="Open the folder this link is in">${_calThumbFolderIconSvg()}</button>`
             : '';
         const compareSlot = isThumb ? _thumbCompareSlotHtml('samples', post, false, 'link') : '';
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
@@ -1242,7 +1242,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_sxrEsc(v)}" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
-                <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
+                <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
                 ${folderBtn}
                 ${compareSlot}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_sxrEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
@@ -1330,7 +1330,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const href = svRoute.clean('/?prod=1&d=' + encodeURIComponent(id));
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
-        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
+        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" title="Open the ${label} in SyncLinear">${mark}</a>`;
     }
     /* ── Fill a missing component, from the SAMPLE card that is missing it ──
      *
@@ -1385,7 +1385,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>`;
         return `<button class="cal-linear-btn cal-fill-btn cal-linear-btn-${target}" type="button"`
             + ` onclick="_sxrFillComponent('${_sxrEscAttr(pid)}','${target}')"`
-            + ` title="This sample has no ${label} yet. Add one, in the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}."`
+            + ` title="No ${label} yet. Add it to the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}."`
             + ` aria-label="Add the missing ${label} to this sample">${plus}</button>`;
     }
     /* Deterministic in the card and team, so every press is the SAME write: the
@@ -2487,7 +2487,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (_isClientLink && hidden) return '';   // client never sees creative direction hidden from them
         const eyeOn = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/></svg>`;
         const eyeOff = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.2A6.8 6.8 0 0 1 8 3.5c4.5 0 7 4.5 7 4.5a12 12 0 0 1-2 2.6M9.6 9.4A2 2 0 0 1 6.6 6.6"/><path d="M3 3l10 10"/></svg>`;
-        const eye = _isClientLink ? '' : `<button type="button" class="sxr-cd-eye${hidden ? ' is-hidden' : ''}" onclick="_sxrToggleCreativeVisibility('${pid}')" title="${hidden ? 'Hidden from client — click to show' : 'Visible to client — click to hide'}" aria-label="Toggle client visibility">${hidden ? eyeOff : eyeOn}</button>`;
+        const eye = _isClientLink ? '' : `<button type="button" class="sxr-cd-eye${hidden ? ' is-hidden' : ''}" onclick="_sxrToggleCreativeVisibility('${pid}')" title="${hidden ? 'Hidden from the client. Click to show.' : 'The client can see this. Click to hide.'}" aria-label="Toggle client visibility">${hidden ? eyeOff : eyeOn}</button>`;
         return `<div class="sxr-cd-wrap"><textarea class="sxr-cd-input" rows="2" data-pid="${pid}" data-fld="creative_direction" placeholder="Creative direction" oninput="_sxrOnFieldInput(this);_sxrAutosize(this)" onfocus="_sxrOnTextEditFocus(this)" onblur="_sxrOnTextEditBlur(this)" onkeydown="_sxrOnTextEditKey(event)"${editableText ? '' : ' readonly'}>${_sxrEsc(v)}</textarea>${eye}</div>`;
     }
     function _sxrTextDragLock(el, lock) {
@@ -2682,7 +2682,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                 </button>${urgentBtn}
             </div>`;
         }).join('');
-        const setAllHtml = (ro || _isClientLink || isBlank) ? '' : `<button type="button" class="cal-fld-setall" onclick="_sxrOpenSetAllMenu(event,'${pid}',this)" title="Set both statuses to the same value">
+        const setAllHtml = (ro || _isClientLink || isBlank) ? '' : `<button type="button" class="cal-fld-setall" onclick="_sxrOpenSetAllMenu(event,'${pid}',this)" title="Set both to the same status">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg>
             <span class="cal-fld-setall-label">Set all to…</span>
             <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
@@ -2691,7 +2691,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             ? `<div class="cal-client-status">${_sxrClientCompPillsHtml(p)}</div>`
             : `${(setAllHtml || subStatusHtml) ? `<div class="cal-card-substatus-row">${setAllHtml}${subStatusHtml}</div>` : ''}`;
         const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
-        const warnHtml = needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_sxrLinearEdit('${pid}')" title="Link this sample to its Linear sub-issue">${_sxrLinearSvg()}Link the Linear sub-issue</button>` : '';
+        const warnHtml = needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_sxrLinearEdit('${pid}')" title="Link this sample to its sub-issue">${_sxrLinearSvg()}Link the Linear sub-issue</button>` : '';
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && sxrState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_sxrCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
             ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
@@ -2699,7 +2699,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveSxrCard('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_sxrThumbClick(event,'${pid}')">${warnHtml}${_sxrThumbContent(p)}${(_isClientLink || ro) ? '' : _sxrLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
-                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same work item — archive one of them.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can’t share a sub-issue. Archive one.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_sxrTitleRowHtml(pid, p, ro, editableText)}</div>
                 ${_sxrLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, p)}
                 ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}
@@ -2707,7 +2707,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                 <div class="cal-card-foot">
                     ${_sxrCommentsBtnHtml(p, pid)}
                     ${p._saveError
-                        ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_sxrRetrySave('${pid}')" title="${_sxrEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
+                        ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_sxrRetrySave('${pid}')" title="${_sxrEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')}. Click to retry">Save failed · Retry</button>`
                         : `<span class="cal-card-saving" data-saving="${pid}" hidden></span>`}
                 </div>
                 <div class="cal-card-status-row">${statusHtml}</div>

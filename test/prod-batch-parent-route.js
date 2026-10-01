@@ -41,7 +41,9 @@ function build(issues) {
     if (i.displayId) byId.set(i.displayId, i);
     if (i.aliasId) byId.set(i.aliasId, i);
   });
-  const body = extractFunction(source, '_prodIssue') + '\n'
+  const body = 'const _prodLookupCache = new WeakMap();\n'
+    + extractFunction(source, '_prodLookups') + '\n'
+    + extractFunction(source, '_prodIssue') + '\n'
     + extractFunction(source, '_prodBatchParentIssue') + '\n'
     + 'return { _prodIssue, _prodBatchParentIssue };';
   return new Function('_prodIssues', body)(() => issues);

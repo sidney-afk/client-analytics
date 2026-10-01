@@ -158,10 +158,10 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
             el.className = 'cal-name-sync is-' + marker;
             if (marker === 'syncing') {
                 el.textContent = 'Name syncing…';
-                el.title = 'The new name is being copied to the linked sub-issues.';
+                el.title = 'Copying the new name to the linked sub-issues.';
             } else {
                 el.textContent = '';
-                el.title = 'The new name could not be copied to the linked sub-issues.';
+                el.title = 'Couldn’t copy the new name to the linked sub-issues.';
                 const label = document.createElement('span');
                 label.textContent = 'Name didn’t sync · ';
                 const btn = document.createElement('button');

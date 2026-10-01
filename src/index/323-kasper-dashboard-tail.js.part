@@ -160,8 +160,8 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                     })()}</div>
                     <div class="kasper-replies-title">${_calEsc(p.name || 'Untitled')}</div>
                 </div>
-                <a class="kasper-replies-open" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" title="Open this card in the content calendar (new tab)">Open<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h6.5V10M12.5 3.5L6.5 9.5M11 9v3.5H3.5V5H7"/></svg></a>
-                <button type="button" class="kasper-replies-read" onclick="_kasperMarkRepliesRead('${_calEscAttr(pid)}')" title="Mark this conversation as read and clear it from your messages">Mark as read</button>
+                <a class="kasper-replies-open" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" title="Open this card in the Calendar">Open<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h6.5V10M12.5 3.5L6.5 9.5M11 9v3.5H3.5V5H7"/></svg></a>
+                <button type="button" class="kasper-replies-read" onclick="_kasperMarkRepliesRead('${_calEscAttr(pid)}')" title="Mark as read and remove from your messages">Mark as read</button>
             </div>
             <div class="kasper-replies-thread">${threadHtml || '<div class="cal-review-comment-empty">No messages.</div>'}</div>
             <div class="cal-review-panel-compose kasper-replies-compose">

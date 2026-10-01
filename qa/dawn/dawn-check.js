@@ -34,6 +34,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { D, buildReport } = require('./dawn-report.js');
 const { readCoverage } = require('./templates-coverage.js');
+const { readSampleSync, GRACE_MINUTES } = require('./sample-sync.js');
 const H = require('../probes/ot4_lib.js');
 const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
 
@@ -302,6 +303,18 @@ async function templatesCoverage() {
   else record('templates', { ok: true, detail: D.templatesOk(c.current) });
 }
 
+// A sample status change saves the work item first and the sample's own record
+// second; if the page goes away between the two, the work item is left ahead and
+// the sample never reaches the client (sample-sync.js). Read-only; a stuck
+// sample is a ⚠️ with counts only, never a failed run.
+async function sampleSync() {
+  let c;
+  try { c = await readSampleSync({ supa: SUPA, key: KEY }); }
+  catch (e) { record('samples-sync', { ok: true, blocked: true, detail: D.samplesUnread() }); return; }
+  if (c.stuck) record('samples-sync', { ok: true, warn: true, detail: D.samplesStuck(c.stuckSamples, c.stuck, GRACE_MINUTES) });
+  else record('samples-sync', { ok: true, detail: D.samplesOk(c.compared) });
+}
+
 function report(started, calMs) {
   const { md, safe } = buildReport({ started, results, violations: violations.length, calMs, baseline: BASELINE });
   if (!safe) console.error('dawn-check: report withheld, it failed the public allowlist');
@@ -338,6 +351,7 @@ function report(started, calMs) {
     await timeTab(browser, 'analytics', '/index.html#home',
       () => [...document.querySelectorAll('.cell-inner')].some(c => !c.querySelector('.sv-skeleton') && /\d/.test(c.textContent)));
     await templatesCoverage();
+    await sampleSync();
   } catch (e) {
     // The message can quote card text; the public log gets the error class only.
     console.error('dawn-check: harness stopped early (' + ((e && e.name) || 'Error') + ')');

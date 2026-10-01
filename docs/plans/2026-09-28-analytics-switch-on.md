@@ -151,7 +151,7 @@ usable: its other flag reads fail there on the network, as on main.
 
 ## 5. Switch-on plan (in plain English)
 
-Nothing below has been done; each step is the owner's.
+Status 2026-10-01: steps 1 to 6 are done (step 6 by Lighthouse with the owner's go, after the 16:31 UTC daily run ended `PARITY: clean`; EXECUTION_LOG.md). Step 7 is still to do.
 
 1. **Deploy** `analytics-read` from this PR through "Deploy one allowlisted
    Edge Function"

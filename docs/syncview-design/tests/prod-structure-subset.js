@@ -544,8 +544,8 @@ async function assertNoWriteRequests(requests) {
        it names the real reason (this control is not wired to select) and
        the two shortcuts that already do the job. */
     const groupCheckToast = await text(page, '#prodToast');
-    if (!groupCheckToast.includes('does not select the group yet')) throw new Error('Group checkbox did not explain why it refused: ' + groupCheckToast);
-    if (groupCheckToast.includes('Preview - read-only')) throw new Error('Group checkbox still blames the read-only preview, which this surface no longer is under the live flag');
+    if (!groupCheckToast.includes('can’t select the whole group yet')) throw new Error('Group checkbox did not explain why it refused: ' + groupCheckToast);
+    if (groupCheckToast.includes('View only for now')) throw new Error('Group checkbox still blames the read-only preview, which this surface no longer is under the live flag');
     await page.keyboard.press('Escape');
     await page.locator('#prodFilterBtn').click();
     await expectCount(page, '.prod-pop [data-prod-ffield="status"]', 1, 'Filter menu status condition');
@@ -659,7 +659,7 @@ async function assertNoWriteRequests(requests) {
     const lockedWriteState = writeFixture;
     if (!['video', 'graphics'].includes(lockedWriteState.team)
       || lockedWriteState.canStatus
-      || !lockedWriteState.statusGate.includes('stays read-only while Linear is authoritative.')) {
+      || !lockedWriteState.statusGate.includes('is view only for now. Linear is still the source.')) {
       throw new Error('Linear-authoritative fixture did not fail closed: ' + JSON.stringify(lockedWriteState));
     }
     await expectExactCount(row, '[data-prod-write="on"]', 0, 'Linear-authoritative fixture row exposes no writable controls');
@@ -722,7 +722,7 @@ async function assertNoWriteRequests(requests) {
     const bulkAllLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
     if (bulkAllLabels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu order: ' + bulkAllLabels);
     const bulkProjectReason = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-disabled="bulk-proj"]').getAttribute('data-prod-tip');
-    if (!bulkProjectReason || !/cannot be moved between clients/i.test(bulkProjectReason)) {
+    if (!bulkProjectReason || !/move this to another client/i.test(bulkProjectReason)) {
       throw new Error('Bulk Move to project did not explain why it cannot act: ' + bulkProjectReason);
     }
     const bulkDeleteReason = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-disabled="bulk-delete"]').getAttribute('data-prod-tip');
@@ -789,7 +789,7 @@ async function assertNoWriteRequests(requests) {
     if (contextReasons.some(t => !t)) {
       throw new Error('A disabled context entry carries no reason at all');
     }
-    if (contextReasons.some(t => t === 'Preview - read-only')) {
+    if (contextReasons.some(t => t === 'View only for now')) {
       throw new Error('A disabled context entry still blames the read-only preview: ' + contextReasons.join(' | '));
     }
     if (new Set(contextReasons).size !== contextReasons.length) {

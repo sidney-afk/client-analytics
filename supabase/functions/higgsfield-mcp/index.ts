@@ -136,6 +136,11 @@ const INSTRUCTIONS = [
 ].join(" ");
 
 const EMPTY = { type: "object", properties: {}, additionalProperties: false };
+// When Higgsfield prices a model with a sentence the connector cannot read,
+// Claude works the price out from that sentence and passes it here; it is
+// shown as an estimate and reserved from the budget like any other price.
+const MAX_QUOTED_USD = 40;
+const QUOTED_ARG = { type: "number", description: `Only when price_check said Higgsfield's price description cannot be read: your own price in dollars worked out from that description, rounded up (at most ${MAX_QUOTED_USD}). Pass the same number to price_check and create.` };
 const MODEL_ARG = { type: "string", description: "Model id, e.g. bytedance/seedance-2.5/text-to-video" };
 const INPUTS_ARG = { type: "object", description: "The model's settings, as listed by model_details (prompt, duration, aspect_ratio, image_url, ...)." };
 
@@ -169,13 +174,13 @@ const TOOLS = [
     name: "price_check",
     _meta: VIEWER_META,
     description: "Exact cost in dollars of a request, without making anything.",
-    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG } },
+    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG } },
   },
   {
     name: "create",
     _meta: VIEWER_META,
     description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for wait_for_job.",
-    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG } },
+    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG } },
   },
   {
     name: "check_job",
@@ -426,30 +431,64 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
   return { error: `Higgsfield returned no price for this request (reply: ${raw || "empty"}). This model may not support price checks yet.` };
 }
 
-// Some video-input models (Seedance video edit/extend) answer the estimate
-// with a sentence instead of a number: "... roughly $0.1234 at 480p, $0.2773
-// at 720p ... per second of combined input and output". Price = that rate x
-// (input seconds + output seconds), measured from the source videos. Kept an
-// upper bound: 10% margin, the 30-second input budget, output at least 4 s,
-// and the full budget when a video's length cannot be read.
+// Many models answer the estimate with a sentence instead of a number, in a
+// few shapes seen live (2026-09/10):
+//   per second:  "$0.2773 at 720p ... per second of combined input and output"
+//                "Priced per generated second by resolution: 480p $0.05, 720p $0.10"
+//                "Each second of input video costs $0.318 at 480p, $0.681 at 720p"
+//   video tokens: "tokens = ceil(seconds x width x height x 24 fps / 1024) ...
+//                 Per 1,000 video tokens: 480p/720p/1080p $0.014, 4K $0.008"
+//   image tokens: "Per 1M tokens: text input $5 ... image output $30" (GPT Image)
+// Every reading is kept an upper bound: the highest dollar figure in the
+// sentence naming the chosen resolution, a 10% margin, the 30-second input
+// budget, output at least 4 s, the full budget for an unreadable video, and
+// a 16:9 frame when the shape is unknown (same area as 9:16). Anything else
+// returns an error, and Claude may then quote its own reading (see max_usd).
 const VIDEO_BUDGET_S = 30;
+const SHORT_SIDE: Record<string, number> = { "480p": 480, "540p": 540, "720p": 720, "1080p": 1080, "1440p": 1440, "2k": 1440, "4k": 2160 };
+function rateFor(text: string, res: string): number {
+  const all = (t: string) => [...t.matchAll(/\$\s?(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1])).filter((n) => n > 0);
+  const named = text.split(/(?<=[.;])\s+|,\s+(?:or\s+|and\s+)?(?=\$|\d{3,4}p|4k)/i).filter((c) => new RegExp(`(^|[^\\d])${res.replace("k", "[kK]")}`, "i").test(c));
+  const pool = named.flatMap(all);
+  return Math.max(0, ...(pool.length ? pool : all(text)));
+}
 async function describedPrice(model: string, inputs: JsonMap, text: string): Promise<{ usd: number } | { error: string }> {
+  const unreadable = { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 600)}"` };
   const schema = BY_ID.get(model)?.schema as Schema | undefined;
-  const res = String(inputs.resolution || schema?.properties?.resolution?.default || "720p");
-  const rates = new Map<string, number>();
-  for (const m of text.matchAll(/\$([\d.]+)\s+at\s+(\d{3,4}p)/g)) rates.set(m[2], Math.max(rates.get(m[2]) || 0, Number(m[1])));
-  const rate = rates.get(res) ?? Math.max(0, ...rates.values());
-  if (!(rate > 0) || !/per second/i.test(text)) return { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 300)}"` };
+  const res = String(inputs.resolution || schema?.properties?.resolution?.default || "720p").toLowerCase();
+  if (/per 1m tokens/i.test(text) && /image output/i.test(text)) {
+    const q = String(inputs.quality || (/defaults to high/i.test(text) ? "high" : "medium"));
+    const est = directEstimate("openai/gpt-image", { ...inputs, quality: q, size: "auto" });
+    return "error" in est ? unreadable : { usd: Math.round(est.usd * 1.1 * 10000) / 10000 };
+  }
+  const rate = rateFor(text, res);
+  if (!(rate > 0)) return unreadable;
   const links = [inputs.video_url, ...(Array.isArray(inputs.video_urls) ? inputs.video_urls : [])].filter(Boolean).map(String);
   // One at a time, so a request with many reference videos never holds more
   // than one download open.
   const lengths: Array<number | null> = [];
   for (const link of links) lengths.push(await videoSeconds(link));
   const main = Math.max(4, Math.min(VIDEO_BUDGET_S, lengths[0] ?? VIDEO_BUDGET_S));
-  const input = Math.min(VIDEO_BUDGET_S, lengths.reduce((a: number, b) => a + Math.max(4, b ?? VIDEO_BUDGET_S), 0) || main);
+  const input = links.length ? Math.min(VIDEO_BUDGET_S, lengths.reduce((a: number, b) => a + Math.ceil(Math.max(4, b ?? VIDEO_BUDGET_S)), 0)) : 0;
   const asked = Number(inputs.duration ?? schema?.properties?.duration?.default);
   const output = asked > 0 ? asked : main;
-  return { usd: Math.round(rate * (input + output) * 1.1 * 10000) / 10000 };
+  // Input seconds count only when the sentence bills input video; output
+  // seconds unless it bills input video alone.
+  const billsInput = /input video seconds|second of input video|combined input|input and output|input \+ output/i.test(text);
+  const inputOnly = /second of input video/i.test(text) && !/generated|output/i.test(text);
+  const seconds = (billsInput ? input : 0) + (inputOnly ? 0 : output);
+  let usd: number;
+  if (/video tokens/i.test(text)) {
+    const short = SHORT_SIDE[res];
+    if (!short) return unreadable;
+    const [a, b] = String(inputs.aspect_ratio || "16:9").split(":").map(Number);
+    const ratio = a > 0 && b > 0 ? Math.max(a, b) / Math.min(a, b) : 16 / 9;
+    const tokens = Math.ceil((seconds * short * Math.round(short * ratio) * 24) / 1024);
+    usd = (tokens / 1000) * rate;
+  } else if (/second/i.test(text)) {
+    usd = rate * seconds;
+  } else return unreadable;
+  return { usd: Math.round(usd * 1.1 * 10000) / 10000 };
 }
 
 // Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box
@@ -905,9 +944,19 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const inputs = inputsOf();
     const problems = validate(BY_ID.get(id)!.schema as Schema, inputs);
     if (problems.length) return "Fix these settings first:\n- " + problems.join("\n- ") + "\n\n" + describeModel(id);
-    const est = await estimate(id, inputs);
+    let est = await estimate(id, inputs);
+    let quoted = false;
+    if ("error" in est && est.error.includes("cannot read")) {
+      const q = Number(args.quoted_usd);
+      if (!(q > 0)) return "Higgsfield could not price this request: " + est.error
+        + `\n\nWork the price out yourself from that description (use the settings above; assume a 16:9 frame when unsure; round up), then call price_check again with quoted_usd set to it (at most $${MAX_QUOTED_USD}). Do not switch models just because of this.`;
+      if (q > MAX_QUOTED_USD) return `A worked-out price over $${MAX_QUOTED_USD} is not accepted. Lower the length or quality, or pick a model with an exact price.`;
+      est = { usd: Math.ceil(q * 100) / 100 };
+      quoted = true;
+    }
     if ("error" in est) return "Higgsfield could not price this request: " + est.error;
-    if (name === "price_check") return planCard(id, inputs, est.usd) + "\n" + await budget() + "\n\nSay go, or tell me what to change.";
+    const note = quoted ? "\n(Estimated from Higgsfield's pricing rules, since it gave no exact number; the real charge may differ slightly.)" : "";
+    if (name === "price_check") return planCard(id, inputs, est.usd) + note + "\n" + await budget() + "\n\nSay go, or tell me what to change.";
     if (CAP_USD === null) return BAD_CAP;
 
     return (await submitJob(member, id, inputs, est.usd, cap)).text;

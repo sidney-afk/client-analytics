@@ -2438,7 +2438,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         if (!totals) return '';
         const pills = WL_STATUS_QUEUES.filter(queue => totals[queue.key] > 0).map(queue => {
             const total = totals[queue.key];
-            const label = `See ${total} sub-issue${total === 1 ? '' : 's'} ${queue.suffix}`;
+            const label = queue.suffix === 'overdue' ? `See ${total} overdue sub-issue${total === 1 ? '' : 's'}` : `See ${total} sub-issue${total === 1 ? '' : 's'} ${queue.suffix === 'awaiting tweaks' ? 'with tweaks' : queue.suffix}`;
             return `<button type="button" class="wl-day-status-pill is-${queue.key}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${queue.sourceMode}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="" data-wl-in-progress="${queue.key === 'inprogress' ? '1' : '0'}" data-wl-editor-name="${wlEscape(editorName || 'Unknown')}" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}">${total}</button>`;
         });
         if (!pills.length) return '';
@@ -2607,7 +2607,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     <span class="wl-now-client-chip-count">${client.count}</span>
                 </a>`;
             }).join('');
-            const totalLabel = `See ${status.total} sub-issue${status.total === 1 ? '' : 's'} ${spec.suffix}`;
+            const totalLabel = spec.suffix === 'overdue' ? `See ${status.total} overdue sub-issue${status.total === 1 ? '' : 's'}` : `See ${status.total} sub-issue${status.total === 1 ? '' : 's'} ${spec.suffix === 'awaiting tweaks' ? 'with tweaks' : spec.suffix}`;
             return `<div class="workload-overview-status ${statusClass}" data-wl-status-label="${statusLabel}">
                 <div class="workload-overview-status-clients">${chips}</div>
                 <button type="button" class="workload-overview-status-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${spec.sourceMode}" data-wl-assignee-id="${wlEscape(editor.assigneeId)}" data-wl-client="" data-wl-in-progress="${inProgress}" data-wl-editor-name="${wlEscape(wlDisplayName(editor.assigneeName) || 'Unknown')}" aria-label="${wlEscape(totalLabel)}">${status.total}</button>

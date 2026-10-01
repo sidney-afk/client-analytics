@@ -260,7 +260,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const items = links.map(l => {
             const p = CAL_PLATFORM_BY_KEY[l.key] || {};
             const lbl = p.label || l.key;
-            return `<a class="cal-client-link-item" href="${_calEscAttr(l.url)}" target="_blank" rel="noopener noreferrer" onclick="_calCloseClientLinks()" title="Open ${_calEscAttr(lbl)} in a new tab">`
+            return `<a class="cal-client-link-item" href="${_calEscAttr(l.url)}" target="_blank" rel="noopener noreferrer" onclick="_calCloseClientLinks()" title="Open ${_calEscAttr(lbl)}">`
                 + `<span class="cal-client-link-ico" style="color:${p.color || 'var(--text-secondary)'}">${p.icon || ''}</span>`
                 + `<span class="cal-client-link-txt"><span class="cal-client-link-name">${_calEsc(lbl)}</span><span class="cal-client-link-sub">${_calEsc(l.sub)}</span></span>`
                 + `<span class="cal-client-link-ext" aria-hidden="true">${_mrExternalLink}</span></a>`;
@@ -334,7 +334,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             ? `<div class="cal-kebab-wrap">
                     <button class="cal-kebab" type="button" onclick="_calToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
                     <div class="cal-kebab-menu" id="calKebabMenu" hidden>
-                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();calCopyShareLink()" title="Copy a client-facing link to this calendar"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();calCopyShareLink()" title="Copy the client link for this calendar"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
                         <div class="cal-kebab-sep" role="separator"></div>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Platform</button>
@@ -348,7 +348,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                         </div>
                         <div data-staff-capability="restore-archived"${_syncviewStaffCan('restore-archived') ? '' : ' hidden'}>
                             <div class="cal-kebab-sep" role="separator"></div>
-                            <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_arxOpen('cal')" title="See recently archived cards and restore one"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived cards</button>
+                            <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_arxOpen('cal')" title="Archived cards. Restore one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg>Archived cards</button>
                         </div>
                     </div>
                 </div>`
@@ -357,10 +357,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         // Keep both Sheet-only controls mounted across Review/Month/Week. A shell
         // first built in another view can then reveal them without a rebuild.
         const selectBtnHtml = (calState.client && !_isClientLink)
-            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" data-select-action="archive" onclick="_calToggleSelectMode()" title="Select multiple posts to color-tag or archive"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" data-select-action="archive" onclick="_calToggleSelectMode()" title="Pick several cards to color or archive"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
             : '';
         const bulkCapBtnHtml = (calState.client && !_isClientLink)
-            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" data-select-action="caption" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
+            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" data-select-action="caption" onclick="_calToggleSelectMode('caption')" title="Write captions for several cards"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
             : '';
         const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
         // The client link gets the client approval queue ('review'); the SMM
@@ -505,7 +505,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const isActive = name === active;
             return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" data-cal-tab="${_calEscAttr(name)}" onclick="onCalTabClick(${_jsAttrArg(name)})">
                 <span class="cal-tab-name">${_calEsc(name)}</span>
-                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove(${_jsAttrArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
+                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove(${_jsAttrArg(name)})" title="Close this client’s tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
             </button>`;
         }).join('');
         const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
@@ -1477,7 +1477,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         </div>`;
     }
     function _calMiniDriveWarnHtml() {
-        return `<div class="cal-mini-drive-warn" title="Thumbnail can't load — the Google Drive thumbnails folder needs to be shared with &quot;Anyone with the link&quot;."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>`;
+        return `<div class="cal-mini-drive-warn" title="Thumbnail won’t load. Share the Google Drive thumbnails folder with &quot;Anyone with the link&quot;."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>`;
     }
     /* Host of a pasted link, tolerating a missing scheme (f.io/abc → f.io). */
     function _calLinkHost(url) {
@@ -1656,8 +1656,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        cards, client review, Kasper's queue). 'folder' → a folder of images;
        anything else → a Frame.io thumbnail. */
     function _calOpenCardMeta(kind) {
-        if (kind === 'folder') return { cta: 'Open folder', title: 'Open folder in a new tab', tip: 'Folder of images', badge: _calFolderMarkSvg() };
-        return { cta: 'Open thumbnail', title: 'Open thumbnail in Frame.io', tip: 'Frame.io thumbnail', badge: _calFrameMarkSvg() };
+        if (kind === 'folder') return { cta: 'Open folder', title: 'Open the image folder', tip: 'Image folder', badge: _calFolderMarkSvg() };
+        return { cta: 'Open thumbnail', title: 'Open the thumbnail Frame link', tip: 'Thumbnail Frame link', badge: _calFrameMarkSvg() };
     }
     /* Small kind-aware "this is a click-to-open link, not an inline image" badge
        for the COMPACT surfaces (month pill, week card, collapsed review/Kasper
@@ -1780,7 +1780,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (!known || known.available !== true || known.version !== _thumbCompareVersion(post)) return '';
         const isLinkAction = placement === 'link';
         const cls = 'thumb-compare-trigger' + (compact ? ' is-compact' : '') + (isLinkAction ? ' is-link-action cal-link-folder' : '');
-        const label = 'Compare previous and current thumbnails';
+        const label = 'Compare old and new thumbnail';
         const text = isLinkAction ? '' : '<span>Compare</span>';
         return `<button type="button" class="${cls}" data-thumb-compare-surface="${_calEscAttr(surface)}" data-thumb-compare-client="${_calEscAttr(client)}" data-thumb-compare-pid="${_calEscAttr(post.id)}" onclick="_thumbCompareOpen(event,this.dataset.thumbCompareSurface,this.dataset.thumbComparePid)" title="${_calEscAttr(label)}" aria-label="${_calEscAttr(label)}">${_thumbCompareIconSvg()}${text}</button>`;
     }
@@ -2143,10 +2143,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             ? (hiddenByFilter
                 ? `<div class="cal-filter-empty"><div class="cal-filter-empty-title">${_calEsc(filterEmptyTitle)}</div><div class="cal-filter-empty-sub"><button type="button" class="cal-link" onclick="onCalClearFilters()">Clear filters</button> to see ${calState.posts.length} other post${calState.posts.length === 1 ? '' : 's'}.</div></div>`
                 : (canAddCard
-                    ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Create Post'}">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Create Post'}</span></button>`
+                    ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Create a new card'}">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Create Post'}</span></button>`
                     : `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No posts to show yet</div><div class="cal-filter-empty-sub">Finished posts will appear here.</div></div>`))
             : (canAddCard
-                ? `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Create Post'}">${plus}</button>`
+                ? `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Create a new card'}">${plus}</button>`
                 : '');
         const isCaptionAction = calState.selectAction === 'caption';
         // The default multi-select bar carries the color swatches AND Archive
@@ -2195,7 +2195,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const label = isThumb ? 'Thumbnail' : 'Video';
         const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
         const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
-            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_calOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
+            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_calOpenThumbnailFolder('${pid}')" title="Open the folder this link is in">${_calThumbFolderIconSvg()}</button>`
             : '';
         const compareSlot = isThumb ? _thumbCompareSlotHtml('calendar', post, false, 'link') : '';
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
@@ -2224,7 +2224,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
-                <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
+                <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
                 ${folderBtn}
                 ${compareSlot}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
@@ -2356,7 +2356,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const href = svRoute.clean('/?prod=1&d=' + encodeURIComponent(id));
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
-        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
+        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the ${label} in SyncLinear">${mark}</a>`;
     }
     /* ── Fill a missing component, from the card that is missing it ──────
      *
@@ -2405,7 +2405,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>`;
         return `<button class="cal-linear-btn cal-fill-btn cal-linear-btn-${target}" type="button"`
             + ` onclick="_calFillComponent('${_calEscAttr(pid)}','${target}')"`
-            + ` title="This post has no ${label} yet — add one, in the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}"`
+            + ` title="No ${label} yet. Add it to the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}"`
             + ` aria-label="Add the missing ${label} to this post">${plus}</button>`;
     }
     /* The request id is DETERMINISTIC in the card and team, and that is the
@@ -2618,7 +2618,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         // delivery link says what it is instead of posing as Frame.io.
         const isFrame = _calIsFrameLink(entry.url);
         const what = isFrame ? 'Frame.io' : _calLinkLabel(entry.url);
-        const tip = 'Open this client\'s ' + what + ' folder in a new tab';
+        const tip = 'Open this client\'s ' + what + ' folder';
         return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</a>`;
     }
     function _calLinearPileHtml(pid, p) {
@@ -2656,7 +2656,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (!ro && !_isClientLink && _calTitlePillShown(p)) {
             const ts = _calNormStatus(p.title_status || 'In Progress');
             const slug = _calStatusSlug(ts);
-            titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
+            titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title: ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
             // The title is the one review component with no pill in the
             // sub-status row -- that row maps CAL_COMPONENTS, which deliberately
             // excludes it (see CAL_REVIEW_COMPONENTS). Without this the URGENT

@@ -579,6 +579,7 @@
     "track-b-recovery-v7-preparation.js",
     "truth-sync.js",
     "urgent-editor-website-only.js",
+    "urgent-ping-fresh-round.js",
     "urgent-ping-persistence.js",
     "video-artifact-rollback-record.js",
     "workload-early-snapshot.js",

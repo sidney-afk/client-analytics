@@ -253,7 +253,7 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
-- **SyncLinear opens and finishes faster, same page (2026-10-01, OPEN_REPAIRS 314).** Measured on the live
+- **SyncLinear opens and finishes faster, same page (2026-10-01, OPEN_REPAIRS 315).** Measured on the live
   site first: quick to use (switch 60 ms, no dropped frame, card under 100 ms), slow to finish (complete
   list 7.9 s in, 3.25 MB cold). The finished-items read now starts beside the live read (with a catch-up
   point for the next refresh), page one of the big reads starts when sign-in passes, and the per-row scans use lookup tables.

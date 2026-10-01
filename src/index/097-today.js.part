@@ -358,7 +358,10 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             { key: 'links', label: 'Missing links', rows: d.posts.filter(p => liveCal(p) && _calSmmMediaGap(p)).map(p => ({ kind: 'post', p })) },
             { key: 'captions', label: 'Captions to write', rows: d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim()).map(p => ({ kind: 'post', p })) },
             { key: 'schedule', label: 'To schedule', rows: d.posts.filter(p => p.status === 'Approved').map(p => ({ kind: 'post', p })) },
-            { key: 'dates', label: 'Dates to move', rows: d.open.filter(r => r.status !== 'smm_approval' && r.due_date && r.due_date < today).map(r => ({ kind: 'del', r })) }
+            /* Only work items still in To Do: those are the ones Workload places
+               by due date, so a past date strands them there. A tweak or an
+               approval already sits in its own queue (owner, 2026-10-01). */
+            { key: 'dates', label: 'Dates to move', rows: d.open.filter(r => r.status === 'todo' && r.due_date && r.due_date < today).map(r => ({ kind: 'del', r })) }
         ];
     }
     function _tdySmmRow(x, d) {

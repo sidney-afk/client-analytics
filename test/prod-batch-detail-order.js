@@ -38,6 +38,8 @@ function build(rows) {
     + extractFunction(source, '_prodWriteTeam') + '\n'
     + extractFunction(source, '_prodChildTeamRank') + '\n'
     + extractFunction(source, '_prodChildOrder') + '\n'
+    + constant('_prodLookupCache') + '\n'
+    + extractFunction(source, '_prodLookups') + '\n'
     + extractFunction(source, '_prodChildrenOf') + '\n'
     + extractFunction(source, '_prodBatchRows') + '\n'
     + 'return { _prodBatchRows, _prodChildrenOf };';
@@ -98,7 +100,7 @@ ok(JSON.stringify(parentOrder) === JSON.stringify(EXPECTED),
   '_prodChildrenOf agrees with _prodBatchRows -- both read _prodChildOrder');
 
 // The shared comparator itself is what both callers use.
-ok(/function _prodChildrenOf\(id\) \{\s*return _prodIssues\(\)\.filter\(d => d\.parent === id\)\.sort\(_prodChildOrder\);/.test(source),
+ok(/function _prodChildrenOf\(id\) \{[\s\S]*?\.slice\(\)\.sort\(_prodChildOrder\);/.test(source),
   '_prodChildrenOf sorts with the shared _prodChildOrder comparator');
 ok(/function _prodBatchRows\(batchId\) \{[\s\S]*?\.sort\(_prodChildOrder\);\s*\}/.test(source),
   '_prodBatchRows sorts with the same shared _prodChildOrder comparator');

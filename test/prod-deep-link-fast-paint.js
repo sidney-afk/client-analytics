@@ -128,6 +128,10 @@ function newHarness(opts) {
     // across phase one when it is not. Neither affects the deep-link paint,
     // so both are mirrored at their identity behaviour.
     _prodTerminalTailFullDue: () => true,
+    // Added 2026-10-01: a load that will end in a full tail starts that read
+    // beside the live one. It only moves when a request is SENT and the tail
+    // is stubbed here, so it is mirrored as a no-op.
+    _prodStartTailPrefetch() {},
     _prodCarryTerminalRows: (live) => live,
     _prodAdvanceBatchDeltaCursor() {},
     _prodInvalidateBatchDescriptionReads() {},

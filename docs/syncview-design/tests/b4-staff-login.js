@@ -222,10 +222,10 @@ async function selectMember(page, member) {
     assert(await page.locator(`#staffIdentityMemberMenu [data-value="${ADMIN.id}"]`).getAttribute('aria-selected') === 'true', 'selected roster option updates aria-selected');
 
     const roleKeyToggle = page.locator('#staffIdentityKeyToggle');
-    assert(await roleKeyToggle.getAttribute('aria-label') === 'Show role key', 'role-key visibility toggle has an accessible initial label');
+    assert(await roleKeyToggle.getAttribute('aria-label') === 'Show your key', 'role-key visibility toggle has an accessible initial label');
     await roleKeyToggle.click();
     assert(await page.locator('#staffIdentityKey').getAttribute('type') === 'text' && await page.locator('#staffIdentityKey').inputValue() === ADMIN_KEY, 'role-key visibility toggle reveals without changing the value');
-    assert(await roleKeyToggle.getAttribute('aria-label') === 'Hide role key', 'role-key visibility toggle updates its accessible label');
+    assert(await roleKeyToggle.getAttribute('aria-label') === 'Hide your key', 'role-key visibility toggle updates its accessible label');
     await roleKeyToggle.click();
     assert(await page.locator('#staffIdentityKey').getAttribute('type') === 'password', 'role-key visibility toggle restores password masking');
 

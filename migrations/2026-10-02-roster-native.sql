@@ -23,6 +23,14 @@
 --   roster_authority()                        reads the one switch, fails
 --                                             closed (missing flag = not
 --                                             "syncview").
+--   roster_is_test_client(),                  the test client is never enrolled,
+--   roster_route_enrol()                      removed or archived; creating or
+--                                             restoring a client adds it to the four
+--                                             save-permission lists in the same
+--                                             transaction (owner, 2026-10-02).
+--   client_profile_archive()                  archive a client: out of the four
+--                                             lists, inactive, history, Sheet row
+--                                             removed by the copy.
 --   client_profile_service_write()            create or change one client from
 --                                             n8n (onboarding, the Slack
 --                                             channel finalizer) or an admin;
@@ -101,6 +109,78 @@ as $fn$
     '');
 $fn$;
 
+-- ---------- The test client is never touched ----------
+create or replace function public.roster_is_test_client(p_slug text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = public, pg_temp
+as $fn$
+  select p_slug = 'sidneylaruel'
+      or exists (select 1 from public.clients c where c.slug = p_slug and c.kind = 'test');
+$fn$;
+
+-- ---------- The four save-permission lists ----------
+-- Adds or removes one client in sample_review_ef_clients, calendar_upsert_ef_clients,
+-- settings_ef_clients and write_ui_reroute_clients inside the caller's
+-- transaction. The four rows are locked in key order first (the order the
+-- native client provisioning uses), every list is checked to be a well-formed
+-- {"clients": [...]} object with no duplicates, and a bad or missing list
+-- refuses the whole call: a malformed live flag is never rewritten. The test
+-- client is skipped (never enrolled, never removed). Adding a client already
+-- there, or removing one that is not, changes nothing.
+create or replace function public.roster_route_enrol(p_slug text, p_on boolean)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $fn$
+declare
+  keys constant text[] := array[
+    'calendar_upsert_ef_clients', 'sample_review_ef_clients', 'settings_ef_clients', 'write_ui_reroute_clients'];
+  k text;
+  rec record;
+  flags jsonb := '{}'::jsonb;
+  val jsonb;
+  changed text[] := '{}';
+begin
+  if p_slug is null or p_slug !~ '^[a-z0-9][a-z0-9_&-]{0,99}$' then raise exception 'client_profile_bad_slug'; end if;
+  if public.roster_is_test_client(p_slug) then
+    return jsonb_build_object('skipped', 'test_client', 'changed', to_jsonb(changed));
+  end if;
+  for rec in select key, value from public.syncview_runtime_flags where key = any (keys) order by key for update loop
+    flags := flags || jsonb_build_object(rec.key, rec.value);
+  end loop;
+  foreach k in array keys loop
+    val := flags -> k;
+    if jsonb_typeof(val) is distinct from 'object'
+       or jsonb_typeof(val -> 'clients') is distinct from 'array'
+       or exists (select 1 from jsonb_array_elements(val -> 'clients') e where jsonb_typeof(e) is distinct from 'string')
+       or (select count(*) from jsonb_array_elements_text(val -> 'clients'))
+          <> (select count(distinct e) from jsonb_array_elements_text(val -> 'clients') e) then
+      raise exception 'roster_routing_flag_invalid: %', k;
+    end if;
+  end loop;
+  foreach k in array keys loop
+    val := flags -> k;
+    if p_on and not (val -> 'clients') @> to_jsonb(p_slug) then
+      update public.syncview_runtime_flags
+        set value = jsonb_set(val, '{clients}', (val -> 'clients') || jsonb_build_array(p_slug), false)
+        where key = k;
+      changed := changed || k;
+    elsif not p_on and (val -> 'clients') @> to_jsonb(p_slug) then
+      update public.syncview_runtime_flags
+        set value = jsonb_set(val, '{clients}',
+          coalesce((select jsonb_agg(e) from jsonb_array_elements(val -> 'clients') e where e <> to_jsonb(p_slug)), '[]'::jsonb), false)
+        where key = k;
+      changed := changed || k;
+    end if;
+  end loop;
+  return jsonb_build_object('changed', to_jsonb(changed));
+end
+$fn$;
+
 -- ---------- Create or change one client ----------
 -- p_columns: real client_profiles columns to set (a blank string clears one).
 -- p_extra:   fields kept in client_profiles.extra (postforme_instagram_account_id).
@@ -141,6 +221,7 @@ declare
   newv    text;
   made    boolean := false;
   restored boolean := false;
+  routing jsonb;
   changed int := 0;
   stamp   timestamptz := clock_timestamp();
 begin
@@ -248,7 +329,61 @@ begin
 
   insert into public.roster_sheet_outbox (tab, client_slug, client_name)
     values ('Clients Info', p_slug, nxt.display_name);
-  return jsonb_build_object('created', made, 'changed', changed, 'row', to_jsonb(nxt) - 'row_hash');
+  -- A client created or brought back can save: it joins the four permission
+  -- lists and becomes active, in this same transaction (a malformed list
+  -- refuses the whole call). The test client is skipped. A plain field change
+  -- never touches the lists.
+  if made or restored then
+    routing := public.roster_route_enrol(p_slug, true);
+    update public.clients set active = true, updated_at = stamp
+      where slug = p_slug and kind = 'client' and not active;
+  end if;
+  return jsonb_build_object('created', made, 'changed', changed, 'row', to_jsonb(nxt) - 'row_hash',
+    'routing', coalesce(routing, '{}'::jsonb));
+end
+$fn$;
+
+-- ---------- Archive a client ----------
+-- Out of the four save-permission lists, inactive, history written, and the
+-- Sheet copy removes the client's Clients Info row (so the daily roster job,
+-- which reads that tab, cannot bring it back). Refused for the test client.
+-- Archiving twice changes nothing.
+create or replace function public.client_profile_archive(
+  p_slug       text,
+  p_actor      text,
+  p_role       text,
+  p_request_id text
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $fn$
+declare
+  cur     public.client_profiles;
+  routing jsonb;
+  stamp   timestamptz := clock_timestamp();
+begin
+  if public.roster_authority() is distinct from 'syncview' then
+    raise exception 'roster_authority_not_syncview';
+  end if;
+  if p_role is null or p_role not in ('n8n', 'admin') then raise exception 'client_profile_write_bad_role'; end if;
+  if coalesce(btrim(p_actor), '') = '' then raise exception 'client_profile_write_actor_required'; end if;
+  if p_slug is null or p_slug !~ '^[a-z0-9&]+$' then raise exception 'client_profile_bad_slug'; end if;
+  if public.roster_is_test_client(p_slug) then raise exception 'roster_test_client_untouchable'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('client_profile:' || p_slug, 0));
+  select * into cur from public.client_profiles where slug = p_slug for update;
+  if not found then raise exception 'client_profile_missing'; end if;
+  if cur.archived_at is not null then
+    return jsonb_build_object('archived', false, 'already', true);
+  end if;
+  update public.client_profiles set archived_at = stamp, source = 'syncview', updated_by = btrim(p_actor), updated_at = stamp
+    where slug = p_slug;
+  insert into public.client_profile_edits (slug, field, old_value, new_value, edited_by, edited_role, request_id)
+    values (p_slug, '(archived)', null, cur.display_name, btrim(p_actor), p_role, p_request_id);
+  routing := public.roster_route_enrol(p_slug, false);
+  update public.clients set active = false, updated_at = stamp where slug = p_slug and kind = 'client' and active;
+  insert into public.roster_sheet_outbox (tab, client_slug, client_name) values ('Clients Info', p_slug, cur.display_name);
+  return jsonb_build_object('archived', true, 'already', false, 'routing', routing);
 end
 $fn$;
 
@@ -465,6 +600,12 @@ begin
 end
 $seqs$;
 
+revoke all on function public.roster_is_test_client(text) from public, anon, authenticated, service_role;
+revoke all on function public.roster_route_enrol(text, boolean) from public, anon, authenticated, service_role;
+revoke all on function public.client_profile_archive(text, text, text, text) from public, anon, authenticated, service_role;
+grant execute on function public.roster_is_test_client(text) to service_role;
+grant execute on function public.roster_route_enrol(text, boolean) to service_role;
+grant execute on function public.client_profile_archive(text, text, text, text) to service_role;
 revoke all on function public.roster_authority() from public, anon, authenticated, service_role;
 revoke all on function public.client_profile_service_write(text, text, jsonb, jsonb, jsonb, text, text, text)
   from public, anon, authenticated, service_role;
@@ -491,4 +632,4 @@ commit;
 --   has_function_privilege('authenticated', p.oid, 'EXECUTE') auth_exec,
 --   has_function_privilege('service_role', p.oid, 'EXECUTE') sr_exec
 -- from pg_proc p where p.pronamespace = 'public'::regnamespace
---   and p.proname in ('roster_authority', 'client_profile_service_write', 'smm_assign_client');
+--   and p.proname in ('roster_authority', 'roster_is_test_client', 'roster_route_enrol', 'client_profile_archive', 'client_profile_service_write', 'smm_assign_client');

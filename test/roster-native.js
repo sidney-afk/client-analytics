@@ -146,6 +146,9 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
   plan = native.planSheetCopy([...tab, ['alpha client', '', '', '']], 'Clients Info', native.clientSlug('Alpha Client'), { email: 'x' }, L, R);
   assert.equal(plan.error, 'sheet_row_ambiguous');
   assert.equal(native.planSheetCopy([['x']], 'T', 'a', {}, L, R).error, 'sheet_header_missing');
+  assert.deepEqual(native.planSheetRemove(tab, native.clientSlug('Beta Client')), { ok: true, row: 3 });
+  assert.deepEqual(native.planSheetRemove(tab, 'nobody'), { ok: true, row: null });
+  assert.equal(native.planSheetRemove([...tab, ['alpha client']], native.clientSlug('Alpha Client')).error, 'sheet_row_ambiguous');
   assert.equal(L(0), 'A'); assert.equal(L(26), 'AA');
   assert.deepEqual(native.collapseOutbox([{ id: 1, tab: 'T', client_slug: 'a', client_name: 'A' }, { id: 2, tab: 'T', client_slug: 'a', client_name: 'A' }, { id: 3, tab: 'U', client_slug: 'a', client_name: 'A' }]).map(g => g.ids), [[1, 2], [3]]);
   console.log('  sheet copy planning: ok');
@@ -270,6 +273,26 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
   r = await call(handlers.handleRosterWrite, wdeps, { action: 'set_client_fields', slug: 'alphaclient', fields: { email: 'x' } });
   assert.deepEqual([r.status, r.json.error], [500, 'write_failed']);
   assert(!r.text.includes('secret-detail'), 'database errors are never echoed');
+  // archive_client
+  wdb.rpcImpl.client_profile_archive = (a, t, id) => {
+    t.roster_sheet_outbox.push({ id: id(), tab: 'Clients Info', client_slug: a.p_slug, client_name: 'Alpha Client', status: 'pending', attempts: 0 });
+    return { data: { archived: true, already: false, routing: { changed: ['settings_ef_clients'] } }, error: null };
+  };
+  wdb.calls.rpc.length = 0;
+  r = await call(handlers.handleRosterWrite, wdeps, { action: 'archive_client', client_name: 'Alpha Client', source: 'Offboarding' });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual([wdb.calls.rpc[0].name, wdb.calls.rpc[0].args.p_slug, wdb.calls.rpc[0].args.p_role, wdb.calls.rpc[0].args.p_actor], ['client_profile_archive', native.clientSlug('Alpha Client'), 'n8n', 'n8n:Offboarding']);
+  assert.equal(r.json.client.archived, true);
+  assert.equal((await call(handlers.handleRosterWrite, wdeps, { action: 'archive_client' })).status, 400);
+  for (const [message, status, code] of [['roster_test_client_untouchable', 409, 'test_client_untouchable'], ['roster_routing_flag_invalid: write_ui_reroute_clients', 409, 'routing_flag_invalid'], ['roster_authority_not_syncview', 409, 'authority_not_syncview'], ['client_profile_missing', 404, 'client_profile_missing']]) {
+    wdb.rpcImpl.client_profile_archive = () => ({ data: null, error: { message } });
+    r = await call(handlers.handleRosterWrite, wdeps, { action: 'archive_client', client_name: 'Alpha Client' });
+    assert.deepEqual([r.status, r.json.error], [status, code], message);
+  }
+  // creating a client reports what it did to the lists
+  wdb.rpcImpl.client_profile_service_write = () => ({ data: { created: true, changed: 1, row: profileRow, routing: { changed: ['calendar_upsert_ef_clients'] } }, error: null });
+  r = await call(handlers.handleRosterWrite, wdeps, { action: 'upsert_client', client_name: 'Alpha Client', fields: { email: 'a@x.test' } });
+  assert.deepEqual(r.json.client.routing, { changed: ['calendar_upsert_ef_clients'] });
   r = await call(handlers.handleRosterWrite, wdeps, { action: 'assign_manager', client_name: 'Alpha Client', social_media_manager: '' });
   assert.equal(r.status, 200);
   assert.equal(wdb.calls.rpc.at(-1).args.p_manager_slug, '', 'a blank manager removes the client');
@@ -321,6 +344,7 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
   };
   const log = [];
   let failWrites = 0;
+  const deleted = [];
   const fakeGoogle = async (url, init = {}) => {
     const u = String(url);
     log.push({ url: u, method: init.method || 'GET', body: init.body });
@@ -328,6 +352,21 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
     if (u.startsWith('https://oauth2.googleapis.com/token')) return ok({ access_token: 'tok' });
     assert.equal(init.headers.Authorization, 'Bearer tok');
     const tabOf = piece => decodeURIComponent(piece).match(/^'(.*)'!/)[1];
+    if ((init.method || 'GET') === 'GET' && u.includes('?fields=sheets.properties')) {
+      return ok({ sheets: [{ properties: { sheetId: 11, title: 'Clients Info' } }, { properties: { sheetId: 22, title: 'Social Media Managers' } }] });
+    }
+    if (u.endsWith(':batchUpdate') && !u.endsWith('/values:batchUpdate')) {
+      if (failWrites > 0) { failWrites--; return ok({}, 500); }
+      const b = JSON.parse(init.body);
+      const titleOf = { 11: 'Clients Info', 22: 'Social Media Managers' };
+      for (const r of b.requests) {
+        const d = r.deleteDimension.range;
+        assert.equal(d.dimension, 'ROWS');
+        tabs[titleOf[d.sheetId]].splice(d.startIndex, d.endIndex - d.startIndex);
+        deleted.push(d.startIndex);
+      }
+      return ok({});
+    }
     if (u.includes('/values/') && !u.includes(':append') && (init.method || 'GET') === 'GET') {
       return ok({ values: tabs[tabOf(u.split('/values/')[1].split('?')[0])] });
     }
@@ -428,13 +467,38 @@ const call = async (handler, deps, body, headers = { 'x-roster-key': KEY }) => {
   s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
   assert.equal(s.done, 1, 'once the database is main again, the queued row drains');
 
-  // an archived client is never written to the Sheet
+  // an archived client's row leaves the Sheet (highest row first); one not on the Sheet is just marked done
+  tabs['Clients Info'].push(['Delta Client', 'd@x.test', '', '', '']);
+  cdb.t.client_profiles.push({ slug: 'deltaclient', display_name: 'Delta Client', extra: {}, archived_at: '2026-10-01' });
+  cdb.t.client_profiles.push({ slug: 'notonsheet', display_name: 'Not On Sheet', extra: {}, archived_at: '2026-10-01' });
   cdb.t.client_profiles[1].archived_at = '2026-10-01';
+  assert.deepEqual(tabs['Clients Info'].map(r => r[0]), ['client_name', 'Alpha Client', 'Gamma Client', 'Delta Client']);
   enqueue('Clients Info', 'gammaclient', 'Gamma Client');
+  enqueue('Clients Info', 'deltaclient', 'Delta Client');
+  enqueue('Clients Info', 'notonsheet', 'Not On Sheet');
+  log.length = 0;
+  s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
+  assert.deepEqual([s.done, s.failed], [3, 0]);
+  assert.deepEqual(tabs['Clients Info'].map(r => r[0]), ['client_name', 'Alpha Client'], 'archived clients are gone from the mirror, nobody else');
+  assert.deepEqual(deleted, [3, 2], 'rows removed highest first, so earlier row numbers stay valid');
+  assert.equal(log.filter(l => l.url.endsWith(':batchUpdate') && !l.url.endsWith('/values:batchUpdate')).length, 1, 'one request for all removals');
+  assert.equal(log.filter(l => l.method === 'GET' && l.url.includes('/values/')).length, 1, 'one read');
+  // archived and absent: nothing to remove, no write at all
+  enqueue('Clients Info', 'notonsheet', 'Not On Sheet');
   log.length = 0;
   s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
   assert.equal(s.done, 1);
-  assert.equal(log.filter(l => l.url.includes('/values')).length, 0, 'archived: marked done, Sheet untouched');
+  assert.equal(log.filter(l => l.method === 'POST' && !l.url.includes('oauth2')).length, 0, 'no write when the row is not there');
+  // a removal that Google refuses stays queued
+  tabs['Clients Info'].push(['Delta Client', '', '', '', '']);
+  enqueue('Clients Info', 'deltaclient', 'Delta Client');
+  failWrites = 1;
+  s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
+  assert.deepEqual([s.done, s.failed], [0, 1]);
+  assert.equal(cdb.t.roster_sheet_outbox.at(-1).status, 'pending', 'a refused removal stays queued');
+  s = await copyMod.copyToSheet({ store: cstore, env: gEnv, fetchFn: fakeGoogle });
+  assert.equal(s.done, 1, 'and is retried');
+  assert.deepEqual(tabs['Clients Info'].map(r => r[0]), ['client_name', 'Alpha Client']);
 
   // not configured: nothing is attempted, everything stays queued
   enqueue('Clients Info', 'alphaclient', 'Alpha Client');

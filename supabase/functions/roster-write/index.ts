@@ -9,8 +9,11 @@
 //
 // Natively writing actions (refused with "authority_not_syncview" until the
 // owner flips client_profiles_authority to "syncview"; the database itself
-// enforces that): upsert_client, set_client_fields (optional compare-and-set
-// "expect"), assign_manager. Every write is recorded (who, what, from, to) and
+// enforces that): upsert_client (creating or restoring a client also adds it to
+// the four save-permission lists and makes it active, in the same transaction),
+// set_client_fields (optional compare-and-set "expect"), archive_client (takes
+// it off those lists; the Sheet copy removes its row), assign_manager. The test
+// client is never enrolled, removed or archived. Every write is recorded (who, what, from, to) and
 // then copied to the Sheet, which stays a read-only mirror: a copy that cannot
 // be made stays queued, and the database change stands. copy_to_sheet retries
 // the queue; queue_full_copy queues the whole roster (the first catch-up after

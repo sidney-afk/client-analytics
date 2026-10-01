@@ -125,6 +125,8 @@ const REFUSALS = [
   ['smm_assign_bad_manager_slug', 400, 'bad_manager'],
   ['smm_assign_client_required', 400, 'missing_client'],
   ['client_profile_display_name_required', 400, 'missing_client'],
+  ['roster_test_client_untouchable', 409, 'test_client_untouchable'],
+  ['roster_routing_flag_invalid', 409, 'routing_flag_invalid'],
 ];
 function refusal(message) {
   const m = String(message || '');
@@ -261,13 +263,23 @@ export async function handleRosterWrite(req, deps) {
         p_request_id: requestId,
       });
       if (rpcErr) return refusal(rpcErr.message) || serverError('client_profile_service_write', rpcErr);
-      const base = { client: { slug: who.slug, created: !!data.created, changed: data.changed, row: data.row } };
+      const base = { client: { slug: who.slug, created: !!data.created, changed: data.changed, row: data.row, routing: data.routing || {} } };
       if (hasManager) {
         const m = await assign(supabase, who, body, requestId);
         if (m.error) return m.error;
         base.manager = m.data;
       }
       return await afterWrite(deps, supabase, base);
+    }
+
+    if (action === 'archive_client') {
+      const who = resolveClient(body);
+      if (!who.ok) return json({ ok: false, error: who.error }, 400);
+      const { data, error: rpcErr } = await supabase.rpc('client_profile_archive', {
+        p_slug: who.slug, p_actor: actorOf(body), p_role: 'n8n', p_request_id: requestId,
+      });
+      if (rpcErr) return refusal(rpcErr.message) || serverError('client_profile_archive', rpcErr);
+      return await afterWrite(deps, supabase, { client: { slug: who.slug, archived: !!data.archived, already: !!data.already, routing: data.routing || {} } });
     }
 
     if (action === 'assign_manager') {

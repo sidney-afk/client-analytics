@@ -79,9 +79,14 @@ begin
 end
 $fn$;
 
+drop function if exists public.client_profile_archive(text, text, text, text);
 drop function if exists public.smm_assign_client(text, text, text, text, text, text, text, text);
 drop function if exists public.client_profile_service_write(text, text, jsonb, jsonb, jsonb, text, text, text);
+drop function if exists public.roster_route_enrol(text, boolean);
+drop function if exists public.roster_is_test_client(text);
 drop function if exists public.roster_authority();
+-- Clients added to, or taken off, the four save-permission lists by these functions are NOT
+-- reverted by this file (the lists are live settings); review them by hand if the switch was used.
 -- Only when nothing was written natively:
 -- drop table if exists public.roster_sheet_outbox;
 -- drop table if exists public.smm_assignment_edits;

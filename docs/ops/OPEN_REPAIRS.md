@@ -30263,6 +30263,8 @@ Owner request, 2026-10-01 and 2026-10-02 (session Roster). Goal: make the databa
 
 **Found on the way (nothing changed for these).** The live Social Media Managers tab still has a `linear_api_key` header, empty on every row; no Linear key exists in the database. The Onboarding row webhook accepts writes with no authentication; `roster-write` replaces it with a key. One n8n workflow (VIDEO PRODUCTION AUTOMATION) writes calendar rows to an older calendar workbook, not the live one. Project Central uses its own workbook. PTO data already lives in the database; nothing reads its Sheet.
 
+**Save-permission lists (owner, 2026-10-02).** Creating or restoring a client through `client_profile_service_write` also adds it to the four save lists (and makes its `clients` row active); archiving (`client_profile_archive`, `roster-write` `archive_client`) takes it off them and the Sheet copy removes its row; the test client is never enrolled, removed or archived; a malformed list refuses the whole call.
+
 **Proof.** `test/roster-native-postgres.js` (real PostgreSQL, all four roles measured, migration applied twice), `test/roster-native.js` (the real handlers and the Sheet copy against a fake Google). Last lines in the PR.
 
 **Not done.** The page still reads both tabs directly (own step). Beacon (onboarding) will extend the Clients tab; the extra-fields column and the ledger are kept open for that.

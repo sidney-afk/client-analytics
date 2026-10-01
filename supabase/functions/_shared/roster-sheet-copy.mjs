@@ -12,7 +12,7 @@
 // database change stands. The Sheet id comes from the CLIENTS_INFO_SHEET_ID
 // secret; no spreadsheet id is in this repository.
 import {
-  clientSlug, collapseOutbox, columnLetter, managerRows, planSheetCopy, profileToSheetObject, SMM_HEADERS, sheetRange,
+  clientSlug, collapseOutbox, columnLetter, managerRows, planSheetCopy, planSheetRemove, profileToSheetObject, SMM_HEADERS, sheetRange,
 } from './roster-native.mjs';
 
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
@@ -89,6 +89,21 @@ async function writeTab(sheetId, token, entry, fetchFn) {
       method: 'POST', headers: auth, body: JSON.stringify({ values: entry.appends }),
     }));
   }
+  if (entry.deletes.length) {
+    // An archived client's row leaves the mirror, so the daily roster job (which
+    // reads this tab) cannot bring it back. Highest row first, so earlier row
+    // numbers stay valid; done after every cell write and append.
+    const metaResp = await fetchFn(base + '?fields=sheets.properties(sheetId,title)', { headers: { Authorization: 'Bearer ' + token } });
+    if (!metaResp.ok) throw new SheetError('sheet_read_failed', metaResp.status);
+    const meta = await metaResp.json();
+    const tabInfo = (meta.sheets || []).map(x => x.properties || {}).find(pr => pr.title === entry.tab);
+    if (!tabInfo || typeof tabInfo.sheetId !== 'number') throw new SheetError('sheet_tab_missing');
+    const rows = [...new Set(entry.deletes)].sort((a, b) => b - a);
+    check(await fetchFn(base + ':batchUpdate', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ requests: rows.map(r => ({ deleteDimension: { range: { sheetId: tabInfo.sheetId, dimension: 'ROWS', startIndex: r - 1, endIndex: r } } })) }),
+    }));
+  }
 }
 
 // store: { authority() -> 'sheet'|'syncview'|'', pending(limit) -> [{id,tab,client_slug,client_name}],
@@ -122,7 +137,18 @@ export async function copyToSheet({ store, env, fetchFn, limit = 50 }) {
         let wanted;
         if (g.tab === 'Clients Info') {
           const row = await store.profile(g.client_slug);
-          if (!row || row.archived_at) { await store.markDone(g.ids); summary.done++; continue; }
+          if (!row) { await store.markDone(g.ids); summary.done++; continue; }
+          if (row.archived_at) {
+            if (!tabs.has(g.tab)) tabs.set(g.tab, { tab: g.tab, values: await readTab(sheetId, token, g.tab, fetchFn), updates: [], appends: [], deletes: [], members: [] });
+            const gone = planSheetRemove(tabs.get(g.tab).values, g.client_slug);
+            if (!gone.ok) throw new SheetError(gone.error);
+            if (gone.row) {
+              tabs.get(g.tab).deletes.push(gone.row);
+              tabs.get(g.tab).values[gone.row - 1] = []; // same row numbers for the cell writes still to come
+            }
+            tabs.get(g.tab).members.push(g);
+            continue;
+          }
           wanted = profileToSheetObject(row);
         } else {
           if (!managers) managers = managerRows(await store.managers());
@@ -132,7 +158,7 @@ export async function copyToSheet({ store, env, fetchFn, limit = 50 }) {
             : { client_name: g.client_name, social_media_manager: '', slack_profile_url: '' };
           for (const h of Object.keys(wanted)) if (!SMM_HEADERS.includes(h)) delete wanted[h];
         }
-        if (!tabs.has(g.tab)) tabs.set(g.tab, { tab: g.tab, values: await readTab(sheetId, token, g.tab, fetchFn), updates: [], appends: [], members: [] });
+        if (!tabs.has(g.tab)) tabs.set(g.tab, { tab: g.tab, values: await readTab(sheetId, token, g.tab, fetchFn), updates: [], appends: [], deletes: [], members: [] });
         const entry = tabs.get(g.tab);
         const plan = planSheetCopy(entry.values, g.tab, g.client_slug, wanted, columnLetter, sheetRange);
         if (!plan.ok) throw new SheetError(plan.error);

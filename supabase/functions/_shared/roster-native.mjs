@@ -134,6 +134,21 @@ export function planSheetCopy(values, tab, slug, wanted, columnLetter, sheetRang
   return { ok: true, op: 'update', sheet_row: r + 1, updates };
 }
 
+// Which Sheet row (1-based) holds this client, for removal after an archive.
+// null = not on the tab (nothing to remove).
+export function planSheetRemove(values, slug) {
+  const rows = Array.isArray(values) ? values : [];
+  const headers = (rows[0] || []).map(h => text(h));
+  const nameCol = headers.indexOf('client_name');
+  if (nameCol < 0) return { ok: false, error: 'sheet_header_missing', field: 'client_name' };
+  const matches = [];
+  for (let r = 1; r < rows.length; r++) {
+    if (clientSlug((rows[r] || [])[nameCol]) === slug) matches.push(r);
+  }
+  if (matches.length > 1) return { ok: false, error: 'sheet_row_ambiguous', rows: matches.map(r => r + 1) };
+  return { ok: true, row: matches.length ? matches[0] + 1 : null };
+}
+
 export function columnLetter(index) {
   let n = index + 1;
   let s = '';

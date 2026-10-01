@@ -20,7 +20,7 @@ One switch decides which is which: the runtime flag `client_profiles_authority`
 |---|---|
 | `migrations/2026-10-02-roster-native.sql` | The manager's Slack id; a history of who moved which client to which manager; a retry list for the Sheet copy; two functions (create or change a client, assign a manager) that **refuse unless the switch says "syncview"**; the Clients tab's own edit now also queues the Sheet copy once the database is main. Source only: Lighthouse applies it after the owner's go. Way back: `...ROLLBACK.sql`. |
 | `roster-read` (Edge Function) | n8n reads clients and managers from the database. JSON, or CSV with the Sheet's own headers and quoting, so a reader that parses the Sheet's CSV parses this unchanged. Answers at any time and says which copy is the main one. |
-| `roster-write` (Edge Function) | n8n writes: `upsert_client` (onboarding, with the manager in the same call), `set_client_fields` (with an optional "only if it still holds X" check, for the Slack channel finalizer), `assign_manager`. Also `copy_to_sheet`, `queue_full_copy` and `status`. And `sync_managers`, the Sheet-is-main door for Manager Sync, now carrying the Slack id; it refuses once the database is main. |
+| `roster-write` (Edge Function) | n8n writes: `upsert_client` (onboarding, with the manager in the same call; creating or restoring also puts the client on the four save-permission lists), `archive_client`, `set_client_fields` (with an optional "only if it still holds X" check, for the Slack channel finalizer), `assign_manager`. Also `copy_to_sheet`, `queue_full_copy` and `status`. And `sync_managers`, the Sheet-is-main door for Manager Sync, now carrying the Slack id; it refuses once the database is main. |
 | `client-profile-write` | The Clients tab save. Its Sheet path is unchanged. Once the switch is "syncview" it saves to the database only (same version check, same history) and then copies the row to the Sheet. |
 | The read-only Sheet copy | After each database change the same change is written to the Sheet: only changed cells, as plain text, never another column, one read and one write per tab per call (so a full resync of the roster is a handful of requests). A copy that cannot be made stays queued and is retried; the database change stands. It is refused outright while the Sheet is the main copy (after a rollback nothing queued can overwrite it), and a change queued while another copy was running gets one more copy so the newest state is always written last. |
 
@@ -124,15 +124,28 @@ nothing. Docs that tell people to fill it in are corrected in this PR.
 - Pasted secrets exist in several n8n Code nodes (listed in the session report,
   not here).
 
-## Open question for the owner: enrolling a new client in the save lists
+## Decided by the owner, 2026-10-02: the four save-permission lists follow the client
 
-Raised by Beacon, 2026-10-02. A client that is created or brought back is not added
-to the four routing lists (`sample_review_ef_clients`, `calendar_upsert_ef_clients`,
-`settings_ef_clients`, `write_ui_reroute_clients`) by the daily roster sync, and until
-a client is on them its Calendar, Samples and Settings saves are paused. Step 1 does
-not enrol anyone (the native client functions only touch the profile). Should creating
-or restoring a client through `client_profile_service_write` enrol it in the same
-transaction? That changes which clients can save, so it waits for the owner's decision;
+A client that is not on `sample_review_ef_clients`, `calendar_upsert_ef_clients`,
+`settings_ef_clients` and `write_ui_reroute_clients` has its Calendar, Samples and Settings saves
+paused (raised by Beacon). So, in the database functions of this change, in the same transaction:
+
+- **Creating or restoring a client** (`client_profile_service_write` with a display name) adds it to
+  all four lists and makes its `clients` row active (if it has one). A plain field change never touches the lists.
+- **Archiving** (new `client_profile_archive`, door `roster-write` action `archive_client`) takes it off
+  all four lists, makes it inactive, writes the history, and the Sheet copy deletes its Clients Info row
+  (otherwise the daily roster job, which reads that tab, would bring it back).
+- **The test client is never touched.** Not enrolled, not removed, not archivable (`kind = 'test'` or the
+  test slug; creating or changing its profile still works, so the proofs can run on it).
+- A list that is missing, not an object, not an array of strings or holds a duplicate **refuses the
+  whole call** (nothing created, nothing archived); a live flag is never rewritten from a bad shape.
+  The four rows are locked in key order, as the native client provisioning does.
+- The result of every call says what it did to the lists (`routing.changed`). Rollback does not undo
+  list changes already made (they are live settings; the rollback file says so).
+
+Not done here: `public.clients` rows are still created by the native provisioning or by hand (this
+change never invents one), and `clients-roster-sync` still reads the Sheet tab, which after the switch is a
+mirror (it works, because the copy keeps the tab right; moving it to read the database is its own step).
 PR 1926 (removing seven stale names from the lists) is separate and unaffected.
 
 ## For Beacon (onboarding project)

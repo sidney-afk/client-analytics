@@ -53,6 +53,12 @@ function assign(slug, name, mslug, mname, slack = '', role = 'n8n') {
   return asService(`select public.smm_assign_client(${lit(slug)}, ${lit(name)}, ${lit(mslug)}, ${lit(mname)}, ${lit(slack)}, 'n8n-onboarding', ${lit(role)}, 'req-2');`);
 }
 const parse = r => { assert(r.ok, 'call failed: ' + r.err); return JSON.parse(r.out.split('\n').pop()); };
+const LISTS = ['calendar_upsert_ef_clients', 'sample_review_ef_clients', 'settings_ef_clients', 'write_ui_reroute_clients'];
+const inList = (key, slug) => q(`select (value->'clients') @> to_jsonb(${lit(slug)}::text) from public.syncview_runtime_flags where key = ${lit(key)}`) === 't';
+const inAll = slug => LISTS.every(k => inList(k, slug));
+const inNone = slug => LISTS.every(k => !inList(k, slug));
+const listsText = () => q(`select string_agg(key || '=' || (value->'clients')::text, ';' order by key) from public.syncview_runtime_flags where key in (${LISTS.map(lit).join(',')})`);
+const archive = (slug, role = 'n8n') => asService(`select public.client_profile_archive(${lit(slug)}, 'n8n-offboarding', ${lit(role)}, 'req-9');`);
 const refused = (r, code) => { assert(!r.ok, 'expected a refusal, got: ' + r.out); assert(r.err.includes(code), `expected ${code}, got: ${r.err}`); };
 const count = t => Number(q(`select count(*) from public.${t}`));
 
@@ -82,6 +88,18 @@ try {
       source_clients jsonb not null default '[]'::jsonb, synced_at timestamptz,
       created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create unique index social_media_managers_name_unique on public.social_media_managers (lower(name));`);
+  // The clients table (only the columns used here) and the four save-permission lists.
+  psql(DB, `create table public.clients (slug text primary key, display_name text, active boolean not null default true,
+      kind text not null default 'client', updated_at timestamptz not null default now());
+    insert into public.clients (slug, display_name, active, kind) values
+      ('existingone', 'Existing One', true, 'client'), ('alphaone', 'Alpha One', false, 'client'),
+      ('alphatwo', 'Alpha Two', true, 'client'), ('testexample', 'Test Example', true, 'test'),
+      ('sidneylaruel', 'Test', true, 'test');
+    insert into public.syncview_runtime_flags (key, value) values
+      ('calendar_upsert_ef_clients', '{"clients":["existingone","sidneylaruel"]}'),
+      ('sample_review_ef_clients', '{"clients":["existingone","sidneylaruel"]}'),
+      ('settings_ef_clients', '{"clients":["existingone","sidneylaruel"]}'),
+      ('write_ui_reroute_clients', '{"clients":["existingone","sidneylaruel"]}');`);
   const MIGRATION = read('migrations/2026-10-02-roster-native.sql');
   psql(DB, MIGRATION);
   psql(DB, MIGRATION); // idempotent
@@ -156,6 +174,69 @@ try {
   refused(write('alphatwo', { cols: { email: 'q' }, actor: '  ' }), 'client_profile_write_actor_required');
   console.log('  missing, archived, restore, forbidden fields, bad role/slug/actor: ok');
 
+  // ---- 4b. creating or restoring joins the four save-permission lists; archiving leaves them ----
+  assert(inAll('alphaone') && inAll('alphatwo'), 'the clients created above joined all four lists');
+  assert(inAll('existingone') && inAll('sidneylaruel'), 'existing entries are kept');
+  assert.equal(q(`select active from public.clients where slug='alphaone'`), 't', 'creating makes an existing inactive client active');
+  assert.equal(count('roster_sheet_outbox') > 0, true);
+  // a plain field change never re-enrols
+  psql(DB, `update public.syncview_runtime_flags set value = jsonb_set(value, '{clients}', '["existingone","sidneylaruel","alphatwo"]') where key = 'settings_ef_clients'`);
+  parse(write('alphaone', { cols: { keywords: 'plain change' } }));
+  assert(!inList('settings_ef_clients', 'alphaone'), 'a plain field change leaves the lists alone');
+  // creating again (already exists, not archived) does not touch them either; restoring does add back
+  parse(write('alphaone', { name: 'Alpha One', cols: { keywords: 'again' } }));
+  assert(!inList('settings_ef_clients', 'alphaone'), 'an upsert of a live client is not an enrolment');
+  // the test client: written normally, never enrolled
+  const listsBefore = listsText();
+  parse(write('sidneylaruel', { name: 'Test', cols: { keywords: 'qa' } }));
+  parse(write('testexample', { name: 'Test Example', cols: { keywords: 'qa' } }));
+  assert.equal(listsText(), listsBefore, 'creating or changing a test client never changes the lists');
+  parse(write('freshtestonly', { name: 'Fresh Client', cols: { email: 'f@example.test' } }));
+  assert(inAll('freshtestonly'), 'a brand-new client joins all four');
+  assert.equal(q(`select count(*) from public.clients where slug='freshtestonly'`), '0', 'no clients row: the lists still get it, and no row is invented');
+  const added = q(`select count(*) from public.client_profile_edits where slug='freshtestonly' and field='(created)'`);
+  assert.equal(added, '1');
+  // archive
+  let a = parse(archive('alphaone'));
+  assert.deepEqual([a.archived, a.already], [true, false]);
+  assert(inNone('alphaone'), 'archiving takes the client out of all four lists');
+  assert(inAll('existingone') && inAll('sidneylaruel') && inAll('alphatwo'), 'nobody else is touched');
+  assert.equal(q(`select active from public.clients where slug='alphaone'`), 'f', 'and makes it inactive');
+  assert.equal(q(`select count(*) from public.client_profile_edits where slug='alphaone' and field='(archived)'`), '1');
+  assert.equal(q(`select (archived_at is not null)::text from public.client_profiles where slug='alphaone'`), 'true');
+  const boxA = count('roster_sheet_outbox');
+  a = parse(archive('alphaone'));
+  assert.deepEqual([a.archived, a.already], [false, true], 'archiving twice changes nothing');
+  assert.equal(count('roster_sheet_outbox'), boxA);
+  // restore puts it back on all four and active
+  parse(write('alphaone', { name: 'Alpha One' }));
+  assert(inAll('alphaone'), 'restoring joins all four again');
+  assert.equal(q(`select active from public.clients where slug='alphaone'`), 't');
+  // the test client can never be archived or taken off
+  for (const slug of ['sidneylaruel', 'testexample']) {
+    const snap = listsText();
+    refused(archive(slug), 'roster_test_client_untouchable');
+    assert.equal(listsText(), snap, slug + ': lists untouched');
+    assert.equal(q(`select (archived_at is null)::text from public.client_profiles where slug=${lit(slug)}`), 'true', slug + ': still not archived');
+  }
+  refused(archive('nobodyhere'), 'client_profile_missing');
+  refused(archive('alphaone', 'anon'), 'client_profile_write_bad_role');
+  // a malformed or missing list refuses the whole call and writes nothing
+  for (const [label, bad] of [['not an array', `'{"clients":"x"}'`], ['duplicates', `'{"clients":["existingone","existingone"]}'`], ['not an object', `'[]'`]]) {
+    const keep = q(`select value::text from public.syncview_runtime_flags where key='write_ui_reroute_clients'`);
+    psql(DB, `update public.syncview_runtime_flags set value = ${bad}::jsonb where key='write_ui_reroute_clients'`);
+    const profilesBefore = count('client_profiles');
+    refused(write('badlistclient', { name: 'Bad List' }), 'roster_routing_flag_invalid');
+    assert.equal(count('client_profiles'), profilesBefore, label + ': nothing created');
+    refused(archive('alphatwo'), 'roster_routing_flag_invalid');
+    assert.equal(q(`select (archived_at is null)::text from public.client_profiles where slug='alphatwo'`), 'true', label + ': nothing archived');
+    psql(DB, `update public.syncview_runtime_flags set value = ${lit(keep)}::jsonb where key='write_ui_reroute_clients'`);
+  }
+  psql(DB, `delete from public.syncview_runtime_flags where key='settings_ef_clients'`);
+  refused(write('missinglist', { name: 'Missing List' }), 'roster_routing_flag_invalid');
+  psql(DB, `insert into public.syncview_runtime_flags (key, value) values ('settings_ef_clients', '{"clients":["existingone","sidneylaruel","alphaone","alphatwo","freshtestonly"]}')`);
+  console.log('  enrolment: create/restore join the four lists, archive leaves them, test client untouched, bad lists refuse: ok');
+
   // ---- 5. managers ----
   r = parse(assign('alphaone', 'Alpha One', 'mgrone', 'Mgr One', 'U111'));
   assert.equal(r.manager_slug, 'mgrone');
@@ -228,9 +309,12 @@ try {
       roster_authority: q(`select has_function_privilege('${role}', 'public.roster_authority()', 'EXECUTE')`) === 't',
       service_write: q(`select has_function_privilege('${role}', 'public.client_profile_service_write(text,text,jsonb,jsonb,jsonb,text,text,text)', 'EXECUTE')`) === 't',
       assign: q(`select has_function_privilege('${role}', 'public.smm_assign_client(text,text,text,text,text,text,text,text)', 'EXECUTE')`) === 't',
+      archive: q(`select has_function_privilege('${role}', 'public.client_profile_archive(text,text,text,text)', 'EXECUTE')`) === 't',
+      enrol: q(`select has_function_privilege('${role}', 'public.roster_route_enrol(text,boolean)', 'EXECUTE')`) === 't',
+      testclient: q(`select has_function_privilege('${role}', 'public.roster_is_test_client(text)', 'EXECUTE')`) === 't',
     };
     const wantExec = role === 'service_role';
-    assert.deepEqual(execOk, { roster_authority: wantExec, service_write: wantExec, assign: wantExec }, `${role} execute rights`);
+    assert.deepEqual(execOk, { roster_authority: wantExec, service_write: wantExec, assign: wantExec, archive: wantExec, enrol: wantExec, testclient: wantExec }, `${role} execute rights`);
     void fn;
   }
   const seqs = q(`select string_agg(format('%s:%s:%s', c.relname, r.rolname,
@@ -243,7 +327,7 @@ try {
   console.log('  four roles measured: only service_role, only the minimum; RLS on, 0 policies');
   // ---- 7. the way back: rollback restores the Clients tab save, then drops the new functions ----
   psql(DB, read('migrations/2026-10-02-roster-native.ROLLBACK.sql'));
-  assert.equal(q(`select count(*) from pg_proc where proname in ('roster_authority','client_profile_service_write','smm_assign_client')`), '0');
+  assert.equal(q(`select count(*) from pg_proc where proname in ('roster_authority','client_profile_service_write','smm_assign_client','client_profile_archive','roster_route_enrol','roster_is_test_client')`), '0');
   assert.equal(q(`select position('roster_authority' in pg_get_functiondef(p.oid)) from pg_proc p where p.proname='client_profile_admin_edit'`), '0', 'the original admin edit body is back');
   parse(adminEdit('alphaone', { keywords: 'after-rollback' }));
   assert.equal(q(`select keywords from public.client_profiles where slug='alphaone'`), 'after-rollback', 'the Clients tab save still works after the rollback');

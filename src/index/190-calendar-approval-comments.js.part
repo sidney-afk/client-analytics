@@ -2175,7 +2175,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             : (resolvedCount
                 ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>`
                 : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
-        const feedHtml = roots.length ? roots.map(renderThread).join('') : (_prodCardCommentsPending(post) ? _prodCommentsSkeletonHtml() : emptyMsg);
+        const feedHtml = roots.length ? roots.map(renderThread).join('') : (_prodCardCommentsPending(post, 'calendar') ? _prodCommentsSkeletonHtml() : emptyMsg);
 
         // History toggle (top-right): hidden unless there's something resolved.
         const histBtn = resolvedCount

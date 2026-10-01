@@ -2292,11 +2292,18 @@ import {
            from the moment the crosswalk lookup starts until every component's
            read has answered; an empty feed in that window is a skeleton, not a
            statement. Rows that are already held are shown as they are. */
-        function _prodCardCommentsPending(post) {
+        function _prodCardCommentsPending(post, surface) {
             if (!post) return false;
             if (post._canonicalCrosswalkInFlight) return true;
             const reads = post._canonicalCommentReads;
-            return !!reads && Object.keys(reads).some(key => reads[key] && reads[key].status === 'loading');
+            if (!reads) return false;
+            /* Only the deliverables bound to the card NOW count. A projection that
+               aborts because the card was re-pointed mid-flight leaves the old
+               deliverable's entry at 'loading' for good, and that must not hold the
+               dialog on a skeleton. */
+            const components = surface === 'sxr' ? SXR_COMPONENTS : _calComponentsFor(post);
+            const bound = new Set(components.map(component => String(_writeUiNativeId(post, component) || '')).filter(Boolean));
+            return Object.keys(reads).some(key => bound.has(String(key)) && reads[key] && reads[key].status === 'loading');
         }
         function _prodCommentsSkeletonHtml() {
             const row = (long) => '<div class="cal-cm-skel-row"><span class="cal-cm-skel cal-cm-skel-avatar"></span><span class="cal-cm-skel-col"><span class="cal-cm-skel cal-cm-skel-line is-short"></span><span class="cal-cm-skel cal-cm-skel-line' + (long ? ' is-long' : '') + '"></span></span></div>';

@@ -25,22 +25,25 @@ function grab(name) {
   }
   throw new Error('unbalanced ' + name);
 }
-const ctx = { Object };
+const ctx = { Object, String, SXR_COMPONENTS: ['video', 'thumbnail'], _calComponentsFor: () => ['video', 'thumbnail', 'caption'], _writeUiNativeId: (post, c) => (post.ids || {})[c] || '' };
 vm.createContext(ctx);
 vm.runInContext(grab('_prodCardCommentsPending') + '\n' + grab('_prodCommentsSkeletonHtml') + '\nthis.p = _prodCardCommentsPending; this.h = _prodCommentsSkeletonHtml;', ctx);
 
 ok(ctx.p(null) === false, 'no card, nothing pending');
 ok(ctx.p({}) === false, 'a card with no lookup and no read is not pending (its notes are what is held: legacy or none)');
 ok(ctx.p({ _canonicalCrosswalkInFlight: 1 }) === true, 'pending while the crosswalk lookup runs');
-ok(ctx.p({ _canonicalCommentReads: { d1: { status: 'loading' } } }) === true, 'pending while a component read is loading');
-ok(ctx.p({ _canonicalCommentReads: { d1: { status: 'ready' }, d2: { status: 'loading' } } }) === true, 'pending while any component read is still loading');
-ok(ctx.p({ _canonicalCrosswalkInFlight: 0, _canonicalCommentReads: { d1: { status: 'ready' }, d2: { status: 'error' } } }) === false, 'settled once every read answered, ready or failed (a failure is not a skeleton forever)');
+ok(ctx.p({ ids: { video: 'd1' }, _canonicalCommentReads: { d1: { status: 'loading' } } }, 'calendar') === true, 'pending while a bound component read is loading');
+ok(ctx.p({ ids: { video: 'd1', thumbnail: 'd2' }, _canonicalCommentReads: { d1: { status: 'ready' }, d2: { status: 'loading' } } }, 'calendar') === true, 'pending while any bound component read is still loading');
+ok(ctx.p({ ids: { video: 'd1' }, _canonicalCrosswalkInFlight: 0, _canonicalCommentReads: { d1: { status: 'ready' }, d2: { status: 'error' } } }, 'calendar') === false, 'settled once every read answered, ready or failed (a failure is not a skeleton forever)');
+ok(ctx.p({ ids: { video: 'd-new' }, _canonicalCommentReads: { 'd-old': { status: 'loading' }, 'd-new': { status: 'ready' } } }, 'calendar') === false,
+  'an abandoned read of a deliverable the card no longer points at (a projection aborted by a re-point) never holds the skeleton');
+ok(ctx.p({ ids: { caption: 'd9' }, _canonicalCommentReads: { d9: { status: 'loading' } } }, 'sxr') === false, 'Samples counts only its own components');
 const html = ctx.h();
 ok(/aria-busy="true"/.test(html) && /role="status"/.test(html) && /cal-cm-skel-row/.test(html), 'the skeleton is announced as busy and has note-shaped rows');
 ok(!/All clear|No notes yet/.test(html), 'and says nothing about the card');
-ok((INDEX.match(/\(_prodCardCommentsPending\(post\) \? _prodCommentsSkeletonHtml\(\) : emptyMsg\)/g) || []).length === 2,
+ok((INDEX.match(/\(_prodCardCommentsPending\(post, '(?:calendar|sxr)'\) \? _prodCommentsSkeletonHtml\(\) : emptyMsg\)/g) || []).length === 2,
   'both the Calendar and the Samples Notes dialogs show it in place of the empty message');
-ok(/const feedHtml = roots\.length \? roots\.map\(renderThread\)\.join\(''\) : \(_prodCardCommentsPending/.test(INDEX),
+ok(/const feedHtml = roots\.length \? roots\.map\(renderThread\)\.join\(''\) : \(_prodCardCommentsPending\(post, 'calendar'\)/.test(INDEX),
   'rows already held are still shown at once; only the empty state waits');
 ok(/\.cal-cm-skel \{[^}]*sv-shimmer/.test(INDEX) && /prefers-reduced-motion: reduce\) \{ \.cal-cm-skel \{ animation: none/.test(INDEX), 'the shimmer is styled and respects reduced motion');
 console.log('\nnotes-loading-skeleton: ' + passed + ' checks passed');

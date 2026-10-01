@@ -1539,13 +1539,23 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
            stale-screen baseline, so nothing on the server stops a decision made on an old
            screen from landing over a newer one. A status decision is therefore checked
            first against the sample as it is NOW: if the part is no longer where his screen
-           had it, nothing is sent, the card shows the current state, and he is told. A
-           failed read cannot tell us anything and does not block (the write stays as it was). */
+           had it, nothing is sent, the card shows the current state, and he is told. If the
+           read itself fails the decision is REFUSED, not guessed (Codex P1 on PR 1916): the
+           check is the only guard Samples has. The compare-and-write is still two requests,
+           so a change landing between them is not caught; closing that needs the server. */
         const statusKey = comp + '_status';
         if (patch && patch[statusKey] !== undefined) {
             _sxrKasperState.saving[key] = true;   // held across the read, so a second click cannot start a second decision
             const fresh = await _sxrKasperReadFresh(it.slug, p.id);
-            if (fresh && String(fresh[statusKey] == null ? '' : fresh[statusKey]) !== String(before[statusKey] == null ? '' : before[statusKey])) {
+            if (!fresh) {
+                Object.assign(p, before);
+                _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: your ' + String(COMP_LABELS[comp] || comp).toLowerCase() + ' decision could not be checked against the current card (the read failed). Nothing was changed. Reload the card and decide again.');
+                _sxrKasperState.saving[key] = false;
+                _sxrKasperRepaint(pid);
+                _kasperPaintReview();
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(fresh, statusKey) && String(fresh[statusKey] == null ? '' : fresh[statusKey]) !== String(before[statusKey] == null ? '' : before[statusKey])) {
                 Object.assign(p, before);
                 for (const k of ['video_status', 'graphic_status', 'status', 'updated_at']) if (fresh[k] !== undefined) p[k] = fresh[k];
                 _kasperSetSaveAlert(p.id, p.name, it.client, 'conflict',

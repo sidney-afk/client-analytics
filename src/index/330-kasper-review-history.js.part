@@ -2196,19 +2196,24 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         _kasperPersistPost(item).catch(e => {
             item.post.kasper_closed_at = prevClosed;
             delete _kasperState.closed[pid];
+            // A refusal inside the 240 ms removal animation: stop the pending removal, or it
+            // would hide the card after this restore (Codex P2 on PR 1916).
+            if (_kasperRemovalTimers[pid]) { clearTimeout(_kasperRemovalTimers[pid]); delete _kasperRemovalTimers[pid]; }
             if (!_kasperState.items.some(x => x.post.id === pid)) _kasperState.items.push(item);
             _kasperPersistCache();
             _kasperNoteSaveFailure(item, e, 'Closing the card');
         });
     }
 
+    const _kasperRemovalTimers = {};
     function _kasperRemoveItem(pid) {
         _kasperInvalidateInFlightLoad();
         const sel = window.CSS && CSS.escape ? CSS.escape(pid) : pid;
         const el = document.querySelector('.kcard[data-kasper-pid="' + sel + '"]');
         if (el) {
             el.classList.add('is-removing');
-            setTimeout(() => {
+            _kasperRemovalTimers[pid] = setTimeout(() => {
+                delete _kasperRemovalTimers[pid];
                 _kasperState.items = _kasperState.items.filter(x => x.post.id !== pid);
                 _kasperPersistCache();
                 _kasperPaintReview();

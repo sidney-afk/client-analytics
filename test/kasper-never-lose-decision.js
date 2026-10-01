@@ -459,7 +459,9 @@ async function samplesNeverOverwrite() {
   assert.strictEqual(b.calls.status, 1, 'when nothing changed the decision goes ahead as before');
   const c = samplesSandbox({ fresh: null });
   await c.s._sxrKasperApplyAndPersist('s1', 'video', approve, null);
-  assert.strictEqual(c.calls.status, 1, 'a failed read does not block the decision (it stays permissive, as it was)');
+  assert.strictEqual(c.calls.status + c.calls.upsert, 0, 'a decision that cannot be checked is refused, not guessed (Codex P1, PR 1916)');
+  assert.strictEqual(c.calls.alerts.length, 1, 'and he is told');
+  assert.strictEqual(c.p.video_status, 'Kasper Approval', 'the card is left as it was');
 }
 async function samplesFinishAndCloseAreNotQuiet() {
   for (const which of ['_sxrKasperDismiss', '_sxrKasperClose']) {
@@ -487,6 +489,28 @@ async function samplesFinishAndCloseAreNotQuiet() {
   }
 }
 
+
+
+async function refusedCloseIsNotRemovedByItsOwnAnimation() {
+  /* Codex P2, PR 1916: a Close refused inside the 240 ms removal animation restored the card, then the
+     pending removal timer hid it again. */
+  const timers = [];
+  const item = { post: { id: 'p30', name: 'Fixture', kasper_closed_at: null }, client: 'Test Client', slug: 'testslug' };
+  const el = { classList: { add() {} } };
+  const s = { Date, Object, Array, String, Promise, console, window: {}, CSS: undefined,
+    document: { querySelector: () => el },
+    setTimeout: (fn, ms) => { timers.push(fn); return timers.length; }, clearTimeout: id => { timers[id - 1] = null; },
+    _kasperState: { items: [item], closed: {} },
+    _kasperInvalidateInFlightLoad: () => {}, _kasperPersistCache: () => true, _kasperPaintReview: () => {},
+    _kasperPersistPost: () => Promise.reject(new Error('refused locally')),
+    _kasperNoteSaveFailure: () => {} };
+  vm.createContext(s);
+  vm.runInContext('var _kasperRemovalTimers = {};\n' + must('_kasperRemoveItem') + '\n' + must('_kasperClose'), s);
+  s._kasperClose('p30');
+  await new Promise(r => setImmediate(r));   // the refusal lands before the animation timer
+  for (const t of timers) if (t) t();
+  assert.ok(s._kasperState.items.some(x => x.post.id === 'p30'), 'the card is still in his queue after a refused Close');
+}
 
 /* ───────────── F. a browser-only hide never outlives its moment ───────────── */
 async function localMarksExpireAndUrgentWins() {
@@ -529,6 +553,7 @@ async function localMarksExpireAndUrgentWins() {
   await runCase('Samples: a decision never overwrites someone else\'s change', samplesNeverOverwrite);
   await runCase('Samples: a refused Finish or Close is reported and undone', samplesFinishAndCloseAreNotQuiet);
   await runCase('browser-only Finish and Close marks expire; an urgent ping wins', localMarksExpireAndUrgentWins);
+  await runCase('a refused Close is not undone by its own removal animation', refusedCloseIsNotRemovedByItsOwnAnimation);
   if (failures.length) { console.error('\n' + failures.length + ' failure(s).'); process.exit(1); }
   console.log('\nAll kasper-never-lose-decision assertions passed.');
 })();

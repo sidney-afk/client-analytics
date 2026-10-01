@@ -113,6 +113,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
                 history: _kasperState.history,
                 dismissed: _kasperState.dismissed || {},
                 closed: _kasperState.closed || {},
+                saveAlerts: _kasperState.saveAlerts || {},   // a refused decision stays on screen across a reload until he acts
                 smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
                 sxrRepairs: _kasperState.sxrRepairs || [],
             };

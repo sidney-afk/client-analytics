@@ -116,6 +116,14 @@ const emptyCache = extra => Object.assign({ items: [], history: [], dismissed: {
       record('a leftover browser-only mark does not hide a waiting card either', await onBoard(page, 'p_wait_closed'));
       await context.close();
     }
+    /* 3. A refused decision's alert survives a reload (Codex P2, PR 1916). */
+    {
+      const alert = { pid: 'p_alert_1', name: 'Fixture p_alert_1', client: 'Test Client', kind: 'conflict', text: 'Not saved: someone else changed this card after your screen loaded.', at: Date.now() };
+      const { context, page } = await openBoard(browser, server, { rows: [row('p_alert_1')], seedCache: emptyCache({ saveAlerts: { p_alert_1: alert } }) });
+      const shown = await page.waitForFunction(() => !!document.querySelector('[data-kasper-alerts]'), null, { timeout: 12000 }).then(() => true, () => false);
+      record('an unsaved-change alert is still on screen after a reload', shown);
+      await context.close();
+    }
     /* 2a. Control for 2: with NO draft anywhere the same realtime refresh brings the card in (so the
           failure below is the draft, not the harness). */
     {

@@ -30119,6 +30119,7 @@ Fix at the cause (not n8n): `clean()` in `supabase/functions/_shared/sheets-mirr
 Cleanup: `migrations/2026-10-01-analytics-metrics-dedupe-quoted-empty.sql` keeps the sheet-backfill row (its fingerprint equals the Sheet's), copies each of the 20 removed rows whole into `analytics_metrics_dedupe_log`, refuses to run unless exactly 20 match, and has an undo. Dry run on live (read only): rule matches exactly 20 rows, 20 client-days.
 Page: never double counts a day. `_buildHistories` and `clientHistory` keep one row per client per day (last by arrival); new `test/analytics-same-day-rows-count-once.js` proves it on the real functions.
 Parity: against the live database as it is, `PARITY: 20 difference(s)`; against the database as it would be after the delete, `PARITY: clean`. The live delete is still to do.
+Update 2026-10-01: both done with the owner's go. `analytics-write` published at main `76ef0062` (owner reported green), then the migration applied by Lighthouse. Read back: 20 rows logged in `analytics_metrics_dedupe_log`, 72 rows left on the two days, 0 doubled client-days (EXECUTION_LOG.md). Still to see: the next daily parity run ending clean against the Sheet.
 
 ## 310. [2026-10-01] n8n exit phase 2, step C: Booking Recovery gate proved by replay (not switched); backup stubs for steps A and B2; five retained script bundles restored
 

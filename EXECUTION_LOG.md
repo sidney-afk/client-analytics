@@ -6,6 +6,16 @@ All times are UTC unless noted.
 
 **Older entries are archived.** Entries more than 60 days old live word for word in [docs/ops/execution-log-archive/](docs/ops/execution-log-archive/), one file per month. Each one leaves a single "Archived entry" line below, in its original place, with a link and a fingerprint of the entry's exact text. Nothing in them was edited; `node scripts/ledger-archive.js log --check` proves it, and fails if an archived entry is later changed. Three entries older than 60 days stay in this file on purpose: the repo identity check refuses their lines as new text in a new file, and it has no exemption for a move between ledgers.
 
+## 2026-10-01 — 20 duplicate Metrics rows removed from analytics_metrics (owner's go; OPEN_REPAIRS 309)
+
+The owner first published `analytics-write` through the one-function lane at main `76ef0062693e961fee256bd62db13f65766effa2`
+(reported green), so a lone `""` in `yt_shorts_views` / `yt_longs_views` no longer gives n8n a second fingerprint. Then
+`migrations/2026-10-01-analytics-metrics-dedupe-quoted-empty.sql` was applied by Lighthouse after the owner's go ("yes, delete
+them"). Before it: 92 rows on 2026-09-29 and 2026-09-30 (36 n8n plus 10 sheet-backfill per day), 20 client-days doubled, no
+rows yet for 2026-10-01. Read back after: `analytics_metrics_dedupe_log` holds 20 rows, 72 rows remain on the two days, 0
+client-days have more than one row, and the log table has no grants to `anon`, `authenticated` or `service_role`. The daily
+parity run confirms against the Sheet. **Way back:** the undo in the migration header re-inserts the 20 rows from the log.
+
 ## 2026-09-30 — instagram_uploads table created (owner's go; OPEN_REPAIRS 301)
 
 `migrations/2026-09-30-instagram-uploads.sql` (the version with `last_checked_at`) applied by Lighthouse after the owner's go.

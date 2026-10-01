@@ -1,8 +1,8 @@
 -- ============================================================
 -- Remove the n8n twin of Metrics rows stored twice (2026-10-01).
 --
--- SOURCE-ONLY. Not applied. Applied by hand in the SQL editor with the
--- owner's go; EXECUTION_LOG.md records the apply.
+-- APPLIED 2026-10-01 by Lighthouse after the owner's go; EXECUTION_LOG.md
+-- records the apply and the read-back.
 --
 -- WHY THE ROWS EXIST. n8n's Google Sheets node sent an empty cell as the two
 -- characters "" (yt_shorts_views / yt_longs_views of clients with no YouTube),

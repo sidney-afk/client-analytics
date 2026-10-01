@@ -14,7 +14,8 @@ import {
   _prodFetchAuthority, _prodFetchNativeEpochTeams, _prodHydrateFromCache, _prodIdbCacheRead,
   _prodInitials, _prodLoadDeliverableProjection, _prodLoadDisplayPrefs,
   _prodPreserveProjectedFields, _prodPreviewText, _prodRefreshAuthority, _prodRestRows,
-  _prodScopeSignatures, _prodSmmArtifactGate, _prodStartAuthorityRefresh, _prodState
+  _prodScopeSignatures, _prodSmmArtifactGate, _prodStartAuthorityRefresh, _prodState,
+  _prodTerminalCopyRead, _prodTerminalCopyWrite
 } from './210-production-state-writes.js';
 import {
   PROD_REFRESH_ICON, _prodAdapter, _prodApplySubIssueVisibility, _prodAvatar, _prodBatch,
@@ -1569,23 +1570,62 @@ import {
         let _prodDeepLinkFastRows = null;
         async function _prodDeepLinkFastPaint(reads) {
             const link = _prodState.deepLink;
-            const wanted = link && link.kind === 'issue' ? String(link.id || '').trim() : '';
+            const kind = link && link.kind === 'batch' ? 'batch' : link && link.kind === 'issue' ? 'issue' : '';
+            const wanted = kind ? String(link.id || '').trim() : '';
             if (!wanted) return false;
-            if (_prodIssue(wanted)) return false;              // the snapshot already shows it
+            if (kind === 'issue' && _prodIssue(wanted)) return false;   // the snapshot already shows it
+            /* A batch link is "already shown" only once the page can say where it
+               lands: its real parent resolved, or its own rows held. The saved
+               list carries the batch row but never a finished parent or finished
+               children, which is why a link at a finished batch waited for the
+               whole finished-items read (about 5 s) before showing its title. */
+            if (kind === 'batch' && _prodBatch(wanted)
+                && (_prodBatchParentIssue(_prodBatch(wanted)) || _prodBatchRows(wanted).length)) return false;
             if (_prodDeepLinkFastRows && _prodDeepLinkFastRows.id === wanted) return false;
-            const query = _prodDeepLinkRowQuery(wanted);
-            if (!query) return false;
+            const query = kind === 'issue' ? _prodDeepLinkRowQuery(wanted) : '';
+            const batchKey = kind === 'batch' && !/[(),\x22\x27]/.test(wanted) ? wanted : '';
+            if (!query && !batchKey) return false;
             const generation = _prodState.projectionGeneration;
             const record = { id: wanted, generation, rows: null };
             _prodDeepLinkFastRows = record;
             const settled = () => generation !== _prodState.projectionGeneration || _prodDeepLinkFastRows !== record;
             try {
-                const rows = await _prodLoadDeliverableProjection(query);
+                let rows;
+                if (kind === 'issue') rows = await _prodLoadDeliverableProjection(query);
+                else {
+                    /* The batch row names its parent card(s) (linear_parent_ids,
+                       the same field _prodBatchParentIssue reads); the children
+                       are the rows whose batch_id is this one. Two reads, side by
+                       side, then the same merge as a single row. */
+                    const own = await _prodRestRows('batches', PROD_BATCH_SELECT, 'id=eq.' + encodeURIComponent(batchKey), 1000, 1).catch(() => []);
+                    if (settled() || !Array.isArray(own) || !own.length) return false;
+                    const parentKeys = [];
+                    const lp = own[0] && own[0].linear_parent_ids;
+                    if (lp && typeof lp === 'object') Object.keys(lp).forEach(key => {
+                        const entry = lp[key];
+                        const id = !entry ? '' : typeof entry === 'string' ? entry.trim()
+                            : String(entry.identifier || entry.id || entry.uuid || entry.linear_issue_id || '').trim();
+                        if (id && !/[(),\x22\x27]/.test(id)) parentKeys.push(id);
+                    });
+                    const parentFilter = parentKeys.length
+                        ? 'or=(' + Array.from(new Set(parentKeys)).map(k => ['id', 'identifier', 'linear_identifier', 'linear_issue_uuid']
+                            .map(c => c + '.eq.' + encodeURIComponent(k)).join(',')).join(',') + ')'
+                        : '';
+                    const [children, parentRows] = await Promise.all([
+                        _prodLoadDeliverableProjection('batch_id=eq.' + encodeURIComponent(batchKey)),
+                        parentFilter ? _prodLoadDeliverableProjection(parentFilter).catch(() => []) : []
+                    ]);
+                    if (settled()) return false;
+                    const seenOwn = new Set();
+                    rows = (Array.isArray(children) ? children : []).concat(Array.isArray(parentRows) ? parentRows : [])
+                        .filter(row => row && !seenOwn.has(String(row.id || '')) && seenOwn.add(String(row.id || '')));
+                    record.ownBatch = own;
+                }
                 if (settled()) return false;
-                if (!Array.isArray(rows) || !rows.length) return false;
+                if (!Array.isArray(rows) || (!rows.length && !(record.ownBatch && record.ownBatch.length))) return false;
                 const safeIds = list => Array.from(new Set(list.map(v => String(v || '').trim())
                     .filter(v => v && !/[(),\x22\x27]/.test(v))));   // quotes as escapes, see _prodDeepLinkRowQuery
-                const batchIds = safeIds(rows.map(row => row && row.batch_id));
+                const batchIds = safeIds(rows.map(row => row && row.batch_id)).filter(id => id !== batchKey);   // the link's own batch is already in hand
                 const parentIds = safeIds(rows.map(row => row && row.raw_issue_parent_id));
                 const inList = ids => 'in.(' + ids.map(encodeURIComponent).join(',') + ')';
                 const [clients, members, batches, parents] = await Promise.all([
@@ -1607,9 +1647,9 @@ import {
                     seenRows.add(id);
                     added.push(row);
                 });
-                if (!added.length) return false;
+                if (!added.length && !batchKey) return false;
                 const seenBatches = new Set((_prodState.batches || []).map(b => String(b && b.id || '')));
-                const newBatches = (Array.isArray(batches) ? batches : []).filter(b => b && b.id && !seenBatches.has(String(b.id)));
+                const newBatches = (Array.isArray(batches) ? batches : []).concat(record.ownBatch || []).filter(b => b && b.id && !seenBatches.has(String(b.id)));
                 _prodState.clients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 _prodState.members = members;
                 _prodState.batches = (_prodState.batches || []).concat(newBatches);
@@ -1620,6 +1660,20 @@ import {
                     batches: _prodState.batches,
                     deliverables: _prodState.deliverables
                 });
+                /* A batch link whose real parent card is now in hand lands on that
+                   card, as the authoritative pass after phase one does (same rule,
+                   same address correction); the link itself stays pending for
+                   that pass, which finds the reader already there. */
+                if (batchKey && _prodState.deepLink && _prodState.deepLink.id === wanted
+                    && _prodState.openBatchId === wanted && !_prodState.openId) {
+                    const parent = _prodBatchParentIssue(_prodBatch(wanted));
+                    if (parent) {
+                        _prodState.openId = parent.displayId || parent.id;
+                        _prodState.openBatchId = '';
+                        _prodState.view = 'detail';
+                        _prodSetQuery({ d: _prodState.openId }, false);
+                    }
+                }
                 _prodState.loaded = true;
                 _prodState.loading = false;
                 _prodState.cachePartial = true;                // the board is not here yet
@@ -1770,8 +1824,21 @@ import {
                 const tail = await (prefetched ? prefetched.promise : _prodLoadDeliverableProjection(filter));
                 if (generation !== _prodState.projectionGeneration) return false;
                 if (!Array.isArray(tail)) return false;
-                const scopeBefore = _prodScopeSignatures(_prodState.adapter);
-                if (watermark) {
+                /* NOTHING MOVED. An incremental read always returns at least the
+                   newest finished row it was started from (`gte`), so "no rows"
+                   never happens; "no row that differs from the copy held" does,
+                   on most opens. Then there is nothing to merge, no list to
+                   rebuild and no pill or scope to re-check: the adapter built at
+                   the live swap already holds these very rows. */
+                const heldById = watermark ? new Map((_prodState.deliverables || []).map(row => [String(row && row.id || ''), row])) : null;
+                const nothingMoved = !!watermark && tail.every(row => {
+                    const held = row && heldById.get(String(row.id || ''));
+                    return !!held && String(held.updated_at || '') === String(row.updated_at || '');
+                });
+                const scopeBefore = nothingMoved ? null : _prodScopeSignatures(_prodState.adapter);
+                if (nothingMoved) {
+                    /* fall through to the bookkeeping below */
+                } else if (watermark) {
                     /* UPDATE in place, do not append blind. The full pass below
                        may append only what it has never seen, because the live
                        half it is joining is the fresher of the two. This read is
@@ -1792,7 +1859,7 @@ import {
                     _prodState.terminalTailFullAt = Date.now();
                 }
                 const merged = _prodState.deliverables;
-                _prodState.adapter = _prodAdapter({
+                if (!nothingMoved) _prodState.adapter = _prodAdapter({
                     clients: _prodState.clients,
                     members: _prodState.members,
                     batches: _prodState.batches,
@@ -1835,6 +1902,7 @@ import {
                    next render of a parent re-ask. The entries stay: they are
                    the pills on screen, and _prodBatchFileFor refuses one whose
                    row has moved (2026-09-05, with the asset-state change). */
+                if (!nothingMoved) {
                 const rescoped = [];
                 const scopeAfter = _prodScopeSignatures(_prodState.adapter);
                 scopeBefore.forEach((signature, id) => {
@@ -1842,7 +1910,9 @@ import {
                 });
                 if (rescoped.length) _prodInvalidateScopedReadsFor(rescoped);
                 _prodState.batchFilesStatus.clear();
+                }
                 _prodState.terminalTailLoadedAt = Date.now();
+                _prodTerminalCopyWrite(_prodState.deliverables, _prodState.terminalTailFullAt);
                 /* The row set is only now COMPLETE, so this is the first moment
                    a deep link at finished work can be honoured -- and the first
                    moment an unresolved one is genuinely missing rather than not
@@ -1967,7 +2037,23 @@ import {
                         if (document.getElementById('prodRoot')) _prodRender();
                     }
                 }).catch(() => {});
-                if (_prodTerminalTailFullDue(silent)) _prodStartTailPrefetch();
+                /* THE FINISHED ROWS ARE READ FROM THE SAVED COPY FIRST (2026-10-01).
+                   A boot that finds them saved (see _prodTerminalCopyWrite) keeps
+                   them across phase one and asks only for the ones that changed,
+                   so there is nothing to start a full read for. The decision
+                   waits for the copy (a local read, 400 ms at the longest), and a
+                   copy that is late, missing, stale, or for another shape simply
+                   leaves the full read exactly as it was. */
+                const copyRead = (!silent && !_prodState.terminalCopyTried)
+                    ? (_prodState.terminalCopyTried = true, Promise.race([
+                        Promise.resolve().then(() => _prodTerminalCopyRead()).catch(() => null),
+                        new Promise(resolve => setTimeout(() => resolve(null), 400))]))
+                    : Promise.resolve(null);
+                const copyGeneration = _prodState.projectionGeneration;
+                copyRead.then(copy => {
+                    _prodAdoptTerminalCopy(copy, copyGeneration);
+                    if (_prodTerminalTailFullDue(silent)) _prodStartTailPrefetch();
+                }, () => { if (_prodTerminalTailFullDue(silent)) _prodStartTailPrefetch(); });
                 const clientsRead = _prodClientRows();
                 const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
                 /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.
@@ -2040,6 +2126,7 @@ import {
                    below depends on it. `_prodState.deliverables` still holds
                    the previous set at this point, archive included. */
                 const tailFull = _prodTerminalTailFullDue(silent);
+                _prodState.terminalCopyBoot = false;   // only this first load may lean on the saved copy
                 const mergedDeliverables = tailFull
                     ? _prodCarryDeepLinkRows(deliverables)
                     : _prodCarryTerminalRows(_prodCarryDeepLinkRows(deliverables), _prodState.deliverables);
@@ -2797,9 +2884,49 @@ import {
            not carry a stale copy of it, an incremental pass carries the copy
            and reads only what moved. Two callers, one rule. */
         function _prodTerminalTailFullDue(silent) {
-            return !silent
-                || !Number(_prodState.terminalTailLoadedAt || 0)
-                || (Date.now() - Number(_prodState.terminalTailFullAt || 0)) >= PROD_TERMINAL_FULL_MS;
+            const age = Date.now() - Number(_prodState.terminalTailFullAt || 0);
+            /* The saved finished rows (see _prodAdoptTerminalCopy) stand in for a
+               first tail on the first load only, and only while the last FULL pass
+               they came from is under an hour old; past that the full pass runs,
+               which is what lets a hard delete converge. */
+            const copyHeld = _prodState.terminalCopyBoot === true && age < PROD_TERMINAL_FULL_MS;
+            const haveTail = !!Number(_prodState.terminalTailLoadedAt || 0) || copyHeld;
+            return (!silent && !copyHeld)
+                || !haveTail
+                || age >= PROD_TERMINAL_FULL_MS;
+        }
+        /* Take the saved finished rows, but only BEFORE this load's live swap: a
+           copy that lands after it would join a projection that already
+           replaced them, and the full read has by then been chosen. */
+        function _prodAdoptTerminalCopy(copy, generation) {
+            if (!copy || !Array.isArray(copy.rows) || !copy.rows.length) return false;
+            if (generation !== _prodState.projectionGeneration) return false;
+            if (Number(_prodState.terminalTailLoadedAt || 0) || (_prodState.loaded && !_prodState.fromCache)) return false;
+            const held = Array.isArray(_prodState.deliverables) ? _prodState.deliverables : [];
+            const ids = new Set(held.map(row => String(row && row.id || '')));
+            _prodState.deliverables = held.concat(copy.rows.filter(row => row && !ids.has(String(row.id || ''))));
+            _prodState.terminalTailFullAt = copy.fullAt;
+            _prodState.terminalCopyBoot = true;
+            /* The saved list is already on screen. Only a link waiting at a card
+               the painted list cannot place (a finished card, or a batch whose
+               parent is finished) gets the finished rows put into it now (still
+               marked as the saved copy), so it opens from here instead of
+               waiting for the live read. An ordinary open pays nothing for them
+               until the live swap, which builds the list once with them in it. */
+            const link = _prodState.deepLink;
+            const linkWaiting = !!link && ((link.kind === 'issue' && !_prodIssue(link.id))
+                || (link.kind === 'batch' && !_prodBatchParentIssue(_prodBatch(link.id))));
+            if (_prodState.loaded && _prodState.fromCache && linkWaiting) {
+                _prodState.adapter = _prodAdapter({
+                    clients: _prodState.clients,
+                    members: _prodState.members,
+                    batches: _prodState.batches,
+                    deliverables: _prodState.deliverables
+                });
+                _prodApplyDeepLinkFallback(false);
+                if (document.getElementById('prodRoot')) _prodRender();
+            }
+            return true;
         }
         /* Carry the finished rows across phase one.
 

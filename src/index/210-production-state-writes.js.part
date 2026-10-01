@@ -373,6 +373,11 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
                A full read is what converges a hard delete; the watermark read
                below cannot see a row that no longer exists. */
             terminalTailFullAt: 0,
+            /* True from the moment the saved finished rows are adopted until the
+               first live swap decides this load's tail: that one load may read the
+               finished rows incrementally even though it is not silent. */
+            terminalCopyBoot: false,
+            terminalCopyTried: false,
             writes: new Map(),
             commentDrafts: new Map(),
             briefsLoaded: false,
@@ -421,7 +426,11 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
          * projection the calendar already caches per client.
          * ----------------------------------------------------------------- */
         const PROD_CACHE_KEY = 'syncview_production_cache_v1';
-        const PROD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+        /* Seven days, up from one (owner, 2026-10-01). The saved list is only ever
+         * painted while it says it is a saved list (see _prodCachedNoticeHTML) and
+         * the live read replaces it as soon as it lands, so a longer life costs a
+         * longer-lived first paint, never a longer-lived answer. */
+        const PROD_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
         /*
          * THE SNAPSHOT NEVER FIT, AND IT DELETED THE NEIGHBOURS TRYING.
          *
@@ -771,6 +780,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
         function _prodCachePurge() {
             try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
             _prodIdbCacheDelete();
+            _prodTerminalCopyDelete();
             try { if (typeof _prodState !== 'undefined' && _prodState) _prodState.fromCache = false; } catch {}
         }
         /* THE SNAPSHOT THAT DOES NOT FIT localStorage GOES TO IndexedDB.
@@ -827,6 +837,54 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             return _prodIdbRequest('readonly', store => store.get(PROD_IDB_KEY))
                 .then(parsed => (seq === _prodIdbCacheSeq ? _prodCacheValidate(parsed) : null), () => null);
         }
+        /* THE FINISHED ROWS' SAVED COPY (2026-10-01). The list snapshot above
+           leaves finished rows out on purpose (size), so every open re-read all
+           ~4,600 of them (five serial pages, ~1.2 MB). They live here instead,
+           in IndexedDB only, with the time of the last FULL pass. The next open
+           reads only the finished rows that changed since the newest one held,
+           and a full pass still runs once an hour, counted from `fullAt`, so a
+           hard delete converges exactly as before. Same column lists and the same
+           validation as the list snapshot; purged with it. */
+        const PROD_TERMINAL_COPY_SCHEMA = 1;
+        const PROD_IDB_TERMINAL_KEY = 'syncview_production_terminal_v1';
+        let _prodTerminalCopySeq = 0;
+        function _prodTerminalCopyWrite(rows, fullAt) {
+            if (!_prodCacheEnabled()) return Promise.resolve(false);
+            const seq = ++_prodTerminalCopySeq;
+            try {
+                const payload = {
+                    schema: PROD_TERMINAL_COPY_SCHEMA,
+                    savedAt: Date.now(),
+                    fullAt: Number(fullAt) || 0,
+                    deliverables: _prodCachePackRows((rows || []).filter(_prodCacheIsTerminal), _prodCacheDeliverableColumns())
+                };
+                return _prodIdbRequest('readwrite', store => store.put(payload, PROD_IDB_TERMINAL_KEY))
+                    .then(() => seq === _prodTerminalCopySeq, () => false);
+            } catch (e) { return Promise.resolve(false); }
+        }
+        function _prodTerminalCopyDelete() {
+            _prodTerminalCopySeq++;
+            try { return _prodIdbRequest('readwrite', store => store.delete(PROD_IDB_TERMINAL_KEY)).catch(() => {}); }
+            catch (e) { return Promise.resolve(); }
+        }
+        function _prodTerminalCopyValidate(parsed) {
+            try {
+                if (!parsed || parsed.schema !== PROD_TERMINAL_COPY_SCHEMA || !parsed.savedAt || !parsed.fullAt) return null;
+                if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
+                if (!parsed.deliverables || (parsed.deliverables.c || []).join(',') !== _prodCacheDeliverableColumns().join(',')) return null;
+                const rows = _prodCacheUnpackRows(parsed.deliverables);
+                if (!rows || !rows.length) return null;
+                return { savedAt: Number(parsed.savedAt), fullAt: Number(parsed.fullAt), rows: rows.filter(_prodCacheIsTerminal) };
+            } catch (e) { return null; }
+        }
+        function _prodTerminalCopyRead() {
+            if (!_prodCacheEnabled()) return Promise.resolve(null);
+            const seq = _prodTerminalCopySeq;
+            try {
+                return _prodIdbRequest('readonly', store => store.get(PROD_IDB_TERMINAL_KEY))
+                    .then(parsed => (seq === _prodTerminalCopySeq ? _prodTerminalCopyValidate(parsed) : null), () => null);
+            } catch (e) { return Promise.resolve(null); }
+        }
         /* `snapshot` is the IndexedDB copy when there is one (_prodMountFromIdbOrLoad);
            otherwise the localStorage copy is read here, as it always was. */
         function _prodHydrateFromCache(snapshot) {
@@ -839,14 +897,21 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             _prodState.clients = clients;
             _prodState.members = members;
             _prodState.batches = batches;
-            _prodState.deliverables = deliverables;
+            /* The saved finished rows may have been adopted a moment earlier
+               (see _prodAdoptTerminalCopy); this snapshot has none of its own,
+               so they are kept rather than overwritten. */
+            const heldFinished = _prodState.terminalCopyBoot === true
+                ? (_prodState.deliverables || []).filter(_prodCacheIsTerminal) : [];
+            _prodState.deliverables = heldFinished.length ? deliverables.concat(heldFinished) : deliverables;
             /* Not restored from the snapshot -- see _prodCacheProject. The tab
                stays read-only on the cached paint, exactly as it does today,
                until _prodFetchAuthority answers. */
             _prodState.authority = null;
             _prodState.authorityLoaded = false;
             _prodState.authorityReadAt = 0;
-            _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
+            // The finished rows join the painted list only for a link that is waiting
+            // at a card; otherwise they wait for the live swap (see _prodAdoptTerminalCopy).
+            _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables: _prodState.deepLink ? _prodState.deliverables : deliverables });
             _prodState.loaded = true;
             _prodState.cachedAt = Number(cached.savedAt) || 0;
             _prodState.fromCache = true;
@@ -3231,6 +3296,7 @@ export {
   _prodEnsureAssets, _prodEnsureAssigneeOptions, _prodEnsureBatchFiles, _prodEnsureLabels,
   _prodFetchAuthority, _prodFetchNativeEpochTeams, _prodHasOwn, _prodHashText, _prodHeaders,
   _prodHydrateFromCache, _prodIdbCacheRead, _prodInitials, _prodIssueScopeSignature,
+  _prodTerminalCopyRead, _prodTerminalCopyWrite,
   _prodLabelState, _prodLinearRaw, _prodLoadDeliverableProjection, _prodLoadDisplayPrefs,
   _prodNativeEpochOn, _prodNextLabelRequestToken, _prodNormalizeLabelList,
   _prodPostRows, _prodPreserveProjectedFields, _prodPreviewText, _prodRefreshAuthority,

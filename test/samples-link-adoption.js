@@ -214,7 +214,7 @@ const LIVE_SHAPE = () => [{
   const esc = s => String(s).replace(/"/g, '&quot;');
   const slot = prodSlot(false, esc, { pathname: '/index.html' });
   const withIds = { video_deliverable_id: 'del_vid', graphic_deliverable_id: 'del_gra' };
-  ok(/\/synclinear\/del_vid/.test(slot(withIds, 'video')) && /\/synclinear\/del_gra/.test(slot(withIds, 'graphic')),
+  ok(/prod=1&(?:amp;)?d=del_vid#production/.test(slot(withIds, 'video')) && /prod=1&(?:amp;)?d=del_gra#production/.test(slot(withIds, 'graphic')),
   'both components render an open-in-Production link built from the deliverable id');
   ok(slot({}, 'video') === '' && slot({ video_deliverable_id: '' }, 'video') === '',
   'a sample without a native deliverable id renders no Production button');

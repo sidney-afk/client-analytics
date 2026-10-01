@@ -18,10 +18,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
 
 ## 1. How to read this map
 
-- **The app is one file.** `index.html` (~45.8k lines at this checkpoint) is the entire SPA; GitHub Pages serves it
-  from `main`, so a merge ships to production immediately. There is no build step and no router
-  library — "surfaces" are regions of one inline script, reached by URL param / hash / nav button
-  and gated by client-side checks.
+- **The app is assembled from fragments.** Edit `src/index`, rebuild with `npm run build:index` and verify with `npm run check:index`. The [Pages workflow](../../.github/workflows/pages-site.yml) publishes matching source changes from main; a documentation-only merge does not publish. Routes and screen owners are in the [Atlas](../ATLAS.md#screens).
 - **Endpoint kinds.** Four backends serve the app and this map always names which one: **n8n**
   webhook (`…app.n8n.cloud/webhook/<path>`), **edge-fn** (Supabase Edge Function,
   `…/functions/v1/<name>`), **rest** (Supabase PostgREST, `…/rest/v1/<table>`), **realtime**
@@ -77,7 +74,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   until the exact function source is manually deployed. Effective schema
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
-- **Edge Functions.** 36 are represented under `supabase/functions/`; **the app calls 29**
+- **Edge Functions.** Atlas verified 46 source entrypoints here and 47 live functions on 2026-09-30; see the [current function map](../ATLAS.md#edge-functions) for source-only and externally owned entries. The following app-call counts and release receipts are historical; **the app called 29** at the older checkpoint
   (**"32 literal + 4 composed" Edge Functions**, see §7; `description-image-upload` is the
   2026-09-05 addition and is source-only until its first path-triggered deploy). Seven are backend-only: the Linear
   webhook target (`linear-inbound`), B4 outbox drainer (`linear-outbound`), service-only write

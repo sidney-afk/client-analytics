@@ -398,6 +398,8 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Edge Functions
 
+**Atlas catalog correction, 2026-09-30:** 47 live functions, 46 source entrypoint folders here and one shared helper folder. `pipeline-google` and `fp-tab-test` have source in synchro-pipelines; `doctors-partial-capture` has no traced source in the four checked repo trees. `linear-inbound` and `linear-outbound` remain source-only and are absent live. [Atlas](../ATLAS.md#edge-functions) lists presence, versions and release lanes. Older release receipts below keep their original dates.
+
 Client/staff verifier truth is also not ready for enforcement: F87 records missing request controls,
 uniform denials, bounded event retention, and explicit audit-outage behavior. F89 proves
 `client_access_events.ok` means access-allowed rather than credential-valid; the current seven-day
@@ -448,14 +450,11 @@ The 2026-07-26 v26 production-write run, the 2026-07-24 run, and the earlier
 merge/push still deploys neither manually gated function. `calendar-upsert` and
 `sample-review-upsert` remained frozen and unchanged throughout the F27 window.
 
-Live set in `docs/truth/ENDPOINTS.md`. **Corrected 2026-09-23: source represents 38 deployable
-function slugs and the live inventory is 38**, not the 35/35 this line claimed after the 2026-08-25
+App-called endpoints are in `docs/truth/ENDPOINTS.md`. **Corrected by Atlas, 2026-09-30: this repo has 46 function entrypoints and the live inventory is 47**, with the differences listed above. The earlier 2026-09-23 census was 38/38, superseding the 35/35 claim after the 2026-08-25
 `hiring-applications` / `hiring-automation` deployments. The three added since are
 `description-image-upload`, `notify`, and `write-diagnostics` — the last deployed 2026-09-23 as the
 private WR-101 refusal-receipt endpoint (`functions/v1/write-diagnostics`, called by the browser,
-listed in `docs/truth/ENDPOINTS.md`, OPEN_REPAIRS 101/240). Source directory set and live slug set
-were compared and match exactly, with no slug on one side only. `production-write` reads **v82**
-live (2026-09-23), superseding every earlier version integer quoted in this document; those older
+listed in `docs/truth/ENDPOINTS.md`, OPEN_REPAIRS 101/240). Source and live sets matched at that older census; they differ now. `production-write` reads **v102** live in the Atlas catalog (2026-09-30), superseding v82 from 2026-09-23; those older
 integers stay below as the release identity of their own dated receipts, not as current state. The
 hiring candidate-email kill switch is NOT "exactly false" any more — see the corrected Hiring
 sidecar note above;

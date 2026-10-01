@@ -52,8 +52,8 @@
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
 **Slack / Post For Me**
-- [ ] Create the client's **Slack channel** — **always a manual step, never automated** — grab its **channel ID** (→ Clients Info) and **SMM's Slack user ID** (→ SMM tab `slack_profile_url`). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
-- [ ] Confirm the **Clients Info** row, assigned SMM row (with `slack_profile_url` filled in), and linked filming plan are ready; the Slack finalizer then creates the one public `-creative` channel and writes `creative_channel_id`. → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
+- [ ] Get the **SMM's Slack user ID** into the SMM tab (`slack_profile_url`). **Do NOT create the client Slack channel by hand and do NOT fill `slack_channel_id`:** the Slack finalizer creates both the private client channel and the public `-creative` channel and writes both ids (corrected 2026-10-01, owner decision). → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
+- [ ] Confirm the **Clients Info** row, assigned SMM row (with `slack_profile_url` filled in), and linked filming plan are ready; the Slack finalizer then creates the public `-creative` channel and the private client channel and writes `creative_channel_id` and `slack_channel_id`. → [§6c](#6c-two-slack-channels--the-client-channel-manual-and-the-creative-channel-automatic)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
 - [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
@@ -155,10 +155,10 @@ does not prove credential import or provisioning (F110), so do not advance this 
 required side effects have been read back manually. The target state is one protected, resumable
 `captured → processing → complete|failed` job with an independent unacknowledged-capture alarm.
 
-The old Notion form was replaced. Its active-labelled legacy workflow currently reports no
-production trigger, describes itself as pending setup, and has no retained execution metadata.
-Do not wait for or revive that DM path from this runbook; archive it only through F60's private
-backup/restore and identifier-free zero-use proof (F111).
+The old Notion form was replaced. Its legacy workflow ("New Client → Slack DM (Notion Onboarding)") was
+active and failing on every poll until the owner had it turned off on 2026-10-01 (`docs/ops/N8N_EDIT_LOG.md`,
+undo: publish it again). Do not wait for or revive that DM path from this runbook; archive it only
+through F60's private backup/restore and identifier-free zero-use proof (F111).
 
 ---
 
@@ -401,12 +401,11 @@ The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's *
 
 These are genuinely different channels for different audiences. Don't conflate them.
 
-**Client channel (manual, unchanged)**
+**Client channel (automatic since the 2026-08-24 rebuild; docs corrected 2026-10-01)**
 
-1. Create the client's Slack channel (follow the existing naming pattern in Slack).
-2. Copy the **channel ID** (`C…`) → paste into `slack_channel_id` in **Clients Info**.
+The finalizer (below) also creates a **private client channel**, invites Kasper and the assigned SMM, verifies the roster, and writes `slack_channel_id` into Clients Info alongside `creative_channel_id`. It does this in the same run as the creative channel, so there is nothing to create by hand. **Leave `slack_channel_id` empty before the run**: the readiness check treats a filled `slack_channel_id` (or `creative_channel_id`) as "someone already did it" and sends the job to manual reconciliation. That is what happened to one of the three queue rows ever written. (The live example of this channel is named `{client}-synchro`; confirm the exact name in the finalizer's channel step before relying on it.)
 
-This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go. The internal creative-channel ID below does **not** replace this field or belong in Linear's Slack-channel field.
+This is the channel the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`, switched off since 2026-09-03) posted to, and where urgent tweak pings go. The internal creative-channel ID below does **not** replace this field or belong in Linear's Slack-channel field.
 
 **Creative channel `{first}-{last}-creative` (automatic; this is the onboarding destination — history below)**
 

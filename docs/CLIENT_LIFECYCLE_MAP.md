@@ -436,7 +436,7 @@ automated today:
 | 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ⚠️ fail-soft caller-derived owner; no canonical roster readback or joined receipt/resume (F69/F110) |
 | 4 | Google Drive "Clients" folder | client folder | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
 | 5 | **Slack creative channel** `{client}-creative` (Roam 2026-07-28→08-24, back to Slack 2026-08-24) | internal creative space + brief, credentials inlined in the first message | 🚨 public-triggered unawaited provisioning; the brief includes raw account-access answers by owner decision and is **persisted** in the `Slack Creative Channel Queue` Data Table as well as posted to Slack (F128/F129, §6) |
-| 6 | Slack **client channel** | the channel the client is in (weekly reports, tweak pings) | ❌ manual — note the ID `C…` |
+| 6 | Slack **client channel** | the private channel for the client (tweak pings; the weekly top-reel post is off since 2026-09-03) | ✅ auto: the Slack finalizer creates it with the creative channel and writes `slack_channel_id` (corrected 2026-10-01; do not create by hand or the job goes to manual) |
 | 7 | SYNCVIEW sheet → `Clients Info` | the **public, non-secret** row that puts the client live in SyncView (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `postforme_account_id` | ❌ manual |
 | 7a | Supabase `client_access` + authenticated link builder | service-role-only review token and the staff-authorized path that copies one exact client's link; **never put the token in Clients Info** (audit F33) | ❌ Track-B onboarding/distribution gap |
 | 8 | SYNCVIEW sheet → `Social Media Managers` | client → SMM assignment (+ per-SMM Linear key, Slack id) | ❌ manual |
@@ -881,11 +881,11 @@ table are all slated to become automated/Supabase-native.
     Recovery Capture` hardcodes `SHARED_SECRET` in a Code node and accepts
     it via **`?secret=` query string** as well as the `x-webhook-secret`
     header. Query strings land in proxy and server logs. Extends §15.6.
-20. **`Client — Onboarding Provisioning` has no `errorWorkflow`.** Every
-    other production workflow carries `itqDXSl2ybsRSAiQ`; this one does not,
-    so a crash in the workflow that provisions a *paying* client alerts
-    nobody. `qllIDZPkdNAPRj0b` (the monitoring pager itself) is also
-    unguarded. §15.16's "DM Sidney within seconds" does not hold here.
+20. **~~`Client — Onboarding Provisioning` has no `errorWorkflow`.~~ Fixed:
+    it carries `itqDXSl2ybsRSAiQ` now (read live 2026-10-01).** Originally: every
+    other production workflow carried it and this one did not, so a crash in
+    the workflow that provisions a *paying* client alerted nobody. `qllIDZPkdNAPRj0b` (the monitoring pager itself) is also
+    unguarded.
 21. **Commas renewal gate will not port.** The Stripe workflow's renewal
     guard keys on `billing_reason === 'subscription_cycle'` — a field
     Commas/FanBasis never sends. Ported as-is, **every Commas renewal is

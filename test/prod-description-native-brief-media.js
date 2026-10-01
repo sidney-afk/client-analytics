@@ -93,6 +93,7 @@ function freshCtx() {
     },
     _prodIssue(id) { return String(id) === row.id ? row : null; },
     _prodRender() {},
+    _prodDescDraftRestore() {},   // draft store: lost-work-drafts.js
     _prodAssetDefaultEvidence() { return {}; },
     _syncviewStaffIdentityForHeaders() { return { key: 'staff-a', role: 'creative', team: 'graphics' }; },
     _syncviewStaffIdentitySignature(v) { return JSON.stringify(v || null); },

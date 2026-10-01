@@ -17,7 +17,7 @@ import {
   _calPillDisplayStatus, _calPlatformsStripHtml, _calRecentSaveFields, _calSaveInFlight,
   _calSaveTimers, _calShouldBumpThumbRevForGraphicStatus, calClientSlug, calState
 } from './130-calendar-model-cache.js';
-import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calEsc, _calEscAttr, _svDraftClear, _svDraftClearIf, _svDraftNoteHtml, _svDraftNorm, _svDraftRead, _svDraftSave } from './131-core-html.js';
 import { _calMintId } from './132-calendar-dates-ids.js';
 import { _calArchivedRemove, _calDupeWarnText, _calLinkDuplicatePeers, _calLinkKey } from './134-calendar-prefs-mount.js';
 import { _calPushStatusToLinear, _calShowKasperUrgent, _calUrgentButtonHtml, _urgentAdoptStampsAfterSave, _writeUiApplyOverallStatus } from './140-calendar-legacy-outbox.js';
@@ -109,6 +109,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _calEscAttr(p.id);
+        // Unsaved caption text left behind by a closed tab, a reload or a failed save.
+        const capDraft = (!_isClientLink && !isBlank) ? _calCaptionDraftView(p) : null;
         // Client-link view locks existing posts, but blank cards the client
         // just added stay editable so they can fill them in. `ro` still
         // governs the MEDIA surface (video / thumbnail / Linear / status /
@@ -246,9 +248,11 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
                 ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank, p)}
-                <div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, p, editableText, isBlank)}</div>
+                <div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, capDraft ? Object.assign({}, p, { caption: capDraft.text }) : p, editableText, isBlank)}</div>
+                ${capDraft ? _svDraftNoteHtml(`onclick="_calCaptionDraftDiscard('${pid}')"`) : ''}
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
+                ${_calConflictHtml(pid)}
                 <div class="cal-card-foot">
                     ${_calCommentsBtnHtml(p, pid)}
                     ${p._saveError && p._writeUiRetrySourceAt
@@ -372,6 +376,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const rememberPrior = (bucket, key) => {
             bucket._calPriorStatus = bucket._calPriorStatus || {};
             if (!(key in bucket._calPriorStatus)) bucket._calPriorStatus[key] = post[key];
+            _calNoteEditBase(pid, key, post[key]);
         };
         if (which) {
             const key = which + '_status';
@@ -624,6 +629,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             for (const c of settable) {
                 const key = c + '_status';
                 if (_calNormStatus(post[key] || '') === status) continue;
+                _calNoteEditBase(pid, key, post[key]);
                 post[key] = status;
                 staged[key] = status;
                 changed = true;
@@ -1044,6 +1050,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        if (fld === 'caption') { const shown = calState.posts.find(p => p.id === pid); if (shown) _calNoteEditBase(pid, fld, shown[fld]); _calCaptionDraftWrite(pid, val); }
         _calPendingEdits[pid][fld] = val;
         // Optimistically mirror the edit into local state (parity with the SXR
         // twin _sxrOnFieldInput). Without this, the in-flight save's echo-adopt
@@ -1064,6 +1071,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        if (fld === 'caption') { const shown = calState.posts.find(p => p.id === pid); if (shown) _calNoteEditBase(pid, fld, shown[fld]); _calCaptionDraftWrite(pid, val); }
         _calPendingEdits[pid][fld] = val;
         // Same optimistic state mirror as _calOnFieldInput (SXR parity).
         const post = calState.posts.find(p => p.id === pid);
@@ -1210,6 +1218,16 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // lock must cover it too or the re-flush would race this request.
             _calSaveInFlight[realId] = _calSaveInFlight[pid];
         }
+        /* Another writer may have changed a field this person is now saving. Read
+           those fields fresh and, if so, hold them for a choice instead of
+           overwriting. Never for a client link, a brand-new card or a card that
+           is being created in this save. Fields it holds leave `edits`; when
+           nothing is left to save there is nothing to send. */
+        if (!isBlank && !_isClientLink && calState.posts.some(p => p.id === realId)) {
+            const hadKeys = Object.keys(edits).length;
+            await _calConflictGate(realId, _saveSlug, edits);
+            if (hadKeys && !Object.keys(edits).length) return;
+        }
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
         const prevSnapshot = idx >= 0 ? Object.assign({}, calState.posts[idx]) : null;
@@ -1241,6 +1259,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         // flight, so a mid-save re-render shows "Saving…" rather than the old
         // error (the flag is re-set in the catch if this attempt also fails).
         delete post._saveError;
+        _calSupersedeFailedIntent(post, edits);
         _calSetCardStatus(realId, 'saving');
         const suppressAll      = _calNoLinearPush.has(realId) || _calNoLinearPush.has(pid);
         const suppressVideo    = suppressAll || _calNoLinearPush.has(realId + '|video')    || _calNoLinearPush.has(pid + '|video');
@@ -1416,6 +1435,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 delete wirePost.title_comments;
                 delete wirePost._baseAt;
                 delete wirePost._saveError;
+                delete wirePost._calFailedIntent;
+                delete wirePost._calFailedIntentLabel;
                 delete wirePost._writeUiRetryEdits;
                 delete wirePost._writeUiHeldSourceEdits;
                 delete wirePost._writeUiRetrySourceAt;
@@ -1523,6 +1544,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 _calV2Log('ECHO adopt →', realId, '| echo keys:', Object.keys(saved).join(','),
                     '| MERGED v/g/c/t/overall:', merged.video_status + '/' + merged.graphic_status + '/' + merged.caption_status + '/' + merged.title_status + '/' + merged.status);
             }
+            _calBaseAfterSave(realId, edits, saved);
+            if ('caption' in edits) _svDraftClearIf('cal', _saveSlug, realId, 'caption', edits.caption);
             // Record this successful local write so the next background
             // merge can detect a remote overwrite (someone else saved AFTER
             // us). Clears its own old entries on read.
@@ -1546,6 +1569,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             const _okPost = calState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;
+                    _calRestoreFailedIntentChip(_okPost);
                     delete _okPost._writeUiRetryEdits;
                     delete _okPost._writeUiHeldSourceEdits;
                 delete _okPost._writeUiRetrySourceAt;
@@ -1561,6 +1585,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                Linear is gone. */
             _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
+            // An earlier change that failed and is still unsent keeps its Retry chip.
+            if (_okPost && _okPost._saveError) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
             // The database stamped a new round on any status this save changed; the echo never says so.
             _urgentAdoptStampsAfterSave('calendar', _saveSlug, realId, edits);
             // Only repaint the thumbnail when this save intentionally bumped
@@ -1650,6 +1676,10 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                     _CAL_ROLLBACK_FIELDS.forEach(k => {
                         if (k in edits) cur[k] = k in priorStatusForWrite ? priorStatusForWrite[k] : prevSnapshot[k];
                     });
+                    /* The pill is rolled back above, so the person's choice would
+                       exist nowhere. Keep it, so Retry sends what they chose and
+                       never the older value the card now shows. */
+                    _calKeepFailedIntent(cur, edits);
                 } else if (refusedStatusComponents.length) {
                     // Roll back ONLY the refused component(s), drop them from
                     // what the retry re-sends, and re-derive the overall status
@@ -1701,9 +1731,340 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
         if (_calHealLandedRepair(post)) return;
+        /* A change the card rolled back (status, date, order, links) was kept as
+           the person's intent. Retry resends THAT, not the older value the card
+           shows now. If it was chosen but can no longer be recovered, send
+           nothing and say what was meant: an older value must never go out in
+           its place. */
+        if (post && post._calFailedIntentLabel) {
+            const intent = _calUsableFailedIntent(post);
+            if (!intent) { _calRefuseLostIntent(post); return; }
+            /* The same content rule the pick went through: if the part has been
+               emptied since, say so and keep the change for when it is filled. */
+            for (const c of CAL_COMPONENTS) {
+                const chosen = intent.edits[c + '_status'];
+                const why = chosen ? _calReviewBlockReason(post, c, chosen) : '';
+                if (why) { showNotify('Nothing to review yet', why); return; }
+            }
+            const bucket = _calPendingEdits[pid] || (_calPendingEdits[pid] = {});
+            bucket._calPriorStatus = bucket._calPriorStatus || {};
+            for (const k of Object.keys(intent.edits)) {
+                if (k in bucket) continue;   // something newer was chosen since: it wins
+                if (_CAL_ROLLBACK_FIELDS.indexOf(k) >= 0 && !(k in bucket._calPriorStatus)) bucket._calPriorStatus[k] = post[k];
+                bucket[k] = intent.edits[k];
+            }
+            CAL_COMPONENTS.forEach(c => { if ((c + '_status') in intent.edits) _calMarkLocalStatus(pid, c); });
+            delete post._calFailedIntent;
+            delete post._calFailedIntentLabel;
+            // Show the chosen value again while it saves, as the original pick did.
+            CAL_COMPONENTS.forEach(c => { const k = c + '_status'; if (k in intent.edits) post[k] = intent.edits[k]; });
+            if ('status' in intent.edits) post.status = intent.edits.status;
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            _calSetCardStatus(pid, 'saving');
+            _calFlushCardSave(pid);
+            return;
+        }
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _calSetCardStatus(pid, 'saving');
         _calFlushCardSave(pid);
+    }
+    /* ── Caption text that outlives the tab (OPEN_REPAIRS 314, item 3) ───────
+       Every keystroke is mirrored to a draft (shared helper in 131). The draft is
+       dropped only when a save of that same text is confirmed. On the next load
+       the card shows what is left: the typed text back in the box with a small
+       "Restored" line, or - when the caption changed elsewhere since - the same
+       two-choice notice the live conflict uses, so a restore can never silently
+       overwrite someone else's newer caption. */
+    function _calCaptionDraftWrite(pid, val) {
+        if (_isClientLink || _calIsBlankId(pid)) return;
+        const base = (_calEditBase[pid] || {}).caption;
+        if (base !== undefined && _svDraftNorm(val) === _svDraftNorm(base)) { _svDraftClear('cal', calClientSlug(calState.client), pid, 'caption'); return; }
+        _svDraftSave('cal', calClientSlug(calState.client), pid, 'caption', val, { base: base === undefined ? null : base });
+    }
+    function _calCaptionDraftView(p) {
+        if (!p || !p.id) return null;
+        const slug = calClientSlug(calState.client);
+        // A notice built from the draft on an earlier render is rebuilt from what is true now:
+        // the first paint can come from a cached copy that the fresh load then corrects.
+        const prior = _calConflicts[p.id];
+        if (prior && prior.fields.caption && prior.fields.caption.derived) {
+            delete prior.fields.caption;
+            if (!Object.keys(prior.fields).length) delete _calConflicts[p.id];
+        }
+        const d = _svDraftRead('cal', slug, p.id, 'caption');
+        if (!d) return null;
+        const open = _calConflicts[p.id] && _calConflicts[p.id].fields.caption;
+        if (open && !open.resolved) return null;   // waiting on the person's choice: keep it
+        const live = !!((_calEditBase[p.id] && 'caption' in _calEditBase[p.id])
+            || (_calPendingEdits[p.id] && 'caption' in _calPendingEdits[p.id]) || _calSaveInFlight[p.id]);
+        if (_svDraftNorm(d.text) === _svDraftNorm(p.caption)) {
+            // The server already holds this text and nothing is in progress here: nothing is left unsaved.
+            if (!live) _svDraftClear('cal', slug, p.id, 'caption');
+            return null;
+        }
+        if (live) return null;     // being typed or saved in this tab right now: the box already holds it
+        const rec = _calConflicts[p.id] || (_calConflicts[p.id] = { fields: {} });
+        if (d.meta && d.meta.aside) {
+            if (!rec.fields.caption) rec.fields.caption = { mine: d.text, theirs: p.caption, resolved: 'theirs', derived: true };
+            return null;
+        }
+        if (d.meta && d.meta.base != null && _svDraftNorm(d.meta.base) !== _svDraftNorm(p.caption)) {
+            if (!rec.fields.caption) rec.fields.caption = { mine: d.text, theirs: p.caption, resolved: '', derived: true };
+            return null;
+        }
+        if (!Object.keys(rec.fields).length) delete _calConflicts[p.id];
+        return { text: d.text };
+    }
+    function _calCaptionDraftDiscard(pid) {
+        _svDraftClear('cal', calClientSlug(calState.client), pid, 'caption');
+        const post = calState.posts.find(p => p.id === pid);
+        if (_calEditBase[pid]) delete _calEditBase[pid].caption;
+        if (_calPendingEdits[pid]) delete _calPendingEdits[pid].caption;
+        if (post) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
+    }
+    /* ── Two people on one card: notice instead of a silent overwrite ───────
+       WHY PAGE-SIDE. The server has a stale-tab guard (calendar-upsert, the
+       `comments_base_at` check) but the Calendar sends no base on purpose: the
+       status bridge and other triggers bump `updated_at` after the person's OWN
+       write, so a timestamp base would call the person's own next edit a
+       conflict. This compares VALUES instead, of the one field being saved:
+
+         base   = the value the person was looking at when they began the edit
+                  (kept from the first change until a save lands);
+         fresh  = that field read now, narrowly, right before it is sent;
+         mine   = what they are about to save.
+
+       fresh == mine or fresh == base  -> save as normal (nobody else touched it)
+       otherwise another writer changed it -> hold that field, show both values.
+
+       Only values are compared, so the person's own sequences (status then
+       caption, quick successive picks, continued typing across autosaves, a
+       trigger bumping updated_at) can never look like a conflict. A fresh read
+       that fails or takes too long proceeds with the save as before: when this
+       could go either way the page does not block. Not covered: two writes
+       landing inside the same read-to-write gap (milliseconds), and a server
+       that rewrites a value into something other than a trimmed copy of it. */
+    const CAL_CONFLICT_FIELDS = ['caption', 'video_status', 'graphic_status', 'caption_status', 'title_status'];
+    const CAL_CONFLICT_READ_TIMEOUT_MS = 2500;
+    const CAL_CONFLICT_LABEL = { caption: 'Caption', video_status: 'Video status', graphic_status: 'Thumbnail status', caption_status: 'Caption status', title_status: 'Title status' };
+    const _calEditBase = Object.create(null);      // pid -> { field: value the person was looking at }
+    const _calConflicts = Object.create(null);     // pid -> { fields: { field: { mine, theirs, resolved? } } }
+    const _calKeepMineNext = Object.create(null);  // pid -> { field: true }  (skip the check once)
+    function _calNormForCompare(v) { return String(v == null ? '' : v).replace(/\r\n?/g, '\n').trim(); }
+    function _calNoteEditBase(pid, field, shown) {
+        if (_isClientLink || CAL_CONFLICT_FIELDS.indexOf(field) < 0) return;
+        const m = _calEditBase[pid] || (_calEditBase[pid] = {});
+        if (field in m) {
+            // Still the same unsaved edit (queued, being saved, or failed and kept)?
+            // Then the original base stands. Otherwise the person has since SEEN a
+            // newer server value on screen and is editing from that one.
+            const pending = _calPendingEdits[pid] && field in _calPendingEdits[pid];
+            const post = calState.posts.find(p => p.id === pid);
+            if (pending || _calSaveInFlight[pid] || (post && post._saveError)) return;
+        }
+        m[field] = shown;
+    }
+    function _calBaseAfterSave(pid, edits, saved) {
+        const m = _calEditBase[pid];
+        if (!m) return;
+        CAL_CONFLICT_FIELDS.forEach(f => {
+            if (!(f in edits) || !(f in m)) return;
+            // Typing or picking went on while this saved: the next save starts from what is on the server now.
+            if (_calPendingEdits[pid] && f in _calPendingEdits[pid]) m[f] = (saved && f in saved) ? saved[f] : edits[f];
+            else delete m[f];
+        });
+        if (!Object.keys(m).length) delete _calEditBase[pid];
+    }
+    async function _calFreshFields(slug, pid, fields) {
+        if (typeof CAL_SUPABASE_URL !== 'string' || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return null;
+        const ctl = new AbortController();
+        const timer = setTimeout(() => { try { ctl.abort(); } catch (e) {} }, CAL_CONFLICT_READ_TIMEOUT_MS);
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=' + ['id'].concat(fields).join(',')
+                + '&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(pid) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }, signal: ctl.signal });
+            if (!resp.ok) return null;
+            const rows = await resp.json();
+            return Array.isArray(rows) ? (rows.find(r => r && r.id === pid) || null) : null;
+        } catch (e) { return null; }
+        finally { clearTimeout(timer); }
+    }
+    async function _calConflictGate(pid, slug, edits) {
+        const bases = _calEditBase[pid];
+        const keepAll = _calKeepMineNext[pid];
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        // Fields the person already chose "Keep mine" for go through as they are (once, and only briefly).
+        const forced = [];
+        if (keepAll) {
+            Object.keys(keepAll).forEach(f => {
+                if (f in edits) { if (Date.now() - keepAll[f] < 60000) forced.push(f); delete keepAll[f]; }
+            });
+            if (!Object.keys(keepAll).length) delete _calKeepMineNext[pid];
+        }
+        if (!bases) return;
+        forced.forEach(f => { delete bases[f]; });
+        const checked = CAL_CONFLICT_FIELDS.filter(f => f in edits && f in bases);
+        // An edit that ends up where it started changes nothing: do not send it,
+        // so it cannot put a stale copy over someone else's newer value.
+        const same = checked.filter(f => _calNormForCompare(edits[f]) === _calNormForCompare(bases[f]));
+        const real = checked.filter(f => same.indexOf(f) < 0);
+        const fresh = real.length ? await _calFreshFields(slug, pid, real) : null;
+        const held = [];
+        if (fresh) {
+            real.forEach(f => {
+                if (!(f in fresh)) return;
+                const theirs = fresh[f], mine = edits[f], base = bases[f];
+                if (_calNormForCompare(theirs) === _calNormForCompare(mine) || _calNormForCompare(theirs) === _calNormForCompare(base)) return;
+                held.push({ field: f, mine, theirs });
+            });
+        }
+        same.forEach(f => {
+            delete edits[f]; delete bases[f];
+            if (f === 'caption') _svDraftClear('cal', slug, pid, 'caption');
+        });
+        if (held.length) {
+            const rec = _calConflicts[pid] || (_calConflicts[pid] = { fields: {} });
+            held.forEach(h => {
+                delete edits[h.field];
+                delete bases[h.field];
+                rec.fields[h.field] = { mine: h.mine, theirs: h.theirs, resolved: '' };
+                // A status shows the server's value while it waits; a caption keeps the typed text in the box.
+                if (h.field !== 'caption') post[h.field] = h.theirs;
+            });
+            if (held.some(h => /_status$/.test(h.field))) {
+                if (CAL_COMPONENTS.some(c => (c + '_status') in edits)) { post.status = computeOverallStatus(post); edits.status = post.status; }
+                else {
+                    delete edits.status;
+                    Object.keys(edits).forEach(k => { if (/_approved_at$|^kasper_approved_after_tweaks$/.test(k)) delete edits[k]; });
+                }
+            }
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        }
+        if (!Object.keys(bases).length) delete _calEditBase[pid];
+    }
+    function _calConflictHtml(pid) {
+        const rec = _calConflicts[pid];
+        if (!rec) return '';
+        const fields = Object.keys(rec.fields);
+        if (!fields.length) return '';
+        const short = v => { const t = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return t.length > 90 ? t.slice(0, 90) + '...' : (t || '(empty)'); };
+        const q = v => '&ldquo;' + _calEsc(short(v)) + '&rdquo;';
+        const open = fields.filter(f => !rec.fields[f].resolved);
+        const aside = fields.filter(f => rec.fields[f].resolved === 'theirs');
+        let html = '';
+        if (open.length) {
+            html += `<div class="cal-conflict" role="alert" data-cal-conflict="${pid}">
+                <div class="cal-conflict-text">Someone else changed this while you were editing, so yours is not saved yet. ${open.map(f => `<b>${_calEsc(CAL_CONFLICT_LABEL[f] || f)}</b>: theirs is ${q(rec.fields[f].theirs)}, yours is ${q(rec.fields[f].mine)}.`).join(' ')}</div>
+                <div class="cal-conflict-actions">
+                    <button type="button" class="cal-conflict-btn" data-conflict-mine onclick="_calConflictResolve('${pid}','mine')">Keep mine</button>
+                    <button type="button" class="cal-conflict-btn" data-conflict-theirs onclick="_calConflictResolve('${pid}','theirs')">Use theirs</button>
+                </div></div>`;
+        }
+        if (aside.length) {
+            html += `<div class="cal-conflict is-aside" data-cal-conflict="${pid}">
+                <div class="cal-conflict-text">You used their version. Your ${aside.map(f => _calEsc((CAL_CONFLICT_LABEL[f] || f).toLowerCase())).join(' and ')} was set aside: ${aside.map(f => q(rec.fields[f].mine)).join(' ')}</div>
+                <div class="cal-conflict-actions"><button type="button" class="cal-conflict-btn" data-conflict-restore onclick="_calConflictRestore('${pid}')">Put mine back</button></div></div>`;
+        }
+        return html;
+    }
+    function _calConflictResolve(pid, choice) {
+        const rec = _calConflicts[pid];
+        const post = calState.posts.find(p => p.id === pid);
+        if (!rec || !post) return;
+        const open = Object.keys(rec.fields).filter(f => !rec.fields[f].resolved);
+        if (choice === 'theirs') {
+            open.forEach(f => {
+                rec.fields[f].resolved = 'theirs';
+                post[f] = rec.fields[f].theirs;    // statuses already show it; the caption box now does too
+                // Set aside, not thrown away: the text survives a reload as a draft marked "set aside".
+                if (f === 'caption') _svDraftSave('cal', calClientSlug(calState.client), pid, 'caption', rec.fields[f].mine, { aside: true });
+            });
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            return;
+        }
+        const mine = {};
+        open.forEach(f => { mine[f] = rec.fields[f].mine; delete rec.fields[f]; });
+        if (!Object.keys(rec.fields).length) delete _calConflicts[pid];
+        _calSendMine(pid, post, mine);
+    }
+    function _calConflictRestore(pid) {
+        const rec = _calConflicts[pid];
+        const post = calState.posts.find(p => p.id === pid);
+        if (!rec || !post) return;
+        const mine = {};
+        Object.keys(rec.fields).forEach(f => { if (rec.fields[f].resolved === 'theirs') { mine[f] = rec.fields[f].mine; delete rec.fields[f]; } });
+        if (!Object.keys(rec.fields).length) delete _calConflicts[pid];
+        _calSendMine(pid, post, mine);
+    }
+    /* The person has now seen the other value and chose theirs over it: send
+       it through the normal save, once, without the check. */
+    function _calSendMine(pid, post, values) {
+        const keep = _calKeepMineNext[pid] || (_calKeepMineNext[pid] = {});
+        Object.keys(values).forEach(f => { keep[f] = Date.now(); });
+        if ('caption' in values) {
+            _calNoteEditBase(pid, 'caption', post.caption);
+            _svDraftSave('cal', calClientSlug(calState.client), pid, 'caption', values.caption, { base: post.caption });
+            post.caption = values.caption;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].caption = values.caption;
+        }
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        if ('caption' in values) _calFlushCardSave(pid);
+        Object.keys(values).filter(f => /_status$/.test(f)).forEach(f => _calStatusPick(pid, values[f], f.replace(/_status$/, '')));
+    }
+    /* ── The person's own change, kept after the card rolled it back ───────
+       A failed save puts the structural fields back on screen (so the card
+       never claims a state the server does not hold). Without a record of what
+       was chosen, Retry re-sent the card as it now looked and cleared the error,
+       so the chosen status was silently never saved. The record lives on the
+       post as plain data: edits + a label for the message + the time. It is
+       only ever sent by an explicit Retry. */
+    const CAL_FAILED_INTENT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+    function _calIntentLabel(edits) {
+        const parts = [];
+        CAL_COMPONENTS.forEach(c => {
+            const v = edits[c + '_status'];
+            if (v != null) parts.push((CAL_COMP_LABEL[c] || c) + ' ' + (v || 'no status'));
+        });
+        if ('scheduled_date' in edits) parts.push('date ' + (edits.scheduled_date || 'cleared'));
+        if (!parts.length && 'status' in edits) parts.push('status ' + edits.status);
+        if (!parts.length) parts.push('your last change');
+        return parts.join(', ');
+    }
+    function _calKeepFailedIntent(cur, edits) {
+        const kept = {};
+        Object.keys(edits).forEach(k => { if (k.charAt(0) !== '_') kept[k] = edits[k]; });
+        if (!_CAL_ROLLBACK_FIELDS.some(k => k in kept)) return;
+        cur._calFailedIntent = { edits: kept, at: Date.now() };
+        cur._calFailedIntentLabel = _calIntentLabel(kept);
+    }
+    function _calUsableFailedIntent(post) {
+        const it = post && post._calFailedIntent;
+        if (!it || !it.edits || typeof it.edits !== 'object' || !Object.keys(it.edits).length) return null;
+        if (!(Date.now() - Number(it.at) <= CAL_FAILED_INTENT_MAX_AGE_MS)) return null;
+        return it;
+    }
+    function _calRefuseLostIntent(post) {
+        const label = post._calFailedIntentLabel;
+        const shown = post.video_status ? ('The card still shows Video ' + post.video_status + '.') : '';
+        delete post._saveError;
+        delete post._calFailedIntent;
+        delete post._calFailedIntentLabel;
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        showNotify('Nothing was sent', 'You chose ' + label + ', but that choice could not be recovered on this page, so it was not sent. ' + shown + ' Choose it again if you still want it.');
+    }
+    function _calSupersedeFailedIntent(post, edits) {
+        const it = post && post._calFailedIntent;
+        if (!it || !it.edits) return;
+        Object.keys(edits).forEach(k => { delete it.edits[k]; });
+        if (!Object.keys(it.edits).length) { delete post._calFailedIntent; delete post._calFailedIntentLabel; }
+        else post._calFailedIntentLabel = _calIntentLabel(it.edits);
+    }
+    function _calRestoreFailedIntentChip(post) {
+        if (post && post._calFailedIntent && Object.keys(post._calFailedIntent.edits || {}).length) {
+            post._saveError = 'Not saved yet: ' + post._calFailedIntentLabel + '.';
+        }
     }
     /* Automatic retry for "Saved, syncing": the gateway committed the status
        and only the card row is behind. Same funnel as the Retry click, on a
@@ -2483,13 +2844,55 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (!state || !Number.isFinite(slot) || slot < 0) return;
         if (!Array.isArray(state.postNames)) state.postNames = [];
         state.postNames[slot] = String(value == null ? '' : value);
+        _calNativeDraftKeep(state);
         _calNativeSyncReceipt();
     }
     function _calSetNativeBatchName(value) {
         const state = _calNativePostState;
         if (!state) return;
         state.batchName = String(value == null ? '' : value);
+        _calNativeDraftKeep(state);
         _calNativeSyncReceipt();
+    }
+    /* The names typed into the Create Post dialog survive a closed tab or a
+       failed create (OPEN_REPAIRS 314, item 3): one draft per client and tab,
+       dropped when the create is acknowledged, restored with a small "Restored"
+       line when the dialog is opened again. */
+    function _calNativeDraftSurface(state) { return state && state.surface === 'sxr' ? 'sxr-create' : 'cal-create'; }
+    function _calNativeDraftKeep(state) {
+        if (!state || !state.clientSlug) return;
+        const names = (Array.isArray(state.postNames) ? state.postNames : []).map(n => String(n == null ? '' : n));
+        const batch = String(state.batchName == null ? '' : state.batchName);
+        if (!names.some(n => n.trim()) && !batch.trim()) { _svDraftClear(_calNativeDraftSurface(state), state.clientSlug, 'new-post', 'names'); return; }
+        _svDraftSave(_calNativeDraftSurface(state), state.clientSlug, 'new-post', 'names',
+            JSON.stringify({ postNames: names, batchName: batch, postCount: state.postCount || 1 }));
+    }
+    function _calNativeDraftRestore(state) {
+        if (!state || !state.clientSlug) return;
+        const kept = _svDraftRead(_calNativeDraftSurface(state), state.clientSlug, 'new-post', 'names');
+        if (!kept) return;
+        try {
+            const data = JSON.parse(kept.text);
+            const names = Array.isArray(data.postNames) ? data.postNames.map(n => String(n == null ? '' : n)) : [];
+            if (!names.some(n => n.trim()) && !String(data.batchName || '').trim()) return;
+            state.postNames = names;
+            state.batchName = String(data.batchName || '');
+            const n = Math.floor(Number(data.postCount));
+            if (Number.isFinite(n) && n > 1) state.postCount = n;
+            state.restoredDraft = true;
+        } catch (e) { _svDraftClear(_calNativeDraftSurface(state), state.clientSlug, 'new-post', 'names'); }
+    }
+    function _calNativeDraftClear(state) {
+        if (state && state.clientSlug) _svDraftClear(_calNativeDraftSurface(state), state.clientSlug, 'new-post', 'names');
+    }
+    function _calNativeDraftDiscard() {
+        const state = _calNativePostState;
+        if (!state) return;
+        _calNativeDraftClear(state);
+        state.postNames = [];
+        state.batchName = '';
+        state.restoredDraft = false;
+        try { _calRenderNativePostChoice(); } catch (e) {}
     }
     /* Switching tab re-renders, exactly as the mode toggle does, and captures
        the radio first so the re-render restores the branch just chosen. */
@@ -2689,6 +3092,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const max = _calNativePostCountMax(mode);
         const parsed = Math.floor(Number(raw));
         state.postCount = (!Number.isFinite(parsed) || parsed < 1) ? 1 : Math.min(parsed, max);
+        _calNativeDraftKeep(state);
         /* One field per post, so the list has to follow the count. This is a
            surgical rebuild rather than _calRenderNativePostChoice() because the
            stepper can be held down: a full re-render per repeat would throw the
@@ -2843,8 +3247,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _calCaptionWrapClick, _calClientApprove, _calCloseNativePost, _calMoveLinkConfirm,
-        _calNativeBatchFilter, _calNativeNewBatchPick, _calNativePrevBatchPick, _calOnCaptionBlur,
+        _calCaptionDraftDiscard, _calCaptionWrapClick, _calClientApprove, _calCloseNativePost,
+        _calConflictResolve, _calConflictRestore, _calMoveLinkConfirm, _calNativeBatchFilter,
+        _calNativeDraftDiscard, _calNativeNewBatchPick, _calNativePrevBatchPick, _calOnCaptionBlur,
         _calOnCaptionFocus, _calOnCaptionInput, _calOnCaptionKey, _calOnDateChange, _calOnFieldBlur,
         _calOnFieldInput, _calOpenSetAllMenu, _calOpenThumbLightbox, _calRetrySave, _calSetAllStatus,
         _calSetNativeBatchChoice, _calSetNativeBatchName, _calSetNativePostCount, _calSetNativePostEditor,
@@ -2858,7 +3263,8 @@ export {
   _calCloseNativePost, _calCloseStatusMenu, _calFlushCardSave, _calForceThumbRefresh,
   _calInsertLocalBlankCard, _calLivePreviewThumb, _calNativeBatchCompatible,
   _calNativeBatchDisplayName, _calNativeBatchLists, _calNativeBatchMatches, _calNativeBatchNameFor,
-  _calNativeBatchOptionsHtml, _calNativeBatchStartMeta, _calNativeParentUuids, _calNativePostCount,
+  _calNativeBatchOptionsHtml, _calNativeBatchStartMeta, _calNativeDraftClear, _calNativeDraftRestore,
+  _calNativeParentUuids, _calNativePostCount,
   _calNativePostCountMax, _calNativePostNamesFor, _calNativePostNamesHtml, _calNativePostState,
   _calNativeReceiptHtml, _calNativeTitleOrdinal, _calNativeVideoEditorPool, _calOnCaptionInput,
   _calOnFieldBlur, _calOnFieldInput, _calOpenStatusMenu, _calRefreshCaption, _calRefreshCardThumb,

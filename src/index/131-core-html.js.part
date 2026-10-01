@@ -1,3 +1,4 @@
+import { _isClientLink } from './260-production-refresh-boot.js';
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
        It is NOT enough for a string argument inside an inline handler —
@@ -10,4 +11,103 @@
        parses the handler, so wrapping a value in '…' + _calEscAttr alone still
        breaks on apostrophes (&#39; decodes right back into a quote). */
     function _jsAttrArg(v) { return _calEscAttr(JSON.stringify(String(v == null ? '' : v))); }
-export { _calEsc, _calEscAttr, _jsAttrArg };
+
+    /* ── Unsaved text that outlives the tab (OPEN_REPAIRS 314, item 3) ──────
+       ONE small helper for every place a person types something that only exists
+       in the page until a save lands: a caption, a note, a comment, a
+       description, a post name.
+
+         key      surface + client + card + field   (one draft per field)
+         where    localStorage, so a NEW tab or a reload finds it
+         cleared  only by a CONFIRMED server save of that text (or Discard)
+         kept     when the save fails or the tab closes
+         expires  after 7 days; at most 60 drafts are held (oldest go first)
+         cap      a draft over 100,000 characters is not stored (a cut copy
+                  would be worse than none: the person could not see it)
+
+       EVERY storage access sits in try/catch: storage can be blocked, full or
+       throwing, and the page must work exactly as before when it is. A client
+       link stores nothing here (its own existing note draft is separate).
+       Nothing is ever sent from a draft by this helper: a restore only puts the
+       text back in front of the person. */
+    const SV_DRAFT_PREFIX = 'sv_draft_v1:';
+    const SV_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    const SV_DRAFT_MAX_CHARS = 100000;
+    const SV_DRAFT_MAX_ENTRIES = 60;
+    function _svDraftActive() { return !_isClientLink; }
+    function _svDraftKey(surface, client, card, field) {
+        return SV_DRAFT_PREFIX + [surface, client, card, field].map(x => encodeURIComponent(String(x == null ? '' : x))).join('|');
+    }
+    function _svDraftStore() { try { return window.localStorage || null; } catch (e) { return null; } }
+    function _svDraftNorm(v) { return String(v == null ? '' : v).replace(/\r\n?/g, '\n').trim(); }
+    function _svDraftPrune(st) {
+        try {
+            const rows = [];
+            for (let i = 0; i < st.length; i++) {
+                const k = st.key(i);
+                if (!k || k.indexOf(SV_DRAFT_PREFIX) !== 0) continue;
+                let at = 0;
+                try { at = Number(JSON.parse(st.getItem(k) || '{}').at) || 0; } catch (e) {}
+                rows.push({ k, at });
+            }
+            const now = Date.now();
+            const live = [];
+            rows.forEach(r => { if (!r.at || now - r.at > SV_DRAFT_TTL_MS) { try { st.removeItem(r.k); } catch (e) {} } else live.push(r); });
+            live.sort((a, b) => a.at - b.at);
+            while (live.length > SV_DRAFT_MAX_ENTRIES) { const r = live.shift(); try { st.removeItem(r.k); } catch (e) {} }
+        } catch (e) {}
+    }
+    /* Returns true when the text is held (or there is nothing to hold). Empty
+       text clears the draft: a person who deleted everything has nothing unsaved. */
+    function _svDraftSave(surface, client, card, field, text, meta) {
+        if (!_svDraftActive()) return false;
+        const st = _svDraftStore();
+        if (!st) return false;
+        text = String(text == null ? '' : text);
+        try {
+            const key = _svDraftKey(surface, client, card, field);
+            if (!text.trim()) { st.removeItem(key); return true; }
+            if (text.length > SV_DRAFT_MAX_CHARS) return false;
+            const fresh = st.getItem(key) === null;
+            st.setItem(key, JSON.stringify({ v: 1, t: text, at: Date.now(), m: meta || null }));
+            if (fresh) _svDraftPrune(st);
+            return true;
+        } catch (e) { return false; }
+    }
+    function _svDraftRead(surface, client, card, field) {
+        if (!_svDraftActive()) return null;
+        const st = _svDraftStore();
+        if (!st) return null;
+        try {
+            const key = _svDraftKey(surface, client, card, field);
+            const raw = st.getItem(key);
+            if (!raw) return null;
+            const d = JSON.parse(raw);
+            if (!d || d.v !== 1 || typeof d.t !== 'string' || !d.t.trim() || !Number(d.at) || Date.now() - Number(d.at) > SV_DRAFT_TTL_MS) {
+                st.removeItem(key);
+                return null;
+            }
+            return { text: d.t, at: Number(d.at), meta: d.m && typeof d.m === 'object' ? d.m : {} };
+        } catch (e) { return null; }
+    }
+    function _svDraftClear(surface, client, card, field) {
+        const st = _svDraftStore();
+        if (!st) return;
+        try { st.removeItem(_svDraftKey(surface, client, card, field)); } catch (e) {}
+    }
+    /* A save landed: drop the draft only if it is the text that was saved. If
+       the person has typed more since, that newer text is still unsaved. */
+    function _svDraftClearIf(surface, client, card, field, savedText) {
+        const d = _svDraftRead(surface, client, card, field);
+        if (d && _svDraftNorm(d.text) === _svDraftNorm(savedText)) _svDraftClear(surface, client, card, field);
+    }
+    /* The small, non-modal line shown where restored text appears.
+       `discardAttr` is the Discard button's whole onclick attribute, written by
+       the caller as onclick="fn('id')" so the handler is found and exposed. */
+    function _svDraftNoteHtml(discardAttr, extra) {
+        return '<div class="sv-draft-note" role="status" data-sv-draft-note>Restored your unsaved text'
+            + (extra ? ' ' + _calEsc(extra) : '')
+            + ' <button type="button" class="sv-draft-discard" data-sv-draft-discard ' + discardAttr + '>Discard</button></div>';
+    }
+
+export { _calEsc, _calEscAttr, _jsAttrArg, _svDraftClear, _svDraftClearIf, _svDraftNoteHtml, _svDraftNorm, _svDraftRead, _svDraftSave };

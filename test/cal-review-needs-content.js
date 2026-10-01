@@ -130,6 +130,7 @@ const EXEMPT = {
   _calTogglePostPlatform: "clears title_status to '' when YouTube is removed; clearing is not sending",
   _calFlushCardSave: 'the transport -- it sends edits the writers above already staged and gated, and its own status line is the repair path',
   _calReviewRequestTweak: "writes 'Tweaks Needed', a rejection: the content being absent is frequently the reason for it",
+  _calSendMine: "re-sends a value the person already chose after a two-people notice; statuses go back through _calStatusPick, which holds the gate",
 };
 /* THE ROSTER MUST NOT BE EMPTY. An empty set makes the assertion below pass
    without examining anything -- the exact could-not-fail shape this repository

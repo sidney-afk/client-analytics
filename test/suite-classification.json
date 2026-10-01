@@ -3,6 +3,9 @@
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
     "calendar-unarchive.js",
+    "lost-work-retry-intent.js",
+    "lost-work-conflict-gate.js",
+    "lost-work-drafts.js",
     "workload-plan-live.js",
     "clean-urls-routes.js",
     "prod-realtime-controller.js",
@@ -347,6 +350,7 @@
     "native-batch-picker-parents.js",
     "native-batch-picker-search.js",
     "native-brief-media-copy.js",
+    "native-calendar-overall-status-bridge.js",
     "native-calendar-status-bridge-postgres.js",
     "native-calendar-status-bridge.js",
     "native-sample-status-bridge.js",

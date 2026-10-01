@@ -49,6 +49,9 @@
 --     index.html; test/native-sample-status-bridge.js executes the page's own
 --     function and compares the two over every status pair.
 --
+-- APPLIED 2026-10-01 by Lighthouse after the owner's go; EXECUTION_LOG.md
+-- records the apply and the read-back.
+--
 -- Idempotent; safe to run more than once. Rollback at the bottom.
 -- ============================================================
 

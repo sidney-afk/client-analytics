@@ -21,7 +21,20 @@ reorders or adds, edit this list, never a side document. **The supervisor
 session, in the same sitting.** A session that stops without pushing is recorded
 here with where it stopped, so it can be restarted.
 
-1. **2026-10-01: analytics database on for every client.** Check the daily
+**Owner direction, 2026-10-01 (the big picture, in order). This order outranks the numbered list below: work A before B, and treat the numbered items as the detail and history of each.**
+- **A. Move everything off Google Sheets.** Every tab of every sheet SyncView or the pipelines read or write
+  moves to Supabase (dual-write, flagged read, parity, then retire, as in
+  `docs/plans/2026-09-24-sheets-to-supabase.md`). Clients Info is first and already copied daily; the Clients
+  admin tab is the start of its replacement. The owner will improve that UI.
+- **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
+- **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
+- **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
+  (item 7).
+- **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
+  least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
+  daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.
+
+1. **2026-10-01: analytics database on for every client. BLOCKED until the analytics accuracy check (open question above) says the stored view counts are right.** Then check the daily
    Sheets-to-Supabase copy ran clean, then ask the owner's go to set
    `analytics_mirror_read_enabled` to `{"enabled": true}`. This also removes the
    client link's 2 to 4 s wait on the `Metrics` and `Clients Info` Sheets

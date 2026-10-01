@@ -1,7 +1,7 @@
 # Owner steps: start the shadow run of the daily metrics job
 
 For the owner (Sidney). Plan and reasons: `docs/plans/2026-10-01-n8n-off-analytics.md`
-(ledger entry OPEN_REPAIRS 321). Do these only after Lighthouse has merged the PR
+(ledger entry OPEN_REPAIRS 322). Do these only after Lighthouse has merged the PR
 that adds this file. Nothing here changes what anyone sees in SyncView: the new job
 writes to its own shadow tables, and n8n keeps running untouched.
 

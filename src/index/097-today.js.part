@@ -570,7 +570,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
     function _tdyOpenSync(id) {
-        try { window.open('/synclinear/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {}
+        try { window.open(svRoute.fast('/synclinear/' + encodeURIComponent(id)), '_blank', 'noopener'); } catch (e) {}
     }
     /* Vigil's hand test, 2026-09-28: the address held only the client, so a
        reload lost the card. Write the calendar's own card deep link

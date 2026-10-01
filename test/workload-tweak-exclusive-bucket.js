@@ -1531,7 +1531,7 @@ const popoverSource = grabFunc('wlOpenRollupPopover');
    test/workload-syncview-links.js; this file pins only the shape. */
 check(popoverSource.includes('Open SyncView →')
     && !popoverSource.includes('Open Linear →')
-    && popoverSource.includes("svRoute.clean('/?prod=1&d=' + encodeURIComponent(openIdent))")
+    && popoverSource.includes("svRoute.fast('/?prod=1&d=' + encodeURIComponent(openIdent))")
     && popoverSource.includes('workload-popover-parent-linear')
     && popoverSource.includes('workload-popover-item-linear')
     && popoverSource.includes('Open parent →')

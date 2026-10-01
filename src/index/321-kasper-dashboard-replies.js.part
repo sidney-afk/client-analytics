@@ -2628,7 +2628,7 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
             const open = r.docUrl
                 ? `<a class="kfilm-open" href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open Doc ↗</a>`
                 : `<span class="kfilm-nodoc">No Doc linked</span>`;
-            const calUrl = svRoute.clean(`/#calendar/${encodeURIComponent(r.slug)}`);
+            const calUrl = svRoute.fast(`/#calendar/${encodeURIComponent(r.slug)}`);
             const calBtn = `<a class="kfilm-open kfilm-cal" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Calendar ↗</a>`;
             const contentTxt = r.contentTotal == null
                 ? `<span class="kfilm-muted">Content total unavailable</span>`

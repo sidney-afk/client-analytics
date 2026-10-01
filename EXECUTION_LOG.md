@@ -6796,3 +6796,11 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
 - Tests: `test/open-item-speed.js` plus six suites taught the new link form and helpers.
 - Record and owner decisions: `docs/audits/2026-10-01-open-item-speed.md`.
+
+## 2026-10-01 - Edge Functions: preflight cache header and parallel reads in key-verify (session Comet, OPEN_REPAIRS 324)
+
+- Owner decisions: A yes except production-write (waits for the next sealed Section 4 deploy); B1 yes; B2 no.
+- Source only, NOT deployed. `Access-Control-Max-Age: 7200` on seven hot-path functions; `key-verify` reads the flag and the member
+  together and selects six columns; its audit insert stays before the answer.
+- Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read); four need the owner's dispatch.
+- Tests: `test/key-verify-behavior.js`, `test/cors-maxage-and-key-verify-reads.js`.

@@ -1463,3 +1463,10 @@ poll, without disabling Production:
   redirect and nothing else; the pieces are independent.
 - **Check after a revert:** a link at a finished batch shows its title only after the finished-items read lands (about 5 s);
   new-tab links begin with a 404 for `/synclinear/<id>` in the network panel.
+
+## 2026-10-01 - inverse for the CORS max-age header and the key-verify parallel reads (source only; OPEN_REPAIRS 324)
+
+- **Before anything is deployed:** revert the PR; nothing live has changed.
+- **After deploy:** revert the PR and redeploy the same functions by the same lanes. The header only lets browsers cache a permission the
+  function already grants; removing it returns to a preflight every 5 s. The `key-verify` change is behaviour-identical except for timing,
+  so a rollback is never needed for correctness, only if the timing is unwanted.

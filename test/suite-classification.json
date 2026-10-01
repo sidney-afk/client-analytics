@@ -658,6 +658,8 @@
     "synclinear-early-read.js",
     "prod-tail-prefetch.js",
     "prod-lookup-equivalence.js",
+    "cors-maxage-and-key-verify-reads.js",
+    "key-verify-behavior.js",
     "open-item-speed.js"
   ],
   "profiles": [

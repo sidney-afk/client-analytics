@@ -203,6 +203,7 @@ hiring senders when the editor hire closes.
 
 ## Needs a session
 
+- **Add `Access-Control-Max-Age: 7200` to `production-write` at the next sealed Section 4 deploy** (owner decision 2026-10-01; OPEN_REPAIRS 324). Seven other hot-path functions already carry it in source; `production-write` is held back only because it moves inside that ceremony. `calendar-upsert` is frozen and stays without it.
 - **Duplicate ledger numbers in OPEN_REPAIRS:** 13, 14, 22, 23, 175, 176, 177,
   180 each appear twice, and 220 sits before 218/219. Append a renumbering
   note; never rewrite.

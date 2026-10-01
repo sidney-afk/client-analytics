@@ -99,6 +99,7 @@ async function proveStrictReaderReplacement() {
     PROD_COMMENTS_PAGE_SIZE: 50,
     _isClientLink: false,
     _prodRender() {},
+    _prodState: { quietIds: new Set() },
     _prodClientCommentSurfaceKey: () => '',
     _syncviewEfHeaders: headers => headers,
     _syncviewStaffIdentityForHeaders: () => ({ key: 'staff' }),

@@ -199,7 +199,7 @@ async function batchHarness(opts) {
   const ps = {
     String, document: { hidden: false },
     _prodEnabled: () => true,
-    _prodState: { loaded: true, refreshing: false, view: 'list', openId: '' },
+    _prodState: { loaded: true, refreshing: false, view: 'list', openId: '', quietIds: new Set() },
     _prodIssue: id => (id === 'row1' ? { id: 'row1' } : null),
     _prodOpenRowId: () => '',
     _prodBatchAssetSource: () => ({ id: 'batch-src' }),
@@ -212,6 +212,12 @@ async function batchHarness(opts) {
   vm.runInContext(grab('_prodPrefetchOpen') + '\nthis.p = _prodPrefetchOpen;', ps);
   ps.p('row1');
   eq(calls, ['comments:row1', 'labels:row1', 'description:row1', 'assets:row1', 'assets:batch-src'], 'hovering a row asks for the same reads the click would');
+  eq(Array.from(ps._prodState.quietIds), ['row1', 'batch-src'], 'the hovered row and its batch source are marked quiet, so their answers repaint nothing');
+  ok(/function _prodRefreshAssetSurfaces\(id\) \{\s*if \(id && _prodState\.quietIds\.has\(String\(id\)\)\) return;/.test(INDEX)
+    && /function _prodRefreshLabelSurfaces\(id\) \{\s*if \(id && _prodState\.quietIds\.has\(String\(id\)\)\) return;/.test(INDEX)
+    && /const repaint = id => \{ if \(id && _prodState\.quietIds\.has\(String\(id\)\)\) return;/.test(INDEX),
+    'asset, label and comment landings skip the whole-tab redraw for a quiet row (a redraw between press and release drops the click)');
+  ok(/_prodState\.quietIds\.delete\(openRowId\);\s*_prodComments\.ensure\(openRowId\)/.test(INDEX), 'opening the row ends the quiet, and the open paints');
   calls.length = 0; ps.p('missing'); eq(calls, [], 'a row the page does not hold asks for nothing');
   ps._prodState.refreshing = true; ps.p('row1'); eq(calls, [], 'nothing starts while a refresh is swapping the list');
   ps._prodState.refreshing = false; ps._prodState.view = 'detail'; ps._prodOpenRowId = () => 'row1'; ps.p('row1'); eq(calls, [], 'the row already open asks for nothing more');

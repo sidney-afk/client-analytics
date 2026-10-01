@@ -600,11 +600,18 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if (!row) return;
             const rowId = String(row.id);
             if (_prodState.view === 'detail' && _prodOpenRowId() === rowId) return;
+            /* Quiet while nobody has opened the row: these reads would otherwise
+               redraw the whole tab each time one starts or lands, which on a press
+               replaces the row between mouse-down and mouse-up and drops the click.
+               The render that opens the row removes it from the set. */
+            if (_prodState.quietIds.size > 40) _prodState.quietIds.clear();
+            _prodState.quietIds.add(rowId);
             _prodComments.ensure(rowId);
             _prodEnsureLabels(rowId, false);
             _prodEnsureDescription(rowId, false);
             _prodEnsureAssets(rowId, false);
             const batchAssetSource = _prodBatchAssetSource(row);
+            if (batchAssetSource) _prodState.quietIds.add(String(batchAssetSource.id));
             if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
         }
         let _prodIntentTimer = 0, _prodIntentId = '';
@@ -664,6 +671,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             }
             if (_prodState.view === 'detail' && _prodState.openId) {
                 const openRowId = _prodOpenRowId();
+                _prodState.quietIds.delete(openRowId);
                 _prodComments.ensure(openRowId);
                 _prodLoadLinearRawFor(openRowId);
                 _prodEnsureLabels(openRowId, false);
@@ -676,6 +684,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                    per row, so opening the parent and then the child costs one
                    read between them, not two. */
                 const batchAssetSource = _prodBatchAssetSource(_prodIssue(openRowId));
+                if (batchAssetSource) _prodState.quietIds.delete(String(batchAssetSource.id));
                 if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
                 /* The file pills on the sub-issue list. Asked for once per
                    BATCH ROW OF THE POST, only where a list is actually drawn --

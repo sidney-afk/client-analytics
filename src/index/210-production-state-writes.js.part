@@ -378,6 +378,11 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
                finished rows incrementally even though it is not silent. */
             terminalCopyBoot: false,
             terminalCopyTried: false,
+            /* Rows whose reads were started by a hover (see _prodPrefetchOpen). While a
+               row is in here its answers land in state but repaint nothing, so a hover
+               never redraws the tab (and never swallows a click by replacing the row
+               between press and release). Opening a row removes it, and the open paints. */
+            quietIds: new Set(),
             writes: new Map(),
             commentDrafts: new Map(),
             briefsLoaded: false,
@@ -1456,6 +1461,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             return 'Labels could not be loaded. Retry to check the current Linear state.';
         }
         function _prodRefreshLabelSurfaces(id) {
+            if (id && _prodState.quietIds.has(String(id))) return;   // a hover prefetch repaints nothing
             if (document.getElementById('prodRoot')) _prodRender();
             const pop = document.querySelector('[data-prod-label-pop="' + CSS.escape(String(id || '')) + '"]');
             if (pop) {
@@ -2055,7 +2061,8 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             if (code === 'asset_evidence_unavailable') return 'Asset access evidence could not be saved. Retry the check.';
             return 'Asset access could not be verified. Retry before relying on these links.';
         }
-        function _prodRefreshAssetSurfaces() {
+        function _prodRefreshAssetSurfaces(id) {
+            if (id && _prodState.quietIds.has(String(id))) return;   // a hover prefetch repaints nothing (see _prodPrefetchOpen)
             if (document.getElementById('prodRoot')) _prodRender();
         }
         function _prodRefreshAssetsManual(id) {
@@ -2152,7 +2159,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
                     }
                 });
                 _prodState.assets.set(id, current);
-                _prodRefreshAssetSurfaces();
+                _prodRefreshAssetSurfaces(id);
                 return current;
             }
             const verificationEpoch = _syncviewStaffVerificationEpoch;
@@ -2172,7 +2179,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             current.complete = false;
             current.error = '';
             _prodState.assets.set(id, current);
-            _prodRefreshAssetSurfaces();
+            _prodRefreshAssetSurfaces(id);
             try {
                 const response = await fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
@@ -2269,7 +2276,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
                    value if the row has moved out of it since. */
                 current.scopeSignature = scopeSignature;
                 _prodState.assets.set(id, current);
-                _prodRefreshAssetSurfaces();
+                _prodRefreshAssetSurfaces(id);
                 return current;
             } catch (error) {
                 if (!requestStillCurrent()) return null;
@@ -2290,7 +2297,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
                     }
                 });
                 _prodState.assets.set(id, current);
-                _prodRefreshAssetSurfaces();
+                _prodRefreshAssetSurfaces(id);
                 return current;
             }
         }

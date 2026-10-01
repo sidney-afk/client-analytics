@@ -107,7 +107,7 @@ about 8,700 a month each, 17,400 together. That is now the single largest block 
 | Sales, Payment Received | 5 | 20 | Keep |
 | Kasper, Queue (batch) | 3 | 13 | **Retire** with Calendar Get (step F) |
 | Client Ideas (3 workflows) | 3 | 13 | Keep |
-| MARKET RESEARCH (7 webhooks and a daily schedule) | 2 | 9 | Keep |
+| MARKET RESEARCH (five enabled webhooks; daily schedule and content-summary branch disabled in Atlas graph read, 2026-09-30) | 2 | 9 | Keep |
 | Project Central, Sheet API | 2 | 9 | Keep |
 | Sales, Call Booked, Meta CAPI, Call Cancelled, Invoice Paid, Onboarding Email | 8 | 35 | Keep |
 | Sample Review, Reorder | 1 | 4 | Phase 1 workflow, see the switch-off table |

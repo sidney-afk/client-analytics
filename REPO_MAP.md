@@ -1,5 +1,7 @@
 # Repo map
 
+Start with the [SyncView Atlas](docs/ATLAS.md) to find screens, data, jobs, secrets and release owners.
+
 **Current state (2026-09-26):** Staff work in SyncView, including native Workload. Linear is off: no `linear-*` Edge Function is deployed and its API keys were revoked on 2026-09-23 per the dated live check in STATE_OF_THINGS (the cutoff runbook's STEP 7). `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, `ROLLBACK.md` and some `docs/truth/` headers predate that check and still describe STEP 7 as pending; treat STATE_OF_THINGS as current. Linear-named paths below are retained source or history, not evidence of an active transport. See [State of things](docs/STATE_OF_THINGS.md) for the dated live check.
 
 The guide to where everything lives. `test/repo-map-sync.js` checks tracked
@@ -628,3 +630,6 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 
 - `docs/audits/2026-09-26-templates-realtime-catchup-source-review.md` — evidence and a proposed catch-up check for an open Templates view whose live-update channel fails or misses changes.
 - `test/templates-realtime-catchup.js` — offline channel-status and REST-read test for disconnected polling, one reconnect catch-up, and preservation of local edits.
+
+| `docs/ATLAS.md` | Whole SyncView inventory and routes to owners; live facts are dated. |
+| `test/atlas-sync.js` | Unit check for missing or stale edge folders, table-creating migrations, Actions files and n8n truth IDs. |

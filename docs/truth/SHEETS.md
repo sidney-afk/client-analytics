@@ -32,7 +32,7 @@
   `roam_channel_id`, `upload_post_profile`, `postforme_account_id`, `creative_channel_id`),
   **Video Editors** (2 cols: name, email —
   **no `slack_user_id` column**; urgent-Slack resolution uses a hardcoded fallback map inside
-  n8n), **Social Media Managers**, plus a calendar-mirror workbook (63 tabs at last count).
+  n8n), **Social Media Managers**, plus a calendar-mirror workbook (64 tabs verified by Atlas on 2026-09-30: one hidden Sheet1, 32 private Calendar tabs and 31 private Samples tabs).
 
 ## Analytics metrics
 

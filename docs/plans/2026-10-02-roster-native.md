@@ -124,6 +124,17 @@ nothing. Docs that tell people to fill it in are corrected in this PR.
 - Pasted secrets exist in several n8n Code nodes (listed in the session report,
   not here).
 
+## Open question for the owner: enrolling a new client in the save lists
+
+Raised by Beacon, 2026-10-02. A client that is created or brought back is not added
+to the four routing lists (`sample_review_ef_clients`, `calendar_upsert_ef_clients`,
+`settings_ef_clients`, `write_ui_reroute_clients`) by the daily roster sync, and until
+a client is on them its Calendar, Samples and Settings saves are paused. Step 1 does
+not enrol anyone (the native client functions only touch the profile). Should creating
+or restoring a client through `client_profile_service_write` enrol it in the same
+transaction? That changes which clients can save, so it waits for the owner's decision;
+PR 1926 (removing seven stale names from the lists) is separate and unaffected.
+
 ## For Beacon (onboarding project)
 
 The Clients tab design is left open. A client's profile is one row plus a free

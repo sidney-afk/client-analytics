@@ -47,12 +47,13 @@ const input = (over = {}) => ({ editorSlackId: EDITOR, title: 'Synthetic Video 1
         (all.match(new RegExp('<@' + EDITOR + '>', 'g')) || []).length >= 1 && !/<@(?!U0SYNTHEDIT>)/.test(all));
       ok(variant + ': says URGENT and what is needed', /URGENT/.test(all) && /needs tweaks|Needs tweaks|Tweaks/i.test(all));
       ok(variant + ': shows the client, the title and who pinged', /Synthetic Client/.test(all) && /Synthetic Video 1/.test(all) && /Synthetic Manager/.test(all));
-      ok(variant + ': the phone/fallback line mentions the editor and carries every fact',
-        m.text.includes('<@' + EDITOR + '>') && (variant === 'card' ? true : /Synthetic Client/.test(m.text) && /Synthetic Manager/.test(m.text)));
+      ok(variant + ': the top-level text (phone notification, screen reader) mentions the editor and carries every fact and the link',
+        m.text.startsWith('<@' + EDITOR + '>') && /URGENT/.test(m.text) && /Synthetic Video 1/.test(m.text)
+        && /Synthetic Client/.test(m.text) && /Synthetic Manager/.test(m.text) && m.text.includes('<' + SITE_LINK + '|Open in SyncView>'));
       if (variant === 'card') {
         const card = m.attachments[0];
         ok('card: a red bar and the plain line as the attachment fallback', card.color === '#E01E5A' && /Synthetic Client/.test(card.fallback) && card.fallback.includes('<@' + EDITOR + '>'));
-        ok('card: the lead line stays visible above the card and carries the mention', m.text.startsWith('<@' + EDITOR + '>') && /URGENT/.test(m.text));
+        ok('card: the sentence above the card is the same text, and the attachment keeps the plain link-free fallback', m.text.startsWith(card.fallback) && !/https?:/.test(card.fallback));
         const button = card.blocks.find((b) => b.type === 'actions').elements[0];
         ok('card: a real button named "Open in SyncView" with the production-card address', button.type === 'button' && button.text.text === 'Open in SyncView' && button.url === SITE_LINK);
         ok('card: Block Kit limits hold (header 150, button text 75, fields 2000)',
@@ -60,7 +61,7 @@ const input = (over = {}) => ({ editorSlackId: EDITOR, title: 'Synthetic Video 1
           && card.blocks[1].fields.every((f) => f.text.length <= 2000) && card.blocks[1].fields.length <= 10);
       } else {
         ok(variant + ': the link is explicit <url|Open in SyncView> markup', all.includes('<' + SITE_LINK + '|Open in SyncView>'));
-        ok(variant + ': the bare address never appears outside that markup', all.split(SITE_LINK).length === 2);
+        ok(variant + ': every occurrence of the address is inside that markup, never bare', all.split(SITE_LINK).length === all.split('<' + SITE_LINK + '|Open in SyncView>').length);
       }
     }
     ok('an invalid editor id is refused before anything is built', (() => { try { format.formatUrgent(input({ editorSlackId: 'not an id' }), 'card'); return false; } catch (e) { return /urgent_editor_id_invalid/.test(String(e.message)); } })());

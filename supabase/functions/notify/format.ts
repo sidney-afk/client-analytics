@@ -164,7 +164,6 @@ export function formatUrgent(input: UrgentInput, variant: NotifyVariant): SlackM
   const link = "<" + p.url + "|" + URGENT_LINK_TEXT + ">";
   const needs = "🔧 *Needs tweaks*";
   if (variant === "card") {
-    const lead = p.mention + "  🚨 *URGENT*: needs tweaks";
     const fields = [
       mrkdwn("*Client*\n" + (p.client || "Unknown")),
       mrkdwn("*Needs*\n🔧 Tweaks"),
@@ -176,11 +175,14 @@ export function formatUrgent(input: UrgentInput, variant: NotifyVariant): SlackM
       { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: URGENT_LINK_TEXT }, url: p.url }] },
     ];
     const text = urgentFallbackText(input);
-    // The lead line is the top-level text and stays visible above the card: it
-    // is the line that carries the mention, so the editor is always notified.
-    return { text: lead, blocks, attachments: [{ color: URGENT_COLOR, fallback: text, blocks }] };
+    // The top-level text stays visible above the card and is what a phone
+    // notification and a screen reader use, so it carries every fact (editor
+    // mention, URGENT, title, client, who pinged) and the link, not just a lead.
+    return { text: text + " " + link, blocks, attachments: [{ color: URGENT_COLOR, fallback: text, blocks }] };
   }
-  const text = urgentFallbackText(input);
+  // With blocks, the top-level text is the notification and accessibility
+  // fallback: the same sentence plus the link.
+  const text = urgentFallbackText(input) + " " + link;
   if (variant === "line") {
     const line = "🚨 *URGENT* " + p.mention + " · *" + boldSafe(p.title) + "*" + (p.client ? " · " + p.client : "")
       + " · " + needs + (p.by ? " · pinged by " + p.by : "") + "\n" + link;

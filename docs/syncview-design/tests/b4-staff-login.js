@@ -74,9 +74,10 @@ async function installMocks(page) {
     if (url.includes('/functions/v1/key-verify')) {
       verifyCalls++;
       await consumeGate('verify');
-      const key = request.headers()['x-syncview-key'] || '';
       let body = {};
       try { body = request.postDataJSON() || {}; } catch (_) {}
+      // The page sends the check as a simple request (key in the body, no custom header, so no preflight).
+      const key = request.headers()['x-syncview-key'] || body.key || '';
       const member = body.member && [ADMIN, CREATIVE].find(row => row.id === body.member.id);
       const role = member === ADMIN && key === ADMIN_KEY ? 'admin' : (member === CREATIVE && key === CREATIVE_KEY ? 'creative' : '');
       if (!member || !role) {

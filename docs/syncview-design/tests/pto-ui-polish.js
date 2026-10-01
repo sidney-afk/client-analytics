@@ -520,7 +520,7 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     await waitForFixture(() => state.runtimeFlagReads > 0, 'mocked pto_v1 read');
     await waitForFixture(() => state.keyVerifyCalls.length > 0, 'mocked key verification');
     assert(state.runtimeFlagReads > 0, 'staff surface reads the mocked pto_v1 runtime flag');
-    assert(state.keyVerifyCalls.length > 0 && state.keyVerifyCalls[0].headers['x-syncview-key'] === ADMIN_KEY,
+    assert(state.keyVerifyCalls.length > 0 && (state.keyVerifyCalls[0].headers['x-syncview-key'] || (state.keyVerifyCalls[0].body && state.keyVerifyCalls[0].body.key)) === ADMIN_KEY,
       'saved synthetic staff identity is verified through the mocked key verifier');
 
     const staffNative = await nativeControlAudit(page, '.pto-wrap');

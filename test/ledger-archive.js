@@ -39,14 +39,14 @@ ok(lib.archive('repairs', { root, cutoff: '2026-08-02', apply: true }).moved ===
 // A later run with a newer cutoff appends to the month file and still rebuilds exactly.
 lib.archive('repairs', { root, cutoff: '2026-09-30', apply: true });
 ok(lib.rebuild('repairs', root) === original, 'a later, wider run still rebuilds the original byte for byte');
-const arch = fs.readFileSync(path.join(root, 'docs/ops/repairs-archive/2026-07.md'), 'utf8');
+const arch = fs.readFileSync(path.join(root, lib.LEDGERS.repairs.dir, '2026-07.md'), 'utf8');
 ok(arch.includes('## 1. [2026-07-05] old thing\nbody one\n```\n## not a heading\n```\n'), 'a code fence inside an entry travels with it');
 // --keep leaves a named entry where it is.
 fs.writeFileSync(file, original);
-fs.rmSync(path.join(root, 'docs/ops/repairs-archive'), { recursive: true });
+fs.rmSync(path.join(root, lib.LEDGERS.repairs.dir), { recursive: true });
 ok(lib.archive('repairs', { root, cutoff: '2026-08-02', keep: ['1. [2026-07-05] old thing'], apply: true }).moved === 2 && /body one/.test(fs.readFileSync(file, 'utf8')), 'a kept entry stays in the main file');
 ok(lib.rebuild('repairs', root) === original, 'a run with a kept entry still rebuilds the original byte for byte');
-fs.writeFileSync(file, original); fs.rmSync(path.join(root, 'docs/ops/repairs-archive'), { recursive: true });
+fs.writeFileSync(file, original); fs.rmSync(path.join(root, lib.LEDGERS.repairs.dir), { recursive: true });
 lib.archive('repairs', { root, cutoff: '2026-08-02', apply: true });
 // A broken link must be loud.
 const main2 = fs.readFileSync(file, 'utf8');

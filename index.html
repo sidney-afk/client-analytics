@@ -7603,6 +7603,20 @@
         /* Icon-only "no more tweaks needed" chip on the Kasper queue card. */
         .kcard-aat-chip { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border-radius: 99px; flex-shrink: 0; }
         .kcard-aat-chip svg { width: 11px; height: 11px; }
+        /* Kasper board clarity (OPEN_REPAIRS 314): sent-back marker, urgent tag, unsaved-change alerts, skip notes. */
+        .kcard-returned-chip { display: inline-flex; align-items: center; font-size: 0.7rem; font-weight: 700; color: var(--sv-fg-92400e); background: var(--sv-bg-fef3c7); padding: 2px 8px; border-radius: 99px; }
+        .kcard-returned-line { font-size: 0.75rem; color: var(--sv-fg-92400e); }
+        .kcard-urgent-tag { display: inline-flex; align-items: center; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em; color: var(--sv-fg-b91c1c); background: var(--sv-bg-fee2e2); padding: 2px 8px; border-radius: 99px; }
+        .kasper-fresh { font-size: 0.72rem; color: var(--text-muted); margin: 0 2px 8px; }
+        .kasper-save-alert { background: var(--sv-bg-fef2f2); border: 1px solid var(--border); border-left: 3px solid var(--sv-bg-ef4444); border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
+        .kasper-save-alert-title { font-size: 0.9rem; font-weight: 700; color: var(--sv-fg-b91c1c); margin-bottom: 6px; }
+        .kasper-save-alert-list { margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-secondary); }
+        .kasper-save-alert-list li { margin-bottom: 8px; }
+        .kasper-save-alert-text { font-size: 0.8rem; color: var(--text-primary); }
+        .kasper-save-alert-actions { display: inline-flex; gap: 8px; margin: 6px 0 0 0; }
+        .kasper-save-alert-btn { font: inherit; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .kcard-save-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--sv-bg-fef2f2); border-top: 1px solid var(--border); border-left: 3px solid var(--sv-bg-ef4444); padding: 10px 14px; }
+        .kasper-history-skip { font-size: 0.72rem; font-weight: 600; color: var(--sv-fg-92400e); background: var(--sv-bg-fef3c7); border-radius: 8px; padding: 3px 8px; margin-top: 4px; display: inline-block; }
         /* Icon-only "no more tweaks needed" badge, right of the Tweaks pill. */
         .cal-foot-tweaks { display: inline-flex; align-items: center; gap: 6px; }
         .cal-aat-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border-radius: 99px; flex-shrink: 0; }
@@ -9422,9 +9436,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-200b6e9fdc5f.js";
-        var PARTS = ["js/sv-01-core-37240fada91c.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e6fb1f13acdf.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-dab551296544.js","js/sv-12-synclinear-467b45708ac8.js","js/sv-13-core-c5e5db6870f6.js","js/sv-15-core-d9a9e0468f2b.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-3ce687433e7a.js","workload":"js/sv-04-workload-74cd1d5cd211.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-828f780f8890.js"};
+        var FULL = "js/sv-full-1632b7236ab6.js";
+        var PARTS = ["js/sv-01-core-37240fada91c.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e6fb1f13acdf.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-4a0c1850a666.js","js/sv-12-synclinear-467b45708ac8.js","js/sv-13-core-0b78169207b4.js","js/sv-15-core-26813580f3b3.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var LAZY = {"templates":"js/sv-02-templates-3ce687433e7a.js","workload":"js/sv-04-workload-74cd1d5cd211.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-49d1fa7984a5.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

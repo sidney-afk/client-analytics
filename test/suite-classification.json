@@ -252,6 +252,7 @@
     "kasper-stranded-handoff.js",
     "kasper-subtab-reload-and-extras-hold.js",
     "kasper-waiting-sent-order.js",
+    "kasper-never-lose-decision.js",
     "kasper-tweak-calendar-sync-retry.js",
     "kasper-tweak-chip-scope.js",
     "kasper-urgent-ping.js",
@@ -1363,6 +1364,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the TikTok / Instagram switch and a full Instagram post through the mocked instagram-upload function.",
       "reproduce": "node test/instagram-platform-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "kasper-board-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the test client's calendar rows and a stand-in for supabase-js realtime), no hosted credentials and no live data.",
+      "reproduce": "node test/kasper-board-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

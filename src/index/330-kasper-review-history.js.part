@@ -5,7 +5,7 @@ import {
   _syncviewStaffIdentityForHeaders
 } from './100-onboarding-staff-controls.js';
 import {
-  _calAssertSavingOn, _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _writeUiAdoptRepairAck,
+  _calAssertSavingOn, _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _calReadFreshCardStamp, _writeUiAdoptRepairAck,
   _writeUiFailureSentence, _writeUiNativeId, _writeUiRepairCompanions, _writeUiReportFailure,
   computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
@@ -17,7 +17,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 import { _calArchivedRefs, _calCoerceDate, _calDedupeByLinearIssue, _calIsArchivedRef } from './134-calendar-prefs-mount.js';
 import {
-  URGENT_EDITOR_NEEDS_NATIVE, _calPersistUrgentSentForPost, _calPostLinearComment,
+  URGENT_EDITOR_NEEDS_NATIVE, _calKasperUrgentActive, _calPersistUrgentSentForPost, _calPostLinearComment,
   _calUrgentButtonHtml, _calUrgentSlackDispatch
 } from './140-calendar-legacy-outbox.js';
 import { _calSupabaseFetchAllRows, _calV2FetchPosts } from './150-calendar-hydration-import.js';
@@ -38,11 +38,11 @@ import {
   _calShowUrgent, _calStringifyComments, _kasperCompReviewable, _kasperOpenTweakCount,
   _kasperPanelComps, _kasperUndecidedComps
 } from './190-calendar-approval-comments.js';
-import { _sxrKasperRenderCard, _sxrKasperRenderHistorySection, _sxrKasperState } from './290-samples-writes-review.js';
+import { _sxrKasperLoadQueue, _sxrKasperRenderCard, _sxrKasperRenderHistorySection, _sxrKasperState } from './290-samples-writes-review.js';
 import {
-  KASPER_CAL_CACHE_TTL, _kasperCalCacheKey, _kasperCalCachePrune, _kasperIsFinished,
+  KASPER_CAL_CACHE_TTL, KASPER_FRESH_COLUMNS, _kasperLocalFlagLive, _kasperSamplesEnabled, _kasperUrgentSupersedes, _kasperAdoptServerFields, _kasperCalCacheKey, _kasperCalCachePrune, _kasperIsFinished,
   _kasperLoadSMMMap, _kasperPaintReview, _kasperPartitionItems, _kasperPatchSnapshot,
-  _kasperPersistCache, _kasperPersistPost, _kasperSamplePartition, _kasperSamplesMerged,
+  _kasperPersistCache, _kasperPersistPost, _kasperSamplePartition, _kasperSetSaveAlert, _kasperSamplesMerged,
   _kasperState
 } from './305-core-kasper-shared.js';
 import {
@@ -97,6 +97,9 @@ import { _kedPaint } from './340-kasper-editors-board.js';
 
         _kasperState.loading = true;
         _kasperState.error = null;
+        // The client list fills in late (Clients Info sheet). Remember its size, so a
+        // load that started before it grew is repeated once it has (OPEN_REPAIRS 314).
+        const rosterAtStart = WL_CLIENT_NAMES.length;
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
         _kasperSetLoadGen(_kasperLoadGen + 1);
@@ -212,12 +215,20 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             // Clients whose calendar could not be read at all. Their cards are
             // not in the queue and nobody can tell by looking, so say it.
             _kasperState.unloaded = Array.isArray(fetched.unloaded) ? fetched.unloaded : [];
+            // Clients the page's list did not know when this read was made. Their cards
+            // are not in the queue; saying so beats an empty "all caught up".
+            _kasperState.unlisted = Array.isArray(fetched.unlisted) ? fetched.unlisted : [];
+            // Parts moved past Kasper Approval without his decision, for the history.
+            try { _kasperState.skips = await _kasperFetchSkips(); } catch (_) { /* notes are an extra; the queue must still paint */ }
+            if (myGen !== _kasperLoadGen) return;
+            _kasperState.history = _kasperApplySkipsToHistory(_kasperState.history, _kasperState.skips, fetched.postIndex);
             _kasperState.lastLoaded = Date.now();
             _kasperPersistCache();
             _kasperPaintReview();
             _kasperUpdateReplyCount();
             _kasperRefreshTabCounts();   // keep review/samples/filming pills live even when those tabs aren't mounted
             if (_kasperState.tab === 'replies') _kasperRenderReplies();
+            if (WL_CLIENT_NAMES.length > rosterAtStart) setTimeout(() => _kasperLoadReview(true), 0);
         } catch (e) {
             _kasperState.error = e && e.message ? e.message : String(e);
             const body2 = document.getElementById('kasperReviewBody');
@@ -307,6 +318,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             const history = [];
             const replies = [];
             const stranded = [];
+            const index = new Map();
             const seenIds = new Set();
             for (const raw of rawPosts) {
                 if (!raw || !raw.id || seenIds.has(raw.id)) continue;
@@ -400,6 +412,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                         _errors:   { video: null,  graphic: null,  caption: null },
                     });
                 }
+                index.set(String(raw.id), { post: raw, client, slug });
                 const approvedAt = String(raw.kasper_approved_at || '').trim();
                 if (approvedAt) {
                     history.push(_kasperHistoryEntryFromPost(raw, client, slug, approvedAt));
@@ -411,7 +424,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                     replies.push({ post: raw, client, slug, smm: null, _replyDraft: '' });
                 }
             }
-            return { queue, history, replies, stranded };
+            return { queue, history, replies, stranded, index };
         };
         const fetchOne = async (client) => {
             const slug = wlNormalizeClient(client);
@@ -434,6 +447,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         // per-client fan-out below — the batch is purely an upgrade.
         const settled = [];
         let remaining = WL_CLIENT_NAMES.slice();
+        const unlistedOut = [];
         if (!forceRefresh) {
             remaining = [];
             for (const client of WL_CLIENT_NAMES) {
@@ -467,6 +481,13 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                     if (!c) continue;
                     if (!byClient.has(c)) byClient.set(c, []);
                     byClient.get(c).push(r);
+                }
+                // Clients the page's list does not know (yet) that still hold a part at
+                // Kasper Approval: reported, never silently dropped.
+                const known = new Set(WL_CLIENT_NAMES.map(wlNormalizeClient));
+                for (const [c, rows] of byClient) {
+                    if (known.has(wlNormalizeClient(c))) continue;
+                    if (rows.some(r => r && _KASPER_PARTS.some(k => String(r[k + '_status'] || '') === 'Kasper Approval'))) unlistedOut.push(c);
                 }
                 const covered = [];
                 for (const client of remaining) {
@@ -508,6 +529,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         const strandedOut = [];
         const strandedIds = new Set();
         const unloadedOut = [];
+        const postIndex = new Map();
         for (const s of settled) {
             if (s.status === 'rejected' && s.client && !unloadedOut.includes(s.client)) unloadedOut.push(s.client);
             if (s.status === 'fulfilled' && s.value) {
@@ -517,6 +539,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                     queueOut.push(it);
                 }
                 historyOut.push(...s.value.history);
+                if (s.value.index) for (const [k, v] of s.value.index) postIndex.set(k, v);
                 for (const it of (s.value.replies || [])) {
                     if (repliesIds.has(it.post.id)) continue;
                     repliesIds.add(it.post.id);
@@ -529,7 +552,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                 }
             }
         }
-        return { queue: queueOut, history: historyOut, replies: repliesOut, stranded: strandedOut, unloaded: unloadedOut };
+        return { queue: queueOut, history: historyOut, replies: repliesOut, stranded: strandedOut, unloaded: unloadedOut, unlisted: unlistedOut, postIndex };
     }
 
     function _kasperHistoryEntryFromPost(post, client, slug, approvedAt) {
@@ -615,8 +638,9 @@ import { _kedPaint } from './340-kasper-editors-board.js';
     function _kasperIsClosed(post) {
         if (!post) return false;
         const closedAt = String((post && post.kasper_closed_at) || '');
-        const localClosed = !!(_kasperState.closed && _kasperState.closed[post.id]);
+        const localClosed = _kasperLocalFlagLive(_kasperState.closed && _kasperState.closed[post.id]);
         if (!closedAt && !localClosed) return false;
+        if (_kasperUrgentSupersedes(post, closedAt) && _kasperUndecidedComps(post).length > 0) return false;
         if (closedAt) {
             const latest = _calLatestMsgCreatedAt(post);                 // created-at: a resolve bump must not un-hide a closed card
             if (latest && latest > closedAt) return false;
@@ -782,7 +806,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         // Only once the queue has actually loaded -- the SMM sheet can land
         // first and repaint an empty body, which is not content.
         if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
-        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderQueueErrorNotice() + _kasperRenderSampleNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection() + _kasperRenderSampleHistory();
+        body.innerHTML = _kasperRenderFreshnessNote() + _kasperRenderSaveAlerts() + _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUnlistedNotice() + _kasperRenderQueueErrorNotice() + _kasperRenderSampleNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection() + _kasperRenderSampleHistory();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }
 
@@ -980,13 +1004,14 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                     <div class="kasper-history-thumb">${thumbHtml}</div>
                     <div class="kasper-history-main">
                         <div class="kasper-history-line1">${_calEsc(e.name)}</div>
-                        <div class="kasper-history-line2"><span class="kasper-history-client">${_calEsc(e.client)}</span>${timeStr ? ` · approved ${_calEsc(timeStr)}` : ''}</div>
+                        <div class="kasper-history-line2"><span class="kasper-history-client">${_calEsc(e.client)}</span>${(timeStr && !e.skippedOnly) ? ` · approved ${_calEsc(timeStr)}` : ''}</div>
+                        ${e.skip ? `<div class="kasper-history-skip" data-kasper-skip>${_calEsc(_kasperSkipNoteText(e.skip))}</div>` : ''}
                     </div>
                     <div class="kasper-history-actions">${videoBtn}<a href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener">Open</a></div>
                 </div>`;
             }).join('');
             return `<div class="kasper-history-day">
-                <div class="kasper-history-day-label">${_calEsc(_kasperHistoryDayLabel(k))}<span class="kasper-day-count">· ${groups.get(k).length} approved</span></div>
+                <div class="kasper-history-day-label">${_calEsc(_kasperHistoryDayLabel(k))}<span class="kasper-day-count">· ${groups.get(k).length} ${groups.get(k).every(x => x.skippedOnly) ? 'moved without you' : 'approved'}</span></div>
                 ${rows}
             </div>`;
         }).join('');
@@ -994,7 +1019,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         return `<div class="kasper-history-wrap${collapsedCls}" id="kasperHistoryWrap">
             <div class="kasper-history-head" onclick="_kasperToggleHistory()">
                 <span class="kasper-history-title">Approved history</span>
-                <span class="kasper-history-count">${list.length}</span>
+                <span class="kasper-history-count">${list.filter(x => !x.skippedOnly).length}</span>
                 <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
             </div>
             <div class="kasper-history-body">${daysHtml}</div>
@@ -1019,6 +1044,219 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         const d = new Date(s + 'T00:00:00');
         if (isNaN(d)) return s;
         return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+
+    /* ── What the board has to say about itself (OPEN_REPAIRS 314) ───────── */
+    function _kasperClock(iso) {
+        const t = Date.parse(iso || '');
+        return isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+    }
+    /* "Updated 4:01 PM": an honest age for the screen, so a quiet board and a stuck
+       one stop looking the same. */
+    function _kasperRenderFreshnessNote() {
+        if (!_kasperState.lastLoaded) return '';
+        return `<div class="kasper-fresh" data-kasper-fresh>Updated ${_calEsc(_kasperClock(new Date(_kasperState.lastLoaded).toISOString()))}</div>`;
+    }
+    const KASPER_PAST_STATUSES = ['Client Approval', 'Approved', 'Scheduled', 'Posted'];
+    /* A card that was already decided once and is back in front of him: what came
+       back, when, and what he had already sent on. Null for a first-time card.
+       Derived from the card itself (no new column): he left a note on a part that is
+       back at Kasper Approval, or the card carries his finish / approval stamp and
+       other parts already went to the client. */
+    function _kasperReturnInfo(item) {
+        const p = item && item.post;
+        if (!p) return null;
+        const undecided = _kasperUndecidedComps(p);
+        if (!undecided.length) return null;
+        const comps = _calComponentsFor(p);
+        const sentOn = comps.filter(c => KASPER_PAST_STATUSES.indexOf(_calNormStatus(p[c + '_status'] || '')) >= 0);
+        const hadStamp = !!(String(p.kasper_finished_at || '').trim() || String(p.kasper_approved_at || '').trim());
+        const noted = undecided.filter(c => _calCommentsFor(p, c).some(m => m && m.role === 'kasper' && !m.deleted));
+        if (!noted.length && !(hadStamp && sentOn.length)) return null;
+        const back = noted.length ? noted : undecided;
+        const at = isFinite(item.sentAtMs) ? new Date(item.sentAtMs).toISOString() : '';
+        return { back, sentOn, at };
+    }
+    function _kasperReturnLineHtml(info) {
+        if (!info) return '';
+        const names = list => list.map(c => COMP_LABELS[c] || c).join(' and ');
+        const when = info.at ? ' at ' + _kasperClock(info.at) : '';
+        const sent = info.sentOn.length ? ' Already sent to the client: ' + names(info.sentOn) + '.' : '';
+        return `<span class="kcard-returned-line" data-kasper-returned>${_calEsc(names(info.back))} back for your review${_calEsc(when)}.${_calEsc(sent)}</span>`;
+    }
+    function _kasperUrgentTagHtml(p) {
+        if (!_calKasperUrgentActive(p)) return '';
+        const by = String(p.kasper_urgent_by || '').trim();
+        const at = _kasperClock(p.kasper_urgent_pinged_at);
+        const who = by ? ' by ' + by : '';
+        return `<span class="kcard-urgent-tag" data-kasper-urgent-tag title="${_calEscAttr('Marked urgent' + who + (at ? ' at ' + at : ''))}">Urgent${by ? ' · ' + _calEsc(by) : ''}${at ? ' · ' + _calEsc(at) : ''}</span>`;
+    }
+
+    /* ── A save that did not land is never quiet ──────────────────────────
+       Kasper's decisions go through one persist. When it refuses (the card moved
+       underneath him and his decision no longer fits, or the network failed), the
+       failure is kept in _kasperState.saveAlerts and shown at the top of the board
+       AND on the card, until he acts. It survives a refresh and a card leaving the
+       queue, because it is keyed by card id, not held by the card. */
+    function _kasperFailureText(e, doing) {
+        const raw = String((e && e._kasperConflict ? e.message : _writeUiFailureSentence(e)) || '').trim();
+        if (/^not saved/i.test(raw)) return raw;
+        return 'Not saved: ' + doing + ' did not go through. ' + (raw ? raw + ' ' : '') + 'Reload the card and decide again.';
+    }
+    function _kasperNoteSaveFailure(item, e, doing) {
+        if (!item || !item.post) return;
+        const pid = String(item.post.id);
+        const c = e && e._kasperConflict;
+        if (c && c.fresh) {
+            // Show the card as the server holds it, so the next decision is made on the truth.
+            _kasperAdoptServerFields(item.post, c.fresh, []);
+            item.post.updated_at = String(c.fresh.updated_at || item.post.updated_at || '');
+            item.post._baseAt = item.post.updated_at;
+            item.post.status = computeOverallStatus(item.post);
+            item.post._patchBase = _kasperPatchSnapshot(item.post);
+            _kasperPersistCache();
+        }
+        _kasperSetSaveAlert(pid, item.post.name, item.client, c ? 'conflict' : 'failed', _kasperFailureText(e, doing));
+        _kasperRepaintCard(pid);
+        _kasperPaintReview();
+    }
+    function _kasperAlertButtonsHtml(pid) {
+        const id = _calEscAttr(pid);
+        return `<span class="kasper-save-alert-actions"><button type="button" class="kasper-save-alert-btn" onclick="event.stopPropagation();_kasperReloadCard('${id}')">Reload card</button><button type="button" class="kasper-save-alert-btn" onclick="event.stopPropagation();_kasperAckAlert('${id}')">Got it</button></span>`;
+    }
+    function _kasperRenderSaveAlerts() {
+        const list = Object.keys(_kasperState.saveAlerts || {}).map(k => _kasperState.saveAlerts[k]).filter(Boolean);
+        if (!list.length) return '';
+        const noun = list.length === 1 ? 'change was' : 'changes were';
+        const rows = list.map(a => `<li data-kasper-alert="${_calEscAttr(a.pid)}"><strong>${_calEsc(a.client)}</strong> · ${_calEsc(a.name)}<div class="kasper-save-alert-text">${_calEsc(a.text)}</div>${_kasperAlertButtonsHtml(a.pid)}</li>`).join('');
+        return `<div class="kasper-save-alert" role="alert" data-kasper-alerts="${list.length}"><div class="kasper-save-alert-title">${list.length} ${noun} NOT saved</div><ul class="kasper-save-alert-list">${rows}</ul></div>`;
+    }
+    function _kasperCardAlertHtml(pid) {
+        const a = _kasperState.saveAlerts && _kasperState.saveAlerts[pid];
+        if (!a) return '';
+        return `<div class="kcard-save-alert" role="alert" data-kasper-card-alert><span class="kasper-save-alert-text">${_calEsc(a.text)}</span>${_kasperAlertButtonsHtml(pid)}</div>`;
+    }
+    function _kasperAckAlert(pid) {
+        if (_kasperState.saveAlerts) delete _kasperState.saveAlerts[pid];
+        _kasperRepaintCard(pid);
+        _kasperPaintReview();
+    }
+    /* Re-read the card from the server and show it as it is now. Keeps his drafts. */
+    async function _kasperReloadCard(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (item) {
+            const fresh = await _calReadFreshCardStamp(item.slug, pid, KASPER_FRESH_COLUMNS);
+            if (!fresh) { showToast('Could not reload the card. Check your connection and try again.'); return; }
+            _kasperAdoptServerFields(item.post, fresh, []);
+            item.post.updated_at = String(fresh.updated_at || item.post.updated_at || '');
+            item.post._baseAt = item.post.updated_at;
+            item.post.status = computeOverallStatus(item.post);
+            item.post._patchBase = _kasperPatchSnapshot(item.post);
+            _kasperPersistCache();
+        }
+        _kasperAckAlert(pid);
+        _kasperLoadReview(true);
+        if (typeof _sxrKasperLoadQueue === 'function' && _kasperSamplesEnabled()) _sxrKasperLoadQueue(true);
+    }
+
+    function _kasperRenderUnlistedNotice() {
+        const list = Array.isArray(_kasperState.unlisted) ? _kasperState.unlisted : [];
+        if (!list.length) return '';
+        const names = list.slice(0, 8).map(n => _calEsc(n)).join(', ');
+        const noun = list.length === 1 ? 'client has' : 'clients have';
+        return `<div class="kasper-unloaded" data-kasper-unlisted="${list.length}">
+            <div class="kasper-stranded-title">${list.length} ${noun} cards at Kasper Approval that are not in this list yet</div>
+            <div class="kasper-stranded-sub">The client list had not finished loading when the queue was read, so these are missing here, not absent: ${names}. The queue reloads on its own once the list is in; press Refresh if they do not appear.</div>
+        </div>`;
+    }
+
+    /* ── Staff may move a part past Kasper without him, never silently ──────
+       A part that left Kasper Approval for the client (or later) is one of two
+       things: his own decision, or staff skipping him. His own show an event by
+       him (or by the Kasper role) at the same moment. Anything else is a skip, and
+       it is listed in his history with who moved it and when. Pure, so it is
+       tested on its own. */
+    function _kasperIsKasperActor(actor, role) {
+        if (String(role || '').trim().toLowerCase() === 'kasper') return true;
+        return String(actor || '').trim().split(/\s+/)[0].toLowerCase() === 'kasper';
+    }
+    function _kasperBuildSkips(pastEvents, kasperEvents) {
+        const CLUSTER_MS = 30000, NEAR_MS = 20000;
+        const byPost = new Map();
+        for (const e of (pastEvents || [])) {
+            if (!e || !e.post_id || !isFinite(Date.parse(e.ts || ''))) continue;
+            const k = String(e.post_id);
+            if (!byPost.has(k)) byPost.set(k, []);
+            byPost.get(k).push(e);
+        }
+        const kasperTimes = new Map();
+        for (const e of (kasperEvents || [])) {
+            const t = Date.parse((e && e.ts) || '');
+            if (!e || !e.post_id || !isFinite(t)) continue;
+            const k = String(e.post_id);
+            if (!kasperTimes.has(k)) kasperTimes.set(k, []);
+            kasperTimes.get(k).push(t);
+        }
+        const out = {};
+        for (const [pid, list] of byPost) {
+            list.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+            const clusters = [];
+            for (const e of list) {
+                const last = clusters[clusters.length - 1];
+                if (last && Date.parse(e.ts) - last.end <= CLUSTER_MS) { last.events.push(e); last.end = Date.parse(e.ts); }
+                else clusters.push({ events: [e], start: Date.parse(e.ts), end: Date.parse(e.ts) });
+            }
+            for (const cl of clusters) {
+                const ui = cl.events.filter(e => e.source === 'ui' && e.actor);
+                const hisUi = ui.some(e => _kasperIsKasperActor(e.actor, e.role));
+                const hisNear = (kasperTimes.get(pid) || []).some(t => t >= cl.start - NEAR_MS && t <= cl.end + NEAR_MS);
+                const hisRole = cl.events.some(e => String(e.role || '').toLowerCase() === 'kasper');
+                if (hisUi || hisNear || hisRole) continue;
+                const who = ui.find(e => !_kasperIsKasperActor(e.actor, e.role));
+                const comps = [];
+                for (const e of cl.events) if (e.component && comps.indexOf(e.component) < 0) comps.push(e.component);
+                const last = cl.events[cl.events.length - 1];
+                out[pid] = { by: who ? String(who.actor) : '', at: new Date(cl.end).toISOString(), to: String(last.to_status || ''), comps };
+            }
+        }
+        return out;
+    }
+    const KASPER_SKIP_DAYS = 14;
+    async function _kasperFetchSkips() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return {};
+        const since = encodeURIComponent(new Date(Date.now() - KASPER_SKIP_DAYS * 86400000).toISOString());
+        const past = await _kedRestPage('calendar_post_events?select=post_id,component,ts,role,source,actor,to_status&action=eq.status_change&ts=gte.' + since
+            + '&from_status=eq.' + encodeURIComponent('Kasper Approval')
+            + '&to_status=in.(' + KASPER_PAST_STATUSES.map(x => encodeURIComponent('"' + x + '"')).join(',') + ')&order=ts.asc');
+        if (!past.length) return {};
+        const his = await _kedRestPage('calendar_post_events?select=post_id,ts&source=eq.ui&actor=ilike.' + encodeURIComponent('Kasper*') + '&ts=gte.' + since);
+        return _kasperBuildSkips(past, his);
+    }
+    function _kasperSkipNoteText(skip) {
+        if (!skip) return '';
+        const parts = (skip.comps || []).map(c => COMP_LABELS[c] || c);
+        const what = parts.length ? parts.join(' and ') + ' moved' : 'Moved';
+        const clock = _kasperClock(skip.at);
+        return what + ' to ' + (skip.to || 'the next step') + ' by ' + (skip.by || 'staff') + (clock ? ' at ' + clock : '') + ', without your decision.';
+    }
+    /* Fold the skips into the history list: a card he already approved gets the note
+       on its row; a card he never approved gets a row of its own. Copies, so the
+       cached entries are never edited twice. */
+    function _kasperApplySkipsToHistory(history, skips, index) {
+        const out = (history || []).map(e => (skips && skips[e.id]) ? Object.assign({}, e, { skip: skips[e.id] }) : e);
+        const have = new Set(out.map(e => e.id));
+        for (const id of Object.keys(skips || {})) {
+            if (have.has(id)) continue;
+            const hit = index && index.get(id);
+            if (!hit) continue;
+            const entry = _kasperHistoryEntryFromPost(hit.post, hit.client, hit.slug, skips[id].at);
+            entry.skip = skips[id];
+            entry.skippedOnly = true;
+            out.push(entry);
+        }
+        out.sort((a, b) => String(b.approvedAt || '').localeCompare(String(a.approvedAt || '')));
+        return out;
     }
 
     function _kasperRenderCard(item) {
@@ -1075,7 +1313,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         // _kasperSendUrgentSlack, which resolves the post from the (cross-client)
         // review queue rather than calState.posts.
         const urgentBtn = _calShowUrgent(p, 'video')
-            ? _calUrgentButtonHtml(_calEscAttr(pid), '_kasperSendUrgentSlack', p, 'kcard-urgent-btn', true)
+            ? _calUrgentButtonHtml(_calEscAttr(pid), '_kasperSendUrgentSlack', p, 'kcard-urgent-btn', true, 'editor', { idle: 'Ping editor', done: 'Editor pinged' })
             : '';
         const calUrl = svRoute.clean(`/#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`);
         const openTweaks = _kasperOpenTweakCount(p);
@@ -1089,6 +1327,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             ? `<span class="kcard-date"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>${_calEsc(dateNice)}</span>`
             : `<span class="kcard-date is-empty">No date</span>`;
         const expandedHtml = item._expanded ? _kasperRenderExpanded(item) : '';
+        const returnInfo = _kasperReturnInfo(item);
         return `<div class="kcard${item._expanded ? ' expanded' : ''}" data-kasper-pid="${_calEscAttr(pid)}">
             <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_kasperClose('${_calEscAttr(pid)}')" title="Hide this card. It returns if someone writes on it." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             <div class="kcard-strip" onclick="_kasperToggleCard('${_calEscAttr(pid)}')">
@@ -1098,13 +1337,15 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                         <span class="kcard-client">${_calEsc(item.client)}</span>
                         <span class="kcard-dot">·</span>
                         ${dateHtml}
+                        ${_kasperUrgentTagHtml(p)}
+                        ${returnInfo ? '<span class="kcard-returned-chip" title="You decided on this card before. Something came back to you.">Sent back to you</span>' : ''}
                         ${tweaksChip}
                         ${aatChip}
                         ${_kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New message</span>' : ''}
                         ${undecidedComps.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecidedComps.map(c => `<span class="kcard-comp-pill">${_calEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : ''}
                     </div>
                     <div class="kcard-title">${_calEsc(title)}</div>
-                    <div class="kcard-meta-row">${smmHtml}</div>
+                    <div class="kcard-meta-row">${smmHtml}${_kasperReturnLineHtml(returnInfo)}</div>
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
                     ${urgentBtn}
@@ -1113,6 +1354,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
                     <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
             </div>
+            ${_kasperCardAlertHtml(pid)}
             ${expandedHtml}
         </div>`;
     }
@@ -1548,6 +1790,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             item._saving[comp] = false;
             item._errors[comp] = _writeUiFailureSentence(e);
             _kasperRepaintCard(pid);
+            _kasperNoteSaveFailure(item, e, 'Your ' + (COMP_LABELS[comp] || comp).toLowerCase() + ' approval');
         }
     }
 
@@ -1586,6 +1829,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             item._saving[ctx.comp] = false;
             _kasperRepaintCard(pid);
             showNotify('Undo failed', 'Could not write the revert to the sheet (' + ((e && e.message) || 'error') + '). Refresh the queue and check the card before retrying.');
+            _kasperNoteSaveFailure(item, e, 'Undoing the approval');
         }
     }
 
@@ -1645,9 +1889,11 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             _kasperRepaintCard(pid);
         } catch (e) {
             Object.assign(item.post, prev);
+            item._drafts[comp] = body;   // his words come back into the box; a refused note is never lost with the save
             item._saving[comp] = false;
             item._errors[comp] = _writeUiFailureSentence(e);
             _kasperRepaintCard(pid);
+            _kasperNoteSaveFailure(item, e, 'Your note');
         }
     }
 
@@ -1773,6 +2019,7 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             item._saving[comp] = false;
             item._errors[comp] = _writeUiFailureSentence(e);
             _kasperRepaintCard(pid);
+            _kasperNoteSaveFailure(item, e, approveAfterTweaks ? 'Approve after tweaks' : 'Your change request');
         }
     }
 
@@ -1905,13 +2152,23 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             // re-finish hours later is visible (kasper_finish_log), with enough context
             // to classify why it came back. The column already ships in the upsert
             // allow-list + Supabase, so this persists end-to-end.
+            const prevFinish = { at: post.kasper_finished_at, log: post.kasper_finish_log, wasDismissed: _kasperLocalFlagLive(_kasperState.dismissed[pid]) };
             _kasperAppendFinishLog(post);
             post.kasper_finished_at = stamp;
             _kasperMarkSeenAt(pid, stamp);
-            _kasperState.dismissed[pid] = true;
+            _kasperState.dismissed[pid] = Date.now();
             _kasperPersistCache();
             _kasperPaintReview();
-            try { await _kasperPersistPost(item); } catch (e) { /* same-device fallback holds; next successful write reconciles */ }
+            try { await _kasperPersistPost(item); }
+            catch (e) {
+                /* A refused Finish used to be swallowed: the card looked handed off on his
+                   screen only. Put it back and say so (OPEN_REPAIRS 314). */
+                post.kasper_finished_at = prevFinish.at;
+                post.kasper_finish_log = prevFinish.log;
+                if (!prevFinish.wasDismissed) delete _kasperState.dismissed[pid];
+                _kasperPersistCache();
+                _kasperNoteSaveFailure(item, e, 'Finish reviewing');
+            }
         }
     }
 
@@ -1929,12 +2186,20 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         // Durable, cross-device close marker (kasper_closed_at), persisted like
         // the finish stamp so the card stays hidden on every device; the local
         // `closed` flag is a same-device continuity fallback; the column is live.
+        const prevClosed = item.post.kasper_closed_at;
         item.post.kasper_closed_at = new Date().toISOString();
         if (!_kasperState.closed || typeof _kasperState.closed !== 'object') _kasperState.closed = {};
-        _kasperState.closed[pid] = true;
+        _kasperState.closed[pid] = Date.now();
         _kasperPersistCache();
         _kasperRemoveItem(pid);
-        _kasperPersistPost(item).catch(() => {});   // background write; local fallback holds on failure
+        // Background write. If it is refused the card comes back with an alert, not a quiet hide.
+        _kasperPersistPost(item).catch(e => {
+            item.post.kasper_closed_at = prevClosed;
+            delete _kasperState.closed[pid];
+            if (!_kasperState.items.some(x => x.post.id === pid)) _kasperState.items.push(item);
+            _kasperPersistCache();
+            _kasperNoteSaveFailure(item, e, 'Closing the card');
+        });
     }
 
     function _kasperRemoveItem(pid) {
@@ -2379,11 +2644,11 @@ import { _kedPaint } from './340-kasper-editors-board.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperClose,
-        _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
-        _kasperOnPanelDraftInput, _kasperRequestTweakComp, _kasperSendUrgentSlack, _kasperSetEditorsAvg,
-        _kasperToggleCard, _kasperToggleHistory, _kasperToggleThread, _kasperToggleTweaks,
-        _kasperToggleUrgent, _kasperToggleWaiting, _kedToggleInfo, _svSectionHeadKey
+        _kasperAckAlert, _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp,
+        _kasperClose, _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
+        _kasperOnPanelDraftInput, _kasperReloadCard, _kasperRequestTweakComp, _kasperSendUrgentSlack,
+        _kasperSetEditorsAvg, _kasperToggleCard, _kasperToggleHistory, _kasperToggleThread,
+        _kasperToggleTweaks, _kasperToggleUrgent, _kasperToggleWaiting, _kedToggleInfo, _svSectionHeadKey
     });
 export {
   _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperClose,

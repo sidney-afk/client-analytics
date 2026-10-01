@@ -3051,10 +3051,17 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        of a native status push this SAME save just made. Never throws: a failed
        refresh just means the caller keeps its original (stale) baseline and the
        original conflict stands. */
-    async function _calReadFreshCardStamp(clientSlug, id) {
+    async function _calReadFreshCardStamp(clientSlug, id, extraColumns) {
         const slug = String(clientSlug || '').trim();
         const postId = String(id || '').trim();
         if (!slug || !postId) return null;
+        /* `extraColumns` (optional) widens the read for a caller that has to
+           compare field by field (Kasper's refused-save reconcile). Only plain
+           column names are let through, so a caller cannot inject into the URL. */
+        const extra = (Array.isArray(extraColumns) ? extraColumns : [])
+            .map(c => String(c || '').trim()).filter(c => /^[a-z_][a-z0-9_]*$/.test(c));
+        const columns = ['updated_at', 'video_tweaks', 'graphic_tweaks', 'caption_tweaks']
+            .concat(extra.filter(c => !['updated_at', 'video_tweaks', 'graphic_tweaks', 'caption_tweaks'].includes(c)));
         try {
             /* The comment cells come back alongside the stamp because a caller
                that advances its baseline to this `updated_at` MUST carry every
@@ -3063,7 +3070,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                comment is older than `comments_base_at`, and one field carries
                both the scalar baseline and the comment-merge baseline, so they
                cannot be moved apart from here. See _kasperPersistPostWrite. */
-            const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=updated_at,video_tweaks,graphic_tweaks,caption_tweaks&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(postId) + '&limit=2';
+            const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=' + columns.join(',') + '&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(postId) + '&limit=2';
             const response = await fetch(url, {
                 cache: 'no-store',
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }

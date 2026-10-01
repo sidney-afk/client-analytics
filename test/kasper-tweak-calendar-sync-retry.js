@@ -76,10 +76,13 @@ function extractConst(name) {
 
 const REAL = [
   extractConst('CAL_STATUSES'), extractConst('CAL_PRIORITY'), extractConst('CAL_COMPONENTS'), extractConst('KASPER_PATCH_SCALARS'),
+  extractConst('COMP_LABELS'), extractConst('KASPER_COMP_STATUS_KEYS'), extractConst('KASPER_OWN_MARKERS'), extractConst('KASPER_FRESH_COLUMNS'),
   extract('_calNormStatus'), extract('computeOverallStatus'),
   extract('_calStringifyComments'), extract('_calCommentsFor'),
+  extract('_calSetCommentsFor'), extract('_calCommentStamp'), extract('_calMergeCommentLists'),
   extract('_kasperPatchSnapshot'),
   extract('_writeUiGatewayError'), extract('_calReadFreshCardStamp'), extract('_calUnionCommentCell'),
+  extract('_kasperJudgeConflict'), extract('_kasperConflictSentence'), extract('_kasperAdoptServerFields'),
   extract('_kasperPersistPostWrite'),
 ].join('\n\n');
 
@@ -115,6 +118,10 @@ function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true, fre
     _writeUiAdoptRepairAck: () => { throw new Error('unexpected repair ack adoption in this fixture'); },
     _writeUiAdoptReplayStatus: () => '',
     _calLinearUrlFor: () => '',
+    // OPEN_REPAIRS 314: the refused-save reconcile adopts the server's row, which needs these.
+    _calComponentsFor: () => ['video', 'graphic', 'caption'],
+    _calMigratePostShape: () => {},
+    _calV2Log: () => {},
     _calUpsertFetch: async (slug, payload) => {
       /* SNAPSHOT, do not keep the reference. `wire` is one object reused across
          the original attempt and the retry, and the retry mutates its comment
@@ -131,7 +138,7 @@ function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true, fre
       return { ok: true, json: async () => [Object.assign({ updated_at: freshUpdatedAt }, freshCells || {})] };
     },
     console,
-    Object, Array, Promise, String, Number, JSON, Date, Boolean,
+    Object, Array, Promise, String, Number, JSON, Date, Boolean, Map, Set, Error, isFinite, Math,
   };
   Object.assign(sandbox, require('./helpers/write-log-stand-ins')); vm.createContext(sandbox);
   vm.runInContext(REAL, sandbox);
@@ -208,23 +215,22 @@ async function tweakSelfConflictRetrySucceeds(comp) {
     comp + ': the retry must use exactly the freshly read updated_at');
 }
 
-async function tweakWithoutNativeCommitDoesNotRetry(comp) {
-  // Without a native precommit this call, a conflict is NOT presumed to be our
-  // own bridge racing us -- it could be a genuinely concurrent edit -- so no
-  // retry should be attempted; the original conflict must propagate untouched.
+async function tweakWithoutNativeCommitIsRecheckedToo(comp) {
+  /* CHANGED BY OPEN_REPAIRS 314. This case used to assert that a conflict with no native
+     precommit was never retried, on the reasoning that it could be a genuinely concurrent
+     edit. That reasoning left a plain Approve refused for good whenever ANY column of the card
+     moved. Now every conflict is re-read and judged field by field: when nobody touched the
+     fields Kasper is changing, the write is rebased and sent once more; when someone did,
+     it is NOT sent (see test/kasper-never-lose-decision.js for the refusal cases). */
   const item = baseItem(comp, 'a comment');
   const conflictResponse = { ok: false, conflict: true, id: item.post.id, error: 'Not saved: someone else updated this card (status)...' };
   const { sandbox, upsertCalls, freshFetchCalls } = makeSandbox({
-    upsertResponses: [conflictResponse],
+    upsertResponses: [conflictResponse, { ok: true }],
     freshUpdatedAt: '2026-09-22T14:05:03.000Z',
   });
-  await assert.rejects(
-    () => sandbox._kasperPersistPostWrite(item, { precommitted: false, refs: [], companions: [] }),
-    /someone else updated this card/,
-    comp + ': a conflict with no native precommit must still propagate as a failure'
-  );
-  assert.strictEqual(upsertCalls.length, 1, comp + ': must not retry when this call made no native status commit');
-  assert.strictEqual(freshFetchCalls.length, 0, comp + ': must not even read a fresh stamp when it will not retry');
+  await sandbox._kasperPersistPostWrite(item, { precommitted: false, refs: [], companions: [] });
+  assert.strictEqual(upsertCalls.length, 2, comp + ': a conflict with nothing of his changed under it is re-checked and sent once more');
+  assert.strictEqual(freshFetchCalls.length, 1, comp + ': one fresh read');
 }
 
 async function genuineConcurrentConflictStillFails(comp) {
@@ -241,7 +247,7 @@ async function genuineConcurrentConflictStillFails(comp) {
     /someone else updated this card/,
     comp + ': a genuinely repeated conflict must still surface as a failure after the one retry'
   );
-  assert.strictEqual(upsertCalls.length, 2, comp + ': exactly one retry, never an unbounded loop');
+  assert.ok(upsertCalls.length <= 2, comp + ': a stamp that has not moved is not retried again, never an unbounded loop');
 }
 
 async function retryPreservesAConcurrentReviewersComment(comp) {
@@ -288,7 +294,7 @@ async function retryPreservesAConcurrentReviewersComment(comp) {
 (async () => {
   for (const comp of ['video', 'graphic']) {
     await runCase('self-conflict retry recovers the ' + comp + ' tweak comment', () => tweakSelfConflictRetrySucceeds(comp));
-    await runCase(comp + ' conflict without a native precommit does not retry', () => tweakWithoutNativeCommitDoesNotRetry(comp));
+    await runCase(comp + ' conflict without a native precommit is re-checked too', () => tweakWithoutNativeCommitIsRecheckedToo(comp));
     await runCase(comp + ' genuinely repeated conflict still fails after one retry', () => genuineConcurrentConflictStillFails(comp));
     await runCase(comp + ' retry preserves a concurrent reviewer\'s comment', () => retryPreservesAConcurrentReviewersComment(comp));
   }

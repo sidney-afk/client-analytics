@@ -247,6 +247,11 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
+- **Kasper review board: a refused decision is no longer quiet, and the board says what it shows (2026-10-01,
+  OPEN_REPAIRS 314, PR open until merged).** A refused save is re-read and re-applied only when nobody changed the part;
+  otherwise a "not saved" alert stays until he acts. Returned cards say "Sent back to you", urgent cards say who and when,
+  "Tweaks pending" opens by default, and a part staff moved past him without his decision shows in his history with
+  who and when (owner decision: staff may skip him, never silently). Browser only, no deploy. Not yet seen in his browser.
 - **Workload: unfinished work pinned to a past day is carried over (2026-09-30, #1875,
   OPEN_REPAIRS 295).** It shows on today (or Monday at a weekend, when Workload opens on the
   coming week) with a "Carried over" mark; the saved plan day is left unchanged. Cause found

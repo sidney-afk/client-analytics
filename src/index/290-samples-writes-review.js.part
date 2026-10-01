@@ -62,7 +62,7 @@ import {
 } from './280-samples-cards-notes.js';
 import {
   KASPER_CACHE_KEY, _kasperLoadSMMMap, _kasperPaintReview, _kasperPersistCache, _kasperPersistPost,
-  _kasperResumeSourceRepairs, _kasperSamplesMerged, _kasperState
+  _kasperLocalFlagLive, _kasperResumeSourceRepairs, _kasperSamplesMerged, _kasperSetSaveAlert, _kasperState, _kasperUrgentSupersedes
 } from './305-core-kasper-shared.js';
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     /* RETIRED 2026-09-22 (B1 order row 5, OPEN_REPAIRS 239):
@@ -1228,8 +1228,9 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _sxrKasperIsFinished(post) {
         if (!post) return false;
         const stampedAt = String(post.kasper_finished_at || '');
-        const localFin = !!(_sxrKasperState.dismissed && _sxrKasperState.dismissed[post.id]);
+        const localFin = _kasperLocalFlagLive(_sxrKasperState.dismissed && _sxrKasperState.dismissed[post.id]);
         if (!stampedAt && !localFin) return false;
+        if (_kasperUrgentSupersedes(post, stampedAt) && _sxrKasperUndecidedComps(post).length) return false;   // OPEN_REPAIRS 314: a newer urgent ping is a fresh ask
         // Once finished, the card STAYS in "Tweaks pending" and returns to
         // "Waiting" ONLY when a component is genuinely re-sent to Kasper Approval
         // (undecided). A later message — even a client tweak — must NOT pull it
@@ -1242,8 +1243,9 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _sxrKasperIsClosed(post) {
         if (!post) return false;
         const closedAt = String(post.kasper_closed_at || '');
-        const localClosed = !!(_sxrKasperState.closed && _sxrKasperState.closed[post.id]);
+        const localClosed = _kasperLocalFlagLive(_sxrKasperState.closed && _sxrKasperState.closed[post.id]);
         if (!closedAt && !localClosed) return false;
+        if (_kasperUrgentSupersedes(post, closedAt) && _sxrKasperUndecidedComps(post).length) return false;
         if (closedAt) { const latest = _sxrKasperLatestMsgAt(post); if (latest && latest > closedAt) return false; }
         return true;
     }
@@ -1497,6 +1499,15 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             b.title = has ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
         });
     }
+    async function _sxrKasperReadFresh(slug, id) {
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=updated_at,status,video_status,graphic_status&client=eq.' + encodeURIComponent(String(slug || '')) + '&id=eq.' + encodeURIComponent(String(id || '')) + '&limit=2';
+            const resp = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) return null;
+            const rows = await resp.json().catch(() => null);
+            return Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+        } catch (e) { return null; }
+    }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
         const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'), { requireOk: true });
@@ -1524,6 +1535,28 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         }
         const before = JSON.parse(JSON.stringify(p));
         const patch = mutate(p);
+        /* NEVER OVERWRITE SOMEONE ELSE'S CHANGE (OPEN_REPAIRS 314). Samples saves carry no
+           stale-screen baseline, so nothing on the server stops a decision made on an old
+           screen from landing over a newer one. A status decision is therefore checked
+           first against the sample as it is NOW: if the part is no longer where his screen
+           had it, nothing is sent, the card shows the current state, and he is told. A
+           failed read cannot tell us anything and does not block (the write stays as it was). */
+        const statusKey = comp + '_status';
+        if (patch && patch[statusKey] !== undefined) {
+            _sxrKasperState.saving[key] = true;   // held across the read, so a second click cannot start a second decision
+            const fresh = await _sxrKasperReadFresh(it.slug, p.id);
+            if (fresh && String(fresh[statusKey] == null ? '' : fresh[statusKey]) !== String(before[statusKey] == null ? '' : before[statusKey])) {
+                Object.assign(p, before);
+                for (const k of ['video_status', 'graphic_status', 'status', 'updated_at']) if (fresh[k] !== undefined) p[k] = fresh[k];
+                _kasperSetSaveAlert(p.id, p.name, it.client, 'conflict',
+                    'Not saved: someone else changed this card after your screen loaded, so your decision was not applied (the '
+                    + String(COMP_LABELS[comp] || comp).toLowerCase() + ' is now at ' + String(fresh[statusKey] || 'a new state') + '). The card now shows the current version.');
+                _sxrKasperState.saving[key] = false;
+                _sxrKasperRepaint(pid);
+                _kasperPaintReview();
+                return;
+            }
+        }
         p.updated_at = new Date().toISOString();
         const linearMeta = linearComment ? _sxrCommentsFor(p, comp).slice(-1)[0] : null;
         _sxrKasperState.saving[key] = true;
@@ -1638,6 +1671,8 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             }
             _sxrKasperState.saving[key] = false;
             _sxrKasperRepaint(pid);
+            _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: your ' + String(COMP_LABELS[comp] || comp).toLowerCase() + ' decision did not go through. ' + String((e && e.message) || '').trim() + ' Reload the card and decide again.');
+            _kasperPaintReview();
             if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
             else {
                 _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
@@ -1754,9 +1789,10 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             _sxrKasperRenderQueue();
         } else {
             const stamp = _sxrKasperLatestMsgAt(p) || new Date().toISOString();
+            const prevFinishedAt = p.kasper_finished_at, prevFinishLog = p.kasper_finish_log;
             _sxrKasperAppendFinishLog(p, stamp);
             p.kasper_finished_at = stamp;
-            _sxrKasperState.dismissed[pid] = true;
+            _sxrKasperState.dismissed[pid] = Date.now();
             // Mark seen up to the finish stamp (clears the New-message chip on
             // hand-off — matches the calendar's _kasperDismiss). The chip otherwise
             // persists while reviewing, exactly like the calendar.
@@ -1765,7 +1801,16 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             _sxrKasperRenderQueue();
             // If the stamp does not save, drop the same-device flag so the next
             // load shows the sample again (a new version must never stay hidden).
-            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => { delete _sxrKasperState.dismissed[pid]; });
+            const prevFin = { at: prevFinishedAt, log: prevFinishLog };
+            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(e => {
+                // A refused Finish is never quiet: the sample comes back and he is told (OPEN_REPAIRS 314).
+                delete _sxrKasperState.dismissed[pid];
+                p.kasper_finished_at = prevFin.at; p.kasper_finish_log = prevFin.log;
+                if (!_sxrKasperFindItem(pid)) _sxrKasperState.items.push(it);
+                _sxrKasperRenderQueue();
+                _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: Finish reviewing did not go through. ' + String((e && e.message) || '').trim() + ' The sample is back in your queue.');
+                _kasperPaintReview();
+            });
         }
     }
     function _sxrKasperAppendFinishLog(post, stampIso) {
@@ -1780,11 +1825,19 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _sxrKasperClose(pid) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
         const p = it.post;
+        const prevClosedAt = p.kasper_closed_at;
         p.kasper_closed_at = new Date().toISOString();
-        _sxrKasperState.closed[pid] = true;
+        _sxrKasperState.closed[pid] = Date.now();
         _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
         _sxrKasperRenderQueue();
-        _sxrKasperPersist(it, { kasper_closed_at: p.kasper_closed_at }).catch(() => {});
+        _sxrKasperPersist(it, { kasper_closed_at: p.kasper_closed_at }).catch(e => {
+            p.kasper_closed_at = prevClosedAt;
+            delete _sxrKasperState.closed[pid];
+            if (!_sxrKasperFindItem(pid)) _sxrKasperState.items.push(it);
+            _sxrKasperRenderQueue();
+            _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: closing the card did not go through. ' + String((e && e.message) || '').trim() + ' The sample is back in your queue.');
+            _kasperPaintReview();
+        });
     }
     // URGENT ping — mirrors _kasperSendUrgentSlack: resolve the post + client from
     // the cross-client Kasper queue and reuse the SHARED _calUrgentSlackDispatch

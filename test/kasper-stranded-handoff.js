@@ -452,7 +452,7 @@ ok(/if \(stampedAt && _sxrKasperUndecidedComps\(post\)\.length\) return false;/.
   'because what matters is that samples reads ONE set in all three places too, which it does');
 
 
-ok(/body\.innerHTML = _kasperRenderUnloadedNotice\(\) \+ _kasperRenderStrandedNotice\(\)/.test(INDEX),
+ok(/body\.innerHTML = (?:_kasper\w+\(\) \+ )*?_kasperRenderUnloadedNotice\(\) \+ _kasperRenderStrandedNotice\(\)/.test(INDEX),
   'the paint renders the notice above the queue, after the unloaded-clients notice (item 86)');
 ok(/_kasperState\.stranded = Array\.isArray\(fetched\.stranded\)/.test(INDEX),
   'and the load actually fills it from the fetch result');

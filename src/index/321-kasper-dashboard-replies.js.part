@@ -511,16 +511,12 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         const items = (_kasperState && _kasperState.items) || [];
         for (const it of items) {
             if (it._saving && (it._saving.video || it._saving.graphic || it._saving.caption)) return true;
-            if (it._drafts && (String(it._drafts.video || '').trim() || String(it._drafts.graphic || '').trim() || String(it._drafts.caption || '').trim() || String(it._drafts.title || '').trim())) return true;
-            if (it._replyDraft && String(it._replyDraft).trim()) return true;
         }
-        // Reply drafts live on _kasperState.replies (the Replies inbox), NOT on the
-        // queue items above — so scan them too, or a realtime refresh can blow away
-        // a half-typed reply now that the Replies tab refreshes live.
-        const replies = (_kasperState && _kasperState.replies) || [];
-        for (const it of replies) {
-            if (it._replyDraft && String(it._replyDraft).trim()) return true;
-        }
+        /* An UNSENT DRAFT no longer holds the board back. It used to: one note left
+           half written on any card froze every live update (a card sent back to him
+           never appeared) with nothing to say so. A draft lives in item._drafts and
+           is rendered back into its box on every repaint, and a textarea he is
+           actually typing in is still protected below, so only the focus counts. */
         const a = document.activeElement;
         if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return true;
         return false;

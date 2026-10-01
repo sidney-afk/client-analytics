@@ -61,6 +61,7 @@ const HARNESS = `
 let _kasperState = { dismissed: {}, closed: {} };
 let _seenMap = {};
 function _kasperGetSeenAt(pid){ return _seenMap[pid] || ''; }
+function _calKasperUrgentActive(){ return false; }   // OPEN_REPAIRS 314: no live ping in these scenarios
 function _calPostPlatforms(){ return []; }   // test posts aren't YouTube → _calComponentsFor = base 3
 `;
 
@@ -79,6 +80,9 @@ const REAL = [
   grabFunc('_kasperCompReviewable'),
   grabFunc('_kasperUndecidedComps'),
   grabFunc('_kasperFinishedAt'),
+  grabConst('KASPER_LOCAL_FLAG_MS'),
+  grabFunc('_kasperLocalFlagLive'),
+  grabFunc('_kasperUrgentSupersedes'),
   grabFunc('_kasperIsFinished'),
   grabFunc('_kasperIsClosed'),
 ].join('\n\n');
@@ -206,7 +210,7 @@ console.log('\n— Same-device localStorage fallback (pre-backend, no stamp) —
 
 // L1 — no stamp yet (column not live); the local flag + seen stamp must still work.
 resetState();
-mod._kasperState.dismissed['l1'] = true; mod._seenMap['l1'] = T.tweak;
+mod._kasperState.dismissed['l1'] = Date.now(); mod._seenMap['l1'] = T.tweak;
 check('local flag, no stamp, no reply → finished (fallback)',
   _kasperIsFinished(buildPost({
     id: 'l1', video_status: 'Tweaks Needed', caption_status: 'Client Approval',
@@ -216,7 +220,7 @@ check('local flag, no stamp, no reply → finished (fallback)',
 // L2 — same product rule for the local-flag fallback: a later reply does NOT
 // un-finish a locally-finished card either.
 resetState();
-mod._kasperState.dismissed['l2'] = true; mod._seenMap['l2'] = T.tweak;
+mod._kasperState.dismissed['l2'] = Date.now(); mod._seenMap['l2'] = T.tweak;
 check('local flag + reply after seen → STILL finished (a message does not re-surface)',
   _kasperIsFinished(buildPost({
     id: 'l2', video_status: 'Tweaks Needed', caption_status: 'Client Approval',
@@ -247,7 +251,7 @@ check('closed stamp + a tweak RESOLVED after close (created before it) → still
     video_comments: [resolvedTweak('c5-v', T.earlier, T.later)] })), true);
 
 resetState();
-mod._kasperState.closed['c3'] = true;
+mod._kasperState.closed['c3'] = Date.now();
 check('no stamp, local closed flag → closed (fallback)',
   _kasperIsClosed(buildPost({ id: 'c3', video_status: 'Kasper Approval' })), true);
 

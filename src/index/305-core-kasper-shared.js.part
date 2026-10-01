@@ -15,6 +15,7 @@ import { _calCommentsFor, _calLinearUrlFor, _calMigratePostShape, _calSetComment
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { _calKasperUrgentActive, _calPushStatusToLinear } from './140-calendar-legacy-outbox.js';
 import { _calMergeCommentLists, _calStringifyComments, _kasperUndecidedComps } from './190-calendar-approval-comments.js';
+import { COMP_LABELS } from './180-calendar-native-post-media.js';
 import { SXR_REVIEW_COMPONENTS, _sxrEnabled } from './270-samples-model.js';
 import {
   _sxrKasperPartitionItems, _sxrKasperRenderCard, _sxrKasperState, _writeUiJournalCoversRepairRefs,
@@ -56,15 +57,19 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
                               // queue entirely and is later re-routed back to Kasper Approval
                               // — i.e. a genuine change of status. Pruned on every load for
                               // any id no longer in the fetched queue (see _kasperLoadReview).
-        // Approved history and the Kasper-already-tweaked section both
-        // default to collapsed — they're "what I've already done" buckets
-        // that shouldn't visually compete with the live review queue.
+        // Approved history defaults to collapsed. "Tweaks pending" now opens by
+        // default (OPEN_REPAIRS 314): collapsed, a finished card looked as if it
+        // had never left, and he went hunting for it.
         historyCollapsed: true,
-        tweaksCollapsed: true,
+        tweaksCollapsed: false,
         urgentCollapsed: false,
         waitingCollapsed: false,
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
+        saveAlerts: {},       // pid -> { pid, name, client, kind, text, at }: a Kasper save that did NOT land. Sticky until he acts.
+        refreshDeferredAt: 0, // when a background refresh was first held back (0 = none): drives the "older screen" note
+        unlisted: [],         // client slugs with cards at Kasper Approval that the client list does not know yet
+        skips: {},            // post id -> { by, at, to, comps }: a part moved past Kasper Approval without his decision
         lastLoaded: 0,
         editorsData: null,    // { weekLabel, editors[], … } from _kedFetchNativeWeek
         editorsLoading: false,
@@ -114,6 +119,15 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
             localStorage.setItem(KASPER_CACHE_KEY, JSON.stringify(payload));
             return true;
         } catch (e) { return false; }
+    }
+    /* A Kasper save that did NOT land (calendar or samples): kept by card id and shown
+       at the top of the review board until he acts. Rendered by 330. */
+    function _kasperSetSaveAlert(pid, name, client, kind, text) {
+        if (!_kasperState.saveAlerts || typeof _kasperState.saveAlerts !== 'object') _kasperState.saveAlerts = {};
+        _kasperState.saveAlerts[String(pid)] = {
+            pid: String(pid), name: String(name || 'Untitled post'), client: String(client || ''),
+            kind: kind === 'conflict' ? 'conflict' : 'failed', text: String(text || ''), at: Date.now(),
+        };
     }
     function _kasperSetTabCount(key, n) {
         document.querySelectorAll('[data-kasper-count="' + key + '"]').forEach(el => {
@@ -204,12 +218,30 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         const overflow = live.slice(Math.max(0, KASPER_CAL_CACHE_MAX_CLIENTS - 1));
         stale.concat(overflow).forEach(e => { try { localStorage.removeItem(e.key); } catch {} });
     }
+    /* A per-browser Finish / Close mark is a CONTINUITY aid for the seconds before the write
+       lands, not a verdict. It used to last for good (it is saved in this browser's cache and
+       was never dropped while the card stayed in the queue), so a Finish or Close whose write
+       never landed hid the card from Waiting AND Urgent for as long as it stayed at Kasper
+       Approval, and nothing said so. Now a mark with no server stamp behind it is honoured for
+       two minutes, and an urgent ping newer than a hide always puts the card back in front of
+       him (OPEN_REPAIRS 314). `true` (what older versions stored) counts as expired. */
+    const KASPER_LOCAL_FLAG_MS = 2 * 60 * 1000;
+    function _kasperLocalFlagLive(v) { return typeof v === 'number' && isFinite(v) && Date.now() - v < KASPER_LOCAL_FLAG_MS; }
+    function _kasperUrgentSupersedes(post, stampIso) {
+        if (!_calKasperUrgentActive(post)) return false;
+        const stamp = Date.parse(stampIso || '');
+        const ping = Date.parse((post && post.kasper_urgent_pinged_at) || '');
+        if (!isFinite(stamp) || !isFinite(ping)) return true;
+        return ping > stamp;
+    }
     function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
     function _kasperIsFinished(post) {
         if (!post) return false;
         const stampedAt = _kasperFinishedAt(post);
-        const localFin = !!(_kasperState.dismissed && _kasperState.dismissed[post.id]);
+        const localFin = _kasperLocalFlagLive(_kasperState.dismissed && _kasperState.dismissed[post.id]);
         if (!stampedAt && !localFin) return false;
+        // A live urgent ping newer than the hand-off is a fresh ask, with or without a stamp.
+        if (_kasperUrgentSupersedes(post, stampedAt) && _kasperUndecidedComps(post).length > 0) return false;
         // Once finished, a card STAYS in "Tweaks pending" and returns to "Waiting"
         // ONLY when a component is genuinely re-sent to Kasper Approval. A later
         // message — even a client tweak — updates the card in place but must NOT pull
@@ -323,6 +355,75 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
             });
         return Promise.resolve();
     }
+    /* The columns re-read after a refused save so each field Kasper changes can
+       be compared three ways (his value, the value his screen loaded, the value
+       the server holds now). */
+    const KASPER_COMP_STATUS_KEYS = ['video_status', 'graphic_status', 'caption_status', 'title_status'];
+    const KASPER_OWN_MARKERS = ['kasper_approved_at', 'kasper_seen', 'kasper_approved_after_tweaks', 'kasper_finished_at', 'kasper_closed_at', 'kasper_finish_log'];
+    const KASPER_FRESH_COLUMNS = KASPER_PATCH_SCALARS.concat(['status', 'title_tweaks', 'video_status_at', 'graphic_status_at', 'caption_status_at', 'title_status_at']);
+    /* Judge one refused write against the card as the server holds it now.
+         applied    his value is already on the server (nothing to send)
+         send       nobody changed it since his screen loaded: safe to send
+         conflicts  someone else changed it, or a decision whose part is no longer
+                    at Kasper Approval: NEVER sent, the caller must tell him
+       A column the server did not report cannot be compared and is sent as before
+       (the server's own guard stays the backstop). Kasper's own markers
+       (approved-at, finished-at, closed-at, seen, finish log) are his alone, so a
+       difference there is not a clash; the first approval stamp on the server wins.
+       The overall `status` is derived and never judged. */
+    function _kasperJudgeConflict(wire, base, fresh) {
+        const norm = v => (v == null ? '' : String(v));
+        const out = { applied: [], send: [], conflicts: [] };
+        for (const k of Object.keys(wire)) {
+            if (k === 'id' || k === 'status' || k === 'tweaks' || /_tweaks$/.test(k)) continue;
+            if (!Object.prototype.hasOwnProperty.call(fresh, k)) { out.send.push(k); continue; }
+            const mine = norm(wire[k]);
+            const theirs = norm(fresh[k]);
+            const was = base ? norm(base[k]) : theirs;
+            if (theirs === mine) { out.applied.push(k); continue; }
+            if (k === 'kasper_approved_at' && theirs) { out.applied.push(k); continue; }
+            if (KASPER_OWN_MARKERS.indexOf(k) >= 0) { out.send.push(k); continue; }
+            if (theirs !== was) { out.conflicts.push({ field: k, mine, theirs, was }); continue; }
+            // Nobody changed it. A DECISION (a part's status) is applied only while
+            // the part is still at Kasper Approval; an Undo (back to Kasper
+            // Approval) is the one reversal allowed from any other state.
+            if (KASPER_COMP_STATUS_KEYS.indexOf(k) >= 0 && was !== 'Kasper Approval' && mine !== 'Kasper Approval') {
+                out.conflicts.push({ field: k, mine, theirs, was });
+                continue;
+            }
+            out.send.push(k);
+        }
+        return out;
+    }
+    function _kasperConflictSentence(conflicts) {
+        const parts = (conflicts || []).map(c => {
+            const idx = KASPER_COMP_STATUS_KEYS.indexOf(c.field);
+            if (idx >= 0) {
+                const comp = c.field.replace(/_status$/, '');
+                const label = String((COMP_LABELS && COMP_LABELS[comp]) || comp).toLowerCase();
+                const now = String(c.theirs || '').trim() || 'a new state';
+                return 'the ' + label + ' is now at ' + now + (c.was === 'Kasper Approval' ? '' : ' (it was not at Kasper Approval)');
+            }
+            return String(c.field).replace(/_/g, ' ') + ' was changed';
+        });
+        return 'Not saved: someone else changed this card after your screen loaded, so your decision was not applied (' + parts.join('; ') + '). The card now shows the current version.';
+    }
+    /* Adopt the server's current values for every column Kasper is NOT about to
+       send, so the screen and the retry agree with what is really stored. */
+    function _kasperAdoptServerFields(post, fresh, keepMine) {
+        const keep = new Set(keepMine || []);
+        for (const k of KASPER_FRESH_COLUMNS) {
+            if (keep.has(k) || !Object.prototype.hasOwnProperty.call(fresh, k)) continue;
+            if (/_tweaks$/.test(k)) continue;
+            post[k] = fresh[k] == null ? '' : fresh[k];
+        }
+        const echo = Object.assign({}, fresh);
+        _calMigratePostShape(echo);
+        for (const comp of _calComponentsFor(post)) {
+            if (!((comp + '_tweaks') in echo)) continue;
+            _calSetCommentsFor(post, comp, _calMergeCommentLists(_calCommentsFor(post, comp), _calCommentsFor(echo, comp)));
+        }
+    }
     async function _kasperPersistPostWrite(item, repairContext) {
         const retryPrincipal = _writeUiPrincipalKey();
         if (item.post._writeUiRetrySourceAt
@@ -349,7 +450,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
             if (!_kasperPersistCache()) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
         };
         checkpointCommittedSource();
-        const overall = computeOverallStatus(item.post);
+        let overall = computeOverallStatus(item.post);
         // Field-level patch: send the id, the comment cells (always — the upsert
         // 3-way-merges them), and ONLY the scalar columns that changed since this
         // card was loaded (item.post._patchBase). A concurrent change to a
@@ -448,21 +549,51 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
            pruned, and ours still wins on a shared id because the server keeps
            the newer stamp. Raised as P1 by Codex review on PR 1493. */
         let retryIssued = false;
-        if (json && json.conflict === true && gatewayCommitted) {
-            const fresh = await _calReadFreshCardStamp(item.slug, item.post.id);
+        /* A REFUSED SAVE IS RE-CHECKED, NEVER JUST REPORTED (OPEN_REPAIRS 314).
+           calendar-upsert refuses a write when ANYTHING on the card changed
+           after this screen loaded, even a column Kasper is not touching, so a
+           plain Approve could be refused for good while every retry on the same
+           stale screen failed the same way. Now: re-read the card and judge each
+           field Kasper is changing (_kasperJudgeConflict). Nobody touched it, or
+           it already holds his value: rebase and send once more. Someone else
+           changed it, or the part is no longer at Kasper Approval: stop, adopt
+           the server's version and say so (the caller shows a sticky alert).
+           Never an overwrite of someone else's change. Bounded at 3 rounds. */
+        for (let round = 0; round < 3 && json && json.conflict === true; round++) {
+            const fresh = await _calReadFreshCardStamp(item.slug, item.post.id, KASPER_FRESH_COLUMNS);
             const freshAt = fresh && String(fresh.updated_at || '');
-            if (freshAt && freshAt > String(item.post._baseAt || '')) {
-                for (const cell of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks']) {
-                    if (Object.prototype.hasOwnProperty.call(wire, cell)) {
-                        wire[cell] = _calUnionCommentCell(wire[cell], fresh[cell]);
-                    }
+            if (!freshAt || freshAt <= String(item.post._baseAt || '')) {
+                if (round === 0) {
+                    const unknown = new Error('Not saved: the card changed after your screen loaded and could not be re-checked. Reload the card, then decide again.');
+                    unknown._kasperConflict = { fields: [], unchecked: true };
+                    unknown._calRetryIssued = retryIssued;
+                    _writeUiRecordSaveFailure('calendar', 'kasper_post_save', unknown, lastResp, { client_slug: item.slug, id: String(item.post.id || '') });
+                    throw unknown;
                 }
-                item.post._baseAt = freshAt;
-                retryIssued = true;
-                const retry = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
-                lastResp = retry;
-                json = await retry.json().catch(() => ({}));
+                break;
             }
+            const verdict = _kasperJudgeConflict(wire, base, fresh);
+            if (verdict.conflicts.length) {
+                const clash = new Error(_kasperConflictSentence(verdict.conflicts));
+                clash._kasperConflict = { fields: verdict.conflicts.map(c => c.field), conflicts: verdict.conflicts, fresh };
+                clash._calRetryIssued = retryIssued;
+                _writeUiRecordSaveFailure('calendar', 'kasper_post_save', clash, lastResp, { client_slug: item.slug, id: String(item.post.id || '') });
+                throw clash;
+            }
+            for (const k of verdict.applied) delete wire[k];
+            _kasperAdoptServerFields(item.post, fresh, verdict.send);
+            overall = computeOverallStatus(item.post);
+            wire.status = overall;
+            for (const cell of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks', 'title_tweaks']) {
+                if (Object.prototype.hasOwnProperty.call(wire, cell)) {
+                    wire[cell] = _calUnionCommentCell(wire[cell], fresh[cell]);
+                }
+            }
+            item.post._baseAt = freshAt;
+            retryIssued = true;
+            const retry = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+            lastResp = retry;
+            json = await retry.json().catch(() => ({}));
         }
         if (!json || !json.ok) {
             const err = new Error((json && json.error) || 'Save failed'); err._calRetryIssued = retryIssued;
@@ -612,7 +743,8 @@ export {
   _kasperCalCachePrune, _kasperFallbackToReview, _kasperGotoTab, _kasperIsFinished,
   _kasperLoadSMMMap, _kasperOnboardingStamp, _kasperOnboardingSubs, _kasperOnboardingUnreadCount,
   _kasperOpenLightbox, _kasperPaintReview, _kasperPartitionItems, _kasperPatchSnapshot,
-  _kasperPersistCache, _kasperPersistPost, _kasperResolveSubtab, _kasperResumeSourceRepairs,
+  KASPER_FRESH_COLUMNS, _kasperAdoptServerFields, _kasperLocalFlagLive, _kasperUrgentSupersedes,
+  _kasperPersistCache, _kasperPersistPost, _kasperSetSaveAlert, _kasperResolveSubtab, _kasperResumeSourceRepairs,
   _kasperSampleOpenCount, _kasperSamplePartition, _kasperSamplesEnabled, _kasperSamplesMerged,
   _kasperSetTabCount, _kasperState, _kasperSyncMoreNotificationCount
 };

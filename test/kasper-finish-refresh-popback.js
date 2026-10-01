@@ -81,6 +81,7 @@ let _kasperState = { items: [], dismissed: {}, closed: {} };
 let _seenMap = {};
 function _kasperGetSeenAt(pid){ return _seenMap[pid] || ''; }
 function _kasperMarkSeenAt(pid, ts){ _seenMap[pid] = ts || ''; }
+function _calKasperUrgentActive(){ return false; }   // OPEN_REPAIRS 314: no live ping in these scenarios
 function _calPostPlatforms(){ return []; }   // test posts aren't YouTube → base 3 components
 `;
 
@@ -107,6 +108,9 @@ const REAL = [
   grabFunc('_kasperCompReviewable'),
   grabFunc('_kasperUndecidedComps'),
   grabFunc('_kasperFinishedAt'),
+  grabConst('KASPER_LOCAL_FLAG_MS'),
+  grabFunc('_kasperLocalFlagLive'),
+  grabFunc('_kasperUrgentSupersedes'),
   grabFunc('_kasperIsFinished'),
   grabFunc('_kasperIsClosed'),
   grabFunc('_kasperPartitionItems'),
@@ -132,7 +136,7 @@ function finishReviewing(item) {
   const stamp = mod._calLatestMsgCreatedAt(post) || NOW();
   post.kasper_finished_at = stamp;
   mod.setSeen(post.id, stamp);
-  mod.state.dismissed[post.id] = true;
+  mod.state.dismissed[post.id] = Date.now();
   post.updated_at = NOW();
 }
 

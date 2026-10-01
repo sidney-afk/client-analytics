@@ -1,5 +1,7 @@
 # Analytics on Supabase: parity, readers, measurements and the switch-on plan
 
+**Blocking prerequisite (owner, 2026-10-01):** do not set `analytics_mirror_read_enabled` until an accuracy check confirms how the daily metrics job counts "views this month" and "views gained today" (one large client showed numbers the owner says are far too high; the stored rows carry them). See `docs/STATE_OF_THINGS.md`.
+
 2026-09-28. Follows `docs/plans/2026-09-24-sheets-to-supabase.md` (Phases 2
 and 3, section 5 are the contract). Counts only: a client is named by a short
 sha256 reference of its slug, never by name or slug (this repository is

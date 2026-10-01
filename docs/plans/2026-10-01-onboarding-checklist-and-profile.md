@@ -38,11 +38,11 @@ SMM assignment log, and a retry list for Sheet catch-up.
 | `client_profiles` and its edit rules, SMM assignment, `client_profiles_authority`, the Sheet catch-up | Checklist tables, resource and sales tables, backfill proposals, the new Edge Function, the "Create client" button |
 | The Clients tab list and the profile's fact fields (handles, channels, keywords, SMM) | Two new sections on the same profile panel (Resources, Checklist) in their own fragment `src/index/324-client-onboarding-panel.js.part` |
 
-**Agreements to confirm with Roster before 2.4** (message to be sent once; its answer goes in the 2.1 PR description):
-1. The Clients tab opens a client's profile as a panel. Beacon adds a section slot (a function that returns the two sections) rather than editing Roster's markup.
-2. The "Create client" button needs a way to create the `client_profiles` row. Does Roster Step 1 include a create function? If not, Roster adds `client_profile_create(slug, display_name)` behind the same authority check, and Beacon calls it.
-3. Migration order: Roster's first (it adds the authority checks Beacon relies on), Beacon's after. Different file names; no shared table.
-4. "Create client" works only when `client_profiles_authority` reads `syncview`. Until the owner switches it, the button is hidden except for the test client in preview mode.
+**Agreed with Roster on 2026-10-01** (their PR: 1924, plan `docs/plans/2026-10-02-roster-native.md`, migration `migrations/2026-10-02-roster-native.sql`):
+1. Roster's Step 1 has no page change. The profile panel is the existing Clients tab code; Beacon mounts its two sections from its own fragment into the panel container, and Roster will not move or rename that container without telling Beacon.
+2. "Create client" calls Roster's `client_profile_service_write` with a display name (it creates the client or restores an archived one, and writes history to `client_profile_edits`). It is service role only and refuses unless `client_profiles_authority` reads `syncview`, with role `admin` or `n8n`. So Beacon's own Edge Function checks the admin key and calls it with role `admin`; the browser never calls Roster's n8n-key function, and Beacon never inserts into `client_profiles` directly. A new profile fact field goes through Roster (`p_extra`, `allowed_extra` in the migration, `EXTRA_FIELDS` in `supabase/functions/_shared/roster-native.mjs`); Beacon asks first.
+3. Roster's migration applies first, Beacon's after; Beacon references `client_profiles(slug)` only.
+4. The switch reads `sheet` today, so "Create client" refuses until the owner approves the flip. The test client proofs plan for that: the preview mode works either way; the real create is proven only after the flip.
 
 ## Data model (Stage 2, step 2.1)
 

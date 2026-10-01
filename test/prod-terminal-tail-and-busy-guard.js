@@ -254,7 +254,6 @@ function makeTail() {
     // reads for itself as this suite always drove it (held-read path:
     // test/prod-tail-prefetch.js).
     _prodTakeTailPrefetch: () => null,
-    _prodReconcileSince: () => {},
     __next: [],
   };
   sandbox.window = sandbox;

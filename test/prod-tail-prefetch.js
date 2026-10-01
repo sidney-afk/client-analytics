@@ -6,10 +6,10 @@
  * Linear tab landed its full list (the ~117 rows whose ancestors are finished,
  * plus the sub-issue counts) 7.2 s in, because the five-page finished-items
  * read only began after the live read had finished and the board had painted.
- * It now starts with the live read whenever a full tail is due, and one small
- * catch-up read (`_prodDeltaRefresh({ since })`) closes the only gap overlap
- * could open: a card that moves between the two halves while they are in
- * flight.
+ * It now starts with the live read whenever a full tail is due, and a catch-up
+ * point (`_prodState.catchUpSince`) that the NEXT regular refresh starts from
+ * closes the only gap overlap could open: a card that moves between the two
+ * halves while they are in flight. It adds no request at load time.
  *
  * This suite runs the SHIPPED helpers against fakes and reads the shipped
  * source for the wiring.
@@ -47,15 +47,19 @@ ok(!/_prodStartTailPrefetch/.test(tail), 'the tail itself never starts one');
 ok(/const prefetched = _prodTakeTailPrefetch\(filter\);\s*const tail = await \(prefetched \? prefetched\.promise : _prodLoadDeliverableProjection\(filter\)\);/.test(tail),
   'the tail takes the held read for its own filter, else reads for itself');
 ok(tail.indexOf('if (generation !== _prodState.projectionGeneration) return false;') > tail.indexOf('prefetched.promise')
-  && tail.indexOf('if (prefetched) _prodReconcileSince') > tail.indexOf('_prodApplyDeepLinkFallback(true);'),
-  'the generation check still guards the merge, and the catch-up runs only after a tail that landed');
+  && tail.indexOf('_prodState.catchUpSince = prefetched.since') > tail.indexOf('_prodApplyDeepLinkFallback(true);'),
+  'the generation check still guards the merge, and the catch-up point is set only after a tail that landed');
+ok(/if \(prefetched && \(!_prodState\.catchUpSince \|\| Date\.parse\(prefetched\.since\) < Date\.parse\(_prodState\.catchUpSince\)\)\)/.test(tail),
+  'and an earlier catch-up point is never replaced by a later one');
+ok(!/_prodReconcileSince|_prodDeltaRefresh\(\{/.test(tail), 'the tail sends no extra request for it');
+ok(/_prodState\.catchUpSince = '';/.test(grab('_prodDeltaRefresh', 'async')), 'a refresh that read clears it');
 ok(/_prodTailPrefetch = null;\s*\/\/ a failed load/.test(loadData), 'a failed load drops what it held');
 const delta = grab('_prodDeltaRefresh', 'async');
-ok(/opts\.since && !opts\.full\s*\? String\(opts\.since\)\s*: _prodDeliverableWatermark\(_prodState\.deliverables\)/.test(delta),
-  'the delta read starts from `since` when given, and from the newest held row otherwise');
+ok(/let watermark = _prodDeliverableWatermark\(_prodState\.deliverables\);\s*const catchUp = String\(_prodState\.catchUpSince \|\| ''\);\s*if \(catchUp && !opts\.full && watermark && Date\.parse\(catchUp\) < Date\.parse\(watermark\)\) watermark = catchUp;/.test(delta),
+  'the next refresh starts from the catch-up point when it is earlier than the newest row held, and from the newest row otherwise');
 
 // 2. The shipped helpers.
-const helpers = [grab('_prodStartTailPrefetch'), grab('_prodTakeTailPrefetch'), grab('_prodReconcileSince')].join('\n');
+const helpers = [grab('_prodStartTailPrefetch'), grab('_prodTakeTailPrefetch')].join('\n');
 function make(now) {
   const calls = { loaded: [], delta: [], timers: [] };
   const ctx = {
@@ -63,13 +67,12 @@ function make(now) {
     Date: class extends Date { static now() { return ctx.__now; } },
     Promise,
     _prodLoadDeliverableProjection: filter => { calls.loaded.push(filter); return Promise.resolve(['row']); },
-    _prodDeltaRefresh: opts => { calls.delta.push(opts); return Promise.resolve(ctx.__answer); },
     setTimeout: (fn, ms) => { calls.timers.push([fn, ms]); },
     __now: now, __answer: true
   };
   vm.createContext(ctx);
   vm.runInContext('let _prodTailPrefetch = null;\n' + helpers
-    + '\nthis.start = _prodStartTailPrefetch; this.take = _prodTakeTailPrefetch; this.reconcile = _prodReconcileSince;', ctx);
+    + '\nthis.start = _prodStartTailPrefetch; this.take = _prodTakeTailPrefetch;', ctx);
   return { ctx, calls };
 }
 let { ctx, calls } = make(1_000_000_000_000);
@@ -85,19 +88,4 @@ ok(ctx.take('status=in.(a,b)') === null, 'and a refused take still discards it, 
 ctx.start(); ctx.__now += 120001;
 ok(ctx.take('status=in.(a,b)') === null, 'a read held longer than two minutes is not used');
 
-// 3. The catch-up retries a declined delta a few times, then stops.
-({ ctx, calls } = make(5));
-ctx.__answer = null;
-const run = async () => { ctx.reconcile('S', 0); await Promise.resolve(); await Promise.resolve(); };
-(async () => {
-  await run();
-  ok(calls.delta.length === 1 && calls.delta[0].since === 'S', 'the catch-up asks the delta read to start from `since`');
-  ok(calls.timers.length === 1 && calls.timers[0][1] === 3000, 'a declined answer (menu open, typing, write in flight) is retried in 3 s');
-  for (let n = 1; n < 8; n++) { const t = calls.timers.shift(); if (!t) break; t[0](); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }
-  ok(calls.delta.length === 6, 'at most five retries (six asks) and then it stops');
-  ({ ctx, calls } = make(5));
-  ctx.__answer = true;
-  ctx.reconcile('S', 0); await Promise.resolve(); await Promise.resolve();
-  ok(calls.delta.length === 1 && calls.timers.length === 0, 'a read that ran (even one that found nothing) is not retried');
-  console.log('\nprod-tail-prefetch: ' + passed + ' checks passed ✅');
-})().catch(e => { console.error(e); process.exit(1); });
+console.log('\nprod-tail-prefetch: ' + passed + ' checks passed ✅');

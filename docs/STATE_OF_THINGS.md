@@ -256,7 +256,7 @@ hiring senders when the editor hire closes.
 - **SyncLinear opens and finishes faster, same page (2026-10-01, OPEN_REPAIRS 314).** Measured on the live
   site first: quick to use (switch 60 ms, no dropped frame, card under 100 ms), slow to finish (complete
   list 7.9 s in, 3.25 MB cold). The finished-items read now starts beside the live read (with a catch-up
-  read), page one of the big reads starts when sign-in passes, and the per-row scans use lookup tables.
+  point for the next refresh), page one of the big reads starts when sign-in passes, and the per-row scans use lookup tables.
   Same rig, interleaved: cold complete list 8.2 to 5.9 s, cold first rows 3.7 to 3.1 s, warm fresh data
   3.5 to 3.2 s; 1,642 rows compared old against new, 0 differences. Way back: revert the PR.
 - **Workload: unfinished work pinned to a past day is carried over (2026-09-30, #1875,

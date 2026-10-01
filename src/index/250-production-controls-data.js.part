@@ -1711,12 +1711,11 @@ import {
            one after the other, a card that left a finished status mid-load could
            fall between them; with them side by side a card that ENTERS one (the
            common case: an approval) could too, for the few seconds the reads
-           overlap. So once the tail lands, one small read asks for every row
-           changed since a little before the load began and merges it through the
-           same path the 30-second delta uses (`_prodDeltaRefresh({ since })`).
-           Normally it returns nothing and repaints nothing. It is not the
-           watermark read: that starts from the newest row held, which can be
-           later than a card that moved during the load. */
+           overlap. So once the tail lands, `_prodState.catchUpSince` is set to a
+           little before the load began, and the next refresh (the 30-second
+           poll, or the realtime-triggered one) starts from it instead of from
+           the newest row held, which can be later than a card that moved during
+           the load. Same merge path, no extra request at load time. */
         const PROD_TAIL_SKEW_MS = 30000;
         let _prodTailPrefetch = null;
         function _prodStartTailPrefetch() {
@@ -1735,14 +1734,6 @@ import {
             _prodTailPrefetch = null;
             if (!held || held.filter !== filter || !(Date.now() - held.at < 120000)) return null;
             return held;
-        }
-        /* `_prodDeltaRefresh` answers null when it declines (a menu is open,
-           someone is typing, a write is in flight): try again a few times
-           rather than drop the catch-up. */
-        function _prodReconcileSince(since, attempt) {
-            Promise.resolve(_prodDeltaRefresh({ since })).then(answer => {
-                if (answer === null && attempt < 5) setTimeout(() => _prodReconcileSince(since, attempt + 1), 3000);
-            }, () => {});
         }
         async function _prodLoadTerminalTail(opts) {
             if (_prodTerminalTailRunning) { _prodTerminalTailRerun = true; return false; }
@@ -1866,7 +1857,9 @@ import {
                 _prodState.terminalTailFailed = false;
                 _prodApplyDeepLinkFallback(true);
                 if (document.getElementById('prodRoot')) _prodRender();
-                if (prefetched) _prodReconcileSince(prefetched.since, 0);
+                if (prefetched && (!_prodState.catchUpSince || Date.parse(prefetched.since) < Date.parse(_prodState.catchUpSince))) {
+                    _prodState.catchUpSince = prefetched.since;
+                }
                 settled = true;
                 return true;
             } catch (e) {

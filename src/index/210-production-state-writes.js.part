@@ -359,6 +359,8 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             // the approved/posted/archived tail is still arriving behind the
             // live board.
             terminalTailPending: false,
+            // Set by an overlapped load; the next refresh starts from it (see _prodStartTailPrefetch).
+            catchUpSince: '',
             /* The tail RAN and did not deliver. Distinct from pending, and the
                distinction is the whole of OPEN_REPAIRS 108's fifth round: a tail
                that FAILED establishes nothing, so an id it could not resolve is

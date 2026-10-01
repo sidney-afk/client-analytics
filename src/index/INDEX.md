@@ -49,12 +49,12 @@
 | 41 | `186-archived-restore.js.part` | 462 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 42 | `190-calendar-approval-comments.js.part` | 3117 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 43 | `200-intake-data-startup.js.part` | 1873 | Video-only and Thumbnail-only were already built, but sat |
-| 44 | `210-production-state-writes.js.part` | 3238 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 44 | `210-production-state-writes.js.part` | 3240 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 45 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
 | 46 | `230-production-create-comments.js.part` | 2657 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 47 | `240-production-description.js.part` | 2657 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
-| 48 | `250-production-controls-data.js.part` | 2971 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 49 | `260-production-refresh-boot.js.part` | 2658 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 48 | `250-production-controls-data.js.part` | 2964 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 49 | `260-production-refresh-boot.js.part` | 2663 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 50 | `270-samples-model.js.part` | 2956 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 51 | `280-samples-cards-notes.js.part` | 2930 | SURFACE 3: the save engine |
 | 52 | `290-samples-writes-review.js.part` | 1886 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

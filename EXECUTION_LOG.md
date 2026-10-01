@@ -6751,7 +6751,7 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Measured first, cold and warm, on the live site as admin staff: rows on screen about 1.1 s warm and 3.0 to
   4.9 s cold; fresh data 3.5 s warm; the complete list 7.9 s in; 78 requests and 3.25 MB cold, 71 and 2.37 MB warm.
   The tab was already quick to use; it was slow to finish. The 09-24 speed map measured first content only.
-- Changes: the finished-items read starts beside the live read, with a catch-up read for rows that moved during
+- Changes: the finished-items read starts beside the live read, with a catch-up point the next refresh starts from for rows that moved during
   the overlap; page one of the two big reads starts when sign-in passes (head script, waits for the check);
   lookup tables for the per-row issue scans and a per-second memo for the policy day.
 - Same rig, interleaved: cold first rows 3.69 to 3.15 s, complete list 8.24 to 5.85 s; warm fresh data

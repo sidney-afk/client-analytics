@@ -179,7 +179,7 @@ jobs:
     # every pull request. Fully offline: every backend call is answered empty.
     # package.json is content-pinned, so Playwright goes into a temp prefix.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

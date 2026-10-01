@@ -3293,6 +3293,7 @@ import {
                                 return;
                             }
                         }
+                        let resp;
                         if (nativeLane) {
                             // Wait for this card's own save, read the row once, and send with the stamp the
                             // database holds. A card that no longer says Tweaks Needed is not pinged.
@@ -3305,7 +3306,6 @@ import {
                             attemptKey = holdKeyFor();
                             if (retainedAttempt()) { showUnknown(); return; }
                         }
-                        let resp;
                         if (nativeLane) {
                             // Retain before transport. This is a local recovery hold,
                             // not a cross-device delivery or exactly-once receipt.

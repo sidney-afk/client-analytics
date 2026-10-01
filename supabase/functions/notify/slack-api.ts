@@ -54,6 +54,11 @@ export async function postSlackChannelMessage(
   }
   const body = await boundedBody(response);
   clearTimeout(timer);
+  return channelPostResult(response, body, channel);
+}
+
+// One reading of a chat.postMessage answer for every channel post.
+function channelPostResult(response: Response, body: Record<string, unknown> | null, channel: string): SlackPostResult {
   if (response.ok && body?.ok === true && body.channel === channel && typeof body.ts === "string" && SLACK_TS.test(body.ts)) {
     return { kind: "sent", messageId: body.ts };
   }
@@ -63,6 +68,55 @@ export async function postSlackChannelMessage(
   if (response.status === 429 || body?.error === "ratelimited") return { kind: "retryable", code: "slack_rate_limited" };
   if (response.status >= 500 || !body) return { kind: "unknown", code: "slack_response_unconfirmed" };
   return { kind: "blocked", code: "slack_api_rejected" };
+}
+
+// ── Urgent editor ping ──────────────────────────────────────────────────────
+// WHY THE OLD LINK WAS NOT CLICKABLE. Every post here goes out with
+// parse:"none", and Slack documents that setting as "remove the hyperlinks":
+// a bare https:// address in the text is left as plain text. The urgent line
+// carried its address bare ("Open in SyncView: https://..."), so it never
+// became a link. Explicit <url|text> markup is always honoured, and so is the
+// <@U...> mention, which is why the mention worked while the link did not.
+// The urgent body below keeps parse:"none" and link_names:false (nothing the
+// message contains is ever guessed into a mention or a link) and states
+// mrkdwn:true, unfurl_links:false, unfurl_media:false out loud instead of
+// leaving them to defaults. The channel post and the owner-only preview are
+// built by this one function, so the preview shows exactly what the channel
+// would receive.
+export type UrgentMessage = { text: string; blocks: Record<string, unknown>[]; attachments?: Record<string, unknown>[] };
+export function urgentRequestBody(target: string, message: UrgentMessage, clientMsgId?: string): Record<string, unknown> {
+  return {
+    channel: target,
+    text: message.text,
+    ...(message.attachments ? { attachments: message.attachments } : { blocks: message.blocks }),
+    ...(clientMsgId ? { client_msg_id: clientMsgId } : {}),
+    parse: "none", link_names: false, mrkdwn: true, unfurl_links: false, unfurl_media: false,
+  };
+}
+
+export async function postSlackUrgentMessage(
+  token: string,
+  channel: string,
+  message: UrgentMessage,
+  clientMsgId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SlackPostResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  let response: Response;
+  try {
+    response = await fetchImpl("https://slack.com/api/chat.postMessage", {
+      method: "POST", redirect: "error", signal: controller.signal,
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify(urgentRequestBody(channel, message, clientMsgId)),
+    });
+  } catch {
+    clearTimeout(timer);
+    return { kind: "unknown", code: "slack_transport_unconfirmed" };
+  }
+  const body = await boundedBody(response);
+  clearTimeout(timer);
+  return channelPostResult(response, body, channel);
 }
 
 // Owner-only preview: posts into one person's direct message with the bot,
@@ -85,6 +139,35 @@ export async function postSlackDirectPreview(
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
       body: JSON.stringify({ channel: userId, ...(attachments ? { attachments } : { text, blocks }), parse: "none", link_names: false, mrkdwn: false, unfurl_links: false, unfurl_media: false }),
+    });
+  } catch {
+    clearTimeout(timer);
+    return { kind: "unknown", code: "slack_transport_unconfirmed" };
+  }
+  const body = await boundedBody(response);
+  clearTimeout(timer);
+  if (response.ok && body?.ok === true && typeof body.channel === "string" && body.channel.startsWith("D")
+      && typeof body.ts === "string" && SLACK_TS.test(body.ts)) return { kind: "sent", messageId: body.ts };
+  return { kind: "blocked", code: typeof body?.error === "string" && /^[a-z_]{1,60}$/.test(body.error) ? "slack_" + body.error : "slack_api_rejected" };
+}
+
+// Owner-only preview of the urgent layout: one person's direct message with the
+// bot, never a channel. Same body as the channel post (minus the dedupe id).
+export async function postSlackDirectUrgentPreview(
+  token: string,
+  userId: string,
+  message: UrgentMessage,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SlackPostResult> {
+  if (!/^[UW][A-Z0-9]{8,}$/.test(userId)) return { kind: "blocked", code: "preview_target_not_a_user" };
+  let response: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    response = await fetchImpl("https://slack.com/api/chat.postMessage", {
+      method: "POST", redirect: "error", signal: controller.signal,
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify(urgentRequestBody(userId, message)),
     });
   } catch {
     clearTimeout(timer);

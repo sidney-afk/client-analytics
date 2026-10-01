@@ -477,6 +477,7 @@ console.log('6) the post-count read is one bounded projection query that counts 
     };
     vm.createContext(context2);
     vm.runInContext(PICKER_SOURCES + '\n' + extract('_calOpenNativePost'), context2);
+    vm.runInContext('_calNativeDraftRestore = function () {};', context2);   // draft store: lost-work-drafts.js
     await vm.runInContext("_calOpenNativePost('Client A', 'client-a')", context2);
     /* The editor pool resolves on its own promise chain (raced against a
        timeout), so it lands a tick after the open flow returns and re-renders
@@ -628,6 +629,7 @@ console.log('6) the post-count read is one bounded projection query that counts 
     };
     vm.createContext(ctx);
     vm.runInContext(PICKER_SOURCES, ctx);
+    vm.runInContext('function _calNativeDraftKeep(){} function _calNativeDraftRestore(){}', ctx);   // draft store: lost-work-drafts.js
     /* Not in PICKER_SOURCES: that list is what the RENDER needs, and the live
        filter is a different entry point. Pulled in by name here. */
     vm.runInContext(extract('_calNativeBatchFilter'), ctx);

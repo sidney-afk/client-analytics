@@ -15,8 +15,7 @@ no client names, slugs, tokens or credentials (the repo is public).
 ## What the owner decided (summary)
 
 A database table is the checklist's source of truth, shown on the client profile in the Clients
-tab. Every step is required except "SyncView link sent" (optional, never blocks); no kickoff call
-step. The client Slack channel stays automatic. The Clients tab replaces the Clients Info Sheet row
+tab. Every step is required except two optional ones, "SyncView link sent" and connecting Post For Me (neither blocks); no kickoff call step and no monthly check-in step; a required "at least one social media handle saved" step; any required step can be skipped by an admin with a note. The client Slack channel stays automatic. The Clients tab replaces the Clients Info Sheet row
 for new clients. The native provisioning function becomes a "Create client" button. HubSpot deal and
 contract and payment state are stored on the profile; the 26 hand-imported customers are
 "unknown". The matching pass reads `synchro-brain` first, then HubSpot, Drive and Slack, and saves
@@ -49,7 +48,7 @@ SMM assignment log, and a retry list for Sheet catch-up.
 All additive, no browser grants (staff reach it only through the new Edge Function), `service_role`,
 `anon`, `authenticated` and `public` each named explicitly in every revoke (house rule).
 
-- `onboarding_steps`: the catalog. One row per step: key, label, position, `required` (true except the optional SyncView link step), `kind` (`client`, `auto`, `claude`, `owner`), default owner (the owner), what proves it, and whether the system can detect it. Seeded from list 1 of the audit minus the kickoff call, plus one step the audit missed: **send the client their SyncView link** (optional).
+- `onboarding_steps`: the catalog. One row per step: key, label, position, `required` (true except the two optional steps: SyncView link and Post For Me), `kind` (`client`, `auto`, `claude`, `owner`), default owner (the owner), what proves it, and whether the system can detect it. Seeded from list 1 of the audit minus the kickoff call, plus one step the audit missed: **send the client their SyncView link** (optional).
 - `client_onboarding_progress`: one row per client per step: `status` (`todo`, `done`, `skipped`, `unknown`), done by and when, evidence (a link or id, never a credential), note, who is responsible (defaults to the owner), and `source` (`manual`, `detected`, `backfill`). Unique on (client, step).
 - `client_onboarding_events`: append-only history of every change (who, what, before, after), like the profile edit log.
 - `client_resources`: only what has no home today: Drive client folder id, HubSpot contact id, brain folder path, Sandcastles id, Post For Me ids if not on the profile. Columns: client, resource key, value, `status` (`found`, `missing`, `unknown`, `not_applicable`), source, confirmed by and when.
@@ -75,8 +74,11 @@ Checks in the migration PR: the SQL runs on a throwaway Postgres in the test lan
 read only (HubSpot); form received; provisioning ran; research (Claude step); roster row (replaced
 by "Create client"); SMM assigned; Slack channels (automatic, detected); filming plan Doc and link;
 Templates and Canva link; brain folder and Editor brief (Claude step); ideas pipeline set up
-(Claude step); first real card; metrics appearing next morning; and, optional, the SyncView link
-sent and the social posting ids. Each shows "owner" as responsible unless changed.
+(Claude step); at least one social media handle saved; first real card; samples started; metrics
+appearing next morning; Sandcastles watchlist (nothing is checked automatically: an admin confirms the
+client and their competitors were added, or skips it with a note); and, optional, the SyncView link sent
+and connecting Post For Me. No monthly check-in and no kickoff call. Each shows "owner" as responsible
+unless changed.
 
 **Claude steps today** (kept as Claude steps, marked as such with a copy-ready prompt that names
 the session): brain folder and Editor brief, keyword and description research, filming plan Doc
@@ -116,8 +118,18 @@ into the repo.
 2. **Checklist visibility:** admin only for now.
 3. **HubSpot refresh:** daily and whenever a profile is opened, through our own Edge Function (step 2.3b), never n8n.
 
-## Open decision (from the review of this plan)
+## Decided: option A for the throwaway client (owner, 2026-10-01)
 
-The throwaway proof needs either:
-- **A (recommended):** a small dedicated test path in step 2.5: a second database function that shares the real function's body but creates `kind = 'test'`, writes its receipt to a deletable test table (or none), and never queues Slack. The real function stays untouched. The throwaway can then be deleted, and the proof still exercises the same creation code. It is one more source-only migration, applied by Lighthouse after the owner's go.
-- **B:** use the real function and keep the throwaway forever as an inactive, archived client (it cannot be deleted by design). No new database code, but a permanent leftover row and receipt.
+A separate test-only create path: a deletable `kind = 'test'` client, throwaway names only, never Slack,
+the real function and its immutable receipt untouched. Built as PR 1931
+(`migrations/2026-10-03-native-client-test-provision.sql`, source only, applied by Lighthouse after the
+owner's go). The real create still waits for the `client_profiles_authority` switch.
+
+## Progress (2026-10-01)
+
+| Step | State |
+|---|---|
+| 2.1 tables migration | PR 1928, with the owner's checklist answers applied (27 steps: 25 required, 2 optional) |
+| 2.2 Edge Function `client-onboarding` | PR 1933, source only, admin only for reads and writes, not deployed |
+| 2.5 test-only create and delete path | PR 1931 (migration only; the "Create client" function and button come later) |
+| 2.3, 2.3b, 2.4, 2.5 button, 2.6 and Stage 3 | not started |

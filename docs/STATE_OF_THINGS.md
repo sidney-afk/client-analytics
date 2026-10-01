@@ -36,13 +36,12 @@ here with where it stopped, so it can be restarted.
   least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
   daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.
 
-1. **2026-10-01: analytics database on for every client. BLOCKED until the analytics accuracy check (open question above) says the stored view counts are right.** Then check the daily
-   Sheets-to-Supabase copy ran clean, then ask the owner's go to set
-   `analytics_mirror_read_enabled` to `{"enabled": true}`. This also removes the
-   client link's 2 to 4 s wait on the `Metrics` and `Clients Info` Sheets
-   (`docs/audits/2026-09-23-boot-baseline.md` section 3.4). Plan:
-   `docs/plans/2026-09-28-analytics-switch-on.md`. Then the one-message Slack
-   alert (under "Needs the owner").
+1. **DONE 2026-10-01: analytics database on for every client.** The accuracy check found the stored view
+   counts right; the 20 duplicate Metrics rows were removed (OPEN_REPAIRS 309) and `analytics-write` redeployed;
+   the 16:31 UTC daily run ended `PARITY: clean` (0 differences in all five datasets); Lighthouse then set
+   `analytics_mirror_read_enabled` to `{"enabled": true}` with the owner's go (EXECUTION_LOG.md). Rollback, one step:
+   set it back to `{"enabled": false, "clients": ["<test client slug>"], "staff": true}`. Still to do: the
+   one-message Slack alert (under "Needs the owner") and watching that the daily lane stays green.
 2. **2026-10-01: n8n measurements for the plan-downgrade decision.** September
    is the first full month the execution-quota watchdog counts. Report the real
    monthly executions against the plan tiers (sizing in OPEN_REPAIRS 233: about

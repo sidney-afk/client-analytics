@@ -6,6 +6,15 @@ All times are UTC unless noted.
 
 **Older entries are archived.** Entries more than 60 days old live word for word in [docs/ops/execution-log-archive/](docs/ops/execution-log-archive/), one file per month. Each one leaves a single "Archived entry" line below, in its original place, with a link and a fingerprint of the entry's exact text. Nothing in them was edited; `node scripts/ledger-archive.js log --check` proves it, and fails if an archived entry is later changed. Three entries older than 60 days stay in this file on purpose: the repo identity check refuses their lines as new text in a new file, and it has no exemption for a move between ledgers.
 
+## 2026-10-01 — analytics_mirror_read_enabled set to {"enabled": true} (owner's go; plan step 6)
+
+The scheduled "Sheets mirror daily copy and parity" run of 2026-10-01 (started 16:31 UTC, run 36892689003) was green and
+ended `PARITY: clean`: metrics 5168 of 5168 groups matched, top_videos 2759, content_summaries 1, market_research_briefs 13,
+client_profiles 36, 0 differing. Lighthouse then changed the flag row from `{"staff":true,"clients":[<test client>],"enabled":false}`
+to `{"enabled": true}` with a compare-and-set update (updated_by `lighthouse:owner-go-2026-10-01`, 16:49 UTC); read back
+returned the new value. It takes effect on each page's next load; no function was published. **Way back:** set the value back to
+`{"enabled": false, "clients": ["<test client slug>"], "staff": true}`; pages read the Sheets again on their next load.
+
 ## 2026-10-01 — sample status bridge trigger made live on deliverables (owner's go; OPEN_REPAIRS 313)
 
 `migrations/2026-10-01-native-sample-status-bridge.sql` applied by Lighthouse after the owner's go ("yes, apply the sample fix"),

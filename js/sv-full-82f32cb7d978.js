@@ -17534,9 +17534,8 @@
        CONTENT CALENDAR MODULE
        Saves and reorders go to the Supabase functions calendar-upsert and
        calendar-reorder (n8n exit, PR 2); reads come from calendar_posts, with
-       the n8n calendar-get webhook kept only as the read fallback. The
-       original n8n contract, for reference:
-         GET  /webhook/calendar-get?client=<slug>
+       with no n8n read fallback (retired in step F, 2026-10). The original
+       n8n write contract, for reference:
          POST /webhook/calendar-upsert-post  { client, post }
        Legacy storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
@@ -17555,7 +17554,28 @@
        always recomputed from the three sub-statuses (lower-priority wins,
        with Tweaks Needed lowest).
        ============================================================ */
-    const CALENDAR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';
+    /* n8n exit, phase 2 step F: the n8n read fallbacks calendar-get, sample-review-get and
+       kasper-queue are retired. A Supabase read that fails is tried once more after a short
+       wait; if it still fails the caller keeps the saved copy it already has on screen and
+       says the data is unavailable, and nothing is sent to n8n. */
+    const SV_READ_RETRY_WAIT_MS = 1500;
+    const SV_READ_UNAVAILABLE_TEXT = 'The data is unavailable right now. Try again in a moment.';
+    async function _svReadWithRetry(read, opts) {
+        const o = opts || {};
+        const aborted = () => !!(o.signal && o.signal.aborted);
+        try { return await read(); }
+        catch (e) {
+            if ((e && e.name === 'AbortError') || aborted()) throw e;
+        }
+        await new Promise(resolve => setTimeout(resolve, o.waitMs != null ? o.waitMs : SV_READ_RETRY_WAIT_MS));
+        if (aborted()) { const a = new Error('Aborted'); a.name = 'AbortError'; throw a; }
+        try { return await read(); }
+        catch (e) {
+            if ((e && e.name === 'AbortError') || aborted()) throw e;
+            console.warn('[read] Supabase read failed twice', e);
+            throw new Error(SV_READ_UNAVAILABLE_TEXT);
+        }
+    }
     const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
     const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
@@ -17564,10 +17584,6 @@
        the n8n route the page no longer takes) and were removed in the n8n exit,
        PR 2. Reorders go to CALENDAR_REORDER_EF_URL only. */
     const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
-    // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
-    // (2 Google API calls server-side). The FE falls back to per-client
-    // CALENDAR_GET_URL calls whenever this endpoint fails.
-    const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     /* linear-subissues (LINEAR_SUBISSUES_URL) was removed 2026-09-23 (B2):
        its callers -- Import from Linear, Bulk Linear sync and link-time
        status adoption -- are gone. See docs/ops/B2_LINEAR_CLEANUP_PLAN.md. */
@@ -17585,14 +17601,15 @@
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
        to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
-    /* Caption-job tracking. The generate-caption workflow upserts a row per
-       run into the caption_jobs n8n data table (status: running/done/error/
-       cancelled, stage: scraping → transcribing → writing → done). The UI
-       polls the status webhook so the button/progress chip mirror the real
+    /* Caption-job tracking. The generate-caption workflow (n8n) reports a row
+       per run to the caption-jobs function (caption_jobs table; status:
+       running/done/error/cancelled, stage: scraping → transcribing → writing →
+       done). The UI polls it so the button/progress chip mirror the real
        backend state — surviving refreshes, tab switches and dropped
-       connections — and posts cancel_requested to the update webhook. */
-    const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
-    const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
+       connections — and posts cancel_requested to it. One function, two verbs:
+       GET reads, POST writes; the staff key goes on both (n8n exit, step B). */
+    const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
+    const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
     /* "URGENT TWEAKS NEEDED" editor ping: native route only
        (native_urgent_dispatch via production-write). The legacy n8n
@@ -28449,25 +28466,17 @@
         const gate = item && item.source_gate || {};
         const clientSlug = String(gate.client_slug || '');
         if (!clientSlug) return null;
-        if (gate.source_transport === 'supabase') {
-            const table = gate.surface === 'sxr' ? SXR_TABLE : 'calendar_posts';
-            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.'
-                + encodeURIComponent(clientSlug) + '&id=eq.' + encodeURIComponent(String(gate.post_id || ''));
-            return gate.surface === 'sxr'
-                ? _sxrSupabaseFetchAllRows(baseUrl)
-                : _calSupabaseFetchAllRows(baseUrl);
-        }
-        if (gate.surface === 'sxr') {
-            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
-            if (!resp.ok) return null;
-            const json = await resp.json();
-            const rows = json && (json.items || json.samples || json.posts);
-            return json && json.ok !== false && Array.isArray(rows) ? rows : null;
-        }
-        const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
-        if (!resp.ok) return null;
-        const json = await resp.json();
-        return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
+        /* n8n exit, step F: the n8n readers (calendar-get, sample-review-get) are retired, so every
+           gate is verified against Supabase, including one still pinned to the n8n writer. That is
+           the same row: the n8n Calendar writer mirrors each save into calendar_posts and the n8n
+           Samples writer upserts straight into sample_reviews, so reading it back there is a true
+           completion check. */
+        const table = gate.surface === 'sxr' ? SXR_TABLE : 'calendar_posts';
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.'
+            + encodeURIComponent(clientSlug) + '&id=eq.' + encodeURIComponent(String(gate.post_id || ''));
+        return gate.surface === 'sxr'
+            ? _sxrSupabaseFetchAllRows(baseUrl)
+            : _calSupabaseFetchAllRows(baseUrl);
     }
     /* MIGRATION ON LOAD (n8n exit, PRs 2 and 4): a staff browser that returns after
        the change and still holds a Calendar or Samples repair pinned to the n8n
@@ -31634,42 +31643,18 @@
         }
         return all;
     }
-    /* Read one client's posts from Supabase REST, shaped exactly like the
-       calendar-get webhook. On ANY failure, fall back to the webhook so a
-       Supabase hiccup can never blank the calendar. */
+    /* Read one client's posts from Supabase REST, shaped like the old
+       calendar-get webhook ({ ok, posts }). n8n exit step F: no n8n fallback.
+       A failed read is retried once after a short wait; if it still fails this
+       throws, and the caller keeps the cards it already has (live or saved copy)
+       and shows a refresh notice, or the unavailable message on a cold load. */
     async function _calV2FetchPosts(slug, signal) {
         // Archived rows are filtered on every render path; excluding them here
-        // (NULL-safe — PostgREST neq drops NULL-status rows) keeps long-lived
+        // (NULL-safe: PostgREST neq drops NULL-status rows) keeps long-lived
         // clients from dragging their whole archive over the wire on each load.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
-        try {
-            const rows = await _calSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
-        } catch (e) {
-            if (e && e.name === 'AbortError') throw e;
-            console.warn('[Calendar v2] Supabase read failed — falling back to n8n calendar-get', e);
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            if (!resp.ok) throw new Error('calendar-get HTTP ' + resp.status);
-            const json = await resp.json();
-            /* OPEN_REPAIRS item 86. The Sheets-backed webhook answers 200 with
-               an EMPTY BODY for some clients and {ok:true, posts:[]} for others,
-               while those same clients have live cards -- measured 2026-08-30:
-               32, 17 and 24 non-archived rows against three empty answers. An
-               empty body already throws in resp.json(); the posts:[] shape did
-               not, and a zero-row census is indistinguishable downstream from a
-               client who genuinely has nothing. It became calState.posts and was
-               then WRITTEN TO THE CACHE, so one bad fallback could blank a
-               calendar and keep it blank across a cold load.
-               A zero-row fallback is therefore treated as a FAILED READ, which
-               is the same ratified guard the workload native read uses: the
-               caller keeps the cards on screen, says it could not refresh, and
-               leaves the cache alone. The cost is that a genuinely empty client,
-               on a load where Supabase ALSO failed, sees a refresh notice rather
-               than a correct empty calendar -- the right side to be wrong on. */
-            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload');
-            if (!json.posts.length) throw new Error('calendar_get_zero_posts');
-            return json;
-        }
+        const rows = await _svReadWithRetry(() => _calSupabaseFetchAllRows(baseUrl, signal), { signal });
+        return { ok: true, posts: rows };
     }
     /* Realtime subscription lifecycle. One channel per client; switching
        clients (or leaving the calendar) tears the old one down. A change
@@ -32056,9 +32041,7 @@
                 // read from Supabase REST instead of the n8n calendar-get
                 // webhook. Identical { ok, posts[] } shape → identical
                 // downstream handling. Falls back to the webhook on error.
-                if (_calV2Ready()) return _calV2FetchPosts(slug, ctrl ? ctrl.signal : null);
-                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
-                return resp.json();
+                return _calV2FetchPosts(slug, ctrl ? ctrl.signal : null);
             })();
             const json = await Promise.race([fetchPromise, timeoutPromise]);
             if (!_calLoadRunCurrent(loadRun)) return; // replacement/route/client ownership superseded this one
@@ -40121,7 +40104,7 @@
             const rows = new Map();
             await Promise.all(clients.map(async (slug) => {
                 try {
-                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug), { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_JOB_STATUS_URL) });
                     const j = await r.json();
                     if (j && j.ok && Array.isArray(j.jobs)) for (const row of j.jobs) rows.set(row.jobId, row);
                 } catch {}
@@ -40145,7 +40128,7 @@
                 // the full 12-min stale timeout. cancel_requested is (re)sent so a
                 // late checkpoint still won't save a caption.
                 if (_calCapJobCancelExpired(job, now)) {
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'cancelled', {});
                     continue;
                 }
@@ -40163,7 +40146,7 @@
                 if (now - (job.lastMovementAt || job.startedAt) > CAL_CAPJOB_STALE_MS) {
                     // Stand the backend down too, so a zombie run can't write a
                     // caption to the sheet long after the UI gave up.
-                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL), body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
                     _calCapJobSettle(job, 'error', { error: 'Timed out — the caption generator stopped responding. Try again.' });
                 }
             }
@@ -40191,7 +40174,7 @@
         _calUpdateBulkCaptionBar();
         fetch(CAPTION_JOB_UPDATE_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_JOB_UPDATE_URL),
             body: JSON.stringify({ jobId: job.jobId, cancel_requested: true })
         }).then(r => { if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); })
           .catch(() => {
@@ -63607,7 +63590,6 @@
     /* Live backend (docs/features/SAMPLES_GO_LIVE.md): reads hit Supabase REST and fall back to
        the get webhook; writes are field-level patches to the upsert webhook. The
        Supabase project + anon key are SHARED with the calendar (same browser key). */
-    const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
     const SXR_UPSERT_N8N_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
     const SXR_UPSERT_URL  = SXR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
     const SXR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-upsert';
@@ -64472,16 +64454,10 @@
         // NULL-safe or= form because PostgREST neq drops NULL-status rows.
         // Client-side _sxrIsArchivedRef stays as defense for the webhook fallback.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
-        try {
-            const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
-        } catch (e) {
-            if (e && e.name === 'AbortError') throw e;
-            console.warn('[Samples] Supabase read failed — falling back to sample-review-get', e);
-            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            const j = await resp.json();
-            return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
-        }
+        // n8n exit step F: no sample-review-get fallback. One retry after a short wait, then
+        // throw; the load keeps the saved copy on screen and shows its refresh notice.
+        const rows = await _svReadWithRetry(() => _sxrSupabaseFetchAllRows(baseUrl, signal), { signal });
+        return { ok: true, posts: rows };
     }
     async function loadSxrCards(opts) {
         opts = opts || {};
@@ -71164,10 +71140,6 @@
     const IG_ACCOUNT_RE = /^spc_[A-Za-z0-9]{6,80}$/;
     const IG_ACCOUNT_COLUMN = 'postforme_instagram_account_id';
     const IG_MAX_CAPTION = 2200;
-    const IG_PLACEMENTS = [
-        { v: 'reels', label: 'Reel' },
-        { v: 'timeline', label: 'Feed video' },
-    ];
     const IG_STATUS_LABELS = { uploading: 'Uploading', processing: 'Posting', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled' };
     const IG_UPCOMING = ['uploading', 'processing', 'scheduled'];
     const IG_COVER_MAX_BYTES = 8 * 1024 * 1024;     // Instagram's own limit for a cover image
@@ -71180,7 +71152,6 @@
         file: null,
         objectUrl: null,
         title: '',
-        placement: 'reels',
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
@@ -71260,8 +71231,13 @@
         if (c.url) { try { URL.revokeObjectURL(c.url); } catch (e) {} }
         igState.cover = Object.assign({}, c, { blob: null, url: '', name: '', source: '', note: '', dims: '', cardId: '', frameUrl: keepMode ? c.frameUrl : '' });
     }
-    // The client's Calendar cards that already have a thumbnail: the live Calendar if it is showing this client,
-    // otherwise its saved copy on this device. Read only; nothing is fetched here.
+    // The client's Calendar cards that can still go out: the live Calendar if it is showing this client, otherwise
+    // its saved copy on this device. Read only; nothing is fetched here.
+    //  - only cards that are Approved or Scheduled (never Posted, never still in review);
+    //  - a card with a posting date in the past is left out;
+    //  - order: cards dated today or later first, soonest first; then cards with no posting date, in the order
+    //    they appear on the Calendar (its manual order).
+    // Each card is named the way the Calendar names it (for example "Video 15").
     function _igCalendarCards(client) {
         if (!client) return [];
         let posts = [];
@@ -71270,13 +71246,24 @@
             if (calState && calState.client && calClientSlug(calState.client) === slug && Array.isArray(calState.posts) && calState.posts.length) posts = calState.posts;
             else { const cached = _calCacheRead(slug); posts = (cached && cached.posts) || []; }
         } catch (e) { posts = []; }
-        return posts
+        const today = _igTodayIso();
+        const byManual = (a, b) => Number(a.order || 0) - Number(b.order || 0);
+        const cards = posts
             .filter(p => p && p.id && !p.archived && String(p.id).indexOf('p_cal_settings') !== 0)
-            .map(p => ({ id: String(p.id), thumb: (function () { try { return _calDeriveThumb(p); } catch (e) { return ''; } })(), date: String(p.scheduled_date || '').slice(0, 10), title: String(p.title || p.caption || '').replace(/\s+/g, ' ').trim().slice(0, 50) }))
-            .filter(c => c.thumb)
-            .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-            .slice(0, 60)
-            .map(c => Object.assign(c, { label: (c.date ? c.date + ' · ' : '') + (c.title || 'Untitled card') }));
+            .filter(p => { let st = ''; try { st = computeOverallStatus(p); } catch (e) { st = String(p.status || ''); } return st === 'Approved' || st === 'Scheduled'; })
+            .map(p => {
+                const iso = String(p.scheduled_date || '').slice(0, 10);
+                return {
+                    id: String(p.id), date: /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '', order: p.order_index,
+                    name: String(p.name || '').replace(/\s+/g, ' ').trim() || 'Untitled card',
+                    caption: String(p.caption || '').trim(),
+                    thumb: (function () { try { return _calDeriveThumb(p); } catch (e) { return ''; } })(),
+                };
+            })
+            .filter(c => !c.date || c.date >= today);
+        const dated = cards.filter(c => c.date).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : byManual(a, b));
+        const undated = cards.filter(c => !c.date).sort(byManual);
+        return dated.concat(undated).slice(0, 80).map(c => Object.assign(c, { label: c.name }));
     }
     function _igImageSize(url) {
         return new Promise(resolve => {
@@ -71319,14 +71306,18 @@
         if (!cardId) { if (c.source === 'calendar') _igCoverClear(true); c.cardId = ''; c.note = ''; _igRenderForm(); _igRenderPreview(); return; }
         const card = _igCalendarCards(igState.client).find(x => x.id === cardId);
         if (!card) return;
-        c.cardId = cardId; c.note = 'Copying the Calendar thumbnail…'; _igRenderForm();
+        c.cardId = cardId;
+        // The card's caption fills the caption box, but only while that box is empty: typed text is never overwritten.
+        if (!igState.title.trim() && card.caption) igState.title = card.caption.slice(0, IG_MAX_CAPTION);
+        if (!card.thumb) { c.note = 'This card has no thumbnail yet' + (card.caption ? ', so only its caption was used.' : '.'); _igRenderForm(); return; }
+        c.note = 'Copying the Calendar thumbnail…'; _igRenderForm();
         try {
             const resp = await fetch(card.thumb, { mode: 'cors', credentials: 'omit', cache: 'force-cache' });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             await _igSetCoverImage(await resp.blob(), 'calendar-thumbnail', 'calendar', cardId);
         } catch (e) {
             _igCover().note = "Couldn't copy that Calendar thumbnail (the browser was not allowed to read it). Upload the image instead.";
-            _igCover().cardId = '';
+            _igCover().cardId = cardId;
             _igRenderForm();
         }
     }
@@ -71369,8 +71360,8 @@
     function _igCoverCardHtml() {
         const c = _igCover(), cards = _igCalendarCards(igState.client), off = igState.submitting ? 'disabled' : '';
         const cardPick = cards.length
-            ? `<div style="margin-bottom:12px"><div class="tk-step-note" style="margin:0 0 6px">This client's Calendar already has thumbnails. Use one as the cover:</div>
-                ${_svSelectHtml('igCard', [{ value: '', label: 'No Calendar thumbnail' }].concat(cards.map(x => ({ value: x.id, label: x.label }))), c.cardId || '', 'Pick a Calendar card…', { disabled: igState.submitting })}</div>`
+            ? `<div style="margin-bottom:12px"><div class="tk-step-note" style="margin:0 0 6px">Pick one of this client's Calendar cards (Approved or Scheduled) to use its thumbnail as the cover and its caption if the caption box is empty:</div>
+                ${_svSelectHtml('igCard', [{ value: '', label: 'No Calendar card' }].concat(cards.map(x => ({ value: x.id, label: x.label }))), c.cardId || '', 'Pick a Calendar card…', { disabled: igState.submitting })}</div>`
             : '';
         const modes = [{ v: 'image', label: 'Image' }, { v: 'frame', label: 'Frame from video' }]
             .map(m => `<label class="tk-radio${c.mode === m.v ? ' active' : ''}"><input type="radio" name="igCoverMode" value="${m.v}" ${c.mode === m.v ? 'checked' : ''} ${off} style="position:absolute;opacity:0">${m.label}</label>`).join('');
@@ -71481,14 +71472,17 @@
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
-                <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Post type" style="margin-top:12px">
-                    ${IG_PLACEMENTS.map(p => `<label class="tk-radio${igState.placement === p.v ? ' active' : ''}"><input type="radio" name="igPlacement" value="${p.v}" ${igState.placement === p.v ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''} style="position:absolute;opacity:0">${p.label}</label>`).join('')}
-                </div>
+
             </div>
             <div class="tk-card">
-                <div class="tk-sched-head"><h3>Schedule</h3>
-                    <label class="tk-radio"><input type="checkbox" id="igPostNow" ${igState.schedule.postNow ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}> Post immediately</label>
+                <div class="tk-sched-head"><h3>Scheduling</h3>
+                    <label class="tk-toggle">
+                        <input type="checkbox" id="igPostNow" ${igState.schedule.postNow ? 'checked' : ''} ${igState.submitting ? 'disabled' : ''}>
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Post immediately
+                    </label>
                 </div>
+                ${igState.schedule.postNow ? '<div class="tk-step-note">Posts as soon as you press Post now. Switch off to pick a date and time.</div>' : ''}
                 <div id="igScheduleFields" ${igState.schedule.postNow ? 'hidden' : ''}>
                     ${_svDateHtml('igDate', igState.schedule.date, { min: _igTodayIso(), placeholder: 'Choose date', disabled: igState.submitting })}
                     <div style="display:flex;gap:8px;margin-top:10px">
@@ -71522,7 +71516,6 @@
             syncSubmit();
             _igRenderPreview();
         });
-        document.querySelectorAll('input[name="igPlacement"]').forEach(r => r.addEventListener('change', (e) => { igState.placement = e.target.value; _igRenderForm(); }));
         $('igPostNow')?.addEventListener('change', (e) => { igState.schedule.postNow = e.target.checked; _igRenderForm(); });
         $('igDate')?.addEventListener('change', (e) => { igState.schedule.date = e.target.value; syncSubmit(); });
         $('igHour')?.addEventListener('change', (e) => { igState.schedule.hour = e.target.value; syncSubmit(); });
@@ -71598,7 +71591,7 @@
         const file = igState.file;
         const cv = igState.cover;
         const coverKey = cv.mode === 'image' ? (cv.blob ? 'img:' + cv.name + ':' + cv.blob.size : '') : (cv.frameMs > 0 ? 'frame:' + cv.frameMs : '');
-        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), igState.placement, utc, coverKey].join('|');
+        const fp = [igState.client, file.name, file.size, file.lastModified, igState.title.trim(), utc, coverKey].join('|');
         if (!igState.attempt || igState.attempt.fp !== fp) {
             igState.attempt = { fp, key: (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) || ('ig' + Date.now() + Math.random().toString(36).slice(2)) };
         }
@@ -71648,7 +71641,7 @@
             _igRenderForm();
             const created = await _igCall({
                 action: 'create', clientName: igState.client, socialAccountId: account, title: igState.title.trim(),
-                mediaUrl: mint.json.media_url, coverUrl, options: { placement: igState.placement, cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0 },
+                mediaUrl: mint.json.media_url, coverUrl, options: { cover_timestamp_ms: (cv.mode === 'frame' && cv.frameMs > 0) ? cv.frameMs : 0 },
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
@@ -71720,7 +71713,7 @@
                     <div class="tk-q-main">
                         <div class="tk-queue-client">${_igEsc(r.client || '—')}</div>
                         ${r.title ? `<div class="tk-queue-title">${_igEsc(r.title)}</div>` : ''}
-                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>${r.placement === 'timeline' ? 'Feed video' : 'Reel'}</span></div>
+                        <div class="tk-q-meta"><span class="tk-st ${_igEsc(status)}">${_igEsc(IG_STATUS_LABELS[status] || status)}</span><span>Reel</span></div>
                         ${r.error ? `<div class="tk-queue-error">${_igEsc(r.error)}</div>` : ''}
                     </div>
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
@@ -77872,18 +77865,10 @@
         try {
             // v2: read this client's posts from Supabase instead of the Sheet
             // (gated on _calV2Ready() so v1 is byte-identical). _calV2FetchPosts
-            // already falls back to the n8n calendar-get webhook on any Supabase
-            // error, so the content bank can never blank. The bank is a computed
+            // retries once and then throws (no n8n); a failed read leaves the bank unchanged. The bank is a computed
             // summary, so a refresh-on-open is enough —
             // no realtime subscription needed here.
-            let json;
-            if (_calV2Ready()) {
-                json = await _calV2FetchPosts(slug);
-            } else {
-                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-                if (!resp.ok) return null;
-                json = await resp.json();
-            }
+            const json = await _calV2FetchPosts(slug);
             if (!json || !json.ok || !Array.isArray(json.posts)) return null;
             const today = _filmsTodayISO();
             let total = 0;
@@ -79312,17 +79297,11 @@
                 const cached = _kasperCalCacheRead(slug);
                 if (cached && cached.ok) return extract(client, cached);
             }
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            if (!resp.ok) throw new Error('Bad response for ' + client);
-            const json = await resp.json();
-            /* item 86, the queue half. This used to cache whatever came back and
-               return an empty queue for a not-ok answer, so a client whose
-               webhook read failed looked exactly like a client with no work --
-               the worst possible failure mode for a review queue, and invisible.
-               A zero-row answer now THROWS into the rejection path, which the
-               caller counts and reports; only a non-empty truth is cached. */
-            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload for ' + client);
-            if (!json.posts.length) throw new Error('calendar_get_zero_posts for ' + client);
+            /* n8n exit step F: the per-client read is Supabase (one retry, then it throws into the
+               rejection path below, which names the client). A zero-row answer from Supabase is a
+               real answer (a client with no cards), unlike the retired Sheets read that answered
+               empty on failure, so it is cached like any other. */
+            const json = await _calV2FetchPosts(slug);
             _kasperCalCacheWrite(slug, json);
             return extract(client, json);
         };
@@ -79342,22 +79321,22 @@
             }
         }
         // v2: every client lives in ONE Supabase table, so ONE paginated REST
-        // read covers all of them — no per-client calendar-get fan-out, no n8n
+        // read covers all of them — no per-client fan-out, no n8n
         // load. Group rows by their client column and reuse the same extract()
         // the Sheet path uses. On ANY Supabase error we leave `remaining`
-        // untouched and fall through to the kasper-queue batch + per-client
-        // fan-out below, so the queue can never blank. Gated on _calV2Ready() so
-        // v1 is byte-identical. _calSupabaseFetchAllRows pages past PostgREST's
+        // untouched and fall through to the per-client Supabase reads below
+        // (one retry each, then a named rejection), so the queue can never blank
+        // silently. _calSupabaseFetchAllRows pages past PostgREST's
         // 1000-row max-rows cap, so the queue stays complete as the table grows
         // (the unpaginated single read silently dropped every row past 1000,
         // hiding freshly-added cards from Kasper once the table crossed 1000).
-        if (remaining.length && _calV2Ready()) {
+        if (remaining.length) {
             try {
                 const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
                 const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
                 let allRows;
                 try {
-                    allRows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined);
+                    allRows = await _svReadWithRetry(() => _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined), { signal: ctrl ? ctrl.signal : undefined });
                 } finally { if (timer) clearTimeout(timer); }
                 if (!Array.isArray(allRows)) throw new Error('Supabase: unexpected payload');
                 const byClient = new Map();
@@ -79376,39 +79355,7 @@
                 }
                 remaining = remaining.filter(c => !covered.includes(c));
             } catch (e) {
-                console.warn('[Kasper] Supabase read failed — falling back to kasper-queue/calendar-get', e);
-            }
-        }
-        if (remaining.length) {
-            try {
-                const slugByClient = new Map(remaining.map(c => [c, wlNormalizeClient(c)]));
-                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
-                const resp = await fetch(KASPER_QUEUE_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ slugs: [...slugByClient.values()] }),
-                    signal: ctrl ? ctrl.signal : undefined,
-                });
-                if (timer) clearTimeout(timer);
-                const json = await resp.json();
-                if (!resp.ok || !json || !json.ok || !json.clients) throw new Error('kasper-queue not ok');
-                const missing = new Set(Array.isArray(json.missing) ? json.missing : []);
-                const covered = [];
-                for (const [client, slug] of slugByClient) {
-                    const entry = json.clients[slug];
-                    // A slug in `missing` has no Calendar tab — same outcome
-                    // as the fan-out's empty read, so treat it as covered.
-                    const shaped = (entry && Array.isArray(entry.posts))
-                        ? { ok: true, posts: entry.posts }
-                        : (missing.has(slug) ? { ok: true, posts: [] } : null);
-                    if (!shaped) continue;
-                    _kasperCalCacheWrite(slug, shaped);
-                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
-                    covered.push(client);
-                }
-                remaining = remaining.filter(c => !covered.includes(c));
-            } catch (e) {
-                console.warn('[Kasper] batch queue fetch failed — falling back to per-client loads', e);
+                console.warn('[Kasper] Supabase batch read failed — falling back to per-client Supabase reads', e);
             }
         }
         // Per-client fan-out for whatever the batch didn't cover
@@ -82653,4 +82600,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-2d2db32dd6c1.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-82f32cb7d978.js");

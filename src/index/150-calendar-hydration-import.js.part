@@ -1,7 +1,7 @@
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
-import { CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL, _svReadWithRetry } from './100-onboarding-staff-controls.js';
 import { CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS, CAL_V2_RT_MIN_RELOAD_MS } from './115-core-calendar-flags.js';
 import {
   CAL_STATUSES, _calNormStatus, _calUpsertFetch,
@@ -1028,42 +1028,18 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         }
         return all;
     }
-    /* Read one client's posts from Supabase REST, shaped exactly like the
-       calendar-get webhook. On ANY failure, fall back to the webhook so a
-       Supabase hiccup can never blank the calendar. */
+    /* Read one client's posts from Supabase REST, shaped like the old
+       calendar-get webhook ({ ok, posts }). n8n exit step F: no n8n fallback.
+       A failed read is retried once after a short wait; if it still fails this
+       throws, and the caller keeps the cards it already has (live or saved copy)
+       and shows a refresh notice, or the unavailable message on a cold load. */
     async function _calV2FetchPosts(slug, signal) {
         // Archived rows are filtered on every render path; excluding them here
-        // (NULL-safe — PostgREST neq drops NULL-status rows) keeps long-lived
+        // (NULL-safe: PostgREST neq drops NULL-status rows) keeps long-lived
         // clients from dragging their whole archive over the wire on each load.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
-        try {
-            const rows = await _calSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
-        } catch (e) {
-            if (e && e.name === 'AbortError') throw e;
-            console.warn('[Calendar v2] Supabase read failed — falling back to n8n calendar-get', e);
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            if (!resp.ok) throw new Error('calendar-get HTTP ' + resp.status);
-            const json = await resp.json();
-            /* OPEN_REPAIRS item 86. The Sheets-backed webhook answers 200 with
-               an EMPTY BODY for some clients and {ok:true, posts:[]} for others,
-               while those same clients have live cards -- measured 2026-08-30:
-               32, 17 and 24 non-archived rows against three empty answers. An
-               empty body already throws in resp.json(); the posts:[] shape did
-               not, and a zero-row census is indistinguishable downstream from a
-               client who genuinely has nothing. It became calState.posts and was
-               then WRITTEN TO THE CACHE, so one bad fallback could blank a
-               calendar and keep it blank across a cold load.
-               A zero-row fallback is therefore treated as a FAILED READ, which
-               is the same ratified guard the workload native read uses: the
-               caller keeps the cards on screen, says it could not refresh, and
-               leaves the cache alone. The cost is that a genuinely empty client,
-               on a load where Supabase ALSO failed, sees a refresh notice rather
-               than a correct empty calendar -- the right side to be wrong on. */
-            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload');
-            if (!json.posts.length) throw new Error('calendar_get_zero_posts');
-            return json;
-        }
+        const rows = await _svReadWithRetry(() => _calSupabaseFetchAllRows(baseUrl, signal), { signal });
+        return { ok: true, posts: rows };
     }
     /* Realtime subscription lifecycle. One channel per client; switching
        clients (or leaving the calendar) tears the old one down. A change
@@ -1450,9 +1426,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                 // read from Supabase REST instead of the n8n calendar-get
                 // webhook. Identical { ok, posts[] } shape → identical
                 // downstream handling. Falls back to the webhook on error.
-                if (_calV2Ready()) return _calV2FetchPosts(slug, ctrl ? ctrl.signal : null);
-                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
-                return resp.json();
+                return _calV2FetchPosts(slug, ctrl ? ctrl.signal : null);
             })();
             const json = await Promise.race([fetchPromise, timeoutPromise]);
             if (!_calLoadRunCurrent(loadRun)) return; // replacement/route/client ownership superseded this one

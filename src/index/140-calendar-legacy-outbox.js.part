@@ -2,7 +2,7 @@ import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js'
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showConfirm, showNotify } from './040-shared-briefs.js';
 import {
-  CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   URGENT_KASPER_SLACK_URL, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature,
   _syncviewStaffVerificationEpoch
 } from './100-onboarding-staff-controls.js';
@@ -50,7 +50,7 @@ import {
 } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import {
-  SXR_GET_URL, SXR_LINEAR_OUTBOX_KEY, SXR_TABLE, _sxrCacheRead, _sxrCacheWrite, _sxrMigrateShape,
+  SXR_LINEAR_OUTBOX_KEY, SXR_TABLE, _sxrCacheRead, _sxrCacheWrite, _sxrMigrateShape,
   _sxrNormStatus, _sxrPendingEdits, _sxrPrimeSampleRoutingFlag, _sxrReviewBlockReason,
   _sxrSampleUseEf, _sxrSupabaseFetchAllRows, _sxrUpdateCardStatusDisplay,
   computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
@@ -1019,25 +1019,17 @@ import {
         const gate = item && item.source_gate || {};
         const clientSlug = String(gate.client_slug || '');
         if (!clientSlug) return null;
-        if (gate.source_transport === 'supabase') {
-            const table = gate.surface === 'sxr' ? SXR_TABLE : 'calendar_posts';
-            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.'
-                + encodeURIComponent(clientSlug) + '&id=eq.' + encodeURIComponent(String(gate.post_id || ''));
-            return gate.surface === 'sxr'
-                ? _sxrSupabaseFetchAllRows(baseUrl)
-                : _calSupabaseFetchAllRows(baseUrl);
-        }
-        if (gate.surface === 'sxr') {
-            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
-            if (!resp.ok) return null;
-            const json = await resp.json();
-            const rows = json && (json.items || json.samples || json.posts);
-            return json && json.ok !== false && Array.isArray(rows) ? rows : null;
-        }
-        const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
-        if (!resp.ok) return null;
-        const json = await resp.json();
-        return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
+        /* n8n exit, step F: the n8n readers (calendar-get, sample-review-get) are retired, so every
+           gate is verified against Supabase, including one still pinned to the n8n writer. That is
+           the same row: the n8n Calendar writer mirrors each save into calendar_posts and the n8n
+           Samples writer upserts straight into sample_reviews, so reading it back there is a true
+           completion check. */
+        const table = gate.surface === 'sxr' ? SXR_TABLE : 'calendar_posts';
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.'
+            + encodeURIComponent(clientSlug) + '&id=eq.' + encodeURIComponent(String(gate.post_id || ''));
+        return gate.surface === 'sxr'
+            ? _sxrSupabaseFetchAllRows(baseUrl)
+            : _calSupabaseFetchAllRows(baseUrl);
     }
     /* MIGRATION ON LOAD (n8n exit, PRs 2 and 4): a staff browser that returns after
        the change and still holds a Calendar or Samples repair pinned to the n8n

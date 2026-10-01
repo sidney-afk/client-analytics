@@ -416,10 +416,6 @@
       "status": "read",
       "note": "Client profile read."
     },
-    "330-kasper-review-history.js.part|fetchOne|KASPER_QUEUE_URL|POST": {
-      "status": "read",
-      "note": "Kasper review queue read."
-    },
     "120-calendar-flags-write-repair.js.part|_calUpsertFetchClientLink|url|POST": {
       "status": "client-transport",
       "note": "Calendar upsert transport for the client review link (approve and request changes). Not modified by the failed-saves work; the golden test proves its requests are unchanged."

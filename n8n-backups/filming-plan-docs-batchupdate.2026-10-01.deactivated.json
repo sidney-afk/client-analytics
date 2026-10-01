@@ -1,0 +1,68 @@
+{
+  "_backup_note": "Captured 2026-10-01 immediately before the workflow was deactivated (not deleted). The graph below is the whole workflow, two nodes, unchanged since it was created 2026-09-09; it holds no key (the Google Docs login is referenced by id and name only). Version 9eb8dc13-0435-4c90-b132-8c6682f8f66c. ROLLBACK: open the workflow in n8n and publish that version; nothing else to restore. Reason and evidence: docs/ops/N8N_EDIT_LOG.md, 2026-10-01 step E. Its only caller, the filming plan pipeline, writes through the pipeline-google function and the workflow had no runs after 2026-09-29 15:55 UTC. See ROLLBACK.md section 2.",
+  "name": "Filming Plan - Docs BatchUpdate (webhook)",
+  "id": "qR1Wgr71HTohlCzH",
+  "activeVersionId": "9eb8dc13-0435-4c90-b132-8c6682f8f66c",
+  "active_before": true,
+  "active_after": false,
+  "nodes": [
+    {
+      "name": "Docs Update Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "filming-plan-docs-update",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "name": "Docs BatchUpdate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.body.documentId }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"requests\": $json.body.requests } }}",
+        "options": {}
+      },
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "KDsy8yKWr0wRhLoA",
+          "name": "Google Docs account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Docs Update Webhook": {
+      "main": [
+        [
+          {
+            "node": "Docs BatchUpdate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  }
+}

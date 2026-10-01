@@ -53,6 +53,10 @@ function _calCompLinked(p, c) { return c !== 'graphic' || !!p.graphic_linked; }
 function _calKasperUrgentActive() { return false; }
 function _sxrKasperRenderQueue() {}
 function _kasperMarkSeenAt() {}
+function _kasperSetSaveAlert() {}
+function _kasperLocalFlagLive(v) { return typeof v === 'number' && Date.now() - v < 120000; }   // OPEN_REPAIRS 316: the shared browser-only mark window
+function _kasperUrgentSupersedes() { return false; }
+function _kasperPaintReview() {}
 let failOnce = false;
 function _sxrKasperPersist(it, patch) { if (failOnce) { failOnce = false; return Promise.reject(new Error('x')); } persisted.push(patch); return Promise.resolve(); }
 const _kasperState = { sxrRepairs: [] };

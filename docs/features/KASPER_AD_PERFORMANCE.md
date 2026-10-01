@@ -239,3 +239,86 @@ proven with a real test execution (`431479`) that correctly re-discovered and co
 leads. Both superseded revisions (`CdCYzye6Khp6x5A6`, `BKl9OFVMb4VS2IHf`) are archived; see
 `docs/truth/N8N.md` for the full supersession chain and both proof-executions' details. The
 workflow is published and live on the 2x/day cron.
+
+## 2026-10-01 audit: will the Doctors | Booked Calls | US | Sep 2026 campaign show up?
+
+Question: does the new Meta campaign `120251290817470573` (ad account `24069488506082034`; ads
+"Video | Guarantee" and "Video | Chiro 60K"; UTMs `utm_source=facebook&utm_medium=paid&
+utm_campaign=<campaign name>&utm_content=<ad name>`; booked on iClosed calendar
+`doctor-strategy-call`) appear in the panel? Read-only audit; nothing was changed in n8n.
+
+**Browser panel and Edge Function: no hard-coded campaign id or name filter.** Checked
+`src/index/321-kasper-dashboard-replies.js.part` (built into `js/sv-16-kasper-*.js`) and
+`supabase/functions/kasper-ad-performance-read/index.ts`. The campaign list for the selector is
+derived from `kasper_ad_campaign_daily` at read time, so a new campaign appears in the dropdown on
+its own; the lead tables are deliberately never filtered by it. The only stale item is cosmetic copy:
+the card subtitle still says "for the prospecting campaign". The unfinished-lead badge just
+capitalises `iclosed_status`, so `partial` renders as "Partial" with no code change.
+
+| Piece | Doctors campaign | Why |
+|---|---|---|
+| Spend, clicks, landing page views | Shows | `Pull Meta Insights` and `Pull Meta Insights By Ad` read the whole ad account, not one campaign id |
+| Campaign selector entry | Shows once spend rows exist | Derived from data |
+| Booked calls (daily, per campaign, per ad, lead list) | **Dropped** | n8n filters `utm_campaign !== 'prospecting'` |
+| Unfinished (partial) leads | **Dropped** | n8n `Pull Unfinished Leads` filters `utm_campaign = prospecting` |
+
+The capture side is already fine: `Sales — Booking Recovery Capture (iClosed)` (`31DnMJLU3YM89py1`)
+lists `doctor-strategy-call` in its `ACQUISITION` calendars, and `booking_recovery` already holds
+doctors rows (`iclosed_status = partial`, `calendar = doctor-strategy-call`).
+
+### Where the filter lives (workflow `2Ax4c78jgI7roXzv`, "Kasper Ad Performance — Daily Pull")
+
+Three places, all the literal `'prospecting'`:
+
+1. `Extract Lead Emails` (Code): `if (utmMap.utm_campaign !== 'prospecting') continue;` so doctors
+   emails never reach the HubSpot lookup.
+2. `Build Daily Rows` (Code): same test in the iClosed loop, so no booking is counted in the daily,
+   per-campaign or per-ad rows, and no lead row is written.
+3. `Pull Unfinished Leads` (Data Table `get`): filter `utm_campaign eq prospecting`.
+
+### Proposed smallest change (parts A and B applied 2026-10-01; part C NOT applied, see `docs/ops/N8N_EDIT_LOG.md`)
+
+Update: the partial lead part (C) failed its first live run because doctors rows hold the text `n/a-no-sms-consent` in `sms_sent_at`, which the timestamp column rejects. It was put back; `Map Unfinished Leads` must null that value first.
+
+No migration, no Edge Function change, no browser change. Edit the three nodes above.
+
+**A. One shared test**, pasted at the top of `Extract Lead Emails` and `Build Daily Rows`:
+
+```js
+const normUtm = (v) => decodeURIComponent(String(v || '').replace(/\+/g, ' ')).trim().replace(/\s+/g, ' ').toLowerCase();
+// Tracked = the original prospecting tag, or the doctors campaign (utm_campaign carries the campaign NAME).
+const isTrackedCampaign = (v) => { const s = normUtm(v); return s === 'prospecting' || s.startsWith('doctors | booked calls'); };
+```
+
+Then replace `utmMap.utm_campaign !== 'prospecting'` with `!isTrackedCampaign(utmMap.utm_campaign)` in both.
+(`decodeURIComponent` is wrapped in try/catch in the real node so a stray `%` cannot throw.)
+
+**B. Give doctors bookings a campaign id.** They carry no `utm_id`, and relying on the ad-name
+lookup alone is fragile (see risk 1). In `Build Daily Rows`, after `campaignNames` is filled, add
+`const campaignIdByName = {}; for (const [id, n] of Object.entries(campaignNames)) campaignIdByName[normUtm(n)] = id;`
+and change the id line to
+`const cid = String(utmMap.utm_id || '').trim() || campaignIdByName[normUtm(utmMap.utm_campaign)] || (fromAd ? fromAd.cid : '') || '';`
+Also return `campaignIdByName` next to `adCampaign` so `Map Unfinished Leads` can use it.
+
+**C. Partial leads.** In `Pull Unfinished Leads`, switch `matchType` to `anyCondition` with two
+conditions: `utm_campaign eq prospecting` OR `calendar eq doctor-strategy-call`. Calendar is the
+stable key (the partial-capture rows can have an empty `utm_campaign`). `Map Unfinished Leads`
+already drops `booked`, `disqualified` and `other_calendar`; add the same campaign fallback there:
+`campaign_id = hit ? hit.cid : (built.campaignIdByName[normUtm(r.utm_campaign)] || null)`.
+
+### Risks to check before applying
+
+1. **Ad-name collisions.** `kasper_ad_performance_by_ad_daily` is keyed `(date, ad_name)`. If either
+   doctors ad name also exists in another campaign, one row would overwrite the other. Measure with
+   a read-only Meta ad list before the first run. Not needed for the selector or the daily rows.
+2. **The campaign name in `utm_campaign` must match Meta's name exactly** (the match is
+   case and spacing insensitive). If the campaign is renamed in Meta, bookings tagged with the old
+   name stop attributing; the `startsWith` test keeps them counted in the all-campaigns rollup.
+3. **Existing test rows.** `booking_recovery` holds two doctors test rows from 2026-09-30
+   (`utm_source=test`). One is `completed` and would appear as an unfinished lead until deleted or
+   excluded; add `utm_source` containing "test" to the `Map Unfinished Leads` exclusion if wanted.
+4. **Trailing window.** The pull re-reads 8 days, so bookings made before the first changed run but
+   inside that window backfill automatically; older ones would need the one-off backfill workflow.
+5. After the edit, run once by hand and confirm: a new dropdown entry, a non-zero
+   `bookings_all` for the campaign on a day with a booking, and the doctors partial lead in the
+   Unfinished table. Keep the prior workflow version id for rollback.

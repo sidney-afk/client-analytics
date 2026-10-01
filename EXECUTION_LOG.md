@@ -6,7 +6,7 @@ All times are UTC unless noted.
 
 **Older entries are archived.** Entries more than 60 days old live word for word in [docs/ops/execution-log-archive/](docs/ops/execution-log-archive/), one file per month. Each one leaves a single "Archived entry" line below, in its original place, with a link and a fingerprint of the entry's exact text. Nothing in them was edited; `node scripts/ledger-archive.js log --check` proves it, and fails if an archived entry is later changed. Three entries older than 60 days stay in this file on purpose: the repo identity check refuses their lines as new text in a new file, and it has no exemption for a move between ledgers.
 
-## 2026-10-01 — Calendar overall status now moves with the bridge; 5 cards repaired (owner's go; OPEN_REPAIRS 316)
+## 2026-10-01 — Calendar overall status now moves with the bridge; 5 cards repaired (owner's go; OPEN_REPAIRS 317)
 
 `migrations/2026-10-01-calendar-overall-status-bridge.sql` applied by Lighthouse after the owner's go, about 19:10 UTC, in
 three steps (the two helper routines, then the trigger routine with a 5 s lock timeout, then the repair routine). Before the

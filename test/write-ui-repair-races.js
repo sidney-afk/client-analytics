@@ -191,6 +191,7 @@ async function sxrKasperCommentFirstCase() {
   vm.createContext(ctx);
   // 290 is a module: it stamps 280's self-echo time through this setter.
   vm.runInContext(extract('_sxrSetLastLocalWriteAt'), ctx);
+  vm.runInContext("if (typeof _sxrKasperReadFresh === 'undefined') globalThis._sxrKasperReadFresh = async () => ({}); if (typeof _kasperSetSaveAlert === 'undefined') globalThis._kasperSetSaveAlert = () => {}; if (typeof _kasperPaintReview === 'undefined') globalThis._kasperPaintReview = () => {}; if (typeof SXR_REVIEW_COMPONENTS === 'undefined') globalThis.SXR_REVIEW_COMPONENTS = ['video', 'graphic']; if (typeof computeSampleOverallStatus === 'undefined') globalThis.computeSampleOverallStatus = () => 'In Progress'; if (typeof COMP_LABELS === 'undefined') globalThis.COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };", ctx);
   vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
   await ctx._sxrKasperApplyAndPersist('card', 'video', value => {
     value.video_status = 'Tweaks Needed';
@@ -295,6 +296,7 @@ async function sxrKasperFreshCompanionExecutesStatusCase() {
   vm.runInContext(extract('_writeUiReconcileReplayStatus'), ctx);
   // 290 is a module: it stamps 280's self-echo time through this setter.
   vm.runInContext(extract('_sxrSetLastLocalWriteAt'), ctx);
+  vm.runInContext("if (typeof _sxrKasperReadFresh === 'undefined') globalThis._sxrKasperReadFresh = async () => ({}); if (typeof _kasperSetSaveAlert === 'undefined') globalThis._kasperSetSaveAlert = () => {}; if (typeof _kasperPaintReview === 'undefined') globalThis._kasperPaintReview = () => {}; if (typeof SXR_REVIEW_COMPONENTS === 'undefined') globalThis.SXR_REVIEW_COMPONENTS = ['video', 'graphic']; if (typeof computeSampleOverallStatus === 'undefined') globalThis.computeSampleOverallStatus = () => 'In Progress'; if (typeof COMP_LABELS === 'undefined') globalThis.COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };", ctx);
   vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
   vm.runInContext(extract('_sxrKasperUndecidedComps'), ctx);
 
@@ -381,6 +383,7 @@ async function kasperInvocationIsolationCase() {
     '_writeUiRemoveCompletedRepairRefs']) vm.runInContext(extract(name), ctx);
   // 290 is a module: it stamps 280's self-echo time through this setter.
   vm.runInContext(extract('_sxrSetLastLocalWriteAt'), ctx);
+  vm.runInContext("if (typeof _sxrKasperReadFresh === 'undefined') globalThis._sxrKasperReadFresh = async () => ({}); if (typeof _kasperSetSaveAlert === 'undefined') globalThis._kasperSetSaveAlert = () => {}; if (typeof _kasperPaintReview === 'undefined') globalThis._kasperPaintReview = () => {}; if (typeof SXR_REVIEW_COMPONENTS === 'undefined') globalThis.SXR_REVIEW_COMPONENTS = ['video', 'graphic']; if (typeof computeSampleOverallStatus === 'undefined') globalThis.computeSampleOverallStatus = () => 'In Progress'; if (typeof COMP_LABELS === 'undefined') globalThis.COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };", ctx);
   vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
 
   const video = ctx._sxrKasperApplyAndPersist('card', 'video', value => {

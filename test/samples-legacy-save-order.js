@@ -446,6 +446,7 @@ async function runKasperTweakCase({ gateway, saveOk }) {
   vm.runInContext(extract('_sxrPostLinearComment'), context);
   // 290 is a module: it stamps 280's self-echo time through this setter.
   vm.runInContext(extract('_sxrSetLastLocalWriteAt'), context);
+  vm.runInContext("if (typeof _sxrKasperReadFresh === 'undefined') globalThis._sxrKasperReadFresh = async () => ({}); if (typeof _kasperSetSaveAlert === 'undefined') globalThis._kasperSetSaveAlert = () => {}; if (typeof _kasperPaintReview === 'undefined') globalThis._kasperPaintReview = () => {}; if (typeof SXR_REVIEW_COMPONENTS === 'undefined') globalThis.SXR_REVIEW_COMPONENTS = ['video', 'graphic']; if (typeof computeSampleOverallStatus === 'undefined') globalThis.computeSampleOverallStatus = () => 'In Progress'; if (typeof COMP_LABELS === 'undefined') globalThis.COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };", context);   // OPEN_REPAIRS 316: the decision pre-check and alert seams (no fresh read here)
   vm.runInContext(extract('_sxrKasperApplyAndPersist'), context);
   await context._sxrKasperApplyAndPersist(pid, 'video', row => {
     const message = {

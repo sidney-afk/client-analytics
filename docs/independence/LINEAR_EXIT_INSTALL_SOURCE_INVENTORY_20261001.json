@@ -1920,7 +1920,7 @@
     {
       "id": "2026-10-01-calendar-overall-status-bridge.sql",
       "path": "migrations/2026-10-01-calendar-overall-status-bridge.sql",
-      "sha256": "5ff1b52bf0d6bdc4371781a4e4e37cc2ffdfd2d8bf8d249284908b2fe342ebf2",
+      "sha256": "8645936c04a452d5bc198dcba0974357c9358d459c32ed72a5a148429e51bf00",
       "bytes": 18616,
       "scope": "candidate_owner",
       "dependencies": [

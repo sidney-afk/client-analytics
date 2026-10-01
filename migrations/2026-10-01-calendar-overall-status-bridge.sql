@@ -61,7 +61,7 @@
 -- tgtype 17 and tgqual null (all unchanged here) AND by the md5 of the routine
 -- body found in migrations/2026-09-18-native-calendar-status-bridge.sql. The body
 -- changes here, so once this migration is applied live the preflight must be
--- re-pointed at THIS file for that one routine (see OPEN_REPAIRS 316). The two new
+-- re-pointed at THIS file for that one routine (see OPEN_REPAIRS 317). The two new
 -- routines below are not pinned yet, on purpose: a pin for a routine that is not
 -- live makes the preflight refuse a deploy.
 --

@@ -106,11 +106,11 @@ ok(/aliasId: '',/.test(adapter),
 
 /* ---- 2. Resolution: canonical first, alias second ----------------------- */
 
-const lookup = grabFunc('function _prodIssue(');
+const lookup = grabFunc('function _prodLookups(') + '\n' + grabFunc('function _prodIssue(');
 const sandbox = { rows: [] };
 vm.createContext(sandbox);
 vm.runInContext(
-  'function _prodIssues() { return rows; }\n' + lookup + '\nthis.find = _prodIssue;',
+  'const _prodLookupCache = new WeakMap();\nfunction _prodIssues() { return rows; }\n' + lookup + '\nthis.find = _prodIssue;',
   sandbox,
 );
 const find = sandbox.find;

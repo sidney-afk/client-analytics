@@ -95,6 +95,12 @@ function harness(opts) {
     function _prodAdapter(x) { return { rows: x.deliverables }; }
     function _prodScopeSignatures() { return new Map(); }
     function _prodInvalidateScopedReadsFor() {}
+    /* Added 2026-10-01: a load can start the finished-items read beside the
+       live one and hand it to the tail. None is held here, so the tail reads
+       for itself exactly as these cases always drove it; the held-read path
+       is covered in test/prod-tail-prefetch.js. */
+    function _prodTakeTailPrefetch() { return null; }
+    function _prodReconcileSince() {}
     const Date_now = () => 0;
     async function _prodLoadDeliverableProjection() {
       calls.projection++;

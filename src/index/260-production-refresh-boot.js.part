@@ -147,7 +147,11 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if (_prodState.refreshInFlight) return null;
             if (_prodState.writes && _prodState.writes.size) return null;
             if (!opts.force && _prodRefreshBusy()) return null;
-            const watermark = _prodDeliverableWatermark(_prodState.deliverables);
+            // `opts.since` replaces the watermark for the one catch-up read that
+            // follows an overlapped load (see _prodStartTailPrefetch).
+            const watermark = opts.since && !opts.full
+                ? String(opts.since)
+                : _prodDeliverableWatermark(_prodState.deliverables);
             const needsFull = !!opts.full
                 || !watermark
                 || (Date.now() - Number(_prodState.lastFullSyncAt || 0)) >= PROD_FULL_RECONCILE_MS;

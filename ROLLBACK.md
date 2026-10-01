@@ -1440,3 +1440,14 @@ poll, without disabling Production:
   flag, table, Edge Function or n8n change.
 - The only new network call is a read-only, single-row name lookup that times
   out on its own; reverting removes it.
+
+## 2026-10-01 - inverse for the SyncLinear speed changes (browser only; OPEN_REPAIRS 314)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). It adds no flag, table, Edge Function
+  or n8n change, and no request the page did not already make, except one small catch-up read after the
+  finished items land (rows changed in the last 30 s plus load time, normally none).
+- **One browser, no deploy:** `?split=0` loads the single-file page, which carries the same code, so it is not
+  a way back from this change. There is no switch for it by design: the changes only move WHEN requests are
+  sent and how lookups are built, and the rendered page is identical (1,642 rows compared).
+- **Check after a revert:** the Linear tab loads as before (first rows about 1.1 s warm); the finished-items
+  read starts after the first paint again (a `status=in.(approved,...)` request begins after the live pages).

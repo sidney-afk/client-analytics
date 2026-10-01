@@ -643,7 +643,10 @@
     "caption-jobs-page-wiring.js",
     "instagram-upload-source.js",
     "kasper-filming-tab-source.js",
-    "prod-subissue-parent-name.js"
+    "prod-subissue-parent-name.js",
+    "synclinear-early-read.js",
+    "prod-tail-prefetch.js",
+    "prod-lookup-equivalence.js"
   ],
   "profiles": [
     {

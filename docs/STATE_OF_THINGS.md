@@ -1,5 +1,7 @@
 # State of things
 
+Find any running piece and its owner in the [SyncView Atlas](ATLAS.md).
+
 **Read this first.** One short, true list of what is open, what is switched off on
 purpose, and what is already done even though an older doc still calls it open.
 Every line below was checked against the live system on **2026-09-26** (read-only
@@ -187,12 +189,7 @@ hiring senders when the editor hire closes.
   because of load order), and re-run `prod-boot-budget.js` on a machine with
   the live backend first.
 
-- **Instagram upload is built but not switched on (2026-09-30, OPEN_REPAIRS 301).** The TikTok Upload
-  tab has a TikTok / Instagram switch; the Instagram side runs on a new Supabase function, no n8n. To
-  switch on (the table was created 2026-09-30, `migrations/2026-09-30-instagram-uploads.sql`): set the `POST_FOR_ME_API_KEY` secret,
-  deploy `instagram-upload` (`deploy-single-function.yml`), add the Clients Info column
-  `postforme_instagram_account_id`. Only the test client can post until
-  `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS` is widened. Steps: `docs/ops/INSTAGRAM_UPLOAD.md`.
+- **Instagram upload is deployed; real post proof remains separate (Atlas read-only verification, 2026-09-30).** The live catalog has `instagram-upload` v3 and `instagram_uploads`; configured secret names include `POST_FOR_ME_API_KEY` and `INSTAGRAM_UPLOAD_ALLOWED_CLIENTS`. The account-ID Sheet column and a successful real Reel were not verified by Atlas. Source defaults restrict admission when the allowlist is unset; actual allowed-client values were not published. Keep wider rollout owner-gated. Steps: `docs/ops/INSTAGRAM_UPLOAD.md`.
 
 ## Needs a session
 

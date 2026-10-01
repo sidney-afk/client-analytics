@@ -22,6 +22,7 @@
     "asset-access-any-team.js",
     "asset-evidence-reuse.js",
     "asset-probe-url-policy.js",
+    "atlas-sync.js",
     "assurance-ledger-freshness.js",
     "assurance-ledger-staleness.js",
     "attribution-absent-slug-not-conflict.js",

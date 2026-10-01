@@ -278,7 +278,7 @@ async function productionContext(browser, config, identity, state, admin) {
       if (
         method !== 'POST'
         || String(body?.member?.id || '') !== identity.id
-        || !exactObjectKeys(body, ['surface', 'member'])
+        || !exactObjectKeys(body, ['surface', 'key', 'member'])
         || !exactObjectKeys(body.member, ['id'])
       ) return block();
       return route.continue();

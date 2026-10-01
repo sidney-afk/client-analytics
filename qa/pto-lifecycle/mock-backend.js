@@ -1036,7 +1036,8 @@ async function createMockBackend(options = {}) {
         if (method !== 'POST') {
           return fulfill(route, response(405, { ok: false, error: 'method_not_allowed' }));
         }
-        const key = clean(request.headers()['x-syncview-key'], 5000);
+        // The page sends the check as a simple request: the key is in the body, with no custom header.
+        const key = clean(request.headers()['x-syncview-key'] || (body && body.key), 5000);
         const memberId = clean(body && body.member && body.member.id, 80);
         const persona = Object.values(TEST_PERSONAS).find(candidate =>
           candidate.key === key

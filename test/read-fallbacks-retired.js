@@ -12,7 +12,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+// The page is built from src/index/ fragments, and part of it ships as lazy
+// bundles rather than inline in index.html, so read the fragments: they are
+// the whole page source.
+const SRC_DIR = path.resolve(__dirname, '..', 'src', 'index');
+const INDEX = fs.readdirSync(SRC_DIR).filter(f => f.endsWith('.part')).sort()
+  .map(f => fs.readFileSync(path.join(SRC_DIR, f), 'utf8')).join('\n');
 let checks = 0, failures = 0;
 function ok(condition, message) {
   checks++;
@@ -116,7 +121,7 @@ function world(readImpl) {
 
   // --- the page no longer names the three webhooks at all ---
   for (const hook of ['webhook/calendar-get', 'webhook/sample-review-get', 'webhook/kasper-queue']) {
-    ok(!INDEX.includes(hook), 'index.html has no ' + hook + ' call');
+    ok(!INDEX.includes(hook), 'the page source has no ' + hook + ' call');
   }
   ok(!/CALENDAR_GET_URL|SXR_GET_URL|KASPER_QUEUE_URL/.test(INDEX), 'the three URL constants are gone');
 

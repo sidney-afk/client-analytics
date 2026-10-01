@@ -112,7 +112,7 @@ if (!haveServer) {
   };
   const one = (q) => psql('t', q);
   try {
-    const init = as(path.join(PG_BIN, 'initdb'), ['-D', data, '-A', 'trust']);
+    const init = as(path.join(PG_BIN, 'initdb'), ['-D', data, '-U', 'postgres', '-A', 'trust']);
     assert.equal(init.status, 0, 'initdb failed: ' + init.stderr);
     const start = as(path.join(PG_BIN, 'pg_ctl'), ['-D', data, '-o', `-p ${port} -k ${base} -c listen_addresses=''`,
       '-l', path.join(base, 'log'), '-w', 'start']);

@@ -47,9 +47,9 @@ service key" (header `X-Roster-Key`).
 |---|---|---|
 | Onboarding: Append Client Row | Two Sheet nodes (Clients Info, Social Media Managers). The webhook has no authentication. Has never run (no retained execution). | One call to `roster-write` `upsert_client` with the manager. Also adds the missing `postforme_instagram_account_id` and drops `linear_api_key` from its mapping. |
 | Slack Creative Channel Finalizer (every 15 minutes) | Reads Clients Info and Social Media Managers; writes `creative_channel_id`; reads it back | `roster-read` for both reads; `roster-write` `set_client_fields` with the "still empty" check; read back from `roster-read`. About 96 runs a day stop reading the Sheet. |
-| CLIENTS METRICS | Reads Clients Info (two nodes, one a disabled copy) | `roster-read` clients. **Harbor owns this workflow's Metrics and PostTracking writer; this plan touches only the Clients Info read, so the two edits do not collide.** |
-| TOP VIDEOS | Reads Clients Info | `roster-read` clients |
-| MARKET RESEARCH | Reads Clients Info (a Sheets node and two CSV downloads) | `roster-read` clients (csv) |
+| CLIENTS METRICS | Reads Clients Info (two nodes, one a disabled copy) | **No edit from this plan.** Harbor's PR (daily metrics job in our own Edge Function, shadow first) reads the roster from `client_profiles`, so n8n's Clients Info read goes away with the n8n job. Until n8n is switched off it keeps reading the Sheet, which stays a faithful copy. |
+| TOP VIDEOS | Reads Clients Info | **Harbor's next step** (its Top Videos port reads `client_profiles` too). Edit here only if that port is not ready when the switch happens: then `roster-read` clients. |
+| MARKET RESEARCH | Reads Clients Info (a Sheets node and two CSV downloads) | `roster-read` clients (csv), unless Harbor's Market Research port lands first |
 | Clients: Content Ready Notify | Reads one client's row | `roster-read` clients with `client_name` |
 | SMM Reports: Manager Sync | Daily; reads the managers tab; sends names, emails, client lists | Before the switch: send the Slack id too, to `roster-write` `sync_managers`. After the switch: switch it off. |
 | VIDEO PRODUCTION AUTOMATION | Three CSV downloads of the managers tab; one code step also reads `linear_api_key` (dead, Linear is cancelled) | `roster-read` managers (csv); drop the Linear step |
@@ -97,17 +97,20 @@ nothing. Docs that tell people to fill it in are corrected in this PR.
   its first-seen date, views yesterday and views today. CLIENTS METRICS reads it
   each run to work out "views gained today" (today minus yesterday, per post) and
   writes the new numbers back. Nothing else reads it: no page, no other
-  workflow. It is working memory for that one job, not reporting data. Harbor is
-  moving the CLIENTS METRICS writer; PostTracking should move with it (into a
-  database table that job reads), and nothing here duplicates that.
-- **PTO Accrual Tracker:** nothing reads it. The Time Off page and the `pto`
+  workflow. It is working memory for that one job, not reporting data. Harbor's
+  PR (`docs/plans/2026-10-01-n8n-off-analytics.md`) already moves it: a table
+  `analytics_post_tracking`, seeded from the tab (5,648 usable rows, the same count
+  as above), written in the same transaction as the day's row. So PostTracking is
+  Harbor's and this plan does nothing for it; the tab stops being updated once
+  n8n's job is off. Harbor's job reads `client_profiles` (keep `archived_at is null`
+  as the rule for a current client); after the switch that table is edited natively,
+  so its roster stays right with no Sheet in the loop.
+- **PTO Accrual Tracker:** archived 2026-10-02 (owner's go): moved, not deleted, into a new `Archive` folder at the top of the Drive; undo by dragging it back. Nothing reads it. The Time Off page and the `pto`
   function use the database (10 members, 13 requests, 9 adjustments); no n8n
-  workflow references the file; the PTO handoff doc already says to delete that
-  interim Sheet after two clean weeks. The owner decides; out of this scope.
-- **Project Central:** the owner decided to archive it. It has its own workbook
-  and one n8n workflow that clears and rewrites the whole sheet on each save
-  (F123). Archiving means unpublishing that workflow, which is an n8n edit and
-  waits for the owner's go.
+  workflow references the file; the PTO handoff doc said to retire that interim Sheet.
+  Deleting it for good stays the owner's call.
+- **Project Central:** archived 2026-10-02 (owner's go): its n8n workflow is unpublished
+  (not deleted; undo and version in `docs/ops/N8N_EDIT_LOG.md`). The workbook is untouched.
 
 ## Findings from checking every reader against the one Sheet
 

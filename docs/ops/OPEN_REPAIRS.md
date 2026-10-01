@@ -30233,3 +30233,7 @@ Found by the Gauntlet audit, which ran the real page code against a mocked backe
 **Not done.** Not merged or deployed. Samples caption/status conflict notice, Production status retry, Calendar name/CTA/date conflict checks, and reply drafts on the Calendar note modal (still tab-only) are not built.
 
 Update 2026-10-01 (entry 317): applied live by Lighthouse after the owner's go; the repair corrected 5 cards and a rerun lists 0; the deploy preflight now pins `production_native_calendar_status_project` to the new file. Details in EXECUTION_LOG.md.
+
+## 319. [2026-10-01] Today: "Dates to move" counts only To Do work
+
+Owner request, 2026-10-01. The SMM and admin Today ring "Dates to move" listed every open work item with a past due date except those at SMM approval, so in-progress items and tweaks were counted too. Only To Do items are placed on Workload by their due date, so only those are stranded by a past date; a tweak or an approval already sits in its own queue. The filter in `_tdyJobs` (`src/index/097-today.js.part`) now keeps `status === 'todo'` only. Test: `test/today-render.js` adds a case (To Do, in progress, tweak and SMM approval, all past due) that lists only the To Do item; it fails on the previous code (it listed three). Page change only; no database or function change. Number 319 skips 317 and 318, which PR 1915 claims.

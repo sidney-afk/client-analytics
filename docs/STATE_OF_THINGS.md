@@ -30,6 +30,8 @@ here with where it stopped, so it can be restarted.
   admin tab is the start of its replacement. The owner will improve that UI.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
 - **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
+  The measured picture of how a client is onboarded today (every step, every per-client resource with
+  counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
   (item 7).
 - **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at

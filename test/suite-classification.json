@@ -583,6 +583,7 @@
     "track-b-recovery-v7-preparation.js",
     "truth-sync.js",
     "urgent-editor-website-only.js",
+    "urgent-ping-fresh-round.js",
     "urgent-ping-persistence.js",
     "video-artifact-rollback-record.js",
     "workload-early-snapshot.js",
@@ -647,7 +648,10 @@
     "caption-jobs-page-wiring.js",
     "instagram-upload-source.js",
     "kasper-filming-tab-source.js",
-    "prod-subissue-parent-name.js"
+    "prod-subissue-parent-name.js",
+    "synclinear-early-read.js",
+    "prod-tail-prefetch.js",
+    "prod-lookup-equivalence.js"
   ],
   "profiles": [
     {

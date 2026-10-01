@@ -219,8 +219,7 @@ import {
         document.getElementById('confirmOverlay').classList.add('active');
         const yesBtn = document.getElementById('confirmYes');
         yesBtn.textContent = yesLabel || 'Confirm';
-        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
-        if (cancelBtn) cancelBtn.style.display = '';
+        _confirmResetCancel();
         const checkWrap = document.getElementById('confirmCheckWrap');
         const check = document.getElementById('confirmCheck');
         if (checkboxLabel) {
@@ -236,17 +235,33 @@ import {
     function dismissConfirm() {
         document.getElementById('confirmOverlay').classList.remove('active');
         _confirmCb = null;
-        // restore cancel button if it was hidden for notify mode
-        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
-        if (cancelBtn) cancelBtn.style.display = '';
+        // restore cancel button if it was hidden (or turned into an action) for notify mode
+        _confirmResetCancel();
         document.getElementById('confirmCheckWrap').hidden = true;
     }
-    function showNotify(title, msg) {
+    /* The secondary button is "Cancel" for a confirm, hidden for a plain notice,
+       and the notice's one optional action (see showNotify). Every opener and
+       dismisser puts it back to Cancel so a notice's action label never leaks
+       into the next confirm. */
+    function _confirmResetCancel() {
+        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
+        if (cancelBtn) { cancelBtn.style.display = ''; cancelBtn.textContent = 'Cancel'; cancelBtn.onclick = dismissConfirm; }
+        return cancelBtn;
+    }
+    /* A notice with one OK button. `opts.actionLabel` + `opts.onAction` add a
+       second button beside it (for example "Refresh this card"); clicking it
+       closes the notice first and then runs the action. */
+    function showNotify(title, msg, opts) {
         document.getElementById('confirmTitle').textContent = title;
         document.getElementById('confirmMsg').textContent = msg;
         document.getElementById('confirmCheckWrap').hidden = true;
-        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
-        if (cancelBtn) cancelBtn.style.display = 'none';
+        const cancelBtn = _confirmResetCancel();
+        if (cancelBtn) {
+            if (opts && opts.actionLabel && typeof opts.onAction === 'function') {
+                cancelBtn.textContent = opts.actionLabel;
+                cancelBtn.onclick = () => { dismissConfirm(); try { opts.onAction(); } catch (e) { console.warn('[SyncView] notice action failed:', e); } };
+            } else cancelBtn.style.display = 'none';
+        }
         const yesBtn = document.getElementById('confirmYes');
         yesBtn.textContent = 'OK';
         yesBtn.onclick = dismissConfirm;

@@ -250,6 +250,10 @@ function makeTail() {
     _prodInvalidateScopedReadsFor: () => {},
     _prodApplyDeepLinkFallback: () => {},
     _prodRender: () => {},
+    // Added 2026-10-01: no read is held beside the live one here, so the tail
+    // reads for itself as this suite always drove it (held-read path:
+    // test/prod-tail-prefetch.js).
+    _prodTakeTailPrefetch: () => null,
     __next: [],
   };
   sandbox.window = sandbox;

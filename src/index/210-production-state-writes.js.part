@@ -359,6 +359,8 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             // the approved/posted/archived tail is still arriving behind the
             // live board.
             terminalTailPending: false,
+            // Set by an overlapped load; the next refresh starts from it (see _prodStartTailPrefetch).
+            catchUpSince: '',
             /* The tail RAN and did not deliver. Distinct from pending, and the
                distinction is the whole of OPEN_REPAIRS 108's fifth round: a tail
                that FAILED establishes nothing, so an id it could not resolve is
@@ -877,7 +879,37 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
         function _prodSleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
+        /* The <head> boot script starts the FIRST PAGE of the batches and live
+           deliverables reads as soon as the staff check passes
+           (window.__svEarlyProd, keyed by the exact URL; see the block after
+           Today's in the head). Take one at most once, only inside the first
+           minute, only for the member and key it was started for, and only
+           while this page holds a verified identity. Returns the in-flight
+           Response promise, or null; a miss just means the normal read runs, so
+           this can only change WHEN a request is sent, never what is asked. */
+        function _prodTakeEarlyRead(url) {
+            let early = null;
+            try { early = window.__svEarlyProd; } catch (x) {}
+            if (!early || !early.reads || !early.reads[url] || !(Date.now() - early.at < 60000)) return null;
+            const identity = _syncviewStaffIdentityForHeaders();
+            if (!identity || !identity.member || String(identity.member.id) !== early.memberId
+                || String(identity.key) !== early.key) return null;
+            const taken = early.reads[url];
+            delete early.reads[url];
+            return taken;
+        }
         async function _prodRestPage(url, table, page) {
+            if (page === 0) {
+                const early = _prodTakeEarlyRead(url);
+                if (early) {
+                    try {
+                        const answer = await early;
+                        // Only a genuine answer is reused; a refusal or a server
+                        // error is re-asked below, with its normal handling.
+                        if (answer && answer.ok) return await answer.json();
+                    } catch (e) { /* the normal read below */ }
+                }
+            }
             let lastErr = null;
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {

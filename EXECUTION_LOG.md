@@ -6,6 +6,20 @@ All times are UTC unless noted.
 
 **Older entries are archived.** Entries more than 60 days old live word for word in [docs/ops/execution-log-archive/](docs/ops/execution-log-archive/), one file per month. Each one leaves a single "Archived entry" line below, in its original place, with a link and a fingerprint of the entry's exact text. Nothing in them was edited; `node scripts/ledger-archive.js log --check` proves it, and fails if an archived entry is later changed. Three entries older than 60 days stay in this file on purpose: the repo identity check refuses their lines as new text in a new file, and it has no exemption for a move between ledgers.
 
+## 2026-10-01 — Calendar overall status now moves with the bridge; 5 cards repaired (owner's go; OPEN_REPAIRS 316)
+
+`migrations/2026-10-01-calendar-overall-status-bridge.sql` applied by Lighthouse after the owner's go, about 19:10 UTC, in
+three steps (the two helper routines, then the trigger routine with a 5 s lock timeout, then the repair routine). Before the
+apply the live `production_native_calendar_status_project` body md5 was `e37dd97bae5735c3130a4774641ccf82`, the value the
+deploy preflight pinned. Read back after: `production_native_calendar_status_norm` `ff2e9a4b84c1f9668dd982105501209c`,
+`production_native_calendar_overall_status` `b723a160d4f2c8441c87fcda9c07c8d8`, `production_native_calendar_status_project`
+`8177b7005675f0537ce44bfad0a3ee2d`, `production_native_calendar_overall_status_repair` `25d227d63577533b7578e7f3104f2ef4`,
+each equal to the committed file. Repair dry run listed 5 linked, non-archived cards whose overall disagreed with their parts
+(2 Approved to Posted with all three parts Posted, 1 Kasper Approval to Client Approval, 1 In Progress to Tweaks Needed,
+1 Tweaks Needed to In Progress); applied, 5 of 5 written with an `overall_status_change` event each; a rerun lists 0. The
+preflight now points this routine at the new file. **Way back:** the rollback block at the bottom of the migration (restore
+the 2026-09-18 trigger body, drop the three new routines); corrected overall values stay, they match their parts.
+
 ## 2026-10-01 — analytics_mirror_read_enabled set to {"enabled": true} (owner's go; plan step 6)
 
 The scheduled "Sheets mirror daily copy and parity" run of 2026-10-01 (started 16:31 UTC, run 36892689003) was green and
@@ -6745,3 +6759,17 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
   empty answer shows "Untitled post" / "Untitled issue".
 - No write path, gateway, role or authority check changed. Browser only.
 - Test: `test/prod-subissue-parent-name.js`.
+
+## 2026-10-01 - SyncLinear speed: measured on the live site, three changes, same page (session Comet, OPEN_REPAIRS 314)
+
+- Measured first, cold and warm, on the live site as admin staff: rows on screen about 1.1 s warm and 3.0 to
+  4.9 s cold; fresh data 3.5 s warm; the complete list 7.9 s in; 78 requests and 3.25 MB cold, 71 and 2.37 MB warm.
+  The tab was already quick to use; it was slow to finish. The 09-24 speed map measured first content only.
+- Changes: the finished-items read starts beside the live read, with a catch-up point the next refresh starts from for rows that moved during
+  the overlap; page one of the two big reads starts when sign-in passes (head script, waits for the check);
+  lookup tables for the per-row issue scans and a per-second memo for the policy day.
+- Same rig, interleaved: cold first rows 3.69 to 3.15 s, complete list 8.24 to 5.85 s; warm fresh data
+  3.46 to 3.16 s, complete list inside 5.3 s. 1,642 rendered rows compared old against new: 0 differences.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/synclinear-early-read.js`, `test/prod-tail-prefetch.js`, `qa/boot/staff-entry-gate.js` (Linear tab cases).
+- Record and owner decisions: `docs/audits/2026-10-01-synclinear-speed.md`.

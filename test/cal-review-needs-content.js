@@ -397,6 +397,8 @@ const ALL_EXEMPT = {
   _calTogglePostPlatform: "clears title_status to '' when YouTube is removed; clearing is not sending",
   _sxrKasperUndoApprove: 'restores the status a component held moments ago -- gating a revert would strand an undo; the state it restores existed',
   _writeNativeSubmissionCardsToCalendar: 'creates every card at In Progress',
+  _urgentAdoptRoundColumns: "copies only the *_status_at round stamps (and a newer urgent-ping marker group) from a freshly read row, and only for the status the card already shows; it never writes a status",
+  _urgentRefreshCard: "the 'Refresh this card' button after a refused urgent ping: adopts the server's CURRENT row into the card, authoritative state and not a person's choice; unsaved typed edits are laid back over it",
   _writeUiAdoptReplayStatus: "adopts the gateway's CURRENT native row into the card shadow -- authoritative state, not a person's choice",
   _writeUiApplyJournalEdits: 'replays edits that were gated when they were staged -- KNOWN GAP for entries journaled before the gate existed, a finite historical population',
   _writeUiLegacyReconcileCommittedTweak: 'restores gate.intended_status recorded by a gated path after the gateway confirmed it',

@@ -78,6 +78,8 @@ function build(rows) {
     + extract('_prodWriteTeam') + '\n'
     + extract('_prodChildTeamRank') + '\n'
     + extract('_prodChildOrder') + '\n'
+    + constant('_prodLookupCache') + '\n'
+    + extract('_prodLookups') + '\n'
     + extract('_prodChildrenOf') + '\n'
     + 'return _prodChildrenOf;';
   const childrenOf = new Function('_prodIssues', body)(() => rows);

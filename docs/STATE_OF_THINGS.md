@@ -174,12 +174,6 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
-- **SyncLinear: two speed decisions (2026-10-01, `docs/audits/2026-10-01-synclinear-speed.md` section 6).**
-  (a) The saved copy lives 24 hours; after that the tab opens cold (rows at 3 to 5 s instead of 1.1 s). Raising
-  it (for example 7 days) makes most "first open of the day" cases warm; it changes what is shown for the first
-  second. (b) Every warm open still downloads 2.37 MB because the saved copy leaves out finished rows; keeping
-  them in the browser's larger store and reading only what changed would drop about 1.2 MB and the 0.75 s
-  end-of-load freeze. It reverses a documented choice. Neither was done.
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
   dispatchers (interview invite, practical test) are still active and run every
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).
@@ -265,6 +259,11 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
+- **Opening an item is faster, and the two SyncLinear saved-copy decisions are done (2026-10-01, OPEN_REPAIRS 323, PR open
+  until merged).** The saved list lives 7 days; finished rows are kept in the browser's larger store and a boot reads only
+  what changed (hourly full pass kept); a link at a finished batch shows its title in about 1.5 s warm instead of 5.3 s;
+  new-tab links skip a redirect; SyncLinear rows start their reads when you hover. The staff check (about 1.0 s) is the
+  floor under every new-tab open and was not touched. Record: `docs/audits/2026-10-01-open-item-speed.md`.
 - **Kasper review board: a refused decision is no longer quiet, and the board says what it shows (2026-10-01,
   OPEN_REPAIRS 316, PR open until merged).** A refused save is re-read and re-applied only when nobody changed the part;
   otherwise a "not saved" alert stays until he acts. Returned cards say "Sent back to you", urgent cards say who and when,

@@ -719,9 +719,9 @@ import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
         const openIdent = soleSubIdent || parentIdent;
         const openIsParent = !soleSubIdent && !!(parentIdent || nativeBatchId);
         const parentSyncUrl = openIsParent && nativeBatchId
-            ? svRoute.clean('/?prod=1&batch=' + encodeURIComponent(nativeBatchId))
+            ? svRoute.fast('/?prod=1&batch=' + encodeURIComponent(nativeBatchId))
             : openIdent
-                ? svRoute.clean('/?prod=1&d=' + encodeURIComponent(openIdent))
+                ? svRoute.fast('/?prod=1&d=' + encodeURIComponent(openIdent))
                 : '';
         const openLabel = openIsParent ? 'Open parent →' : 'Open SyncView →';
         // The Linear escape hatch follows the primary target rather than

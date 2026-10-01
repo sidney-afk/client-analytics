@@ -207,7 +207,7 @@ ok(/if \(issue\.syntheticBatchParent === true\)/.test(ensureDescription)
   && ensureDescription.indexOf('syntheticBatchParent') < ensureDescription.indexOf('_syncviewStaffIdentityForHeaders'),
 'the description reader short-circuits for a batch parent before any authenticated read');
 ok(/if \(loadIssue && loadIssue\.syntheticBatchParent === true\) \{/.test(source)
-  && /status: 'ready', items: \[\], cursor: null, hasMore: false,\n\s*loadingMore: false, moreError: '', clientSurface: null,\n\s*clientSurfaceVerified: false\n\s*\}\);\n\s*repaint\(\);/.test(source),
+  && /status: 'ready', items: \[\], cursor: null, hasMore: false,\n\s*loadingMore: false, moreError: '', clientSurface: null,\n\s*clientSurfaceVerified: false\n\s*\}\);\n\s*repaint\(id\);/.test(source),
 'the comment thread renders its empty state for a batch parent instead of the scope error');
 ok(/filming_plan: String\(node\.batch\.filming_doc_url \|\| ''\)/.test(adapter)
   && /raw_footage: String\(node\.batch\.footage_folder_url \|\| ''\)/.test(adapter)

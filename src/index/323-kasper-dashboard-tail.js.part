@@ -144,7 +144,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         ).join('');
         const draft = item._replyDraft || '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
-        const calUrl = svRoute.clean(`/#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`);
+        const calUrl = svRoute.fast(`/#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`);
         return `<div class="kasper-replies-card" data-kasper-replies-pid="${_calEscAttr(pid)}">
             <div class="kasper-replies-head">
                 ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}

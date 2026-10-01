@@ -58,8 +58,14 @@ export const CLIENT_LINK_PROFILE_FIELDS = Object.freeze(['slug', 'display_name',
 
 export const WRITE_SOURCES = Object.freeze(['n8n', 'sheet-copy', 'sheet-backfill']);
 
+// n8n's Google Sheets node hands the mirror an empty cell as the two characters
+// "" (found 2026-10-01: yt_shorts_views / yt_longs_views of clients with no
+// YouTube), while the Sheet itself, read back by the copy job, has the cell
+// empty. Same row, two fingerprints, so every such day was stored twice and
+// the daily parity went red. A value that is only a pair of quotes is empty.
 function clean(v) {
-  return String(v == null ? '' : v).trim();
+  const t = String(v == null ? '' : v).trim();
+  return t === '""' ? '' : t;
 }
 
 // Same rule as client-token-verify and the page's wlNormalizeClient.

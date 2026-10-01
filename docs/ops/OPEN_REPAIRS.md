@@ -30097,3 +30097,13 @@ Status: webhook `slack-creative-finalize` and a once a day safety check are live
 Measured: 705 timer runs found nothing; the queue holds 3 rows, all `manual`, none pending since 2026-09-03.
 Found while reading: the runbook said only `creative_channel_id` blocks a run; the workflow also stops on a set `slack_channel_id`. The runbook now says both. Also the timer path picks only the oldest pending row, so a client waiting for a manager's Slack id holds up every newer client; the webhook picks by client name and the daily check calls it per row, so neither has that problem.
 Not proven: the ready path through the webhook (no real channels were created for the test).
+
+## 307. [2026-10-01] Analytics mirror: 20 Metrics days stored twice (n8n and the copy job fingerprinted one row two ways)
+
+Status: code fix and dedupe migration written, NOT yet applied or deployed; both need the owner's go (Lighthouse applies).
+Found: the daily "Sheets mirror daily copy and parity" check was red with 20 differences. For 10 clients on each of 2026-09-29 and 2026-09-30, `analytics_metrics` held two rows (source `n8n` and `sheet-backfill`) with different `row_hash`. Measured: in all 20 pairs the only differing columns are `yt_shorts_views` and `yt_longs_views`, which n8n stored as the two characters `""` and the Sheet (so the copy job) has empty.
+Cause: the CLIENTS METRICS "Mirror to Supabase" node forwards the output of "Write to Sheet", where an empty cell arrives as `""`. The fingerprint hashes trimmed text, so `""` and empty differ.
+Fix at the cause (not n8n): `clean()` in `supabase/functions/_shared/sheets-mirror.mjs` reads a value that is only a pair of quotes as empty, for both writers and the parity check. Tests in `test/sheets-mirror-policy.js`. Needs the next `analytics-write` deploy to take effect for new n8n rows; until then each n8n run with a YouTube-less client writes a new twin.
+Cleanup: `migrations/2026-10-01-analytics-metrics-dedupe-quoted-empty.sql` keeps the sheet-backfill row (its fingerprint equals the Sheet's), copies each of the 20 removed rows whole into `analytics_metrics_dedupe_log`, refuses to run unless exactly 20 match, and has an undo. Dry run on live (read only): rule matches exactly 20 rows, 20 client-days.
+Page: never double counts a day. `_buildHistories` and `clientHistory` keep one row per client per day (last by arrival); new `test/analytics-same-day-rows-count-once.js` proves it on the real functions.
+Parity: against the live database as it is, `PARITY: 20 difference(s)`; against the database as it would be after the delete, `PARITY: clean`. The live delete is still to do.

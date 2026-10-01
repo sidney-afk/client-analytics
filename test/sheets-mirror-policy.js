@@ -42,6 +42,22 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
     'the fingerprint ignores surrounding spaces and unknown columns');
   ok(h1 !== await m.rowHash('metrics', { ...a, ig_followers: '11' }), 'a changed value is a different row');
   ok(h1 !== await m.rowHash('top_videos', a), 'the same values in another dataset are a different row');
+  // n8n sends an empty cell as the two characters "" while the Sheet copy has it
+  // empty: they must fingerprint, and be stored, as the same row (2026-10-01).
+  const emptyYt = { ...a, yt_shorts_views: '', yt_longs_views: '' };
+  const quotedYt = { ...a, yt_shorts_views: '""', yt_longs_views: ' "" ' };
+  ok(await m.rowHash('metrics', emptyYt) === await m.rowHash('metrics', quotedYt),
+    'a cell that is only two quote marks has the same fingerprint as an empty cell');
+  const prepared = await m.prepareRows('metrics', [quotedYt], { source: 'n8n', runId: 'r1' });
+  ok(prepared.records[0].yt_shorts_views === null && prepared.records[0].yt_longs_views === null,
+    'a cell that is only two quote marks is stored empty, not as the two characters');
+  ok(await m.rowHash('metrics', { ...a, ig_followers: '""' }) !== await m.rowHash('metrics', { ...a, ig_followers: '' }),
+    'two quote marks in any other column are a real value, not an empty cell');
+  const tv = { scraped_date: '2026-09-30', client_name: 'Probe Client', platform: 'tiktok', caption: '""' };
+  ok((await m.prepareRows('top_videos', [tv], { source: 'n8n', runId: 'r1' })).records[0].caption === '""',
+    'a caption that is two quote marks is kept as written');
+  ok(await m.rowHash('metrics', { ...a, yt_shorts_views: '"0"' }) !== await m.rowHash('metrics', emptyYt),
+    'a real value that merely contains quote marks is still a different row');
 
   const { records, rejected } = await m.prepareRows('metrics',
     [a, a, { ...a, ig_followers: '11' }, { ...a, date: 'yesterday' }, { ...a, client_name: '' }, { ...a, new_col: 'x' }],

@@ -11,6 +11,7 @@
     "a4-settings-edge-source.js",
     "analytics-cache-quota.js",
     "analytics-overview-roster.js",
+    "analytics-same-day-rows-count-once.js",
     "analytics-receipt-ui.js",
     "app-update-floor.js",
     "app-update-nudge.js",

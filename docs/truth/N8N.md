@@ -44,7 +44,7 @@ The app-facing webhook surface is enumerated and machine-enforced in `docs/truth
 `test/truth-sync.js` enforces it against `index.html`, so read it there rather than from this line.
 
 **Corrected 2026-09-30 (census, owner request for n8n exit phase 2).** A live read-only census returns
-**120 workflows, 76 active, 44 inactive** in the Atlas read-only pass. Two full list reads in different sort orders returned identical IDs; all 76 published active graphs, including Edge Alert Relay, were readable. Earlier seven-day execution counts in `docs/plans/2026-09-30-n8n-exit-phase-2.md` remain their own dated sample; Atlas did not remeasure execution health.
+**120 workflows, 76 active, 44 inactive** in the Atlas read-only pass (2026-10-01: the Notion New Client workflow was turned off since, so 75 active and 45 inactive from that change alone; other changes since are not recounted). Two full list reads in different sort orders returned identical IDs; all 76 published active graphs, including Edge Alert Relay, were readable. Earlier seven-day execution counts in `docs/plans/2026-09-30-n8n-exit-phase-2.md` remain their own dated sample; Atlas did not remeasure execution health.
 The Calendar, Caption Prompts (Save), Sample Review (Upsert, Reorder) and Filming Plan routes moved to Supabase in phase 1
 (2026-09-29); their old workflows stay on for 30 days as the fallback for pinned repairs.
 
@@ -179,7 +179,7 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
 | `gB17L9M5yYxxk6GT` | Inactive |
 | `d7Dod7OuQsVsl1CN` | Inactive |
 | `TcWOfnKd4Csdnnbv` | Active |
-| `y1bEpXLggfR5HqYV` | Active |
+| `y1bEpXLggfR5HqYV` | Inactive (turned off by the owner 2026-10-01; was Active) |
 | `5S4JyVVR2CpHEv9b` | Inactive |
 | `FD2QUIOlobkdLOgs` | Active |
 | `Jr7JviDpBHee508N` | Active |

@@ -54,8 +54,8 @@ read is on, which it is for everyone since 2026-10-01), the daily parity lane.
 from 04:00 to 08:59 UTC). Same sources, same rules, same row.
 
 Why a tick every minute and not one big call: an Edge Function request has a
-time limit (about 2 minutes on the Free plan and 6 on paid, we have not
-confirmed which this project has), and n8n's 75 minutes is mostly waiting on
+time limit (the project is on the Pro plan, owner 2026-10-01: about 6 minutes
+of wall time per request; the 100 s budget below stays well inside it), and n8n's 75 minutes is mostly waiting on
 Apify. So each minute the timer calls the function; it works on **one client**
 (configurable up to 4) until its time budget (100 s) is spent, saves what it
 has, and the next tick picks up where it stopped. A scraper that is still running
@@ -104,15 +104,21 @@ averages within 10 percent (minimum 50), YouTube totals within 0.5 percent
 within the day's gain tolerance, shorts/longs within 1 percent, and the
 per-platform receipt states are equal. A client missing on either side is named.
 
-**Proposed bar to switch (owner decides):** 3 consecutive days where all 36
-clients match, and every difference the report names has been read and explained.
+**Bar to switch (owner decision, 2026-10-01):** 3 clean days with all clients
+(all 36 match every day, and every difference the report names has been read and
+explained) before this session proposes switching n8n off.
 Expected, explainable differences: n8n reads the TikTok dataset 15 s after the
 run starts and may take a partial one; the function waits for the run to end.
 
-**Cost to know:** during the side-by-side days Apify is called twice (n8n and the
-function), roughly doubling those days' scraping bill. To limit it, start with
-`{"mode":"shadow","clients":["<test client slug>"]}` (the test client only),
-then all clients for the 3 days.
+**Rollout (owner decisions, 2026-10-01).** Apify is called twice on the side-by-side
+days (n8n and the function); the owner accepted that. Day 1: the test client plus
+ONE real active client that has Instagram, TikTok and YouTube (the test client has no
+Instagram, so on its own it cannot exercise the Instagram path); the owner approved
+that client for shadow mode, where nothing anyone sees changes. The client was chosen
+from the live roster (8 of 36 have all three platforms; its slug is given to the owner
+in the session, never written in this public repo). The pick also has the YouTube
+shorts/longs split, so day 1 exercises every branch of the job. Days 2 to 4: all
+clients, and the 3 clean days count from the first all-client day.
 
 ## 4. How the proof was made (all offline, nothing live)
 
@@ -139,18 +145,25 @@ code itself, not against a recorded production run.
 
 ## 5. Steps (nothing happens until the owner says go)
 
+Click by click, with every place a key must be stored:
+`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`. In short:
+
 1. Merge this PR (Lighthouse). No deploy, no database change yet.
 2. **Owner:** two secrets in Supabase (Edge Functions, Secrets): `APIFY_TOKEN`,
    `YOUTUBE_API_KEY` (the same values n8n holds as credentials; never in a file),
-   and a new `ANALYTICS_COLLECT_KEY`, at least 32 characters (`openssl rand -hex 32`).
+   and a new `ANALYTICS_COLLECT_KEY`, at least 32 characters. The new key is stored
+   in THREE places: the Edge Function secret, Supabase Vault (step 7), and the
+   terminal session that runs the seed script (step 6).
 3. **Lighthouse, with the owner's go:** apply
    `migrations/2026-10-01-analytics-metrics-collect-shadow.sql`; run its VERIFY.
 4. **Deploy** `analytics-metrics-collect` from
    https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml
    with the merged commit (the session pastes the SHA once the PR is merged; do not
    merge anything between handing it over and the dispatch).
-5. Set the flag to shadow, test client only:
-   `update public.syncview_runtime_flags set value = '{"mode":"shadow","clients":["<test client slug>"]}' where key = 'analytics_metrics_collect';`
+5. Set the flag to shadow, day 1 (test client and the one real client; the YouTube
+   split list holds the slug of the one client n8n gives the split to, which is the
+   same client):
+   `update public.syncview_runtime_flags set value = '{"mode":"shadow","clients":["<test client slug>","<real client slug>"],"yt_split_clients":["<real client slug>"]}' where key = 'analytics_metrics_collect';`
 6. **Seed the post tracking** (after n8n's run of the day, before 04:00 UTC next
    day): `node scripts/analytics-metrics-shadow-seed.js` (dry run: counts), then
    with `ANALYTICS_COLLECT_KEY` set, `--apply`. Measured dry run today: 5,648 rows
@@ -158,8 +171,10 @@ code itself, not against a recorded production run.
 7. Store the same key in Vault (`select vault.create_secret('<the key>', 'analytics_collect_key');`)
    and apply `migrations/2026-10-01-analytics-metrics-collect-schedule.sql` (pg_net,
    the two cron jobs). It refuses to run without the Vault secret.
-8. Next morning: run the comparison for the test client; fix what it names.
-   Then widen the flag to all clients and watch 3 days.
+8. Next morning (after about 05:20 UTC): run the comparison for the two clients;
+   fix what it names. Then widen the flag to all clients
+   (`{"mode":"shadow","yt_split_clients":["<real client slug>"]}`, no `clients` list
+   means everyone) and watch 3 clean days.
 
 Rollback at any point: set the flag to `{"mode":"off"}` (the function stops at once),
 `select cron.unschedule('analytics-metrics-collect-tick');` if wanted. Shadow tables
@@ -193,7 +208,7 @@ Each gets its own PR.
 
 ## 8. Decisions for the owner
 
-1. Apify spend: accept roughly double on the side-by-side days, or test client only first?
-2. The switch bar: 3 clean days with all clients, as proposed?
-3. Is the project on the Free or a paid Supabase plan (request time limit)? The
-   per-minute design works on either; it only changes how many clients finish per tick.
+All three answered by the owner on 2026-10-01: (1) Apify spend accepted, day 1 is the
+test client plus one real client with Instagram, TikTok and YouTube, then all clients
+for 3 days; (2) 3 clean days is the bar before proposing to switch n8n off;
+(3) Supabase is on the Pro plan.

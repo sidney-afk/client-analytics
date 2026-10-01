@@ -60,7 +60,8 @@ async function download(sheet) {
       body: JSON.stringify({ action: 'seed_post_tracking', rows: rows.slice(i, i + PER_CALL) }),
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok || body.ok !== true) throw new Error(`seed call failed: HTTP ${res.status} ${body.error || body.skipped || ''}`);
+    if (body.skipped) throw new Error('the flag analytics_metrics_collect is not set to "shadow" yet; set it first (step 5), then run this again');
+    if (!res.ok || body.ok !== true) throw new Error(`seed call failed: HTTP ${res.status} ${body.error || ''}`);
     written += body.written;
   }
   console.log(`SEEDED: ${written} row(s) written`);

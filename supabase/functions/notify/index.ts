@@ -7,6 +7,10 @@
 // Optional:
 //   NOTIFY_FORMAT      "compact" | "card" | "line" turns on the rich layout for
 //                      creative-channel posts. Unset keeps the plain SQL text.
+//   NOTIFY_URGENT_FORMAT  "compact" | "card" | "line" turns on the rich layout for
+//                      the urgent editor ping (client, title, who pinged, a real
+//                      "Open in SyncView" link). Unset keeps today's plain line
+//                      byte for byte, bare address included.
 //   NOTIFY_PREVIEW_SLACK_USER_ID  the only DM the preview action may post to.
 //                      Kept out of the repo. Unset means preview is refused.
 
@@ -14,7 +18,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { postSlackChannelMessage } from "./slack-api.ts";
 import { postSlackDirectPreview } from "./slack-api.ts";
-import { formatNotification, isNotifyVariant, NOTIFY_VARIANTS, type NotifyInput, type NotifyVariant, type SlackMessage } from "./format.ts";
+import { postSlackDirectUrgentPreview, postSlackUrgentMessage } from "./slack-api.ts";
+import { formatNotification, formatUrgent, isNotifyVariant, NOTIFY_VARIANTS, type NotifyInput, type NotifyVariant, type SlackMessage } from "./format.ts";
 import { urgentWebsiteText } from "./urgent-link.ts";
 
 type Claim = { intent_id: string; attempt: number; destination_channel_id: string; text: string; client_msg_id: string; allow_mentions: boolean };
@@ -79,6 +84,8 @@ Deno.serve(async (req: Request) => {
   if (!slackToken) return json({ ok: false, error: "server_not_configured" }, 503);
   if (action === "preview") return await preview(supabase, slackToken, body);
   const format = clean(Deno.env.get("NOTIFY_FORMAT"));
+  const urgentFormat = clean(Deno.env.get("NOTIFY_URGENT_FORMAT"));
+  const urgentVariant: NotifyVariant | null = isNotifyVariant(urgentFormat) ? urgentFormat : null;
   const claim = await supabase.rpc("production_notification_claim", { p_limit: limit });
   if (claim.error || !Array.isArray(claim.data)) return json({ ok: false, error: "notification_claim_unavailable" }, 503);
 
@@ -91,13 +98,18 @@ Deno.serve(async (req: Request) => {
     const plan = rich.get(row.intent_id);
     const earlier = plan?.partnerId ? done.get(plan.partnerId) : undefined;
     let lookupFailed = false;
+    let urgentMessage: SlackMessage | null = null;
     if (row.allow_mentions === true) {
       try {
+        const columns = "id,kind,state,attempt_count,destination_channel_id,deliverable_id,message"
+          + (urgentVariant ? ",client_slug,actor_member_id,intended_member_id" : "");
         const intent = await supabase.from("production_notification_intents")
-          .select("id,kind,state,attempt_count,destination_channel_id,deliverable_id,message")
+          .select(columns)
           .eq("id", row.intent_id).single();
         if (intent.error) throw new Error("urgent_link_lookup_failed");
-        text = urgentWebsiteText(row, intent.data);
+        // The claim is validated here whichever layout is used; the rich layout is built only after it passes.
+        text = urgentWebsiteText(row, intent.data, { explicitLink: urgentVariant !== null });
+        if (urgentVariant) urgentMessage = await urgentRichMessage(supabase, row, intent.data, urgentVariant);
       } catch { lookupFailed = true; }
     }
     // The second half of a merged status+comment pair shares its partner's one
@@ -109,6 +121,8 @@ Deno.serve(async (req: Request) => {
         : { kind: earlier.kind as "retryable" | "blocked" | "unknown", code: earlier.code || "merged_partner_not_sent" })
       : lookupFailed
       ? { kind: "retryable" as const, code: "urgent_link_context_unavailable" }
+      : urgentMessage
+      ? await postSlackUrgentMessage(slackToken, clean(row.destination_channel_id), urgentMessage, clean(row.client_msg_id))
       : plan && !plan.skip
       ? await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), plan.message.text, clean(row.client_msg_id), false, fetch, plan.message.blocks, plan.message.attachments)
       : await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), text, clean(row.client_msg_id), row.allow_mentions === true);
@@ -123,6 +137,37 @@ Deno.serve(async (req: Request) => {
   const failed = counts.receipt_failed + counts.blocked + counts.unknown;
   return json({ ok: failed === 0, claimed: claim.data.length, ...counts }, failed ? 502 : 200);
 });
+
+// The rich urgent layout. Everything shown (client name, card title, who
+// pinged) is read here, at send time, from the rows the claimed intent points
+// at; nothing is stored in the repository. The editor mention comes from the
+// intent's own text and must equal the assigned editor's Slack ID, or the plain
+// line (with its explicit link) goes instead. Any failure returns null: a
+// formatting problem never stops an urgent delivery.
+// `intent` is loosely typed on purpose: its column list is built at run time, so the
+// Supabase client cannot infer the row shape and types it as an error placeholder.
+async function urgentRichMessage(supabase: Db, row: Claim, intent: Db, variant: NotifyVariant): Promise<SlackMessage | null> {
+  try {
+    const mention = /^<@([UW][A-Z0-9]{8,})>/.exec(clean(row.text));
+    const clientSlug = clean(intent.client_slug), deliverableId = clean(intent.deliverable_id);
+    const memberIds = [clean(intent.intended_member_id), clean(intent.actor_member_id)].filter(Boolean);
+    if (!mention || !clientSlug || !deliverableId || !clean(intent.intended_member_id)) return null;
+    const [dels, clients, members] = await Promise.all([
+      supabase.from("deliverables").select("id,title,client_slug").eq("id", deliverableId).maybeSingle(),
+      supabase.from("clients").select("slug,display_name").eq("slug", clientSlug).maybeSingle(),
+      supabase.from("team_members").select("id,name,slack_user_id").in("id", memberIds),
+    ]);
+    if (dels.error || clients.error || members.error || !dels.data || clean(dels.data.client_slug) !== clientSlug) return null;
+    const people = new Map(((members.data || []) as JsonMap[]).map(m => [clean(m.id), m]));
+    const editor = people.get(clean(intent.intended_member_id));
+    if (!editor || clean(editor.slack_user_id) !== mention[1]) return null;
+    const actor = people.get(clean(intent.actor_member_id));
+    return formatUrgent({
+      editorSlackId: mention[1], title: clean(dels.data.title), deliverableId,
+      clientName: clients.data ? clean(clients.data.display_name) : "", pingedBy: actor ? clean(actor.name) : "",
+    }, variant);
+  } catch { return null; }
+}
 
 type RichPlan = { message: SlackMessage; partnerId?: string; skip?: boolean };
 const MERGE_WINDOW_MS = 120_000;
@@ -216,6 +261,25 @@ async function preview(supabase: Db, token: string, body: JsonMap): Promise<Resp
     .eq("client_slug", slug).eq("origin", "calendar").not("card_id", "is", null)
     .order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (client.error || del.error || !client.data || !del.data) return json({ ok: false, error: "preview_data_unavailable" }, 404);
+  if (body.kind != null && body.kind !== "creative" && body.kind !== "urgent") return json({ ok: false, error: "kind" }, 400);
+  if (body.kind === "urgent") {
+    // The urgent layout, rendered from the same real rows and sent to the pinned
+    // direct message only. The mention is the PERSON RUNNING THE PREVIEW, never
+    // an editor, so nothing in this action can notify anyone else.
+    const results: string[] = [];
+    for (const variant of variants) {
+      const intro = await postSlackDirectPreview(token, target, "Preview: urgent " + variant, [{ type: "section", text: { type: "mrkdwn", text: "*Preview · urgent · variant `" + variant + "`*  (only you see this; the mention below is you)", verbatim: true } }]);
+      results.push(intro.kind);
+      if (intro.kind !== "sent") break;
+      const message = formatUrgent({
+        editorSlackId: target, title: clean(del.data.title), clientName: clean(client.data.display_name),
+        deliverableId: clean(del.data.id), pingedBy: "Preview (not a real ping)",
+      }, variant);
+      results.push((await postSlackDirectUrgentPreview(token, target, message)).kind);
+    }
+    const sent = results.filter(r => r === "sent").length;
+    return json({ ok: sent === results.length, sent, attempted: results.length }, sent === results.length ? 200 : 502);
+  }
   const comment = await supabase.from("production_comments").select("author_name,body")
     .eq("client_slug", slug).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const base: NotifyInput = {

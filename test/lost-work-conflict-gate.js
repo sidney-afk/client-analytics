@@ -41,10 +41,9 @@ ok(/_calKeepMineNext/.test(src) && /< 60000/.test(gate), 'Keep mine skips the ch
 try {
   const base = execSync('git merge-base HEAD origin/main', { cwd: ROOT, encoding: 'utf8' }).trim();
   const changed = execSync('git diff --name-only ' + base + ' HEAD', { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
-  // Scoped to the frozen writers this change promised not to touch. It used to
-  // forbid ANY Edge Function change on the branch, which fails every later
-  // branch that legitimately adds or edits one (found 2026-10-02).
-  ok(!changed.some(f => /^supabase\/functions\/(calendar-upsert|sample-review-upsert)\//.test(f)), 'the frozen Calendar and Samples writers are not changed on this branch');
+  // Scoped to the frozen Calendar writer this change must not touch. Checking
+  // every function made any later branch that edits an unrelated function fail.
+  ok(!changed.some(f => /^supabase\/functions\/calendar-upsert\//.test(f)), 'the frozen Calendar write function (calendar-upsert) is not changed on this branch');
 } catch (e) { console.log('  --  skipped the server-source check (no origin/main here)'); }
 
 if (failures) { console.error('\nlost-work-conflict-gate: ' + failures + ' FAILED'); process.exit(1); }

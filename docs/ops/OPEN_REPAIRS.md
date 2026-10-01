@@ -30238,7 +30238,24 @@ Update 2026-10-01 (entry 317): applied live by Lighthouse after the owner's go; 
 
 Owner request, 2026-10-01. The SMM and admin Today ring "Dates to move" listed every open work item with a past due date except those at SMM approval, so in-progress items and tweaks were counted too. Only To Do items are placed on Workload by their due date, so only those are stranded by a past date; a tweak or an approval already sits in its own queue. The filter in `_tdyJobs` (`src/index/097-today.js.part`) now keeps `status === 'todo'` only. Test: `test/today-render.js` adds a case (To Do, in progress, tweak and SMM approval, all past due) that lists only the To Do item; it fails on the previous code (it listed three). Page change only; no database or function change. Number 319 skips 317 and 318, which PR 1915 claims.
 
-## 320. [2026-10-02, PR open] Clients Info and Social Media Managers: SyncView's database can now be the main copy (Step 1, nothing switched on)
+
+## 320. [2026-10-01, BUILT, NOT DEPLOYED] The urgent Slack message to the editors had a dead link and no context
+
+Status: function source and workflow only, no database change, nothing deployed, nothing sent to a channel. Needs the owner's go before the `notify` function is deployed (deploy lane below) and again before the switch is turned on.
+
+Problem: the editors' urgent ping read "@editor URGENT: Video 1 needs tweaks." then "Open in SyncView: https://..." on a second line. The address was not clickable, the message had no client name and no sender, and three pings for one batch arrived as three bare lines.
+
+Root cause (checked against Slack's documentation, not assumed): every post goes out with `parse:"none"`, which Slack documents as "remove the hyperlinks", and `urgent-link.ts` appended the address bare. Explicit `<url|text>` markup is always honoured, which is why the `<@U...>` mention worked and the link did not. The send settings otherwise were fine (`mrkdwn` was on for urgent posts, `link_names` off); `unfurl` was never stated, so the new body states it off.
+
+Fix: `format.ts` gains `formatUrgent` in the same three styles as the creative-channel posts (compact, card, line): editor mention, red URGENT marker, client name, card title, "needs tweaks", who pinged, and a real "Open in SyncView" link or button. Every stored value goes through the existing escaping, so a title cannot add a mention, a link or @channel. `slack-api.ts` gains one body builder shared by the channel post and the owner-only preview, so the preview shows exactly what a channel would receive. `index.ts` reads the client, title and pinging person at send time and falls back to the plain line (now with an explicit link) if anything does not check out, including when the assigned editor's Slack ID is not the mention in the claim. A new `NOTIFY_URGENT_FORMAT` secret (`compact`/`card`/`line`) switches the rich layout on; unset keeps the old line byte for byte. The "Send notification preview" lane gains `message: urgent`, which sends the layout to the pinned direct message only, mentioning the person running it.
+
+Proof (offline, synthetic ids, zero external calls): `test/native-notification-urgent-format.js` (60 checks: all three layouts, hostile titles, Block Kit limits, the exact request body, the real handler with the switch off and on, every fallback, the preview going only to the pinned person). The existing notification suites pass unchanged with the switch unset, including the one that pins today's bare-address line.
+
+Order of events: merge; deploy `notify` (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml, function `notify`, commit = main's tip after merge; deploy it BEFORE any F27 dispatch, whose prerequisite compares live `notify` with the dispatch commit); run the preview lane with `message: urgent` for the test client; the owner looks; only then set the secret.
+
+Not built, proposed: one message for several urgent pings to the same editor and client (see `docs/ops/NATIVE_NOTIFICATIONS.md`).
+
+## 321. [2026-10-02, PR open] Clients Info and Social Media Managers: SyncView's database can now be the main copy (Step 1, nothing switched on)
 
 Owner request, 2026-10-01 and 2026-10-02 (session Roster). Goal: make the database the main copy of the two Sheet tabs, then keep the Sheet as a read-only mirror until every reader has moved. This entry is Step 1 only: the database pieces and two server doors, **no n8n edit, no switch flipped, no behaviour change today.** Plan, the exact n8n edits (each needs the owner's separate go) and the switch-over order: `docs/plans/2026-10-02-roster-native.md`.
 

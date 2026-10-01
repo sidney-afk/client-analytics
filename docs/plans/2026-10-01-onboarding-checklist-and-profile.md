@@ -1,7 +1,10 @@
 # Plan: client profile, onboarding checklist and backfill (Stages 2 and 3)
 
 Session Beacon, 2026-10-01. Follows `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`
-(the measured picture; Stage 1) and the owner's answers recorded there. Priority C in
+(the measured picture; Stage 1) and the owner's answers recorded there. **That file is in PR 1919; merge
+it before this plan** (the plan cites its numbers and decisions). The runbook corrections that make the
+client Slack channel automatic are in PR 1922; the owner decided this on 2026-10-01, so the checklist
+treats both channels as automatic and detected, not manual steps. Priority C in
 `docs/STATE_OF_THINGS.md`, built on top of priority A (Clients tab and Sheets move, session Roster).
 
 **Rules for every step below.** One branch and one PR per step; Lighthouse merges. Every database
@@ -61,7 +64,7 @@ Checks in the migration PR: the SQL runs on a throwaway Postgres in the test lan
 | Step | PR | What | Proof |
 |---|---|---|---|
 | 2.1 | Migration | The tables and view above, plus `onboarding_steps` seed. Source only. | Throwaway Postgres suite; grants readback; owner's go, then Lighthouse applies |
-| 2.2 | Edge Function `client-onboarding` | Read a client's checklist and resources; change a step (admin and SMM roles; version checked like `client-profile-write`); every change writes an event; refuses clients not on the roster. Registered in the deploy manifest and the refusal log coverage list. | Offline handler tests; deploy by the owner through the single-function lane |
+| 2.2 | Edge Function `client-onboarding` | Read a client's checklist and resources; change a step (the allowed roles depend on open question 2: admin only until the owner answers; version checked like `client-profile-write`); every change writes an event; refuses clients not on the roster. Registered in the deploy manifest and the refusal log coverage list. | Offline handler tests; deployed by the owner through [Deploy one allowlisted Edge Function](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml) |
 | 2.3 | Script | `scripts/client-resource-census.js`: the audit's counts as a repeatable read-only report (counts only, never names). Also the detector behind "auto" steps: roster row, token, four routing entries, filming plan link, channels, templates, first card. | Run against live (read only) and match the audit's numbers |
 | 2.4 | Page | Clients tab: the Resources section (each resource: found, missing, unknown, with its source and a link) and the Checklist section (steps in order, who owns each, done or not, evidence, "mark done" and "skip optional"). Required steps count toward "onboarded"; the optional step never blocks. Built in its own fragment; `npm run build:index`. | The mocked browser gates for the Clients tab; then a real browser pass on the test client only |
 | 2.5 | Function and page | "Create client": calls `production_native_client_provision` (atomic: roster row, project ids, token, four routing entries, receipt) then Roster's profile create, then starts the checklist and queues the Slack finalizer. A preview mode shows exactly what it would create, with nothing written. | Preview on the test client; the real create only after the open question below is answered |

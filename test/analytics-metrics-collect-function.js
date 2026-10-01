@@ -47,6 +47,7 @@ const resetDb = (extra = {}) => {
 
 // ---- scripted providers ----
 let ttReady = false;
+let ytSplitFails = false;
 const calls = [];
 const ok = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
 globalThis.fetch = async (url, init = {}) => {
@@ -70,7 +71,7 @@ globalThis.fetch = async (url, init = {}) => {
     if (ds.includes('tiktok')) return ok([{ id: 't1', playCount: 300, createTime: Math.floor(Date.now() / 1000) - 3600, authorMeta: { fans: 77, extra: 'x' } }]);
   }
   if (url.startsWith('https://www.googleapis.com/youtube/v3/channels')) return ok({ items: [{ statistics: { subscriberCount: '9', viewCount: '5000' } }] });
-  if (url.startsWith('https://www.googleapis.com/youtube/v3/playlistItems')) return ok({ items: [{ contentDetails: { videoId: 'v1' } }] });
+  if (url.startsWith('https://www.googleapis.com/youtube/v3/playlistItems')) return ytSplitFails ? ok({ error: { code: 403, message: 'quota' } }, 403) : ok({ items: [{ contentDetails: { videoId: 'v1' } }] });
   if (url.startsWith('https://www.googleapis.com/youtube/v3/videos')) {
     return ok({ items: [{ id: 'v1', snippet: { publishedAt: new Date(Date.now() - 86400000).toISOString() }, contentDetails: { duration: 'PT30S' }, statistics: { viewCount: '100' } }] });
   }
@@ -178,6 +179,32 @@ const shadow = slug => (globalThis.__DB.shadow || []).find(r => r.slug === slug)
   globalThis.__DB_FAIL.commit = false;
   t = await call({ action: 'tick' });
   assert.deepEqual(t.body.results, { done: 1 }, 'the next tick finishes it');
+
+  // a refused commit on the LAST claim must not strand the client: errors give the attempt back
+  resetDb({ client_profiles: [profiles[2]],
+    analytics_metrics_collect_queue: [{ run_date: TODAY, client_slug: 'ccc', state: 'running', attempts: 7, stages: {}, lease_until: null }] });
+  globalThis.__DB_FAIL.commit = true;
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { error: 1 });
+  assert.equal(queue('ccc').attempts, 7, 'the eighth attempt is given back after an internal error');
+  globalThis.__DB_FAIL.commit = false;
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done: 1 }, 'so the client is claimed again and gets its row');
+
+  // a failed split call (playlist or video details) is a YouTube provider failure, not "0 shorts, 0 longs"
+  ytSplitFails = true;
+  resetDb({ client_profiles: [{ slug: 'aaa', display_name: 'Client A', instagram_handle: '', tiktok_handle: '', youtube_channel_id: 'UCaaa', archived_at: null }] });
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done: 1 });
+  const yf = shadow('aaa').row;
+  const yfRc = JSON.parse(yf.analytics_receipt);
+  assert.equal(yfRc.platforms.youtube.state, 'provider_failed', 'a failed split call marks YouTube failed');
+  assert.equal(yfRc.platforms.youtube.used_last_good, true);
+  assert.equal(yfRc.result, 'degraded');
+  assert.equal(yf.yt_total_views, '4000', 'last good total kept');
+  assert.equal(yf.yt_views_gained_today, '0');
+  assert.equal(yf.yt_shorts_views, '', 'shorts are not replaced by 0');
+  ytSplitFails = false;
 
   // only listed clients when the flag says so
   resetDb();

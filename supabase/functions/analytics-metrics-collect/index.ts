@@ -8,7 +8,7 @@
 // daily with analytics_metrics_shadow_compare(). Writing the real table is a
 // separate, later PR, after the owner has seen them match.
 //
-// How a day runs: pg_cron calls this function every minute from 04:00 to 06:59
+// How a day runs: pg_cron calls this function every minute from 04:00 to 08:59
 // UTC (action "tick"). Each tick seeds today's queue (one row per active
 // client), claims `batch` clients (default 1) that nobody holds, works on their
 // sources until a time budget is spent, and keeps what it learned in the queue
@@ -139,7 +139,11 @@ async function youtubeStage(channelId: string, split: boolean, st: Stage): Promi
   if (split) {
     const pl = await youtubeGet(`playlistItems?part=contentDetails&playlistId=${encodeURIComponent("UU" + channelId.slice(2))}&maxResults=50`);
     const ids = ((pl.items as JsonMap[]) || []).map(v => ((v.contentDetails as JsonMap) || {}).videoId).filter(Boolean);
-    const vids = ids.length ? await youtubeGet(`videos?part=statistics,contentDetails,snippet&id=${ids.join(",")}`) : {};
+    const vids = pl.error || pl.errorDescription || Number(pl.statusCode ?? 0) >= 400 ? pl
+      : ids.length ? await youtubeGet(`videos?part=statistics,contentDetails,snippet&id=${ids.join(",")}`) : {};
+    // A failed playlist or video-details call is a provider failure of YouTube
+    // (last good values kept), never "no videos" with shorts and longs at 0.
+    out.split_failed = Boolean(vids.error || vids.errorDescription || Number(vids.statusCode ?? 0) >= 400);
     out.videos = (vids.items as JsonMap[]) || [];
   }
   return out;
@@ -183,7 +187,7 @@ async function processClient(db: SupabaseClient, q: QueueRow, flags: JsonMap, de
   const igAgg = hasIg ? aggregateInstagram(timeout(igp)[0] ?? {}, timeout(igr), now) : undefined;
   const ttItems = hasTt ? timeout(tt) : [];
   const ttAgg = hasTt ? aggregateTikTok(ttItems, now) : undefined;
-  const ytAgg = hasYt ? youtubeChannel(yt.done ? yt.channel : { error: "youtube_timeout" }, now) : undefined;
+  const ytAgg = hasYt ? youtubeChannel(yt.done && !yt.split_failed ? yt.channel : { error: yt.split_failed ? "youtube_split_failed" : "youtube_timeout" }, now) : undefined;
   const ytSplit = split ? classifyShortsLongs((yt.videos as JsonMap[]) || [], Date.parse(now)) : null;
   const merged = mergeClient(client, { ig: igAgg, tt: ttAgg, yt: ytAgg, ytSplit }, now);
   const igPosts = hasIg ? timeout(igr) : [];
@@ -235,7 +239,10 @@ async function tick(db: SupabaseClient, flags: JsonMap): Promise<JsonMap> {
       results[q.client_slug] = "error";
       // Never log handles or payloads: the error text only.
       console.error("collect client failed", q.client_slug.length, e instanceof Error ? e.message : String(e));
-      await db.from("analytics_metrics_collect_queue").update({ last_error: (e instanceof Error ? e.message : String(e)).slice(0, 200), lease_until: null, updated_at: new Date().toISOString() })
+      // An internal error (database, profile, commit) is not the providers' fault, so it must
+      // not use up their 8-attempt budget: give the attempt back, or a failure on the last
+      // claim would leave the client unclaimable with no row.
+      await db.from("analytics_metrics_collect_queue").update({ attempts: Math.max(0, q.attempts - 1), last_error: (e instanceof Error ? e.message : String(e)).slice(0, 200), lease_until: null, updated_at: new Date().toISOString() })
         .eq("run_date", q.run_date).eq("client_slug", q.client_slug);
     }
   }));

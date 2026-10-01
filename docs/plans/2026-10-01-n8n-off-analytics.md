@@ -51,7 +51,7 @@ read is on, which it is for everyone since 2026-10-01), the daily parity lane.
 ## 2. Proposal: one Edge Function, one timer
 
 **`analytics-metrics-collect`** (Edge Function) plus **pg_cron** (every minute
-from 04:00 to 06:59 UTC). Same sources, same rules, same row.
+from 04:00 to 08:59 UTC). Same sources, same rules, same row.
 
 Why a tick every minute and not one big call: an Edge Function request has a
 time limit (about 2 minutes on the Free plan and 6 on paid, we have not

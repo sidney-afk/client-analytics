@@ -3,7 +3,8 @@
 --
 -- The timer for the shadow run of the daily metrics job
 -- (docs/plans/2026-10-01-n8n-off-analytics.md, section 3). Two pg_cron jobs:
---   analytics-metrics-collect-tick   every minute from 04:00 to 06:59 UTC (n8n starts at
+--   analytics-metrics-collect-tick   every minute from 04:00 to 08:59 UTC, 300 ticks: at least the 288 claims
+--                                    the 8-attempt budget of 36 clients can use (n8n starts at
 --                                    04:00 and ends about 05:15): calls the function's "tick"
 --   analytics-metrics-collect-prune  03:41 UTC daily: drops queue rows older than 14 days
 --
@@ -39,7 +40,7 @@ begin
 end
 $unschedule$;
 
-select cron.schedule('analytics-metrics-collect-tick', '* 4-6 * * *', $job$
+select cron.schedule('analytics-metrics-collect-tick', '* 4-8 * * *', $job$
   select net.http_post(
     url := 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/analytics-metrics-collect',
     headers := jsonb_build_object(

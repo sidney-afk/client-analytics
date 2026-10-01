@@ -1,0 +1,19 @@
+// client-onboarding: one client's onboarding checklist and resources, for the
+// Clients tab (admin only, reads and writes). The logic lives in
+// ../_shared/client-onboarding.mjs so it can be tested in Node; this file only
+// wires it to Deno, the staff role-key gate and a service-role Supabase client.
+// Needs migrations/2026-10-03-onboarding-checklist-tables.sql applied first.
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
+import { buildHandler } from "../_shared/client-onboarding.mjs";
+
+Deno.serve(buildHandler({
+  authorize: (key: string, roles: string[]) => authorizeStaffKey(key, roles as ("admin" | "smm" | "creative")[]),
+  makeClient: () => {
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !serviceKey) return null;
+    return createClient(url, serviceKey, { auth: { persistSession: false } });
+  },
+  newId: () => crypto.randomUUID(),
+}));

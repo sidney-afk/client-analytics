@@ -176,6 +176,12 @@ verify_jwt = false
 [functions.client-profile-write]
 verify_jwt = false
 
+# Kasper > Clients onboarding checklist and resources (admin only, reads and
+# writes). JWT off because SyncView is a static app; the function requires the
+# admin role key and an active admin team member before it reads the body.
+[functions.client-onboarding]
+verify_jwt = false
+
 # SyncView v2 login pass. The gateway check is off because the function checks
 # the caller's guest login itself (auth.getUser) and refuses anything that is
 # not a guest; it then requires a staff key or client token as well.

@@ -241,6 +241,7 @@
     "kasper-finish-log.js",
     "kasper-finish-refresh-popback.js",
     "split-switch.js",
+    "ledger-archive.js",
     "write-path-refusal-coverage.js",
     "sxr-kasper-finish-leaves-queue.js",
     "kasper-priority-more-nav.js",

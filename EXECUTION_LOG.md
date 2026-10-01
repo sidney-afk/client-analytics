@@ -6774,7 +6774,14 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Tests: `test/synclinear-early-read.js`, `test/prod-tail-prefetch.js`, `qa/boot/staff-entry-gate.js` (Linear tab cases).
 - Record and owner decisions: `docs/audits/2026-10-01-synclinear-speed.md`.
 
-## 2026-10-01 - Staff sign-in check: no browser preflight (session Comet, OPEN_REPAIRS 323)
+## 2026-10-02 - PTO Accrual Tracker file archived (owner's go, session Roster)
+
+- The interim PTO Sheet (the Time Off page and the `pto` function use the database; nothing reads the file, checked in
+  the repo and in every n8n workflow) was moved into a new `Archive` folder at the top of the Drive. Not deleted, not edited.
+- Undo: drag the file back out of `Archive` to the top level of the Drive. No ids are recorded here (public repository).
+- Same day: the Project Central, Sheet API n8n workflow was unpublished; entry and undo in `docs/ops/N8N_EDIT_LOG.md`.
+
+## 2026-10-01 - Staff sign-in check: no browser preflight (session Comet, OPEN_REPAIRS 326)
 
 - Measured: every new tab sent an OPTIONS preflight before the check (server median 157 ms, 1,336 a day, about 0.3 to 0.5 s end
   to end); the check itself is 362 ms server median, three serial database calls. In a page 736 ms with the preflight, 507 ms without.

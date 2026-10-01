@@ -1451,7 +1451,7 @@ poll, without disabling Production:
 - **Check after a revert:** the Linear tab loads as before (first rows about 1.1 s warm); the finished-items
   read starts after the first paint again (a `status=in.(approved,...)` request begins after the live pages).
 
-## 2026-10-01 - inverse for the key-verify simple request (browser only; OPEN_REPAIRS 323)
+## 2026-10-01 - inverse for the key-verify simple request (browser only; OPEN_REPAIRS 326)
 
 - **Full inverse:** revert the PR (GitHub Pages redeploys on push). The function was not touched, and it accepts the key from the
   header as before, so old and new pages work against the same deployed function at any time.

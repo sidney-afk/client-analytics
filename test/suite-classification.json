@@ -380,6 +380,7 @@
     "native-notification-format.js",
     "native-notification-health-handler.js",
     "native-notification-slack-adapter.js",
+    "native-notification-urgent-format.js",
     "native-notification-urgent-link.js",
     "native-notifications-postgres.js",
     "native-notifications.js",

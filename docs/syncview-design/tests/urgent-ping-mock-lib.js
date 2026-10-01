@@ -286,6 +286,14 @@ async function createEnv(opts = {}) {
     }
     if (p === '/rest/v1/calendar_posts') {
       const idf = (sp.get('id') || '').replace(/^eq\./, '');
+      // The Calendar's two-people conflict check (_calFreshFields) reads a few
+      // named fields of one card before a status or caption save. It is not
+      // the urgent ping's whole-card read, so it is answered and logged apart
+      // and never consumes a 'read:card' behaviour or counts as a card read.
+      if (idf && (sp.get('select') || '*') !== '*') {
+        S.log.push({ t: S.since(), key: 'READ fields ' + idf, summary: '' });
+        return json(route, 200, S.cards.filter(c => c.id === idf).map(c => ({ ...c })));
+      }
       const key = idf ? 'read:card' : 'read:calendar_posts';
       S.log.push({ t: S.since(), key: idf ? 'READ card ' + idf : 'READ calendar_posts', summary: '' });
       const b = takeBehavior(key);

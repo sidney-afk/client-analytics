@@ -101,7 +101,7 @@ const ROWS = () => {
     row({ dueMs: T0 + 4 * H }),                                                             // 01 due exactly on the hour (12:00Z)
     row({ dueMs: T0 + 4 * H + 40 * 60000 }),                                                // 02 due 12:40Z
     row({ dueMs: T0 + 4 * H + 40 * 60000, email: 'just.booked@example.invalid', phone: '' }), // 03 booked in the same hour (see booked row)
-    row({ dueMs: T0 + 5 * H, email: '', phone: '+1 (651) 343-1853' }),                       // 04 person just booked, phone written differently
+    row({ dueMs: T0 + 5 * H, email: '', phone: '+1 (555) 010-0123' }),                       // 04 person just booked, phone written differently
     row({ dueMs: T0 + 5 * H, email: 'hs.booked@example.invalid', phone: '' }),              // 05 booked in HubSpot (deal)
     row({ dueMs: T0 + 5 * H, email: '', phone: '+15550100707' }),                            // 06 booked in HubSpot (iClosed status)
     row({ dueMs: T0 + 5 * H, email: 'hs.customer@example.invalid', phone: '' }),             // 07 existing customer
@@ -126,7 +126,7 @@ const ROWS = () => {
 };
 const BOOKED = () => [
   { lead_key: 'booked-1', status: 'completed', suppressed_reason: 'booked', email: 'just.booked@example.invalid', phone: '', created_at: iso(T0 + 4 * H + 20 * 60000), updated_at: iso(T0 + 4 * H + 20 * 60000) },
-  { lead_key: 'booked-2', status: 'completed', suppressed_reason: 'booked', email: '', phone: '(651) 343-1853', created_at: iso(T0 - 5 * 86400000), updated_at: iso(T0 - 4 * 86400000) },
+  { lead_key: 'booked-2', status: 'completed', suppressed_reason: 'booked', email: '', phone: '(555) 010-0123', created_at: iso(T0 - 5 * 86400000), updated_at: iso(T0 - 4 * 86400000) },
 ];
 
 // ---------- schedules ----------

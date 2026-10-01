@@ -1,3 +1,4 @@
+// Copied from the live workflow. One edit: a real phone number in the comments below was replaced by a fictional 555 number (public repo); no code changed.
 // Decides who is due, and renders every merge field.
 // Emits nothing when nothing is due, which is the normal case on most of the
 // 144 runs a day. Zero items means the rest of the chain simply does not run.
@@ -25,7 +26,7 @@
 // created. It also catches LEGACY DUPLICATE ROWS written before the capture
 // lead_key fix, where the same human exists twice under two different keys.
 // Identity is compared on normalised email AND last-9 phone digits, so a lead
-// stored as +16513431853 in one row and (651) 343-1853 in another still matches.
+// stored as +15550100123 in one row and (555) 010-0123 in another still matches.
 // It sits ahead of the channel logic, so it covers both channels at once.
 
 const MAX_AGE_HOURS = 72;      // past this a lead is cold; stop scanning them

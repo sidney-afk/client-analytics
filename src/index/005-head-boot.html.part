@@ -330,6 +330,44 @@
                     }
                 } catch (e) {}
             }
+            if (target === 'production' && window.fetch) {
+                // SyncLinear only (the predicted landing tab is `production`: ?prod=1 or
+                // /synclinear): start the FIRST PAGE of its two
+                // big reads, batches and live deliverables, the moment the staff
+                // check passes, instead of after every script has downloaded and
+                // the tab has mounted (2026-10-01: that gap is 0.3 s on a cold
+                // open). Same shape as Today's block above, and under the same
+                // rule: the requests WAIT for the early key-verify, so a rejected
+                // or unreachable check loads no staff data at all
+                // (qa/boot/staff-entry-gate.js). The tab takes each answer once,
+                // by exact URL, only for this same member and key and inside the
+                // first minute (_prodTakeEarlyRead in the app script); a URL that
+                // drifts just misses and the tab reads for itself, so this can
+                // only move WHEN a request is sent. The two select lists and the
+                // live filter below are the app's own constants, copied;
+                // test/synclinear-early-read.js fails if they ever differ.
+                try {
+                    var pdId = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+                    if (pdId && pdId.key && pdId.member && pdId.member.id) {
+                        var pdBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+                        var pdKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
+                        var pdKv = window.__svEarlyKeyVerify;
+                        var pdGate = pdKv && pdKv.response ? pdKv.response.then(function (r) {
+                            if (!r.ok) throw new Error('verify');
+                            return r.clone().json();
+                        }).then(function (j) { if (!(j && j.ok === true)) throw new Error('verify'); }) : Promise.reject(new Error('verify'));
+                        pdGate.catch(function () {});
+                        var pdE = window.__svEarlyProd = { memberId: String(pdId.member.id), key: String(pdId.key), at: Date.now(), reads: {} };
+                        var pdRest = function (url) {
+                            var p = pdGate.then(function () { return fetch(url, { headers: { apikey: pdKey, Authorization: 'Bearer ' + pdKey, Accept: 'application/json' } }); });
+                            p.catch(function () {});
+                            pdE.reads[url] = p;
+                        };
+                        pdRest(pdBase + '/rest/v1/batches?select=' + encodeURIComponent('id,client_slug,team,name,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids') + '&limit=1000&order=id.asc');
+                        pdRest(pdBase + '/rest/v1/production_deliverables_browser_v1?select=' + encodeURIComponent('id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_project_id,raw_attribution_native_epoch,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived') + '&limit=1000&order=id.asc&or=(status.not.in.(approved,posted,archived,canceled,cancelled,duplicate),status.is.null)');
+                    }
+                } catch (e) {}
+            }
         } catch (e) {}
     })();
     </script>

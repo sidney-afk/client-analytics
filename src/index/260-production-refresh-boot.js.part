@@ -147,7 +147,14 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if (_prodState.refreshInFlight) return null;
             if (_prodState.writes && _prodState.writes.size) return null;
             if (!opts.force && _prodRefreshBusy()) return null;
-            const watermark = _prodDeliverableWatermark(_prodState.deliverables);
+            /* `catchUpSince` is left by a load that overlapped its two reads (see
+               _prodStartTailPrefetch): the next refresh starts from it when it is
+               earlier than the newest row held, so a card that moved between the
+               two halves is caught by the refresh that was going to run anyway,
+               with no extra request at load time. */
+            let watermark = _prodDeliverableWatermark(_prodState.deliverables);
+            const catchUp = String(_prodState.catchUpSince || '');
+            if (catchUp && !opts.full && watermark && Date.parse(catchUp) < Date.parse(watermark)) watermark = catchUp;
             const needsFull = !!opts.full
                 || !watermark
                 || (Date.now() - Number(_prodState.lastFullSyncAt || 0)) >= PROD_FULL_RECONCILE_MS;
@@ -179,6 +186,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                         throw failed;
                     }
                     _prodState.lastFullSyncAt = Date.now();
+                    _prodState.catchUpSince = '';
                 } else {
                     /* Deliverables only. A batch delta used to ride along here
                        so a filming day planned since the last read appeared
@@ -208,6 +216,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                         'updated_at=gte.' + encodeURIComponent(watermark)
                     );
                     const changedIds = _prodMergeDeliverableRows(rows);
+                    _prodState.catchUpSince = '';
                     if (changedIds.length) {
                         repaint = true;
                         _prodInvalidateScopedReadsFor(changedIds);
@@ -1165,19 +1174,19 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             const attribution = issue && issue.attribution;
             if (!attribution) return '';
             if (_prodAttributionSyncPending(issue)) {
-                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers.">Syncing to Linear</span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Just created. Still syncing to Linear. You can edit it once that finishes.">Syncing to Linear</span>';
             }
             if (attribution.state === 'resolved' && attribution.repairRequired) {
-                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="The client is resolved, but its project mapping still needs repair">Mapping repair</span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="Client found, but its project link needs fixing.">Mapping repair</span>';
             }
             if (attribution.state === 'provisional_child_family') {
-                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from one unanimous child family; repair is required">Provisional · repair</span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="The client is a guess from its sub-issues. Needs fixing.">Provisional · repair</span>';
             }
             if (attribution.state === 'conflict') {
-                return '<span class="prod-chip optional prod-attribution-chip is-conflict" data-prod-attribution-chip="conflict" data-prod-tip="Client attribution conflicts across this issue family">Attribution conflict</span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-conflict" data-prod-attribution-chip="conflict" data-prod-tip="The sub-issues point to different clients.">Attribution conflict</span>';
             }
             if (attribution.state === 'needs_attribution') {
-                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="needs" data-prod-tip="No active-roster client mapping could be verified">Needs attribution</span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="needs" data-prod-tip="Couldn’t match this to an active client.">Needs attribution</span>';
             }
             return '';
         }
@@ -1189,14 +1198,14 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 /* Name the client SyncView stored, so the card the SMM just
                    filed still reads as that client's while Linear catches up. */
                 const syncLabel = _prodAttributionSyncClientLabel(issue);
-                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers."><span class="prod-client-dot">' + _prodProjectGlyph(String(issue.storedClientSlug || '')) + '</span><span>' + _calEsc(syncLabel) + ' · syncing</span></span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Just created. Still syncing to Linear. You can edit it once that finishes."><span class="prod-client-dot">' + _prodProjectGlyph(String(issue.storedClientSlug || '')) + '</span><span>' + _calEsc(syncLabel) + ' · syncing</span></span>';
             }
             if (!attribution || attribution.state === 'resolved') {
                 return '<span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(project) + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(project) + ')" data-prod-tip="Project: ' + _calEscAttr(label) + '"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + '</span></span>'
                     + _prodAttributionChipOnlyHTML(issue);
             }
             if (attribution.state === 'provisional_child_family') {
-                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from child issues; this does not open a writable project"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' · provisional</span></span>';
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Client guessed from its sub-issues. This can’t open a project."><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' · provisional</span></span>';
             }
             return _prodAttributionChipOnlyHTML(issue);
         }

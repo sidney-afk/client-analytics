@@ -235,7 +235,7 @@ check('carries the kasper kind', btn.includes('data-urgent-kind="kasper"'));
 check('wires the kasper handler', btn.includes('_calSendKasperUrgentSlack(event'));
 check('says URGENT, unsent', btn.includes('>URGENT<') && btn.includes('data-urgent-sent="0"'));
 check('its tooltip names Kasper, not the editor',
-  btn.includes('waiting on his review') && !btn.includes('#video-editing'));
+  btn.includes('waiting for his review') && !btn.includes('#video-editing'));
 const btnSent = P._calUrgentButtonHtml('p1', '_calSendKasperUrgentSlack', pinged, '', false, 'kasper');
 check('latches to Sent + disabled while the ping is live',
   btnSent.includes('>Sent<') && btnSent.includes('disabled') && btnSent.includes('is-sent'));

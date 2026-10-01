@@ -36,13 +36,12 @@ here with where it stopped, so it can be restarted.
   least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
   daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.
 
-1. **2026-10-01: analytics database on for every client. BLOCKED until the analytics accuracy check (open question above) says the stored view counts are right.** Then check the daily
-   Sheets-to-Supabase copy ran clean, then ask the owner's go to set
-   `analytics_mirror_read_enabled` to `{"enabled": true}`. This also removes the
-   client link's 2 to 4 s wait on the `Metrics` and `Clients Info` Sheets
-   (`docs/audits/2026-09-23-boot-baseline.md` section 3.4). Plan:
-   `docs/plans/2026-09-28-analytics-switch-on.md`. Then the one-message Slack
-   alert (under "Needs the owner").
+1. **DONE 2026-10-01: analytics database on for every client.** The accuracy check found the stored view
+   counts right; the 20 duplicate Metrics rows were removed (OPEN_REPAIRS 309) and `analytics-write` redeployed;
+   the 16:31 UTC daily run ended `PARITY: clean` (0 differences in all five datasets); Lighthouse then set
+   `analytics_mirror_read_enabled` to `{"enabled": true}` with the owner's go (EXECUTION_LOG.md). Rollback, one step:
+   set it back to `{"enabled": false, "clients": ["<test client slug>"], "staff": true}`. Still to do: the
+   one-message Slack alert (under "Needs the owner") and watching that the daily lane stays green.
 2. **2026-10-01: n8n measurements for the plan-downgrade decision.** September
    is the first full month the execution-quota watchdog counts. Report the real
    monthly executions against the plan tiers (sizing in OPEN_REPAIRS 233: about
@@ -163,6 +162,12 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
+- **SyncLinear: two speed decisions (2026-10-01, `docs/audits/2026-10-01-synclinear-speed.md` section 6).**
+  (a) The saved copy lives 24 hours; after that the tab opens cold (rows at 3 to 5 s instead of 1.1 s). Raising
+  it (for example 7 days) makes most "first open of the day" cases warm; it changes what is shown for the first
+  second. (b) Every warm open still downloads 2.37 MB because the saved copy leaves out finished rows; keeping
+  them in the browser's larger store and reading only what changed would drop about 1.2 MB and the 0.75 s
+  end-of-load freeze. It reverses a documented choice. Neither was done.
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
   dispatchers (interview invite, practical test) are still active and run every
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).
@@ -248,6 +253,12 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
+- **SyncLinear opens and finishes faster, same page (2026-10-01, OPEN_REPAIRS 315).** Measured on the live
+  site first: quick to use (switch 60 ms, no dropped frame, card under 100 ms), slow to finish (complete
+  list 7.9 s in, 3.25 MB cold). The finished-items read now starts beside the live read (with a catch-up
+  point for the next refresh), page one of the big reads starts when sign-in passes, and the per-row scans use lookup tables.
+  Same rig, interleaved: cold complete list 8.2 to 5.9 s, cold first rows 3.7 to 3.1 s, warm fresh data
+  3.5 to 3.2 s; 1,642 rows compared old against new, 0 differences. Way back: revert the PR.
 - **Workload: unfinished work pinned to a past day is carried over (2026-09-30, #1875,
   OPEN_REPAIRS 295).** It shows on today (or Monday at a weekend, when Workload opens on the
   coming week) with a "Carried over" mark; the saved plan day is left unchanged. Cause found

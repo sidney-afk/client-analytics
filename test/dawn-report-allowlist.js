@@ -41,6 +41,10 @@ const everyShape = [
   { key: 'templates', ok: true, detail: D.templatesOk(41) },
   { key: 'templates', ok: true, warn: true, detail: D.templatesGap(4, 1, 41) },
   { key: 'templates', ok: true, blocked: true, detail: D.templatesUnread() },
+  { key: 'samples-sync', ok: true, detail: D.samplesOk(39) },
+  { key: 'samples-sync', ok: true, warn: true, detail: D.samplesStuck(1, 1, 30) },
+  { key: 'samples-sync', ok: true, warn: true, detail: D.samplesStuck(3, 5, 30) },
+  { key: 'samples-sync', ok: true, blocked: true, detail: D.samplesUnread() },
 ];
 for (const s of STEPS) everyShape.push({ key: 'client-approve', ok: false, detail: D.failedAt(s) });
 const mixed = buildReport({ started, results: everyShape, violations: 1, calMs: 2168, baseline: BASELINE });
@@ -63,6 +67,17 @@ const warned = buildReport({ started, calMs: 1, baseline: BASELINE, results: [
 ok(warned.safe && /All 2 checks that ran passed\.\*\* 1 needs attention \(see ⚠️\)\./.test(warned.md), 'a Templates gap is a warning, not a failure');
 ok(/- ⚠️ \*\*Every current client has a Templates page\*\* — 4 of 41 current clients have no Templates page; 1 more have no thumbnail link/.test(warned.md), 'the gap line carries counts only');
 assert.throws(() => D.templatesGap('Acme', 1, 2)); n++;
+
+// A stuck sample is a warning too, in counts only, singular and plural.
+const stuckRun = buildReport({ started, calMs: 1, baseline: BASELINE, results: [
+  { key: 'samples-sync', ok: true, warn: true, detail: D.samplesStuck(1, 2, 30) },
+  { key: 'cleanup', ok: true, detail: D.cleanup(3, 3, false, true, true, 0) },
+] });
+ok(stuckRun.safe && /All 2 checks that ran passed\.\*\* 1 needs attention \(see ⚠️\)\./.test(stuckRun.md), 'a stuck sample is a warning, not a failure');
+ok(/- ⚠️ \*\*Samples agree with their work items\*\* — 1 sample \(2 parts\) behind their work item for over 30 minutes/.test(stuckRun.md), 'the stuck line carries counts only, singular for one sample');
+ok(/3 samples \(5 parts\) behind/.test(D.samplesStuck(3, 5, 30)), 'plural for more than one');
+assert.throws(() => D.samplesStuck('p_native_abc', 1, 30)); n++;
+assert.throws(() => D.samplesOk('Acme')); n++;
 
 // 2. Anything outside the allowlist is refused, and the report is withheld whole.
 const hostile = [

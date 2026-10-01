@@ -135,7 +135,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         badge.hidden = total === 0;
         const activeLabel = trigger.querySelector('[data-kasper-more-label]');
         const label = activeLabel ? activeLabel.textContent : 'More';
-        trigger.title = total ? label + ' — ' + total + ' notification' + (total === 1 ? '' : 's') : (label === 'More' ? 'More sections' : label);
+        trigger.title = total ? label + ': ' + total + ' notification' + (total === 1 ? '' : 's') : (label === 'More' ? 'More sections' : label);
         trigger.setAttribute('aria-label', total ? label + ', ' + total + ' notification' + (total === 1 ? '' : 's') : label);
     }
     function _kasperOnboardingStamp(submission) {

@@ -253,12 +253,12 @@ import {
     // Plain-English hover copy for each number — explains what it counts, for
     // someone who doesn't know the internal vocabulary. Same in either view.
     const _KED_TIPS = {
-        plate:    "How many different videos he worked on last week — new edits, tweak fixes, and ones still in progress (these add up to this number).",
-        finished: "Videos that got fully approved or posted last week — they crossed the finish line.",
-        open:     "Videos still on his plate at the end of the week — not yet finished or sent back.",
-        newCut:   "Brand-new videos he edited and sent on for review for the first time.",
-        tweakFix: "Videos that came back for changes, which he fixed and re-sent.",
-        inProg:   "Videos he was still working on and hadn't sent for review yet.",
+        plate:    "Videos this editor worked on last week: new edits, tweak fixes and unfinished ones.",
+        finished: "Videos fully approved or posted last week.",
+        open:     "Videos still on this editor’s plate at the end of the week.",
+        newCut:   "First cuts this editor sent for review.",
+        tweakFix: "Videos that came back with tweaks, were fixed and were sent again.",
+        inProg:   "Videos still being edited, not yet sent for review.",
     };
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
@@ -280,10 +280,10 @@ import {
             const dayLong = _kedDayLong(d.label);
             const sentLbl = `${count} video${count === 1 ? '' : 's'} sent for review`;
             const tipText = count === 0
-                ? `${dayLong} · nothing sent for review`
+                ? `${dayLong}: nothing sent for review`
                 : isSel
-                    ? `${dayLong} · ${sentLbl} — click to clear`
-                    : `${dayLong} · ${sentLbl} — click to view`;
+                    ? `${dayLong}: ${sentLbl}. Click to clear.`
+                    : `${dayLong}: ${sentLbl}. Click to view.`;
             const onclickAttr = count > 0
                 ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
                 : '';
@@ -526,8 +526,8 @@ import {
             if (dayFilter) {
                 const sum = _kedClientDaySummary(vids, dayFilter);
                 const chips = [];
-                if (sum.firstCuts)   chips.push(`<span class="ked-group-chip" data-tip="First cuts delivered for review that day"><span class="ked-chip-n">${sum.firstCuts}</span> first cut${sum.firstCuts === 1 ? '' : 's'}</span>`);
-                if (sum.tweakRounds) chips.push(`<span class="ked-group-chip" data-tip="Tweak rounds delivered for review that day"><span class="ked-chip-n">${sum.tweakRounds}</span> tweak${sum.tweakRounds === 1 ? '' : 's'}</span>`);
+                if (sum.firstCuts)   chips.push(`<span class="ked-group-chip" data-tip="First cuts sent for review that day"><span class="ked-chip-n">${sum.firstCuts}</span> first cut${sum.firstCuts === 1 ? '' : 's'}</span>`);
+                if (sum.tweakRounds) chips.push(`<span class="ked-group-chip" data-tip="Fixed tweaks sent back for review that day"><span class="ked-chip-n">${sum.tweakRounds}</span> tweak${sum.tweakRounds === 1 ? '' : 's'}</span>`);
                 summaryHtml = chips.length ? `<div class="ked-group-summary">${chips.join('')}</div>` : '';
             }
             const headCls = expanded ? 'ked-vid-group-head is-expanded' : 'ked-vid-group-head';
@@ -575,7 +575,7 @@ import {
         // grinders (2+) get a badge, so a one-and-done video stays clean.
         const rounds = _kedVideoDeliveries(v).length;
         const roundsHtml = rounds >= 2
-            ? `<span class="ked-vid-rounds" data-tip="Sent on for review ${rounds} times last week — it kept coming back for changes.">${rounds} rounds</span>`
+            ? `<span class="ked-vid-rounds" data-tip="Sent for review ${rounds} times last week. It kept coming back with tweaks.">${rounds} rounds</span>`
             : '';
         return `<article class="ked-vid">
             <div class="ked-vid-meta">

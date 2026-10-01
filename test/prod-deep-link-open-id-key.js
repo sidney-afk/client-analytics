@@ -77,8 +77,11 @@ function stripComments(src) {
 
 /* ---- 1. The split is real: resolution matches on either id --------------- */
 
-const issueLookup = stripComments(grabFunc('function _prodIssue('));
-ok(/i\.id === sid \|\| i\.displayId === sid/.test(issueLookup),
+// _prodIssue answers from per-adapter lookup tables (see _prodLookups); the
+// table maps BOTH a row's canonical id and its display identifier to the row.
+const issueLookup = stripComments(grabFunc('function _prodIssue(')) + '\n' + stripComments(grabFunc('function _prodLookups('));
+ok(/look\.byKey\.get\(sid\)/.test(issueLookup)
+  && /byKey\.set\(row\.id, row\)/.test(issueLookup) && /byKey\.set\(row\.displayId, row\)/.test(issueLookup),
   '_prodIssue resolves a row by canonical id OR display identifier — which is why a deep link opens fine and still keys wrong');
 
 const parse = stripComments(INDEX.slice(INDEX.indexOf("const d = q.get('d');"), INDEX.indexOf('_prodState.deepLinkMissing = \'\';')));

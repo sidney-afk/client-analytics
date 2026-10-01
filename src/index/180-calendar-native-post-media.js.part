@@ -389,7 +389,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                     ${_svStepperHtml('calNativePostCount', postCount, {
                         min: 1, max: postCountMax, step: 1,
                         onchange: '_calSetNativePostCount(this.value)',
-                        downTip: 'One post fewer', upTip: 'One post more',
+                        downTip: 'One card fewer', upTip: 'One card more',
                     })}
                 </div>
                 <div class="cal-native-name-row" role="group" aria-labelledby="calNativePostNamesLabel">
@@ -1393,7 +1393,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
     }
     function _calCapJobsActiveList() { return Array.from(_calCaptionJobs.values()).filter(_calCapJobActive); }
     const CAL_CAPJOB_STAGE_LABEL = { queued: 'Queued…', scraping: 'Reading video…', transcribing: 'Transcribing…', writing: 'Writing caption…' };
-    const CAL_CAPGEN_BUSY_TIP = 'Reads the Frame.io page, transcribes the audio with Whisper, and writes the caption with Claude — usually 1-3 minutes per video. Progress survives refreshes; the ✕ on the right cancels.';
+    const CAL_CAPGEN_BUSY_TIP = 'Reads the Frame link, writes down the audio, then writes the caption. Takes 1 to 3 minutes per video. It keeps going if you refresh. Click ✕ to stop.';
     function _calCapJobElapsed(job) {
         const s = Math.max(0, Math.floor((Date.now() - (job.startedAt || Date.now())) / 1000));
         return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -1422,12 +1422,12 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
             const elapsed = job.status === 'running' && !job.cancelRequested
                 ? ' <span data-capgen-elapsed="' + _calEscAttr(pid) + '">' + _calCapJobElapsed(job) + '</span>' : '';
             const xBtn = job.cancelRequested ? '' :
-                '<button type="button" class="cal-cap-gen-x" onclick="_calCancelCaptionJob(\'' + pid + '\')" title="Cancel caption generation"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>';
+                '<button type="button" class="cal-cap-gen-x" onclick="_calCancelCaptionJob(\'' + pid + '\')" title="Stop writing captions"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>';
             return '<button type="button" class="cal-cap-gen is-busy" disabled title="' + _calEscAttr(CAL_CAPGEN_BUSY_TIP) + '"><span class="cal-cap-gen-spin"></span><span>' + label + elapsed + '</span></button>' + xBtn;
         }
         const url = _calCapLiveAssetUrl(pid, p);
         const can = !_calIsBlankId(pid) && !!url && /f\.io|frame\.io/i.test(url);
-        return '<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption(\'' + pid + '\')"' + (can ? '' : ' disabled title="Add a Frame.io video URL first"') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>';
+        return '<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption(\'' + pid + '\')"' + (can ? '' : ' disabled title="Add a video Frame link first"') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>';
     }
     /* Re-render the Generate pill (and per-card cancel ✕) in place from the
        current job state, without a full body re-render. */
@@ -2423,7 +2423,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         const colorAttr = color ? ` data-color="${color}"` : '';
         // On the client view, explain the corner dot on hover; the SMM already
         // knows what its own batch colours mean, so it's client-only.
-        const colorTitle = (_isClientLink && color) ? ' title="Color tag — identifies which batch of content this post belongs to"' : '';
+        const colorTitle = (_isClientLink && color) ? ' title="Color tag. Shows which batch this card is in."' : '';
         const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
         return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
     }
@@ -2558,7 +2558,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                                 // SMM has tagged the card (no colour, no dot). Passive / read-only.
                                 const wColor = _calPostColor(p);
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
-                                const wColorTitle = (_isClientLink && wColor) ? ' title="Color tag — identifies which batch of content this post belongs to"' : '';
+                                const wColorTitle = (_isClientLink && wColor) ? ' title="Color tag. Shows which batch this card is in."' : '';
                                 const wWarn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
                                 return `<button class="cal-week-card${posted}"${wColorAttr}${wColorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;
                             }).join('')}

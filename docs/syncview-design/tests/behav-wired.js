@@ -221,7 +221,7 @@ async function txt(page, sel) {
     });
     await waitForResetBaseline();
   };
-  const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to write.';
+  const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to edit.';
   const issueSnapshot = () => page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
   const signedOutWriteGuard = async (trigger, controlSelector) => {
     const signedOut = await page.evaluate(() => !_syncviewStaffIdentityForHeaders());
@@ -836,7 +836,7 @@ async function txt(page, sel) {
       const deleteToast = await txt(page, '#prodToast');
       return before === after
         && deleteToast.includes('not available here, for anyone')
-        && !deleteToast.includes('Preview - read-only');
+        && !deleteToast.includes('View only for now');
     }); await reset();
     await ok('pickerNum', async () => {
       const guarded = await signedOutClick('.prod-row .prod-status[data-st]');
@@ -1263,7 +1263,7 @@ async function txt(page, sel) {
       await page.waitForSelector('.prod-pop [data-prod-ppick]', { timeout: 3000 });
       await page.locator('.prod-pop [data-prod-ppick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      return hasItems && (await txt(page, '#prodToast')).includes('Preview - read-only');
+      return hasItems && (await txt(page, '#prodToast')).includes('View only for now');
     }); await reset();
     await ok('colCollapse', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
@@ -1322,7 +1322,7 @@ async function txt(page, sel) {
       const toastText = await txt(page, '#prodToast');
       return beforeCollapsed === afterCollapsed
         && toastText.includes('does not select the group yet')
-        && !toastText.includes('Preview - read-only');
+        && !toastText.includes('View only for now');
     }); await reset();
     await ok('paletteCmdClearSel', async () => {
       await page.keyboard.press('Control+a');
@@ -1995,7 +1995,7 @@ async function txt(page, sel) {
       await page.locator('#prodLayer [data-prod-ppick]').first().dispatchEvent('click');
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const after = await page.evaluate(() => JSON.stringify(_prodClients().map(c => [c.id, c.status])));
-      return isStatus && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
+      return isStatus && before === after && (await txt(page, '#prodToast')).includes('View only for now');
     }); await reset();
     await ok('boardCardKbStatus', async () => {
       await page.evaluate(() => {
@@ -2357,7 +2357,7 @@ async function txt(page, sel) {
         && fakeDisabled === 0
         && leadIcon
         && pickerOpened
-        && toast === 'Preview - read-only';
+        && toast === 'View only for now';
     }); await reset();
     await page.evaluate(() => localStorage.setItem('syncview_theme', 'dark'));
     await page.reload({ waitUntil: 'domcontentloaded' });

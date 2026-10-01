@@ -15,7 +15,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to write.';
+const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to edit.';
 const outDir = process.env.SYNCVIEW_PROD_PIXEL_SHOTS
   ? path.resolve(process.env.SYNCVIEW_PROD_PIXEL_SHOTS)
   : path.join(root, '.codex-tmp', 'prod-pixel-wired');
@@ -748,7 +748,7 @@ async function runTheme(port, browser, theme) {
       };
     });
     if (!wiredDropGuard.same) gaps.push({ rank: 1, state: 'board drag guard', message: 'wired read-only drop changed project status' });
-    if (!/Preview - read-only/.test(wiredDropGuard.toast)) gaps.push({ rank: 1, state: 'board drag guard', message: `wired drop toast was ${wiredDropGuard.toast || '(empty)'}` });
+    if (!/View only for now/.test(wiredDropGuard.toast)) gaps.push({ rank: 1, state: 'board drag guard', message: `wired drop toast was ${wiredDropGuard.toast || '(empty)'}` });
     if (wiredDropGuard.dragging || wiredDropGuard.drop) gaps.push({ rank: 2, state: 'board drag guard', message: 'wired drag/drop visual state did not clean up after guarded drop' });
     await artifact.evaluate(() => {
       const target = document.querySelector('.pcol-drop');

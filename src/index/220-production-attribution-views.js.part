@@ -848,9 +848,47 @@ import { _prodRender } from './260-production-refresh-boot.js';
                been given would open the wrong deliverable. No such collision
                exists in the live set today; this is what keeps that from being
                load-bearing. */
-            return rows.find(i => i.id === sid || i.displayId === sid)
-                || rows.find(i => i.aliasId && i.aliasId === sid)
-                || null;
+            const look = _prodLookups(rows);
+            return look.byKey.get(sid) || look.byAlias.get(sid) || null;
+        }
+        /* LOOKUP TABLES, built once per adapter instead of scanning it per call.
+
+           `_prodIssue` and `_prodChildrenOf` used to walk the whole issue list
+           (about 5,700 rows with the finished ones) every time they were asked,
+           and a list render asks both for every row it draws: roughly 1,600
+           rows x several scans x a localeCompare sort per parent. Measured
+           2026-10-01 on the live site, about 300 ms of every full render, four
+           renders per open, with nothing else changing. The answers are the
+           same answers: `byKey` keeps the FIRST row in list order whose id or
+           displayId equals the key (what `find` returned), `byAlias` keeps the
+           first row carrying that alias (the second `find`, still consulted
+           only when no canonical match exists), and each parent's children are
+           the same rows in the same relative order, sorted by the same
+           comparator. A stable sort of the already-ordered bucket is the stable
+           sort of the filtered list.
+
+           Keyed on the ISSUES array itself, so it dies with the adapter. Issue
+           rows are not edited after `_prodAdapter` returns: optimistic writes
+           patch the raw deliverable row and null the adapter (see
+           `_prodRunPickerWrite`), and the next read builds a new array. */
+        const _prodLookupCache = new WeakMap();
+        function _prodLookups(rows) {
+            let hit = _prodLookupCache.get(rows);
+            if (hit) return hit;
+            const byKey = new Map();
+            const byAlias = new Map();
+            const kids = new Map();
+            for (let n = 0; n < rows.length; n++) {
+                const row = rows[n];
+                if (typeof row.id === 'string' && !byKey.has(row.id)) byKey.set(row.id, row);
+                if (typeof row.displayId === 'string' && !byKey.has(row.displayId)) byKey.set(row.displayId, row);
+                if (row.aliasId && typeof row.aliasId === 'string' && !byAlias.has(row.aliasId)) byAlias.set(row.aliasId, row);
+                const bucket = kids.get(row.parent);
+                if (bucket) bucket.push(row); else kids.set(row.parent, [row]);
+            }
+            hit = { byKey, byAlias, kids, sorted: new Map() };
+            _prodLookupCache.set(rows, hit);
+            return hit;
         }
         /* The CANONICAL row id for whatever is open, which is not always what
            `_prodState.openId` holds.
@@ -1275,7 +1313,14 @@ import { _prodRender } from './260-production-refresh-boot.js';
             return String((a && a.id) || '').localeCompare(String((b && b.id) || ''));
         }
         function _prodChildrenOf(id) {
-            return _prodIssues().filter(d => d.parent === id).sort(_prodChildOrder);
+            const look = _prodLookups(_prodIssues());
+            let ordered = look.sorted.get(id);
+            if (!ordered) {
+                ordered = (look.kids.get(id) || []).slice().sort(_prodChildOrder);
+                look.sorted.set(id, ordered);
+            }
+            // A fresh array every call, as `filter` gave: callers may hold or edit it.
+            return ordered.slice();
         }
         /* WHO CAN READ THE THREE POST-LEVEL SLOTS OF A BATCH PARENT.
          *
@@ -2342,17 +2387,17 @@ import { _prodRender } from './260-production-refresh-boot.js';
             // ordinary reasons rather than being told to go somewhere else.
             if (issue && issue.syntheticBatchParent === true
                 && !_prodIsDescriptionOperation(operation)) {
-                return "This is the post's batch parent — open its sub-issues to work on it.";
+                return "This is the main card for the post. Open its sub-issues to work on them.";
             }
-            if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
+            if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to edit.';
             const identityGate = _prodIdentityRepairGateText(issue);
             if (identityGate) return identityGate;
             const attributionGate = _prodAttributionGateText(issue);
             if (attributionGate) return attributionGate;
             if (!_prodRoleCanWrite(issue, operation)) return _prodRoleGateText(issue, operation);
             const team = _prodWriteTeam(issue && issue.team);
-            if (!_prodState.authorityLoaded || !_prodState.authority || !team) return 'Write controls are unavailable while authority is being checked.';
-            if (_prodState.authority[team] !== 'syncview') return _prodTeamLabel(team) + ' stays read-only while Linear is authoritative.';
+            if (!_prodState.authorityLoaded || !_prodState.authority || !team) return 'Editing is off for a moment while we check your access.';
+            if (_prodState.authority[team] !== 'syncview') return _prodTeamLabel(team) + ' is view only for now. Linear is still the source.';
             return '';
         }
         function _prodWriteGateAttrs(issue, operation, allowedSurface) {
@@ -2403,7 +2448,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             team = _prodWriteTeam(team);
             if (team) {
                 if (!_prodState.authorityLoaded || !_prodState.authority) return 'Creation is unavailable while authority is being checked.';
-                if (_prodState.authority[team] !== 'syncview') return _prodTeamLabel(team) + ' stays read-only while Linear is authoritative.';
+                if (_prodState.authority[team] !== 'syncview') return _prodTeamLabel(team) + ' is view only for now. Linear is still the source.';
             }
             return '';
         }
@@ -2438,7 +2483,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             return '<button class="prod-create-trigger" type="button" data-prod-create-trigger="1"'
                 + (gate
                     ? ' disabled title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '"'
-                    : ' onclick="return _prodOpenCreate()" title="Recover saved Production issue" data-prod-tip="Recover saved issue"')
+                    : ' onclick="return _prodOpenCreate()" title="Recover the saved sub-issue" data-prod-tip="Recover the saved sub-issue"')
                 + '>' + _prodIcon('plus') + '<span>Recover issue</span></button>';
         }
         function _prodCreateValidDate(value) {

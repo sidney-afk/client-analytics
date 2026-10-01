@@ -29,7 +29,7 @@ const loading = buttons(ctx._calCommentActionsHtml(canonicalRoot, false, false))
 assert.equal(loading.length, 4, 'reply, edit, mark done and delete are still drawn while loading');
 for (const b of loading) {
   assert.match(b, /\sdisabled\b/, 'every action is disabled while the thread loads: ' + b);
-  assert.match(b, /title="Comments are still loading"/, 'and says why');
+  assert.match(b, /title="Notes are still loading"/, 'and says why');
 }
 
 const ready = buttons(ctx._calCommentActionsHtml(canonicalRoot, false, true));
@@ -37,7 +37,7 @@ assert.equal(ready.length, 4);
 for (const b of ready) assert.doesNotMatch(b, /\sdisabled\b/, 'a loaded thread enables every action: ' + b);
 
 const done = buttons(ctx._calCommentActionsHtml({ ...canonicalRoot, done: true }, false, false));
-assert(done.some(b => /Comments are still loading/.test(b) && /disabled/.test(b)), 'Reopen waits too');
+assert(done.some(b => /Notes are still loading/.test(b) && /disabled/.test(b)), 'Reopen waits too');
 
 const legacyDefault = buttons(ctx._calCommentActionsHtml({ id: 'l1', canonical: false, done: false }, false));
 assert(legacyDefault.length > 0 && legacyDefault.every(b => !/\sdisabled\b/.test(b)), 'the default (legacy comments) stays enabled');

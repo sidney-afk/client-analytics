@@ -338,11 +338,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (hasAlt) {
             tabsHtml = `<div class="cal-cap-tabs">
                 <button type="button" class="cal-cap-tab${active === 'main' ? ' is-active' : ''}" data-captab="main" onclick="_calCapTabSwitch('${pid}','main')">Caption</button>
-                <button type="button" class="cal-cap-tab${active === 'alt' ? ' is-active' : ''}" data-captab="alt" onclick="_calCapAltTabClick(event,'${pid}',this)" title="${canEdit ? _calEscAttr(platLabel) + ' caption — click while active to change the platform' : _calEscAttr(platLabel) + ' caption'}">${_calEsc(platLabel)}${canEdit ? `<span class="cal-cap-tab-chev">${chevIco}</span><span class="cal-cap-tab-x" onclick="_calAltCapRemove(event,'${pid}')" title="Remove the ${_calEscAttr(platLabel)} caption">${xIco}</span>` : ''}</button>
+                <button type="button" class="cal-cap-tab${active === 'alt' ? ' is-active' : ''}" data-captab="alt" onclick="_calCapAltTabClick(event,'${pid}',this)" title="${canEdit ? _calEscAttr(platLabel) + ' caption. Click to switch platform.' : _calEscAttr(platLabel) + ' caption'}">${_calEsc(platLabel)}${canEdit ? `<span class="cal-cap-tab-chev">${chevIco}</span><span class="cal-cap-tab-x" onclick="_calAltCapRemove(event,'${pid}')" title="Remove the ${_calEscAttr(platLabel)} caption">${xIco}</span>` : ''}</button>
             </div>`;
         } else if (canEdit) {
             tabsHtml = `<div class="cal-cap-tabs">
-                <button type="button" class="cal-altcap-add" onclick="_calCapTabAddMenu(event,'${pid}',this)" title="Add a second caption for another platform — reviewed and approved together with the main caption"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>
+                <button type="button" class="cal-altcap-add" onclick="_calCapTabAddMenu(event,'${pid}',this)" title="Add a caption for another platform. It’s approved together with the main one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>
             </div>`;
         }
         const genBtn = canEdit ? _calCapGenBtnHtml(p) : '';
@@ -527,7 +527,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // dot), and never the interactive picker.
         if (ro || _isClientLink) {
             if (!color) return '';
-            return `<span class="cal-card-color-tag has-color is-readonly" data-color="${color}" title="Color tag — identifies which batch of content this post belongs to"><span class="cal-card-color-tag-dot"></span></span>`;
+            return `<span class="cal-card-color-tag has-color is-readonly" data-color="${color}" title="Color tag. Shows which batch this card is in."><span class="cal-card-color-tag-dot"></span></span>`;
         }
         const pid = _calEscAttr(post.id);
         return `<button type="button" class="cal-card-color-tag${color ? ' has-color' : ''}"${color ? ` data-color="${color}"` : ''} title="Tag this card with a color" onclick="_calOpenColorPicker(event,'${pid}')"><span class="cal-card-color-tag-dot"></span></button>`;

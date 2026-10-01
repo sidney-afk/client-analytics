@@ -6781,6 +6781,22 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Undo: drag the file back out of `Archive` to the top level of the Drive. No ids are recorded here (public repository).
 - Same day: the Project Central, Sheet API n8n workflow was unpublished; entry and undo in `docs/ops/N8N_EDIT_LOG.md`.
 
+## 2026-10-01 - Opening an item feels instant: measured on the live site, five changes, same pages (session Comet, OPEN_REPAIRS 323)
+
+- Measured first, as admin staff on the test client, every entry point, 5 runs cold and warm: the staff check (about 1.0 s)
+  is the floor under every new-tab open and was not touched. Worst case: a link at a finished batch showed its title at
+  5.3 s and everything at 6.5 s; a link at a finished card opened 0.7 s late on every warm visit; every new-tab link went
+  through a 404 and a redirect first; a SyncLinear row click started its reads only at the click.
+- Changes: a batch link reads its batch, children and parent directly; the saved copy keeps finished rows in IndexedDB
+  and reads only what changed (hourly full pass kept, Refresh is always full); the saved list lives 7 days; new-tab links
+  use the app document itself; row reads start on hover or press.
+- Same rig, interleaved: finished batch warm title 5.27 to 1.46 s, everything 6.51 to 2.74 s; finished sub-issue warm
+  2.16 to 1.42 s; row click everything 1.59 to 1.22 s; SyncLinear list warm complete list 5.25 to 3.17 s, 2.36 MB to
+  1.25 MB, 71 to 63 requests (fresh data 0.2 s later). Content compared old against new: identical.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/open-item-speed.js` plus six suites taught the new link form and helpers.
+- Record and owner decisions: `docs/audits/2026-10-01-open-item-speed.md`.
+
 ## 2026-10-01 - Notes dialog: loading skeleton instead of "All clear" (session Comet, OPEN_REPAIRS 325)
 
 - The dialog said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and comment reads were still

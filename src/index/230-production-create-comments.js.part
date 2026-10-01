@@ -1721,7 +1721,7 @@ import {
             const states = new Map();
             let generation = 0;
             const stateFor = id => states.get(String(id || '')) || null;
-            const repaint = () => { try { _prodRender(); } catch (e) {} };
+            const repaint = id => { if (id && _prodState.quietIds.has(String(id))) return; try { _prodRender(); } catch (e) {} };
             const clientSurfaceFor = value => {
                 const source = value && typeof value === 'object' ? value : {};
                 const sourceSurface = String(source.source_surface || '').trim().toLowerCase();
@@ -1754,7 +1754,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface: null,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 const append = !!options.append;
@@ -1782,7 +1782,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface: null,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 let hasClientCredential = false;
@@ -1793,7 +1793,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 const requestGeneration = generation;
@@ -1808,7 +1808,7 @@ import {
                     refreshError: '', pagesLoaded: 0, clientSurface,
                     clientSurfaceVerified: false, token
                 });
-                repaint();
+                repaint(id);
                 const cursor = append && current ? current.cursor : null;
                 /* A read that never answers used to sit on the skeleton for the
                    life of the page. The error branch below and its Retry button
@@ -1854,7 +1854,7 @@ import {
                             refreshError: '', pagesLoaded: 0, clientSurface,
                             clientSurfaceVerified: false, token
                         });
-                        repaint();
+                        repaint(id);
                         return stateFor(id);
                     }
                     if (!response.ok) throw new Error('Comments read failed: HTTP ' + response.status);
@@ -1916,7 +1916,7 @@ import {
                 } finally {
                     if (timeoutTimer) clearTimeout(timeoutTimer);
                 }
-                repaint();
+                repaint(id);
                 return stateFor(id);
             }
             function ensure(id) {
@@ -1947,7 +1947,7 @@ import {
                 const state = stateFor(id);
                 if (!state || state.status !== 'ready') return;
                 states.set(String(id), { ...state, items: _prodCommentMerge(state.items, [row]) });
-                repaint();
+                repaint(id);
             }
             async function readCanonical(id, options) {
                 options = options || {};
@@ -1977,7 +1977,7 @@ import {
                 generation++;
                 if (id == null) states.clear();
                 else states.delete(String(id || ''));
-                repaint();
+                repaint(id);
             }
             function render(id) {
                 const state = stateFor(id);

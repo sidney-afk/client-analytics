@@ -128,7 +128,7 @@ ok(sharedGuardAt > branchAt && writesAt > branchAt && identityAt > branchAt,
 /* Not a regression risk to remove -- it is what makes the panel update at all.
    Asserted so a later reader understands the guard is load-bearing rather than
    defensive. */
-ok(/function _prodRefreshLabelSurfaces\(id\) \{\s*\n\s*if \(document\.getElementById\('prodRoot'\)\) _prodRender\(\);/.test(INDEX),
+ok(/function _prodRefreshLabelSurfaces\(id\) \{\s*\n(?:\s*if \(id && _prodState\.quietIds\.has\(String\(id\)\)\) return;[^\n]*\n)?\s*if \(document\.getElementById\('prodRoot'\)\) _prodRender\(\);/.test(INDEX),
   'refreshing label surfaces still calls _prodRender -- the cycle is real, and the guard is what breaks it');
 
 console.log(failures === 0

@@ -586,6 +586,52 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 window.scrollTo({ top: 0, left: 0 });
             }, 0);
         }
+        /* OPEN ON INTENT (2026-10-01). The reads an opened card needs (comments,
+           assets, description, labels) are the ones the click starts anyway, asked
+           for when the pointer settles on a row (120 ms) or presses it, so a
+           typical click lands on answers already on their way. Each call is the
+           same idempotent, per-row ensure that render makes, with the same scope
+           and identity check when the answer lands; nothing is painted by this,
+           and a sweep across the list starts nothing. */
+        function _prodPrefetchOpen(id) {
+            id = String(id || '');
+            if (!id || !_prodEnabled() || !_prodState.loaded || _prodState.refreshing || document.hidden) return;
+            const row = _prodIssue(id);
+            if (!row) return;
+            const rowId = String(row.id);
+            if (_prodState.view === 'detail' && _prodOpenRowId() === rowId) return;
+            /* Quiet while nobody has opened the row: these reads would otherwise
+               redraw the whole tab each time one starts or lands, which on a press
+               replaces the row between mouse-down and mouse-up and drops the click.
+               The render that opens the row removes it from the set. */
+            if (_prodState.quietIds.size > 40) _prodState.quietIds.clear();
+            _prodState.quietIds.add(rowId);
+            _prodComments.ensure(rowId);
+            _prodEnsureLabels(rowId, false);
+            _prodEnsureDescription(rowId, false);
+            _prodEnsureAssets(rowId, false);
+            const batchAssetSource = _prodBatchAssetSource(row);
+            if (batchAssetSource) _prodState.quietIds.add(String(batchAssetSource.id));
+            if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
+        }
+        let _prodIntentTimer = 0, _prodIntentId = '';
+        function _prodIntentRow(e) {
+            const t = e.target && e.target.closest ? e.target.closest('[data-prod-row], [data-prod-subrow], [data-prod-project-issue]') : null;
+            return t ? (t.getAttribute('data-prod-row') || t.getAttribute('data-prod-subrow') || t.getAttribute('data-prod-project-issue') || '') : '';
+        }
+        document.addEventListener('pointerover', e => {
+            if (!document.getElementById('prodRoot')) return;
+            const id = _prodIntentRow(e);
+            if (id === _prodIntentId) return;
+            clearTimeout(_prodIntentTimer);
+            _prodIntentId = id;
+            if (id) _prodIntentTimer = setTimeout(() => { try { _prodPrefetchOpen(id); } catch (err) {} }, 120);
+        });
+        document.addEventListener('pointerdown', e => {
+            if (!document.getElementById('prodRoot')) return;
+            const id = _prodIntentRow(e);
+            if (id) { clearTimeout(_prodIntentTimer); try { _prodPrefetchOpen(id); } catch (err) {} }
+        }, true);
         function _prodRender() {
             const root = document.getElementById('prodRoot');
             if (!root) return;
@@ -625,6 +671,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             }
             if (_prodState.view === 'detail' && _prodState.openId) {
                 const openRowId = _prodOpenRowId();
+                _prodState.quietIds.delete(openRowId);
                 _prodComments.ensure(openRowId);
                 _prodLoadLinearRawFor(openRowId);
                 _prodEnsureLabels(openRowId, false);
@@ -637,6 +684,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                    per row, so opening the parent and then the child costs one
                    read between them, not two. */
                 const batchAssetSource = _prodBatchAssetSource(_prodIssue(openRowId));
+                if (batchAssetSource) _prodState.quietIds.delete(String(batchAssetSource.id));
                 if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
                 /* The file pills on the sub-issue list. Asked for once per
                    BATCH ROW OF THE POST, only where a list is actually drawn --

@@ -14,8 +14,8 @@ on `deliverables`, tgtype 17, enabled, no WHEN clause; all five function bodies 
 function grants EXECUTE to `service_role` only (no `anon`, `authenticated` or PUBLIC). The catch-up dry run over 60 days returned
 0 rows. Live proof on the test client inside a transaction that was rolled back: moving one samples-origin work item to
 `tweak` moved its sample from Approved to Tweaks Needed (overall status too) with one `native-bridge` event row; afterwards
-the sample, the work item and the event count were exactly as before. The deploy preflight and install manifest now pin
-the five routines and the trigger. **Way back:** the rollback block at the bottom of the migration (drop the trigger and the
+the sample, the work item and the event count were exactly as before. The deploy preflight now pins the
+five routines and the trigger (the install manifest is unchanged). **Way back:** the rollback block at the bottom of the migration (drop the trigger and the
 five functions; samples already projected stay, they were correct).
 
 ## 2026-10-01 — 20 duplicate Metrics rows removed from analytics_metrics (owner's go; OPEN_REPAIRS 309)

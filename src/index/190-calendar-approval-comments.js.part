@@ -8,9 +8,9 @@ import {
 import {
   _calCommentsFor, _calCommentsForView, _calCompLinked, _calLinearUrlFor, _calMsgAudience,
   _calMsgIsTweak, _calNextTweakRound, _calNoLinearPush, _calPendingEdits, _calPillDisplayStatus,
-  _calReviewCapCardHtml, _calSetCommentsFor, calState
+  _calReviewCapCardHtml, _calSetCommentsFor, calClientSlug, calState
 } from './130-calendar-model-cache.js';
-import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calEsc, _calEscAttr, _jsAttrArg, _svDraftClear, _svDraftClearIf, _svDraftNoteHtml, _svDraftNorm, _svDraftRead, _svDraftSave } from './131-core-html.js';
 import { _calParseIso } from './132-calendar-dates-ids.js';
 import { _calSavePrefs } from './134-calendar-prefs-mount.js';
 import {
@@ -1491,6 +1491,72 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     let _calEditTarget = null;
     const _calEditDrafts = Object.create(null);
     let _calRootDraft = '';
+    /* A new note typed and not yet sent is kept in the shared draft store for
+       staff (it survives a new tab and a reload, for 7 days) and in
+       sessionStorage on a client link, as it always was. It is dropped when the
+       server ACKNOWLEDGES the note. If the page went away while a note was on
+       its way, the restore looks in the thread first and drops the draft when
+       the note is already there: restoring it would send it twice. */
+    let _calRootDraftRestored = '';   // '' | 'restored' | 'sending'
+    function _calNoteInThread(post, text) {
+        const want = _svDraftNorm(text);
+        if (!want || !post) return false;
+        return CAL_COMPONENTS.some(c => {
+            const list = c === 'video' ? (Array.isArray(post.comments) ? post.comments : []) : _calCommentsFor(post, c);
+            return Array.isArray(list) && list.some(m => m && _svDraftNorm(m.body) === want);
+        });
+    }
+    function _calNoteDraftGet(pid) {
+        _calRootDraftRestored = '';
+        const post = calState.posts.find(p => p.id === pid);
+        if (_isClientLink) {
+            let t = '', sending = '';
+            try { t = sessionStorage.getItem('sv_noteDraft_' + pid) || ''; sending = sessionStorage.getItem('sv_noteSending_' + pid) || ''; } catch (e) {}
+            // Only a note that was ON ITS WAY is checked against the thread; an ordinary unsent draft that happens to repeat an old note is kept.
+            if (t && sending === t && _calNoteInThread(post, t)) {
+                try { sessionStorage.removeItem('sv_noteDraft_' + pid); sessionStorage.removeItem('sv_noteSending_' + pid); } catch (e) {}
+                return '';
+            }
+            return t;
+        }
+        const d = _svDraftRead('cal', calClientSlug(calState.client), pid, 'note');
+        if (!d) return '';
+        if (d.meta && d.meta.sending && _calNoteInThread(post, d.text)) { _svDraftClear('cal', calClientSlug(calState.client), pid, 'note'); return ''; }
+        _calRootDraftRestored = d.meta && d.meta.sending ? 'sending' : 'restored';
+        return d.text;
+    }
+    function _calNoteDraftSet(pid, text, meta) {
+        if (!pid) return;
+        if (_isClientLink) {
+            try {
+                if (text) sessionStorage.setItem('sv_noteDraft_' + pid, text); else sessionStorage.removeItem('sv_noteDraft_' + pid);
+                if (text && meta && meta.sending) sessionStorage.setItem('sv_noteSending_' + pid, text); else sessionStorage.removeItem('sv_noteSending_' + pid);
+            } catch (e) {}
+            return;
+        }
+        _svDraftSave('cal', calClientSlug(calState.client), pid, 'note', text, meta);
+    }
+    /* The server acknowledged `body`: drop the draft only if it IS that text. */
+    function _calNoteDraftClearIfSent(pid, body) {
+        if (_isClientLink) {
+            try {
+                if ((sessionStorage.getItem('sv_noteDraft_' + pid) || '').trim() === String(body || '').trim()) {
+                    sessionStorage.removeItem('sv_noteDraft_' + pid);
+                    sessionStorage.removeItem('sv_noteSending_' + pid);
+                }
+            } catch (e) {}
+            return;
+        }
+        _svDraftClearIf('cal', calClientSlug(calState.client), pid, 'note', body);
+    }
+    function _calNoteDraftDiscard() {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        _calNoteDraftSet(pid, '');
+        _calRootDraft = '';
+        _calRootDraftRestored = '';
+        _calRenderCommentsModal();
+    }
     /* Audience for the NEXT new root note an SMM sends from the Notes modal:
        'internal' (team-only — you + Kasper, hidden from the client) or 'client'
        (shared with the client). Defaults to 'internal' so nothing reaches the
@@ -1981,8 +2047,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // A half-written note survives an accidental close (Esc, mis-click on
         // the backdrop): the draft is kept per card for the tab's lifetime
         // and cleared on send.
-        _calRootDraft = '';
-        try { _calRootDraft = sessionStorage.getItem('sv_noteDraft_' + pid) || ''; } catch (e) {}
+        _calRootDraft = _calNoteDraftGet(pid);
         _calComposeAudience = 'internal';   // safe default each open
         _calComposeIsTweak = false;         // default to a plain comment
         _calComposeComp = 'video';          // Part B: picker defaults to Video
@@ -2276,8 +2341,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             </div>`
             : '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const draftNote = (!isReply && !isEdit && draft && _calRootDraftRestored)
+            ? _svDraftNoteHtml(`onclick="_calNoteDraftDiscard()"`, _calRootDraftRestored === 'sending' ? '(it may already have been sent: check the thread before sending again)' : '')
+            : '';
         return `<div class="cal-cm-composer-wrap">
             ${replyingTo}
+            ${draftNote}
             ${compPicker}
             ${audienceToggle}
             ${changeToggle}
@@ -2305,10 +2374,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         else {
             _calRootDraft = ta.value;
-            try {
-                if (ta.value) sessionStorage.setItem('sv_noteDraft_' + _calOpenCommentsPid, ta.value);
-                else sessionStorage.removeItem('sv_noteDraft_' + _calOpenCommentsPid);
-            } catch (e) {}
+            _calNoteDraftSet(_calOpenCommentsPid, ta.value);
         }
         const wrap = ta.closest('.cal-cm-composer');
         if (!wrap) return;
@@ -2372,12 +2438,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return;
         }
         const parentId = _calReplyTarget;
+        // While a new note is on its way, the saved draft says so: if the page goes away before
+        // the answer, the restore checks the thread before offering it again.
+        if (!parentId) _calNoteDraftSet(pid, body, { sending: Date.now() });
         const saved = await _calAppendComment(pid, parentId, body);
-        if (!saved) return;
+        if (!saved) { if (!parentId) _calNoteDraftSet(pid, body); return; }
         if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
         else {
             _calRootDraft = '';
-            try { sessionStorage.removeItem('sv_noteDraft_' + pid); } catch (e) {}
+            _calRootDraftRestored = '';
+            _calNoteDraftSet(pid, '');
         }
         _calReplyTarget = null;
         _calRenderCommentsModal();
@@ -2497,6 +2567,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 committedBatch = {};
                 _writeUiBindRepairAck(post, committedBatch, acknowledgement);
                 nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
+                // Acknowledged: the draft must not come back after a reload and be sent a second time.
+                if (isRoot) _calNoteDraftClearIfSent(pid, body);
             } catch (e) {
                 _writeUiReportFailure('calendar', 'comment', e);
                 return false;
@@ -3095,8 +3167,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _calBeginCommentEdit, _calBeginReply, _calDeleteComment, _calDismissResolveDest, _calOnComposerInput,
-        _calOnComposerKey, _calReviewApprove, _calReviewComment, _calReviewOnDraftInput,
+        _calBeginCommentEdit, _calBeginReply, _calDeleteComment, _calDismissResolveDest, _calNoteDraftDiscard,
+        _calOnComposerInput, _calOnComposerKey, _calReviewApprove, _calReviewComment, _calReviewOnDraftInput,
         _calReviewOpenInSheet, _calReviewRequestTweak, _calReviewToggleCard, _calSetComposeAudience,
         _calSetComposeComp, _calSetComposeIsTweak, _calSubmitComposer, _calToggleCommentDone,
         _calToggleShowResolved, closeCalComments, closeCalPreview, editInOrganizerFromPreview,

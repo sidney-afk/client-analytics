@@ -1280,6 +1280,19 @@
             border-radius: 7px; padding: 6px 9px; font-size: 0.7rem; font-weight: 700;
             line-height: 1.3; letter-spacing: 0.01em; }
 
+        /* Two people on one card: the other value and a choice (see _calConflictGate). */
+        .cal-conflict { background: var(--surface-subtle); color: var(--text-primary); border: 1px solid var(--dn);
+            border-radius: 7px; padding: 7px 9px; font-size: 0.72rem; line-height: 1.35; display: flex; flex-direction: column; gap: 6px; }
+        .cal-conflict.is-aside { border-color: var(--border); }
+        .cal-conflict-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .cal-conflict-btn { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px;
+            padding: 3px 9px; font-family: inherit; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
+        .cal-conflict-btn:hover { border-color: var(--sv-border-aaa); }
+
+        /* Restored unsaved text: one quiet line, never a dialog (shared draft helper, 131). */
+        .sv-draft-note { font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 2px 0; }
+        .sv-draft-discard { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--text-primary); text-decoration: underline; cursor: pointer; }
+
         /* Title — reads as a heading, not a form field */
         .cal-fld-name { width: 100%; box-sizing: border-box; border: 0; outline: 0; background: transparent;
             padding: 3px 4px; font-family: inherit; font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }

@@ -205,6 +205,18 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/failed-saves-beacon-browser.js
+      - name: A Calendar Retry sends the status the person chose (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/lost-work-retry-intent-browser.js
+      - name: Two people on one Calendar card get a notice, not an overwrite (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/lost-work-conflict-browser.js
+      - name: Typed captions, notes, comments and descriptions survive a closed tab or a failed save (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/lost-work-drafts-browser.js
       - name: Client approve and request-changes requests are unchanged
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

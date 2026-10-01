@@ -1528,10 +1528,12 @@ import {
         const early = _syncviewTakeEarlyKeyVerify(candidate, surface);
         let response = null;
         if (early) { try { response = await early; } catch (e) { response = null; } }
+        // Same simple-request form as the head script's early check (no preflight; the
+        // function reads the key from the body when no header carries it).
         if (!response) response = await fetch(STAFF_KEY_VERIFY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(candidate && candidate.key || '') },
-            body: JSON.stringify({ surface: surface || 'staff-login', member: { id: candidate && candidate.member && candidate.member.id } })
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify({ surface: surface || 'staff-login', key: String(candidate && candidate.key || ''), member: { id: candidate && candidate.member && candidate.member.id } })
         });
         let json = null;
         try { json = await response.json(); } catch (e) {}

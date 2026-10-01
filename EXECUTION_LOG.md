@@ -6773,3 +6773,13 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
 - Tests: `test/synclinear-early-read.js`, `test/prod-tail-prefetch.js`, `qa/boot/staff-entry-gate.js` (Linear tab cases).
 - Record and owner decisions: `docs/audits/2026-10-01-synclinear-speed.md`.
+
+## 2026-10-01 - Staff sign-in check: no browser preflight (session Comet, OPEN_REPAIRS 323)
+
+- Measured: every new tab sent an OPTIONS preflight before the check (server median 157 ms, 1,336 a day, about 0.3 to 0.5 s end
+  to end); the check itself is 362 ms server median, three serial database calls. In a page 736 ms with the preflight, 507 ms without.
+- Change: the two key-verify calls are simple requests (text/plain, key in the body, which the deployed function already reads).
+  Gate answers 0.2 to 0.4 s sooner in every old-against-new pair; sub-issue panel visible 1.34 to 0.93 s warm.
+- Browser only; no deploy. Server proposals (Max-Age on hot-path functions, parallel reads, optional background audit) are in
+  `docs/proposals/2026-10-01-key-verify-speed.md` for the owner to decide and deploy.
+- Tests: `test/key-verify-no-preflight.js`, `test/boot-entry-tax.js`, `qa/boot/staff-entry-gate.js`.

@@ -91,10 +91,15 @@
                 try {
                     var svId = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
                     if (svId && svId.key && svId.member && svId.member.id) {
+                        // A "simple" cross-origin request (text/plain, no custom header; the
+                        // function already reads the key from the body): the browser sends it
+                        // at once instead of first sending an OPTIONS preflight, which is a
+                        // whole extra round trip and Edge Function call (measured 2026-10-01:
+                        // median 736 ms with the preflight, 507 ms without, same function).
                         var svVerify = fetch(svBase + '/functions/v1/key-verify', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(svId.key) },
-                            body: JSON.stringify({ surface: 'staff-boot', member: { id: svId.member.id } })
+                            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                            body: JSON.stringify({ surface: 'staff-boot', key: String(svId.key), member: { id: svId.member.id } })
                         });
                         svVerify.catch(function () {});
                         window.__svEarlyKeyVerify = { key: String(svId.key), memberId: String(svId.member.id), at: Date.now(), response: svVerify };

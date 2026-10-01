@@ -107,8 +107,16 @@ async function headBatch(fetchImpl) {
   check('head fires exactly one flag read', flagCalls.length === 1 && /key=in\./.test(flagCalls[0].url));
   const verifyCalls = calls.filter(c => /key-verify/.test(c.url));
   check('head fires exactly one boot key-verify for the stored identity',
-    verifyCalls.length === 1 && verifyCalls[0].opts.headers['X-Syncview-Key'] === 'k1'
+    verifyCalls.length === 1 && JSON.parse(verifyCalls[0].opts.body).key === 'k1'
     && JSON.parse(verifyCalls[0].opts.body).surface === 'staff-boot');
+  // A cross-origin POST is "simple" (sent at once, no OPTIONS preflight) only with a
+  // CORS-safelisted content type and no custom header. The preflight is a whole extra
+  // round trip plus an Edge Function call: measured 2026-10-01, key-verify median 736 ms
+  // with it and 507 ms without. The key travels in the body, which the function reads.
+  const verifyHeaders = Object.keys(verifyCalls[0].opts.headers || {}).map(h => h.toLowerCase());
+  check('the boot key-verify needs no preflight: text/plain, no custom header',
+    verifyHeaders.length === 1 && verifyHeaders[0] === 'content-type'
+    && /^text\/plain/i.test(verifyCalls[0].opts.headers['Content-Type']));
   const first = await win.__svTakeBootFlag('settings_ef_clients');
   check('batched row is returned', first && first.row && first.row.value.clients[0] === 'x');
   check('batched row is taken once', (await win.__svTakeBootFlag('settings_ef_clients')) === null);

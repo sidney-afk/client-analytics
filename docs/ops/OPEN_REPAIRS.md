@@ -30254,3 +30254,14 @@ Proof (offline, synthetic ids, zero external calls): `test/native-notification-u
 Order of events: merge; deploy `notify` (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml, function `notify`, commit = main's tip after merge; deploy it BEFORE any F27 dispatch, whose prerequisite compares live `notify` with the dispatch commit); run the preview lane with `message: urgent` for the test client; the owner looks; only then set the secret.
 
 Not built, proposed: one message for several urgent pings to the same editor and client (see `docs/ops/NATIVE_NOTIFICATIONS.md`).
+
+
+## 323. [2026-10-01] The staff sign-in check no longer waits for a browser preflight: it answers 0.2 to 0.4 s sooner on every page and new tab; three server changes proposed, none made
+
+Status: page change built and tested, browser only; **no Edge Function or database touched, no deploy needed or triggered** (nothing under `supabase/functions/` changed). Merge is the owner's lighthouse.
+Measured first (Edge Function log, 24 h, plus a real browser against the live function): the check carried a custom header and `application/json`, so every new tab first sent an `OPTIONS` preflight, a whole extra round trip and an Edge Function call (server median 157 ms; the function sends no `Access-Control-Max-Age`, so browsers keep the permission 5 s). The check itself: server median 362 ms (p90 832), about 157 ms platform overhead plus three serial database calls. Process start 20 to 27 ms, so not a cold-start problem. In a page: median 736 ms with the preflight, 507 ms without (12 interleaved pairs).
+Fix: the head script's early check and `_syncviewVerifyStaffIdentity` post `text/plain` with the key in the body (a "simple" cross-origin request, sent at once). The deployed function already reads `body.key` and parses the body whatever its type, verified live. Who may sign in is unchanged; the page still waits for the answer before any staff data is read (`qa/boot/staff-entry-gate.js` passes).
+Result, interleaved old against new, medians of 4, full new-tab opens: gate answered 1,127 to 693 ms (sub-issue, warm), 896 to 652 (cold), 1,060 to 742 and 928 to 702 (finished sub-issue), 1,046 to 690 and 1,090 to 852 (Calendar cards); sub-issue panel visible 1,342 to 926 ms warm.
+Tests: `test/key-verify-no-preflight.js` (6 checks, fails on the old code), `test/boot-entry-tax.js` taught the new request shape.
+Proposed, NOT done (owner deploys): A `Access-Control-Max-Age: 7200` on the hot-path functions (about 0.3 s off "everything loaded" per sub-issue open for returning browsers); B1 run the flag and member reads of `key-verify` together (about 65 ms, audit still gates sign-in); B2 write the audit row after answering (another 65 ms, but an audit failure would stop failing the sign-in, so a security-posture choice). Full text: `docs/proposals/2026-10-01-key-verify-speed.md`.
+Way back: ROLLBACK.md.

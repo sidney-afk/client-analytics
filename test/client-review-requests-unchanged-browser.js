@@ -16,6 +16,9 @@
  *   2. CODE. The source of the approve / request-changes functions and of the
  *      transports they use hashes to the values recorded from `main`.
  *
+ * Step K (2026-10-01): the golden was re-recorded on purpose. A client link now always sends to the
+ * function with its token; the two route lines and the four transport hashes are the only changes.
+ *
  * No request leaves the machine; every backend answer is local.
  */
 require('./helpers/single-file-index.js'); // split switch on: reads of index.html get the single-file page

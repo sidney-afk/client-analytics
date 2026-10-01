@@ -377,7 +377,7 @@ n8n in the metric read path.*
   the same three live statuses, an override is validated by `assertEligibleAssignee`, and graphics still
   refuses any override (single `default_for_team` designer).
 - **Writes.** Every card save (fields, comments, statuses, approvals, archive-as-`status:Archived`,
-  imports) → **`calendar-upsert` EF** after a fresh, bounded read of `calendar_upsert_ef_clients` (n8n exit PR 2, 2026-09-29: an unreadable flag HOLDS the save, an unlisted client is PAUSED, neither goes to n8n; only a client link's approve and request-changes keep the old flag-or-n8n routing, by owner carve-out, and only a repair already pinned `webhook` replays to `calendar-upsert-post`)
+  imports) → **`calendar-upsert` EF** after a fresh, bounded read of `calendar_upsert_ef_clients` (n8n exit PR 2, 2026-09-29: an unreadable flag HOLDS the save, an unlisted client is PAUSED, neither goes to n8n; a client link's approve and request-changes always go to the function with the link token (step K, 2026-10-01), and only a staff repair already pinned `webhook` replays to `calendar-upsert-post`)
   (comments piggyback as JSON in `*_tweaks` columns; v2 sends `comments_base_at:''` to skip the
   server scalar-merge guard). Reorder is **EF `calendar-reorder` only**, behind the same
   fresh flag read (the n8n batch and per-row reorder routes were removed in PR 2). Status/comment legs are
@@ -777,7 +777,7 @@ n8n in the metric read path.*
   realtime. (n8n `linear-subissues` link-adopt retired 2026-09-23, B2.) Runtime-flag read (sample-review key).
   Shared: SMM-directory CSV, client-token-verify EF, bounded ID-only
   `thumbnail-revision-read` availability checks, and exact-card protected comparison URLs.
-- **Writes.** (n8n exit PR 4, 2026-09-29) `sample-review-upsert` and `sample-review-reorder` are EF only, after a fresh, bounded read of `sample_review_ef_clients` (an unreadable flag HOLDS the write, an unlisted client is PAUSED, never n8n). Only a client link's approve and request-changes keep the old flag-or-n8n routing (owner carve-out), and only a repair already pinned `webhook` replays to the n8n upsert.
+- **Writes.** (n8n exit PR 4, 2026-09-29) `sample-review-upsert` and `sample-review-reorder` are EF only, after a fresh, bounded read of `sample_review_ef_clients` (an unreadable flag HOLDS the write, an unlisted client is PAUSED, never n8n). A client link's approve and request-changes always go to the function with the link token (step K, 2026-10-01), and only a staff repair already pinned `webhook` replays to the n8n upsert.
   native urgent dispatch, `send-urgent-kasper-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
   → `sample-review-upsert` EF through the same guarded step (fresh flag read).
   For a client enrolled in the #850 reroute cohort, status/comments use authenticated

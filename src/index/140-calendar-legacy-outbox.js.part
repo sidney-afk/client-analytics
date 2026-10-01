@@ -8,7 +8,7 @@ import {
 } from './100-onboarding-staff-controls.js';
 import {
   CAL_REVIEW_COMPONENTS, WRITE_UI_PRODUCTION_WRITE_URL, _calNormStatus, _calPrimeUpsertRoutingFlag,
-  _calAssertSavingOn, _calUpsertFetch, _calUpsertUseEf, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
+  _calAssertSavingOn, _calUpsertFetch, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
   _prodCardBindingToken, _syncviewEfHeaders, _writeUiAuthoritySnapshot, _writeUiBuildSourceRepair,
   _writeUiClassifyTargetless, _writeUiComponentHasWorkItem, _writeUiFailureText,
   _writeUiGatewayError, _writeUiGatewayPost, _writeUiGatewayWithRepair, _writeUiIntentId,
@@ -52,7 +52,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 import {
   SXR_LINEAR_OUTBOX_KEY, SXR_TABLE, _sxrCacheRead, _sxrCacheWrite, _sxrMigrateShape,
   _sxrNormStatus, _sxrPendingEdits, _sxrPrimeSampleRoutingFlag, _sxrReviewBlockReason,
-  _sxrSampleUseEf, _sxrSupabaseFetchAllRows, _sxrUpdateCardStatusDisplay,
+  _sxrSupabaseFetchAllRows, _sxrUpdateCardStatusDisplay,
   computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
 } from './270-samples-model.js';
 import {
@@ -1350,12 +1350,11 @@ import {
             client_slug: String(slug || ''),
             source_transport: surface === 'sxr'
                 /* Samples (n8n exit, PR 4): like Calendar, a staff browser never pins a
-                   NEW repair to the n8n writer; a client link keeps today's choice. */
-                ? (!_isClientLink || _sxrSampleUseEf(slug) ? 'supabase' : 'webhook')
+                   NEW repair to the n8n writer; step K: nor does a client link. */
+                ? 'supabase'
                 /* Calendar (n8n exit, PR 2): a staff browser never pins a NEW
-                   repair to the n8n writer. A client link keeps today's choice
-                   (approve and request-changes carve-out). */
-                : (!_isClientLink || _calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
+                   repair to the n8n writer; step K: nor does a client link. */
+                : 'supabase',
             post_id: String(post && post.id || ''),
             component: String(comp || ''),
             comment_id: String(comment && comment.id || ''),

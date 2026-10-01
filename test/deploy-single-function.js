@@ -47,6 +47,10 @@ assert(wf.includes('scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs="$DEPLOY_
 assert(!/always\(\)/.test(wf.replace(/^\s*#.*$/gm, "")), 'attestation is never produced after a failed step');
 assert(!/secrets\.(?!SUPABASE_ACCESS_TOKEN\b)/.test(wf), 'uses no secret besides the existing access token');
 
+// client-onboarding must not deploy before its checklist migration is applied.
+assert(wf.includes("inputs.function == 'client-onboarding'") && wf.includes('client_onboarding_set_step(text,text,text,text,text,text,text,timestamptz,text)'), 'client-onboarding has a schema preflight');
+assert(wf.indexOf('Refuse client-onboarding until') < wf.indexOf('name: Deploy the one selected function'), 'schema preflight runs before the deploy');
+
 // Preview lane: dispatch-only, existing secrets, slug typed at dispatch, counts only.
 assert(/^on:\n  workflow_dispatch:\n/m.test(preview) && !/^  (push|schedule):/m.test(preview), 'preview is dispatch only');
 assert(preview.includes('"action":"preview"') || preview.includes('action:"preview"'), 'calls the preview action');

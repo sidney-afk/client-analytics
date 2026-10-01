@@ -1,6 +1,6 @@
 # SyncView Atlas
 
-Verified 2026-09-30. Repository evidence is pinned to client-analytics main `3caef657` after incorporating concurrent source changes. Live catalog observations are from the read-only pass; source status was refreshed after the rebase. Live catalogs were read during this pass. Nothing was deployed, dispatched, edited or sent in a live system.
+Verified 2026-09-30. Repository evidence is pinned to client-analytics main `3caef657e0a832b265af33d67009ac4649c60112` after incorporating concurrent source changes. Live catalog observations are from the read-only pass; source status was refreshed after the rebase. Live catalogs were read during this pass. Nothing was deployed, dispatched, edited or sent in a live system.
 
 Find a name with your browser's Find command, or use the section links below. Each entry points to its owner. [State of things](STATE_OF_THINGS.md) sets priorities; [Find anything](FIND_ANYTHING.md) routes deeper questions; [Open repairs](ops/OPEN_REPAIRS.md) records unresolved work.
 
@@ -56,7 +56,7 @@ Visibility below comes from page source and role checks. Shared rules live in [s
 | Filming Plans directory | Staff; edits use onboarding capability. | [060-templates-filming.js.part](../src/index/060-templates-filming.js.part). Client filming Doc references. |
 | Workload board and week | Staff reads; admin and SMM plan days. | [080-workload-render.js.part](../src/index/080-workload-render.js.part). Native work by creative and day. |
 | Workload issue popovers and drag planning | Staff; role checks govern writes. | [090-workload-popovers.js.part](../src/index/090-workload-popovers.js.part). Issue details; 071-workload-planner owns placement. |
-| SyncLinear, labeled SyncLinear in the header | Staff; native authority and role checks govern writes. | [210-production-state-writes.js.part](../src/index/210-production-state-writes.js.part). Native work tree. Route key is production; Submit uses linear. |
+| SyncLinear (header button shows the text "Linear"; "SyncLinear" is only its hidden title and ARIA label) | Staff; native authority and role checks govern writes. | [210-production-state-writes.js.part](../src/index/210-production-state-writes.js.part). Native work tree. Route key is production; Submit uses linear. |
 | SyncLinear views and attribution | Staff. | [220-production-attribution-views.js.part](../src/index/220-production-attribution-views.js.part). List, board, filters, ownership and parents. |
 | SyncLinear create and canonical comments | Staff; client operations stay scoped. | [230-production-create-comments.js.part](../src/index/230-production-create-comments.js.part). Native creation and comment lifecycle. |
 | SyncLinear descriptions and images | Staff. | [240-production-description.js.part](../src/index/240-production-description.js.part). Brief editing and image attachments. |
@@ -735,21 +735,21 @@ Lighthouse reviews and merges this PR. This session changed no deployment, setti
 
 | Lane | What deploys | What the owner does |
 | --- | --- | --- |
-| [Pages site](../.github/workflows/pages-site.yml) | client-analytics fragments rebuild index and GitHub Pages deploys matching main pushes or manual dispatch. Live Pages build type is workflow, status built. | Review and merge a source change that matches path filters; inspect Actions deploy result. Docs-only merge does not trigger this lane. |
-| [Onboarding functions](../.github/workflows/deploy-onboarding-edge-functions.yml) | The function list in the workflow; main path pushes or manual dispatch. | Approve the writer release; confirm function list and admission test before dispatch. F27 production-write requires its bound proof. |
-| [PTO functions](../.github/workflows/deploy-pto-edge-functions.yml) | `pto` only; workload-plan uses the single-function lane. | Approve function release; inspect configured path trigger or dispatch and live auth evidence. |
-| [Thumbnail functions](../.github/workflows/deploy-thumbnail-edge-functions.yml) | Scan and revision-read closures; resolver has no CI lane. | Approve release and inspect fingerprint and provider access; enabling scan is separate. |
-| [Client review link](../.github/workflows/deploy-client-review-link.yml) | `client-review-link`. | Approve and inspect exact release closure; no private share URL in public evidence. |
-| [Description upload](../.github/workflows/deploy-description-image-upload.yml) | `description-image-upload`. | Approve release and inspect storage and authorization proof. |
-| [Hiring applications](../.github/workflows/deploy-hiring-applications.yml) | `hiring-applications`. | Approve release; preserve hiring automation gates. |
-| [Hiring automation](../.github/workflows/deploy-hiring-automation.yml) | `hiring-automation`. | Approve release separately from turning invitation delivery on. |
-| [F27 Section 4](../.github/workflows/deploy-f27-section4-closures.yml) | Exactly production-write, deliverable-write and batch-write private attested closures. | Use bound private capture and owner dispatch, production approval, exact closure receipt and rollback evidence. Never substitute ordinary CLI release. |
-| [Single function](../.github/workflows/deploy-single-function.yml) | Only allowlisted functions chosen by manual input. | Approve the selected function, confirm manifest source closure and deployment evidence. Frozen functions are excluded from ordinary releases. |
+| [Pages site](https://github.com/sidney-afk/client-analytics/actions/workflows/pages-site.yml) | client-analytics fragments rebuild index and GitHub Pages deploys matching main pushes or manual dispatch. Live Pages build type is workflow, status built. | Review and merge a source change that matches path filters; inspect Actions deploy result. Docs-only merge does not trigger this lane. |
+| [Onboarding functions](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml) | The function list in the workflow; main path pushes or manual dispatch. | Approve the writer release; confirm function list and admission test before dispatch. F27 production-write requires its bound proof. |
+| [PTO functions](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-pto-edge-functions.yml) | `pto` only; workload-plan uses the single-function lane. | Approve function release; inspect configured path trigger or dispatch and live auth evidence. |
+| [Thumbnail functions](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-thumbnail-edge-functions.yml) | Scan and revision-read closures; resolver has no CI lane. | Approve release and inspect fingerprint and provider access; enabling scan is separate. |
+| [Client review link](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-client-review-link.yml) | `client-review-link`. | Approve and inspect exact release closure; no private share URL in public evidence. |
+| [Description upload](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-description-image-upload.yml) | `description-image-upload`. | Approve release and inspect storage and authorization proof. |
+| [Hiring applications](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-hiring-applications.yml) | `hiring-applications`. | Approve release; preserve hiring automation gates. |
+| [Hiring automation](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-hiring-automation.yml) | `hiring-automation`. | Approve release separately from turning invitation delivery on. |
+| [F27 Section 4](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml) | Exactly production-write, deliverable-write and batch-write private attested closures. | Use bound private capture and owner dispatch, production approval, exact closure receipt and rollback evidence. Never substitute ordinary CLI release. |
+| [Single function](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml) | Only allowlisted functions chosen by manual input. | Approve the selected function, confirm manifest source closure and deployment evidence. Frozen functions are excluded from ordinary releases. |
 | [Manifest operator rows](ops/EF_DEPLOY_MANIFEST.md) | Source functions without CI plus sibling pipeline functions. | Authorize reviewed operator deployment from the stated owning repo; capture exact source and live receipt. |
 | [Database migrations](../migrations/) | Schema and functions; no blanket automatic apply lane. | Approve exact SQL, prestate and rollback; apply through authorized migration tooling. This Atlas applies none. |
 | [n8n exit plan](plans/2026-09-30-n8n-exit-phase-2.md) | Published n8n graphs, maintained outside GitHub deploy. | Approve each live edit; private export, public-safe receipt and readback. Retirement is deactivate after proof, never delete. |
-| [Marketing Pages](https://github.com/sidney-afk/synchrosocial/blob/main/.github/workflows/deploy.yml) | synchrosocial main build and Pages publish. | Review and merge marketing source; inspect marketing Actions deploy. |
-| [Brain worker](https://github.com/sidney-afk/synchro-brain/blob/main/.github/workflows/process-syncview-change.yml) | Processes private knowledge changes; no site deployment. | Review admitted knowledge edit and worker result. Pipelines operator publishing is separate. |
+| [Marketing Pages](https://github.com/sidney-afk/synchrosocial/actions/workflows/deploy.yml) | synchrosocial main build and Pages publish. | Review and merge marketing source; inspect marketing Actions deploy. |
+| [Brain worker](https://github.com/sidney-afk/synchro-brain/actions/workflows/process-syncview-change.yml) | Processes private knowledge changes; no site deployment. | Review admitted knowledge edit and worker result. Pipelines operator publishing is separate. |
 
 
 ## Where do I look when...

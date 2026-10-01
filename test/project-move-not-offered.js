@@ -81,7 +81,7 @@ ok(/const PROD_PROJECT_MOVE_UNSUPPORTED = /.test(INDEX),
 const reason = (INDEX.match(/const PROD_PROJECT_MOVE_UNSUPPORTED = '([^']+)'/) || [])[1] || '';
 ok(reason && !/preview/i.test(reason) && !/read-only/i.test(reason),
   'it does not borrow the preview wording, which describes a surface awaiting authority rather than an unsupported write');
-ok(/cannot be moved between clients/i.test(reason),
+ok(/move this to another client/i.test(reason),
   'it says what cannot happen');
 ok(/batch/i.test(reason),
   'and where the project actually comes from, so the sentence is actionable rather than merely final');

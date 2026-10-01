@@ -422,7 +422,7 @@ async function selectionChecks(page) {
   });
   if (!lockedWriteState.id || !lockedWriteState.linearHeld
     || ![lockedWriteState.status, lockedWriteState.due, lockedWriteState.assignee]
-    .every(text => text.includes('stays read-only while Linear is authoritative.'))) {
+    .every(text => text.includes('is view only for now. Linear is still the source.'))) {
     failures.push('Linear-authoritative fixture did not expose a locked row-control behavior');
   }
   const escapedLockedRowId = await page.evaluate(id => CSS.escape(String(id || '')), lockedWriteState.id);

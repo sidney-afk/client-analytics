@@ -1426,7 +1426,7 @@ import {
             button.hidden = !eligible;
             button.classList.toggle('is-valid', valid);
             const displayRole = valid ? _syncviewStaffRoleLabel(identity.member && identity.member.role || role) : '';
-            const label = valid ? ('Open staff menu for ' + identity.member.name + ' · ' + displayRole) : 'Open staff menu';
+            const label = valid ? ('Staff menu: ' + identity.member.name + ', ' + displayRole) : 'Open staff menu';
             button.title = label;
             button.setAttribute('aria-label', label);
             button.setAttribute('aria-haspopup', 'menu');
@@ -1744,7 +1744,7 @@ import {
         _ccTogglePasswordField('staffIdentityKey', button);
         const input = document.getElementById('staffIdentityKey');
         if (!input || !button) return;
-        const label = input.type === 'text' ? 'Hide role key' : 'Show role key';
+        const label = input.type === 'text' ? 'Hide your key' : 'Show your key';
         button.setAttribute('aria-label', label);
         button.title = label;
     }
@@ -1795,7 +1795,7 @@ import {
                 : 'Choose your roster name and enter the role key for your work.') + '</p>'
             + '<div class="staff-auth-fields">'
             + '<div class="staff-auth-field"><label for="staffIdentityMemberBtn">Your name</label>' + memberSelectHtml + '</div>'
-            + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><div class="cc-password-wrap"><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" aria-describedby="staffIdentityError" required><button class="cc-pass-toggle" type="button" id="staffIdentityKeyToggle" title="Show role key" aria-label="Show role key" aria-pressed="false" onclick="_syncviewToggleStaffRoleKey(this)">' + CC_ICON_EYE + '</button></div></div>'
+            + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><div class="cc-password-wrap"><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" aria-describedby="staffIdentityError" required><button class="cc-pass-toggle" type="button" id="staffIdentityKeyToggle" title="Show your key" aria-label="Show role key" aria-pressed="false" onclick="_syncviewToggleStaffRoleKey(this)">' + CC_ICON_EYE + '</button></div></div>'
             + '</div><div class="staff-auth-error" id="staffIdentityError" role="alert"></div><div class="staff-auth-status" id="staffIdentityStatus" role="status" aria-live="polite"></div>'
             + '<div class="staff-auth-secure" id="staffIdentitySecure"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"/></svg><span>Your role key stays on this device and is sent only to SyncView secure functions.</span></div>'
             + '<div class="staff-auth-actions">' + (entry ? '' : '<button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">Not now</button>')

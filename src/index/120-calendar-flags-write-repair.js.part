@@ -711,7 +711,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        post-flip, so the honest remedy is an escalation and which one is the
        the owner to choose. It does say the work item cannot be created here,
        because that is a fact and it is the half that stops the hunting. */
-    const WRITE_UI_NO_WORK_ITEM_TEXT = 'This component has no work item behind it, so its status cannot be changed here — and one cannot be created from this screen.';
+    const WRITE_UI_NO_WORK_ITEM_TEXT = 'No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.';
     function _writeUiSourceClientSlug(surface, meta) {
         const post = meta && meta.post;
         const explicit = String(meta && (

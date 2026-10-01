@@ -383,7 +383,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
         function _prodAccessAllowed() {
             return _prodEnabled() || _syncviewStaffIdentityValid();
         }
-        function _prodPreviewText() { return 'Preview - read-only'; }
+        function _prodPreviewText() { return 'View only for now'; }
         function _prodModeText() {
             const authority = _prodState.authority;
             if (authority && authority.video === 'syncview' && authority.graphics === 'syncview') return 'Native writes';
@@ -1511,7 +1511,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
            operation writes client_slug on any surface, so there is nothing to
            enable. The repair path for a row on the WRONG project is the
            attribution repair, which is a different control with its own notice. */
-        const PROD_PROJECT_MOVE_UNSUPPORTED = 'A deliverable cannot be moved between clients here. Its project comes from the batch it belongs to.';
+        const PROD_PROJECT_MOVE_UNSUPPORTED = 'You can’t move this to another client here. Its client comes from its batch.';
         /* Delete and Move both answered with the preview sentence, which reads as
            "not yet" -- a permission someone could be granted, or a state the tab
            grows out of once it finishes loading. Neither is true. No gateway
@@ -1546,7 +1546,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
            the cheapest of the sweep survivors rather than a blocker.
            So the checkbox keeps refusing, and now says the true, narrow reason:
            this ONE control is not wired to select, and names the two that are. */
-        const PROD_GROUP_SELECT_UNSUPPORTED = 'This checkbox does not select the group yet. Shift-click a row, or press Ctrl/Cmd+A, to select more than one.';
+        const PROD_GROUP_SELECT_UNSUPPORTED = 'This box can’t select the whole group yet. Shift-click a row or press Ctrl/Cmd+A to select several.';
         function _prodAssetDefaultEvidence(issue) {
             const values = issue && issue.assets || {};
             const assets = {};

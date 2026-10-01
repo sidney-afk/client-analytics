@@ -528,7 +528,7 @@ check(wlPlacementLabel('auto') === 'Automatically planned'
     && wlPlacementLabel('manual') === 'Manually planned'
     && wlPlacementLabel('fallback', false) === 'Deadline fallback'
     && /aria-label="Manually planned"/.test(manualOriginHtml)
-    && /data-tip="Manual plan:/.test(manualOriginHtml)
+    && /data-tip="Planned by hand\./.test(manualOriginHtml)
     && manualOriginHtml.replace(/<[^>]+>/g, '').trim() === ''
     && /automatically planned/.test(mixedOriginHtml)
     && /manually planned/.test(mixedOriginHtml)
@@ -573,7 +573,7 @@ check(/wl-deadline-tag is-red/.test(wlDeadlineTagHtml('2026-07-15', '2026-07-15'
     && missingGroup.tone === '' && missingGroup.mixed === true
     && /is-red/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-c', '2026-07-15')] : []))
     && /wl-deadline-dot/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-d', '2026-07-15')] : []))
-    && /data-tip="Red proximity:/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-tip', '2026-07-15')] : []))
+    && /data-tip="Red:/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-tip', '2026-07-15')] : []))
     && !/<svg/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-e', '2026-07-15')] : []))
     && wlGroupDeadlineHtml([visualManual, visualAuto]) === '',
   'sub-issues own proximity color and only a homogeneous group inherits one quiet color dot');
@@ -594,16 +594,16 @@ check(wlWorkloadWeight(visualAuto) === 2
     && wlWorkloadWeight(invalidWeight) === 1
     && wlWorkloadUnits([visualAuto, visualManual, invalidWeight]) === 6
     && twoBadge.includes('2\u00d7 Workload')
-    && twoBadge.includes('counts as 2 videos for capacity')
+    && twoBadge.includes('Counts as 2 videos of capacity')
     && twoBadge.includes('data-tip=')
     && threeCompactBadge.includes('>3\u00d7</span>')
-    && threeCompactBadge.includes('3\u00d7 Workload; counts as 3 videos for capacity')
+    && threeCompactBadge.includes('Counts as 3 videos of capacity')
     && /class="wl-workload-group is-all"/.test(allExtraHtml)
-    && /data-tip="All sub-issues use extra workload: 1 at 2\u00d7 Workload, 1 at 3\u00d7 Workload\./.test(allExtraHtml)
+    && /data-tip="All sub-issues count extra: 1 count 2\u00d7, 1 count 3\u00d7\./.test(allExtraHtml)
     && (allExtraHtml.match(/class="wl-workload-group/g) || []).length === 1
     && groupExtraVisibleText(allExtraHtml) === ''
     && /class="wl-workload-group is-some"/.test(someExtraHtml)
-    && /Some sub-issues use extra workload/.test(someExtraHtml)
+    && /Some sub-issues count extra/.test(someExtraHtml)
     && wlGroupWorkloadHtml([invalidWeight]) === '',
   'exact 2\u00d7 and 3\u00d7 metadata keeps item detail while groups collapse to one some/all extra-work icon');
 wlState.planByIssueId.clear();
@@ -936,7 +936,7 @@ check(connectorLines.length === oneTrack.endpoints.length
     && trackHtml.includes('data-wl-plan-group-drag="1"')
     && trackHtml.includes('data-wl-drag-handle="group"')
     && trackHtml.includes('2\u00d7')
-    && trackHtml.includes('data-tip="Drag this entire client group to another work day."')
+    && trackHtml.includes('data-tip="Drag this whole client group to another work day"')
     && !/<summary class="workload-timeline-plan-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(trackHtml)
     && /also due on the planned day/.test(trackHtml)
     && !/data-wl-deadline-open="track-same-day"/.test(trackHtml),
@@ -1096,7 +1096,7 @@ check((overloadedEditorHtml.match(/class="workload-plan-item"/g) || []).length =
     && overloadedEditorHtml.includes('class="wl-workload-group is-some"')
     && overloadedEditorHtml.includes('2\u00d7')
     && overloadedEditorHtml.includes('3\u00d7')
-    && overloadedEditorHtml.includes('data-tip="Drag this sub-issue to another work day."')
+    && overloadedEditorHtml.includes('data-tip="Drag to another work day"')
     && !/<button[^>]*class="workload-plan-item[^>]*(?:draggable=|data-wl-plan-drag)/.test(overloadedEditorHtml)
     && !/<summary[^>]*class="workload-day-card-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(overloadedEditorHtml)
     && !overloadedEditorHtml.includes('workload-day-overflow'),
@@ -1158,7 +1158,7 @@ check(visibleText(readOnlyVisualRollupHtml) === visibleText(visualRollupHtml)
     && readOnlyVisualRollupHtml.includes('wl-deadline-tag is-green')
     && readOnlyVisualRollupHtml.includes('2\u00d7')
     && readOnlyVisualRollupHtml.includes('3\u00d7')
-    && readOnlyVisualRollupHtml.includes('data-tip="Automatic plan:')
+    && readOnlyVisualRollupHtml.includes('data-tip="Planned automatically on')
     && !readOnlyVisualRollupHtml.includes('data-wl-drag-handle')
     && !readOnlyVisualRollupHtml.includes('data-wl-plan-drag')
     && !readOnlyVisualRollupHtml.includes('data-wl-plan-group-drag'),

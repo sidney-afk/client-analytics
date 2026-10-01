@@ -91,15 +91,15 @@ import { wlEscape } from './080-workload-render.js';
         const amount = Number(count) > 0 ? ` <span class="wl-plan-origin-count">${Number(count)}</span>` : '';
         const accessible = Number(count) > 0 ? `${Number(count)} ${label.toLowerCase()}` : label;
         const tip = mode === 'manual'
-            ? 'Manual plan: stays on this work day until someone changes or clears it.'
+            ? 'Planned by hand. Stays on this day until someone changes it.'
             : mode === 'carried'
-            ? 'Carried over: this was planned for a day that has passed and is not finished, so it shows on the first working day from today. The saved plan day is unchanged; drag it to plan a new day.'
+            ? 'Carried over. Its planned day passed and it isn’t done, so it shows today. Drag it to pick a new day.'
             : (mode === 'loading'
-                ? 'Loading saved plans… showing an automatic estimate from the due date; only manually planned items will settle when plans arrive.'
+                ? 'Loading saved plans. For now this is a guess from the due date.'
                 : (mode === 'fallback'
-                    ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
+                    ? 'No plan day saved, so this uses the due date.'
                     : (String(tipDetail || '')
-                        || 'Automatic plan: the earliest working day with room, never later than one working day before the deadline. Drag it to pin it somewhere else.')));
+                        || 'Planned automatically on the earliest day with room, at least a day before it’s due. Drag it to pick another day.')));
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
@@ -141,8 +141,8 @@ import { wlEscape } from './080-workload-render.js';
         const meta = wlDeadlineMeta(dueDate, planDate, prefix);
         const meanings = {
             red: 'Red: planned on or after the due date.',
-            orange: 'Orange: one or two days between the work day and due date.',
-            green: 'Green: three or more days between the work day and due date.',
+            orange: 'Orange: due 1 to 2 days after this work day.',
+            green: 'Green: due 3 or more days after this work day.',
         };
         const tip = [meanings[meta.tone] || '', meta.label].filter(Boolean).join(' ');
         return `<span class="wl-deadline-tag${meta.tone ? ' is-' + meta.tone : ''}" data-tip="${wlEscape(tip)}">${wlEscape(meta.label)}</span>`;
@@ -171,12 +171,12 @@ import { wlEscape } from './080-workload-render.js';
         if (counts.orange) parts.push(`${counts.orange} with 1–2d buffer`);
         if (counts.green) parts.push(`${counts.green} with 3d or more buffer`);
         if (counts.missing) parts.push(`${counts.missing} without a deadline`);
-        return { tone: '', mixed: true, label: `Mixed deadline proximity: ${parts.join(', ')}`, counts };
+        return { tone: '', mixed: true, label: `Mixed deadlines: ${parts.join(', ')}`, counts };
     }
     function wlGroupDeadlineHtml(subs) {
         const meta = wlGroupDeadlineSummary(subs);
         if (!meta.label || !meta.tone) return '';
-        const toneLabel = ({ red: 'Red proximity', orange: 'Orange proximity', green: 'Green proximity' })[meta.tone] || 'Deadline proximity';
+        const toneLabel = ({ red: 'Red', orange: 'Orange', green: 'Green' })[meta.tone] || 'Deadline';
         const tip = `${toneLabel}: ${meta.label}.`;
         return `<span class="wl-deadline-summary is-${meta.tone}" role="img" aria-label="${wlEscape(meta.label)}" data-tip="${wlEscape(tip)}">${wlDeadlineDotHtml()}</span>`;
     }
@@ -185,11 +185,11 @@ import { wlEscape } from './080-workload-render.js';
     }
     function wlIssueDragHandleHtml(issueId, canDrag) {
         if (!canDrag) return '';
-        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="issue" data-wl-plan-drag="${wlEscape(issueId)}" role="img" aria-label="Drag to another work day" data-tip="Drag this sub-issue to another work day.">${wlDragGripSvg()}</span>`;
+        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="issue" data-wl-plan-drag="${wlEscape(issueId)}" role="img" aria-label="Drag to another work day" data-tip="Drag to another work day">${wlDragGripSvg()}</span>`;
     }
     function wlGroupDragHandleHtml(dayISO, assigneeId, clientName, canDrag) {
         if (!canDrag) return '';
-        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="group" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="${wlEscape(clientName || '')}" role="img" aria-label="Drag this client group to another work day" data-tip="Drag this entire client group to another work day.">${wlDragGripSvg()}</span>`;
+        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="group" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="${wlEscape(clientName || '')}" role="img" aria-label="Drag this client group to another work day" data-tip="Drag this whole client group to another work day">${wlDragGripSvg()}</span>`;
     }
     function wlWorkloadMeta(sub) {
         if (wlTeamBucket(sub && sub.teamKey, sub && sub.teamName) !== 'video') return null;
@@ -208,7 +208,7 @@ import { wlEscape } from './080-workload-render.js';
         if (!meta) return '';
         const color = /^#[0-9a-f]{6}$/i.test(String(meta.color || '')) ? ` style="--wl-weight-color:${meta.color}"` : '';
         const text = compact ? `${meta.weight}×` : meta.label;
-        const label = `${meta.label}; counts as ${meta.weight} videos for capacity`;
+        const label = `Counts as ${meta.weight} videos of capacity`;
         return `<span class="wl-workload-badge" role="img" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}"${color}>${wlEscape(text)}</span>`;
     }
     function wlGroupWorkloadHtml(subs) {
@@ -222,9 +222,9 @@ import { wlEscape } from './080-workload-render.js';
         if (!extraCount) return '';
         const allExtra = extraCount === rows.length;
         const details = [2, 3].filter(weight => counts[weight]).map(weight =>
-            `${counts[weight]} at ${weight}× Workload`
+            `${counts[weight]} count ${weight}×`
         ).join(', ');
-        const label = `${allExtra ? 'All' : 'Some'} sub-issues use extra workload: ${details}. Capacity totals use these weights.`;
+        const label = `${allExtra ? 'All' : 'Some'} sub-issues count extra: ${details}. Capacity uses this.`;
         const icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m2.5 5 5.5-2.7L13.5 5 8 7.8 2.5 5Zm0 3L8 10.8 13.5 8M2.5 11 8 13.7l5.5-2.7" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         return `<span class="wl-workload-group is-${allExtra ? 'all' : 'some'}" role="img" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}">${icon}</span>`;
     }

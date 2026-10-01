@@ -185,8 +185,8 @@ import {
             btn.hidden = !allowed;
             btn.setAttribute('aria-pressed', next === 'classic' ? 'true' : 'false');
             btn.setAttribute('aria-checked', next === 'classic' ? 'true' : 'false');
-            btn.setAttribute('aria-label', next === 'classic' ? 'Switch to new status colors' : 'Switch to original status colors');
-            btn.title = next === 'classic' ? 'Switch to new status colors' : 'Switch to original status colors';
+            btn.setAttribute('aria-label', next === 'classic' ? 'Use the new status colors' : 'Use the old status colors');
+            btn.title = next === 'classic' ? 'Use the new status colors' : 'Use the old status colors';
         }
         const state = document.getElementById('statusPaletteToggleState');
         if (state) state.textContent = next === 'classic' ? 'On' : 'Off';

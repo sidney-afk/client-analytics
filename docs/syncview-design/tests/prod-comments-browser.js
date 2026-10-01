@@ -285,7 +285,7 @@ function expect(condition, message) {
     await page.locator('[data-prod-disabled="composer"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const gateToast = await page.locator('#prodToast').textContent();
-    expect(/read-only while Linear is authoritative/.test(gateToast), 'composer escaped the Linear-authority gate');
+    expect(/view only for now\. Linear is still the source/.test(gateToast), 'composer escaped the Linear-authority gate');
 
     /* (b) POST-FLIP TRUTH — restore the real live authority and prove the flip
      *     actually OPENED the composer on this row, rather than leaving it
@@ -313,7 +313,7 @@ function expect(condition, message) {
       expect(await page.locator('.prod-composer-form [data-prod-comment-input]').count() === 1, 'SyncView-authoritative composer did not render a real input');
     } else {
       // Rollback in effect for this team: the live state IS the branch (a) stubs.
-      expect(!liveComposer.canWrite && /read-only while Linear is authoritative/.test(liveComposer.gate),
+      expect(!liveComposer.canWrite && /view only for now\. Linear is still the source/.test(liveComposer.gate),
         'Linear-authoritative composer did not fail closed under live authority: ' + JSON.stringify(liveComposer));
     }
 

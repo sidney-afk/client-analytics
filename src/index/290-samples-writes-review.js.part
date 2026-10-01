@@ -1382,11 +1382,11 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         const canFinish = undecided.length === 0;
         const isFinished = _sxrKasperIsFinished(p);
         const finishTitle = canFinish
-            ? 'Finish reviewing — hand this card to the SMM. Approved components go to the client; change requests move to "Tweaks pending". Nothing is approved unless you approved it.'
-            : 'Decide on the ' + undecided.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish.';
+            ? 'Finish the review and hand this card to the SMM. Approved parts go to the client. Tweaks go to “Tweaks pending”.'
+            : 'Decide on the ' + undecided.map(c => COMP_LABELS[c]).join(' & ') + ' first. Approve it or ask for tweaks.';
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>`;
         const doneBtn = isFinished
-            ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM. This card returns to your queue if they reply or send a component back to you.">${checkIco}Sent to SMM</button>`
+            ? `<button type="button" class="kcard-done-btn" disabled title="Done. The tweaks are with the SMM. This card comes back to you if they reply or send a part back.">${checkIco}Sent to SMM</button>`
             : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_sxrKasperDismiss('${_sxrEscAttr(pid)}')" title="${_sxrEscAttr(finishTitle)}">${checkIco}Finish reviewing</button>`;
         const pillsHtml = undecided.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecided.map(c => `<span class="kcard-comp-pill">${_sxrEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : '';
         // New-message chip — a message Kasper didn't write, on an internal thread,
@@ -1419,7 +1419,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 : `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing pending your approval on this card.</div></div>`)
             : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-sxr-kasper-pid="${_sxrEscAttr(pid)}">
-            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_sxrKasperClose('${_sxrEscAttr(pid)}')" title="Hide this card. It comes back if someone posts a new message on it." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_sxrKasperClose('${_sxrEscAttr(pid)}')" title="Hide this card. It returns if someone writes on it." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
                 <div class="kcard-thumb">${thumb}${zoomBtn}</div>
                 <div class="kcard-main">
@@ -1465,8 +1465,8 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrKasperOnDraftInput(this,'${escId}','${escComp}')">${_sxrEsc(draft)}</textarea>
                 <div class="cal-review-tweak-actions">
-                    <button type="button" class="cal-review-comment-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval.">${commentIco}Comment</button>
-                    <button type="button" class="cal-review-aat-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-clear for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                    <button type="button" class="cal-review-comment-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperAddCommentComp('${escId}','${escComp}')" title="Team-only comment. It doesn’t change the status or tell the editor. The card stays waiting for your approval.">${commentIco}Comment</button>
+                    <button type="button" class="cal-review-aat-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks to the editor. After the fix, the card goes straight to the client with no second look from Kasper.">${checkIco}Approve after tweaks</button>
                     <button type="button" class="cal-review-tweak-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
                 </div>
             </div>

@@ -2048,8 +2048,8 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
        docs/features/UI_DESIGN_STANDARDS.md, "Explain through the label". */
     function _calOrganizeOrderSectionHtml() {
         const on = _calIsAutoSortOn();
-        const tip = 'Orders the Sheet by scheduled date — oldest first, with unscheduled posts at the end. '
-            + 'Your own drag-and-drop order is kept exactly as it is; turn this off to get it back.';
+        const tip = 'Sorts by scheduled date, oldest first, with unscheduled cards last. '
+            + 'Your drag order is kept. Turn this off to get it back.';
         return `<button type="button" class="dropdown-item cal-org-toggle" role="menuitemcheckbox" aria-checked="${on ? 'true' : 'false'}"
                 data-sv-explain data-tip="${_calEscAttr(tip)}" onclick="onCalSortModeToggle(event)">
             <span class="cal-org-toggle-txt">
@@ -2092,7 +2092,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         const tune = `<svg class="cal-org-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2 4.5h4.2M11.3 4.5H14M2 11.5h2.7M9.8 11.5H14"/><circle cx="8.7" cy="4.5" r="2.1"/><circle cx="7.3" cy="11.5" r="2.1"/></svg>`;
         return `<div class="cal-month-filter cal-organize" id="calOrganizeWrap">
             ${_calMonthWarnChipHtml()}
-            <button type="button" class="dropdown-trigger${_calOrganizeIsActive() ? ' is-filtered' : ''}" id="calOrganizeBtn" onclick="_calToggleOrganizeMenu(event)" title="Choose how the Sheet is ordered and which posts it shows" aria-haspopup="menu" aria-expanded="false">
+            <button type="button" class="dropdown-trigger${_calOrganizeIsActive() ? ' is-filtered' : ''}" id="calOrganizeBtn" onclick="_calToggleOrganizeMenu(event)" title="Choose the order and which cards show" aria-haspopup="menu" aria-expanded="false">
                 ${tune}<span class="cal-org-trigger-txt">${_calEsc(_calOrganizeTriggerLabel())}</span>${chev}
             </button>
             <div class="dropdown-menu cal-org-menu" id="calOrganizeMenu" role="menu" aria-label="Organize the Sheet">

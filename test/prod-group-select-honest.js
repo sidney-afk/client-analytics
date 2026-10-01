@@ -40,7 +40,7 @@ ok(!/read-only/i.test(REASON) && !/Preview/.test(REASON),
   'and it does not borrow the read-only preview sentence, which is the whole defect');
 ok(/Shift-click/.test(REASON) && /Ctrl\/Cmd\+A/.test(REASON),
   'it names the two things that DO select, since the checkbox still will not');
-ok(/does not select the group yet/.test(REASON),
+ok(/can’t select the whole group yet/.test(REASON),
   'and states the narrow, true fact: this ONE control, not selection generally');
 
 /* ---- 2. The guard passes it through, rather than the generic default ---- */

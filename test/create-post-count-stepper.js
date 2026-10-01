@@ -90,6 +90,7 @@ function harness(mode, max) {
   const ctx = {
     document: { getElementById: id => nodes[id] || null, activeElement: null },
     _calNativePostState: state,
+    _calNativeDraftKeep() {},   // the draft store is covered by lost-work-drafts.js
     CAL_NATIVE_MAX_INTAKE_ITEMS: maxItems,
     Event, Number, Math, String, console,
   };

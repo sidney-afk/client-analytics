@@ -1,7 +1,7 @@
 'use strict';
-/* Failure-scenario harness lib. Fully mocked: every non-localhost request is answered here.
- * Only the test client slug `sidneylaruel` appears. Modelled on prod-write-gateway-browser.js,
- * save-problems-browser.js and calendar-frame-folder-button-browser.js.
+/* Shared stateful mock backend for the lost-work proofs (OPEN_REPAIRS 314). Fully mocked: every
+ * non-localhost request is answered here, nothing reaches a live backend. Only the made-up client
+ * `fixtureclient` appears. Modelled on prod-write-gateway-browser.js.
  *
  * The mock backend is STATEFUL and follows the real server rules that matter here:
  *   - calendar-upsert: field-level patch; the echo never carries *_status_at; a BEFORE trigger
@@ -18,10 +18,10 @@ const http = require('http');
 const path = require('path');
 const REPO = path.resolve(__dirname, '..', '..', '..');
 const { chromium } = require('playwright');
-const { seedStaffIdentity } = require(path.join(REPO, 'qa', 'staff-gate-seed.js'));
+const { seedStaffIdentity } = require('../../../qa/staff-gate-seed.js');
 
-const SLUG = 'sidneylaruel';
-const CLIENT = 'sidneylaruel';
+const SLUG = 'fixtureclient';
+const CLIENT = 'fixtureclient';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
 
@@ -74,8 +74,6 @@ async function createEnv(opts = {}) {
     cards: [], deliv: [], batches: [], comments: [],
     authority: { video: 'syncview', graphics: 'syncview' },
     commentsFor: [],
-    diag: [],          // every write-diagnostics beacon body
-    onCardRead: null,  // optional hook run before a single-card read answers
   };
   const t0 = Date.now();
   S.since = () => Date.now() - t0;
@@ -88,23 +86,11 @@ async function createEnv(opts = {}) {
     video_deliverable_id: 'del_vid_1', graphic_deliverable_id: 'del_gra_1', platforms: 'instagram',
     comments: [], graphic_comments: [], caption_comments: [], title_comments: [],
   });
-  S.samples = [{
-    id: 's_t1', client: SLUG, name: 'Test sample one', status: 'In Progress', order_index: 1, updated_at: iso(T0),
-    video_status: 'In Progress', graphic_status: 'In Progress', video_status_at: iso(T0), graphic_status_at: iso(T0),
-    asset_url: 'https://example.invalid/sample.mp4', thumbnail_url: 'https://example.invalid/s.jpg',
-    video_deliverable_id: 'del_svid_1', graphic_deliverable_id: 'del_sgra_1',
-    comments: [], graphic_comments: [],
-  }];
-  S.deliv.push(
-    { id: 'del_svid_1', identifier: 'VID-S1', raw_project_id: 'proj1', client_slug: SLUG, team: 'video', kind: 'video', title: 'Test sample one', status: 'in_progress', status_at: iso(T0), assignee_id: 'ed1', due_date: null, origin: 'samples', card_id: 's_t1', batch_id: 'b2', brief: 'Sample description', created_at: iso(T0), updated_at: iso(T0), linear_issue_uuid: 'lin-svid-1' },
-    { id: 'del_sgra_1', identifier: 'GRA-S1', raw_project_id: 'proj1', client_slug: SLUG, team: 'graphics', kind: 'graphic', title: 'Test sample one', status: 'in_progress', status_at: iso(T0), assignee_id: 'des1', due_date: null, origin: 'samples', card_id: 's_t1', batch_id: 'b2', brief: 'Sample graphic', created_at: iso(T0), updated_at: iso(T0), linear_issue_uuid: 'lin-sgra-1' },
-  );
   S.deliv.push(
     { id: 'del_vid_1', identifier: 'VID-T1', raw_project_id: 'proj1', client_slug: SLUG, team: 'video', kind: 'video', title: 'Test card one', status: 'in_progress', status_at: iso(T0), assignee_id: 'ed1', due_date: null, origin: 'calendar', card_id: 'p_t1', batch_id: 'b1', brief: 'Original description', created_at: iso(T0), updated_at: iso(T0), linear_issue_uuid: 'lin-vid-1' },
     { id: 'del_gra_1', identifier: 'GRA-T1', raw_project_id: 'proj1', client_slug: SLUG, team: 'graphics', kind: 'graphic', title: 'Test card one', status: 'in_progress', status_at: iso(T0), assignee_id: 'des1', due_date: null, origin: 'calendar', card_id: 'p_t1', batch_id: 'b1', brief: 'Graphic description', created_at: iso(T0), updated_at: iso(T0), linear_issue_uuid: 'lin-gra-1' },
   );
   S.batches.push({ id: 'b1', client_slug: SLUG, status: 'active', purpose: 'calendar', name: 'Batch one', team: null, updated_at: iso(T0), created_at: iso(T0), linear_parent_ids: { video: { uuid: 'linear-parent-video' }, graphics: { uuid: 'linear-parent-graphics' } } });
-  S.batches.push({ id: 'b2', client_slug: SLUG, status: 'active', purpose: 'samples', name: 'Sample batch', team: null, updated_at: iso(T0), created_at: iso(T0), linear_parent_ids: {} });
   const members = [
     { id: 'm1', name: 'Browser Staff', role: 'admin', team: null, active: true },
     { id: 'ed1', name: 'Fixture Editor', role: 'editor', team: 'video', active: true, slack_user_id: 'U0000000001' },
@@ -113,7 +99,7 @@ async function createEnv(opts = {}) {
   const clients = [{ slug: SLUG, display_name: CLIENT, active: true, kind: 'test', linear_project_ids: [{ id: 'proj1' }] }];
 
   // ---------- helpers on the model ----------
-  const card = (id) => S.cards.find(c => c.id === id) || S.samples.find(c => c.id === id);
+  const card = (id) => S.cards.find(c => c.id === id);
   S.card = card;
   const STATUS_SLUG = { 'In Progress': 'in_progress', 'Tweaks Needed': 'tweak', 'For SMM Approval': 'smm_approval', 'Kasper Approval': 'kasper_approval', 'Client Approval': 'client_approval', 'Approved': 'approved', 'Scheduled': 'scheduled', 'Posted': 'posted' };
   const SLUG_STATUS = Object.fromEntries(Object.entries(STATUS_SLUG).map(([k, v]) => [v, k]));
@@ -170,17 +156,16 @@ async function createEnv(opts = {}) {
     let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
 
     if (p === '/functions/v1/key-verify') return json(route, 200, { ok: true, role: 'admin', member: { id: 'm1', name: 'Browser Staff', role: 'admin', team: null } });
-    if (p === '/functions/v1/write-diagnostics') { S.diag.push(body); S.log.push({ t: S.since(), key: 'write-diagnostics', summary: JSON.stringify(body).slice(0, 200) }); return json(route, 202, { ok: true }); }
+    if (p === '/functions/v1/write-diagnostics') { S.log.push({ t: S.since(), key: 'write-diagnostics', summary: JSON.stringify(body).slice(0, 200) }); return json(route, 202, { ok: true }); }
     if (p === '/functions/v1/brain') return json(route, 200, { ok: true, frame: [], raw: [] });
     if (p === '/functions/v1/filming-plans') return json(route, 200, { ok: true, plans: [] });
-    if (p === '/functions/v1/production-comments') return json(route, 200, { comments: S.comments.slice(), next_cursor: null, has_more: false, canonical_thread: true });
+    if (p === '/functions/v1/production-comments') return json(route, 200, { comments: S.comments.filter(c => !body.deliverable_id || c.deliverable_id === body.deliverable_id).map(c => ({ ...c, source_created_at: c.created_at, source_updated_at: c.updated_at })), next_cursor: null, has_more: false, canonical_thread: true });
 
-    if (p === '/functions/v1/calendar-upsert' || p === '/functions/v1/sample-review-upsert') {
-      const isSample = p === '/functions/v1/sample-review-upsert';
-      const post = (isSample ? body.sample : body.post) || {};
+    if (p === '/functions/v1/calendar-upsert') {
+      const post = body.post || {};
       return serve(route, 'cal-upsert', JSON.stringify({ id: post.id, keys: Object.keys(post).filter(k => k !== 'id').slice(0, 14), video_status: post.video_status, baseAt: String(body.comments_base_at || '') }), () => {
         let c = card(post.id);
-        if (!c) { c = { id: post.id, client: SLUG, status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', title_status: 'In Progress', comments: [], updated_at: iso(Date.now()), video_status_at: iso(Date.now()), graphic_status_at: iso(Date.now()) }; (isSample ? S.samples : S.cards).push(c); S.log.push({ t: S.since(), key: 'DB:insert-card', summary: post.id }); }
+        if (!c) { c = { id: post.id, client: SLUG, status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', title_status: 'In Progress', comments: [], updated_at: iso(Date.now()), video_status_at: iso(Date.now()), graphic_status_at: iso(Date.now()) }; S.cards.push(c); S.log.push({ t: S.since(), key: 'DB:insert-card', summary: post.id }); }
         // applyGuards() (calendar-upsert/index.ts:363): a stale tab (its comments_base_at older than the stored updated_at) that changes a scalar field is refused with ok:false/conflict:true
         const baseAt = String(body.comments_base_at || '');
         const SCALARS = ['scheduled_date','name','caption','caption_alt','caption_alt_platform','asset_url','thumbnail_url','post_url','cta','status','video_status','graphic_status','caption_status','linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id','platform','platforms','color','kasper_approved_at','posted_at'];
@@ -192,7 +177,7 @@ async function createEnv(opts = {}) {
         const patch = {}; for (const k of FIELDS) patch[k] = post[k];
         S.setCardField(c.id, patch, 'cal-upsert');
         const echo = { ...patch, id: c.id, updated_at: c.updated_at };
-        return { status: 200, body: isSample ? { ok: true, sample: echo } : { ok: true, post: echo } };
+        return { status: 200, body: { ok: true, post: echo } };
       });
     }
     if (p === '/functions/v1/calendar-reorder') return json(route, 200, { ok: true });
@@ -223,7 +208,6 @@ async function createEnv(opts = {}) {
           if (!rx.test(String(body.video_status_at || ''))) return notSent(409, 'urgent_round_unavailable');
           const round = new Date(body.video_status_at).toISOString();
           const cardRound = c.video_status_at ? new Date(c.video_status_at).toISOString() : null;
-          if (d.origin !== (body.surface === 'samples' ? 'samples' : 'calendar') || d.card_id !== body.card_id) return notSent(409, 'urgent_target_changed');
           if (c.video_deliverable_id !== d.id || c.video_status !== 'Tweaks Needed' || cardRound !== round) return notSent(409, 'urgent_target_changed');
           S.urgentSent = (S.urgentSent || 0) + 1;
           return { status: 202, body: { ok: true, delivery: 'pending', dispatch_id: 'disp-' + S.urgentSent, retry_safe: false } };
@@ -285,34 +269,11 @@ async function createEnv(opts = {}) {
       return json(route, 200, keys.filter(k => k !== 'client_comment_gateway_enabled').map(k => ({ key: k, value: k === 'prod_authority' ? { ...S.authority } : /_clients$/.test(k) ? { clients: [SLUG] } : { enabled: false } })));
     }
     if (p === '/rest/v1/calendar_posts') {
-      const idf = (sp.get('id') || '').replace(/^eq\./, '');
-      // The Calendar's two-people conflict check (_calFreshFields) reads a few
-      // named fields of one card before a status or caption save. It is not
-      // the urgent ping's whole-card read, so it is answered and logged apart
-      // and never consumes a 'read:card' behaviour or counts as a card read.
-      if (idf && (sp.get('select') || '*') !== '*') {
-        S.log.push({ t: S.since(), key: 'READ fields ' + idf, summary: '' });
-        return json(route, 200, S.cards.filter(c => c.id === idf).map(c => ({ ...c })));
-      }
-      const key = idf ? 'read:card' : 'read:calendar_posts';
-      S.log.push({ t: S.since(), key: idf ? 'READ card ' + idf : 'READ calendar_posts', summary: '' });
-      const b = takeBehavior(key);
+      S.log.push({ t: S.since(), key: 'READ calendar_posts', summary: '' });
+      const b = takeBehavior('read:calendar_posts');
       if (b && b.delay) await sleep(b.delay);
       if (b && b.mode === 'reject') return route.abort('failed').catch(() => {});
-      if (b && b.mode === 'http') return json(route, b.status, b.body || { message: 'synthetic' });
-      if (idf && S.onCardRead) S.onCardRead(idf);
-      return json(route, 200, S.cards.filter(c => !idf || c.id === idf).map(c => ({ ...c })));
-    }
-    if (p === '/rest/v1/sample_reviews') {
-      const idf = (sp.get('id') || '').replace(/^eq\./, '');
-      const key = idf ? 'read:card' : 'read:sample_reviews';
-      S.log.push({ t: S.since(), key: idf ? 'READ card ' + idf : 'READ sample_reviews', summary: '' });
-      const b = takeBehavior(key);
-      if (b && b.delay) await sleep(b.delay);
-      if (b && b.mode === 'reject') return route.abort('failed').catch(() => {});
-      if (b && b.mode === 'http') return json(route, b.status, b.body || { message: 'synthetic' });
-      if (idf && S.onCardRead) S.onCardRead(idf);
-      return json(route, 200, S.samples.filter(c => !idf || c.id === idf).map(c => ({ ...c })));
+      return json(route, 200, S.cards.map(c => ({ ...c })));
     }
     if (p === '/rest/v1/batches') return json(route, 200, S.batches.map(b => ({ ...b })));
     if (p === '/rest/v1/production_deliverables_browser_v1' || p === '/rest/v1/deliverables') {
@@ -344,6 +305,7 @@ async function createEnv(opts = {}) {
   S.newPage = async () => {
     const page = await ctx.newPage();
     page.errors = [];
+    if (process.env.LOST_WORK_FAST) page.setDefaultTimeout(2500);   // used to watch the proofs fail quickly on older code
     page.on('pageerror', e => page.errors.push(String(e.message || e).slice(0, 200)));
     S.pages.add(page);
     page.on('close', () => S.pages.delete(page));
@@ -354,15 +316,6 @@ async function createEnv(opts = {}) {
     await page.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof _calSavePins === 'function' && typeof showNotify === 'function', null, { timeout: 30000 });
     await page.evaluate(client => { _syncviewStaffIdentityVerified = true; _calSavePins([client]); navTo('calendar'); }, CLIENT);
     await page.waitForSelector('.cal-linear-pile, .cal-card, [data-post-id]', { timeout: 20000 }).catch(() => {});
-    await page.waitForTimeout(1200);
-    await page.evaluate(INSTRUMENT);
-    return page;
-  };
-  S.openSamples = async (page) => {
-    await page.goto(origin + '/index.html?sxr=1#sample-reviews/' + SLUG, { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof showNotify === 'function' && typeof sxrState !== 'undefined', null, { timeout: 30000 });
-    await page.evaluate(() => { _syncviewStaffIdentityVerified = true; });
-    await page.waitForSelector('.cal-card[data-pid="s_t1"]', { timeout: 30000 });
     await page.waitForTimeout(1200);
     await page.evaluate(INSTRUMENT);
     return page;

@@ -1,6 +1,6 @@
 import { CAL_SUPABASE_ANON_KEY, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
-import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calEsc, _calEscAttr, _jsAttrArg, _svDraftClear, _svDraftNoteHtml, _svDraftNorm, _svDraftRead, _svDraftSave } from './131-core-html.js';
 import {
   PROD_ASSET_SPECS, PROD_BATCH_DESCRIPTION_SELECT, PROD_DESCRIPTION_IMAGE_EF_URL,
   PROD_WRITE_EF_URL, _prodAssetState, _prodHasOwn, _prodIssueScopeSignature, _prodRestRows,
@@ -52,8 +52,53 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 state.draft = next;
                 state.remoteChanged = false;
                 state.error = '';
+                _prodDescDraftRestore(id, state, next);
             }
             return state;
+        }
+        /* Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3).
+           Every edit is mirrored to the shared draft store (131), keyed by the
+           deliverable. It is dropped when a save is acknowledged or the person
+           cancels, and kept when a save fails or the tab closes. When the
+           description loads and a draft is waiting, the editor opens on it with a
+           small "Restored" line; if the description changed elsewhere since, the
+           existing "changed elsewhere" notice says so and nothing is sent. */
+        function _prodDescDraftClient(id) {
+            const issue = _prodIssue(id);
+            return String((issue && (issue.project || issue.clientSlug)) || '');
+        }
+        function _prodDescDraftKeep(id, state) {
+            if (!state || !state.editing) return;
+            if (_svDraftNorm(state.draft) === _svDraftNorm(state.baseline)) { _svDraftClear('prod', _prodDescDraftClient(id), String(id), 'description'); return; }
+            _svDraftSave('prod', _prodDescDraftClient(id), String(id), 'description', state.draft, { base: state.baseline });
+        }
+        function _prodDescDraftRestore(id, state, serverValue) {
+            if (!state || state.editing || state.saving) return;
+            const kept = _svDraftRead('prod', _prodDescDraftClient(id), String(id), 'description');
+            if (!kept) return;
+            if (_svDraftNorm(kept.text) === _svDraftNorm(serverValue)) { _svDraftClear('prod', _prodDescDraftClient(id), String(id), 'description'); return; }
+            const issue = _prodIssue(id);
+            if (!issue || !_prodCanWrite(issue, _prodDescriptionOperation(issue))) return;   // kept for when writing is allowed
+            state.editing = true;
+            state.preview = false;
+            state.draft = kept.text;
+            state.requestId = '';
+            state.source = !_prodDescRichRoundTrips(state.draft);
+            state.sourceReason = state.source ? 'This description uses Markdown the visual editor cannot keep exactly, so it opened as Markdown.' : '';
+            state.selectionStart = state.draft.length;
+            state.selectionEnd = state.draft.length;
+            state.caretBlock = state.draft.split('\n').length - 1;
+            state.caretOffset = 1e9;
+            state.restoredDraft = true;
+            if (kept.meta.base != null && _svDraftNorm(kept.meta.base) !== _svDraftNorm(serverValue)) {
+                state.remoteChanged = true;
+                state.error = 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.';
+            }
+        }
+        function _prodDescriptionDraftDiscard(id) {
+            const state = _prodDescriptionState(id);
+            if (state) state.restoredDraft = false;
+            return _prodCancelDescriptionEdit(id);
         }
         function _prodCaptureDescriptionFocus(root) {
             const id = String(_prodState.openId || '');
@@ -743,6 +788,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             value = String(value == null ? '' : value);
             if (state.draft !== value) state.requestId = '';
             state.draft = value;
+            _prodDescDraftKeep(id, state);
             state.error = state.remoteChanged
                 ? 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.'
                 : '';
@@ -859,6 +905,8 @@ import { _prodRender } from './260-production-refresh-boot.js';
             state.error = '';
             state.remoteChanged = false;
             state.requestId = '';
+            state.restoredDraft = false;
+            _svDraftClear('prod', _prodDescDraftClient(id), String(id), 'description');
             _prodDescLinkPopHide(true);
             _prodRender();
             _prodFocusDescriptionControl(id, 'edit');
@@ -2255,6 +2303,8 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 state.remoteChanged = false;
                 state.requestId = '';
                 state.sourceUpdatedAt = committedRow.updated_at || state.sourceUpdatedAt;
+                state.restoredDraft = false;
+                _svDraftClear('prod', _prodDescDraftClient(id), String(id), 'description');   // acknowledged: nothing is left unsaved
                 if (batchParent) _prodSyncBatchDescriptionRow(id, committed, committedRow.updated_at);
                 else _prodSyncDescriptionRow(id, committedRow.brief, committedRow.updated_at);
                 _prodToast('Description updated');
@@ -2372,13 +2422,15 @@ import { _prodRender } from './260-production-refresh-boot.js';
                             : state.sourceReason
                                 ? '<div class="prod-description-state" data-prod-description-source-notice>' + _calEsc(state.sourceReason) + '</div>'
                                 : '';
+                const restoredNote = (state.restoredDraft && !state.saving)
+                    ? _svDraftNoteHtml('onclick="return _prodDescriptionDraftDiscard(' + _jsAttrArg(id) + ')"') : '';
                 return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" data-prod-description-mode="' + (source ? 'source' : 'rich') + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
                     + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
                     + '<div class="prod-description-actions">'
                     + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="markdown-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg(source ? 'rich' : 'source') + ')"' + (state.saving ? ' disabled' : '') + '>Markdown</button>'
                     + '<button class="prod-description-action" type="button" data-prod-description-control="cancel" onclick="return _prodCancelDescriptionEdit(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Cancel</button>'
                     + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 || state.uploading > 0 ? ' disabled' : '') + '>' + (state.saving ? 'Saving…' : 'Save') + '</button>'
-                    + '</div></div>' + editor + editorState + '</section>';
+                    + '</div></div>' + restoredNote + editor + editorState + '</section>';
             }
             /* The read view is click-to-edit where a write is allowed: the
                text is the control, the way it is in Linear. The Edit button
@@ -2644,10 +2696,10 @@ import { _prodRender } from './260-production-refresh-boot.js';
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _prodBeginDescriptionEdit, _prodCancelDescriptionEdit, _prodDescriptionBodyClick,
-        _prodDescriptionDraftInput, _prodDescriptionDragLeave, _prodDescriptionDragOver, _prodDescriptionDrop,
-        _prodDescriptionEditorKeydown, _prodDescriptionPaste, _prodDescriptionRememberCaret,
-        _prodDescriptionRememberSelection, _prodDescriptionRichInput, _prodRefreshDescription,
-        _prodSaveDescription, _prodSetDescriptionMode
+        _prodDescriptionDraftDiscard, _prodDescriptionDraftInput, _prodDescriptionDragLeave,
+        _prodDescriptionDragOver, _prodDescriptionDrop, _prodDescriptionEditorKeydown, _prodDescriptionPaste,
+        _prodDescriptionRememberCaret, _prodDescriptionRememberSelection, _prodDescriptionRichInput,
+        _prodRefreshDescription, _prodSaveDescription, _prodSetDescriptionMode
     });
 export {
   _prodAssetStateLabel, _prodAssetsPanelHTML, _prodCaptureDescriptionFocus, _prodCaptureFocus,

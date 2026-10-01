@@ -33,8 +33,11 @@
 -- rows (they cascade with the profile), the test receipt and the roster row.
 -- It refuses anything that is not a verified throwaway, and refuses (never
 -- deletes around) a throwaway that has gained work: cards, samples, filming plan,
--- templates, credentials, batches, deliverables, triage or notification rows.
--- The checklist event history is append-only by design and stays.
+-- templates, caption prompts, credentials, batches, deliverables, triage or
+-- notification rows. History stays by design and is never deleted: the checklist
+-- event history (append-only) and settings_events, the audit log of settings saves
+-- (a caption prompt save writes there too, but a throwaway with a prompt is refused
+-- first, so a deleted throwaway has at most its own create events).
 --
 -- ACCESS. Every privilege on the table and both functions is revoked from all
 -- four roles (public, anon, authenticated, service_role); service_role alone
@@ -151,8 +154,26 @@ begin
     end if;
     select * into v_client from public.clients where slug = v_slug;
     if not found or v_client.kind is distinct from 'test' or v_client.source is distinct from 'syncview_native_test'
+       or v_client.active is distinct from true
        or v_client.native_project_ids is distinct from v_existing.native_project_ids then
       raise exception 'native_client_test_provision_state_drift';
+    end if;
+    -- The same completeness the real function demands of a replay: a token, a
+    -- membership in every routing list, a live profile and the full checklist.
+    -- A throwaway that lost any of them is refused, never certified.
+    select review_token into v_token from public.client_access where slug = v_slug;
+    if coalesce(v_token, '') = '' then raise exception 'native_client_test_provision_token_missing'; end if;
+    foreach v_route_key in array v_route_keys loop
+      if (select count(*) from jsonb_array_elements_text((v_flags->v_route_key)->'clients') entry where entry = v_slug) <> 1 then
+        raise exception 'native_client_test_provision_routing_drift';
+      end if;
+    end loop;
+    if not exists (select 1 from public.client_profiles where slug = v_slug and archived_at is null) then
+      raise exception 'native_client_test_provision_profile_missing';
+    end if;
+    if (select count(*) from public.client_onboarding_progress where client_slug = v_slug)
+       < (select count(*) from public.onboarding_steps) then
+      raise exception 'native_client_test_provision_checklist_incomplete';
     end if;
     return jsonb_build_object('ok', true, 'outcome', 'replayed', 'kind', 'test', 'client_slug', v_slug,
       'native_project_ids', v_existing.native_project_ids, 'slack', 'not_queued');
@@ -241,6 +262,7 @@ begin
     union all select 'sample_reviews', count(*) from public.sample_reviews where client = v_slug
     union all select 'filming_plans', count(*) from public.filming_plans where client_slug = v_slug
     union all select 'templates', count(*) from public.templates where client_slug = v_slug
+    union all select 'caption_prompts', count(*) from public.caption_prompts where client_slug = v_slug
     union all select 'client_credentials', count(*) from public.client_credentials where client_slug = v_slug
     union all select 'batches', count(*) from public.batches where client_slug = v_slug
     union all select 'deliverables', count(*) from public.deliverables where client_slug = v_slug

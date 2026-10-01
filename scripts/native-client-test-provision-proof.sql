@@ -62,6 +62,8 @@ create table public.ai_client_onboarding (id bigserial primary key, slug text);
 create table public.calendar_posts (client text, id text, primary key (client, id));
 create table public.sample_reviews (client text, id text, primary key (client, id));
 create table public.analytics_metrics (client_slug text, date date);
+create table public.caption_prompts (client_slug text primary key, prompt text, updated_by text);
+create table public.settings_events (id bigserial primary key, client_slug text, action text);
 
 \i migrations/2026-09-09-native-client-provisioning.sql
 \i migrations/2026-10-03-onboarding-checklist-tables.sql
@@ -112,6 +114,25 @@ begin
   begin perform public.production_native_client_test_provision('req-t2', 'zzthrowawayone', 'ZZ THROWAWAY One', 'owner'); raise exception 'duplicate allowed'; exception when others then
     if sqlerrm <> 'native_client_test_provision_client_exists' then raise; end if; end;
 
+  -- a replay of a throwaway that lost a token, a routing entry, its profile or its checklist is refused, never certified
+  delete from public.client_access where slug = 'zzthrowawayone';
+  begin perform public.production_native_client_test_provision('req-t1', 'zzthrowawayone', 'ZZ THROWAWAY One', 'owner'); raise exception 'replay without token'; exception when others then
+    if sqlerrm <> 'native_client_test_provision_token_missing' then raise; end if; end;
+  insert into public.client_access (slug, review_token) values ('zzthrowawayone', 'restored-token');
+  update public.syncview_runtime_flags set value = jsonb_set(value, '{clients}', (select coalesce(jsonb_agg(e), '[]'::jsonb) from jsonb_array_elements(value->'clients') e where e <> '"zzthrowawayone"'::jsonb)) where key = 'settings_ef_clients';
+  begin perform public.production_native_client_test_provision('req-t1', 'zzthrowawayone', 'ZZ THROWAWAY One', 'owner'); raise exception 'replay without routing'; exception when others then
+    if sqlerrm <> 'native_client_test_provision_routing_drift' then raise; end if; end;
+  update public.syncview_runtime_flags set value = jsonb_set(value, '{clients}', value->'clients' || '"zzthrowawayone"'::jsonb) where key = 'settings_ef_clients';
+  update public.client_profiles set archived_at = now() where slug = 'zzthrowawayone';
+  begin perform public.production_native_client_test_provision('req-t1', 'zzthrowawayone', 'ZZ THROWAWAY One', 'owner'); raise exception 'replay with archived profile'; exception when others then
+    if sqlerrm <> 'native_client_test_provision_profile_missing' then raise; end if; end;
+  update public.client_profiles set archived_at = null where slug = 'zzthrowawayone';
+  update public.clients set active = false where slug = 'zzthrowawayone';
+  begin perform public.production_native_client_test_provision('req-t1', 'zzthrowawayone', 'ZZ THROWAWAY One', 'owner'); raise exception 'replay inactive'; exception when others then
+    if sqlerrm <> 'native_client_test_provision_state_drift' then raise; end if; end;
+  update public.clients set active = true where slug = 'zzthrowawayone';
+  if (public.production_native_client_test_provision('req-t1', 'zzthrowawayone', 'ZZ THROWAWAY One', 'owner'))->>'outcome' <> 'replayed' then raise exception 'healthy replay after repairs'; end if;
+
   -- teardown refuses a real client, a throwaway that gained work, and a missing one
   begin perform public.production_native_client_test_teardown('realone', 'owner'); raise exception 'real client torn down'; exception when others then
     if sqlerrm <> 'native_client_test_teardown_slug_not_throwaway' then raise; end if; end;
@@ -121,6 +142,10 @@ begin
   begin perform public.production_native_client_test_teardown('zzthrowawayone', 'owner'); raise exception 'work ignored'; exception when others then
     if sqlerrm <> 'native_client_test_teardown_blocked: deliverables' then raise; end if; end;
   delete from public.deliverables where client_slug = 'zzthrowawayone';
+  insert into public.caption_prompts (client_slug, prompt) values ('zzthrowawayone', 'p');
+  begin perform public.production_native_client_test_teardown('zzthrowawayone', 'owner'); raise exception 'prompt ignored'; exception when others then
+    if sqlerrm <> 'native_client_test_teardown_blocked: caption_prompts' then raise; end if; end;
+  delete from public.caption_prompts where client_slug = 'zzthrowawayone';
   insert into public.calendar_posts (client, id) values ('zzthrowawayone', 'c1');
   begin perform public.production_native_client_test_teardown('zzthrowawayone', 'owner'); raise exception 'card ignored'; exception when others then
     if sqlerrm <> 'native_client_test_teardown_blocked: calendar_posts' then raise; end if; end;

@@ -25,9 +25,11 @@ function tableCreates(sql) {
 }
 function workflowIds(doc) {
   // Retained historical IDs are included alongside the dated current census.
+  // Truth uses full UUIDs for versions and full SHAs for commits. Every
+  // backticked 16-character ID is inventoried, including all-hex workflow IDs.
   const tick = String.fromCharCode(96);
   return new Set([...doc.matchAll(new RegExp(tick + '([A-Za-z0-9]{16})' + tick, 'g'))]
-    .map(match => match[1]).filter(id => !/^[0-9a-f]{16}$/.test(id)));
+    .map(match => match[1]));
 }
 function expected(root) {
   const relative = file => path.relative(root, file).split(path.sep).join('/');
@@ -121,6 +123,6 @@ ok(tableCreates('DO $$ BEGIN CREATE TEMP TABLE example (id int); END $$;'), 'con
 ok(entries('| <!-- atlas:edge example --> [example](example.ts) | Purpose. |\n| <!-- atlas:edge example --> [example](example.ts) | Purpose. |').errors.length > 0, 'control rejects duplicate entries');
 ok(entries('<!-- atlas:edge example -->').errors.length > 0, 'control rejects an invisible entry');
 const tick = String.fromCharCode(96);
-ok(workflowIds(tick + 'AbCdEf0123456789' + tick + ' ' + tick + 'abcdef0123456789' + tick).size === 1, 'control separates workflow IDs from commit prefixes');
+ok(workflowIds(tick + 'AbCdEf0123456789' + tick + ' ' + tick + 'abcdef0123456789' + tick).size === 2, 'control includes hexadecimal workflow IDs');
 console.log('\natlas-sync: ' + pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);

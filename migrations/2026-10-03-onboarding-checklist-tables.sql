@@ -18,7 +18,9 @@
 --   client_sales_state             HubSpot deal, contract and payment state
 --   client_backfill_proposals      Stage 3 proposals, nothing applies until approved
 --   client_resource_status_v1      one honest list per client, booleans only
---   client_onboarding_summary_v1   required steps done and still todo, per client
+--                                  (includes the facts stored in client_resources)
+--   client_onboarding_summary_v1   required steps done and still todo, per client;
+--                                  a step with no progress row counts as todo
 --   client_onboarding_ensure()     creates the missing todo rows for a client
 --   client_onboarding_set_step()   admin only, version checked, writes the event
 --
@@ -31,7 +33,7 @@
 -- included: the functions are SECURITY DEFINER with a pinned search_path.
 -- Views show present or missing, never a token, a credential or a client value.
 --
--- ONBOARDED means no required step is still 'todo'. 'unknown' (backfill could
+-- ONBOARDED means no required step is still 'todo' (a missing progress row is todo). 'unknown' (backfill could
 -- not tell) and 'skipped' (an admin decision, note required) are explicit and do
 -- not count as todo. The one optional step never blocks.
 --
@@ -182,22 +184,41 @@ select
     or exists (select 1 from public.ai_client_onboarding o where o.slug = p.slug) as onboarding_form_present,
   exists (select 1 from public.calendar_posts cp where cp.client = p.slug)   as cards_present,
   exists (select 1 from public.sample_reviews sr where sr.client = p.slug)   as samples_present,
-  exists (select 1 from public.analytics_metrics am where am.client_slug = p.slug) as metrics_present
+  exists (select 1 from public.analytics_metrics am where am.client_slug = p.slug) as metrics_present,
+  -- facts stored in client_resources (found only, never the value)
+  exists (select 1 from public.client_resources r where r.client_slug = p.slug and r.resource_key = 'drive_client_folder'
+           and r.status = 'found' and btrim(coalesce(r.value, '')) <> '')         as drive_client_folder_found,
+  exists (select 1 from public.client_resources r where r.client_slug = p.slug and r.resource_key = 'drive_filming_plan_folder'
+           and r.status = 'found' and btrim(coalesce(r.value, '')) <> '')         as drive_filming_plan_folder_found,
+  exists (select 1 from public.client_resources r where r.client_slug = p.slug and r.resource_key = 'hubspot_contact'
+           and r.status = 'found' and btrim(coalesce(r.value, '')) <> '')         as hubspot_contact_found,
+  exists (select 1 from public.client_resources r where r.client_slug = p.slug and r.resource_key = 'brain_folder'
+           and r.status = 'found' and btrim(coalesce(r.value, '')) <> '')         as brain_folder_found,
+  exists (select 1 from public.client_resources r where r.client_slug = p.slug and r.resource_key = 'sandcastles_project'
+           and r.status = 'found' and btrim(coalesce(r.value, '')) <> '')         as sandcastles_project_found,
+  exists (select 1 from public.client_resources r where r.client_slug = p.slug and r.resource_key = 'postforme_instagram_account'
+           and r.status = 'found' and btrim(coalesce(r.value, '')) <> '')         as postforme_instagram_found,
+  exists (select 1 from public.client_sales_state s where s.client_slug = p.slug
+           and btrim(coalesce(s.hubspot_deal_id, '')) <> '')                      as hubspot_deal_found
 from public.client_profiles p
 left join public.clients c on c.slug = p.slug
 where p.archived_at is null;
 
 create or replace view public.client_onboarding_summary_v1 with (security_invoker = false) as
+-- Every live profile crossed with the catalog; a step with no progress row yet
+-- counts as todo, so completeness never depends on client_onboarding_ensure()
+-- having run, and a step added to the catalog later reopens "onboarded".
 select
   p.slug as client_slug,
-  count(*) filter (where s.required)::int                                         as required_steps,
-  count(*) filter (where s.required and g.status = 'done')::int                   as required_done,
-  count(*) filter (where s.required and g.status = 'todo')::int                   as required_todo,
-  count(*) filter (where s.required and g.status in ('unknown','skipped'))::int   as required_decided_other,
-  (count(*) filter (where s.required and g.status = 'todo') = 0)                  as onboarded
+  count(*) filter (where s.required)::int                                                   as required_steps,
+  count(*) filter (where s.required and g.status = 'done')::int                             as required_done,
+  count(*) filter (where s.required and coalesce(g.status, 'todo') = 'todo')::int           as required_todo,
+  count(*) filter (where s.required and g.status in ('unknown','skipped'))::int             as required_decided_other,
+  (count(*) filter (where s.required and coalesce(g.status, 'todo') = 'todo') = 0)          as onboarded
 from public.client_profiles p
-join public.client_onboarding_progress g on g.client_slug = p.slug
-join public.onboarding_steps s on s.step_key = g.step_key
+cross join public.onboarding_steps s
+left join public.client_onboarding_progress g
+       on g.client_slug = p.slug and g.step_key = s.step_key
 where p.archived_at is null
 group by p.slug;
 

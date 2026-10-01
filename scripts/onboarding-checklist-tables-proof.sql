@@ -77,6 +77,9 @@ begin
   begin truncate public.client_onboarding_events; raise exception 'event truncate'; exception when others then
     if sqlerrm <> 'client_onboarding_events_append_only' then raise; end if; end;
 
+  -- a profile with no progress rows yet still shows every required step as todo
+  select * into v from public.client_onboarding_summary_v1 where client_slug = 'beta';
+  if v.required_steps <> 26 or v.required_todo <> 26 or v.onboarded then raise exception 'unensured summary %', v; end if;
   -- summary: one done, 25 required still todo, not onboarded
   select * into v from public.client_onboarding_summary_v1 where client_slug = 'alpha';
   if v.required_steps <> 26 or v.required_done <> 1 or v.required_todo <> 25 or v.onboarded then raise exception 'summary %', v; end if;
@@ -93,6 +96,18 @@ begin
   if v.client_channel_present or v.credentials_present or v.cards_present or v.metrics_present then raise exception 'alpha false positives %', v; end if;
   select * into v from public.client_resource_status_v1 where client_slug = 'beta';
   if v.token_present or v.routing_lists_enrolled <> 1 or v.email_present or v.filming_plan_linked or v.canva_link_present then raise exception 'beta view %', v; end if;
+
+  -- facts stored in client_resources show in the status view, as found only
+  insert into public.client_resources (client_slug, resource_key, value, status) values
+    ('alpha','drive_client_folder','folder-id-1','found'), ('alpha','brain_folder','','found'), ('alpha','hubspot_contact','c-9','missing');
+  select * into v from public.client_resource_status_v1 where client_slug = 'alpha';
+  if not v.drive_client_folder_found or v.brain_folder_found or v.hubspot_contact_found or v.sandcastles_project_found then raise exception 'stored resources %', v; end if;
+
+  -- a required step added to the catalog later reopens "onboarded" for a client that had finished
+  insert into public.onboarding_steps (step_key, position, label, kind, required) values ('later_required_step', 99, 'Later step', 'owner', true);
+  select * into v from public.client_onboarding_summary_v1 where client_slug = 'alpha';
+  if v.onboarded or v.required_steps <> 27 or v.required_todo <> 1 then raise exception 'new catalog step must reopen %', v; end if;
+  delete from public.onboarding_steps where step_key = 'later_required_step';
 
   -- sales: an import must stay unknown
   insert into public.client_sales_state (client_slug, imported_unknown) values ('alpha', true);

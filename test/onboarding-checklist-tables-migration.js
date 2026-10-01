@@ -31,6 +31,9 @@ ok('client data cascades with the profile row and references client_profiles onl
 const viewBody = code.slice(code.indexOf('create or replace view public.client_resource_status_v1'), code.indexOf('create or replace view public.client_onboarding_summary_v1'));
 const stripped = viewBody.replace(/btrim\(coalesce\([a-z_.]+, ''\)\)/g, '').replace(/coalesce\(t\.data->>'thumbnails_canva_link', ''\)/g, '');
 ok('views show presence only (no token, credential or client value is selected)', !/\b(review_token|email|instagram_handle|tiktok_handle|youtube_channel_id|slack_channel_id|creative_channel_id|postforme_account_id|competitors|keywords|content_description|password|doc_url)\b/.test(stripped));
+ok('the status view reports the facts stored in client_resources (found only)', /drive_client_folder_found/.test(viewBody) && /hubspot_deal_found/.test(viewBody) && (viewBody.match(/r\.status = 'found'/g) || []).length === 6);
+const summaryBody = code.slice(code.indexOf('create or replace view public.client_onboarding_summary_v1'), code.indexOf('create or replace function public.client_onboarding_ensure'));
+ok('the summary crosses profiles with the catalog and counts a missing row as todo', /cross join public\.onboarding_steps/.test(summaryBody) && /left join public\.client_onboarding_progress/.test(summaryBody) && /coalesce\(g\.status, 'todo'\)/.test(summaryBody) && !/\bjoin public\.client_onboarding_progress/.test(summaryBody.replace('left join', '')));
 const seed = code.slice(code.indexOf('insert into public.onboarding_steps'));
 const steps = seed.match(/^\s+\('[a-z_]+',\s*\d+,/gm) || [];
 ok('27 catalog steps', steps.length === 27);

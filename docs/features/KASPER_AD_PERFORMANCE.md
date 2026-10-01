@@ -276,7 +276,9 @@ Three places, all the literal `'prospecting'`:
    per-campaign or per-ad rows, and no lead row is written.
 3. `Pull Unfinished Leads` (Data Table `get`): filter `utm_campaign eq prospecting`.
 
-### Proposed smallest change (NOT applied; needs Sidney's go-ahead to edit n8n)
+### Proposed smallest change (parts A and B applied 2026-10-01; part C NOT applied, see `docs/ops/N8N_EDIT_LOG.md`)
+
+Update: the partial lead part (C) failed its first live run because doctors rows hold the text `n/a-no-sms-consent` in `sms_sent_at`, which the timestamp column rejects. It was put back; `Map Unfinished Leads` must null that value first.
 
 No migration, no Edge Function change, no browser change. Edit the three nodes above.
 

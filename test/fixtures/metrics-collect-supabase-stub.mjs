@@ -1,5 +1,5 @@
 // In-memory stand-in for the parts of the Supabase client that
-// analytics-metrics-collect uses. State lives in globalThis.__DB (tables as
+// analytics-metrics-collect and analytics-top-videos-collect use. State lives in globalThis.__DB (tables as
 // arrays of rows); globalThis.__DB_FAIL.commit makes the commit RPC fail.
 const T = () => globalThis.__DB;
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -64,6 +64,24 @@ export function createClient() {
         }
         const row = db.analytics_metrics_collect_queue.find(r => r.run_date === a.p_run_date && r.client_slug === a.p_client_slug);
         Object.assign(row, { state: 'done', lease_until: null });
+        return { data: null, error: null };
+      }
+      if (name === 'analytics_top_videos_collect_claim') {
+        const now = Date.now();
+        const q = (db.analytics_top_videos_collect_queue = db.analytics_top_videos_collect_queue || []);
+        const pool = q.filter(r => r.run_date === a.p_run_date && ['pending', 'running'].includes(r.state)
+          && (!r.lease_until || Date.parse(r.lease_until) < now) && r.attempts < a.p_max_attempts)
+          .sort((x, y) => x.attempts - y.attempts || (x.client_slug < y.client_slug ? -1 : 1)).slice(0, Math.max(1, Math.min(a.p_limit, 4)));
+        for (const r of pool) { r.state = 'running'; r.attempts += 1; r.lease_until = new Date(now + a.p_lease_seconds * 1000).toISOString(); }
+        return { data: clone(pool), error: null };
+      }
+      if (name === 'analytics_top_videos_collect_commit_shadow') {
+        if (globalThis.__DB_FAIL && globalThis.__DB_FAIL.commit) return { data: null, error: new Error('commit refused') };
+        const sh = (db.top_shadow = db.top_shadow || []).filter(r => !(r.slug === a.p_client_slug && r.run_date === a.p_run_date));
+        db.top_shadow = sh;
+        sh.push({ slug: a.p_client_slug, run_date: a.p_run_date, rows: clone(a.p_rows), states: clone(a.p_states), run_id: a.p_run_id });
+        const row = db.analytics_top_videos_collect_queue.find(r => r.run_date === a.p_run_date && r.client_slug === a.p_client_slug);
+        Object.assign(row, { state: 'done', lease_until: null, outcome: clone(a.p_states) });
         return { data: null, error: null };
       }
       return { data: null, error: new Error('unknown rpc ' + name) };

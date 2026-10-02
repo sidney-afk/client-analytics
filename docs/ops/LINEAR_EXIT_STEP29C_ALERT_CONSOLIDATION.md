@@ -82,7 +82,7 @@ Add a public-safe incident store, a consolidation runner, relay support for a bo
 
 ## Built 2026-10-02 (session Signal): the combined message, behind a switch that is off
 
-**Built, not switched on, nothing removed.** Every existing alert still posts exactly as before. Code: `scripts/alert-digest.js`, workflow `.github/workflows/alert-digest.yml`, tests `test/alert-digest.js`, demo inputs `test/fixtures/alert-digest-demo.json`. OPEN_REPAIRS 327.
+**Built, not switched on, nothing removed.** Every existing alert still posts exactly as before. Code: `scripts/alert-digest.js`, workflow `.github/workflows/alert-digest.yml`, tests `test/alert-digest.js`, demo inputs `test/fixtures/alert-digest-demo.json`. OPEN_REPAIRS 328.
 
 ### Every alert that posts today (checked 2026-10-02)
 

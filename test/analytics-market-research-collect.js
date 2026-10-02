@@ -213,6 +213,9 @@ async function main() {
   assert.deepEqual(run(['--client=aaa', '--keyword=one', '--keyword=it\'s two', '--keyword=one']), { status: 0, out: `insert into public.analytics_market_research_collect_queue (client_slug, keywords, requested_by) values ('aaa', '["one","it''s two"]'::jsonb, 'script');` }, 'quotes doubled, duplicates dropped');
   for (const bad of [[], ['--client=aaa'], ['--keyword=x'], ['--client=a b', '--keyword=x'], ["--client=a'b", '--keyword=x'], ['--client=a', '--client=b', '--keyword=x'], ['--client=a', '--keyword=' + 'x'.repeat(81)], ['--client=a', '--keyword=bad\nnewline'],
     ['--client=a', ...Array.from({ length: 11 }, (_, i) => '--keyword=k' + i)]]) assert.equal(run(bad).status, 2, 'refused: ' + bad.join(' ').slice(0, 60));
+  assert.equal(run(['--switch-off']).out, `update public.syncview_runtime_flags set value = '{"mode":"off"}'::jsonb where key = 'analytics_market_research_collect';`);
+  assert.equal(run(['--switch-shadow', '--client=aaa', '--client=aaa']).out, `update public.syncview_runtime_flags set value = '{"mode":"shadow","clients":["aaa"],"max_new_per_day":2}'::jsonb where key = 'analytics_market_research_collect';`);
+  for (const bad of [['--switch-shadow'], ['--switch-shadow', "--client=a'b"], ['--switch-shadow', '--client=a', '--max-new-per-day=11'], ['--switch-shadow', '--client=a', '--max-new-per-day=x']]) assert.equal(run(bad).status, 2, 'refused: ' + bad.join(' '));
   assert.equal(typeof build, 'function');
 
   console.log(`ANALYTICS_MARKET_RESEARCH_COLLECT_OK: 250 random runs identical to the n8n nodes at every stage (${cov.briefs} briefs built, ${cov.noReels} "no reels" errors, ${cov.ranked300} full 300-reel rankings, ${cov.usable} transcribed reels used, ${cov.chunked} briefs over 45,000 characters stored in pieces); prompt and request body equal character for character; 3 deliberate breakages caught (${b1}, ${b2}, ${b3} of 250)`);

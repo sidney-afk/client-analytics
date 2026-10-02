@@ -142,7 +142,11 @@ async function download(url: string): Promise<{ bytes: Uint8Array | null; size: 
   return { bytes: null, size: null };
 }
 
-async function transcribeOne(url: string): Promise<Outcome> {
+// A Whisper answer that is an error STATUS is not a verdict on the video: a rejected key stops the request
+// (nothing paid is written), a busy or failing service is tried again on a later tick. n8n records both as a
+// failed transcript and goes on to a paid brief; the port does not.
+class WhisperFatal extends Error {}
+async function transcribeOne(url: string): Promise<Outcome | "retry"> {
   const d = await download(url);
   const skip = checkFileSize(d.size);
   if (skip) return { transcript: "", hook: null, hookSkipped: true, skipReason: skip };
@@ -153,9 +157,14 @@ async function transcribeOne(url: string): Promise<Outcome> {
     form.append("model", "whisper-1");
     form.append("response_format", "verbose_json");
     const res = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${Deno.env.get("OPENAI_KEY") || ""}` }, body: form });
+    if (res.status === 401 || res.status === 403) throw new WhisperFatal(`whisper_key_rejected_${res.status}`);
+    if (res.status === 429 || res.status >= 500) return "retry";
     whisper = await res.json().catch(() => ({ error: "whisper_bad_json" })) as JsonMap;
     if (!res.ok && !whisper.error) whisper = { error: `whisper_${res.status}` };
-  } catch (_e) { /* stays an error: transcribe_failed */ }
+  } catch (e) {
+    if (e instanceof WhisperFatal) throw e;
+    return "retry"; // the network failed: try again
+  }
   return extractHook(whisper) as Outcome;
 }
 
@@ -262,15 +271,29 @@ async function processRequest(db: SupabaseClient, q: QueueRow, flags: JsonMap, d
   const tx = (stages.tx || {}) as Record<string, Outcome>;
   stages.tx = tx;
   const todo = ranked.filter(r => needsTranscript(r) && !tx[String(r.rank)]);
+  if (todo.length && !Deno.env.get("OPENAI_KEY")) return await fail(db, q.id, "openai_key_missing");
+  const tries = (stages.tx_tries || {}) as Record<string, number>;
+  stages.tx_tries = tries;
   let at = 0;
+  let fatal = "";
   const worker = async (): Promise<void> => {
-    while (Date.now() < deadline - TRANSCRIBE_MARGIN_MS) {
+    while (!fatal && Date.now() < deadline - TRANSCRIBE_MARGIN_MS) {
       const r = todo[at++];
       if (!r) return;
-      tx[String(r.rank)] = await transcribeOne(r.videoUrl);
+      try {
+        const o = await transcribeOne(r.videoUrl);
+        if (o === "retry") {
+          tries[String(r.rank)] = (tries[String(r.rank)] || 0) + 1;
+          // three tries over three ticks, then the video counts as untranscribable (as in n8n)
+          if (tries[String(r.rank)] >= 3) tx[String(r.rank)] = { transcript: "", hook: null, hookSkipped: true, skipReason: "transcribe_failed" };
+        } else tx[String(r.rank)] = o;
+      } catch (e) {
+        if (e instanceof WhisperFatal) fatal = e.message; else throw e;
+      }
     }
   };
   await Promise.all(Array.from({ length: TRANSCRIBE_PARALLEL }, worker));
+  if (fatal) return await fail(db, q.id, fatal);
   if (ranked.some(r => needsTranscript(r) && !tx[String(r.rank)])) { await save(); return "waiting"; }
 
   // 3. the brief
@@ -280,6 +303,7 @@ async function processRequest(db: SupabaseClient, q: QueueRow, flags: JsonMap, d
   const input = buildClaudeInput(reels, { clientName: prof.display_name, clientNiche: prof.keywords || "", contentDescription: prof.content_description || "", keywords });
   const prompt = buildPrompt(input, now.getTime());
   const request = claudeRequest(prompt, model) as JsonMap;
+  if (!(stages.claude as ClaudeStage | undefined)?.batch_id && !Deno.env.get("ANTHROPIC_API_KEY")) return await fail(db, q.id, "anthropic_key_missing");
   const cl = await claudeStage((stages.claude || {}) as ClaudeStage, request, prompt);
   stages.claude = cl;
   if (cl.done && cl.failed) return await fail(db, q.id, "claude_failed", { model, reels: input.totalReels });

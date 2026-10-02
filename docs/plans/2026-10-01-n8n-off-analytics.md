@@ -367,6 +367,7 @@ stores the SHA-256 of the prompt it sent (`outcome.prompt_sha256`).
 - n8n reads a video's size as text like "2.3 MB"; the port counts the bytes. A video within a few percent of
   500 KB or 25 MB could be judged differently.
 - A search that fails is skipped in both; n8n retries an Instagram search once, the port does not.
+- **A deliberate improvement:** n8n turns every Whisper error (a rejected key, a busy service) into a skipped transcript and still pays for a brief. The port stops the request when Whisper rejects the key (and when `OPENAI_KEY` or `ANTHROPIC_API_KEY` is missing), tries a busy Whisper again on later ticks, and only after three tries counts the video as untranscribable.
 - The order of reels inside the prompt follows n8n's batches of ten (reels with a video link first). I read that
   from the Merge node's default; no saved n8n run exists to confirm it.
 

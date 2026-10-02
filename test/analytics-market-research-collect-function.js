@@ -47,7 +47,7 @@ const addRequest = (slug = 'aaa', keywords = ['kw one', 'kw two'], over = {}) =>
 };
 
 // ---- scripted providers ----
-const world = { ttReady: false, igFails: false, ttFails: false, batchPolls: 0, batchEndsAfter: 1, batchResult: 'ok', batchSubmits: 0 };
+const world = { whisperStatus: 200, whisperHits: 0, ttReady: false, igFails: false, ttFails: false, batchPolls: 0, batchEndsAfter: 1, batchResult: 'ok', batchSubmits: 0 };
 const calls = [];
 const text = (body, status = 200) => ({ ok: status < 400, status, json: async () => JSON.parse(body), text: async () => body });
 const ok = (body, status = 200) => ({ ok: status < 400, status, json: async () => body, text: async () => JSON.stringify(body) });
@@ -79,6 +79,8 @@ globalThis.fetch = async (url, init = {}) => {
   if (url === 'https://cdn.example/subs') return video(2000);
   if (url === 'https://cdn.example/never') throw new Error('a reel under 100,000 views must not be downloaded');
   if (url === 'https://api.openai.com/v1/audio/transcriptions') {
+    world.whisperHits++;
+    if (world.whisperStatus !== 200) return ok({ error: { message: 'x' } }, world.whisperStatus);
     const words = Array.from({ length: 40 }, (_, i) => 'unique' + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + ((i * 5) % 26))).join(' ');
     return ok({ language: 'en', text: 'This is the opening line. ' + words + '. And the end.', segments: [{ no_speech_prob: 0.01, avg_logprob: -0.2 }] });
   }
@@ -180,6 +182,31 @@ const q = id => globalThis.__DB.analytics_market_research_collect_queue.find(r =
   assert.equal(q(r0.id).state, 'done');
   assert.deepEqual(globalThis.__DB.analytics_market_research_briefs, SENTINEL, 'analytics_market_research_briefs untouched');
   assert.equal((await call({ action: 'tick' })).body.claimed, 0, 'nothing left');
+
+  // Whisper refusing the key stops the request before any paid Claude call; a busy Whisper is tried again, then counted as a failed transcript
+  resetDb();
+  const wk = addRequest();
+  world.ttReady = true; world.batchSubmits = 0; world.batchPolls = 0; world.whisperStatus = 401;
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { failed: 1 });
+  assert.equal(q(wk.id).last_error, 'whisper_key_rejected_401');
+  assert.equal(world.batchSubmits, 0, 'no paid Claude call after a rejected key');
+  resetDb();
+  const wb = addRequest();
+  world.whisperStatus = 429;
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { waiting: 1 }, 'a busy Whisper is tried again later, not recorded as a failed transcript');
+  assert.equal(world.batchSubmits, 0);
+  assert.deepEqual(Object.values(q(wb.id).stages.tx).map(o => o.skipReason), ['file_too_small', 'file_too_small'], 'only the two videos that fail on size are settled; the one sent to Whisper waits');
+  await call({ action: 'tick' }); await call({ action: 'tick' });
+  assert.equal(Object.values(q(wb.id).stages.tx).filter(o => o.skipReason === 'transcribe_failed').length > 0, true, 'after three tries a video counts as untranscribable, as in n8n');
+  world.whisperStatus = 200;
+  resetDb();
+  const nk = addRequest();
+  const savedKey = env.OPENAI_KEY; delete env.OPENAI_KEY;
+  await call({ action: 'tick' });
+  assert.equal(q(nk.id).last_error, 'openai_key_missing');
+  env.OPENAI_KEY = savedKey;
 
   // the daily cap: with a cap of 1, a second new request waits while the first has started today
   resetDb();

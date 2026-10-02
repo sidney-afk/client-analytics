@@ -29,19 +29,23 @@ is for the test client only unless you decide otherwise.
    with the merged commit (the session pastes the SHA once the PR is merged; do not merge anything
    between handing it over and the dispatch).
 4. **Switch it on for the test client only.** The switch has a list of the clients it may build (it builds
-   nobody else) and a cap on new briefs per day. Replace the placeholder with the test client's slug (it is in
-   the session chat, not in this file) and paste in the Supabase SQL editor:
-   `update public.syncview_runtime_flags set value = '{"mode":"shadow","clients":["<test client slug>"],"max_new_per_day":2}'::jsonb where key = 'analytics_market_research_collect';`
-   (or ask the session to print it). Off again: `'{"mode":"off"}'`.
+   nobody else) and a cap on new briefs per day. The session or Lighthouse runs, **in a terminal, from the
+   repository folder** (the slug is in the session chat, not in this file):
+   `node scripts/analytics-market-research-request.js --switch-shadow --client=<test client slug>`
+   It connects to nothing; it prints one `update ...` statement. **You paste that printed statement** into the
+   Supabase SQL editor. Off again: the same script with `--switch-off`.
 5. **Apply the timer:** `migrations/2026-10-02-analytics-market-research-collect-schedule.sql` (it refuses to
    run without the Vault secret). It calls the function every minute, but only while a request is open.
-6. **Ask for one brief.** The session or Lighthouse prints the statement with the slug and keywords as inputs,
-   and you paste it into the Supabase SQL editor:
+6. **Ask for one brief.** The session or Lighthouse runs, in a terminal from the repository folder, with the
+   slug and keywords as inputs:
    `node scripts/analytics-market-research-request.js --client=<test client slug> --keyword="first keyword" --keyword="second keyword"`
-   (1 to 10 keywords; it connects to nothing and rejects anything that is not a slug). The brief takes from
-   several minutes to about an hour. Watch it:
+   (1 to 10 keywords; it connects to nothing and rejects anything that is not a slug). It prints one `insert ...`
+   statement; **you paste that printed statement** into the Supabase SQL editor. The brief takes from several
+   minutes to about an hour. Watch it:
    `select state, attempts, last_error, outcome from public.analytics_market_research_collect_queue order by created_at desc limit 3;`
-   `done` means the brief is in `analytics_market_research_shadow`.
+   `done` means the brief is in `analytics_market_research_shadow`. `failed` with `whisper_key_rejected_401`,
+   `openai_key_missing` or `anthropic_key_missing` means a key from the table above is missing or wrong:
+   fix the secret and ask again; nothing paid was written.
 7. **Compare with n8n** (only possible if n8n also built a brief for the same client that day, with the same
    keywords, by you calling its webhook; the copy of n8n's brief reaches the database up to a day later):
    `select * from public.analytics_market_research_shadow_compare();`

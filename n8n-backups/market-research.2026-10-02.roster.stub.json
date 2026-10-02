@@ -1,0 +1,1204 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-02 for the Roster Steps 2 and 3 edit (docs/ops/N8N_EDIT_LOG.md). It lists the workflow as it was BEFORE the edit (version 7ba33725-5c02-42bd-bcf3-f8804f0c3301): node names, types, credential references by id and name, connections. Code bodies and parameters are deliberately left out. The full graph is in n8n workflow history. ROLLBACK: restore and publish 7ba33725-5c02-42bd-bcf3-f8804f0c3301. The unpublished draft f365365a-08eb-4b89-ada0-c66b3b8a7996 (a login rename only) went live with the edit; this stub lists that draft. See ROLLBACK.md section 2.",
+  "name": "MARKET RESEARCH",
+  "id": "FD2QUIOlobkdLOgs",
+  "version_before": "7ba33725-5c02-42bd-bcf3-f8804f0c3301",
+  "version_after_published": "cee4d459-5a1c-4f37-9e24-b7e239f2d4d4",
+  "nodes_before": [
+    {
+      "name": "Loop Over Items3",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Scrape Instagram2",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "K4zoLPhfjLVXkAQg",
+          "name": "APIFY @HOUSE"
+        }
+      }
+    },
+    {
+      "name": "Sort and Filter2",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Scrape TikTok2",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "K4zoLPhfjLVXkAQg",
+          "name": "APIFY @HOUSE"
+        }
+      }
+    },
+    {
+      "name": "Normalize TikTok2",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Normalize Instagram Results2",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items4",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Download Video1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Transcribe with Whisper",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9EbSDs5u2d62MA28",
+          "name": "OPENAI"
+        }
+      }
+    },
+    {
+      "name": "Extract Hook1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate Results1",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate Instagram",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items6",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate TikTok",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Build Claude Input1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Claude API1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Claude"
+        }
+      }
+    },
+    {
+      "name": "Append or update row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Convert to JSON1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "name": "Code in JavaScript1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Claude"
+        }
+      }
+    },
+    {
+      "name": "Code in JavaScript2",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook2",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript3",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Claude API2",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Claude"
+        }
+      }
+    },
+    {
+      "name": "Code in JavaScript4",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Respond to Webhook1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "Check File Size",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript6",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Deduplicate Final Results",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Build Keyword Inputs1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook4",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch Client Config2",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Parse Client Config2",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript11",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Merge1",
+      "type": "n8n-nodes-base.merge",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Respond to Webhook2",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Webhook3",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Download Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Transcribe with Whisper1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9EbSDs5u2d62MA28",
+          "name": "OPENAI"
+        }
+      }
+    },
+    {
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript5",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Claude API3",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Claude"
+        }
+      }
+    },
+    {
+      "name": "Respond to Webhook3",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "Split Videos",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "K4zoLPhfjLVXkAQg",
+          "name": "APIFY @HOUSE"
+        }
+      }
+    },
+    {
+      "name": "Extract Video URL",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Merge Transcript",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "credentials": {}
+    },
+    {
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "credentials": {}
+    },
+    {
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "credentials": {}
+    },
+    {
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript7",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items5",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Scrape Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "K4zoLPhfjLVXkAQg",
+          "name": "APIFY @HOUSE"
+        }
+      }
+    },
+    {
+      "name": "Sort and Filter",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Scrape TikTok",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "K4zoLPhfjLVXkAQg",
+          "name": "APIFY @HOUSE"
+        }
+      }
+    },
+    {
+      "name": "Normalize TikTok",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Normalize Instagram Results",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items7",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Download Video2",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Transcribe with Whisper2",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9EbSDs5u2d62MA28",
+          "name": "OPENAI"
+        }
+      }
+    },
+    {
+      "name": "Extract Hook",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate Results2",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate Instagram1",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items8",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate TikTok1",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Build Claude Input",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Claude API4",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "name": "Append or update row in sheet2",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Convert to JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "name": "Code in JavaScript8",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Check File Size1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "If2",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript9",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Deduplicate Final Results1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Build Keyword Inputs",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook5",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch Client Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Parse Client Config",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript12",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Merge2",
+      "type": "n8n-nodes-base.merge",
+      "credentials": {}
+    },
+    {
+      "name": "Merge3",
+      "type": "n8n-nodes-base.merge",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook6",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Download Video3",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Transcribe with Whisper3",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9EbSDs5u2d62MA28",
+          "name": "OPENAI"
+        }
+      }
+    },
+    {
+      "name": "Aggregate Results3",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript10",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Claude API5",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3AI3rkTCzzicDy0s",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "name": "Split Videos1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "HTTP Request1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "K4zoLPhfjLVXkAQg",
+          "name": "APIFY @HOUSE"
+        }
+      }
+    },
+    {
+      "name": "Extract Video URL1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Merge Transcript1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "credentials": {}
+    },
+    {
+      "name": "Get Clients1",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Every Day1",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "credentials": {}
+    },
+    {
+      "name": "Build Payloads1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "If3",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Append or update row in sheet3",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Get All Top Videos1",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Code in JavaScript13",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    }
+  ],
+  "connections_before": {
+    "Loop Over Items3": [
+      [
+        "Aggregate Instagram"
+      ],
+      [
+        "Scrape Instagram2"
+      ]
+    ],
+    "Scrape Instagram2": [
+      [
+        "Normalize Instagram Results2"
+      ],
+      [
+        "Loop Over Items3"
+      ]
+    ],
+    "Sort and Filter2": [
+      [
+        "Loop Over Items4"
+      ]
+    ],
+    "Scrape TikTok2": [
+      [
+        "Normalize TikTok2"
+      ],
+      [
+        "Loop Over Items6"
+      ]
+    ],
+    "Normalize TikTok2": [
+      [
+        "Loop Over Items6"
+      ],
+      [
+        "Loop Over Items6"
+      ]
+    ],
+    "Normalize Instagram Results2": [
+      [
+        "Loop Over Items3"
+      ],
+      [
+        "Loop Over Items3"
+      ]
+    ],
+    "Loop Over Items4": [
+      [
+        "Aggregate Results1"
+      ],
+      [
+        "If"
+      ]
+    ],
+    "Download Video1": [
+      [
+        "Check File Size"
+      ]
+    ],
+    "Transcribe with Whisper": [
+      [
+        "Extract Hook1"
+      ]
+    ],
+    "Extract Hook1": [
+      [
+        "Merge1"
+      ]
+    ],
+    "Aggregate Instagram": [
+      [
+        "Merge"
+      ]
+    ],
+    "Loop Over Items6": [
+      [
+        "Aggregate TikTok"
+      ],
+      [
+        "Scrape TikTok2"
+      ]
+    ],
+    "Aggregate TikTok": [
+      [
+        "Merge"
+      ]
+    ],
+    "Claude API1": [
+      [
+        "Code in JavaScript1"
+      ]
+    ],
+    "Convert to JSON1": [
+      []
+    ],
+    "Code in JavaScript1": [
+      [
+        "Append or update row in sheet"
+      ]
+    ],
+    "Build Claude Input1": [
+      [
+        "Claude API1"
+      ]
+    ],
+    "Aggregate Results1": [
+      [
+        "Deduplicate Final Results"
+      ]
+    ],
+    "Webhook1": [
+      [
+        "Code in JavaScript"
+      ]
+    ],
+    "Code in JavaScript": [
+      [
+        "Claude API"
+      ]
+    ],
+    "Claude API": [
+      [
+        "Code in JavaScript2"
+      ]
+    ],
+    "Code in JavaScript2": [
+      [
+        "Respond to Webhook"
+      ]
+    ],
+    "Webhook2": [
+      [
+        "Code in JavaScript3"
+      ]
+    ],
+    "Code in JavaScript3": [
+      [
+        "Claude API2"
+      ]
+    ],
+    "Claude API2": [
+      [
+        "Code in JavaScript4"
+      ]
+    ],
+    "Code in JavaScript4": [
+      [
+        "Respond to Webhook1"
+      ]
+    ],
+    "Check File Size": [
+      [
+        "Transcribe with Whisper"
+      ]
+    ],
+    "If": [
+      [
+        "Download Video1"
+      ],
+      [
+        "Code in JavaScript11"
+      ]
+    ],
+    "Code in JavaScript6": [
+      [
+        "Sort and Filter2"
+      ]
+    ],
+    "Deduplicate Final Results": [
+      [
+        "Build Claude Input1"
+      ]
+    ],
+    "Webhook4": [
+      [
+        "Fetch Client Config2"
+      ]
+    ],
+    "Fetch Client Config2": [
+      [
+        "Parse Client Config2"
+      ]
+    ],
+    "Parse Client Config2": [
+      [
+        "Build Keyword Inputs1"
+      ]
+    ],
+    "Build Keyword Inputs1": [
+      [
+        "Loop Over Items3",
+        "Loop Over Items6"
+      ]
+    ],
+    "Code in JavaScript11": [
+      [
+        "Merge1"
+      ]
+    ],
+    "Merge1": [
+      [
+        "Loop Over Items4"
+      ]
+    ],
+    "Webhook": [
+      [
+        "Append row in sheet"
+      ]
+    ],
+    "Append row in sheet": [
+      [
+        "Respond to Webhook2"
+      ]
+    ],
+    "Webhook3": [
+      [
+        "Split Videos"
+      ]
+    ],
+    "Loop Over Items": [
+      [
+        "Aggregate Results"
+      ],
+      [
+        "HTTP Request"
+      ]
+    ],
+    "Download Video": [
+      [
+        "Transcribe with Whisper1"
+      ]
+    ],
+    "Transcribe with Whisper1": [
+      [
+        "Merge Transcript"
+      ]
+    ],
+    "Aggregate Results": [
+      [
+        "Code in JavaScript5"
+      ]
+    ],
+    "Code in JavaScript5": [
+      [
+        "Claude API3"
+      ]
+    ],
+    "Claude API3": [
+      [
+        "Code in JavaScript7"
+      ]
+    ],
+    "Split Videos": [
+      [
+        "Loop Over Items"
+      ]
+    ],
+    "HTTP Request": [
+      [
+        "Extract Video URL"
+      ]
+    ],
+    "Extract Video URL": [
+      [
+        "Download Video"
+      ]
+    ],
+    "Merge Transcript": [
+      [
+        "Loop Over Items"
+      ]
+    ],
+    "Code in JavaScript7": [
+      [
+        "Respond to Webhook3"
+      ]
+    ],
+    "Merge": [
+      [
+        "Code in JavaScript6"
+      ]
+    ],
+    "Loop Over Items5": [
+      [
+        "Aggregate Instagram1"
+      ],
+      [
+        "Scrape Instagram"
+      ]
+    ],
+    "Scrape Instagram": [
+      [
+        "Normalize Instagram Results"
+      ]
+    ],
+    "Sort and Filter": [
+      [
+        "Loop Over Items7"
+      ]
+    ],
+    "Scrape TikTok": [
+      [
+        "Normalize TikTok"
+      ]
+    ],
+    "Normalize TikTok": [
+      [
+        "Loop Over Items8"
+      ]
+    ],
+    "Normalize Instagram Results": [
+      [
+        "Loop Over Items5"
+      ]
+    ],
+    "Loop Over Items7": [
+      [
+        "Aggregate Results2"
+      ],
+      [
+        "If2"
+      ]
+    ],
+    "Download Video2": [
+      [
+        "Check File Size1"
+      ]
+    ],
+    "Transcribe with Whisper2": [
+      [
+        "Extract Hook"
+      ]
+    ],
+    "Extract Hook": [
+      [
+        "Merge2"
+      ]
+    ],
+    "Aggregate Results2": [
+      [
+        "Deduplicate Final Results1"
+      ]
+    ],
+    "Aggregate Instagram1": [
+      [
+        "Merge3"
+      ]
+    ],
+    "Loop Over Items8": [
+      [
+        "Aggregate TikTok1"
+      ],
+      [
+        "Scrape TikTok"
+      ]
+    ],
+    "Aggregate TikTok1": [
+      [
+        "Merge3"
+      ]
+    ],
+    "Build Claude Input": [
+      [
+        "Claude API4"
+      ]
+    ],
+    "Claude API4": [
+      [
+        "Convert to JSON"
+      ]
+    ],
+    "Convert to JSON": [
+      [
+        "Code in JavaScript8"
+      ]
+    ],
+    "Code in JavaScript8": [
+      [
+        "Append or update row in sheet2"
+      ]
+    ],
+    "Check File Size1": [
+      [
+        "Transcribe with Whisper2"
+      ]
+    ],
+    "If2": [
+      [
+        "Download Video2"
+      ],
+      [
+        "Code in JavaScript12"
+      ]
+    ],
+    "Code in JavaScript9": [
+      [
+        "Sort and Filter"
+      ]
+    ],
+    "Deduplicate Final Results1": [
+      [
+        "Build Claude Input"
+      ]
+    ],
+    "Build Keyword Inputs": [
+      [
+        "Loop Over Items5",
+        "Loop Over Items8"
+      ]
+    ],
+    "Webhook5": [
+      [
+        "Fetch Client Config"
+      ]
+    ],
+    "Fetch Client Config": [
+      [
+        "Parse Client Config"
+      ]
+    ],
+    "Parse Client Config": [
+      [
+        "Build Keyword Inputs"
+      ]
+    ],
+    "Code in JavaScript12": [
+      [
+        "Merge2"
+      ]
+    ],
+    "Merge2": [
+      [
+        "Loop Over Items7"
+      ]
+    ],
+    "Merge3": [
+      [
+        "Code in JavaScript9"
+      ]
+    ],
+    "Webhook6": [
+      [
+        "Split Videos1"
+      ]
+    ],
+    "Loop Over Items1": [
+      [
+        "Aggregate Results3"
+      ],
+      [
+        "HTTP Request1"
+      ]
+    ],
+    "Download Video3": [
+      [
+        "Transcribe with Whisper3"
+      ]
+    ],
+    "Transcribe with Whisper3": [
+      [
+        "Merge Transcript1"
+      ]
+    ],
+    "Aggregate Results3": [
+      [
+        "Code in JavaScript10"
+      ]
+    ],
+    "Code in JavaScript10": [
+      [
+        "Claude API5"
+      ]
+    ],
+    "Claude API5": [
+      [
+        "Code in JavaScript13"
+      ]
+    ],
+    "Split Videos1": [
+      [
+        "Loop Over Items1"
+      ]
+    ],
+    "HTTP Request1": [
+      [
+        "Extract Video URL1"
+      ]
+    ],
+    "Extract Video URL1": [
+      [
+        "Download Video3"
+      ]
+    ],
+    "Merge Transcript1": [
+      [
+        "Loop Over Items1"
+      ]
+    ],
+    "Get Clients1": [
+      [
+        "Get All Top Videos1"
+      ]
+    ],
+    "Every Day1": [
+      [
+        "Get Clients1"
+      ]
+    ],
+    "Build Payloads1": [
+      [
+        "Split Videos1"
+      ]
+    ],
+    "If3": [
+      [],
+      [
+        "Append or update row in sheet3"
+      ]
+    ],
+    "Get All Top Videos1": [
+      [
+        "Build Payloads1"
+      ]
+    ],
+    "Code in JavaScript13": [
+      [
+        "If3"
+      ]
+    ]
+  }
+}

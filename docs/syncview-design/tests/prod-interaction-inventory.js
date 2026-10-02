@@ -8,39 +8,12 @@
  * disabled/active no-ops. It also checks right-click menus, hover tips, browser
  * errors, and the no-write request invariant.
  */
-const fs = require('fs');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
-const http = require('http');
-const path = require('path');
 const { chromium } = require('playwright');
+const { serveStatic, isWriteLikeRequest } = require('./prod-test-utils');
 
-const root = path.resolve(__dirname, '..', '..', '..');
 const selectionOnly = process.argv.includes('--selection-only');
-const mime = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css',
-  '.js': 'text/javascript',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-};
 
-function serve() {
-  const server = http.createServer((req, res) => {
-    const u = new URL(req.url, 'http://127.0.0.1');
-    let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
-    p = path.normalize(p).replace(/^([.][\\/])+/, '');
-    const full = path.join(root, p);
-    if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-      res.writeHead(404);
-      res.end('not found');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
-    fs.createReadStream(full).pipe(res);
-  });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 const candidateSelector = [
   '#prodRoot button',
@@ -58,11 +31,33 @@ const candidateSelector = [
   '#prodRoot [data-prod-ptarget]',
 ].join(',');
 
-function writeLike(req) {
-  const method = req.method();
-  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
-  const url = req.url();
-  return /supabase|n8n|webhook|syncview|rest\/v1|functions\/v1/i.test(url);
+/* Read-only POSTs the opened detail makes, recognised by their EXACT body shape
+   rather than their verb (the same allowlist prod-structure-subset,
+   prod-comments-browser and prod-readonly-smoke keep). The comment thread, the
+   label list, the description and the asset links are POSTs only because those
+   columns are not browser-readable and the request has to carry a scope. None
+   carries a patch, an operation or an entity. A shape-blind "reads are fine"
+   exemption would be wide enough for a real write to walk through, so every key
+   set is exact and anything else still counts as a write. */
+function isProtectedReadPost(req) {
+  if (req.method() !== 'POST') return false;
+  let pathname = '';
+  try { pathname = new URL(req.url()).pathname; } catch (_) { return false; }
+  let body = null;
+  try { body = JSON.parse(req.postData() || 'null'); } catch (_) { return false; }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+  const shape = Object.keys(body).sort().join(',');
+  if (pathname === '/functions/v1/production-comments') {
+    return (shape === 'before,deliverable_id,limit'
+      || (shape === 'before,deliverable_id,include_feedback,limit' && body.include_feedback === true))
+      && typeof body.deliverable_id === 'string' && body.deliverable_id.length > 0 && body.limit === 50;
+  }
+  if (pathname !== '/functions/v1/production-write' || body.surface !== 'production' || typeof body.id !== 'string') return false;
+  if (body.action === 'labels_read') return shape === 'action,id,surface';
+  if (body.action === 'asset_access_read' || body.action === 'description_read') {
+    return shape === 'action,client_slug,id,surface' && typeof body.client_slug === 'string';
+  }
+  return false;
 }
 
 async function reset(page, stateName) {
@@ -556,7 +551,7 @@ async function selectionChecks(page) {
 }
 
 (async () => {
-  const server = await serve();
+  const server = await serveStatic();
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
   const errors = [];
@@ -565,7 +560,35 @@ async function selectionChecks(page) {
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('request', req => requests.push(req));
-  await seedStaffGate(page);
+  await seedStaffGate(page, { dropVerificationAfterBoot: true });
+  /* The locked-row check below installs an invented admin identity, so opening a
+     card makes the four read-only POSTs a verified staff page makes. Answer them
+     here, with the same shapes prod-structure-subset answers with, so a key that
+     is not real never reaches the live backend (a 401 there is a console error
+     and a row in the write-refusal log). Every other call falls through. */
+  await page.route('**/functions/v1/production-comments', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ comments: [], next_cursor: null, has_more: false }),
+  }));
+  await page.route('**/functions/v1/production-write', async route => {
+    let body = null;
+    try { body = JSON.parse(route.request().postData() || 'null'); } catch (_) {}
+    const answer = payload => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+    if (body && body.surface === 'production' && typeof body.id === 'string') {
+      if (body.action === 'labels_read') {
+        return answer({ ok: true, complete: true, authority: 'linear', catalog: [], selected_label_ids: [], selected_labels: [] });
+      }
+      if (body.action === 'description_read' && typeof body.client_slug === 'string') {
+        return answer({ ok: true, complete: true, row: { id: body.id, client_slug: body.client_slug, description: '' } });
+      }
+      if (body.action === 'asset_access_read' && typeof body.client_slug === 'string') {
+        return answer({ ok: true, complete: true, assets: ['filming_plan', 'raw_footage', 'delivery_folder', 'deliverable_file']
+          .map(slot => ({ slot, state: 'missing', url: null })) });
+      }
+    }
+    return route.fallback();
+  });
   await page.addInitScript(() => {
     window.__prodProbeErrors = [];
     window.addEventListener('error', e => window.__prodProbeErrors.push(e.message || String(e.error || e)));
@@ -603,7 +626,7 @@ async function selectionChecks(page) {
       failures.push(...await selectionChecks(page));
     }
 
-    const writes = requests.filter(writeLike);
+    const writes = requests.filter(r => isWriteLikeRequest(r) && !isProtectedReadPost(r));
     if (writes.length) failures.push('write-like requests observed: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
     if (errors.length) failures.push('browser errors: ' + errors.slice(0, 5).join(' | '));
     const probeErrors = await page.evaluate(() => window.__prodProbeErrors || []);

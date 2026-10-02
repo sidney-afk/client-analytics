@@ -10,9 +10,9 @@
  */
 const fs = require('fs');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
-const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
+const { serveStatic, isWriteLikeRequest } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to edit.';
@@ -20,14 +20,6 @@ const outDir = process.env.SYNCVIEW_PROD_PIXEL_SHOTS
   ? path.resolve(process.env.SYNCVIEW_PROD_PIXEL_SHOTS)
   : path.join(root, '.codex-tmp', 'prod-pixel-wired');
 let shotPrefix = '';
-const mime = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css',
-  '.js': 'text/javascript',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-};
 const STYLE_PROPS = [
   'backgroundColor',
   'borderTopColor',
@@ -50,22 +42,6 @@ const STYLE_PROPS = [
   'color',
 ];
 
-function serve() {
-  const server = http.createServer((req, res) => {
-    const u = new URL(req.url, 'http://127.0.0.1');
-    let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
-    p = path.normalize(p).replace(/^([.][\\/])+/, '');
-    const full = path.join(root, p);
-    if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-      res.writeHead(404);
-      res.end('not found');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
-    fs.createReadStream(full).pipe(res);
-  });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 async function shot(page, name) {
   fs.mkdirSync(outDir, { recursive: true });
@@ -285,14 +261,24 @@ async function runTheme(port, browser, theme) {
   const wiredRequests = [];
   wired.on('pageerror', error => wiredErrors.push('pageerror: ' + error.message));
   wired.on('console', message => {
-    if (message.type() === 'error') wiredErrors.push('console: ' + message.text());
+    if (message.type() !== 'error') return;
+    /* A reload of a clean deep link (/synclinear/<id>) is answered the way
+       GitHub Pages answers it: the app shell with a 404 status, which the
+       browser logs as a failed load of the page's own address. That is the
+       hosting design (see pagesFallback in prod-test-utils.js), not an app
+       error, so only that one line, from that one address, is let through.
+       Any other 404, or any other error, still fails the check. */
+    let from = '';
+    try { from = message.location().url || ''; } catch (_) {}
+    if (/status of 404/.test(message.text()) && /^http:\/\/127\.0\.0\.1:\d+\/synclinear\/[^/?#]+(?:[?#].*)?$/.test(from)) return;
+    wiredErrors.push('console: ' + message.text());
   });
   wired.on('request', request => wiredRequests.push({ method: request.method(), url: request.url() }));
   await artifact.addInitScript(mode => {
     if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
   }, theme);
-  await seedStaffGate(wired);
+  await seedStaffGate(wired, { dropVerificationAfterBoot: true });
   await wired.addInitScript(mode => {
     if (mode === 'dark') localStorage.setItem('syncview_theme', 'dark');
     else localStorage.removeItem('syncview_theme');
@@ -587,16 +573,26 @@ async function runTheme(port, browser, theme) {
       _prodState.openProjectId = '';
       _prodState.filters = [];
       _prodState.selected.clear();
-      const wi = _prodIssueRows()[0] || _prodIssues()[0];
+      /* An ordinary row, not a batch parent: a parent card refuses the due
+         control with its own "main card" copy, and on live data the first row
+         of the list is often a parent. This check is about the signed-out
+         guard, which an ordinary row shows. */
+      const wi = _prodIssueRows().find(i => i && !i.syntheticBatchParent)
+        || _prodIssues().find(i => i && !i.syntheticBatchParent);
       if (wi) { wi.due = ''; wi.dueRaw = ''; }
+      window.__pixelDueGuardRowId = wi ? wi.id : '';
       _prodRender();
     });
     await artifact.locator('.due.due-empty').first().click();
     await artifact.waitForSelector('#layer .pop.duepop .mi');
+    const dueRowId = await wired.evaluate(() => window.__pixelDueGuardRowId || '');
+    const dueSelector = dueRowId
+      ? `[data-prod-row="${dueRowId.replace(/["\\]/g, '\\$&')}"] .prod-due.optional`
+      : '.prod-due.optional';
     const dueGuard = await signedOutGuardState(
       wired,
-      () => wired.locator('.prod-due.optional').first().dispatchEvent('click'),
-      '.prod-due.optional',
+      () => wired.locator(dueSelector).first().dispatchEvent('click'),
+      dueSelector,
     );
     if (!dueGuard.signedOut) gaps.push({ rank: 1, state: 'due sign-in guard', message: 'wired fixture unexpectedly has a staff identity' });
     if (!dueGuard.affordance) gaps.push({ rank: 1, state: 'due sign-in guard', message: 'wired due control does not advertise its disabled staff-sign-in guard' });
@@ -848,7 +844,7 @@ async function runTheme(port, browser, theme) {
     if (!refreshRestored) gaps.push({ rank: 1, state: 'browser refresh', message: 'wired detail deep link did not restore after refresh' });
     await shot(wired, 'wired-history-refresh-detail');
 
-    const writeRequests = wiredRequests.filter(request => !['GET', 'HEAD', 'OPTIONS'].includes(request.method));
+    const writeRequests = wiredRequests.filter(isWriteLikeRequest);
     if (writeRequests.length) gaps.push({ rank: 1, state: 'write silence', message: `wired fixture sent ${writeRequests.length} write-like request(s)` });
     if (wiredErrors.length) gaps.push({ rank: 1, state: 'console silence', message: wiredErrors.slice(0, 5).join(' | ') });
 
@@ -887,7 +883,7 @@ async function runTheme(port, browser, theme) {
 }
 
 async function run() {
-  const server = await serve();
+  const server = await serveStatic();
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
   try {

@@ -1,13 +1,15 @@
 # The staff sign-in check: owner decisions on the server proposals, and what each function needs
 
-**Date:** 2026-10-01 · **Session:** Comet. This records the owner's answers to three server proposals about the staff sign-in check (key-verify) and the source change that carries them out (OPEN_REPAIRS 324). **Source only. Nothing is deployed; the owner deploys each function.** The full proposal is in the sign-in speed-up PR (sidney-afk/client-analytics#1932, file docs/proposals/2026-10-01-key-verify-speed.md on its branch); the facts it rests on are repeated here so this record stands alone.
+**Date:** 2026-10-01, updated 2026-10-02 · **Session:** Comet. This records the owner's decisions on the server proposals about the staff sign-in check (key-verify) and the source change that carries them out (OPEN_REPAIRS 324). **Source only. The owner deploys what is not automatic; see the deploy map.**
+
+**The page-side idea was not shipped.** The first proposal also moved the page's own key-verify call to a form that skips the browser preflight (key in the request body, plain-text content type). It measured well (below) but touches files the published leave-simulation evidence is fingerprinted against, and the owner chose (2026-10-02) not to re-review those screenshots, so that change was dropped. The two-hour preflight cache header (decision A) covers most of the same gain for returning browsers once deployed.
 
 ## What the decisions rest on (measured 2026-10-01)
 
 - Every staff page and new tab waits for key-verify before reading any staff data. From the Edge Function log (24 h, 1,506 successful checks): the check itself has a server-time median of 362 ms (p75 458, p90 832, p99 2,983); an OPTIONS preflight that does nothing costs a median 157 ms of server time (1,336 a day), so about 157 ms of each check is platform overhead and about 205 ms is work: three database calls one after another (the auth_enforcement flag, the team member row, the audit insert).
 - Process start ("booted") is 20 to 27 ms, so cold starts are not the problem.
 - No function sets Access-Control-Max-Age, so browsers re-ask each function's permission every 5 s; the first call to each function in a tab pays an extra round trip (about 0.3 s from the test rig).
-- In a page against the live function, the check measured a median 736 ms with the preflight and 507 ms without (12 interleaved pairs).
+- In a page against the live function, the check measured a median 736 ms with the preflight and 507 ms without (12 interleaved pairs). That is the saving the header recovers for every repeat visit inside two hours; only the first call per browser per two hours pays the preflight.
 
 ## Decisions and build status
 
@@ -26,9 +28,9 @@
 | `analytics-read` | the header | manual: dispatch "Deploy one allowlisted Edge Function" with `analytics-read` and the merge commit SHA |
 | `brain` | the header | manual: the same lane with `brain` |
 | `workload-plan` | the header | manual: the same lane with `workload-plan` |
-| `production-comments` | the header | manual, and the only path is the staff-sensitive lane's manual dispatch, which also redeploys `notify`, `production-write` and `production-archive` from the same commit (their source is unchanged by this change, but a dispatch is a redeploy of `production-write` outside Section 4). It is not on the single-function lane's list. Your call whether to dispatch it now or leave it for the next dispatch that is needed anyway |
+| `production-comments` | the header | manual, and the only path is the staff-sensitive lane's manual dispatch, which also redeploys `notify`, `production-write` and `production-archive` from the same commit (their source is unchanged by this change, but a dispatch is a redeploy of `production-write` outside Section 4). It is not on the single-function lane's list. **Owner decision 2026-10-02: leave it for the next staff-sensitive dispatch the owner needs anyway** (noted in STATE_OF_THINGS) |
 | `production-write` | not changed | waits for the next sealed Section 4 deploy (add the header then) |
 | `calendar-upsert` | not changed | frozen; never deployed from the repo |
 
-Because two lanes deploy on merge, the owner's "I deploy when Lighthouse hands me the links" applies to the four manual ones; the three automatic ones go out at the moment of the merge. If that is not wanted, hold the merge or split those three out.
+**Owner decision 2026-10-02:** `key-verify`, `smm-weekly-reports` and `thumbnail-revision-read` may deploy on merge, as the push lanes do. The audit write in `key-verify` keeps today's behaviour exactly (no change, see above).
 

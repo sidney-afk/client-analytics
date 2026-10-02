@@ -6802,5 +6802,5 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Owner decisions: A yes except production-write (waits for the next sealed Section 4 deploy); B1 yes; B2 no.
 - Source only, NOT deployed. `Access-Control-Max-Age: 7200` on seven hot-path functions; `key-verify` reads the flag and the member
   together and selects six columns; its audit insert stays before the answer.
-- Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read); four need the owner's dispatch.
+- Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read; owner agreed 2026-10-02); production-comments waits for the next staff-sensitive dispatch; analytics-read, brain and workload-plan need one dispatch each.
 - Tests: `test/key-verify-behavior.js`, `test/cors-maxage-and-key-verify-reads.js`.

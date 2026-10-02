@@ -12,6 +12,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'migrations', f),
 const strip = (s) => s.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
 const sync = strip(read('2026-10-04-client-hubspot-sync.sql'));
 const sched = strip(read('2026-10-04-client-hubspot-sync-schedule.sql'));
+const ping = strip(read('2026-10-04-client-hubspot-sync-ping.sql'));
 let passed = 0; let failed = 0;
 function ok(name, cond) { if (cond) { passed++; console.log('OK  ' + name); } else { failed++; console.log('FAIL ' + name); } }
 
@@ -34,5 +35,9 @@ ok('the timer needs the Vault secret and the sync migration, and writes no secre
   && /vault\.decrypted_secrets where name = 'hubspot_sync_key'/.test(sched) && !/create_secret\s*\(\s*'[^<]/i.test(sched) && !/[A-Za-z0-9]{40,}/.test(sched));
 ok('the timer is one job, daily, eight calls one minute apart', /cron\.schedule\('client-hubspot-sync-daily', '30-37 5 \* \* \*'/.test(sched) && (sched.match(/cron\.schedule\(/g) || []).length === 1 && /"action":"tick"/.test(sched));
 ok('the timer calls our own function, not n8n', /uzltbbrjidmjwwfakwve\.supabase\.co\/functions\/v1\/client-hubspot-sync/.test(sched) && !/n8n/i.test(sched));
+ok('the timer refuses to schedule without a fresh answered ping from the deployed function', /net\._http_response/.test(sched) && /status_code = 200/.test(sched) && /"pong":"client-hubspot-sync"/.test(sched) && /interval '1 hour'/.test(sched)
+  && sched.indexOf('net._http_response') < sched.indexOf('cron.schedule('));
+ok('the ping is one signed call with the Vault key, no secret in the file, nothing else written', /"action":"ping"/.test(ping) && (ping.match(/net\.http_post\(/g) || []).length === 1 && /vault\.decrypted_secrets where name = 'hubspot_sync_key'/.test(ping)
+  && !/cron\.schedule/.test(ping) && !/create_secret\s*\(\s*'[^<]/i.test(ping) && !/[A-Za-z0-9]{40,}/.test(ping) && !/\b(insert|update|delete)\b/i.test(ping));
 console.log(`client-hubspot-sync-migration: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -213,6 +213,31 @@ const TIMER_HDR = { 'x-hubspot-sync-key': TIMER, 'content-type': 'application/js
   body = await (await t.handler(req(TIMER_HDR, { action: 'tick' }))).json();
   ok(body.errors === 1 && body.looked_up === 1, 'one client failing does not stop the others');
 
+  // ping: proves deployment and the timer key, touches nothing
+  t = make(baseState(undefined), good, { noDb: true });
+  res = await t.handler(req(TIMER_HDR, { action: 'ping' }));
+  ok(res.status === 200 && (await res.json()).pong === 'client-hubspot-sync' && t.made() === 0 && t.hub.log.length === 0, 'a signed ping answers without a database, a switch or HubSpot');
+  t = make(baseState(on(['alpha'])));
+  ok((await t.handler(req(ADMIN_HDR, { action: 'ping', member_id: 'm-admin' }))).status === 400, 'an admin key cannot ping (only the timer key proves the timer)');
+  t = make(baseState(on(['alpha'])));
+  res = await t.handler(req({ 'x-hubspot-sync-key': 'wrong' }, { action: 'ping' }));
+  ok(res.status === 401, 'a ping with the wrong timer key is 401');
+
+  // a sweep with failures must not look healthy to the timer's status check
+  t = make(baseState(on([], { all: true })), good);
+  t.hub.contactsByEmail = async () => { throw new mod.HubspotError(500); };
+  res = await t.handler(req(TIMER_HDR, { action: 'tick' }));
+  body = await res.json();
+  ok(res.status === 502 && body.ok === false && body.errors === 2 && body.error === 'some_clients_failed', 'every client failing is 502, ok false, counts kept');
+  t = make(baseState(on([], { all: true })), { err: () => new mod.HubspotError(429) });
+  res = await t.handler(req(TIMER_HDR, { action: 'tick' }));
+  ok(res.status === 429 && (await res.json()).error === 'hubspot_rate_limited', 'a rate-limited sweep is 429');
+  t = make(baseState(on([], { all: true }), { client_sales_state_apply: () => ({ data: null, error: { message: 'boom' } }) }));
+  res = await t.handler(req(TIMER_HDR, { action: 'tick' }));
+  ok(res.status === 502, 'a failed save is 502 too');
+  t = make(baseState(on([], { all: true })));
+  ok((await t.handler(req(TIMER_HDR, { action: 'tick' }))).status === 200, 'a clean sweep is 200');
+
   // wiring
   const index = fs.readFileSync(path.join(ROOT, 'supabase/functions/client-hubspot-sync/index.ts'), 'utf8');
   ok(index.includes('HUBSPOT_READ_TOKEN') && index.includes('HUBSPOT_SYNC_KEY') && !/pat-[a-z0-9-]{8,}/i.test(index), 'the token and the timer key are read from secrets, never written in the file');

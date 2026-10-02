@@ -33,7 +33,7 @@ export const CORS = Object.freeze({
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-syncview-key, x-hubspot-sync-key',
   'Cache-Control': 'no-store',
 });
-export const ACTIONS = Object.freeze(['refresh', 'tick']);
+export const ACTIONS = Object.freeze(['refresh', 'tick', 'ping']);
 export const FLAG_KEY = 'client_hubspot_sync';
 export const HUBSPOT = 'https://api.hubapi.com';
 export const CLOSED_WON_STAGE = '3230452433'; // pipeline "Client Acquisition", docs/CLIENT_LIFECYCLE_MAP.md
@@ -177,15 +177,18 @@ export function buildHandler(deps) {
     }
 
     try {
-      const db = deps.makeClient();
-      if (!db) return json({ ok: false, error: 'server_not_configured' }, 500);
       const raw = await req.text();
       if (raw.length > MAX_BODY) return json({ ok: false, error: 'body_too_large' }, 413);
       let body;
       try { body = JSON.parse(raw || '{}'); } catch (_e) { return json({ ok: false, error: 'bad_json' }, 400); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ ok: false, error: 'bad_json' }, 400);
       const action = clean(body.action);
-      if (!ACTIONS.includes(action) || action !== via) return json({ ok: false, error: 'unknown_action' }, 400);
+      // ping: proves the function is deployed and the timer key matches, with no database and no HubSpot
+      // (the timer migration refuses to schedule until a signed ping has been answered).
+      if (action === 'ping' && via === 'tick') return json({ ok: true, pong: 'client-hubspot-sync' });
+      if (!['refresh', 'tick'].includes(action) || action !== via) return json({ ok: false, error: 'unknown_action' }, 400);
+      const db = deps.makeClient();
+      if (!db) return json({ ok: false, error: 'server_not_configured' }, 500);
 
       const sw = await flag(db);
       if (!sw.on) return json({ ok: true, skipped: 'off' });
@@ -236,6 +239,9 @@ export function buildHandler(deps) {
           if (e instanceof HubspotError && e.status === 429) { out.rate_limited = true; break; }
         }
       }
+      // The sweep carries on past one failing client, but the call must not look healthy when any failed:
+      // the timer's own status check (net._http_response) reads this.
+      if (out.rate_limited || out.errors > 0) return json({ ...out, ok: false, error: out.rate_limited ? 'hubspot_rate_limited' : 'some_clients_failed' }, out.rate_limited ? 429 : 502);
       return json(out);
     } catch (_e) {
       return json({ ok: false, error: 'sync_failed' }, 500);

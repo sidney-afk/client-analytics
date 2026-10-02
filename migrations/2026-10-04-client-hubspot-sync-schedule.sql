@@ -1,6 +1,10 @@
 -- STATE: BUILT, NOT APPLIED. Lighthouse applies it by hand in the SQL editor, after the owner's
 -- go at that moment, and only AFTER 2026-10-04-client-hubspot-sync.sql, the client-hubspot-sync
--- Edge Function deploy and its two secrets (HUBSPOT_READ_TOKEN, HUBSPOT_SYNC_KEY).
+-- Edge Function deploy and its two secrets (HUBSPOT_READ_TOKEN, HUBSPOT_SYNC_KEY), and after
+-- 2026-10-04-client-hubspot-sync-ping.sql has been run a minute earlier: this file refuses to
+-- schedule anything unless a signed ping reached the deployed function in the last hour and was
+-- answered (so a missing deploy or a key that differs from the Vault value stops it here, not
+-- silently every morning).
 --
 -- The daily timer for the HubSpot refresh (docs/plans/2026-10-01-onboarding-checklist-and-profile.md,
 -- step 2.3b). One pg_cron job: eight calls one minute apart from 05:30 UTC, each looking up a
@@ -31,6 +35,11 @@ begin
   if to_regprocedure('public.client_hubspot_sync_targets(text,integer,integer)') is null then
     raise exception 'apply 2026-10-04-client-hubspot-sync.sql first';
   end if;
+  if not exists (select 1 from net._http_response
+                  where status_code = 200 and content::text like '%"pong":"client-hubspot-sync"%'
+                    and created > now() - interval '1 hour') then
+    raise exception 'no answered ping from the deployed client-hubspot-sync in the last hour; deploy it, set HUBSPOT_SYNC_KEY to the Vault value, run 2026-10-04-client-hubspot-sync-ping.sql, wait a minute, then run this file';
+  end if;
 end
 $check$;
 
@@ -54,4 +63,5 @@ commit;
 
 -- VERIFY: select jobname, schedule, active from cron.job where jobname = 'client-hubspot-sync-daily';
 -- (one row, active). Next morning: select status_code, count(*) from net._http_response
---   where created > now() - interval '1 day' group by 1;  (200 expected)
+--   where created > now() - interval '1 day' group by 1;  (200 expected). The function answers 502 (some
+--   clients failed) or 429 (HubSpot rate limit) when a sweep was not clean, so a non-200 is real.

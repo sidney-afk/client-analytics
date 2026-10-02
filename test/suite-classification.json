@@ -343,6 +343,7 @@
     "master-failure-digest.js",
     "migration-bare-delete-lint.js",
     "mint-migration-line-citations.js",
+    "alert-digest.js",
     "monitoring-alert-relay.js",
     "monitoring-lane-coverage.js",
     "monitoring-lane-failing.js",

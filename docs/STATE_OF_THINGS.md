@@ -184,10 +184,10 @@ hiring senders when the editor hire closes.
   (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
   access from the owner's machine. The separate "Linear access extension to
   2026-10-15" is moot: all Linear keys were revoked on 2026-09-23.
-- **Slack alerts become one message (owner said yes, 2026-09-28).** Build the
-  single consolidated problem message with a quiet default proposed in
-  `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, AFTER the analytics
-  move to Supabase lands.
+- **Slack alerts become one message (owner said yes, 2026-09-28): BUILT 2026-10-02, switch off, in PR (OPEN_REPAIRS 327).**
+  Runs hourly in shadow (prints the message in the run summary, posts nothing); every old alert still posts. Owner's
+  steps: compare shadow with real alerts, approve one edit to the n8n alert relay (snippet in
+  `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`), set `ALERT_DIGEST_ENABLED` to `true`, then old alerts are removed one by one.
 - **Modularization C3: every script fragment is a module; only step 13 (the
   runtime switch) is left, and it waits for the owner's go.** The prep is in
   (Keystone, 2026-09-29): each module lists the functions its buttons call on

@@ -79,3 +79,59 @@ Retained producers write public-safe open/update/resolve incident state; a conso
 ## Later implementation scope
 
 Add a public-safe incident store, a consolidation runner, relay support for a bounded multi-line digest, and tests for coalescing, dedupe, resolution, fallback, and complete rendering. Move retained watchdog, nightly, quota, backup, and every verified live pager producer one at a time only after proof. The implementation inventory must include the six installed incremental/outbound conditions, `mirror_stale`, `v2_stale`, `v2_nonzero`, and the four Calendar/Samples reconciler keys listed above. Update monitoring docs and rerun the inventory. This design changes nothing now.
+
+## Built 2026-10-02 (session Signal): the combined message, behind a switch that is off
+
+**Built, not switched on, nothing removed.** Every existing alert still posts exactly as before. Code: `scripts/alert-digest.js`, workflow `.github/workflows/alert-digest.yml`, tests `test/alert-digest.js`, demo inputs `test/fixtures/alert-digest-demo.json`. OPEN_REPAIRS 327.
+
+### Every alert that posts today (checked 2026-10-02)
+
+The relay is the n8n workflow "SyncView Edge Alert Relay" (active). It sends **one direct message to the owner**, not a channel, and renders only five named fields on one line. It drops `text`, replaces every other character with `_` and cuts at about 96 characters.
+
+| Alert | Comes from | Goes to | How often | Notes |
+|---|---|---|---|---|
+| `monitoring_heartbeat_stale`, `monitoring_lane_failing` | `monitoring-deadman.yml` (every 15 min) and `monitoring-crosscheck.yml` (every 20 min), via the relay | owner DM | at most once per incident (latched); GitHub delivers about one run per 3 to 5 hours | The main source today. Newest delivered examples: a native intake lane 374 and 377 minutes quiet (2026-10-02), the card/calendar drift lane failing (2026-10-01). |
+| `monitoring_selftest` | same script, manual only | owner DM | on request | Stays separate. |
+| `n8n_quota_80`, `n8n_quota_90` | `n8n-execution-quota-watchdog.yml`, daily 13:17 UTC | owner DM | once per month per threshold | |
+| `backup_freshness` | `scripts/track-b-backup.js` in `track-b-backup.yml`, every 6 hours | owner DM | once per stale episode (marker file) | |
+| Samples nightly failed | `samples-e2e-nightly.yml`, 06:00 UTC | the same relay address, **plain text only** | once per failed night | The relay ignores plain text, so this arrives as the empty "type=edge_alert issue=unknown team=unknown". |
+| Calendar nightly failed | `calendar-e2e-nightly.yml`, 08:00 UTC | same | once per failed night | Same empty message. |
+| Morning check failed | `dawn-check.yml`, 11:30 UTC weekdays | same | once per failed morning | Same empty message. |
+
+Of the six newest relay runs I read, three were this empty message and three were typed monitoring alerts. The relay ran 54 times in the 9 days to 2026-10-02 (about 6 a day). That the empty ones come from the three plain-text senders is read from the code, not proven by timing; their send times did not line up with the schedules, so a fourth sender is possible.
+
+**Listed in the repository or in n8n but not posting today:** the n8n monitoring pager (workflow `qllIDZPkdNAPRj0b`, `active: false`) and so all of its keys (`v2_stale`, `v2_nonzero`, `incremental_refresh_stale`, the five `outbound_*`, `mirror_stale`, the four calendar and samples reconciler keys); `reconcile_*` (`linear-reconcile-inbound-pager.js`, its host workflow's schedule is commented out); `workload-source-freshness` (unscheduled 2026-09-26); the outbox census (workflow deleted); the six retired write-drill and shadow-audit keys. The 29c table above still lists some of these as live; as of today they are not.
+
+**Not problem alerts, left alone:** n8n "Error Alerts" workflow (DMs the owner when a workflow that names it fails), the Sales and Hiring workflows' booking, invoice and application notices, and the `notify` function's staff cards. Optional webhook in `onboarding-capture` (posts only if a secret is set; not verified whether it is).
+
+### What the new message reads
+
+Read only, every hour: (1) every watched lane's newest heartbeat (late, or checked in failing; this covers both nightlies and every dead-man lane); (2) the latest completed run of the backup, morning check, daily analytics copy and quota watchdog workflows (red, or last green too old). The analytics daily copy had no Slack alert before; it only turned its own run red.
+
+**Not read in this version** (printed on every run so quiet is never mistaken for covered): the quota 80/90 usage figures (the existing watchdog still posts them), and everything the switched-off n8n pager used to check.
+
+### The switch, quiet rule and fallback
+
+- Switch: repository variable `ALERT_DIGEST_ENABLED`. Only the exact text `true` posts. Unset (today) is shadow: the run summary shows the message that would be sent. `workflow_dispatch` defaults to a dry run that also writes nothing.
+- It speaks when a problem is new, more severe, or has new evidence (a new failing run), and then lists everything open. Still-open and resolved problems are quiet; recoveries never post.
+- State: one small `deliverable_events` row per run (`alert_digest_shadow_state` while off, `alert_digest_state` once on). No migration.
+- The digest is a watched lane (`alert_digest`), so if it goes silent the existing dead-man switch still pages on its own.
+- Long lists are cut at 12 with "Plus N more problems" and a run number, never silently.
+
+### The one n8n edit this needs (NOT made)
+
+Until the relay is edited, switching on would send the owner only the short one-line form (`type=syncview_digest issue=<count and first names>`). To show the full message, add this to the "Sanitize Alert" code node, before its final `return`:
+
+```js
+if (type === 'syncview_digest' && typeof body.digest_text === 'string') {
+  return [{ json: { text: body.digest_text.replace(/[^\x20-\x7E\n]/g, '_').slice(0, 3000) } }];
+}
+```
+
+Needs the owner's go in that same request, and an entry in `docs/ops/N8N_EDIT_LOG.md`. No other n8n workflow needs editing. The empty nightly and morning messages are fixed on the repository side, when the owner chooses to remove those steps after comparing.
+
+### Removal order, after the owner has compared
+
+1. Run shadow for a few days; compare the printed message with what actually arrived.
+2. Make the relay edit, set `ALERT_DIGEST_ENABLED` to `true`, watch one day.
+3. Then, each as its own change: remove the three plain-text posts, then retire the typed monitoring posts in favour of the digest. Keep the self-test and the dead-man switch's own check of the digest lane.

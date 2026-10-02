@@ -1,0 +1,69 @@
+name: Combined problem message
+
+# One message that lists every open problem and stays quiet when all is well
+# (step 29c; see the alert consolidation design under docs/ops).
+#
+# THE SWITCH IS THE REPOSITORY VARIABLE `ALERT_DIGEST_ENABLED`. Anything other
+# than the exact text `true` (including unset, which is today) is SHADOW: the
+# message this lane WOULD send is printed in the run summary and nothing is
+# posted anywhere. Every existing alert keeps running either way.
+#
+# Reads only. Writes one small state event (so "new" means new) and its own
+# heartbeat. Holds no credential for the retired tracker.
+
+on:
+  schedule:
+    - cron: '47 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/alert-digest.js'
+      - '.github/workflows/alert-digest.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the message only: no state, no heartbeat, no post'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: alert-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      GITHUB_TOKEN: ${{ github.token }}
+      ALERT_DIGEST_ENABLED: ${{ vars.ALERT_DIGEST_ENABLED }}
+      ALERT_DIGEST_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require credentials
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY; refusing to report quiet."
+            exit 1
+          fi
+
+      - name: Build the combined message
+        shell: bash
+        run: node scripts/alert-digest.js | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Record alert_digest heartbeat
+        if: always() && env.ALERT_DIGEST_DRY_RUN != 'true'
+        run: node scripts/monitoring-watchdog.js --heartbeat=alert_digest --ok=${{ job.status == 'success' }}

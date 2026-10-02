@@ -30325,3 +30325,14 @@ Found while reading, unchanged: the audit insert blocks sign-in only when the ca
 Proof: `test/key-verify-behavior.js` (14 checks) runs the real function source against a fake database: same answers (200 valid; 401 invalid_key without reading the member; 401 member_not_found; 500 when the member read or the audit call throws; header key still accepted), both reads started before either finishes, audit before the answer; on the old source it fails at the concurrency check. `test/cors-maxage-and-key-verify-reads.js` (23 checks) pins the header on the seven functions and its absence on the two left alone.
 Deploy map (owner decisions 2026-10-02): `key-verify`, `smm-weekly-reports` and `thumbnail-revision-read` may deploy by themselves when this merges (push lanes); `analytics-read`, `brain`, `workload-plan` by the single-function lane; `production-comments` waits for the next staff-sensitive dispatch the owner needs anyway (that dispatch also redeploys `production-write` and others from the same commit, unchanged). The audit write keeps today's behaviour exactly.
 Way back: ROLLBACK.md.
+
+## 327. [2026-10-02, BUILT, SWITCH OFF] One combined Slack problem message, built beside the old alerts
+
+Status: repository code only. Nothing deployed, no n8n edit, no database change, no Slack post. Merge is the owner's lighthouse. Switch: repository variable `ALERT_DIGEST_ENABLED` (unset today = shadow: the message is printed in the run summary, never posted).
+Carries out the owner's yes of 2026-09-28 (STATE_OF_THINGS "Needs the owner"), which waited for the analytics move to Supabase.
+Built: `scripts/alert-digest.js`, `.github/workflows/alert-digest.yml` (hourly, shadow), lane `alert_digest` in the dead-man switch (its silence is paged by the old alerts), `test/alert-digest.js` (25 checks, offline), demo inputs `test/fixtures/alert-digest-demo.json`.
+Measured while inventorying (full table in `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, "Built 2026-10-02"): the n8n monitoring pager the 29c design calls live is switched off, so its eleven keys post nothing today; the Samples nightly, Calendar nightly and morning check send plain text that the relay ignores, so they arrive as the empty "edge_alert unknown" message (3 of the 6 newest relay runs); the daily analytics copy had no Slack alert at all.
+Needs the owner (not done): one edit to the relay workflow's "Sanitize Alert" node to show the full message (snippet in the design doc; without it, switching on sends only a one-line form). Then compare shadow output with the real alerts, then switch on, then remove the old alerts one at a time.
+Not covered by the message yet: quota 80/90 usage (existing watchdog keeps posting).
+Way back: nothing to undo; delete `alert-digest.yml` or leave the variable unset.
+

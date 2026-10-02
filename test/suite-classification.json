@@ -662,8 +662,7 @@
     "open-item-speed.js",
     "notes-loading-skeleton.js",
     "cors-maxage-and-key-verify-reads.js",
-    "key-verify-behavior.js",
-    "open-item-speed.js"
+    "key-verify-behavior.js"
   ],
   "profiles": [
     {

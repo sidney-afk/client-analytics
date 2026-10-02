@@ -661,4 +661,5 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 - `test/templates-realtime-catchup.js` — offline channel-status and REST-read test for disconnected polling, one reconnect catch-up, and preservation of local edits.
 
 | `docs/ATLAS.md` | Whole SyncView inventory and routes to owners; live facts are dated. |
+| `docs/plans/2026-10-03-sheets-remaining-map.md` | Cartographer's measured 84-tab Google Sheets exit map, remaining dependencies and owner decisions. |
 | `test/atlas-sync.js` | Unit check for missing or stale edge folders, table-creating migrations, Actions files and n8n truth IDs. |

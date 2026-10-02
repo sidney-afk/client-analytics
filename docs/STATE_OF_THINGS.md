@@ -34,6 +34,7 @@ here with where it stopped, so it can be restarted.
   database functions, `roster-read` and `roster-write`, a native save for the Clients tab and the read-only Sheet
   copy; nothing switched on, no n8n edit. Next, each with its own go: apply the migration and deploy, then each n8n
   edit, then the switch. Beacon (onboarding) will extend the Clients tab.
+  Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
 - **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
@@ -214,8 +215,10 @@ hiring senders when the editor hire closes.
   and down to 2 on 09-25, so it looks like one automated caller that stopped.
   The `traffic` column (256) now fills on browser reports; gateway rows stay
   empty until `production-write` is redeployed (measured 2026-09-29, item 4).
-- **Scheduled lanes that are red** (`production-polish-gate` red since 09-17;
-  the lanes in OPEN_REPAIRS 205). Repair or retire each. Not re-checked today.
+- **Scheduled lanes that are red** (the lanes in OPEN_REPAIRS 205). Repair or retire each.
+  **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
+  calendar drift check had causes found and fixed (test code and test-client data only); confirm
+  they are green on main after the merge.** The other lanes were not re-checked.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

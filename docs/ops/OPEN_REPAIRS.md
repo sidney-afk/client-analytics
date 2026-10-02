@@ -30349,9 +30349,19 @@ Reviewed-closure pin: adding the `alert_digest` lane changed `scripts/monitoring
 Not covered by the message yet: quota 80/90 usage (existing watchdog keeps posting).
 Way back: nothing to undo; delete `alert-digest.yml` or leave the variable unset.
 
+## 329. [2026-10-02, FIXED IN TESTS + TEST-CLIENT DATA] The Production heavy and interaction lanes and the card vs calendar drift check were red since 2026-09-30; none was a product defect
+Production polish gate, `production-polish-interaction` and `production-polish-heavy` (failure codes `error_generic`, `module_or_syntax_error`, `selector_timeout`), and the scheduled "Card vs calendar status drift" check. Reproduced locally against the live backend (the runner log hides the cause by design), then fixed. Nothing under `src/` or `supabase/` changed.
+Causes, all in the test estate:
+- Three suites (`behav-wired`, `pixel-wired`, `prod-interaction-inventory`) each kept their own copy of a file server that answers 404 to a clean address such as `/synclinear/<id>`. Since the app began showing clean addresses, a reload landed on a blank page and `_prodState` was undefined (`module_or_syntax_error`). They now use the shared `serveStatic`, which answers the way GitHub Pages does.
+- The same three seeded the staff identity without `dropVerificationAfterBoot`, so the page behaved as a verified admin, not the signed-out visitor their headers describe: the "sign in required" toast never appeared (`selector_timeout`) and real read and write calls left the runner. They now pass the option, as `prod-readonly-smoke` and the shared `openProduction` already do.
+- Their own write counters still counted the entry gate's `key-verify` POST (the shared classifier exempted it long ago). All three now use `isWriteLikeRequest`. The inventory also lets the four read-only POSTs a detail makes through by exact body shape, as `prod-structure-subset` does, and answers them locally, so an invented key no longer reaches the live backend (`error_generic`).
+- Stale expectations, updated to current behaviour and still asserted: nav links are `/synclinear` and `/submit`; the group checkbox and project-move refusals use the reworded sentences of the 2026-10-01 hover-text rewrite; the project-description check picked the first client, which can be a canceled client with no project page, so it now picks one that has a project page; the signed-out due guard picked the first row, which is often a batch parent with its own "main card" copy, so it now picks an ordinary row; a reload of a clean deep link logs one expected 404 for the page's own address (GitHub Pages behaviour), and only that line is ignored.
+Drift check: two slots of one test-client calendar card (video and graphic) held "Approved" while their deliverables had stayed in backlog since 2026-09-21. The card's stamp is to the microsecond and there is no history entry, so it was a direct database write that bypassed the bridge, on test data. Repaired with the sanctioned `production_native_calendar_status_backfill` (dry run first: exactly those two slots; then applied), which set both back to "In Progress". `--gate` now exits 0.
+Not changed and worth knowing: in a sandbox the page's realtime WebSocket gets HTTP 500 from the egress proxy, which is console noise only there; the proof runs filtered that one line locally, CI is unaffected. `groupCollapse` failed once in four local runs (a click read before a refresh settled) and is not addressed here.
 
 
-## 329. [2026-10-02, BUILT, NOT DEPLOYED] Digger: four preventive repairs after the September 19 to October 2 change period
+
+## 330. [2026-10-02, BUILT, NOT DEPLOYED] Digger: four preventive repairs after the September 19 to October 2 change period
 
 Three bounded archaeology cycles, stopped after two consecutive cycles with no new confirmed finding. Every survivor was independently challenged with actual code and offline counterexamples. 22 candidates: four confirmed, 16 refuted, two undecidable (not findings). The six-lens history, scored surfaces, seen ledger and process critique are in `docs/audits/2026-10-02-bug-archaeology.md`.
 

@@ -9,6 +9,7 @@
     "client-onboarding-handler.js",
     "client-hubspot-sync-handler.js",
     "client-hubspot-sync-migration.js",
+    "client-resource-census.js",
     "lost-work-retry-intent.js",
     "lost-work-conflict-gate.js",
     "lost-work-drafts.js",

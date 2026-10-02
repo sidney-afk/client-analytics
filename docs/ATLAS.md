@@ -578,6 +578,7 @@ There are **49 workflow files** in this checkout. The GitHub catalog includes ad
 
 | Workflow file | Trigger and schedule | Purpose |
 | --- | --- | --- |
+| <!-- atlas:action .github/workflows/alert-digest.yml -->[`alert-digest.yml`](../.github/workflows/alert-digest.yml) | Manual, Push, Cron `47 * * * *` | Builds the one combined problem message; posts only if the `ALERT_DIGEST_ENABLED` variable is `true` (off today, so shadow). |
 | <!-- atlas:action .github/workflows/assurance-ledger-freshness.yml -->[`assurance-ledger-freshness.yml`](../.github/workflows/assurance-ledger-freshness.yml) | Manual, Push, Cron `37 7 * * *` | Checks evidence ledger age. |
 | <!-- atlas:action .github/workflows/calendar-e2e-nightly.yml -->[`calendar-e2e-nightly.yml`](../.github/workflows/calendar-e2e-nightly.yml) | Manual, Cron `0 8 * * *` | Runs Calendar browser journeys. |
 | <!-- atlas:action .github/workflows/calendar-unit-tests.yml -->[`calendar-unit-tests.yml`](../.github/workflows/calendar-unit-tests.yml) | Push, Pull request | Runs unit inventory and source checks, including atlas-sync. |

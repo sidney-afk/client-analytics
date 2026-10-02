@@ -85,5 +85,7 @@
   already-live authenticated `client-review-link` v2 function at copy time. Real-client enrollment
   still requires link re-share/current-token and documented fail-closed proof; the issuer is not
   redeployed unless its source changes.
-- The Social Media Managers tab carries a `linear_api_key` column (7 per-SMM Linear API
-  keys) — **publicly readable** via gviz. Rotation + removal owed.
+- **Corrected 2026-10-02:** the Social Media Managers tab no longer holds any Linear API key
+  (the values were removed; checked 2026-10-02: the `linear_api_key` header is still there, empty on
+  every row, and nothing in the database has such a column). The header goes with the Onboarding
+  edit in `docs/plans/2026-10-02-roster-native.md`. Earlier text here about 7 public keys is history.

@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 47 |
+| Deployable function slugs | 50 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 18 |
+| Manual-dispatch-only paths | 21 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -21,6 +21,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | Function slug | Owning deploy workflow(s) | Deploy path(s) | `_shared` dependencies | Slug-local dependencies |
 | --- | --- | --- | --- | --- |
 | `ai-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `analytics-metrics-collect` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/analytics-metrics-collect.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `analytics-read` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `analytics-write` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `batch-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
@@ -31,7 +32,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `caption-prompts-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `client-credentials` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `client-onboarding` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/client-onboarding.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
-| `client-profile-write` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/client-profile-edit.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
+| `client-profile-write` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/client-profile-edit.mjs`<br>`_shared/roster-handlers.mjs`<br>`_shared/roster-native.mjs`<br>`_shared/roster-sheet-copy.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `client-review-link` | [deploy-client-review-link](../../.github/workflows/deploy-client-review-link.yml) | workflow_dispatch | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/client-review-token-policy.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `client-token-verify` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release. | - | - |
 | `deliverable-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
@@ -57,6 +58,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
 | `quiz-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `quiz-leads-list` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
+| `roster-read` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/roster-handlers.mjs`<br>`_shared/roster-native.mjs`<br>`_shared/roster-sheet-copy.mjs`<br>`_shared/sheets-mirror.mjs` | - |
+| `roster-write` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/roster-handlers.mjs`<br>`_shared/roster-native.mjs`<br>`_shared/roster-sheet-copy.mjs`<br>`_shared/sheets-mirror.mjs` | - |
 | `sample-review-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `sample-review-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `smm-weekly-reports` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

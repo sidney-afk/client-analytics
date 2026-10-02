@@ -18,6 +18,8 @@ import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
+  // Browsers may reuse a preflight answer for 2 hours (Chrome's cap) instead of re-asking every 5 s.
+  "Access-Control-Max-Age": "7200",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key",
   "Cache-Control": "no-store",

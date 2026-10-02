@@ -193,3 +193,13 @@ verify_jwt = false
 # personal hf_team_members token instead, and spend is held under a monthly cap.
 [functions.higgsfield-mcp]
 verify_jwt = false
+
+# Server-to-server roster doors (n8n): JWT off because n8n is not a Supabase
+# browser client; both require ROSTER_SERVICE_KEY (32+ characters) in
+# X-Roster-Key. roster-write only writes natively once the owner flips
+# client_profiles_authority to "syncview".
+[functions.roster-read]
+verify_jwt = false
+
+[functions.roster-write]
+verify_jwt = false

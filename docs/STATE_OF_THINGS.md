@@ -28,6 +28,12 @@ here with where it stopped, so it can be restarted.
   moves to Supabase (dual-write, flagged read, parity, then retire, as in
   `docs/plans/2026-09-24-sheets-to-supabase.md`). Clients Info is first and already copied daily; the Clients
   admin tab is the start of its replacement. The owner will improve that UI.
+  **Scope, owner 2026-10-02:** only the main SYNCVIEW Sheet and the SyncView Calendar workbook are in scope; other
+  Drive files are left alone. Project Central: archive (needs an n8n edit, owner's go). **Clients Info and Social
+  Media Managers (session Roster):** Step 1 built, in PR (OPEN_REPAIRS 321, `docs/plans/2026-10-02-roster-native.md`):
+  database functions, `roster-read` and `roster-write`, a native save for the Clients tab and the read-only Sheet
+  copy; nothing switched on, no n8n edit. Next, each with its own go: apply the migration and deploy, then each n8n
+  edit, then the switch. Beacon (onboarding) will extend the Clients tab.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
 - **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
@@ -98,6 +104,10 @@ here with where it stopped, so it can be restarted.
    plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
    in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), owner decided 2026-10-01: stays hourly, no n8n edits (replay test and design doc kept). Last K (client approve and request-changes move).
    Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
+6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 322).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
+   `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
+   by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
+   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). Top Videos and Market Research are not started.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -164,12 +174,6 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
-- **SyncLinear: two speed decisions (2026-10-01, `docs/audits/2026-10-01-synclinear-speed.md` section 6).**
-  (a) The saved copy lives 24 hours; after that the tab opens cold (rows at 3 to 5 s instead of 1.1 s). Raising
-  it (for example 7 days) makes most "first open of the day" cases warm; it changes what is shown for the first
-  second. (b) Every warm open still downloads 2.37 MB because the saved copy leaves out finished rows; keeping
-  them in the browser's larger store and reading only what changed would drop about 1.2 MB and the 0.75 s
-  end-of-load freeze. It reverses a documented choice. Neither was done.
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
   dispatchers (interview invite, practical test) are still active and run every
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).
@@ -199,6 +203,8 @@ hiring senders when the editor hire closes.
 
 ## Needs a session
 
+- **Add `Access-Control-Max-Age: 7200` to `production-write` at the next sealed Section 4 deploy** (owner decision 2026-10-01; OPEN_REPAIRS 326). Seven other hot-path functions already carry it in source; `production-write` is held back only because it moves inside that ceremony. `calendar-upsert` is frozen and stays without it.
+- **`production-comments` has the two-hour preflight header in source but is not deployed** (owner decision 2026-10-02; OPEN_REPAIRS 326). It deploys only through the staff-sensitive lane's manual dispatch, which also redeploys `notify`, `production-write` and `production-archive` from the same commit; the header rides the next dispatch the owner needs anyway. `analytics-read`, `brain` and `workload-plan` (single-function lane, one dispatch each with the merge commit) also carry it in source and still need their dispatch.
 - **Duplicate ledger numbers in OPEN_REPAIRS:** 13, 14, 22, 23, 175, 176, 177,
   180 each appear twice, and 220 sits before 218/219. Append a renumbering
   note; never rewrite.
@@ -255,6 +261,11 @@ hiring senders when the editor hire closes.
 
 ## Done (was listed as open somewhere)
 
+- **Opening an item is faster, and the two SyncLinear saved-copy decisions are done (2026-10-01, OPEN_REPAIRS 323, PR open
+  until merged).** The saved list lives 7 days; finished rows are kept in the browser's larger store and a boot reads only
+  what changed (hourly full pass kept); a link at a finished batch shows its title in about 1.5 s warm instead of 5.3 s;
+  new-tab links skip a redirect; SyncLinear rows start their reads when you hover. The staff check (about 1.0 s) is the
+  floor under every new-tab open and was not touched. Record: `docs/audits/2026-10-01-open-item-speed.md`.
 - **Kasper review board: a refused decision is no longer quiet, and the board says what it shows (2026-10-01,
   OPEN_REPAIRS 316, PR open until merged).** A refused save is re-read and re-applied only when nobody changed the part;
   otherwise a "not saved" alert stays until he acts. Returned cards say "Sent back to you", urgent cards say who and when,

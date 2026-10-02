@@ -7,10 +7,10 @@
 | Order | Fragment | Lines | Banner |
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
-| 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
+| 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4442 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4451 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2070 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1790 | Market Research Brief Tab Renderers |
@@ -49,12 +49,12 @@
 | 41 | `186-archived-restore.js.part` | 462 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 42 | `190-calendar-approval-comments.js.part` | 3189 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 43 | `200-intake-data-startup.js.part` | 1873 | Video-only and Thumbnail-only were already built, but sat |
-| 44 | `210-production-state-writes.js.part` | 3240 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 44 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 45 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
-| 46 | `230-production-create-comments.js.part` | 2695 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 46 | `230-production-create-comments.js.part` | 2717 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 47 | `240-production-description.js.part` | 2709 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
-| 48 | `250-production-controls-data.js.part` | 2964 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 49 | `260-production-refresh-boot.js.part` | 2663 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 48 | `250-production-controls-data.js.part` | 3093 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 49 | `260-production-refresh-boot.js.part` | 2711 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 50 | `270-samples-model.js.part` | 2956 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 51 | `280-samples-cards-notes.js.part` | 2932 | SURFACE 3: the save engine |
 | 52 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

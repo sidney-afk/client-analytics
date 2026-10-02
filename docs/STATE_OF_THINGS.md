@@ -47,6 +47,9 @@ here with where it stopped, so it can be restarted.
   diffs). On a phone each tab may look and behave differently from desktop; the bar is a first-class app (the owner
   named Wise as the reference): speed, button placement, one-hand use. Delivered in slices, one PR per tab, Lighthouse
   merges, test client only for live proof. Starts after Beacon's checklist panel (#1941) is on main.
+- **D3. Calendar status filters (owner request, 2026-10-02, after the phone work).** The Calendar gets filters on
+  the overall card status, including EXCLUDE (for example hide every approved post). "Overall status" means the
+  card's combined state across its work items, not only the statuses shown on the card. Nothing built yet.
 - **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
   least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
   daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.

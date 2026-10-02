@@ -1,23 +1,16 @@
 'use strict';
 /*
- * n8n exit, PR 2: THE CLIENT APPROVE AND REQUEST-CHANGES BUTTONS ARE UNTOUCHED.
+ * n8n exit, step K (Calendar): A CLIENT LINK ALWAYS SAVES THROUGH THE FUNCTION.
  *
- * Owner decision 2026-09-29: their code and their routing do not change. This
- * suite drives both buttons on a tokened client link against a fully mocked
- * backend, records every request the page makes (method, URL, every header
- * except the browser's own, and the exact body string), and compares that to a
- * golden capture taken from `main` BEFORE the change
- * (test/fixtures/calendar-client-carveout-golden.json). Byte for byte.
- *
- * Two flag situations per button, because the legacy step routes on the flag:
- *   listed   the flag lists the client   -> the calendar-upsert function
- *   unread   the flag read fails         -> today's behaviour, the n8n webhook
- * The second is deliberately kept: the carve-out means these two buttons keep
- * today's routing exactly, including the parts the rest of the page is leaving.
- *
- *   node test/calendar-client-carveout-byte-identical-browser.js            compare to the golden
- *   node ... --capture                                                       rewrite the golden (run on main only)
- *   BASE_TREE=/path/to/main-checkout node ...                               also run that tree and require the same bytes
+ * Drives the client Approve and Request changes buttons on a tokened client
+ * link against a fully mocked backend and records every request the page makes.
+ * It replaces the old byte-for-byte carve-out suite, which froze the n8n route.
+ * Now, in both flag situations (the routing flag lists the client, or its read
+ * fails so the flag never loads), every save must:
+ *   - go to the calendar-upsert function,
+ *   - carry the link's own token in X-Syncview-Client-Token and no staff key,
+ *   - never touch the n8n calendar-upsert-post webhook.
+ * A retried save pinned to the n8n writer must also go to the function.
  *
  * Fictional client, fictional token, fictional card. Nothing here is a real
  * name, slug or key.
@@ -30,7 +23,6 @@ const crypto = require('node:crypto');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
-const GOLDEN = path.join(__dirname, 'fixtures', 'calendar-client-carveout-golden.json');
 const CLIENT = 'Review Fixture';
 const SLUG = 'reviewfixture';
 const TOKEN = 'fixture-review-token';
@@ -201,73 +193,77 @@ async function capture(browser, origin, action, flag) {
   }
 }
 
-async function captureTree(root) {
-  const server = await serve(root);
+
+async function pinnedProbe(browser, origin) {
+  // A saved-for-retry write pinned to the old n8n writer, on a client link, must
+  // still go to the function. Drives the page's own retry helper directly.
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const urls = [];
+  try {
+    await context.routeWebSocket('**/*', socket => socket.close());
+    await context.route('**/*', async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.origin === origin) return route.continue();
+      if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+      if (request.method() === 'POST' && /\/(functions\/v1|webhook)\/(calendar-upsert-post|calendar-upsert)$/.test(url.pathname)) urls.push(url.origin + url.pathname);
+      if (url.pathname === '/functions/v1/client-token-verify') {
+        const b = JSON.parse(request.postData() || '{}');
+        return json(route, b.slug === SLUG && b.token === TOKEN
+          ? { ok: true, valid: true, allowed: true, slug: SLUG, display_name: CLIENT, view: b.view,
+            strict: true, active: true, protocol: 'syncview-client-entry-v1' }
+          : { ok: true, valid: false, allowed: false, error: 'invalid_client_link' });
+      }
+      if (url.pathname === '/rest/v1/calendar_posts' && request.method() === 'GET') return json(route, [fixture()]);
+      if (url.pathname === '/rest/v1/clients' && request.method() === 'GET') {
+        return json(route, [{ slug: SLUG, display_name: CLIENT, kind: 'client', active: true }]);
+      }
+      if (url.pathname.startsWith('/rest/v1/')) return json(route, []);
+      if (url.pathname.startsWith('/functions/v1/') || url.pathname.startsWith('/webhook/')) return json(route, { ok: true });
+      return route.abort();
+    });
+    const page = await context.newPage();
+    await page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' }), { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof _calUpsertFetchPinned === 'function', null, { timeout: 30000 }).catch(() => {});
+    const probe = await page.evaluate(async () => {
+      if (typeof _calUpsertFetchPinned !== 'function') return { missing: true };
+      await _calUpsertFetchPinned('reviewfixture', { client: 'reviewfixture', post: { id: 'probe' } }, 'ui', 'webhook');
+      return { missing: false };
+    });
+    return { probe, urls };
+  } finally {
+    await context.close();
+  }
+}
+
+(async () => {
+  const server = await serve(ROOT);
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch();
-  const out = {};
+  let failures = 0;
+  const check = (ok, label) => { console.log((ok ? '  ok  ' : 'FAIL  ') + label); if (!ok) failures++; };
   try {
     for (const action of ['approve', 'request']) {
       for (const flag of ['listed', 'unread']) {
-        // Host names are stable; only the port differs, so URLs are already comparable.
-        out[action + '/' + flag] = await capture(browser, origin, action, flag);
+        const key = action + '/' + flag;
+        const { writes } = await capture(browser, origin, action, flag);
+        const w = writes.map(line => JSON.parse(line));
+        const upserts = w.filter(item => /(calendar-upsert-post|calendar-upsert)$/.test(item.url));
+        check(upserts.length > 0, key + ': the save was sent');
+        check(upserts.every(item => /functions\/v1\/calendar-upsert$/.test(item.url)), key + ': every save goes to the calendar-upsert function');
+        check(!w.some(item => /n8n\.cloud/.test(item.url)), key + ': nothing is sent to n8n');
+        check(upserts.every(item => item.headers['x-syncview-client-token'] === TOKEN && !item.headers.authorization),
+          key + ': the save carries the link token and no staff key');
       }
     }
+    const pinned = await pinnedProbe(browser, origin);
+    if (pinned.probe.missing) check(false, 'the retry helper is reachable from the page');
+    else check(pinned.urls.length === 1 && /functions\/v1\/calendar-upsert$/.test(pinned.urls[0]),
+      'a retried save pinned to the n8n writer goes to the function (got ' + pinned.urls.join(',') + ')');
   } finally {
     await browser.close();
     server.close();
   }
-  return out;
-}
-
-(async () => {
-  const mine = await captureTree(ROOT);
-  if (process.argv.includes('--capture')) {
-    fs.mkdirSync(path.dirname(GOLDEN), { recursive: true });
-    fs.writeFileSync(GOLDEN, JSON.stringify(mine, null, 2) + '\n');
-    console.log('golden written from this tree: ' + path.relative(ROOT, GOLDEN));
-    return;
-  }
-  const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
-  let failures = 0;
-  // A new comment's id is `c_<clock>_<random>`. The test seeds "random", so the id
-  // repeats run to run only while the page draws the same NUMBER of random values
-  // before the click. Once client links load in parts (plan step 5), one line of
-  // Workload's start-up code (an id for its live plan sync, staff only) no longer
-  // runs on a client link, one draw fewer, and every later draw shifts by one. The
-  // clock part of the id stays compared; only the random suffix is not.
-  const noRandomId = value => JSON.stringify(value).replace(/(c_[a-z0-9]{6,10}_)[a-z0-9]{3,8}/g, '$1<random>');
-  const compare = (label, a, b) => {
-    const same = noRandomId(a) === noRandomId(b);
-    console.log((same ? '  ok  ' : 'FAIL  ') + label);
-    if (!same) {
-      failures++;
-      const A = JSON.stringify(a, null, 1).split('\n'), B = JSON.stringify(b, null, 1).split('\n');
-      for (let i = 0; i < Math.max(A.length, B.length); i++) if (A[i] !== B[i]) { console.log('   first difference at line ' + i + '\n   now:    ' + A[i] + '\n   golden: ' + B[i]); break; }
-    }
-  };
-  for (const key of Object.keys(golden)) {
-    compare(key + ': writes are byte-identical to main (method, URL, headers, body)', mine[key] && mine[key].writes, golden[key].writes);
-    compare(key + ': backend reads are byte-identical to main', mine[key] && mine[key].reads, golden[key].reads);
-    const w = golden[key].writes.map(line => JSON.parse(line));
-    const toN8n = w.some(item => /n8n\.cloud\/webhook\/calendar-upsert-post/.test(item.url));
-    const toFn = w.some(item => /functions\/v1\/calendar-upsert$/.test(item.url));
-    console.log('        (' + key + ' sends to ' + (toN8n ? 'the n8n webhook, as today' : toFn ? 'the calendar-upsert function, as today' : 'neither?!') + ')');
-    if (!toN8n && !toFn) failures++;
-  }
-  // Plan step 5: with split.json on and "clients" on, a client link is served in
-  // parts; the requests above must have been recorded on the code as it ships.
-  {
-    const splitCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8'));
-    const want = splitCfg.enabled && splitCfg.clients ? 'parts' : (splitCfg.enabled ? 'full' : 'single-file');
-    const got = [...loadModes].join(',');
-    console.log((got === want ? '  ok  ' : 'FAIL  ') + 'the client link was served as "' + want + '" in every run (got "' + got + '")');
-    if (got !== want) failures++;
-  }
-  if (process.env.BASE_TREE) {
-    const base = await captureTree(path.resolve(process.env.BASE_TREE));
-    for (const key of Object.keys(mine)) compare(key + ': identical to the live base tree ' + process.env.BASE_TREE, mine[key], base[key]);
-  }
-  if (failures) { console.error('\ncalendar-client-carveout-byte-identical-browser: ' + failures + ' check(s) failed'); process.exit(1); }
-  console.log('\ncalendar-client-carveout-byte-identical-browser: client approve and request-changes requests are unchanged');
+  if (failures) { console.error('\ncalendar-client-approve-function-browser: ' + failures + ' check(s) failed'); process.exit(1); }
+  console.log('\ncalendar-client-approve-function-browser: client saves always go through the function');
 })().catch(error => { console.error(error); process.exit(1); });

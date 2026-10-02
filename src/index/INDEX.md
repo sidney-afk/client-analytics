@@ -14,7 +14,7 @@
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2070 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1790 | Market Research Brief Tab Renderers |
-| 9 | `060-templates-filming.js.part` | 2167 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 9 | `060-templates-filming.js.part` | 2221 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
 | 12 | `067-workload-board-source.js.part` | 2580 | The roster saved with a cached board, checked with the same rules the |

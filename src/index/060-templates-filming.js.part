@@ -178,6 +178,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _obvSetLoading(value) { _obvLoading = value; }
     function _obvSetMode(value) { _obvMode = value; }
     let _obvSlugSet = null, _obvSlugLoading = false;  // slugs that have any onboarding record (client-profile button)
+    let _obvSlugFresh = false;  // true once this page load has fetched the lists (the saved copy alone is not fresh)
 
     const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
     const OBV_SUB = { elegant:'Elegant', native:'Native', bold:'Bold', banner:'Banner', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
@@ -251,22 +252,74 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
       }
       return settled;
     }
+    // Saved copy of the slug index, so the client profile paints its
+    // "Onboarding" button instantly instead of after three list fetches.
+    // Holds slugs only (no names, no form contents), is tied to the signed-in
+    // staff member, and is always replaced by the fresh fetch on this page load.
+    const OBV_SLUG_CACHE_KEY = 'syncview_onboarding_slugs_v1';
+    const OBV_SLUG_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    function _obvSlugCacheOwner(){
+      try {
+        const id = _syncviewStaffIdentityForHeaders();
+        return id && id.member && id.member.id ? String(id.member.id) : '';
+      } catch(e){ return ''; }
+    }
+    function _obvSlugCacheLoad(){
+      if (_obvSlugSet) return;
+      const owner = _obvSlugCacheOwner();
+      if (!owner) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem(OBV_SLUG_CACHE_KEY) || 'null');
+        if (saved && saved.owner === owner && Array.isArray(saved.slugs)
+            && (Date.now() - Number(saved.at || 0)) < OBV_SLUG_CACHE_MAX_AGE_MS) {
+          _obvSlugSet = new Set(saved.slugs.filter(x => typeof x === 'string'));
+        }
+      } catch(e){}
+    }
+    function _obvSlugCacheSave(set){
+      const owner = _obvSlugCacheOwner();
+      if (!owner) return;
+      try { localStorage.setItem(OBV_SLUG_CACHE_KEY, JSON.stringify({ owner, at: Date.now(), slugs: Array.from(set).sort() })); } catch(e){}
+    }
+    function _obvSameSlugSet(a, b){
+      if (!a || !b || a.size !== b.size) return false;
+      for (const x of a) if (!b.has(x)) return false;
+      return true;
+    }
+    // Warm the index from the Templates list, before a profile is opened. Only
+    // when a staff member allowed to read onboarding is already signed in, so
+    // it never opens the sign-in dialog on its own.
+    function _obvPrefetchSlugIndex(){
+      try {
+        if (!_syncviewStaffIdentityForHeaders() || !_syncviewStaffCan('onboarding')) return;
+      } catch(e){ return; }
+      _obvEnsureSlugIndex();
+    }
     function _obvEnsureSlugIndex(){
-      if (_obvSlugSet || _obvSlugLoading) return;
+      _obvSlugCacheLoad();
+      if (_obvSlugFresh || _obvSlugLoading) return;
       _obvSlugLoading = true;
       _obvFetchLists(false).then(results=>{
         const all = results.map(item => item.status === 'fulfilled' ? item.value : []);
         const set = new Set();
         all.flat().forEach(s=>{ if(s && s.slug) set.add(s.slug); });
+        const allFetched = results.every(item => item.status === 'fulfilled');
+        const changed = !_obvSameSlugSet(_obvSlugSet, set);
         _obvSlugSet = set;
-        // Re-render the open client profile so the button appears now that we know.
+        _obvSlugFresh = true;
+        // Only a complete answer replaces the saved copy; a partial one would
+        // hide the button for clients whose list failed to load.
+        if (allFetched) _obvSlugCacheSave(set);
+        // Re-render the open client profile only when the answer changed, so
+        // the saved copy's button does not flicker.
+        if (!changed) return;
         try {
           if (_templatesSelected && !_obvSelected && document.getElementById('content')) {
             document.getElementById('content').innerHTML = renderClientTemplate(_templatesSelected);
             if (typeof mountTemplatesView === 'function') mountTemplatesView();
           }
         } catch(e){}
-      }).catch(()=>{ _obvSlugSet = new Set(); })
+      }).catch(()=>{ if (!_obvSlugSet) _obvSlugSet = new Set(); _obvSlugFresh = true; })
         .finally(()=>{ _obvSlugLoading = false; });
     }
     function _obvHasOnboarding(name){
@@ -691,6 +744,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     }
 
     function renderTemplatesIndex() {
+        _obvPrefetchSlugIndex();
         const banner = '';
         const errBanner = (templatesLoadError && templatesLoadError !== 'not-configured') ? `
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';

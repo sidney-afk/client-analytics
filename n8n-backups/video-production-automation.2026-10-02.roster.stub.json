@@ -1,0 +1,1605 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-02 for the Roster Steps 2 and 3 edit (docs/ops/N8N_EDIT_LOG.md). It lists the workflow as it was BEFORE the edit (version e95369ca-de40-400c-802e-413efbbba853): node names, types, credential references by id and name, connections. Code bodies and parameters are deliberately left out. The full graph is in n8n workflow history. ROLLBACK: restore and publish e95369ca-de40-400c-802e-413efbbba853.  See ROLLBACK.md section 2.",
+  "name": "VIDEO PRODUCTION AUTOMATION",
+  "id": "BrJSe8zCKUccfmIq",
+  "version_before": "e95369ca-de40-400c-802e-413efbbba853",
+  "version_after_published": "59e397fd-5cc8-4490-8c2e-5bed3695db0c",
+  "nodes_before": [
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Find Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ODBrVr6cjMnBRLoa",
+          "name": "LINEAR"
+        }
+      }
+    },
+    {
+      "name": "Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Find Project1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ODBrVr6cjMnBRLoa",
+          "name": "LINEAR"
+        }
+      }
+    },
+    {
+      "name": "Code in JavaScript1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "Find Editor",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ODBrVr6cjMnBRLoa",
+          "name": "LINEAR"
+        }
+      }
+    },
+    {
+      "name": "Webhook2",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript2",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Find GRA Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ODBrVr6cjMnBRLoa",
+          "name": "LINEAR"
+        }
+      }
+    },
+    {
+      "name": "Download Filming Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Generate Titles",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch SMM",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Lookup SMM Key",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch SMM1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Lookup SMM Key1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook5",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Calendar Videos1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Download Frame Video1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Transcribe with Whisper1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9EbSDs5u2d62MA28",
+          "name": "OPENAI"
+        }
+      }
+    },
+    {
+      "name": "Generate Caption & Build Row1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Read Calendar Row1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Calculate Column & Write1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Write Calendar Column1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Prepare Apify Input1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Extract Video URL1",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Run Apify & Get Video URL1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Parse Linear Webhook & Fetch Sub-Issues",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Read Calendar Row (Graphics)",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Calculate Column (Graphics Only)",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Webhook6",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Send a message",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Send a message1",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Webhook7",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Code in JavaScript7",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Respond to Webhook1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate Context",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Get Reference Samples",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Create Output Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "sSN9ic4RRqD2YTsv",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "name": "Fan Out Sub-Issues",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch Sample 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch Sample 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch Sample 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Generate Thumbnail",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9es61XbCzlXOROxw",
+          "name": "Gemini API"
+        }
+      }
+    },
+    {
+      "name": "Extract Generated Image",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Upload Thumbnail",
+      "type": "n8n-nodes-base.googleDrive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "sSN9ic4RRqD2YTsv",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "name": "Get Drive Bypass HTML",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Wait for Processing",
+      "type": "n8n-nodes-base.wait",
+      "credentials": {}
+    },
+    {
+      "name": "Get Prediction Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "DUScI39ZbXRkza2Z",
+          "name": "Replicate"
+        }
+      }
+    },
+    {
+      "name": "Submit Prediction",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "DUScI39ZbXRkza2Z",
+          "name": "Replicate"
+        }
+      }
+    },
+    {
+      "name": "Download First Frame",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "If1",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Build Gemini Body",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Frame To B64",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Sample1 To B64",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Sample2 To B64",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Edit Image",
+      "type": "n8n-nodes-base.editImage",
+      "credentials": {}
+    },
+    {
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "credentials": {}
+    },
+    {
+      "name": "Download Candidate",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Candidate To B64",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Aggregate Candidates",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch Verification Sample",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    },
+    {
+      "name": "Sample To B64",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Build Verify Request",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Verify Frame",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9es61XbCzlXOROxw",
+          "name": "Gemini API"
+        }
+      }
+    },
+    {
+      "name": "Pick Winner",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Edit Image1",
+      "type": "n8n-nodes-base.editImage",
+      "credentials": {}
+    },
+    {
+      "name": "Loop Over Items2",
+      "type": "n8n-nodes-base.splitInBatches",
+      "credentials": {}
+    },
+    {
+      "name": "Comment on Parent Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ODBrVr6cjMnBRLoa",
+          "name": "LINEAR"
+        }
+      }
+    },
+    {
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "credentials": {}
+    },
+    {
+      "name": "Pick Freest Editor",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Get Editors",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Pick Candidates",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Search files and folders",
+      "type": "n8n-nodes-base.googleDrive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "sSN9ic4RRqD2YTsv",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "name": "Build Direct URL",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Fetch Filming Plans",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "Fetch Filming Plans1",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "Authority Gate - Video Form",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Authority Route - Video Form",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Authority Gate - Graphics Form",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Authority Route - Graphics Form",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Normalize Video",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Hash Valid Video",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Bad Request Video",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Insert Receipt Video",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Fetch Existing Receipt Video",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Classify Existing Receipt Video",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Created Video",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Replay Video",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Claimed Video",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Receipt Response Video",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Duplicate Success Video",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Replay Receipt Video",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Read Claimed Receipt Video",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Verify Claimed Receipt Video",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Claim Valid Video",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Claim Conflict Video",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Worker Video",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Finalize Receipt Video",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Read Final Receipt Video",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Verify Final Receipt Video",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Final Receipt Valid Video",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Created Video",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Dead Letter Mirror Video",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Failure Response Video",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Slack Shape Video",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Success Response Video",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Normalize Graphics",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Hash Valid Graphics",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Bad Request Graphics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Insert Receipt Graphics",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Fetch Existing Receipt Graphics",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Classify Existing Receipt Graphics",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Created Graphics",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Replay Graphics",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Claimed Graphics",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Receipt Response Graphics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Duplicate Success Graphics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Replay Receipt Graphics",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Read Claimed Receipt Graphics",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Verify Claimed Receipt Graphics",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Claim Valid Graphics",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Claim Conflict Graphics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Worker Graphics",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Finalize Receipt Graphics",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Read Final Receipt Graphics",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "F44 Verify Final Receipt Graphics",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Final Receipt Valid Graphics",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Created Graphics",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Dead Letter Mirror Graphics",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Failure Response Graphics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Slack Shape Graphics",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Success Response Graphics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Prepare Graphics Titles",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Existing Received Response Video",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Triage Alert Shape Video",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Triage Alert Video",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "F44 Existing Received Response Graphics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Triage Alert Shape Graphics",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "F44 Triage Alert Graphics",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    }
+  ],
+  "connections_before": {
+    "Find Project": [
+      [
+        "Get Editors"
+      ]
+    ],
+    "Webhook1": [
+      [
+        "Find Project1"
+      ]
+    ],
+    "Find Project1": [
+      [
+        "Code in JavaScript1"
+      ]
+    ],
+    "Code in JavaScript1": [
+      [
+        "Respond to Webhook"
+      ]
+    ],
+    "Find Editor": [
+      [
+        "Pick Freest Editor"
+      ]
+    ],
+    "Code in JavaScript2": [
+      [
+        "Download Filming Plan"
+      ]
+    ],
+    "Download Filming Plan": [
+      [
+        "Find GRA Project"
+      ]
+    ],
+    "Fetch SMM": [
+      [
+        "Lookup SMM Key"
+      ]
+    ],
+    "Lookup SMM Key": [
+      [
+        "Find Project"
+      ]
+    ],
+    "Fetch SMM1": [
+      [
+        "Lookup SMM Key1"
+      ]
+    ],
+    "Lookup SMM Key1": [
+      [
+        "Code in JavaScript2"
+      ]
+    ],
+    "Webhook5": [
+      [
+        "Parse Linear Webhook & Fetch Sub-Issues"
+      ]
+    ],
+    "Loop Over Calendar Videos1": [
+      [],
+      [
+        "If"
+      ]
+    ],
+    "Download Frame Video1": [
+      [
+        "Transcribe with Whisper1"
+      ]
+    ],
+    "Transcribe with Whisper1": [
+      [
+        "Generate Caption & Build Row1"
+      ]
+    ],
+    "Generate Caption & Build Row1": [
+      [
+        "Read Calendar Row1"
+      ]
+    ],
+    "Read Calendar Row1": [
+      [
+        "Calculate Column & Write1"
+      ]
+    ],
+    "Calculate Column & Write1": [
+      [
+        "Write Calendar Column1"
+      ]
+    ],
+    "Write Calendar Column1": [
+      [
+        "Loop Over Calendar Videos1"
+      ]
+    ],
+    "Prepare Apify Input1": [
+      [
+        "Run Apify & Get Video URL1"
+      ]
+    ],
+    "Extract Video URL1": [
+      [
+        "Download Frame Video1"
+      ]
+    ],
+    "Run Apify & Get Video URL1": [
+      [
+        "Extract Video URL1"
+      ]
+    ],
+    "Parse Linear Webhook & Fetch Sub-Issues": [
+      [
+        "Loop Over Calendar Videos1"
+      ]
+    ],
+    "If": [
+      [
+        "Prepare Apify Input1"
+      ],
+      [
+        "Read Calendar Row (Graphics)"
+      ]
+    ],
+    "Read Calendar Row (Graphics)": [
+      [
+        "Calculate Column (Graphics Only)"
+      ]
+    ],
+    "Calculate Column (Graphics Only)": [
+      [
+        "Write Calendar Column1"
+      ]
+    ],
+    "Webhook6": [
+      [
+        "Append row in sheet"
+      ]
+    ],
+    "Webhook7": [
+      [
+        "Code in JavaScript7"
+      ]
+    ],
+    "Code in JavaScript7": [
+      [
+        "Respond to Webhook1"
+      ]
+    ],
+    "Aggregate Context": [
+      [
+        "Get Reference Samples"
+      ]
+    ],
+    "Get Reference Samples": [
+      [
+        "Create Output Folder"
+      ]
+    ],
+    "Create Output Folder": [
+      [
+        "Fan Out Sub-Issues"
+      ]
+    ],
+    "Fan Out Sub-Issues": [
+      [
+        "Loop Over Items2"
+      ]
+    ],
+    "Fetch Sample 1": [
+      [
+        "Sample1 To B64"
+      ]
+    ],
+    "Fetch Sample 2": [
+      [
+        "Sample2 To B64"
+      ]
+    ],
+    "Fetch Sample 3": [
+      [
+        "Build Gemini Body"
+      ]
+    ],
+    "Generate Thumbnail": [
+      [
+        "Extract Generated Image"
+      ]
+    ],
+    "Extract Generated Image": [
+      [
+        "Upload Thumbnail"
+      ]
+    ],
+    "Upload Thumbnail": [
+      [
+        "Loop Over Items2"
+      ]
+    ],
+    "Get Drive Bypass HTML": [
+      [
+        "Search files and folders"
+      ]
+    ],
+    "Wait for Processing": [
+      [
+        "Get Prediction Result"
+      ]
+    ],
+    "Submit Prediction": [
+      [
+        "Wait for Processing"
+      ]
+    ],
+    "Get Prediction Result": [
+      [
+        "If1"
+      ]
+    ],
+    "Download First Frame": [
+      [
+        "Edit Image"
+      ]
+    ],
+    "If1": [
+      [
+        "Pick Candidates"
+      ],
+      [
+        "Wait for Processing"
+      ]
+    ],
+    "Build Gemini Body": [
+      [
+        "Wait"
+      ]
+    ],
+    "Frame To B64": [
+      [
+        "Fetch Sample 1"
+      ]
+    ],
+    "Sample1 To B64": [
+      [
+        "Fetch Sample 2"
+      ]
+    ],
+    "Sample2 To B64": [
+      [
+        "Fetch Sample 3"
+      ]
+    ],
+    "Edit Image": [
+      [
+        "Frame To B64"
+      ]
+    ],
+    "Wait": [
+      [
+        "Generate Thumbnail"
+      ]
+    ],
+    "Download Candidate": [
+      [
+        "Edit Image1"
+      ]
+    ],
+    "Candidate To B64": [
+      [
+        "Aggregate Candidates"
+      ]
+    ],
+    "Aggregate Candidates": [
+      [
+        "Fetch Verification Sample"
+      ]
+    ],
+    "Fetch Verification Sample": [
+      [
+        "Sample To B64"
+      ]
+    ],
+    "Sample To B64": [
+      [
+        "Build Verify Request"
+      ]
+    ],
+    "Build Verify Request": [
+      [
+        "Verify Frame"
+      ]
+    ],
+    "Verify Frame": [
+      [
+        "Pick Winner"
+      ]
+    ],
+    "Pick Winner": [
+      [
+        "Download First Frame"
+      ]
+    ],
+    "Edit Image1": [
+      [
+        "Candidate To B64"
+      ]
+    ],
+    "Loop Over Items2": [
+      [
+        "Aggregate"
+      ],
+      [
+        "Get Drive Bypass HTML"
+      ]
+    ],
+    "Aggregate": [
+      [
+        "Comment on Parent Issue"
+      ]
+    ],
+    "Get Editors": [
+      [
+        "Find Editor"
+      ]
+    ],
+    "Pick Candidates": [
+      [
+        "Download Candidate"
+      ]
+    ],
+    "Search files and folders": [
+      [
+        "Build Direct URL"
+      ]
+    ],
+    "Build Direct URL": [
+      [
+        "Submit Prediction"
+      ]
+    ],
+    "Fetch Filming Plans": [
+      [
+        "Fetch SMM"
+      ]
+    ],
+    "Fetch Filming Plans1": [
+      [
+        "Fetch SMM1"
+      ]
+    ],
+    "Authority Gate - Video Form": [
+      [
+        "Authority Route - Video Form"
+      ]
+    ],
+    "Authority Gate - Graphics Form": [
+      [
+        "Authority Route - Graphics Form"
+      ]
+    ],
+    "Find GRA Project": [
+      [
+        "F44 Prepare Graphics Titles"
+      ]
+    ],
+    "Generate Titles": [
+      [
+        "F44 Worker Graphics"
+      ]
+    ],
+    "Pick Freest Editor": [
+      [
+        "F44 Worker Video"
+      ]
+    ],
+    "F44 Normalize Video": [
+      [
+        "F44 Hash Valid Video"
+      ]
+    ],
+    "F44 Hash Valid Video": [
+      [
+        "F44 Insert Receipt Video"
+      ],
+      [
+        "F44 Bad Request Video"
+      ]
+    ],
+    "F44 Insert Receipt Video": [
+      [
+        "F44 Read Claimed Receipt Video"
+      ],
+      [
+        "F44 Fetch Existing Receipt Video"
+      ]
+    ],
+    "F44 Fetch Existing Receipt Video": [
+      [
+        "F44 Classify Existing Receipt Video"
+      ]
+    ],
+    "F44 Classify Existing Receipt Video": [
+      [
+        "F44 Existing Created Video"
+      ]
+    ],
+    "F44 Existing Created Video": [
+      [
+        "F44 Duplicate Success Video"
+      ],
+      [
+        "F44 Existing Replay Video"
+      ]
+    ],
+    "F44 Existing Replay Video": [
+      [
+        "F44 Existing Received Response Video"
+      ],
+      [
+        "F44 Existing Claimed Video"
+      ]
+    ],
+    "F44 Existing Claimed Video": [
+      [
+        "F44 Read Claimed Receipt Video"
+      ],
+      [
+        "F44 Existing Receipt Response Video"
+      ]
+    ],
+    "F44 Read Claimed Receipt Video": [
+      [
+        "F44 Verify Claimed Receipt Video"
+      ],
+      [
+        "F44 Claim Conflict Video"
+      ]
+    ],
+    "F44 Verify Claimed Receipt Video": [
+      [
+        "F44 Claim Valid Video"
+      ]
+    ],
+    "F44 Claim Valid Video": [
+      [
+        "Authority Gate - Video Form"
+      ],
+      [
+        "F44 Claim Conflict Video"
+      ]
+    ],
+    "F44 Worker Video": [
+      [
+        "F44 Finalize Receipt Video"
+      ]
+    ],
+    "F44 Finalize Receipt Video": [
+      [
+        "F44 Read Final Receipt Video"
+      ],
+      [
+        "F44 Failure Response Video"
+      ]
+    ],
+    "F44 Read Final Receipt Video": [
+      [
+        "F44 Verify Final Receipt Video"
+      ],
+      [
+        "F44 Failure Response Video"
+      ]
+    ],
+    "F44 Verify Final Receipt Video": [
+      [
+        "F44 Final Receipt Valid Video"
+      ]
+    ],
+    "F44 Final Receipt Valid Video": [
+      [
+        "F44 Created Video"
+      ],
+      [
+        "F44 Failure Response Video"
+      ]
+    ],
+    "F44 Created Video": [
+      [
+        "F44 Success Response Video"
+      ],
+      [
+        "F44 Failure Response Video"
+      ]
+    ],
+    "F44 Success Response Video": [
+      [
+        "F44 Slack Shape Video"
+      ]
+    ],
+    "F44 Slack Shape Video": [
+      [
+        "Send a message"
+      ]
+    ],
+    "F44 Normalize Graphics": [
+      [
+        "F44 Hash Valid Graphics"
+      ]
+    ],
+    "F44 Hash Valid Graphics": [
+      [
+        "F44 Insert Receipt Graphics"
+      ],
+      [
+        "F44 Bad Request Graphics"
+      ]
+    ],
+    "F44 Insert Receipt Graphics": [
+      [
+        "F44 Read Claimed Receipt Graphics"
+      ],
+      [
+        "F44 Fetch Existing Receipt Graphics"
+      ]
+    ],
+    "F44 Fetch Existing Receipt Graphics": [
+      [
+        "F44 Classify Existing Receipt Graphics"
+      ]
+    ],
+    "F44 Classify Existing Receipt Graphics": [
+      [
+        "F44 Existing Created Graphics"
+      ]
+    ],
+    "F44 Existing Created Graphics": [
+      [
+        "F44 Duplicate Success Graphics"
+      ],
+      [
+        "F44 Existing Replay Graphics"
+      ]
+    ],
+    "F44 Existing Replay Graphics": [
+      [
+        "F44 Existing Received Response Graphics"
+      ],
+      [
+        "F44 Existing Claimed Graphics"
+      ]
+    ],
+    "F44 Existing Claimed Graphics": [
+      [
+        "F44 Read Claimed Receipt Graphics"
+      ],
+      [
+        "F44 Existing Receipt Response Graphics"
+      ]
+    ],
+    "F44 Read Claimed Receipt Graphics": [
+      [
+        "F44 Verify Claimed Receipt Graphics"
+      ],
+      [
+        "F44 Claim Conflict Graphics"
+      ]
+    ],
+    "F44 Verify Claimed Receipt Graphics": [
+      [
+        "F44 Claim Valid Graphics"
+      ]
+    ],
+    "F44 Claim Valid Graphics": [
+      [
+        "Authority Gate - Graphics Form"
+      ],
+      [
+        "F44 Claim Conflict Graphics"
+      ]
+    ],
+    "F44 Prepare Graphics Titles": [
+      [
+        "Generate Titles"
+      ]
+    ],
+    "F44 Worker Graphics": [
+      [
+        "F44 Finalize Receipt Graphics"
+      ]
+    ],
+    "F44 Finalize Receipt Graphics": [
+      [
+        "F44 Read Final Receipt Graphics"
+      ],
+      [
+        "F44 Failure Response Graphics"
+      ]
+    ],
+    "F44 Read Final Receipt Graphics": [
+      [
+        "F44 Verify Final Receipt Graphics"
+      ],
+      [
+        "F44 Failure Response Graphics"
+      ]
+    ],
+    "F44 Verify Final Receipt Graphics": [
+      [
+        "F44 Final Receipt Valid Graphics"
+      ]
+    ],
+    "F44 Final Receipt Valid Graphics": [
+      [
+        "F44 Created Graphics"
+      ],
+      [
+        "F44 Failure Response Graphics"
+      ]
+    ],
+    "F44 Created Graphics": [
+      [
+        "F44 Success Response Graphics"
+      ],
+      [
+        "F44 Failure Response Graphics"
+      ]
+    ],
+    "F44 Success Response Graphics": [
+      [
+        "F44 Slack Shape Graphics"
+      ]
+    ],
+    "F44 Slack Shape Graphics": [
+      [
+        "Send a message1"
+      ]
+    ],
+    "Webhook": [
+      [
+        "F44 Normalize Video"
+      ]
+    ],
+    "Webhook2": [
+      [
+        "F44 Normalize Graphics"
+      ]
+    ],
+    "Authority Route - Video Form": [
+      [
+        "Fetch Filming Plans"
+      ],
+      [
+        "F44 Worker Video"
+      ]
+    ],
+    "Authority Route - Graphics Form": [
+      [
+        "Fetch Filming Plans1"
+      ],
+      [
+        "F44 Worker Graphics"
+      ]
+    ],
+    "F44 Failure Response Video": [
+      [
+        "F44 Dead Letter Mirror Video",
+        "F44 Triage Alert Shape Video"
+      ]
+    ],
+    "F44 Existing Received Response Video": [
+      [
+        "F44 Triage Alert Shape Video"
+      ]
+    ],
+    "F44 Claim Conflict Video": [
+      [
+        "F44 Triage Alert Shape Video"
+      ]
+    ],
+    "F44 Triage Alert Shape Video": [
+      [
+        "F44 Triage Alert Video"
+      ]
+    ],
+    "F44 Failure Response Graphics": [
+      [
+        "F44 Dead Letter Mirror Graphics",
+        "F44 Triage Alert Shape Graphics"
+      ]
+    ],
+    "F44 Existing Received Response Graphics": [
+      [
+        "F44 Triage Alert Shape Graphics"
+      ]
+    ],
+    "F44 Claim Conflict Graphics": [
+      [
+        "F44 Triage Alert Shape Graphics"
+      ]
+    ],
+    "F44 Triage Alert Shape Graphics": [
+      [
+        "F44 Triage Alert Graphics"
+      ]
+    ]
+  }
+}

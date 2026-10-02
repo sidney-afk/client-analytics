@@ -1,0 +1,54 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-02 for the Roster Steps 2 and 3 edit (docs/ops/N8N_EDIT_LOG.md). It lists the workflow as it was BEFORE the edit (version 9e4c984e-4ad0-470e-b50a-62c3b2bab9f6): node names, types, credential references by id and name, connections. Code bodies and parameters are deliberately left out. The full graph is in n8n workflow history. ROLLBACK: restore and publish 9e4c984e-4ad0-470e-b50a-62c3b2bab9f6. Restore only together with setting client_profiles_authority back to sheet. See ROLLBACK.md section 2.",
+  "name": "Onboarding — Append Client Row",
+  "id": "RFi70kokkNFHoRC0",
+  "version_before": "9e4c984e-4ad0-470e-b50a-62c3b2bab9f6",
+  "version_after_published": "cd50743f-a30c-4857-b210-580b24e33d27",
+  "nodes_before": [
+    {
+      "name": "Receive Client Row",
+      "type": "n8n-nodes-base.webhook"
+    },
+    {
+      "name": "Update Clients Info Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Update SMM Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Respond With Rows",
+      "type": "n8n-nodes-base.respondToWebhook"
+    }
+  ],
+  "connections_before": {
+    "Receive Client Row": [
+      [
+        "Update Clients Info Row"
+      ]
+    ],
+    "Update Clients Info Row": [
+      [
+        "Update SMM Row"
+      ]
+    ],
+    "Update SMM Row": [
+      [
+        "Respond With Rows"
+      ]
+    ]
+  }
+}

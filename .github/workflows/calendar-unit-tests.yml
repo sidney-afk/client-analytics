@@ -245,6 +245,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/clients-admin-browser.js
+      - name: Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/clients-onboarding-browser.js
       - name: Quick jump opens a client on a tab from the keyboard
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

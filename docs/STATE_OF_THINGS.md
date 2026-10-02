@@ -30,13 +30,18 @@ here with where it stopped, so it can be restarted.
   admin tab is the start of its replacement. The owner will improve that UI.
   **Scope, owner 2026-10-02:** only the main SYNCVIEW Sheet and the SyncView Calendar workbook are in scope; other
   Drive files are left alone. Project Central: archive (needs an n8n edit, owner's go). **Clients Info and Social
-  Media Managers (session Roster):** Step 1 built, in PR (OPEN_REPAIRS 321, `docs/plans/2026-10-02-roster-native.md`):
-  database functions, `roster-read` and `roster-write`, a native save for the Clients tab and the read-only Sheet
-  copy; nothing switched on, no n8n edit. Next, each with its own go: apply the migration and deploy, then each n8n
-  edit, then the switch. Beacon (onboarding) will extend the Clients tab.
+  Media Managers (session Roster): DONE 2026-10-02, live.** The database is the main copy (`client_profiles_authority` =
+  `{"source":"syncview"}` since 20:00 UTC); six n8n workflows read or write through `roster-read` / `roster-write`; Manager Sync is off;
+  the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 331, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
+  the two tabs in Google; the Finalizer's first real client is its end to end proof; the page still reads both tabs itself (own step);
+  CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
-- **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
+- **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
+  checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
+  shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
+  27-step checklist (admin only; OPEN_REPAIRS 332). Next, each with the owner's go: "Create client" (step 2.5),
+  then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
@@ -256,7 +261,7 @@ hiring senders when the editor hire closes.
   staff scopes needed `analytics-read` deployed, which the owner did on
   2026-09-28 (#1810). Switch-on plan and every other
   reader: `docs/plans/2026-09-28-analytics-switch-on.md`.
-  `client_profiles_authority` is still `sheet`.
+  `client_profiles_authority` was `sheet` then; since 2026-10-02 20:00 UTC it is `syncview` (OPEN_REPAIRS 331).
 - **`mirror_outbox` still grows** (236 new rows in the last 24 hours, all
   receipts; 12,974 total). Retiring it is a planned later slice, not urgent.
 

@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 /*
  * Create Post links the card on the SERVER, in the same request that creates
  * the work items (OPEN_REPAIRS 254).
@@ -60,8 +61,7 @@ const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_s
   origin: 'calendar', title: 'Video 3', video_number: 3, linear_issue_url: null, ...(extra || {}) });
 
 (async () => {
-  const { linkCardsToCreatedDeliverables } = await import(
-    path.join(__dirname, '..', 'supabase/functions/production-write/card-link.mjs'));
+  const { linkCardsToCreatedDeliverables } = await import(pathToFileURL(path.join(__dirname, '..', 'supabase/functions/production-write/card-link.mjs')).href);
 
   // 1. A card that does not exist yet is NOT created: card creation stays with
   // the browser job and its writer (the reconcile lane holds it as debt).

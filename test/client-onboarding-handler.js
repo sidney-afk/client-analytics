@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 // The client-onboarding Edge Function's handler (supabase/functions/_shared/client-onboarding.mjs),
 // run for real in Node against a fake database. Admin only for reads AND writes, checked before the
 // body is read; the checklist write goes through the admin-only RPC with the actor's name; nothing
@@ -53,7 +54,7 @@ function makeReq(method, headers, body, spy) {
 }
 
 (async () => {
-  const mod = await import(path.join(ROOT, 'supabase/functions/_shared/client-onboarding.mjs'));
+  const mod = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/client-onboarding.mjs')).href);
   const ADMIN = { id: 'm-admin', name: 'Fixture Admin', role: 'admin', active: true };
   const SMM = { id: 'm-smm', name: 'Fixture SMM', role: 'smm', active: true };
   const baseState = () => ({

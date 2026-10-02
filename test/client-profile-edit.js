@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 // Clients tab, step 2: an admin's edit goes to the Clients Info Sheet first
 // (only the changed cells, only if the row still matches what was loaded),
 // then to Supabase with source='syncview' and a history row per field.
@@ -12,7 +13,7 @@ let passed = 0;
 function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit(1); } passed++; console.log('  ok  ' + msg); }
 
 (async () => {
-  const m = await import(path.join(ROOT, 'supabase/functions/_shared/client-profile-edit.mjs'));
+  const m = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/client-profile-edit.mjs')).href);
   const HEAD = ['client_name', 'email', 'competitors', 'keywords', 'specific_keywords', 'content_description', 'instagram_handle',
     'tiktok_handle', 'youtube_channel_id', 'slack_channel_id', 'creative_channel_id', 'roam_channel_id', 'upload_post_profile', 'postforme_account_id'];
   const sheet = () => [HEAD,

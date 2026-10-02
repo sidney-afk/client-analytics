@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 /* Reproduces the 2026-09-23 refusal loop: a client's approve committed, the
    card later moved to Posted, and the browser's repair journal kept asking
    production-write (reconcile_only) whether that approve landed. The gateway
@@ -13,7 +14,7 @@ let failures = 0;
 const ok = (cond, msg) => { if (cond) console.log('ok - ' + msg); else { failures++; console.error('not ok - ' + msg); } };
 
 (async () => {
-  const policy = await import(path.join(__dirname, '..', 'supabase/functions/production-write/policy.mjs'));
+  const policy = await import(pathToFileURL(path.join(__dirname, '..', 'supabase/functions/production-write/policy.mjs')).href);
   const edge = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/production-write/index.ts'), 'utf8');
 
   // The refusal itself: the transition gate refuses approved on a posted card.

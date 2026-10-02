@@ -527,6 +527,7 @@
     "review-approve-draft-title.js",
     "review-collab-gate.js",
     "review-request-change-audience.js",
+    "review-comment-unlocks-controls.js",
     "rollback-row-freshness.js",
     "roster-native.js",
     "sales-intake-form.js",

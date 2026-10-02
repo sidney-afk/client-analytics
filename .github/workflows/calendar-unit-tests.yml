@@ -225,6 +225,15 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/client-review-requests-unchanged-browser.js
+      - name: Client reads use tokens and retain their skeleton and saved copy
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          CARD_READ_TEST_MODE: function
+        run: node test/client-review-requests-unchanged-browser.js
+      - name: Staff reads use verified staff credentials
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/card-read-staff-browser.js
       - name: Split load, opt-out and on-demand areas (browser)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

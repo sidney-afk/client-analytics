@@ -1,3 +1,4 @@
+import { _cardReadFetch } from './120-calendar-flags-write-repair.js';
 import { CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityValid } from './100-onboarding-staff-controls.js';
 import {
   WRITE_UI_PRODUCTION_WRITE_URL, _calAssertSavingOn, _calUpsertFetch, _calUpsertHeaders,
@@ -161,7 +162,7 @@ import {
     /* ── Reads (public-key REST, read only) ── */
     function _arxHeaders() { return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }; }
     async function _arxRest(path) {
-        const resp = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + path, { headers: _arxHeaders(), cache: 'no-store' });
+        const resp = await _cardReadFetch(CAL_SUPABASE_URL + '/rest/v1/' + path, { headers: _arxHeaders(), cache: 'no-store' });
         if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
         return resp.json();
     }

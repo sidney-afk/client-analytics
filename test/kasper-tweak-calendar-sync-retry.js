@@ -132,7 +132,7 @@ function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true, fre
       const body = upsertResponses[upsertCalls.length - 1] || upsertResponses[upsertResponses.length - 1];
       return jsonResponse(body);
     },
-    fetch: async (url) => {
+    _cardReadFetch: async (url) => {
       freshFetchCalls.push(url);
       if (!freshFetchOk) return { ok: false, json: async () => null };
       return { ok: true, json: async () => [Object.assign({ updated_at: freshUpdatedAt }, freshCells || {})] };

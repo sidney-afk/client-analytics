@@ -108,7 +108,7 @@ function makeSandbox({ upsertResponses, freshRows, freshFails = false }) {
       const body = upsertResponses[upsertCalls.length - 1] || upsertResponses[upsertResponses.length - 1];
       return { ok: true, json: async () => body };
     },
-    fetch: async (url) => {
+    _cardReadFetch: async (url) => {
       freshUrls.push(url);
       if (freshFails) return { ok: false, json: async () => null };
       const i = Math.min(freshUrls.length - 1, freshRows.length - 1);
@@ -428,7 +428,7 @@ function samplesSandbox({ fresh, finishFails = false }) {
   const s = Object.assign({
     JSON, Date, Object, Array, String, Promise, console,
     CAL_SUPABASE_URL: 'https://x', CAL_SUPABASE_ANON_KEY: 'k', SXR_TABLE: 'sample_reviews',
-    fetch: async () => ({ ok: !!fresh, json: async () => [fresh] }),
+    _cardReadFetch: async () => ({ ok: !!fresh, json: async () => [fresh] }),
     _sxrKasperState: { items: [it], saving: {}, writeGen: 0, drafts: {} },
     _kasperState: { sxrRepairs: [] },
     _sxrSetLastLocalWriteAt: () => {}, _sxrKasperRepaint: () => { calls.repaint++; },

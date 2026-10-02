@@ -505,6 +505,43 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                     : 'Could not issue a secure client link (HTTP ' + status + ').';
         }
     }
+    // Read transport only: renderers, caches and every writer retain their bytes.
+    const CARD_READ_FLAG_KEY = 'card_reads_source';
+    let _cardReadFlag = { at: 0, mode: 'public' }, _cardReadFlagPromise = null;
+    async function _cardReadFunctionMode(signal) {
+        if (Date.now() - _cardReadFlag.at < 15000) return _cardReadFlag.mode === 'function';
+        if (!_cardReadFlagPromise) _cardReadFlagPromise = (async () => {
+            let mode = 'public';
+            try {
+                const resp = await fetch(CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + CARD_READ_FLAG_KEY + '&limit=1', {
+                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }, signal: AbortSignal.timeout(5000), cache: 'no-store'
+                });
+                if (!resp.ok) throw new Error('flag_read_failed');
+                const rows = await resp.json();
+                if (Array.isArray(rows) && rows[0] && rows[0].value && rows[0].value.mode === 'function') mode = 'function';
+            } catch (e) { mode = _cardReadFlag.mode; }
+            _cardReadFlag = { at: Date.now(), mode };
+            return mode === 'function';
+        })().finally(() => { _cardReadFlagPromise = null; });
+        const mode = await _cardReadFlagPromise;
+        if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        return mode;
+    }
+    function _cardReadWatch(refresh) {
+        const timer = setInterval(() => { if (!document.hidden) refresh(); }, 30000);
+        return { _cardReadPoll: true, unsubscribe: () => clearInterval(timer) };
+    }
+    async function _cardReadFetch(url, options) {
+        if (options && options.signal && options.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        const parsed = new URL(url), table = parsed.pathname.split('/').pop();
+        if (parsed.origin !== new URL(CAL_SUPABASE_URL).origin || !['calendar_posts', 'sample_reviews'].includes(table)) return fetch(url, options);
+        if (!await _cardReadFunctionMode(options && options.signal)) return fetch(url, options);
+        parsed.searchParams.set('table', table);
+        const target = CAL_SUPABASE_URL + '/functions/v1/card-read?' + parsed.searchParams;
+        return fetch(target, Object.assign({}, options || {}, {
+            method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }, target)
+        }));
+    }
     function _syncviewEfHeaders(headers, url) {
         const out = Object.assign({}, headers || {});
         try {
@@ -3080,7 +3117,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                both the scalar baseline and the comment-merge baseline, so they
                cannot be moved apart from here. See _kasperPersistPostWrite. */
             const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=' + columns.join(',') + '&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(postId) + '&limit=2';
-            const response = await fetch(url, {
+            const response = await _cardReadFetch(url, {
                 cache: 'no-store',
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
             });
@@ -3103,7 +3140,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.' + encodeURIComponent(slug)
                 + '&id=eq.' + encodeURIComponent(postId) + '&limit=2';
-            const response = await fetch(url, {
+            const response = await _cardReadFetch(url, {
                 cache: 'no-store',
                 signal: AbortSignal.timeout(8000),
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
@@ -3452,3 +3489,5 @@ export {
   _writeUiUseGatewayWhenReady, computeOverallStatus
 };
 export { _writeUiRecordSaveFailure, _writeUiTrackSave };
+
+export { _cardReadFetch, _cardReadFunctionMode, _cardReadWatch };

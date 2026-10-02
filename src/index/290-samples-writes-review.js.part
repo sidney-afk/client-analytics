@@ -1,3 +1,5 @@
+import { _cardReadFunctionMode, _cardReadWatch } from './120-calendar-flags-write-repair.js';
+import { _cardReadFetch } from './120-calendar-flags-write-repair.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { _svCaptureFocus, _svRestoreFocus, showNotify, showToast } from './040-shared-briefs.js';
 import { NATIVE_INTAKE_PENDING_KEY, currentNav } from './065-core-nav-intake-state.js';
@@ -1064,6 +1066,12 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         if (!_sxrReady() || !slug) return;
         if (_sxrV2SubSlug === slug && _sxrV2Channel) return;
         _sxrV2Teardown();
+        if (await _cardReadFunctionMode()) {
+            if (sxrClientSlug(sxrState.client) !== slug || !document.getElementById('sxrBody')) return;
+            _sxrV2SubSlug = slug;
+            _sxrV2Channel = _cardReadWatch(() => _sxrV2OnRealtimeChange(slug));
+            return;
+        }
         const client = await _sxrV2Client();
         if (!client) return;
         if (sxrClientSlug(sxrState.client) !== slug) return;
@@ -1090,7 +1098,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _sxrV2Teardown() {
         _sxrAbortActiveLoad();
         if (_sxrV2RtTimer) { clearTimeout(_sxrV2RtTimer); _sxrV2RtTimer = null; }
-        if (_sxrV2Channel) { try { if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrV2Channel); else if (typeof _sxrV2Channel.unsubscribe === 'function') _sxrV2Channel.unsubscribe(); } catch (e) {} }
+        if (_sxrV2Channel) { try { if (_sxrV2Channel._cardReadPoll) _sxrV2Channel.unsubscribe(); else if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrV2Channel); else if (typeof _sxrV2Channel.unsubscribe === 'function') _sxrV2Channel.unsubscribe(); } catch (e) {} }
         _sxrV2Channel = null; _sxrV2SubSlug = null;
     }
     window.sxrV2Status = function () { return { flag: _sxrEnabled(), ready: _sxrReady(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_sxrV2Channel, slug: _sxrV2SubSlug }; };
@@ -1123,6 +1131,12 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     }
     async function _sxrKasperV2EnsureSubscribed() {
         if (!_sxrReady() || _sxrKasperV2Channel) return;
+        if (await _cardReadFunctionMode()) {
+            if (!_sxrKasperV2Channel && document.getElementById('kasperContent')) _sxrKasperV2Channel = _cardReadWatch(() => {
+                if (!_sxrKasperViewBusy() && document.getElementById('kasperContent')) _sxrKasperLoadQueue();
+            });
+            return;
+        }
         const client = await _sxrV2Client();
         if (!client || _sxrKasperV2Channel) return;   // re-check: a teardown / second mount may have raced the lib load
         try {
@@ -1148,7 +1162,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         if (_sxrKasperV2RtTimer) { clearTimeout(_sxrKasperV2RtTimer); _sxrKasperV2RtTimer = null; }
         if (_sxrKasperV2Channel) {
             try {
-                if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrKasperV2Channel);
+                if (_sxrKasperV2Channel._cardReadPoll) _sxrKasperV2Channel.unsubscribe(); else if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrKasperV2Channel);
                 else if (typeof _sxrKasperV2Channel.unsubscribe === 'function') _sxrKasperV2Channel.unsubscribe();
             } catch (e) {}
         }
@@ -1502,7 +1516,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     async function _sxrKasperReadFresh(slug, id) {
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=updated_at,status,video_status,graphic_status&client=eq.' + encodeURIComponent(String(slug || '')) + '&id=eq.' + encodeURIComponent(String(id || '')) + '&limit=2';
-            const resp = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            const resp = await _cardReadFetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
             if (!resp.ok) return null;
             const rows = await resp.json().catch(() => null);
             return Array.isArray(rows) && rows.length === 1 ? rows[0] : null;

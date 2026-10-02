@@ -1475,3 +1475,8 @@ poll, without disabling Production:
 - **After deploy:** revert the PR and redeploy the same functions by the same lanes. The header only lets browsers cache a permission the
   function already grants; removing it returns to a preflight every 5 s. The `key-verify` change is behaviour-identical except for timing,
   so a rollback is never needed for correctness, only if the timing is unwanted.
+
+
+### Warden — Calendar and Samples read boundary (prepared 2026-10-02)
+
+No live switch or migration in this PR. Before the read closure is installed, set `card_reads_source` to `{"mode":"public"}` and reload. After installation, the one-step recovery is `migrations/20261002201230_warden_card_reads.ROLLBACK.sql`: one transaction restores exactly the measured original card SELECT grants and sets the public transport flag. Reload open readers. Write revocations remain intact. The separate `migrations/20261002201231_warden_browser_write_grants.ROLLBACK.sql` restores only measured original INSERT/UPDATE/TRUNCATE grants, never PUBLIC. Both recovery files were executed and read back on isolated PostgreSQL 17. See `docs/ops/WARDEN_CARD_READS.md`; never use the older broad scoped-read proposal for this release.

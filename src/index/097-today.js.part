@@ -1,3 +1,5 @@
+import { _cardReadFunctionMode, _cardReadWatch } from './120-calendar-flags-write-repair.js';
+import { _cardReadFetch } from './120-calendar-flags-write-repair.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { navTo, wlOpenInContentCalendar } from './092-core-submit-form-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
@@ -94,7 +96,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             }
             for (let attempt = 0; attempt < 3 && !rows; attempt++) {
                 try {
-                    const res = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=' + (page * 1000), {
+                    const res = await _cardReadFetch(CAL_SUPABASE_URL + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=' + (page * 1000), {
                         headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }
                     });
                     if (!res.ok) throw new Error(table + ' ' + res.status);
@@ -500,6 +502,10 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     async function _tdyEnsureLive() {
         if (_tdyChannel) return;
+        if (await _cardReadFunctionMode()) {
+            if (!_tdyChannel && document.getElementById('tdyRoot')) _tdyChannel = _cardReadWatch(_tdyOnRealtime);
+            return;
+        }
         _tdyChannel = 'connecting';
         let client = null;
         try { client = await _calV2Client(); } catch (e) {}
@@ -524,6 +530,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         clearTimeout(_tdyRtTimer); _tdyRtTimer = 0;
         const ch = _tdyChannel;
         _tdyChannel = null; _tdyRtSubscribedOnce = false;
+        if (ch && ch._cardReadPoll) { ch.unsubscribe(); return; }
         if (ch && typeof ch === 'object') { _calV2Client().then(c => { try { c && c.removeChannel(ch); } catch (e) {} }, () => {}); }
     }
     function _tdyPurgeSensitiveState() {

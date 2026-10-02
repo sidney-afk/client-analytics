@@ -121,3 +121,8 @@ exists; and, under phase 2, anon reading nothing, staff reading everything, a
 client reading only its own rows, a missing or unknown scope reading nothing,
 and hidden columns and comment bodies staying hidden. Both rollbacks restore
 access exactly.
+
+
+## Owner-narrowed implementation, prepared 2026-10-02
+
+The deferred proposal above is historical. Warden now prepares a staff-key/client-token Edge Function for **calendar_posts and sample_reviews only**, with a default-public runtime flag and a source-only SELECT closure after the switch is measured. No signing-key prerequisite, new session JWT or view twins are introduced. The standing Workload/Production reads remain. The same PR prepares the remeasured ten-table write revocations. Nothing deployed, applied or switched. The current release and one-step rollback are in `docs/ops/WARDEN_CARD_READS.md`; do not install the historical broad migration for this release.

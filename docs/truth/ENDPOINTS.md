@@ -475,3 +475,8 @@ by hand; verify before relying on it.
   set. Candidate source supersedes only that list policy after manual deployment: Creative may read
   the same global projection but set remains `403`; direct browser-table access remains denied. The
   literal REST-table inventory remains 9.
+
+
+## Prepared scoped card read endpoint (2026-10-02)
+
+`functions/v1/card-read`: GET-only Calendar and Samples reads; staff role key or current active-client token required. The page uses it only when `card_reads_source` is `{"mode":"function"}`; missing flag defaults to current public reads. Client scope is checked before service reads and there is no public read fallback once selected. Replaces card realtime with 30-second guarded background reads while preserving loading skeletons and saved copies. Source only, not deployed; owner release order and one-step SQL rollback: `docs/ops/WARDEN_CARD_READS.md`. This scoped source update does not refresh the historical live observations above.

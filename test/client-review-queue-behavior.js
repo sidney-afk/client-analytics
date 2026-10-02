@@ -51,6 +51,7 @@ function sandbox(opts) {
         _calMintCommentId: () => 'm' + (++log.mints),
         setTimeout: () => 0, clearTimeout: () => {},
     };
+    env._cardReadFetch = env.fetch; // read transport is covered independently
     const names = Object.keys(env);
     const api = new Function(...names, src + '\nreturn { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqResolve, _calCrqResend, _crqMine, _crqRun };')
         (...names.map(n => env[n]));

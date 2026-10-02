@@ -33,6 +33,7 @@ const GOLDEN = path.join(__dirname, 'fixtures', 'client-review-requests.golden.j
 const CLIENT = 'Review Fixture Client';
 const SLUG = 'reviewfixtureclient';
 const TOKEN = 'synthetic-review-token';
+const FUNCTION_READS = process.env.CARD_READ_TEST_MODE === 'function';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const SURFACES = {
   calendar: { card: 'p_review_fixture_1', query: { v: 'calendar' }, table: 'calendar_posts', tweakComp: 'caption' },
@@ -76,6 +77,7 @@ async function runSurface(browser, origin, name) {
     caption: 'Fixture caption', comments: [], graphic_comments: [], caption_comments: [],
   };
   const writes = [];
+  let scopedReads = 0, publicCardReads = 0, refuseCardReads = false;
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await ctx.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), async route => {
     const r = route.request(); const u = new URL(r.url());
@@ -85,13 +87,30 @@ async function runSurface(browser, origin, name) {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
       return json({ ok: true, valid: true, allowed: true, slug: SLUG, display_name: CLIENT, view: body.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' });
     }
+    if (u.pathname === '/functions/v1/card-read') {
+      assert.strictEqual(r.method(), 'GET');
+      assert.strictEqual(r.headers()['x-syncview-client-token'], TOKEN);
+      assert.strictEqual(u.searchParams.get('client'), 'eq.' + SLUG);
+      assert.strictEqual(u.searchParams.get('table'), table);
+      scopedReads++;
+      if (refuseCardReads) return route.fulfill({ status: 503, headers: CORS, contentType: 'application/json', body: '{"error":"read_unavailable"}' });
+      if (scopedReads === 1) await new Promise(resolve => setTimeout(resolve, 1800));
+      return json([ROW]);
+    }
+    if (u.pathname === '/rest/v1/syncview_runtime_flags' && u.searchParams.get('key') === 'eq.card_reads_source') {
+      return json([{ value: { mode: FUNCTION_READS ? 'function' : 'public' } }]);
+    }
     if (r.method() !== 'GET' && r.method() !== 'HEAD') {
       const headers = Object.keys(r.headers()).filter(h => !/^(user-agent|origin|referer|accept|accept-|sec-|content-length|host|connection|pragma|cache-control|priority)/.test(h)).sort();
       writes.push({ method: r.method(), path: u.pathname, headers, body: r.postData() || '' });
       if (/\/rest\/v1\//.test(u.pathname)) return json([Object.assign({}, ROW)]);
       return json({ ok: true });
     }
-    if (u.pathname === '/rest/v1/' + table) return json([ROW]);
+    if (u.pathname === '/rest/v1/' + table) {
+      publicCardReads++;
+      if (FUNCTION_READS) return route.fulfill({ status: 403, headers: CORS, contentType: 'application/json', body: '{"error":"direct_card_read_closed"}' });
+      return json([ROW]);
+    }
     if (u.pathname === '/rest/v1/clients') return json([{ slug: SLUG, kind: 'client', active: true }]);
     if (u.pathname === '/rest/v1/syncview_runtime_flags' && /prod_authority/.test(u.search)) return json([{ value: { video: 'linear', graphics: 'linear' } }]);
     if (/\/rest\/v1\//.test(u.pathname)) return json([]);
@@ -105,7 +124,21 @@ async function runSurface(browser, origin, name) {
   const q = new URLSearchParams(Object.assign({ c: CLIENT, t: TOKEN }, query));
   await page.goto(`${origin}/index.html?${q}`, { waitUntil: 'domcontentloaded' });
   const card = `.kcard[data-cal-review-pid="${CARD}"]`;
+  if (FUNCTION_READS) await page.waitForSelector('.cal-loader .sv-skeleton', { timeout: 15000 });
   await page.waitForSelector(card, { timeout: 30000 });
+  if (FUNCTION_READS) {
+    refuseCardReads = true;
+    const kept = await page.evaluate(async surface => {
+      const state = surface === 'samples' ? sxrState : calState;
+      const before = state.posts.map(p => p.id).join(',');
+      if (surface === 'samples') await loadSxrCards({ background: true, skipCache: true });
+      else await loadCalendarPosts({ background: true, skipCache: true });
+      return !!before && state.posts.map(p => p.id).join(',') === before;
+    }, name);
+    assert(kept, 'failed scoped refresh retains the existing saved cards');
+    await page.waitForSelector(card, { timeout: 5000 });
+    refuseCardReads = false;
+  }
   await page.waitForTimeout(800);
   await page.click(`${card} .kcard-expand-btn`);
   await page.waitForSelector(`${card} .cal-review-body`, { timeout: 8000 });
@@ -127,6 +160,10 @@ async function runSurface(browser, origin, name) {
   await page.click(`${panel} .cal-review-tweak-btn`);
   await page.waitForTimeout(2500);
   const tweakWrites = writes.slice(before2).map(normaliseRequest);
+  if (FUNCTION_READS) {
+    assert(scopedReads > 0, 'function mode actually read scoped cards');
+    assert.strictEqual(publicCardReads, 0, 'function mode never fell back to public cards');
+  }
   await ctx.close();
   return { approve: approveWrites, requestChanges: tweakWrites, errors, loadMode };
 }
@@ -161,6 +198,7 @@ function functionHashes() {
   } finally { await browser.close(); server.close(); }
 
   if (process.env.WRITE_GOLDEN === '1') {
+    assert(!FUNCTION_READS, 'never record a golden from the changed read lane');
     fs.mkdirSync(path.dirname(GOLDEN), { recursive: true });
     fs.writeFileSync(GOLDEN, JSON.stringify(result, null, 2) + '\n');
     console.log('client-review-requests-unchanged: golden written to ' + path.relative(ROOT, GOLDEN));

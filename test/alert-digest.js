@@ -74,11 +74,13 @@ ok(noRuns.length === 1 && noRuns[0].severity === 2, 'a workflow with no complete
 // --- the switch: default off never posts; on posts once and only when it should
 (async () => {
   const calls = [];
+  let lastRunId = '';
   const fakeFetch = async (url, init) => {
     if (init && init.method === 'GET') { // the relay's finished-run lookup
-      return { ok: true, json: async () => ({ data: [{ id: 9, status: 'success', data: { resultData: { runData: { 'Receive Edge Alert': [{ data: { main: [[{ json: { body: { type: 'syncview_digest', details: { run_id: 'local:1:digest' } } } }]] } }] } } } }] }) };
+      return { ok: true, json: async () => ({ data: [{ id: 9, status: 'success', data: { resultData: { runData: { 'Receive Edge Alert': [{ data: { main: [[{ json: { body: { type: 'syncview_digest', details: { run_id: lastRunId } } } }]] } }] } } } }] }) };
     }
     calls.push({ url, body: JSON.parse(init.body) });
+    lastRunId = calls[calls.length - 1].body.details.run_id;
     return { status: 200, text: async () => '{}' };
   };
   const realFetch = global.fetch;

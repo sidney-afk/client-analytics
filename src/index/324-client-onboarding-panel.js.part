@@ -342,7 +342,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         const evidence = s.evidence ? `<div class="cb-step-line"><span>Evidence:</span> ${_cbEvidenceHtml(s.evidence)}</div>` : '';
         const note = s.note ? `<div class="cb-step-line"><span>Note:</span> ${_calEsc(s.note)}</div>` : '';
         const doneBy = s.status === 'done' && s.done_by ? `<div class="cb-step-line">Marked done by ${_calEsc(s.done_by)}${s.done_at ? ' on ' + _calEsc(_cbWhen(s.done_at)) : ''}.</div>` : '';
-        const msg = _cbState.notice[s.step_key] ? `<div class="ca-msg is-error" role="alert">${_calEsc(_cbState.notice[s.step_key])}</div>` : '';
+        const msg = _cbState.notice[s.step_key] ? `<div class="cb-msg is-error" role="alert">${_calEsc(_cbState.notice[s.step_key])}</div>` : '';
         return `<li class="cb-step is-${s.status}${s.required ? '' : ' is-optional'}" data-step="${_calEscAttr(s.step_key)}">
             <span class="cb-num" aria-hidden="true">${_calEsc(s.position)}</span>
             <div class="cb-step-main">
@@ -358,7 +358,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     }
     function _cbChecklistHtml() {
         if (_cbState.loading && !_cbState.data) return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4><p class="cb-lead">Loading…</p></section>`;
-        if (_cbState.error && !_cbState.data) return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4><div class="ca-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div></section>`;
+        if (_cbState.error && !_cbState.data) return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4><div class="cb-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div></section>`;
         const data = _cbState.data;
         if (!data) return '';
         const steps = (data.steps || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
@@ -369,7 +369,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         const todo = required.filter(s => s.status === 'todo').length;
         const onboarded = required.length > 0 && todo === 0;
         const pct = required.length ? Math.round((done / required.length) * 100) : 0;
-        const stale = _cbState.error ? `<div class="ca-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div>` : '';
+        const stale = _cbState.error ? `<div class="cb-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div>` : '';
         return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4>
             <div class="cb-summary"><span class="cb-pill ${onboarded ? 'is-done' : 'is-todo'}">${onboarded ? 'Onboarded' : 'Not onboarded yet'}</span>
                 <span>${done} of ${required.length} required steps done${skipped ? ` · ${skipped} skipped` : ''}${unknown ? ` · ${unknown} unknown` : ''}. Optional steps never block.</span></div>

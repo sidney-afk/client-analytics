@@ -4257,7 +4257,9 @@
         .cb-form { margin-top: 10px; display: grid; gap: 6px; }
         .cb-form-label { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); }
         .cb-form-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-        .cb-step .ca-msg { margin-top: 8px; }
+        .cb-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .cb-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
+        .cb-step .cb-msg { margin-top: 8px; }
         @media (max-width: 767px) {
             .cb-btn { min-height: 44px; }
             .cb-step { grid-template-columns: 28px minmax(0, 1fr); }

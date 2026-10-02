@@ -119,7 +119,7 @@ async function openTestClient(browser, origin, width, requests) {
           found: res.filter(x => x === 'Found').length, missing: res.filter(x => x === 'Missing').length, unknown: res.filter(x => x === 'Unknown').length, notNeeded: res.filter(x => x === 'Not needed').length,
           summary: (document.querySelector('.cb-summary') || {}).innerText || '',
           hubspot: ((document.querySelector('#cbHubspot') || {}).innerText || '').replace(/\s+/g, ' '),
-          error: !!document.querySelector('#cbChecklist .ca-msg.is-error'),
+          error: !!document.querySelector('#cbChecklist .cb-msg.is-error'),
           optionalKeys: items.filter(e => e.classList.contains('is-optional')).map(e => e.getAttribute('data-step')),
           optionalStates: items.filter(e => e.classList.contains('is-optional')).map(e => e.className),
         };

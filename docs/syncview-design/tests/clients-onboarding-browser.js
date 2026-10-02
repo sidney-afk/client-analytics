@@ -265,7 +265,7 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
       s.ctl.conflict = true;
       await s.page.click('[data-step="fixture_step_07"] button:has-text("Mark done")');
       await s.page.click('[data-step="fixture_step_07"] .cb-form button:has-text("Mark done")');
-      await s.page.waitForSelector('[data-step="fixture_step_07"] .ca-msg', { timeout: 4000 }).catch(() => failures.push(`${label}: a version conflict showed no message`));
+      await s.page.waitForSelector('[data-step="fixture_step_07"] .cb-msg', { timeout: 4000 }).catch(() => failures.push(`${label}: a version conflict showed no message`));
       const conflict = await text(s, '[data-step="fixture_step_07"]');
       if (!/Someone else changed this step/.test(conflict) || !/Done/.test(conflict)) failures.push(`${label}: a conflict did not show the latest: ${conflict.replace(/\s+/g, ' ')}`);
       s.ctl.conflict = false;
@@ -350,7 +350,7 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
       // failed load, then Try again
       s.ctl.getFail = 1;
       await s.page.evaluate(() => _caSelect('fixture1'));
-      await s.page.waitForSelector('#cbChecklist .ca-msg.is-error', { timeout: 6000 }).catch(() => failures.push(`${label}: a failed load showed no message`));
+      await s.page.waitForSelector('#cbChecklist .cb-msg.is-error', { timeout: 6000 }).catch(() => failures.push(`${label}: a failed load showed no message`));
       await s.page.click('#cbChecklist button:has-text("Try again")');
       await s.page.waitForSelector('.cb-step', { timeout: 6000 }).catch(() => failures.push(`${label}: Try again never loaded the checklist`));
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);

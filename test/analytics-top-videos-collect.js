@@ -148,6 +148,15 @@ async function main() {
   assert.equal(L.toShadowRecord({ views: NaN, caption: '  ', rank: 0, likes: 1.5 }).views, null, 'a number JSON cannot carry is empty, as the mirror stores it');
   assert.equal(L.toShadowRecord({ rank: 0 }).rank, '0', 'rank 0 is kept as text');
 
+  // The switch statement the owner pastes: slugs are inputs, anything else is refused.
+  const { build } = require('../scripts/analytics-top-videos-flag.js');
+  const run = a => { const r = require('child_process').spawnSync(process.execPath, [path.join(ROOT, 'scripts/analytics-top-videos-flag.js'), ...a], { encoding: 'utf8' }); return { status: r.status, out: r.stdout.trim() }; };
+  assert.deepEqual(run(['--off']), { status: 0, out: `update public.syncview_runtime_flags set value = '{"mode":"off"}'::jsonb where key = 'analytics_top_videos_collect';` });
+  assert.equal(run(['--all']).out.includes(`'{"mode":"shadow"}'`), true);
+  assert.equal(run(['--clients=aaa,b&b,aaa']).out.includes(`'{"mode":"shadow","clients":["aaa","b&b"]}'`), true, 'slugs are de-duplicated and kept as given');
+  for (const bad of [[], ['--clients='], ['--clients=a;drop table x'], ["--clients=it's"], ['--clients=Aaa'], ['--all', '--off']]) assert.equal(run(bad).status, 2, 'refused: ' + bad.join(' '));
+  assert.equal(typeof build, 'function');
+
   console.log(`ANALYTICS_TOP_VIDEOS_COLLECT_OK: ${good.compared} random clients identical to the n8n nodes and the mirror's rows (${good.rowTotal} rows, ${good.emptyWeek} "no new posts" rows, ${good.failedPlat} failed platforms, ${good.none} clients with no rows); 2 deliberate breakages caught (${b1.mismatches}, ${b2.mismatches})`);
 }
 main().catch(e => { console.error(e && e.stack || e); process.exit(1); });

@@ -23,19 +23,21 @@ parts A to D of the metrics steps first.
    with the merged commit (the session pastes the SHA once the PR is merged; do not merge anything
    between handing it over and the dispatch).
 3. **Day 1 switch** (test client plus the one real client, same as for metrics; the slugs are in the
-   session chat, not in this file):
-   `update public.syncview_runtime_flags set value = '{"mode":"shadow","clients":["<test client slug>","<real client slug>"]}' where key = 'analytics_top_videos_collect';`
+   session chat, not in this file). Lighthouse or the session prints the statement with the slugs as
+   inputs, then you paste what it prints into the Supabase SQL editor:
+   `node scripts/analytics-top-videos-flag.js --clients=<test client slug>,<real client slug>`
+   It connects to nothing and rejects anything that is not a slug. Everyone, later:
+   `node scripts/analytics-top-videos-flag.js --all`. Off: `--off`.
 4. **Apply the timer:** `migrations/2026-10-02-analytics-top-videos-collect-schedule.sql` (it refuses
    to run without the Vault secret). The job runs from 08:00 UTC the next morning.
 5. **Next morning, after about 09:30 UTC:** run the comparison for the two clients:
    `select * from public.analytics_top_videos_shadow_compare();` and fix what it names. Then widen the
-   switch to everyone (`'{"mode":"shadow"}'`, no `clients` list) and watch 3 clean days.
+   switch to everyone (`--all` above) and watch 3 clean days.
 
 Apify is called twice on the side-by-side days (n8n and the function); you accepted that for the
 metrics job and it is the same for this one.
 
 ## Rollback at any point
 
-`update public.syncview_runtime_flags set value = '{"mode":"off"}' where key = 'analytics_top_videos_collect';`
-(the function stops at once), and `select cron.unschedule('analytics-top-videos-collect-tick');` if wanted.
+`node scripts/analytics-top-videos-flag.js --off`, paste what it prints (the function stops at once), and `select cron.unschedule('analytics-top-videos-collect-tick');` if wanted.
 The shadow tables hold nothing the pages read.

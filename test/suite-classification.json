@@ -5,6 +5,8 @@
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",
     "onboarding-checklist-tables-migration.js",
+    "client-hubspot-sync-handler.js",
+    "client-hubspot-sync-migration.js",
     "lost-work-retry-intent.js",
     "lost-work-conflict-gate.js",
     "lost-work-drafts.js",

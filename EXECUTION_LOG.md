@@ -6773,3 +6773,42 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
 - Tests: `test/synclinear-early-read.js`, `test/prod-tail-prefetch.js`, `qa/boot/staff-entry-gate.js` (Linear tab cases).
 - Record and owner decisions: `docs/audits/2026-10-01-synclinear-speed.md`.
+
+## 2026-10-02 - PTO Accrual Tracker file archived (owner's go, session Roster)
+
+- The interim PTO Sheet (the Time Off page and the `pto` function use the database; nothing reads the file, checked in
+  the repo and in every n8n workflow) was moved into a new `Archive` folder at the top of the Drive. Not deleted, not edited.
+- Undo: drag the file back out of `Archive` to the top level of the Drive. No ids are recorded here (public repository).
+- Same day: the Project Central, Sheet API n8n workflow was unpublished; entry and undo in `docs/ops/N8N_EDIT_LOG.md`.
+
+## 2026-10-01 - Opening an item feels instant: measured on the live site, five changes, same pages (session Comet, OPEN_REPAIRS 323)
+
+- Measured first, as admin staff on the test client, every entry point, 5 runs cold and warm: the staff check (about 1.0 s)
+  is the floor under every new-tab open and was not touched. Worst case: a link at a finished batch showed its title at
+  5.3 s and everything at 6.5 s; a link at a finished card opened 0.7 s late on every warm visit; every new-tab link went
+  through a 404 and a redirect first; a SyncLinear row click started its reads only at the click.
+- Changes: a batch link reads its batch, children and parent directly; the saved copy keeps finished rows in IndexedDB
+  and reads only what changed (hourly full pass kept, Refresh is always full); the saved list lives 7 days; new-tab links
+  use the app document itself; row reads start on hover or press.
+- Same rig, interleaved: finished batch warm title 5.27 to 1.46 s, everything 6.51 to 2.74 s; finished sub-issue warm
+  2.16 to 1.42 s; row click everything 1.59 to 1.22 s; SyncLinear list warm complete list 5.25 to 3.17 s, 2.36 MB to
+  1.25 MB, 71 to 63 requests (fresh data 0.2 s later). Content compared old against new: identical.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/open-item-speed.js` plus six suites taught the new link form and helpers.
+- Record and owner decisions: `docs/audits/2026-10-01-open-item-speed.md`.
+
+## 2026-10-01 - Notes dialog: loading skeleton instead of "All clear" (session Comet, OPEN_REPAIRS 325)
+
+- The dialog said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and comment reads were still
+  on their way. It now shows a shimmer (announced as busy) until they answer; rows already held show at once; a failed
+  read settles to the old empty state. Calendar and Samples dialogs.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/notes-loading-skeleton.js`. Live check: skeleton from 22 ms to 1,283 ms, then the thread.
+
+## 2026-10-01 - Edge Functions: preflight cache header and parallel reads in key-verify (session Comet, OPEN_REPAIRS 326)
+
+- Owner decisions: A yes except production-write (waits for the next sealed Section 4 deploy); B1 yes; B2 no.
+- Source only, NOT deployed. `Access-Control-Max-Age: 7200` on seven hot-path functions; `key-verify` reads the flag and the member
+  together and selects six columns; its audit insert stays before the answer.
+- Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read; owner agreed 2026-10-02); production-comments waits for the next staff-sensitive dispatch; analytics-read, brain and workload-plan need one dispatch each.
+- Tests: `test/key-verify-behavior.js`, `test/cors-maxage-and-key-verify-reads.js`.

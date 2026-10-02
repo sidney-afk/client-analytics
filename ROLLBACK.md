@@ -1450,3 +1450,28 @@ poll, without disabling Production:
   sent and how lookups are built, and the rendered page is identical (1,642 rows compared).
 - **Check after a revert:** the Linear tab loads as before (first rows about 1.1 s warm); the finished-items
   read starts after the first paint again (a `status=in.(approved,...)` request begins after the live pages).
+
+## 2026-10-01 - inverse for the open-item speed changes (browser only; OPEN_REPAIRS 323)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). It adds no flag, table, Edge Function or n8n
+  change and no write; every read it adds is one the page already made (the same row, batch and parent reads, started
+  earlier or for a link it could not place before).
+- **Browsers that already hold the finished-rows copy:** harmless after a revert. It is one IndexedDB record
+  (`syncview_production_terminal_v1`) that the old code never reads; sign-out removes it, and it expires after 7 days.
+  The 7 day list copy is read by the old code under its 24 hour rule, so a copy older than a day is simply ignored.
+- **One thing to know:** reverting only the link change (`svRoute.fast` back to `svRoute.clean`) restores the 404
+  redirect and nothing else; the pieces are independent.
+- **Check after a revert:** a link at a finished batch shows its title only after the finished-items read lands (about 5 s);
+  new-tab links begin with a 404 for `/synclinear/<id>` in the network panel.
+
+## 2026-10-01 - inverse for the Notes loading skeleton (browser only; OPEN_REPAIRS 325)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). No flag, table, Edge Function or n8n change.
+- **Check after a revert:** opening Notes on a card with no loaded notes shows "All clear" or "No notes yet" at once again.
+
+## 2026-10-01 - inverse for the CORS max-age header and the key-verify parallel reads (source only; OPEN_REPAIRS 326)
+
+- **Before anything is deployed:** revert the PR; nothing live has changed.
+- **After deploy:** revert the PR and redeploy the same functions by the same lanes. The header only lets browsers cache a permission the
+  function already grants; removing it returns to a preflight every 5 s. The `key-verify` change is behaviour-identical except for timing,
+  so a rollback is never needed for correctness, only if the timing is unwanted.

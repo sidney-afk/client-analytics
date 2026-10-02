@@ -88,7 +88,11 @@ export function urgentRequestBody(target: string, message: UrgentMessage, client
   return {
     channel: target,
     text: message.text,
-    ...(message.attachments ? { attachments: message.attachments } : { blocks: message.blocks }),
+    // Blocks and a card (attachment) may travel together: the card layout puts a
+    // mention-only block above its card. With blocks present, `text` is only the
+    // notification / screen-reader fallback and is not drawn.
+    ...(message.blocks && message.blocks.length ? { blocks: message.blocks } : {}),
+    ...(message.attachments ? { attachments: message.attachments } : {}),
     ...(clientMsgId ? { client_msg_id: clientMsgId } : {}),
     parse: "none", link_names: false, mrkdwn: true, unfurl_links: false, unfurl_media: false,
   };

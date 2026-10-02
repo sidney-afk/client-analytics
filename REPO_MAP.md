@@ -658,3 +658,5 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 
 
 Prepared card read boundary: `docs/ops/WARDEN_CARD_READS.md`; `supabase/functions/card-read/`, `supabase/functions/_shared/card-read.mjs`; CLI-named `migrations/20261002201230_warden_card_reads.sql` and `migrations/20261002201231_warden_browser_write_grants.sql`, each with a `.ROLLBACK.sql`; `test/card-read-boundary.js` and isolated `test/card-read-grants-postgres.js`.
+
+Authenticated nightly card readers: `qa/card-read.js`; offline real-harness coverage in `test/qa-card-read-harness.js`.

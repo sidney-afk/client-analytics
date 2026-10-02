@@ -12,7 +12,7 @@ export async function handleCardRead(req, deps) {
     const key = (req.headers.get('x-syncview-key') || '').trim();
     const token = (req.headers.get('x-syncview-client-token') || '').trim();
     if (!!key === !!token) return reply({ error: 'credentials_required' }, 401);
-    const allowed = new Set(['select', 'order', 'limit', 'offset', 'or', 'and', 'client', 'id', 'status', 'scheduled_date', 'updated_at', 'video_status', 'graphic_status', 'caption_status', 'title_status']);
+    const allowed = new Set(['select', 'order', 'limit', 'offset', 'or', 'and', 'client', 'id', 'name', 'status', 'scheduled_date', 'updated_at', 'video_status', 'graphic_status', 'caption_status', 'title_status', 'video_deliverable_id', 'graphic_deliverable_id']);
     for (const [k, v] of q) {
       if (!allowed.has(k) || v.length > 16000) return reply({ error: 'invalid_query' }, 400);
     }

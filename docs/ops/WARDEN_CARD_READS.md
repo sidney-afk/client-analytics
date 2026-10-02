@@ -94,6 +94,29 @@ has not been installed yet, setting the flag to `{"mode":"public"}` and
 reloading suffices. The separate write rollback restores only the three
 measured original privileges to anon/authenticated/service_role, never PUBLIC.
 
+## Nightly QA readers — Codex review follow-up
+
+`qa/probes/lib.js`, `qa/ef-writepath/lib.js` and `qa/sxr_courier_lib.js`
+read both card tables through `qa/card-read.js`, always using `card-read`.
+They use the runner's existing `SYNCVIEW_STAFF_KEY`, or a privately supplied
+current `SYNCVIEW_TEST_CLIENT_TOKEN` when there is no staff key. Node-side reads
+are pinned to the designated test client, including ID-only polls and stale
+fixture cleanup. Credentials remain in headers; curl receives them through
+stdin. Event-table reads retain their existing REST transport.
+
+Staff browser card GETs replace only the synthetic staff-entry credential with
+the runner's key. Client-entry contexts and client tokens remain unchanged.
+The function accepts the existing QA name and linked-deliverable filters; the
+QA adapter makes omitted sort directions explicitly ascending. Failed or
+malformed reads throw, and unreadable cards cannot count as successful cleanup.
+
+Deploy `card-read` before running these updated nightly readers, even while the
+page flag is public. They have no public-key card fallback. The existing nightly
+workflows already provide the staff key. `test/qa-card-read-harness.js` executes
+all three real harnesses with direct card REST refused, synthetic credentials,
+in-memory transports, and no live mutations. Hosted/live nightly proof remains
+a release gate.
+
 ## Proof limits
 
 The grant proof creates and drops its own synthetic database on a fresh,

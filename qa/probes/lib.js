@@ -2,6 +2,7 @@ const { seedStaffGate } = require('../staff-gate-seed.js');
 // Extended harness for overnight calendar testing. Builds on the repo's golden_lib.
 // Scope: ONLY the `sidneylaruel` test client. Every probe must clean up (archive) what it creates.
 const G = require('../golden_lib.js');
+const { cardReadRequest, cardReadRows, cardReadStaffHeaders } = require('../card-read.js');
 const REROUTE_FIXTURE = require('../write_ui_reroute_fixture.js');
 const {
   TEST_CLIENT,
@@ -28,8 +29,15 @@ const up = (post) => {
 };
 
 // read an arbitrary column set from the backend row
-const rawRow = async (pid, sel = '*') =>
-  (await (await fetch(`${SUPA}?id=eq.${pid}&select=${sel}`, { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY } })).json())[0] || {};
+const rawRow = async (pid, sel = '*') => {
+  const request = cardReadRequest(SUPA, KEY, 'calendar_posts', new URLSearchParams({ id: 'eq.' + pid, select: sel }));
+  let response;
+  try { response = await fetch(request.url, { headers: request.headers }); }
+  catch (_) { throw new Error('QA card read request failed'); }
+  let body;
+  try { body = await response.text(); } catch (_) { throw new Error('QA card read response failed'); }
+  return cardReadRows(response.status, body)[0] || {};
+};
 const pollRaw = async (pid, pred, sel = '*', ms = 18000) => { const t = Date.now(); let r;
   while (Date.now() - t < ms) { r = await rawRow(pid, sel); if (pred(r)) return r; await new Promise(x => setTimeout(x, 700)); } return r; };
 
@@ -79,9 +87,14 @@ async function stubRerouteFlagProduction(ctx) {
     return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody(route.request().url()) });
   });
 }
-async function _ctx(browser, opts = {}) {
+async function _ctx(browser, opts = {}, clientEntryCtx = false) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
   await seedStaffGate(c);
+  await c.route(new URL('/functions/v1/card-read', SUPA).href + '**', route => {
+    const req = route.request();
+    const headers = cardReadStaffHeaders(SUPA, req.method(), req.url(), req.headers(), clientEntryCtx);
+    return headers ? route.continue({ headers }) : route.fallback();
+  });
   await stubRerouteFlagProduction(c);
   await require('../native_work_item_fixture.js').applyProbeWorkItems(c);
   return c;
@@ -89,7 +102,7 @@ async function _ctx(browser, opts = {}) {
 async function _open(browser, url, opts) { const c = await _ctx(browser, opts); const p = await c.newPage(); capture(p);
   await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await p.waitForTimeout(700); return p; }
 async function _openClient(browser, view, name, token, opts) {
-  const c = await _ctx(browser, opts);
+  const c = await _ctx(browser, opts, true);
   const p = await c.newPage();
   capture(p);
   await gotoTestClientEntry(p, {

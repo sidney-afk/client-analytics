@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "qa-card-read-harness.js",
     "card-read-boundary.js",
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",

@@ -40,7 +40,7 @@ import {
   COMP_LABELS, _calWireDragEdgeScroll, _calWireShiftScroll, _notesGetSeen, _notesMarkSeen
 } from './180-calendar-native-post-media.js';
 import { CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE } from './190-calendar-approval-comments.js';
-import { _prodCanonicalCommentGate, _prodComments, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink, _syncviewClientEntryCapability, _syncviewClientEntrySlug, _syncviewInvalidClientLinkScreen } from './260-production-refresh-boot.js';
 import {
   SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS, _sxrApplyClearSentinels,
@@ -1928,7 +1928,7 @@ import {
         const emptyMsg = _sxrShowResolved
             ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">Nothing here</div>No resolved items.</div>`
             : (resolvedCount ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>` : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
-        const feedHtml = visibleThreads.length ? visibleThreads.map(renderThread).join('') : emptyMsg;
+        const feedHtml = visibleThreads.length ? visibleThreads.map(renderThread).join('') : (_prodCardCommentsPending(post, 'sxr') ? _prodCommentsSkeletonHtml() : emptyMsg);
         const histBtn = resolvedCount ? `<button class="cal-comments-hist${_sxrShowResolved ? ' is-active' : ''}" type="button" onclick="_sxrToggleShowResolved()" title="${_sxrShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_sxrShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>` : '';
         const actionFailure = post._canonicalCommentActionError
             ? _writeUiCommentActionFailureHtml(

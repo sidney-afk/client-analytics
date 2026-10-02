@@ -176,8 +176,9 @@ Other:
   Kasper > More > Clients (`action: list_client_profiles`, admin role key only, read-only); the
   per-client analytics reads are not yet wired into the page (plan 2026-09-24, Phase 2).
 - `functions/v1/client-profile-write` — Kasper > More > Clients edits (admin role key plus an active
-  admin member id). Writes the changed cells to the Clients Info Sheet first, then Supabase
-  (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict.
+  admin member id). While `client_profiles_authority` is `sheet`: writes the changed cells to the Clients Info Sheet first, then Supabase
+  (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict. Since 2026-10-02 the authority is `syncview`: it saves to the database only (same version check and history) and the read-only Sheet copy follows.
+  Two more n8n-only doors exist: `roster-read` and `roster-write` (key `ROSTER_SERVICE_KEY`).
 - `functions/v1/kasper-ad-performance-read` — admin-only read for the Kasper tab's Ad Performance
   panel (More > Analytics). Reads four tables (service role; none have anon/authenticated grant)
   and returns `rows` (daily campaign-level counts) plus a server-computed `summary` (CPC,

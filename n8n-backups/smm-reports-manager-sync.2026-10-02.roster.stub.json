@@ -1,0 +1,54 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-02 for the Roster Steps 2 and 3 edit (docs/ops/N8N_EDIT_LOG.md). It lists the workflow as it was BEFORE the edit (version 2652b79d-b9a4-4bd9-a2ee-79b9c534446d): node names, types, credential references by id and name, connections. Code bodies and parameters are deliberately left out. The full graph is in n8n workflow history. ROLLBACK: restore and publish 2652b79d-b9a4-4bd9-a2ee-79b9c534446d. After the edit this workflow was also unpublished (switched off) at the switch; the published state before the edit was active. See ROLLBACK.md section 2.",
+  "name": "SyncView SMM Reports - Manager Sync",
+  "id": "y3rEWCVdB0esN3tO",
+  "version_before": "2652b79d-b9a4-4bd9-a2ee-79b9c534446d",
+  "version_after_published": "ac986654-b6e8-4f7b-9460-dc07a8419451",
+  "nodes_before": [
+    {
+      "name": "Daily roster sync",
+      "type": "n8n-nodes-base.scheduleTrigger"
+    },
+    {
+      "name": "Read Social Media Managers sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Build manager sync payload",
+      "type": "n8n-nodes-base.code"
+    },
+    {
+      "name": "Sync managers to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "v0CCOnGrao3s9Ij9",
+          "name": "SyncView Client Credentials Staff Key"
+        }
+      }
+    }
+  ],
+  "connections_before": {
+    "Daily roster sync": [
+      [
+        "Read Social Media Managers sheet"
+      ]
+    ],
+    "Read Social Media Managers sheet": [
+      [
+        "Build manager sync payload"
+      ]
+    ],
+    "Build manager sync payload": [
+      [
+        "Sync managers to Supabase"
+      ]
+    ]
+  }
+}

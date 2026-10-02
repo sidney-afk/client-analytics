@@ -32,7 +32,7 @@ here with where it stopped, so it can be restarted.
   Drive files are left alone. Project Central: archive (needs an n8n edit, owner's go). **Clients Info and Social
   Media Managers (session Roster): DONE 2026-10-02, live.** The database is the main copy (`client_profiles_authority` =
   `{"source":"syncview"}` since 20:00 UTC); six n8n workflows read or write through `roster-read` / `roster-write`; Manager Sync is off;
-  the Sheet tabs are a read-only copy kept by the database (OPEN_REPAIRS 327, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
+  the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 327, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
   the two tabs in Google; the Finalizer's first real client is its end to end proof; the page still reads both tabs itself (own step);
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
@@ -239,7 +239,7 @@ hiring senders when the editor hire closes.
   staff scopes needed `analytics-read` deployed, which the owner did on
   2026-09-28 (#1810). Switch-on plan and every other
   reader: `docs/plans/2026-09-28-analytics-switch-on.md`.
-  `client_profiles_authority` is still `sheet`.
+  `client_profiles_authority` was `sheet` then; since 2026-10-02 20:00 UTC it is `syncview` (OPEN_REPAIRS 327).
 - **`mirror_outbox` still grows** (236 new rows in the last 24 hours, all
   receipts; 12,974 total). Retiring it is a planned later slice, not urgent.
 

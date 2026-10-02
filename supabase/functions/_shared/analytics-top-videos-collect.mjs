@@ -26,13 +26,16 @@ export function configured(value) {
 
 // ---- keep only the fields the rules read (a reel or video carries megabytes of text) ----
 // The caption is cut here at the same 200 characters the rules cut it at.
+/** @returns {Record<string, any>} */
 function pick(o, keys) {
+  /** @type {Record<string, any>} */
   const r = {};
   for (const k of keys) if (o?.[k] !== undefined) r[k] = o[k];
   return r;
 }
 const cut = v => String(v || '').substring(0, 200);
 
+/** @returns {Record<string, any>} */
 export function slimReel(o) {
   o = o ?? {};
   const r = pick(o, ['id', 'shortCode', 'url', 'webVideoUrl', 'videoPlayCount', 'playCount', 'videoViewCount', 'likesCount',
@@ -41,6 +44,7 @@ export function slimReel(o) {
   return r;
 }
 
+/** @returns {Record<string, any>} */
 export function slimTikTok(o) {
   o = o ?? {};
   const r = pick(o, ['id', 'webVideoUrl', 'playCount', 'diggCount', 'commentCount', 'shareCount', 'createTime', 'createTimestamp']);

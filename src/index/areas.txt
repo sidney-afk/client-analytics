@@ -62,6 +62,7 @@
 321-kasper-dashboard-replies.js.part       kasper
 322-core-kasper-tab-counts.js.part         core
 323-kasper-dashboard-tail.js.part          kasper
+324-client-onboarding-panel.js.part       kasper
 330-kasper-review-history.js.part          kasper
 340-kasper-editors-board.js.part           kasper
 345-core-tooltip-date-picker.js.part       core

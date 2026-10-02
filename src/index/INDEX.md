@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4451 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4501 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2070 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1790 | Market Research Brief Tab Renderers |
@@ -65,8 +65,9 @@
 | 57 | `320-core-kasper-subtabs.js.part` | 20 | — |
 | 58 | `321-kasper-dashboard-replies.js.part` | 2717 | The Samples subtab was folded into Review (samples are listed in the |
 | 59 | `322-core-kasper-tab-counts.js.part` | 34 | — |
-| 60 | `323-kasper-dashboard-tail.js.part` | 576 | Review Session |
-| 61 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 62 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
-| 63 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
-| 64 | `350-footer.html.part` | 398 | Transcript preview modal |
+| 60 | `323-kasper-dashboard-tail.js.part` | 580 | Review Session |
+| 61 | `324-client-onboarding-panel.js.part` | 465 | talking to the functions (admin only; the server checks the key and the member again) |
+| 62 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 63 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
+| 64 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
+| 65 | `350-footer.html.part` | 398 | Transcript preview modal |

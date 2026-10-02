@@ -238,6 +238,14 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         if (key === 'instagram_present' && handle(r.instagram_handle)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(r.instagram_handle)) + '/', text: 'Open' };
         if (key === 'tiktok_present' && handle(r.tiktok_handle)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(r.tiktok_handle)), text: 'Open' };
         if (key === 'youtube_present' && String(r.youtube_channel_id || '').trim()) return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(String(r.youtube_channel_id).trim()), text: 'Open' };
+        // Pages inside SyncView that show this client's own data (clean addresses, docs/features/CLEAN_URLS.md).
+        const slug = encodeURIComponent(String(r.slug || '').trim());
+        if (slug) {
+            if (key === 'cards_present') return { href: '/calendar/' + slug, text: 'Open' };
+            if (key === 'samples_present') return { href: '/sample-reviews/' + slug, text: 'Open' };
+            if (key === 'templates_row_present' || key === 'canva_link_present') return { href: '/templates/' + slug, text: 'Open' };
+            if (key === 'onboarding_form_present') return { href: '/onboarding/' + slug, text: 'Open' };
+        }
         return null;
     }
     function _cbStoredLink(key, value) {

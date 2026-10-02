@@ -66,7 +66,7 @@
 | 58 | `321-kasper-dashboard-replies.js.part` | 2717 | The Samples subtab was folded into Review (samples are listed in the |
 | 59 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 60 | `323-kasper-dashboard-tail.js.part` | 580 | Review Session |
-| 61 | `324-client-onboarding-panel.js.part` | 465 | talking to the functions (admin only; the server checks the key and the member again) |
+| 61 | `324-client-onboarding-panel.js.part` | 473 | talking to the functions (admin only; the server checks the key and the member again) |
 | 62 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 63 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 64 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |

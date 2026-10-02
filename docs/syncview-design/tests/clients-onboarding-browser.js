@@ -188,7 +188,7 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
         const by = k => rows.find(r => r.querySelector('.cb-res-label').innerText === k);
         const word = k => { const r = by(k); return r ? r.querySelector('.cb-pill').innerText : null; };
         const link = k => { const r = by(k); const a = r && r.querySelector('a'); return a ? a.getAttribute('href') : null; };
-        return { n: rows.length, ig: word('Instagram handle'), tt: word('TikTok handle'), folder: word('Google Drive client folder'), contact: word('HubSpot contact'),
+        return { n: rows.length, calLink: link('Calendar cards'), tplLink: link('Templates page'), formLink: link('Onboarding form answers'), samplesLink: link('Sample reviews'), ig: word('Instagram handle'), tt: word('TikTok handle'), folder: word('Google Drive client folder'), contact: word('HubSpot contact'),
           sandcastles: word('Sandcastles project'), igLink: link('Instagram handle'), folderLink: link('Google Drive client folder'), emailLink: link('Email'),
           source: (by('Google Drive client folder') || { innerText: '' }).innerText, whole: document.querySelector('#cbResources').innerText };
       });
@@ -198,6 +198,8 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
       if (!/instagram\.com\/fixture1/.test(res.igLink || '')) failures.push(`${label}: no Instagram link (${res.igLink})`);
       if (!/drive\.google\.com\/drive\/folders\/folderIdFixture1234567890/.test(res.folderLink || '')) failures.push(`${label}: no Drive folder link (${res.folderLink})`);
       if (!/^mailto:team1@example\.invalid/.test(res.emailLink || '')) failures.push(`${label}: no email link`);
+      if (res.calLink !== '/calendar/fixture1' || res.tplLink !== '/templates/fixture1' || res.formLink !== '/onboarding/fixture1') failures.push(`${label}: the in-app links are wrong (${res.calLink}, ${res.tplLink}, ${res.formLink})`);
+      if (res.samplesLink !== null) failures.push(`${label}: a resource that is missing still has a link (${res.samplesLink})`);
       if (!/Google Drive/.test(res.source)) failures.push(`${label}: a stored resource does not say where it came from`);
       if (/folderIdFixture1234567890/.test(res.whole)) failures.push(`${label}: a stored value is printed on the page (only a link may carry it)`);
       // hubspot block, switched on for nobody yet

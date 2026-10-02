@@ -35,7 +35,11 @@ here with where it stopped, so it can be restarted.
   copy; nothing switched on, no n8n edit. Next, each with its own go: apply the migration and deploy, then each n8n
   edit, then the switch. Beacon (onboarding) will extend the Clients tab.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
-- **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
+- **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
+  checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
+  shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
+  27-step checklist (admin only; OPEN_REPAIRS 327). Next, each with the owner's go: "Create client" (step 2.5),
+  then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03

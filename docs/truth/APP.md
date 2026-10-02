@@ -1,5 +1,12 @@
 # App logic (`index.html`) — current truth
 
+**Digger source repair, 2026-10-02:** Analytics' Sheets fallback now requires
+successful Metrics and roster HTTP responses before consuming either body,
+marking data fresh, replacing good rows or saving a cache. A failed fallback
+therefore enters the existing error/Retry path. Offline actual-reader regression
+and the split-page visible boot guard are recorded in
+`docs/audits/2026-10-02-bug-archaeology.md`; no hosted or live proof is claimed.
+
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
 **Source fix pending review, 2026-09-27:** A client approval can commit through the native status gateway while its Calendar card save is refused. When the pending source repair matches every field of that exact approval, the queue now says the approval was saved and the card is still syncing. A pre-commit refusal or a partly refused whole-post approval keeps the unsaved notice. The existing repair path remains. See the [partial-commit audit](../audits/2026-09-26-client-approval-partial-commit.md) for the original source finding. This is not a hosted or live verification.

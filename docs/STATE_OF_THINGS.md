@@ -32,9 +32,10 @@ here with where it stopped, so it can be restarted.
   Drive files are left alone. Project Central: archive (needs an n8n edit, owner's go). **Clients Info and Social
   Media Managers (session Roster): DONE 2026-10-02, live.** The database is the main copy (`client_profiles_authority` =
   `{"source":"syncview"}` since 20:00 UTC); six n8n workflows read or write through `roster-read` / `roster-write`; Manager Sync is off;
-  the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 327, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
+  the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 331, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
   the two tabs in Google; the Finalizer's first real client is its end to end proof; the page still reads both tabs itself (own step);
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
+  Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
 - **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
@@ -108,7 +109,7 @@ here with where it stopped, so it can be restarted.
 6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 322).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
    `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
    by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
-   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). Top Videos and Market Research are not started.
+   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). **Top Videos (2026-10-02, OPEN_REPAIRS 327, plan section 7): built the same way, in shadow beside n8n TOP VIDEOS (`analytics-top-videos-collect`, timer 08:00 to 12:59 UTC, same key and secrets, nothing new for the owner to create), not deployed, not applied; steps `docs/ops/ANALYTICS_TOP_VIDEOS_OWNER_STEPS.md`, after the metrics steps.** Market Research is not started.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -185,10 +186,10 @@ hiring senders when the editor hire closes.
   (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
   access from the owner's machine. The separate "Linear access extension to
   2026-10-15" is moot: all Linear keys were revoked on 2026-09-23.
-- **Slack alerts become one message (owner said yes, 2026-09-28).** Build the
-  single consolidated problem message with a quiet default proposed in
-  `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, AFTER the analytics
-  move to Supabase lands.
+- **Slack alerts become one message (owner said yes, 2026-09-28): BUILT 2026-10-02, switch off, in PR (OPEN_REPAIRS 328).**
+  Runs hourly in shadow (prints the message in the run summary, posts nothing); every old alert still posts. Owner's
+  steps: compare shadow with real alerts, approve one edit to the n8n alert relay (snippet in
+  `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`), set `ALERT_DIGEST_ENABLED` to `true`, then old alerts are removed one by one.
 - **Modularization C3: every script fragment is a module; only step 13 (the
   runtime switch) is left, and it waits for the owner's go.** The prep is in
   (Keystone, 2026-09-29): each module lists the functions its buttons call on
@@ -215,8 +216,10 @@ hiring senders when the editor hire closes.
   and down to 2 on 09-25, so it looks like one automated caller that stopped.
   The `traffic` column (256) now fills on browser reports; gateway rows stay
   empty until `production-write` is redeployed (measured 2026-09-29, item 4).
-- **Scheduled lanes that are red** (`production-polish-gate` red since 09-17;
-  the lanes in OPEN_REPAIRS 205). Repair or retire each. Not re-checked today.
+- **Scheduled lanes that are red** (the lanes in OPEN_REPAIRS 205). Repair or retire each.
+  **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
+  calendar drift check had causes found and fixed (test code and test-client data only); confirm
+  they are green on main after the merge.** The other lanes were not re-checked.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since
@@ -239,7 +242,7 @@ hiring senders when the editor hire closes.
   staff scopes needed `analytics-read` deployed, which the owner did on
   2026-09-28 (#1810). Switch-on plan and every other
   reader: `docs/plans/2026-09-28-analytics-switch-on.md`.
-  `client_profiles_authority` was `sheet` then; since 2026-10-02 20:00 UTC it is `syncview` (OPEN_REPAIRS 327).
+  `client_profiles_authority` was `sheet` then; since 2026-10-02 20:00 UTC it is `syncview` (OPEN_REPAIRS 331).
 - **`mirror_outbox` still grows** (236 new rows in the last 24 hours, all
   receipts; 12,974 total). Retiring it is a planned later slice, not urgent.
 

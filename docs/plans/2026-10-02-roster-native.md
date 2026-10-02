@@ -37,7 +37,7 @@ and `client-profile-write` from "Deploy one allowlisted Edge Function" (the
 workflow page, the function, and the merged commit to paste). Deploying changes
 nothing a user sees.
 
-## Step 2: the n8n edits (DONE 2026-10-02 with the owner's go; versions and undo in `docs/ops/N8N_EDIT_LOG.md`, OPEN_REPAIRS 327)
+## Step 2: the n8n edits (DONE 2026-10-02 with the owner's go; versions and undo in `docs/ops/N8N_EDIT_LOG.md`, OPEN_REPAIRS 331)
 
 Done 2026-10-02 (the table is what the plan said; what was actually changed is in the edit log). Every Sheets node named here existed
 (read from the live workflows 2026-10-01). n8n gets one new credential, "Roster

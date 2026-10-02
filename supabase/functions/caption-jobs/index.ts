@@ -52,14 +52,21 @@ Deno.serve(async (req) => {
       const url = new URL(req.url);
       const client = clean(url.searchParams.get("client"));
       if (!client) return json({ ok: true, jobs: [] });
-      const { data, error } = await db
+      const postId = clean(url.searchParams.get("postId"));
+      const jobId = clean(url.searchParams.get("jobId"));
+      let query = db
         .from("caption_jobs")
         .select("job_id,client,post_id,status,stage,caption,error,cancel_requested,started_at,updated_at")
-        .eq("client", client)
+        .eq("client", client);
+      // The cap belongs to the requested set. Limiting the entire client's
+      // history first can hide a named job behind 200 unrelated newer jobs.
+      if (postId) query = query.eq("post_id", postId);
+      if (jobId) query = query.eq("job_id", jobId);
+      const { data, error } = await query
         .order("updated_at", { ascending: false })
         .limit(STATUS_LIMIT);
       if (error) throw error;
-      const jobs = selectJobs(data || [], { postId: url.searchParams.get("postId"), jobId: url.searchParams.get("jobId") }, Date.now());
+      const jobs = selectJobs(data || [], { postId, jobId }, Date.now());
       return json({ ok: true, jobs });
     }
 

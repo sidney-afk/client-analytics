@@ -2,6 +2,9 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "analytics-essentials-http.js",
+    "caption-jobs-scoped-read.js",
+    "sheets-mirror-backfill-completeness.js",
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",
     "onboarding-checklist-tables-migration.js",
@@ -343,6 +346,7 @@
     "master-failure-digest.js",
     "migration-bare-delete-lint.js",
     "mint-migration-line-citations.js",
+    "alert-digest.js",
     "monitoring-alert-relay.js",
     "monitoring-lane-coverage.js",
     "monitoring-lane-failing.js",
@@ -651,6 +655,8 @@
     "sheets-mirror-policy.js",
     "analytics-metrics-collect.js",
     "analytics-metrics-collect-function.js",
+    "analytics-top-videos-collect.js",
+    "analytics-top-videos-collect-function.js",
     "client-profile-edit.js",
     "onboarding-badge-instant.js",
     "onboarding-boot-skeleton.js",
@@ -1477,6 +1483,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-metrics-collect-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "analytics-top-videos-collect-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-top-videos-collect-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

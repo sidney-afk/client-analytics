@@ -82,7 +82,7 @@ async function open(browser, origin, role, viewport, opts) {
   const hs = [];            // client-hubspot-sync calls
   const others = [];        // any other non-GET that is not one of the allowed gateway calls
   const ctl = { getFail: 0, sales: { hubspot_deal_id: 'D-1', hubspot_stage: 'closedwon', contract_state: 'signed', payment_state: 'unknown', imported_unknown: false, synced_at: '2026-10-01T10:00:00Z' },
-    hubspot: { status: 200, body: { ok: true, skipped: 'not_enabled' } }, delayFirst: 0, conflict: false, steps: {} };
+    hubspot: { status: 200, body: { ok: true, skipped: 'not_enabled' } }, delayFirst: 0, conflict: false, steps: {}, presentPatch: {} };
   const stepsFor = slug => ctl.steps[slug] || (ctl.steps[slug] = makeSteps());
   const dialogs = [];
   await ctx.route(u => !u.toString().startsWith(origin), async route => {
@@ -98,7 +98,7 @@ async function open(browser, origin, role, viewport, opts) {
       if (b.action === 'get') {
         if (ctl.getFail > 0) { ctl.getFail--; return json({ ok: false, error: 'request_failed' }, 503); }
         if (ctl.delayFirst && b.slug === 'fixture1') { await new Promise(res => setTimeout(res, ctl.delayFirst)); }
-        return json({ ok: true, client_slug: b.slug, steps, summary: null, resources: { present: Object.assign({}, PRESENT, { client_slug: b.slug }), stored: STORED }, sales: ctl.sales });
+        return json({ ok: true, client_slug: b.slug, steps, summary: null, resources: { present: Object.assign({}, PRESENT, { client_slug: b.slug }, ctl.presentPatch), stored: STORED }, sales: ctl.sales });
       }
       if (b.action === 'set_step') {
         const s = steps.find(x => x.step_key === b.step_key);
@@ -115,12 +115,19 @@ async function open(browser, origin, role, viewport, opts) {
       }
       return json({ ok: false, error: 'unknown_action' }, 400);
     }
+    if (u.pathname === '/functions/v1/client-profile-write') {
+      const b = JSON.parse(r.postData() || '{}');
+      if (b.action !== 'update_client_profile') return json({ ok: true });
+      ctl.presentPatch = { tiktok_present: true };
+      const row = ROWS.find(x => x.slug === b.slug);
+      return json({ ok: true, fields: Object.keys(b.changes || {}), row: Object.assign({}, row, b.changes, { source: 'syncview', updated_by: 'QA admin', updated_at: '2026-10-02T11:00:00Z' }) });
+    }
     if (u.pathname === '/functions/v1/client-hubspot-sync') {
       const b = JSON.parse(r.postData() || '{}');
       hs.push({ body: b, key: r.headers()['x-syncview-key'] });
       return json(ctl.hubspot.body, ctl.hubspot.status);
     }
-    if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics|analytics-read)/.test(u.pathname)) others.push(r.method() + ' ' + u.pathname);
+    if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics|analytics-read|client-profile-write)/.test(u.pathname)) others.push(r.method() + ' ' + u.pathname);
     if (/rest\/v1/.test(u.pathname)) return json([]);
     if (/functions|webhook/.test(u.pathname)) return json({});
     return route.abort();
@@ -262,6 +269,17 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
       const conflict = await text(s, '[data-step="fixture_step_07"]');
       if (!/Someone else changed this step/.test(conflict) || !/Done/.test(conflict)) failures.push(`${label}: a conflict did not show the latest: ${conflict.replace(/\s+/g, ' ')}`);
       s.ctl.conflict = false;
+      // Saving the profile while it is open reads the onboarding sections again (email, handles and channels feed them).
+      const tiktokBefore = await s.page.$eval('#cbResources', e => [...e.querySelectorAll('.cb-res-row')].find(r => r.querySelector('.cb-res-label').innerText === 'TikTok handle').querySelector('.cb-pill').innerText);
+      const getsBefore = s.ob.filter(c => c.body.action === 'get').length;
+      await s.page.click('.ca-edit-btn');
+      await s.page.fill('#caIn_tiktok_handle', '@fixture1tt');
+      await s.page.click('.ca-save');
+      await s.page.waitForFunction(() => !document.querySelector('.ca-save'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the profile save never finished`));
+      await s.page.waitForFunction(() => [...document.querySelectorAll('.cb-res-row')].some(r => r.querySelector('.cb-res-label').innerText === 'TikTok handle' && r.querySelector('.cb-pill').innerText === 'Found'), null, { timeout: 5000 })
+        .catch(() => failures.push(`${label}: after saving the profile the Resources list still shows the old answer (was ${tiktokBefore})`));
+      if (s.ob.filter(c => c.body.action === 'get').length <= getsBefore) failures.push(`${label}: saving the profile did not read the onboarding data again`);
+      if (!await s.page.$('.cb-step')) failures.push(`${label}: the checklist disappeared while it was read again`);
       if (s.others.length) failures.push(`${label}: unexpected writes: ${s.others.join(', ')}`);
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
       // Signing out purges the admin-only sections from memory and screen.

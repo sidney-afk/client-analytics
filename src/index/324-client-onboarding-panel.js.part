@@ -59,14 +59,14 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     ];
     const CB_STORED_SOURCE_DEFAULT = { drive_client_folder: 'Google Drive', drive_filming_plan_folder: 'Google Drive', hubspot_contact: 'HubSpot', brain_folder: 'Brain repo', sandcastles_project: 'Sandcastles', postforme_instagram_account: 'Post For Me', kickoff_notes: 'Fathom or iClosed' };
 
-    const _cbState = { slug: '', row: null, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} };
+    const _cbState = { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} };
     // Bumped by every purge and every client change, so an answer for one client
     // can never be drawn under another, or under another staff identity.
     let _cbGeneration = 0;
 
     function _cbPurge() {
         _cbGeneration++;
-        Object.assign(_cbState, { slug: '', row: null, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
+        Object.assign(_cbState, { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
         const mount = document.getElementById('caOnboarding');
         if (mount) mount.innerHTML = '';
     }
@@ -112,11 +112,11 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         return !!ident && _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders()) !== _syncviewStaffIdentitySignature(ident);
     }
 
-    async function _cbFetchChecklist(slug, generation) {
+    async function _cbFetchChecklist(slug, generation, seq) {
         let out;
         try { out = await _cbPost(CB_URL, { action: 'get', slug }, false); }
         catch (e) { if (!_cbStale(generation, slug)) _cbState.error = e && e.message ? e.message : 'Could not load the checklist.'; return false; }
-        if (_cbStale(generation, slug, out.ident)) return false;
+        if (_cbStale(generation, slug, out.ident) || (seq !== undefined && seq !== _cbState.seq)) return false;
         if (out.resp.status === 200 && out.json.ok) { _cbState.data = out.json; _cbState.error = null; return true; }
         _cbState.error = out.resp.status === 401 || out.resp.status === 403
             ? 'This needs an Admin sign-in.'
@@ -142,17 +142,18 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         return _cbState.hs;
     }
 
-    async function _cbLoad(slug) {
+    // keep = read again in the background (the profile was saved): keep what is drawn until the new answer lands.
+    async function _cbLoad(slug, keep) {
         const generation = _cbGeneration;
-        _cbState.loading = true; _cbState.error = null; _cbState.data = null;
-        _cbPaint();
+        const seq = ++_cbState.seq;
+        if (!keep) { _cbState.loading = true; _cbState.error = null; _cbState.data = null; _cbPaint(); }
         const hubspot = _cbRefreshHubspot(slug, generation).then(hs => { if (generation === _cbGeneration && _cbState.slug === slug) _cbPaint(); return hs; });
-        await _cbFetchChecklist(slug, generation);
+        await _cbFetchChecklist(slug, generation, seq);
         if (generation === _cbGeneration && _cbState.slug === slug) { _cbState.loading = false; _cbPaint(); }
         const hs = await hubspot;
         // A real lookup may have saved a new deal or state: read the sections again to show it.
-        if (hs && hs.kind === 'checked' && generation === _cbGeneration && _cbState.slug === slug) {
-            if (await _cbFetchChecklist(slug, generation)) _cbPaint();
+        if (hs && hs.kind === 'checked' && generation === _cbGeneration && _cbState.slug === slug && seq === _cbState.seq) {
+            if (await _cbFetchChecklist(slug, generation, seq)) _cbPaint();
         }
     }
 
@@ -177,8 +178,16 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         }
         if (_cbState.slug !== row.slug) {
             _cbPurge();
-            _cbState.slug = row.slug; _cbState.row = row;
+            _cbState.slug = row.slug; _cbState.row = row; _cbState.stamp = String(row.updated_at || '');
             _cbLoad(row.slug);
+            return;
+        }
+        // The profile was saved (or copied from the sheet) while it is open: email, handles, keywords and
+        // channels feed Resources and the HubSpot search, so read them again rather than show the old answer.
+        const stamp = String(row.updated_at || '');
+        if (stamp !== _cbState.stamp) {
+            _cbState.stamp = stamp;
+            _cbLoad(row.slug, true);
             return;
         }
         _cbPaint();

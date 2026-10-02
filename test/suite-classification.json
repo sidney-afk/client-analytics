@@ -5,6 +5,8 @@
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",
     "onboarding-checklist-tables-migration.js",
+    "native-client-test-provision-migration.js",
+    "client-onboarding-handler.js",
     "client-hubspot-sync-handler.js",
     "client-hubspot-sync-migration.js",
     "lost-work-retry-intent.js",
@@ -661,7 +663,10 @@
     "synclinear-early-read.js",
     "prod-tail-prefetch.js",
     "prod-lookup-equivalence.js",
-    "open-item-speed.js"
+    "open-item-speed.js",
+    "notes-loading-skeleton.js",
+    "cors-maxage-and-key-verify-reads.js",
+    "key-verify-behavior.js"
   ],
   "profiles": [
     {

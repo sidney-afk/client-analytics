@@ -10,6 +10,8 @@ import { matchingRoleForKey, type StaffRoleKey } from "../_shared/staff-role-aut
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
+  // Browsers may reuse a preflight answer for 2 hours (Chrome's cap) instead of re-asking every 5 s.
+  "Access-Control-Max-Age": "7200",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor",
   "Cache-Control": "no-store",
@@ -58,6 +60,9 @@ async function authMode(supabase: SupabaseClient): Promise<"permissive" | "enfor
   return clean(raw.mode).toLowerCase() === "enforced" ? "enforced" : "permissive";
 }
 
+// Only the columns the answer and the role check use (see the Member type above).
+const MEMBER_COLUMNS = "id,name,email,role,team,active";
+
 async function resolveMember(supabase: SupabaseClient, body: JsonMap, req: Request): Promise<Member | null> {
   const raw = body.member && typeof body.member === "object" ? body.member as JsonMap : body;
   const id = clean(raw.id || raw.member_id);
@@ -66,11 +71,11 @@ async function resolveMember(supabase: SupabaseClient, body: JsonMap, req: Reque
 
   let rows: Member[] = [];
   if (id) {
-    const { data, error } = await supabase.from("team_members").select("*").eq("id", id).eq("active", true).limit(1);
+    const { data, error } = await supabase.from("team_members").select(MEMBER_COLUMNS).eq("id", id).eq("active", true).limit(1);
     if (error) throw error;
     rows = (data || []) as Member[];
   } else {
-    const { data, error } = await supabase.from("team_members").select("*").eq("active", true);
+    const { data, error } = await supabase.from("team_members").select(MEMBER_COLUMNS).eq("active", true);
     if (error) throw error;
     const targetName = norm(name);
     const targetEmail = norm(email);
@@ -117,9 +122,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const key = clean(req.headers.get("x-syncview-key") || body.key);
     const surface = clean(body.surface) || "syncview";
     const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
-    const mode = await authMode(supabase);
-    const role = matchingRoleForKey(key);
-    const member = role ? await resolveMember(supabase, body, req) : null;
+    const role = matchingRoleForKey(key); // pure comparison, no I/O
+    // The flag read and the member read do not depend on each other, so they run
+    // together (one database round trip saved). The member read still happens only
+    // for a recognised key, and a failed member read still ends in the 500 below.
+    const [mode, member] = await Promise.all([
+      authMode(supabase),
+      role ? resolveMember(supabase, body, req) : Promise.resolve(null),
+    ]);
     const compatible = !!role && !!member && roleCompatible(role, member);
     const reason = compatible ? "valid" : (!role ? "invalid_key" : (!member ? "member_not_found" : "role_mismatch"));
     const actor = member ? member.name : clean(body.name || body.actor || req.headers.get("x-syncview-actor")) || null;

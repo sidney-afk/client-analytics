@@ -41,7 +41,7 @@ import {
   _calShowApprovedAfterTweaks, _notesMarkSeen
 } from './180-calendar-native-post-media.js';
 import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqResolve } from './185-client-review-queue.js';
-import { _prodCanonicalCommentGate, _prodComments, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
@@ -2175,7 +2175,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             : (resolvedCount
                 ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>`
                 : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
-        const feedHtml = roots.length ? roots.map(renderThread).join('') : emptyMsg;
+        const feedHtml = roots.length ? roots.map(renderThread).join('') : (_prodCardCommentsPending(post, 'calendar') ? _prodCommentsSkeletonHtml() : emptyMsg);
 
         // History toggle (top-right): hidden unless there's something resolved.
         const histBtn = resolvedCount

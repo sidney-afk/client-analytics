@@ -53,6 +53,11 @@
       "total": 0,
       "measured_on": "2026-10-02"
     },
+    "client-onboarding": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-01"
+    },
     "client-profile-write": {
       "counts": {},
       "total": 0,

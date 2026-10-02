@@ -1,3 +1,4 @@
+import { _cardReadFetch } from './120-calendar-flags-write-repair.js';
 import { hideToast, showNotify, showToast } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { _writeRefusalNewId, _writeRefusalStageAttempt, _writeUiFailureSentence } from './120-calendar-flags-write-repair.js';
@@ -255,7 +256,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const cols = _crqCompsOf(entry.comp).map(c => c + '_status').join(',');
         const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=' + cols
             + '&client=eq.' + encodeURIComponent(_crqSlug()) + '&id=eq.' + encodeURIComponent(entry.pid) + '&limit=2';
-        const response = await fetch(url, { cache: 'no-store', headers: {
+        const response = await _cardReadFetch(url, { cache: 'no-store', headers: {
             apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const rows = await response.json();

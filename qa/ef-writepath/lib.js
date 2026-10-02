@@ -1,4 +1,5 @@
 const REROUTE_FIXTURE = require('../write_ui_reroute_fixture.js');
+const { CARD_TABLES, cardReadRequest, cardReadRows, cardReadStaffHeaders } = require('../card-read.js');
 // ============================================================================
 // qa/ef-writepath/lib.js — REAL-browser harness for validating the Supabase
 // Edge-Function (EF) write path end-to-end on the TEST client `sidneylaruel`.
@@ -194,8 +195,13 @@ function _courierFetch(method, url, headers, postData) {
   }
 }
 
-// Read helpers (Supabase REST via Node/proxy).
+// Card reads use the authenticated function; event reads keep their REST path.
 function _supaGet(table, qs) {
+  if (CARD_TABLES.has(table)) {
+    const request = cardReadRequest(SUPA, KEY, table, qs);
+    const response = _curlRequestSync('GET', request.url, request.headers);
+    return cardReadRows(response.status, response.body.toString('utf8'));
+  }
   const out = _curlRequestSync(
     'GET',
     SUPA + '/rest/v1/' + table + '?' + qs,
@@ -350,7 +356,8 @@ async function makeCtx(browser, opts = {}) {
       return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: true, updated: 999, _mocked: true }) });
     }
     // everything else on an EXT host -> courier to LIVE
-    const r = _courierFetch(method, url, req.headers(), bodyStr); entry.status = r.status;
+    const cardHeaders = cardReadStaffHeaders(SUPA, method, url, req.headers(), opts.clientEntryCtx);
+    const r = _courierFetch(method, url, cardHeaders || req.headers(), bodyStr); entry.status = r.status;
     return route.fulfill({ status: r.status, contentType: r.ctype, headers: CORS, body: r.body });
   });
   // After the catch-all: Playwright tries the most recent route first, so a
@@ -390,7 +397,7 @@ async function _open(browser, urlPath, opts = {}) {
   return { page, ctx, rec };
 }
 async function _openClient(browser, view, name, token, opts = {}) {
-  const { ctx, rec } = await makeCtx(browser, opts);
+  const { ctx, rec } = await makeCtx(browser, Object.assign({}, opts, { clientEntryCtx: true }));
   const page = await ctx.newPage();
   _capture(page);
   await gotoTestClientEntry(page, {

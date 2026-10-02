@@ -209,3 +209,7 @@ verify_jwt = false
 # timer's own key (HUBSPOT_SYNC_KEY), both checked before the body is read.
 [functions.client-hubspot-sync]
 verify_jwt = false
+
+# Card reads check a staff role key or current active-client token themselves.
+[functions.card-read]
+verify_jwt = false

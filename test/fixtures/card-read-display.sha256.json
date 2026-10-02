@@ -1,0 +1,85 @@
+{
+  "base": "20bfe14b1b7fa11cda0d1f71b63701f217548236",
+  "functions": {
+    "_calLoaderHtml": {
+      "file": "133-core-loading-skeletons.js.part",
+      "sha256": "4ed858c7cde19cc3f5527522b9aad3dcfeeb47075cec5550f623cf3910e02578"
+    },
+    "_svLoadingSkeletonHtml": {
+      "file": "133-core-loading-skeletons.js.part",
+      "sha256": "b6ba432653121c685d237d55ad98580109856b832dbca34a69cf246fa8f40906"
+    },
+    "loadCalendarPosts": {
+      "file": "150-calendar-hydration-import.js.part",
+      "sha256": "1beb0029f31991268eb378782b6da6db30df30e6a9bcc4beb37bd282f0cff1e7"
+    },
+    "_calCacheRead": {
+      "file": "150-calendar-hydration-import.js.part",
+      "sha256": "d873243d6f5918faccb1f095c3deded1817112a167754ba78dcced87f5d4d41d"
+    },
+    "_calCacheWrite": {
+      "file": "150-calendar-hydration-import.js.part",
+      "sha256": "180e2cb074c27909c684a11dd6696bf720bfaae04145f87b5380b718c8fc5e1b"
+    },
+    "loadSxrCards": {
+      "file": "270-samples-model.js.part",
+      "sha256": "61adeb1b147387d3befd52c9381a6c9efc4d7b166dd636c36d18ebe4e83250a4"
+    },
+    "_sxrCacheRead": {
+      "file": "270-samples-model.js.part",
+      "sha256": "479e4834744200f47eb1f2079d4dedc204a878336ee20c1cc1dfc8f36e300456"
+    },
+    "_sxrCacheWrite": {
+      "file": "270-samples-model.js.part",
+      "sha256": "63a98c9c6ff706fb6230f0cc50ef29535ed597354fe39ce2fbd39f46b3e7ea1f"
+    },
+    "_sxrLoaderHtml": {
+      "file": "270-samples-model.js.part",
+      "sha256": "8eb61756117be4fe0acc1f2b8586ed45fae86061c0716b247669fd93647ca427"
+    },
+    "_tdyCacheRead": {
+      "file": "097-today.js.part",
+      "sha256": "bfc1ab99f8fc4f6d3eeeb1c5f04f3d9a86f67e7c1860fcbd604d4af454deec3f"
+    },
+    "_tdyCacheWrite": {
+      "file": "097-today.js.part",
+      "sha256": "c95af00208e507fbcac65b00a97ab19082414f70d30ce09414dffd712ad00bf5"
+    },
+    "_tdySkeletonHtml": {
+      "file": "097-today.js.part",
+      "sha256": "ed694e973af7b25c709f50d2fc453d0f8d49813308c0a136f20bd3aa8b283f6d"
+    },
+    "_kasperPersistCache": {
+      "file": "305-core-kasper-shared.js.part",
+      "sha256": "d2e172a94d93cbf6745e2e894decc1f3158b91987e4d338e89475f2eff02d4b3"
+    },
+    "_kasperHydrateCache": {
+      "file": "321-kasper-dashboard-replies.js.part",
+      "sha256": "9c74dcd659808fb70b06f40c0de9aead837ebd35f9b662d1048587da310f7916"
+    },
+    "_kasperCalCacheRead": {
+      "file": "330-kasper-review-history.js.part",
+      "sha256": "ff204d8df9bacfdceafd12544e5cc9c8e79153b5ce7b50601fe1106a816f6048"
+    },
+    "_kasperCalCacheWrite": {
+      "file": "330-kasper-review-history.js.part",
+      "sha256": "7f6a5dce9b14b2a899d7497cede5a0987e6ffc2eb3db01764ecd09e8b82aad95"
+    },
+    "_kasperRenderReview": {
+      "file": "330-kasper-review-history.js.part",
+      "sha256": "dd0f99ff10591907aae1508be0d4a18784af95b709f0b9badbccaac7336b3553"
+    },
+    "_arxLoadMore": {
+      "file": "186-archived-restore.js.part",
+      "sha256": "4b031c912fac9f8aefd84c5e407ad0f00733efa2c95b883accc425a93271e432"
+    },
+    "_sxrRenderBody": {
+      "file": "280-samples-cards-notes.js.part",
+      "sha256": "d0dc533f320fa31b2f1c24276e90fea863982576ff5fba5bb684372392864996"
+    },
+    "_calCrqResend": {
+      "file": "185-client-review-queue.js.part",
+      "sha256": "38b2ebc4cda0c19788ec467e87db1153d8940943a8bb0cf6d8e659896b50d2d6"
+    }
+  }
+}

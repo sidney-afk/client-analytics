@@ -1,3 +1,5 @@
+import { _cardReadFunctionMode } from './120-calendar-flags-write-repair.js';
+import { _cardReadFetch } from './120-calendar-flags-write-repair.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
@@ -1016,7 +1018,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                 // (id, client) strictly greater than the last row seen
                 pageUrl += '&or=(id.gt.' + enc(curId) + ',and(id.eq.' + enc(curId) + ',client.gt.' + enc(curClient == null ? '' : curClient) + '))';
             }
-            const resp = await fetch(pageUrl, { headers, signal: signal || undefined });
+            const resp = await _cardReadFetch(pageUrl, { headers, signal: signal || undefined });
             if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
             const rows = await resp.json();
             if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
@@ -1114,7 +1116,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         _calV2DropChannel();
         const epoch = _calV2Epoch;
         let client = null;
-        try { client = await _calV2Client(); }
+        try { client = await _cardReadFunctionMode() ? null : await _calV2Client(); }
         catch (e) {
             if (epoch === _calV2Epoch && _calLoadRunCurrent(loadRun)) {
                 console.warn('[Calendar v2] realtime client failed', e);

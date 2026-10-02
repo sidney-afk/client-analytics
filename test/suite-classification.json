@@ -2,6 +2,8 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "qa-card-read-harness.js",
+    "card-read-boundary.js",
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",
     "onboarding-checklist-tables-migration.js",
@@ -1530,6 +1532,23 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Sample Review client approve and request-changes requests, compared byte for byte to a golden captured from main.",
       "reproduce": "node test/samples-client-carveout-byte-identical-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "card-read-grants-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_for_release": true,
+      "required_inputs": "An independently started disposable PostgreSQL 17 cluster on literal loopback; WARDEN_PG_CONFIRM=LOCAL_DISPOSABLE_ONLY and WARDEN_PG_PORT must be supplied. No hosted credentials or data.",
+      "reproduce": "Set WARDEN_PG_CONFIRM=LOCAL_DISPOSABLE_ONLY and WARDEN_PG_PORT to the isolated cluster port, then node test/card-read-grants-postgres.js",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "card-read-staff-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Repository Playwright and Chromium; synthetic staff identity and all remote traffic mocked.",
+      "reproduce": "node test/card-read-staff-browser.js",
       "ci": "representative"
     }
   ]

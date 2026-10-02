@@ -23,6 +23,7 @@ const sandbox = {
   _calEsc: esc, _calEscAttr: esc, _calSmmMediaGap: p => (p.asset_url ? null : { video: true }), _svSkel: c => `<div class="sv-skeleton ${c || ''}"></div>`,
   _srpState: {}, console,
 };
+sandbox._cardReadFetch = sandbox.fetch; // transport scope is tested independently
 vm.createContext(sandbox);
 vm.runInContext(body + '\nthis.api = { _tdyJobs, _tdyEditorHtml, _tdySmmHtml, _tdySkeletonHtml, _tdyCacheRead, _tdyCacheWrite, _tdyLoad, _tdyIso, _tdyDays, tdyState, _tdyDropOldDay, _tdyTakeEarly };', sandbox);
 const api = sandbox.api;
@@ -94,6 +95,7 @@ async function moduleUrls(role, team) {
 (async () => {
   for (const [label, role, team] of [['SMM and admin', 'smm', null], ['editor', 'editor', 'video']]) {
     const early = earlyUrls(role, team), asked = await moduleUrls(role, team);
+    ok(!early.some(u => u.includes('/rest/v1/calendar_posts')), label + ': cards wait for the runtime flag and authorized transport');
     const missing = early.filter(u => !asked.includes(u));
     ok(early.length >= 3 && missing.length === 0, label + ': every early read is the exact URL the tab asks for (' + early.length + ' early, ' + missing.length + ' unmatched)');
   }

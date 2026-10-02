@@ -281,6 +281,11 @@
       "counts": {},
       "total": 0,
       "measured_on": "2026-10-02"
+    },
+    "card-read": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-02"
     }
   }
 }

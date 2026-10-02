@@ -1,3 +1,4 @@
+import { _cardReadFunctionMode, _cardReadWatch } from './120-calendar-flags-write-repair.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
   FILMING_PLAN_TABS_URL, _analyticsReleaseExtras, parseCSV, showConfirm, showToast, svArea,
@@ -523,6 +524,12 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
     }
     async function _kasperV2EnsureSubscribed() {
         if (!_calV2Ready() || _kasperV2Channel) return;
+        if (await _cardReadFunctionMode()) {
+            if (!_kasperV2Channel && document.getElementById('kasperContent')) _kasperV2Channel = _cardReadWatch(() => {
+                if (!_kasperViewBusy() && document.getElementById('kasperContent')) _kasperMaybeBackgroundRefresh();
+            });
+            return;
+        }
         const client = await _calV2Client();
         if (!client || _kasperV2Channel) return; // re-check: a teardown/second mount may have raced the lib load
         try {
@@ -550,7 +557,7 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         if (_kasperV2RtTimer) { clearTimeout(_kasperV2RtTimer); _kasperV2RtTimer = null; }
         if (_kasperV2Channel) {
             try {
-                if (_calV2ClientObj && typeof _calV2ClientObj.removeChannel === 'function') _calV2ClientObj.removeChannel(_kasperV2Channel);
+                if (_kasperV2Channel._cardReadPoll) _kasperV2Channel.unsubscribe(); else if (_calV2ClientObj && typeof _calV2ClientObj.removeChannel === 'function') _calV2ClientObj.removeChannel(_kasperV2Channel);
                 else if (typeof _kasperV2Channel.unsubscribe === 'function') _kasperV2Channel.unsubscribe();
             } catch {}
         }

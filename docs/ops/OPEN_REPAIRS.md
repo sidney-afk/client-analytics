@@ -30349,3 +30349,13 @@ Reviewed-closure pin: adding the `alert_digest` lane changed `scripts/monitoring
 Not covered by the message yet: quota 80/90 usage (existing watchdog keeps posting).
 Way back: nothing to undo; delete `alert-digest.yml` or leave the variable unset.
 
+
+
+## 329. [2026-10-02, PREPARED, NOT DEPLOYED, NOT APPLIED] Calendar and Samples read through a scoped function; ten-table write grants are closed in source
+
+Warden prepares the owner-narrowed phases 1 and 2 of #1691 in one PR. `card-read` checks an existing staff role key or the current active-client token before reading the two card tables. `card_reads_source` defaults to today's public transport; function mode never falls back to a public card read. Card subscriptions become guarded 30-second background reads. Existing loading skeletons and saved copies remain; the golden client approve/request-changes fixture and all 14 protected function bodies are unchanged.
+
+Live counts-only catalog remeasurement reproduced the ten 2026-09-29 tables: 30 INSERT/UPDATE/TRUNCATE grants per named role anon, authenticated and service_role, no PUBLIC grants, no browser write policies. The source-only migration names PUBLIC, anon, authenticated and service_role in each revoke and restores only the three measured server privileges. Workload's SELECT and policies remain intact; neither standing view changes. Source-only card SELECT closure is limited to calendar_posts and sample_reviews. Both forward files and both rollbacks pass real grants readback on a fresh loopback PostgreSQL 17 database; no shared migration or client mutation occurred. Release order, rollback and proof limits: `docs/ops/WARDEN_CARD_READS.md`.
+
+
+**Codex review follow-up, 2026-10-02 (same PR #1945, source only):** The three nightly QA card readers now use `qa/card-read.js` and authenticated `card-read`, with the runner staff key or a privately supplied current test-client token. Node reads stay pinned to the test client; staff browser reads replace only their synthetic entry key, and client tabs retain their own token. Name and linked-deliverable filters remain supported, errors cannot look like empty cards, and unreadable cleanup is not reported as successful. `test/qa-card-read-harness.js` proves all three real harnesses with direct card REST refused, in-memory credentials and no live requests. Deploy card-read before running these updated nightlies; no public card fallback. No live migration, deployment, flag switch or mutation.

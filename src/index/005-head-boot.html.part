@@ -301,6 +301,7 @@
                         tdGate.catch(function () {});
                         var tdE = window.__svEarlyToday = { memberId: String(tdId.member.id), key: String(tdId.key), at: Date.now(), reads: {} };
                         var tdRest = function (table, query) {
+                            if (table === 'calendar_posts') return; // card transport needs the runtime flag and staff credential
                             var url = tdBase + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=0';
                             var p = tdGate.then(function () { return fetch(url, { headers: { apikey: tdKey, Authorization: 'Bearer ' + tdKey } }); }).then(function (r) {
                                 if (!r.ok) throw new Error('HTTP ' + r.status);

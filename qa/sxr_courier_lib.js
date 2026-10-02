@@ -1,4 +1,5 @@
 const REROUTE_FIXTURE = require('./write_ui_reroute_fixture.js');
+const { CARD_TABLES, cardReadRequest, cardReadRows, cardReadStaffHeaders } = require('./card-read.js');
 // ============================================================================
 // sxr_courier_lib.js — REAL-browser test harness for the Samples (Review) tab.
 //
@@ -286,6 +287,8 @@ function _filmingTabsStubPayload(url) {
 // upsert) see no behavior change.
 const STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 function _staffKeyInjectedHeaders(method, url, headers, clientEntryCtx) {
+  const cardHeaders = cardReadStaffHeaders(SUPA, method, url, headers, clientEntryCtx);
+  if (cardHeaders) return cardHeaders;
   if (!STAFF_KEY || clientEntryCtx) return null;
   if (method !== 'POST' || !String(url || '').startsWith(SUPA + '/functions/v1/')) return null;
   const h = headers || {};
@@ -405,9 +408,11 @@ function up(sample, base) { return nodePost(SXR_UPSERT, { client: 'sidneylaruel'
 function archiveSafe(id, tries) {
   tries = tries || 4;
   let sawRow = false;
+  let lastReadSucceeded = false;
   for (let i = 0; i < tries; i++) {
     try {
       const r = supa('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
+      lastReadSucceeded = true;
       const row = Array.isArray(r) && r[0] ? r[0] : null;
       if (!row) {
         _sleepSync(1500);
@@ -418,10 +423,10 @@ function archiveSafe(id, tries) {
       try { up({ id, status: 'Archived' }); } catch {}
       const after = supa('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
       if (Array.isArray(after) && after[0] && String(after[0].status) === 'Archived') return true;
-    } catch {}
+    } catch { lastReadSucceeded = false; }
     _sleepSync(1500);
   }
-  return !sawRow;
+  return !sawRow && lastReadSucceeded;
 }
 // Archive TEST rows a crashed earlier run left behind. Only rows untouched for
 // minAgeMs are taken, so a concurrent run's live fixture is left alone, and
@@ -439,10 +444,15 @@ function archiveStaleTestRows(nameRe, minAgeMs, log) {
   return out;
 }
 function reorder(items) { return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }); }
-// Read TEST rows back from Supabase REST using the same fileless transport as
+// Read TEST cards through card-read using the same fileless transport as
 // the browser courier. The protected URL and headers stay in stdin config, and
 // curl's response stays in memory.
 function _supaRead(table, qs) {
+  if (CARD_TABLES.has(table)) {
+    const request = cardReadRequest(SUPA, KEY, table, qs);
+    const response = _curlRequestSync('GET', request.url, request.headers);
+    return cardReadRows(response.status, response.body.toString('utf8'));
+  }
   const out = _curlRequestSync(
     'GET',
     SUPA + '/rest/v1/' + table + '?' + qs,
@@ -822,15 +832,17 @@ async function client(browser, name = 'Sidney Laruel', token, opts) {
 // the twin-live tester) to seed the calendar SOURCE-OF-TRUTH row alongside the
 // samples row so the SAME journey can be driven on both surfaces.
 function upCal(post, base) { return nodePost(HOOKS + '/calendar-upsert-post', { client: 'sidneylaruel', post, comments_base_at: base || '' }); }
-// Read a calendar_posts row (or rows) back from Supabase REST.
+// Read calendar_posts rows back through the authenticated function.
 function supaCal(qs) { return _supaRead('calendar_posts', qs); }
 // Archive a CALENDAR seed and VERIFY it stuck (mirror of archiveSafe for samples).
 function archiveCalSafe(id, tries) {
   tries = tries || 4;
   let sawRow = false;
+  let lastReadSucceeded = false;
   for (let i = 0; i < tries; i++) {
     try {
       const r = supaCal('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
+      lastReadSucceeded = true;
       const row = Array.isArray(r) && r[0] ? r[0] : null;
       if (!row) {
         _sleepSync(1500);
@@ -841,10 +853,10 @@ function archiveCalSafe(id, tries) {
       try { upCal({ id, status: 'Archived' }); } catch {}
       const after = supaCal('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
       if (Array.isArray(after) && after[0] && String(after[0].status) === 'Archived') return true;
-    } catch {}
+    } catch { lastReadSucceeded = false; }
     _sleepSync(1500);
   }
-  return !sawRow;
+  return !sawRow && lastReadSucceeded;
 }
 
 // ============================================================================

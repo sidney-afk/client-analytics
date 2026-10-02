@@ -1,3 +1,4 @@
+import { _cardReadFetch } from './120-calendar-flags-write-repair.js';
 import { showConfirm, showNotify } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSyncStepper, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import {
@@ -1882,7 +1883,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=' + ['id'].concat(fields).join(',')
                 + '&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(pid) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }, signal: ctl.signal });
+            const resp = await _cardReadFetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }, signal: ctl.signal });
             if (!resp.ok) return null;
             const rows = await resp.json();
             return Array.isArray(rows) ? (rows.find(r => r && r.id === pid) || null) : null;

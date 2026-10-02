@@ -6812,3 +6812,8 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
   together and selects six columns; its audit insert stays before the answer.
 - Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read; owner agreed 2026-10-02); production-comments waits for the next staff-sensitive dispatch; analytics-read, brain and workload-plan need one dispatch each.
 - Tests: `test/key-verify-behavior.js`, `test/cors-maxage-and-key-verify-reads.js`.
+
+
+### 2026-10-02 — Warden, preparation only
+
+Prepared the owner-narrowed #1691 Calendar/Samples function read boundary and ten-table INSERT/UPDATE/TRUNCATE revoke migration. Counts-only live catalog remeasurement; no live migrations, flags, deployments or client writes. Existing client review request golden unchanged. Real migration/rollback/grant readback on a fresh local PostgreSQL 17 cluster, synthetic rows only. Full release requirements and proof limits: `docs/ops/WARDEN_CARD_READS.md`.

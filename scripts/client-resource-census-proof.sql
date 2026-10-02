@@ -66,7 +66,7 @@ begin
     ('roster_row', 5, 0), ('profile', 4, 1), ('review_token', 3, 2), ('email', 2, 3),
     ('instagram_handle', 2, 3), ('tiktok_handle', 2, 3), ('youtube_channel', 1, 4),
     ('any_social_handle', 3, 2), ('competitors', 1, 4), ('keywords', 2, 3), ('description', 1, 4),
-    ('creative_channel', 1, 4), ('client_channel', 1, 4), ('postforme_tiktok', 1, 4),
+    ('research_complete', 1, 4), ('creative_channel', 1, 4), ('client_channel', 1, 4), ('postforme_tiktok', 1, 4),
     ('filming_plan_link', 1, 4), ('templates_row', 4, 1), ('canva_link', 2, 3),
     ('credentials_vault', 2, 3), ('onboarding_form', 3, 2), ('calendar_cards', 2, 3),
     ('sample_reviews', 1, 4), ('analytics_metrics', 3, 2),

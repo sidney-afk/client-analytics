@@ -26,6 +26,8 @@ ok('the four routing lists are covered', census.ROUTING_LISTS.length === 4 && ce
 
 const migration = fs.readFileSync(path.join(__dirname, '..', 'migrations', '2026-10-03-onboarding-checklist-tables.sql'), 'utf8');
 ok('every detector step is a real catalog step', census.DETECTORS.every(([step]) => new RegExp(`\\('${step}',\\s*\\d+,`).test(migration)));
+ok('research_done needs all three research fields, not just keywords', census.DETECTORS.some(([step, r]) => step === 'research_done' && r === 'research_complete')
+  && /keywords[\s\S]*competitors[\s\S]*content_description/.test(census.RESOURCES.find((r) => r.key === 'research_complete').expr));
 ok('every detector reads a resource the query produces', census.DETECTORS.every(([, r]) => census.RESOURCES.some((x) => x.key === r)));
 
 const fake = { active_clients: 2, active_test_clients: 1, inactive_roster_rows: 3, checklist_installed: false,

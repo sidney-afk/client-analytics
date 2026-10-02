@@ -23,7 +23,7 @@ on:
         description: The one function to deploy
         required: true
         type: choice
-        options: [analytics-read, analytics-write, brain, caption-jobs, client-profile-write, filming-plan-tabs, higgsfield-mcp, instagram-upload, notify, syncview-session, workload-plan, write-diagnostics]
+        options: [analytics-metrics-collect, analytics-read, analytics-top-videos-collect, analytics-write, brain, caption-jobs, client-hubspot-sync, client-onboarding, client-profile-write, filming-plan-tabs, higgsfield-mcp, instagram-upload, notify, roster-read, roster-write, syncview-session, workload-plan, write-diagnostics]
       commit_sha:
         description: Exact 40-character commit SHA from main to deploy
         required: true
@@ -56,7 +56,7 @@ jobs:
           # The choice input is not a security boundary on its own (the API can
           # send any string), so the allowlist is enforced again here.
           case "$DEPLOY_FUNCTION" in
-            analytics-read|analytics-write|brain|caption-jobs|client-profile-write|filming-plan-tabs|higgsfield-mcp|instagram-upload|notify|syncview-session|workload-plan|write-diagnostics) ;;
+            analytics-metrics-collect|analytics-read|analytics-top-videos-collect|analytics-write|brain|caption-jobs|client-hubspot-sync|client-onboarding|client-profile-write|filming-plan-tabs|higgsfield-mcp|instagram-upload|notify|roster-read|roster-write|syncview-session|workload-plan|write-diagnostics) ;;
             *) echo "::error::Refused: '$DEPLOY_FUNCTION' is not on this lane's allowlist"; exit 1 ;;
           esac
           if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
@@ -90,6 +90,42 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+      - name: Refuse client-onboarding until its database objects exist
+        if: github.event_name == 'workflow_dispatch' && inputs.function == 'client-onboarding'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN secret is not set in the production Environment."
+            exit 1
+          fi
+          # Read only: asks Postgres whether the onboarding checklist migration was applied.
+          query="select count(*) filter (where to_regclass('public.'||n) is not null) as present, count(*) as wanted from unnest(array['onboarding_steps','client_onboarding_progress','client_onboarding_events','client_resources','client_sales_state','client_resource_status_v1','client_onboarding_summary_v1']) n"
+          fn_query="select (to_regprocedure('public.client_onboarding_ensure(text)') is not null and to_regprocedure('public.client_onboarding_set_step(text,text,text,text,text,text,text,timestamptz,text)') is not null) as fns_ok"
+          body="$(jq -n --arg q "$query" '{query:$q}')"
+          out="$(curl -sS -f -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d "$body")"
+          echo "$out" | jq -e '.[0].present == .[0].wanted' > /dev/null || { echo "::error::The onboarding checklist tables or views are missing. Apply the checklist migration first, then deploy."; exit 1; }
+          body="$(jq -n --arg q "$fn_query" '{query:$q}')"
+          out="$(curl -sS -f -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d "$body")"
+          echo "$out" | jq -e '.[0].fns_ok == true' > /dev/null || { echo "::error::The onboarding checklist functions are missing. Apply the checklist migration first, then deploy."; exit 1; }
+          echo "Onboarding schema present" >> "$GITHUB_STEP_SUMMARY"
+      - name: Refuse client-hubspot-sync until its database functions exist
+        if: github.event_name == 'workflow_dispatch' && inputs.function == 'client-hubspot-sync'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN secret is not set in the production Environment."
+            exit 1
+          fi
+          # Read only: asks Postgres whether the HubSpot sync migration was applied.
+          query="select (to_regprocedure('public.client_hubspot_sync_targets(text,integer,integer)') is not null and to_regprocedure('public.client_sales_state_apply(text,text,text,text,text,text,text,text,text)') is not null and to_regclass('public.client_sales_state') is not null) as ready"
+          body="$(jq -n --arg q "$query" '{query:$q}')"
+          out="$(curl -sS -f -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d "$body")"
+          echo "$out" | jq -e '.[0].ready == true' > /dev/null || { echo "::error::The HubSpot sync database functions are missing. Apply the checklist tables migration and then the HubSpot sync migration first, then deploy."; exit 1; }
+          echo "HubSpot sync schema present" >> "$GITHUB_STEP_SUMMARY"
       - name: Deploy the one selected function
         id: function_deploy
         if: github.event_name == 'workflow_dispatch'
@@ -102,7 +138,7 @@ jobs:
           fi
           # The loop lists the allowlist once more and deploys only the match.
           deployed=0
-          for fn in analytics-read analytics-write brain caption-jobs client-profile-write filming-plan-tabs higgsfield-mcp instagram-upload notify syncview-session workload-plan write-diagnostics; do
+          for fn in analytics-metrics-collect analytics-read analytics-top-videos-collect analytics-write brain caption-jobs client-hubspot-sync client-onboarding client-profile-write filming-plan-tabs higgsfield-mcp instagram-upload notify roster-read roster-write syncview-session workload-plan write-diagnostics; do
             if [ "$fn" = "$DEPLOY_FUNCTION" ]; then
               # --use-api bundles on Supabase's side: no edge-runtime image pull
               # from ghcr.io, whose rate limit failed this lane twice. The

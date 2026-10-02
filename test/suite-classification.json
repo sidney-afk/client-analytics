@@ -3,6 +3,16 @@
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
     "calendar-unarchive.js",
+    "roster-stale-cleanup-migration.js",
+    "onboarding-checklist-tables-migration.js",
+    "native-client-test-provision-migration.js",
+    "client-onboarding-handler.js",
+    "client-hubspot-sync-handler.js",
+    "client-hubspot-sync-migration.js",
+    "client-resource-census.js",
+    "lost-work-retry-intent.js",
+    "lost-work-conflict-gate.js",
+    "lost-work-drafts.js",
     "workload-plan-live.js",
     "clean-urls-routes.js",
     "prod-realtime-controller.js",
@@ -252,6 +262,7 @@
     "kasper-stranded-handoff.js",
     "kasper-subtab-reload-and-extras-hold.js",
     "kasper-waiting-sent-order.js",
+    "kasper-never-lose-decision.js",
     "kasper-tweak-calendar-sync-retry.js",
     "kasper-tweak-chip-scope.js",
     "kasper-urgent-ping.js",
@@ -332,6 +343,7 @@
     "master-failure-digest.js",
     "migration-bare-delete-lint.js",
     "mint-migration-line-citations.js",
+    "alert-digest.js",
     "monitoring-alert-relay.js",
     "monitoring-lane-coverage.js",
     "monitoring-lane-failing.js",
@@ -346,6 +358,7 @@
     "native-batch-picker-parents.js",
     "native-batch-picker-search.js",
     "native-brief-media-copy.js",
+    "native-calendar-overall-status-bridge.js",
     "native-calendar-status-bridge-postgres.js",
     "native-calendar-status-bridge.js",
     "native-sample-status-bridge.js",
@@ -379,6 +392,7 @@
     "native-notification-format.js",
     "native-notification-health-handler.js",
     "native-notification-slack-adapter.js",
+    "native-notification-urgent-format.js",
     "native-notification-urgent-link.js",
     "native-notifications-postgres.js",
     "native-notifications.js",
@@ -514,6 +528,7 @@
     "review-collab-gate.js",
     "review-request-change-audience.js",
     "rollback-row-freshness.js",
+    "roster-native.js",
     "sales-intake-form.js",
     "sample-review-upsert-twins-guard.js",
     "samples-append-origin.js",
@@ -635,7 +650,12 @@
     "calendar-client-links-after-sheet.js",
     "client-phone-css-scope.js",
     "sheets-mirror-policy.js",
+    "analytics-metrics-collect.js",
+    "analytics-metrics-collect-function.js",
+    "analytics-top-videos-collect.js",
+    "analytics-top-videos-collect-function.js",
     "client-profile-edit.js",
+    "onboarding-badge-instant.js",
     "onboarding-boot-skeleton.js",
     "syncview-session.js",
     "sheets-mirror-parity-catchup.js",
@@ -647,7 +667,11 @@
     "prod-subissue-parent-name.js",
     "synclinear-early-read.js",
     "prod-tail-prefetch.js",
-    "prod-lookup-equivalence.js"
+    "prod-lookup-equivalence.js",
+    "open-item-speed.js",
+    "notes-loading-skeleton.js",
+    "cors-maxage-and-key-verify-reads.js",
+    "key-verify-behavior.js"
   ],
   "profiles": [
     {
@@ -1370,6 +1394,14 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "kasper-board-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the test client's calendar rows and a stand-in for supabase-js realtime), no hosted credentials and no live data.",
+      "reproduce": "node test/kasper-board-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "kasper-hiring-reload-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1425,11 +1457,38 @@
       "required_for_release": true
     },
     {
+      "file": "roster-native-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and ROSTER_NATIVE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "ROSTER_NATIVE_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/roster-native-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
       "file": "clients-roster-sync-postgres.js",
       "route": "isolated_postgres",
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and ROSTER_SYNC_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "ROSTER_SYNC_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/clients-roster-sync-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "analytics-metrics-collect-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-metrics-collect-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "analytics-top-videos-collect-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-top-videos-collect-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

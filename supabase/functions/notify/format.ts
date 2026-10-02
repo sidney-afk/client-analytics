@@ -121,6 +121,86 @@ export function formatNotification(input: NotifyInput, variant: NotifyVariant): 
   return { text, blocks };
 }
 
+// ── Urgent editor ping ────────────────────────────────────────────────────
+// The same three layouts as the creative-channel posts (compact, card, line)
+// and the same safety rules (slackSafe on every stored value, verbatim text
+// objects, real <url|text> links), plus the one thing this post exists to do:
+// mention the assigned editor. The mention is the ONLY control sequence in the
+// message and is built from a Slack ID that matches ^[UW][A-Z0-9]{8,}$, never
+// from stored text. Everything else a person typed has < > & swapped for
+// lookalikes first, so a title cannot add a mention, a link or @channel.
+export type UrgentInput = {
+  editorSlackId: string;
+  title: string;
+  clientName?: string | null;
+  deliverableId: string;
+  pingedBy?: string | null;
+};
+const URGENT_COLOR = "#E01E5A";
+const SLACK_ID = /^[UW][A-Z0-9]{8,}$/;
+const URGENT_LINK_TEXT = "Open in SyncView";
+
+function urgentPrepared(input: UrgentInput) {
+  if (!SLACK_ID.test(input.editorSlackId)) throw new Error("urgent_editor_id_invalid");
+  return {
+    mention: "<@" + input.editorSlackId + ">",
+    title: cap(oneLine(slackSafe(input.title)) || "Untitled", TITLE_CAP),
+    client: cap(oneLine(slackSafe(input.clientName || "")), 80),
+    by: cap(oneLine(slackSafe(input.pingedBy || "")), 80),
+    url: productionUrl(input.deliverableId),
+  };
+}
+
+// What the editor's phone shows, and what a client that cannot draw blocks
+// shows. Mentions the editor so the notification reaches them.
+export function urgentFallbackText(input: UrgentInput): string {
+  const p = urgentPrepared(input);
+  return p.mention + " URGENT: " + p.title + " needs tweaks" + (p.client ? " (" + p.client + ")" : "")
+    + (p.by ? ", pinged by " + p.by : "") + ".";
+}
+
+export function formatUrgent(input: UrgentInput, variant: NotifyVariant): SlackMessage {
+  const p = urgentPrepared(input);
+  const link = "<" + p.url + "|" + URGENT_LINK_TEXT + ">";
+  const needs = "🔧 *Needs tweaks*";
+  if (variant === "card") {
+    const fields = [
+      mrkdwn("*Client*\n" + (p.client || "Unknown")),
+      mrkdwn("*Needs*\n🔧 Tweaks"),
+      mrkdwn("*Pinged by*\n" + (p.by || "SyncView")),
+    ];
+    const blocks: Record<string, unknown>[] = [
+      { type: "header", text: { type: "plain_text", text: cap(p.title, 140), emoji: true } },
+      { type: "section", fields },
+      { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: URGENT_LINK_TEXT }, url: p.url }] },
+    ];
+    const text = urgentFallbackText(input);
+    // WHAT IS VISIBLE vs WHAT IS READ ALOUD. The line above the card is a
+    // top-level block holding ONLY the editor mention: the tag is what notifies
+    // the editor, and the card below already shows everything else. Because the
+    // message has top-level blocks, Slack does not draw the top-level `text`; it
+    // uses it as the notification and screen-reader fallback. So `text` keeps
+    // every fact (mention, URGENT, title, client, who pinged) and the link, and
+    // none of it is shown twice.
+    const lead = [{ type: "section", text: mrkdwn(p.mention) }];
+    return { text: text + " " + link, blocks: lead, attachments: [{ color: URGENT_COLOR, fallback: text, blocks }] };
+  }
+  // With blocks, the top-level text is the notification and accessibility
+  // fallback: the same sentence plus the link.
+  const text = urgentFallbackText(input) + " " + link;
+  if (variant === "line") {
+    const line = "🚨 *URGENT* " + p.mention + " · *" + boldSafe(p.title) + "*" + (p.client ? " · " + p.client : "")
+      + " · " + needs + (p.by ? " · pinged by " + p.by : "") + "\n" + link;
+    return { text, blocks: [{ type: "section", text: mrkdwn(line) }] };
+  }
+  return { text, blocks: [
+    { type: "section", text: mrkdwn(p.mention + "  🚨 *URGENT*: needs tweaks") },
+    { type: "section", text: mrkdwn("*" + boldSafe(p.title) + "*" + (p.client ? "  ·  " + p.client : "")
+      + "\n" + needs + (p.by ? "  ·  pinged by " + p.by : "")) },
+    { type: "context", elements: [mrkdwn(link)] },
+  ] };
+}
+
 export function isNotifyVariant(value: unknown): value is NotifyVariant {
   return typeof value === "string" && (NOTIFY_VARIANTS as string[]).includes(value);
 }

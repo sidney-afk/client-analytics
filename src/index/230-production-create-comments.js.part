@@ -10,7 +10,7 @@ import {
   _writeUiNativeId, _writeUiPrimeRerouteFlag, _writeUiRecordFailure
 } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calSetCommentsFor, calClientSlug, calState } from './130-calendar-model-cache.js';
-import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calEsc, _calEscAttr, _jsAttrArg, _svDraftClear, _svDraftClearIf, _svDraftNoteHtml, _svDraftRead, _svDraftSave } from './131-core-html.js';
 import { _calOpenCommentsPid, _calRenderCommentsModal } from './190-calendar-approval-comments.js';
 import {
   PROD_COMMENTS_EF_URL, PROD_COMMENTS_PAGE_SIZE, PROD_COMMENTS_READ_TIMEOUT_MS,
@@ -973,15 +973,46 @@ import {
         // F43 canonical-thread composer. The Phase-2 top-level-only copies of
         // these four functions were removed (C3 step 1): a later declaration
         // already replaced them everywhere, and an ES module refuses duplicates.
+        /* The comment and reply composer keeps its unsaved text in the shared
+           draft store (131), keyed by the deliverable: it survives a reload and a
+           new tab, is dropped when the comment is acknowledged, and an edit of an
+           existing comment is never stored (the server already holds that text). */
+        function _prodCommentDraftClient(id) {
+            const issue = _prodIssue(id);
+            return String((issue && (issue.project || issue.clientSlug)) || '');
+        }
         function _prodCommentDraftFor(id) {
             id = String(id || '');
-            if (!_prodState.commentDrafts.has(id)) _prodState.commentDrafts.set(id, {
-                body: '', audience: 'internal', requestId: '', action: 'add',
-                commentId: '', parentId: '', expectedVersion: null,
-                expectedUpdatedAt: '', error: '', lifecycleKey: '',
-                lifecycleRequestId: '', currentBody: '', rebased: false
-            });
+            if (!_prodState.commentDrafts.has(id)) {
+                const fresh = {
+                    body: '', audience: 'internal', requestId: '', action: 'add',
+                    commentId: '', parentId: '', expectedVersion: null,
+                    expectedUpdatedAt: '', error: '', lifecycleKey: '',
+                    lifecycleRequestId: '', currentBody: '', rebased: false, restored: false
+                };
+                const kept = _svDraftRead('prod', _prodCommentDraftClient(id), id, 'comment');
+                if (kept) {
+                    fresh.body = kept.text;
+                    fresh.parentId = String(kept.meta.parentId || '');
+                    fresh.audience = kept.meta.audience === 'client' ? 'client' : 'internal';
+                    fresh.restored = true;
+                }
+                _prodState.commentDrafts.set(id, fresh);
+            }
             return _prodState.commentDrafts.get(id);
+        }
+        function _prodCommentDraftKeep(id, draft) {
+            if (!draft || draft.action !== 'add') return;
+            _svDraftSave('prod', _prodCommentDraftClient(id), String(id), 'comment', draft.body,
+                { parentId: draft.parentId || '', audience: draft.audience || 'internal' });
+        }
+        function _prodDraftDiscard(id) {
+            id = String(id || '');
+            _svDraftClear('prod', _prodCommentDraftClient(id), id, 'comment');
+            const draft = _prodCommentDraftFor(id);
+            draft.body = ''; draft.parentId = ''; draft.restored = false; draft.requestId = ''; draft.error = '';
+            _prodRender();
+            return false;
         }
         function _prodCommentDraftInput(id, body) {
             const draft = _prodCommentDraftFor(id);
@@ -989,6 +1020,7 @@ import {
             if (draft.body !== body) draft.requestId = '';
             draft.body = body;
             draft.error = '';
+            _prodCommentDraftKeep(id, draft);
         }
         function _prodCommentBegin(id, action, commentId) {
             const draft = _prodCommentDraftFor(id);
@@ -1002,6 +1034,7 @@ import {
             draft.expectedVersion = comment ? comment.version : null;
             draft.expectedUpdatedAt = comment ? comment.row_updated_at : '';
             draft.currentBody = comment ? comment.body : '';
+            draft.restored = false;
             draft.rebased = false;
             draft.requestId = '';
             draft.error = '';
@@ -1014,6 +1047,7 @@ import {
             return false;
         }
         function _prodCommentCancel(id) {
+            _svDraftClear('prod', _prodCommentDraftClient(id), String(id || ''), 'comment');
             _prodState.commentDrafts.delete(String(id || ''));
             _prodRender();
             return false;
@@ -1057,7 +1091,9 @@ import {
             const visibility = canOfferClient
                 ? '<button class="prod-comment-action" type="button" onclick="_prodCommentDraftAudience(' + _jsAttrArg(issue.id) + ',' + _jsAttrArg(draft.audience === 'client' ? 'internal' : 'client') + ');_prodRender()">' + (draft.audience === 'client' ? 'Client-visible' : 'Internal') + '</button>'
                 : '<span class="prod-write-state" data-prod-client-visible-disabled="1" title="Only works when a matching Samples card is linked to this deliverable.">Internal</span>';
-            return '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><form class="prod-composer-form" data-prod-comment-form="' + _calEscAttr(issue.id) + '" onsubmit="return _prodSubmitComment(event,' + _jsAttrArg(issue.id) + ')">'
+            const restoredNote = (draft.restored && draft.action === 'add' && String(draft.body || '').trim())
+                ? _svDraftNoteHtml('onclick="_prodDraftDiscard(' + _jsAttrArg(issue.id) + ')"') : '';
+            return restoredNote + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><form class="prod-composer-form" data-prod-comment-form="' + _calEscAttr(issue.id) + '" onsubmit="return _prodSubmitComment(event,' + _jsAttrArg(issue.id) + ')">'
                 + (context ? '<div class="prod-composer-actions"><b class="prod-write-state">' + _calEsc(context) + '</b><span class="prod-spacer"></span><button class="prod-comment-action" type="button" onclick="_prodCommentCancel(' + _jsAttrArg(issue.id) + ')">Cancel</button></div>' : '')
                 + '<textarea class="prod-composer-input" data-prod-comment-input="1" maxlength="20000" placeholder="' + (draft.parentId ? 'Write a reply...' : draft.action === 'edit' ? 'Edit comment...' : 'Write a comment...') + '" oninput="_prodCommentDraftInput(' + _jsAttrArg(issue.id) + ',this.value)" onkeydown="_prodComposerKeydown(event,' + _jsAttrArg(issue.id) + ')"' + (pending ? ' disabled' : '') + '>' + _calEsc(draft.body) + '</textarea>'
                 + '<div class="prod-composer-actions">' + (draft.action === 'add' && !draft.parentId ? visibility : '') + '<span class="prod-spacer"></span>'
@@ -1095,6 +1131,8 @@ import {
                 if (!result) return;
                 const finishedAction = draft.action;
                 const wasReply = !!draft.parentId;
+                // The server acknowledged it: drop the stored copy of exactly this text.
+                _svDraftClearIf('prod', _prodCommentDraftClient(id), String(id), 'comment', comment.body);
                 _prodState.commentDrafts.delete(String(id));
                 _prodComments.adopt(id, result.comment);
                 _prodComments.refresh(id);
@@ -1683,7 +1721,7 @@ import {
             const states = new Map();
             let generation = 0;
             const stateFor = id => states.get(String(id || '')) || null;
-            const repaint = () => { try { _prodRender(); } catch (e) {} };
+            const repaint = id => { if (id && _prodState.quietIds.has(String(id))) return; try { _prodRender(); } catch (e) {} };
             const clientSurfaceFor = value => {
                 const source = value && typeof value === 'object' ? value : {};
                 const sourceSurface = String(source.source_surface || '').trim().toLowerCase();
@@ -1716,7 +1754,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface: null,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 const append = !!options.append;
@@ -1744,7 +1782,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface: null,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 let hasClientCredential = false;
@@ -1755,7 +1793,7 @@ import {
                         loadingMore: false, moreError: '', clientSurface,
                         clientSurfaceVerified: false
                     });
-                    repaint();
+                    repaint(id);
                     return stateFor(id);
                 }
                 const requestGeneration = generation;
@@ -1770,7 +1808,7 @@ import {
                     refreshError: '', pagesLoaded: 0, clientSurface,
                     clientSurfaceVerified: false, token
                 });
-                repaint();
+                repaint(id);
                 const cursor = append && current ? current.cursor : null;
                 /* A read that never answers used to sit on the skeleton for the
                    life of the page. The error branch below and its Retry button
@@ -1816,7 +1854,7 @@ import {
                             refreshError: '', pagesLoaded: 0, clientSurface,
                             clientSurfaceVerified: false, token
                         });
-                        repaint();
+                        repaint(id);
                         return stateFor(id);
                     }
                     if (!response.ok) throw new Error('Comments read failed: HTTP ' + response.status);
@@ -1878,7 +1916,7 @@ import {
                 } finally {
                     if (timeoutTimer) clearTimeout(timeoutTimer);
                 }
-                repaint();
+                repaint(id);
                 return stateFor(id);
             }
             function ensure(id) {
@@ -1909,7 +1947,7 @@ import {
                 const state = stateFor(id);
                 if (!state || state.status !== 'ready') return;
                 states.set(String(id), { ...state, items: _prodCommentMerge(state.items, [row]) });
-                repaint();
+                repaint(id);
             }
             async function readCanonical(id, options) {
                 options = options || {};
@@ -1939,7 +1977,7 @@ import {
                 generation++;
                 if (id == null) states.clear();
                 else states.delete(String(id || ''));
-                repaint();
+                repaint(id);
             }
             function render(id) {
                 const state = stateFor(id);
@@ -2248,6 +2286,28 @@ import {
                 if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
                 if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             }
+        }
+        /* The Notes dialog must not say "All clear" or "No notes yet" while the
+           thread is still on its way (2026-10-01). A card's notes are pending
+           from the moment the crosswalk lookup starts until every component's
+           read has answered; an empty feed in that window is a skeleton, not a
+           statement. Rows that are already held are shown as they are. */
+        function _prodCardCommentsPending(post, surface) {
+            if (!post) return false;
+            if (post._canonicalCrosswalkInFlight) return true;
+            const reads = post._canonicalCommentReads;
+            if (!reads) return false;
+            /* Only the deliverables bound to the card NOW count. A projection that
+               aborts because the card was re-pointed mid-flight leaves the old
+               deliverable's entry at 'loading' for good, and that must not hold the
+               dialog on a skeleton. */
+            const components = surface === 'sxr' ? SXR_COMPONENTS : _calComponentsFor(post);
+            const bound = new Set(components.map(component => String(_writeUiNativeId(post, component) || '')).filter(Boolean));
+            return Object.keys(reads).some(key => bound.has(String(key)) && reads[key] && reads[key].status === 'loading');
+        }
+        function _prodCommentsSkeletonHtml() {
+            const row = (long) => '<div class="cal-cm-skel-row"><span class="cal-cm-skel cal-cm-skel-avatar"></span><span class="cal-cm-skel-col"><span class="cal-cm-skel cal-cm-skel-line is-short"></span><span class="cal-cm-skel cal-cm-skel-line' + (long ? ' is-long' : '') + '"></span></span></div>';
+            return '<div class="cal-cm-skeleton" role="status" aria-busy="true" aria-label="Loading notes">' + row(true) + row(false) + row(true) + '</div>';
         }
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);
@@ -2641,12 +2701,12 @@ import {
     Object.assign(window, {
         _prodCommentBegin, _prodCommentCancel, _prodCommentDraftAudience, _prodCommentDraftInput,
         _prodCommentLifecycle, _prodComments, _prodComposerKeydown, _prodCreateParentChange,
-        _prodFilterCreateLabels, _prodLoadCreateOptions, _prodOpenLabels, _prodProjectCanonicalCardComments,
-        _prodSubmitComment, _prodSubmitCreate, _prodToggleCreateLabel
+        _prodDraftDiscard, _prodFilterCreateLabels, _prodLoadCreateOptions, _prodOpenLabels,
+        _prodProjectCanonicalCardComments, _prodSubmitComment, _prodSubmitCreate, _prodToggleCreateLabel
     });
 export {
   _prodApplyGatewayRow, _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop,
-  _prodCanonicalCommentGate, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
+  _prodCanonicalCommentGate, _prodCardCommentsPending, _prodCommentsSkeletonHtml, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
   _prodComments, _prodComposerHTML, _prodDescriptionHTML, _prodDescriptionState,
   _prodDescriptionText, _prodDueIso, _prodGatewayWrite, _prodInvalidateScopedReads,
   _prodLabelColorStyle, _prodLabelsButtonHTML, _prodLabelsPopHTML, _prodLinkify,

@@ -155,7 +155,7 @@ const VID = 'https://linear.app/synchro-social/issue/VID-12624/video-1';
   const cardSrc = grabFunc('_kasperRenderCard');
   check("Kasper card gates URGENT on the shared _calShowUrgent(p, 'video')", /_calShowUrgent\(p, 'video'\)/.test(cardSrc));
   check('Kasper card wires the button through the shared urgent renderer',
-    /_calUrgentButtonHtml\(_calEscAttr\(pid\), '_kasperSendUrgentSlack', p, 'kcard-urgent-btn', true\)/.test(cardSrc));
+    /_calUrgentButtonHtml\(_calEscAttr\(pid\), '_kasperSendUrgentSlack', p, 'kcard-urgent-btn', true[,)]/.test(cardSrc));
   check('Kasper button reuses .cal-urgent-btn (+ kcard variant) through the renderer',
     /_calUrgentButtonHtml/.test(cardSrc) && /kcard-urgent-btn/.test(cardSrc));
   check('both SMM and Kasper route through the shared _calUrgentSlackDispatch',

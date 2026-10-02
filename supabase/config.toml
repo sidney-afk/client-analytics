@@ -176,6 +176,12 @@ verify_jwt = false
 [functions.client-profile-write]
 verify_jwt = false
 
+# Kasper > Clients onboarding checklist and resources (admin only, reads and
+# writes). JWT off because SyncView is a static app; the function requires the
+# admin role key and an active admin team member before it reads the body.
+[functions.client-onboarding]
+verify_jwt = false
+
 # SyncView v2 login pass. The gateway check is off because the function checks
 # the caller's guest login itself (auth.getUser) and refuses anything that is
 # not a guest; it then requires a staff key or client token as well.
@@ -186,4 +192,20 @@ verify_jwt = false
 # stays off because chat apps are not Supabase clients; each request carries a
 # personal hf_team_members token instead, and spend is held under a monthly cap.
 [functions.higgsfield-mcp]
+verify_jwt = false
+
+# Server-to-server roster doors (n8n): JWT off because n8n is not a Supabase
+# browser client; both require ROSTER_SERVICE_KEY (32+ characters) in
+# X-Roster-Key. roster-write only writes natively once the owner flips
+# client_profiles_authority to "syncview".
+[functions.roster-read]
+verify_jwt = false
+
+[functions.roster-write]
+verify_jwt = false
+
+# Kasper > Clients: HubSpot deal, contract and payment state per client (read only
+# toward HubSpot). JWT off: it is called with an admin staff key or the daily
+# timer's own key (HUBSPOT_SYNC_KEY), both checked before the body is read.
+[functions.client-hubspot-sync]
 verify_jwt = false

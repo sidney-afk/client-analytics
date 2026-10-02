@@ -1,5 +1,5 @@
 // The claimed database intent owns the destination and card identity. No caller URL.
-export function urgentWebsiteText(claim: any, intent: any): string {
+export function urgentWebsiteText(claim: any, intent: any, opts: { explicitLink?: boolean } = {}): string {
   if (!intent || intent.id !== claim.intent_id || intent.kind !== "urgent"
       || intent.state !== "sending" || intent.attempt_count !== claim.attempt
       || intent.destination_channel_id !== claim.destination_channel_id
@@ -13,5 +13,10 @@ export function urgentWebsiteText(claim: any, intent: any): string {
   const legacy = "https://syncview.synchrosocial.com/?" + new URLSearchParams({ prod: "1", d: intent.deliverable_id }).toString() + "#production";
   // Preserve an already-correct link (either form) without duplicating it.
   const has = (u: string) => claim.text.split(/\s+/).some((token: string) => token === u || token === "<" + u + ">" || token.startsWith("<" + u + "|"));
-  return has(url) || has(legacy) ? claim.text : claim.text + "\nOpen in SyncView: " + url;
+  if (has(url) || has(legacy)) return claim.text;
+  // Slack only turns an address into a link when the post asks for it: the sender
+  // posts with parse:"none", which documents "remove the hyperlinks", so a bare
+  // address stays plain text. <url|text> is always honoured. The explicit form
+  // is what the urgent format flag switches on; unset keeps the old line.
+  return opts.explicitLink ? claim.text + "\n<" + url + "|Open in SyncView>" : claim.text + "\nOpen in SyncView: " + url;
 }

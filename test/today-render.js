@@ -24,7 +24,7 @@ const sandbox = {
   _srpState: {}, console,
 };
 vm.createContext(sandbox);
-vm.runInContext(body + '\nthis.api = { _tdyEditorHtml, _tdySmmHtml, _tdySkeletonHtml, _tdyCacheRead, _tdyCacheWrite, _tdyLoad, _tdyIso, _tdyDays, tdyState, _tdyDropOldDay, _tdyTakeEarly };', sandbox);
+vm.runInContext(body + '\nthis.api = { _tdyJobs, _tdyEditorHtml, _tdySmmHtml, _tdySkeletonHtml, _tdyCacheRead, _tdyCacheWrite, _tdyLoad, _tdyIso, _tdyDays, tdyState, _tdyDropOldDay, _tdyTakeEarly };', sandbox);
 const api = sandbox.api;
 
 let failed = 0;
@@ -49,6 +49,13 @@ ok(note.indexOf('tdy-note') >= 0 && note.indexOf('tdy-note') < note.indexOf('tdy
 ok(/role="status"/.test(api._tdySkeletonHtml()), 'the skeleton announces itself as loading');
 ok(!/Loading your day/.test(src), 'the old text loader is gone');
 ok(!/syncview_today_scope|_tdySetScope/.test(src), 'the My / All switch and its saved setting are gone');
+
+// Dates to move counts only To Do work with a past due date.
+const past = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10);
+const late = (id, status) => ({ ...row(id, status), due_date: past });
+const jobs = api._tdyJobs({ open: [late('t1', 'todo'), late('t2', 'in_progress'), late('t3', 'tweak'), late('t4', 'smm_approval'), row('t5', 'todo')], posts: [] });
+const dates = jobs.find(j => j.key === 'dates').rows.map(x => x.r.id);
+ok(dates.length === 1 && dates[0] === 't1', 'Dates to move lists only To Do items whose due date has passed (got ' + dates.join(',') + ')');
 
 // A saved copy is only good on the day it was written.
 const dayKey = d => api._tdyIso(d);

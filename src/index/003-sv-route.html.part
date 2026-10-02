@@ -138,6 +138,21 @@
             toLegacy: toLegacy,
             clean: clean,
             cleanAbs: function (url) { return location.origin + clean(url); },
+            // The address to put on a link that opens in a new tab. A clean
+            // path such as /synclinear/<id> is not a real file on the host, so it
+            // answers 404 and 404.html bounces it to the app (one extra round
+            // trip before anything loads). The same page's old form
+            // (/?prod=1&d=<id>#production) is the app document itself and loads
+            // at once; the app then rewrites the address bar to the clean path.
+            fast: function (url) {
+                var c = clean(url);
+                try {
+                    var u = new URL(c, location.origin);
+                    var l = toLegacy(u.pathname, u.search);
+                    if (l && u.pathname !== '/' && u.pathname !== '/index.html') return '/' + l.search + l.hash;
+                } catch (e) {}
+                return c;
+            },
             hash: function () { return current().hash; },
             search: function () { return current().search; }
         };

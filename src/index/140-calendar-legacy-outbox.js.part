@@ -2779,16 +2779,22 @@ import {
         if (!btn) return;
         const sent = _calUrgentSentForCurrentRound(p, kind || btn.dataset.urgentKind);
         btn.disabled = sent;
-        btn.textContent = sent ? 'Sent' : 'URGENT';
+        btn.textContent = sent ? (btn.dataset.urgentDone || 'Sent') : (btn.dataset.urgentIdle || 'URGENT');
         btn.dataset.urgentSent = sent ? '1' : '0';
         btn.classList.toggle('is-sent', sent);
     }
-    function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation, kind) {
+    function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation, kind, labels) {
         const k = kind === 'kasper' ? 'kasper' : 'editor';
+        /* `labels` (optional) renames the button where "URGENT" reads as a status. On Kasper's
+           board the orange button is the ping to the EDITOR, so it says so (OPEN_REPAIRS 316).
+           The names ride on data attributes so the in-place state updater keeps them. */
+        const idle = labels && labels.idle ? String(labels.idle) : 'URGENT';
+        const done = labels && labels.done ? String(labels.done) : 'Sent';
+        const named = labels && (labels.idle || labels.done) ? ` data-urgent-idle="${_calEscAttr(idle)}" data-urgent-done="${_calEscAttr(done)}"` : '';
         const sent = _calUrgentSentForCurrentRound(post, k);
         const cls = 'cal-urgent-btn' + (extraClass ? ' ' + extraClass : '') + (sent ? ' is-sent' : '');
         const preClick = stopPropagation ? 'event.stopPropagation();' : '';
-        return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-kind="${k}" data-urgent-sent="${sent ? '1' : '0'}" onclick="${preClick}${handlerName}(event,'${pid}')" title="${_calEscAttr(_urgentKind(k).btnTitle)}"${sent ? ' disabled' : ''}>${sent ? 'Sent' : 'URGENT'}</button>`;
+        return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-kind="${k}" data-urgent-sent="${sent ? '1' : '0'}"${named} onclick="${preClick}${handlerName}(event,'${pid}')" title="${_calEscAttr(_urgentKind(k).btnTitle)}"${sent ? ' disabled' : ''}>${sent ? done : idle}</button>`;
     }
     function _calBuildUrgentPatch(post, ping) {
         const issue = String((ping && ping.issue) || (post && post.linear_issue_id) || '').trim();

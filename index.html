@@ -164,6 +164,21 @@
             toLegacy: toLegacy,
             clean: clean,
             cleanAbs: function (url) { return location.origin + clean(url); },
+            // The address to put on a link that opens in a new tab. A clean
+            // path such as /synclinear/<id> is not a real file on the host, so it
+            // answers 404 and 404.html bounces it to the app (one extra round
+            // trip before anything loads). The same page's old form
+            // (/?prod=1&d=<id>#production) is the app document itself and loads
+            // at once; the app then rewrites the address bar to the clean path.
+            fast: function (url) {
+                var c = clean(url);
+                try {
+                    var u = new URL(c, location.origin);
+                    var l = toLegacy(u.pathname, u.search);
+                    if (l && u.pathname !== '/' && u.pathname !== '/index.html') return '/' + l.search + l.hash;
+                } catch (e) {}
+                return c;
+            },
             hash: function () { return current().hash; },
             search: function () { return current().search; }
         };
@@ -5809,6 +5824,19 @@
             border-radius: 7px; padding: 6px 9px; font-size: 0.7rem; font-weight: 700;
             line-height: 1.3; letter-spacing: 0.01em; }
 
+        /* Two people on one card: the other value and a choice (see _calConflictGate). */
+        .cal-conflict { background: var(--surface-subtle); color: var(--text-primary); border: 1px solid var(--dn);
+            border-radius: 7px; padding: 7px 9px; font-size: 0.72rem; line-height: 1.35; display: flex; flex-direction: column; gap: 6px; }
+        .cal-conflict.is-aside { border-color: var(--border); }
+        .cal-conflict-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .cal-conflict-btn { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px;
+            padding: 3px 9px; font-family: inherit; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
+        .cal-conflict-btn:hover { border-color: var(--sv-border-aaa); }
+
+        /* Restored unsaved text: one quiet line, never a dialog (shared draft helper, 131). */
+        .sv-draft-note { font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 2px 0; }
+        .sv-draft-discard { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--text-primary); text-decoration: underline; cursor: pointer; }
+
         /* Title — reads as a heading, not a form field */
         .cal-fld-name { width: 100%; box-sizing: border-box; border: 0; outline: 0; background: transparent;
             padding: 3px 4px; font-family: inherit; font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
@@ -6978,6 +7006,15 @@
         .cal-comments-feed { flex: 1; overflow-y: auto; padding: 8px 0 0; display: flex; flex-direction: column; background: var(--white); }
         .cal-comments-feed-inner { display: flex; flex-direction: column; padding: 8px 4px 14px; flex: 1; }
         .cal-comments-empty { font-size: 0.84rem; color: var(--text-muted); padding: 36px 24px; text-align: center; line-height: 1.5; }
+        .cal-cm-skeleton { padding: 14px 20px; display: flex; flex-direction: column; gap: 18px; }
+        .cal-cm-skel-row { display: flex; gap: 12px; align-items: flex-start; }
+        .cal-cm-skel-col { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-top: 3px; }
+        .cal-cm-skel { display: block; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 14%, transparent) 0%, color-mix(in srgb, var(--text-muted) 26%, transparent) 48%, color-mix(in srgb, var(--text-muted) 14%, transparent) 100%); background-size: 220% 100%; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .cal-cm-skel-avatar { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; }
+        .cal-cm-skel-line { height: 11px; width: 70%; }
+        .cal-cm-skel-line.is-short { width: 28%; }
+        .cal-cm-skel-line.is-long { width: 92%; }
+        @media (prefers-reduced-motion: reduce) { .cal-cm-skel { animation: none; } }
         .cal-comments-empty-title { font-weight: 700; color: var(--text-primary); margin-bottom: 4px; font-size: 0.9rem; }
         .cal-cm-thread { display: flex; flex-direction: column; }
         .cal-cm-thread.is-done .cal-cm-row { opacity: 0.6; transition: opacity 0.15s; }
@@ -7641,6 +7678,20 @@
         /* Icon-only "no more tweaks needed" chip on the Kasper queue card. */
         .kcard-aat-chip { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border-radius: 99px; flex-shrink: 0; }
         .kcard-aat-chip svg { width: 11px; height: 11px; }
+        /* Kasper board clarity (OPEN_REPAIRS 316): sent-back marker, urgent tag, unsaved-change alerts, skip notes. */
+        .kcard-returned-chip { display: inline-flex; align-items: center; font-size: 0.7rem; font-weight: 700; color: var(--sv-fg-92400e); background: var(--sv-bg-fef3c7); padding: 2px 8px; border-radius: 99px; }
+        .kcard-returned-line { font-size: 0.75rem; color: var(--sv-fg-92400e); }
+        .kcard-urgent-tag { display: inline-flex; align-items: center; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em; color: var(--sv-fg-b91c1c); background: var(--sv-bg-fee2e2); padding: 2px 8px; border-radius: 99px; }
+        .kasper-fresh { font-size: 0.72rem; color: var(--text-muted); margin: 0 2px 8px; }
+        .kasper-save-alert { background: var(--sv-bg-fef2f2); border: 1px solid var(--border); border-left: 3px solid var(--sv-bg-ef4444); border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
+        .kasper-save-alert-title { font-size: 0.9rem; font-weight: 700; color: var(--sv-fg-b91c1c); margin-bottom: 6px; }
+        .kasper-save-alert-list { margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-secondary); }
+        .kasper-save-alert-list li { margin-bottom: 8px; }
+        .kasper-save-alert-text { font-size: 0.8rem; color: var(--text-primary); }
+        .kasper-save-alert-actions { display: inline-flex; gap: 8px; margin: 6px 0 0 0; }
+        .kasper-save-alert-btn { font: inherit; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .kcard-save-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--sv-bg-fef2f2); border-top: 1px solid var(--border); border-left: 3px solid var(--sv-bg-ef4444); padding: 10px 14px; }
+        .kasper-history-skip { font-size: 0.72rem; font-weight: 600; color: var(--sv-fg-92400e); background: var(--sv-bg-fef3c7); border-radius: 8px; padding: 3px 8px; margin-top: 4px; display: inline-block; }
         /* Icon-only "no more tweaks needed" badge, right of the Tweaks pill. */
         .cal-foot-tweaks { display: inline-flex; align-items: center; gap: 6px; }
         .cal-aat-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border-radius: 99px; flex-shrink: 0; }
@@ -9460,9 +9511,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-f77b4511255f.js";
-        var PARTS = ["js/sv-01-core-1455dcbae1bf.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e6fb1f13acdf.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-5a3333ce1694.js","js/sv-12-synclinear-935ecca8e0b1.js","js/sv-13-core-05f243eb86f1.js","js/sv-15-core-d9a9e0468f2b.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-3ce687433e7a.js","workload":"js/sv-04-workload-74cd1d5cd211.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-828f780f8890.js"};
+        var FULL = "js/sv-full-2e80fb8f3dab.js";
+        var PARTS = ["js/sv-01-core-1455dcbae1bf.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-c01b1ff59fd1.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-c6aed67b7522.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

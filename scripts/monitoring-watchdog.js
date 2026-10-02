@@ -211,6 +211,15 @@ const LANES = Object.freeze([
   { key: 'card_calendar_drift', label: 'card vs calendar status drift', cadence: 'hourly :27', max_age_minutes: 240,
     hosts: ['card-calendar-status-drift.yml'], retired: null },
   /*
+   * Added 2026-10-02 (step 29c). The combined problem message is itself a lane,
+   * so its silence is not mistaken for "no problems": the existing dead-man's
+   * switch keeps posting on its own, which is the independent fallback the
+   * design asks for. 360 minutes against an hourly cadence, the same slack as
+   * the other best-effort lanes (GitHub drops cron firings under load).
+   */
+  { key: 'alert_digest', label: 'combined problem message', cadence: 'hourly :47 (best effort)', max_age_minutes: 360,
+    hosts: ['alert-digest.yml'], retired: null },
+  /*
    * Added 2026-08-23, by owner request: page when the assurance ledger stops
    * being true.
    *

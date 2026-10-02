@@ -28,6 +28,25 @@ executes these files (see `README.md` › Repository layout).
   default-off flags. Idempotent; rollback block at the bottom.
   `test/sheets-mirror-roles-postgres.js` measures all four roles on it.
 
+- **`2026-10-01-analytics-metrics-collect-shadow.sql`** and
+  **`2026-10-01-analytics-metrics-collect-schedule.sql`** are source-only until
+  Lighthouse applies them with the owner's go (OPEN_REPAIRS 322). The first adds the
+  shadow side of the daily metrics job: post-tracking state, a per-day queue, a shadow
+  metrics table, claim and commit functions and the comparison, RLS on, every privilege
+  revoked from the four roles then only what the function needs to `service_role`, flag
+  default off. The second is the per-minute timer (pg_cron and pg_net) and refuses to
+  run until the Vault secret `analytics_collect_key` exists. Nothing the pages read.
+  `test/analytics-metrics-collect-postgres.js` measures it.
+- **`2026-10-02-analytics-top-videos-collect-shadow.sql`** and
+  **`2026-10-02-analytics-top-videos-collect-schedule.sql`** are source-only until
+  Lighthouse applies them with the owner's go (OPEN_REPAIRS 327), after the two 2026-10-01
+  analytics-metrics-collect files (the first refuses to run without them). They add the
+  shadow side of the daily Top Videos job: a per-day queue, a shadow rows table, claim and
+  commit functions and the comparison, RLS on, every privilege revoked from the four roles
+  then only what the function needs to `service_role`, flag `analytics_top_videos_collect`
+  default off. The timer file (08:00 to 12:59 UTC) uses the metrics job's Vault key. Nothing the
+  pages read. `test/analytics-top-videos-collect-postgres.js` measures it.
+
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To
   rebuild from scratch, start here.

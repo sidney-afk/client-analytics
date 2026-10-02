@@ -115,3 +115,51 @@ The pre-edit Generate Caption graph had keys typed into Code steps and is NOT co
 Step C (Booking Recovery Dispatch): no n8n edit; the gate and its replay proof are in `docs/ops/BOOKING_RECOVERY_GATE.md`.
 Undo: delete the stub files; nothing else depends on them.
 
+
+## 2026-10-01 PR 1905, Doctors campaign patch: Kasper Ad Performance Daily Pull edited and published (booked calls only; partial leads NOT done)
+
+Workflow: Kasper Ad Performance, Daily Pull (`2Ax4c78jgI7roXzv`)
+Version before: `74798eb9-6b7f-449a-a526-64c7fdfd274b`      Version after: `0fee453a-81d9-46d4-995a-66edce6bdfbd` (published 2026-10-01, about 15:43 UTC; an in between version `062aa2eb-2633-4141-af1f-244088894cb4` was live for about two minutes)
+Changed (two steps, nothing else):
+- **Extract Lead Emails** and **Build Daily Rows** (Code): the test `utm_campaign !== 'prospecting'` is now `!isTrackedCampaign(...)`, true for `prospecting` or a campaign tag starting "doctors | booked calls" (case, spacing and `+` insensitive). Build Daily Rows also gives a booking its campaign id from the campaign name when it has no `utm_id`, and returns `campaignIdByName` next to `adCampaign`.
+- **Pull Unfinished Leads**: was changed to also read calendar `doctor-strategy-call`, then PUT BACK to the original filter (see Tested). It is the same as before this PR.
+Why: show Doctors bookings in the Kasper Ad Performance panel (owner request, PR 1905).
+Tested (real services, manual runs, nothing but this workflow's own tables written):
+- Run `655279` (patched, including the calendar filter): every branch succeeded except **Upsert Unfinished Leads**, answered 400 "invalid input syntax for type timestamp with time zone: n/a-no-sms-consent". The Doctors partial rows hold that sentinel text in `sms_sent_at`, and the Supabase column is a timestamp, so one such row fails the whole batch. Nothing was written by that branch. The filter was put back at once (version `0fee453a`).
+- Run `655289` (final version): status success. Supabase counts before and after are identical: Prospecting | Leads 18 days, spend 1372.35, 7 bookings (4 held); Prospecting | Booked Calls 6 days, spend 561.27, 1 booking (0 held); all campaigns rollup 46 days, spend 4178.55, 17 bookings (6 held); 17 lead rows; 14 unfinished lead rows.
+- **Not proven:** a Doctors booking in the panel. There are no Doctors rows to show yet: the Meta pull returned no spend for that campaign in the 8 day window and no Doctors booking is in the window. The panel itself was not opened (it needs the admin key). The run was the whole 8 day window, not one day; the workflow has no single day setting and I did not add one.
+Undo: in n8n restore version `74798eb9-6b7f-449a-a526-64c7fdfd274b` (workflow history) and publish it. Backup stub: `n8n-backups/kasper-ad-performance-daily-pull.2026-10-01.doctors-patch.stub.json`.
+Still open (needs the owner's go): partial leads. `Map Unfinished Leads` must turn a non timestamp `sms_sent_at` (the sentinel text) into null before the Pull filter is widened again; that node was outside this request. Also one Doctors test row (calendar `doctor-strategy-call`, test source) would show as an unfinished lead until excluded.
+
+## 2026-10-01 PR 1905 follow-up: owner approval of the full Doctors patch; read-back of the live workflow (no new edit made by this entry)
+
+Workflow: Kasper Ad Performance, Daily Pull (`2Ax4c78jgI7roXzv`)
+Version before the PR: `74798eb9-6b7f-449a-a526-64c7fdfd274b`      Version live now: `4202aeaa-e0df-4adc-851f-8c0e02f4a97b` (active version and latest version are the same)
+Apply: nothing was applied by this entry. When the owner's approval arrived the live workflow already held the whole patch. It was saved in two steps after the entry above, by another session on the same account: `a8ee561b-8024-4f0d-8334-33d0c7e7f8ac` (15:58 UTC, Map Unfinished Leads) and `4202aeaa-e0df-4adc-851f-8c0e02f4a97b` (16:02 UTC, Pull Unfinished Leads widened again). Re-applying would have changed nothing, so it was not done.
+Read-back (n8n version diff, `74798eb9` to `4202aeaa`): exactly four steps changed, none added or removed, no connection changed, schedule and every credential reference untouched.
+- Extract Lead Emails and Build Daily Rows: as proposed in the PR (shared `isTrackedCampaign`, campaign id by name, `campaignIdByName` in the output).
+- Pull Unfinished Leads: `anyCondition`, `utm_campaign eq prospecting` OR `calendar eq doctor-strategy-call`, as proposed.
+- Map Unfinished Leads: goes **beyond the PR text**. It falls back to the campaign id by name (the campaign NAME column stays empty on that fallback), turns any non date value in the four timestamp fields into null (the fix for the 2026-10-01 400 error above), and skips rows whose `utm_source` contains "test".
+Tested: a manual run of the live version, execution `655402` (16:06 UTC), status success. Supabase afterwards, read only: all campaigns rollup 46 days, spend 4178.55, 17 bookings (6 held); Prospecting | Leads 18 days, 7 bookings (4 held); 17 lead rows; 14 unfinished lead rows. Identical to before the PR.
+Not proven: a Doctors row in the panel. There are still no Doctors spend days or bookings in the data, and the only Doctors partial rows in the recovery table are tests, which the new test skip drops on purpose.
+Undo: restore `74798eb9-6b7f-449a-a526-64c7fdfd274b` in n8n and publish it (all four steps go back). To keep the booking part and drop only the partial leads part, restore `0fee453a-81d9-46d4-995a-66edce6bdfbd`.
+
+## 2026-10-01 New Client → Slack DM (Notion Onboarding) turned off (owner's go, session Beacon)
+
+Workflow: New Client → Slack DM (Notion Onboarding) (`y1bEpXLggfR5HqYV`)
+Version: `bc52163a-70e6-4e63-a03a-3f3b5c91d253` (the only version; the graph was not edited)
+Changed: **unpublished only** (active true to false). No step, connection or credential touched.
+Why: it was active and failing on every poll (24 errors in the 8 days n8n keeps, no error workflow, so nobody was alerted). The Notion form it watched was replaced by the SyncView onboarding form, and the docs already say it is not an operational fallback (F111). The owner decided on 2026-10-01 to turn it off.
+Read back after: `active: false`, `activeVersionId: null`, trigger count unchanged.
+Not done: not archived or deleted, so its definition stays for the F60 retirement proof. No private JSON export was made by this session (nothing was edited; the only version is unchanged in n8n history and the Sunday weekly backup exports every workflow). Public-safe stub: `n8n-backups/new-client-notion-dm.2026-10-01.deactivation.stub.json`. Inventory updated: `docs/truth/N8N.md`, `docs/ATLAS.md`.
+Undo: in n8n open the workflow and publish it again (version `bc52163a-70e6-4e63-a03a-3f3b5c91d253`). It will resume failing until a Notion credential is attached.
+
+## 2026-10-02 Project Central, Sheet API turned off (owner's go, session Roster)
+
+Workflow: Project Central, Sheet API (`Jr7JviDpBHee508N`)
+Version: `b6d3c2e7-5a85-4c1b-a1be-6816e7091f53` (the only version, published and active before; the graph was not edited)
+Changed: **unpublished only** (active true to false). No step, connection or credential touched. Its two inactive siblings (Inspect, 3-Tab Migration) were already off and are unchanged.
+Why: owner decision 2026-10-02 to archive Project Central. Its save path cleared all three live tabs of its own workbook before rewriting them, with no staging or restore (audit F123), and nothing in this repository calls its address (`/webhook/project-central`; searched 2026-10-02).
+Read back after: search by name shows `active: false` for all three Project Central workflows.
+Not done: not archived or deleted in n8n, and the workbook itself is untouched, so the definition and the data stay for the retirement proof.
+Undo: in n8n open the workflow and publish it again (version `b6d3c2e7-5a85-4c1b-a1be-6816e7091f53`); its webhook address works again at once. Nothing else to restore.

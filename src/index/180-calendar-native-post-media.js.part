@@ -25,7 +25,7 @@ import {
   _calLocalRecentSaves, _calMsgAudience, _calPendingEdits, _calPostColor, _calSaveInFlight,
   calClientSlug, calState
 } from './130-calendar-model-cache.js';
-import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calEsc, _calEscAttr, _svDraftNoteHtml } from './131-core-html.js';
 import {
   _calAddDaysISO, _calAddMonthsISO, _calIsoFirstOfMonth, _calIsoMondayOf, _calIsoOf, _calParseIso
 } from './132-calendar-dates-ids.js';
@@ -44,7 +44,7 @@ import {
   _calAutosizeTextareas, _calCloseNativePost, _calFlushCardSave, _calInsertLocalBlankCard,
   _calNativeBatchCompatible, _calNativeBatchDisplayName, _calNativeBatchLists,
   _calNativeBatchMatches, _calNativeBatchNameFor, _calNativeBatchOptionsHtml,
-  _calNativeBatchStartMeta, _calNativeParentUuids, _calNativePostCount, _calNativePostCountMax,
+  _calNativeBatchStartMeta, _calNativeDraftClear, _calNativeDraftRestore, _calNativeParentUuids, _calNativePostCount, _calNativePostCountMax,
   _calNativePostNamesFor, _calNativePostNamesHtml, _calNativePostState, _calNativeReceiptHtml,
   _calNativeTitleOrdinal, _calNativeVideoEditorPool, _calSetNativeBatchOptionsHtml,
   _calSetNativePostState
@@ -393,6 +393,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                     })}
                 </div>
                 <div class="cal-native-name-row" role="group" aria-labelledby="calNativePostNamesLabel">
+                    ${state.restoredDraft ? _svDraftNoteHtml(`onclick="_calNativeDraftDiscard()"`) : ''}
                     <div class="cal-native-name-label" id="calNativePostNamesLabel">${postCount === 1 ? 'Post name' : 'Post names'}<span class="cal-native-name-optional">optional</span></div>
                     <div id="calNativePostNames">${_calNativePostNamesHtml(state, postCount, mode)}</div>
                 </div>
@@ -679,6 +680,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
             batchName: '', postNames: [],
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         });
+        _calNativeDraftRestore(_calNativePostState);
         const editorState = _calNativePostState;
         /* Loaded alongside the batch options rather than before them: the
            picker must never hold the dialog open, and a roster or load read
@@ -882,6 +884,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
             const result = await _resumeNativeIntakeJob(
                 surface === 'sxr' ? 'samples-create-post' : 'calendar-create-post', pending);
             const first = result && Array.isArray(result.items) ? result.items.find(item => item && item.card_id) : null;
+            _calNativeDraftClear(state);   // created: the names are no longer unsaved
             _calCloseNativePost(true);
             if (first && first.card_id) {
                 // Both tabs render .cal-card rows, but only the calendar tracks

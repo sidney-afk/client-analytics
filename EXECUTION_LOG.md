@@ -6,6 +6,20 @@ All times are UTC unless noted.
 
 **Older entries are archived.** Entries more than 60 days old live word for word in [docs/ops/execution-log-archive/](docs/ops/execution-log-archive/), one file per month. Each one leaves a single "Archived entry" line below, in its original place, with a link and a fingerprint of the entry's exact text. Nothing in them was edited; `node scripts/ledger-archive.js log --check` proves it, and fails if an archived entry is later changed. Three entries older than 60 days stay in this file on purpose: the repo identity check refuses their lines as new text in a new file, and it has no exemption for a move between ledgers.
 
+## 2026-10-01 — Calendar overall status now moves with the bridge; 5 cards repaired (owner's go; OPEN_REPAIRS 317)
+
+`migrations/2026-10-01-calendar-overall-status-bridge.sql` applied by Lighthouse after the owner's go, about 19:10 UTC, in
+three steps (the two helper routines, then the trigger routine with a 5 s lock timeout, then the repair routine). Before the
+apply the live `production_native_calendar_status_project` body md5 was `e37dd97bae5735c3130a4774641ccf82`, the value the
+deploy preflight pinned. Read back after: `production_native_calendar_status_norm` `ff2e9a4b84c1f9668dd982105501209c`,
+`production_native_calendar_overall_status` `b723a160d4f2c8441c87fcda9c07c8d8`, `production_native_calendar_status_project`
+`8177b7005675f0537ce44bfad0a3ee2d`, `production_native_calendar_overall_status_repair` `25d227d63577533b7578e7f3104f2ef4`,
+each equal to the committed file. Repair dry run listed 5 linked, non-archived cards whose overall disagreed with their parts
+(2 Approved to Posted with all three parts Posted, 1 Kasper Approval to Client Approval, 1 In Progress to Tweaks Needed,
+1 Tweaks Needed to In Progress); applied, 5 of 5 written with an `overall_status_change` event each; a rerun lists 0. The
+preflight now points this routine at the new file. **Way back:** the rollback block at the bottom of the migration (restore
+the 2026-09-18 trigger body, drop the three new routines); corrected overall values stay, they match their parts.
+
 ## 2026-10-01 — analytics_mirror_read_enabled set to {"enabled": true} (owner's go; plan step 6)
 
 The scheduled "Sheets mirror daily copy and parity" run of 2026-10-01 (started 16:31 UTC, run 36892689003) was green and
@@ -6759,3 +6773,42 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
 - Tests: `test/synclinear-early-read.js`, `test/prod-tail-prefetch.js`, `qa/boot/staff-entry-gate.js` (Linear tab cases).
 - Record and owner decisions: `docs/audits/2026-10-01-synclinear-speed.md`.
+
+## 2026-10-02 - PTO Accrual Tracker file archived (owner's go, session Roster)
+
+- The interim PTO Sheet (the Time Off page and the `pto` function use the database; nothing reads the file, checked in
+  the repo and in every n8n workflow) was moved into a new `Archive` folder at the top of the Drive. Not deleted, not edited.
+- Undo: drag the file back out of `Archive` to the top level of the Drive. No ids are recorded here (public repository).
+- Same day: the Project Central, Sheet API n8n workflow was unpublished; entry and undo in `docs/ops/N8N_EDIT_LOG.md`.
+
+## 2026-10-01 - Opening an item feels instant: measured on the live site, five changes, same pages (session Comet, OPEN_REPAIRS 323)
+
+- Measured first, as admin staff on the test client, every entry point, 5 runs cold and warm: the staff check (about 1.0 s)
+  is the floor under every new-tab open and was not touched. Worst case: a link at a finished batch showed its title at
+  5.3 s and everything at 6.5 s; a link at a finished card opened 0.7 s late on every warm visit; every new-tab link went
+  through a 404 and a redirect first; a SyncLinear row click started its reads only at the click.
+- Changes: a batch link reads its batch, children and parent directly; the saved copy keeps finished rows in IndexedDB
+  and reads only what changed (hourly full pass kept, Refresh is always full); the saved list lives 7 days; new-tab links
+  use the app document itself; row reads start on hover or press.
+- Same rig, interleaved: finished batch warm title 5.27 to 1.46 s, everything 6.51 to 2.74 s; finished sub-issue warm
+  2.16 to 1.42 s; row click everything 1.59 to 1.22 s; SyncLinear list warm complete list 5.25 to 3.17 s, 2.36 MB to
+  1.25 MB, 71 to 63 requests (fresh data 0.2 s later). Content compared old against new: identical.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/open-item-speed.js` plus six suites taught the new link form and helpers.
+- Record and owner decisions: `docs/audits/2026-10-01-open-item-speed.md`.
+
+## 2026-10-01 - Notes dialog: loading skeleton instead of "All clear" (session Comet, OPEN_REPAIRS 325)
+
+- The dialog said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and comment reads were still
+  on their way. It now shows a shimmer (announced as busy) until they answer; rows already held show at once; a failed
+  read settles to the old empty state. Calendar and Samples dialogs.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/notes-loading-skeleton.js`. Live check: skeleton from 22 ms to 1,283 ms, then the thread.
+
+## 2026-10-01 - Edge Functions: preflight cache header and parallel reads in key-verify (session Comet, OPEN_REPAIRS 326)
+
+- Owner decisions: A yes except production-write (waits for the next sealed Section 4 deploy); B1 yes; B2 no.
+- Source only, NOT deployed. `Access-Control-Max-Age: 7200` on seven hot-path functions; `key-verify` reads the flag and the member
+  together and selects six columns; its audit insert stays before the answer.
+- Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read; owner agreed 2026-10-02); production-comments waits for the next staff-sensitive dispatch; analytics-read, brain and workload-plan need one dispatch each.
+- Tests: `test/key-verify-behavior.js`, `test/cors-maxage-and-key-verify-reads.js`.

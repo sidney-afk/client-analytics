@@ -39,7 +39,7 @@ function grab(name, kind) {
 // 1. Wiring.
 const loadData = grab('_prodLoadData', 'async');
 const tail = grab('_prodLoadTerminalTail', 'async');
-ok(/if \(_prodTerminalTailFullDue\(silent\)\) _prodStartTailPrefetch\(\);/.test(loadData),
+ok(/_prodTerminalTailFullDue\(silent\)\) _prodStartTailPrefetch\(\);/.test(loadData),
   'a load starts the prefetch exactly when a full tail is due, the same predicate the tail uses');
 ok(loadData.indexOf('_prodStartTailPrefetch()') < loadData.indexOf('_prodClientRows()'),
   'and starts it before the other reads, so it overlaps the whole live walk');

@@ -100,6 +100,7 @@ function harness(opts) {
        for itself exactly as these cases always drove it; the held-read path
        is covered in test/prod-tail-prefetch.js. */
     function _prodTakeTailPrefetch() { return null; }
+    function _prodTerminalCopyWrite() { return Promise.resolve(true); }   // saved finished rows (2026-10-01)
     const Date_now = () => 0;
     async function _prodLoadDeliverableProjection() {
       calls.projection++;

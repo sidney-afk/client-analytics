@@ -178,6 +178,16 @@ Other:
 - `functions/v1/client-profile-write` — Kasper > More > Clients edits (admin role key plus an active
   admin member id). Writes the changed cells to the Clients Info Sheet first, then Supabase
   (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict.
+- `functions/v1/client-onboarding` — Kasper > More > Clients, under a client's details (admin role key plus an
+  active admin member id, for reads AND writes). `action: get` returns the 27-step onboarding checklist, the
+  resource presence list and the stored HubSpot sales state; `action: set_step` changes one step (done, skipped
+  with a note, back to to-do) through the admin-only database function, version checked. The page never reads
+  those tables itself and never shows a review token, a login or a password. Step 2.4 of
+  `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
+- `functions/v1/client-hubspot-sync` — the same panel asks it for a refresh when an admin opens a client
+  (`action: refresh`, admin role key plus member id). Read-only toward HubSpot (never n8n); it answers "off" or
+  "not enabled" until the switch row `client_hubspot_sync` is on for that client. The daily sweep and the ping
+  are called by the database timer with its own key, never by the page.
 - `functions/v1/kasper-ad-performance-read` — admin-only read for the Kasper tab's Ad Performance
   panel (More > Analytics). Reads four tables (service role; none have anon/authenticated grant)
   and returns `rows` (daily campaign-level counts) plus a server-computed `summary` (CPC,

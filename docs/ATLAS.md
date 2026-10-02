@@ -342,6 +342,7 @@ There are 46 entrypoint folders and one shared helper folder here. The live proj
 | <!-- atlas:edge thumbnail-revision-scan -->[`thumbnail-revision-scan`](../supabase/functions/thumbnail-revision-scan/index.ts) | The scheduled scanner discovers Drive thumbnail changes. | Live v55. [deploy-thumbnail-edge-functions.yml](../.github/workflows/deploy-thumbnail-edge-functions.yml) |
 | <!-- atlas:edge workload-plan -->[`workload-plan`](../supabase/functions/workload-plan/index.ts) | Staff reads native Workload; admin and SMM edit internal plan dates. | Live v39. [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | <!-- atlas:edge write-diagnostics -->[`write-diagnostics`](../supabase/functions/write-diagnostics/index.ts) | Browsers report save refusals; admin reads Save problems. | Live v22. [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
+| <!-- atlas:edge client-hubspot-sync -->[`client-hubspot-sync`](../supabase/functions/client-hubspot-sync/index.ts) | Keeps each client's HubSpot deal, contract state and payment state in SyncView (read only toward HubSpot, never n8n): refreshed when an admin opens a profile and by a daily timer. | Source only, not deployed; needs `migrations/2026-10-04-client-hubspot-sync.sql`, the secrets `HUBSPOT_READ_TOKEN` and `HUBSPOT_SYNC_KEY`, and the switch row `client_hubspot_sync`. [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 
 
 ### Live functions owned outside this repo

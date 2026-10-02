@@ -48,6 +48,11 @@
       "total": 1,
       "measured_on": "2026-09-25"
     },
+    "client-hubspot-sync": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-02"
+    },
     "client-onboarding": {
       "counts": {},
       "total": 0,

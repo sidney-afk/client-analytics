@@ -140,7 +140,9 @@ function laneProblems({ heartbeatRows, nowMs, lanes }) {
 function workflowProblems({ runsByFile, nowMs, sources = WORKFLOW_SOURCES }) {
   const problems = [];
   for (const source of sources) {
-    const runs = (runsByFile[source.file] || []).filter(run => run && run.status === 'completed');
+    // Scheduled runs only: a manual or test run says nothing about production health.
+    const runs = (runsByFile[source.file] || [])
+      .filter(run => run && run.status === 'completed' && (!run.event || run.event === 'schedule'));
     if (!runs.length) {
       problems.push({ key: `workflow_stale:${source.key}`, severity: source.severity, evidence: 'no_run', text: source.stale });
       continue;
@@ -259,12 +261,12 @@ async function readRuns(sources = WORKFLOW_SOURCES) {
   const out = {};
   for (const source of sources) {
     const response = await fetch(
-      `${GITHUB_API}/repos/${REPO}/actions/workflows/${source.file}/runs?per_page=10&status=completed`,
+      `${GITHUB_API}/repos/${REPO}/actions/workflows/${source.file}/runs?per_page=10&status=completed&event=schedule`,
       { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
     if (!response.ok) throw new Error(`GitHub runs for ${source.file} HTTP ${response.status}`);
     const body = await response.json();
     out[source.file] = (body.workflow_runs || []).map(run => ({
-      id: run.id, status: run.status, conclusion: run.conclusion, updated_at: run.updated_at, created_at: run.created_at,
+      id: run.id, event: run.event, status: run.status, conclusion: run.conclusion, updated_at: run.updated_at, created_at: run.created_at,
     }));
   }
   return out;
@@ -286,7 +288,7 @@ async function readPrevious(action) {
  * relay will show and an unedited one ignores. Until the edit, what arrives is
  * the one-line summary: type, how many problems, and the first few.
  */
-async function postDigest(result, { webhook, fetchImpl = fetch } = {}) {
+async function postDigest(result, { webhook, fetchImpl = fetch, apiKey } = {}) {
   const worst = result.problems.slice(0, 3).map(problem => problem.key.split(':')[1] || problem.key);
   const payload = relay.relayPayload({
     type: 'syncview_digest',
@@ -300,7 +302,16 @@ async function postDigest(result, { webhook, fetchImpl = fetch } = {}) {
   payload.digest_text = result.message;
   relay.assertPublicSafe(payload);
   const accepted = await relay.postAlert(payload, { webhook, fetchImpl });
-  return { accepted: accepted.accepted, http_status: accepted.status, rendered_single_line: payload.issue_identifier };
+  // 2xx proves the relay took it, not that Slack got it. Look for the relay's
+  // finished run; without the n8n key the answer is "unknown", never "sent".
+  const delivery = await relay.confirmRelayDelivery({
+    runId: payload.details.run_id, type: payload.type, apiKey: apiKey === undefined ? process.env.N8N_API_KEY : apiKey, fetchImpl,
+  });
+  return {
+    accepted: accepted.accepted, http_status: accepted.status,
+    delivery_confirmed: delivery.confirmed === true, delivery_reason: delivery.reason || null,
+    rendered_single_line: payload.issue_identifier,
+  };
 }
 
 // ---------------------------------------------------------------------- main
@@ -345,26 +356,31 @@ async function run(argv = process.argv.slice(2), env = process.env) {
     resolved_quietly: result.resolved,
     would_post: result.should_post,
     fingerprint: result.fingerprint,
+    // The complete list, so a message cut at the limit can still be read in full here.
+    all_problems: result.problems.map(problem => `${problem.change}: ${problem.text}`),
     not_covered: NOT_COVERED,
   };
 
   let posted = null;
   if (result.should_post && enabled && !dryRun) {
-    posted = await postDigest(result, { webhook: env.SLACK_ALERT_WEBHOOK });
+    posted = await postDigest(result, { webhook: env.SLACK_ALERT_WEBHOOK, apiKey: env.N8N_API_KEY });
   }
   // State moves only after a successful post, so a failed post is retried.
   if (!dryRun && !args.has('fixture')) {
-    if (!result.should_post || !enabled || posted) {
+    if (!result.should_post || !enabled || (posted && posted.delivery_confirmed)) {
       await supaInsertEvent(stateAction, { problems: result.problems.map(({ key, severity, evidence }) => ({ key, severity, evidence })), fingerprint: result.fingerprint, run_id: `${RUN_ID}:${RUN_ATTEMPT}` });
     }
   }
-  return { summary: { ...summary, posted: Boolean(posted), delivery: posted || undefined }, message: result.message };
+  const unconfirmed = Boolean(posted) && !posted.delivery_confirmed;
+  return { summary: { ...summary, posted: Boolean(posted), delivery: posted || undefined, state_saved: !dryRun && !args.has('fixture') && !unconfirmed }, message: result.message, unconfirmed };
 }
 
 async function main() {
-  const { summary, message } = await run();
+  const { summary, message, unconfirmed } = await run();
   console.log(message ? `----- message ${summary.switch_on ? '(live)' : '(NOT SENT: switch is off)'} -----\n${message}\n-----` : 'No open problems: nothing to say.');
   console.log(JSON.stringify(summary));
+  // Left red on purpose: state did not move, so the next hour tries again.
+  if (unconfirmed) throw new Error(`relay accepted the digest but delivery was not confirmed (${summary.delivery.delivery_reason})`);
 }
 
 if (require.main === module) {

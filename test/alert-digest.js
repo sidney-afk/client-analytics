@@ -54,6 +54,16 @@ const big = digest.renderMessage(many, 20);
 ok(big.split('\n').length === digest.MAX_LISTED + 2, 'a long list is bounded');
 ok(/Plus 8 more problems: see run/.test(big), 'what is left out is counted, never silently dropped');
 
+// --- scheduled runs only
+const manualGreen = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': [
+  { id: 2, event: 'workflow_dispatch', status: 'completed', conclusion: 'success', updated_at: '2026-10-02T16:50:00Z' },
+  { id: 1, event: 'schedule', status: 'completed', conclusion: 'failure', updated_at: '2026-10-02T10:00:00Z' }] }, nowMs: NOW, sources: digest.WORKFLOW_SOURCES.filter(s => s.key === 'backup') });
+ok(manualGreen.length === 1 && manualGreen[0].key === 'workflow_red:backup', 'a manual green run cannot hide a failed scheduled run');
+const manualRed = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': [
+  { id: 3, event: 'workflow_dispatch', status: 'completed', conclusion: 'failure', updated_at: '2026-10-02T16:50:00Z' },
+  { id: 1, event: 'schedule', status: 'completed', conclusion: 'success', updated_at: '2026-10-02T16:00:00Z' }] }, nowMs: NOW, sources: digest.WORKFLOW_SOURCES.filter(s => s.key === 'backup') });
+ok(manualRed.length === 0, 'a manual red test run is not a production incident');
+
 // --- workflow rules
 const sources = digest.WORKFLOW_SOURCES;
 const red = digest.workflowProblems({ runsByFile: { 'dawn-check.yml': [{ id: 7, status: 'completed', conclusion: 'failure', updated_at: '2026-10-02T16:00:00Z' }] }, nowMs: NOW, sources: sources.filter(s => s.key === 'dawn_check') });
@@ -64,7 +74,13 @@ ok(noRuns.length === 1 && noRuns[0].severity === 2, 'a workflow with no complete
 // --- the switch: default off never posts; on posts once and only when it should
 (async () => {
   const calls = [];
-  const fakeFetch = async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return { status: 200, text: async () => '{}' }; };
+  const fakeFetch = async (url, init) => {
+    if (init && init.method === 'GET') { // the relay's finished-run lookup
+      return { ok: true, json: async () => ({ data: [{ id: 9, status: 'success', data: { resultData: { runData: { 'Receive Edge Alert': [{ data: { main: [[{ json: { body: { type: 'syncview_digest', details: { run_id: 'local:1:digest' } } } }]] } }] } } } }] }) };
+    }
+    calls.push({ url, body: JSON.parse(init.body) });
+    return { status: 200, text: async () => '{}' };
+  };
   const realFetch = global.fetch;
   global.fetch = fakeFetch;
   const fx = path.join(ROOT, 'test/fixtures/alert-digest-demo.json');
@@ -75,8 +91,11 @@ ok(noRuns.length === 1 && noRuns[0].severity === 2, 'a workflow with no complete
   ok(wrong.summary.posted === false && calls.length === 0, 'only the exact word "true" turns it on');
   const dry = await digest.run([...args, '--dry-run'], { ALERT_DIGEST_ENABLED: 'true', SLACK_ALERT_WEBHOOK: 'https://example.invalid/hook' });
   ok(dry.summary.mode === 'dry_run' && calls.length === 0, 'dry run never posts even with the switch on');
-  const on = await digest.run(args, { ALERT_DIGEST_ENABLED: 'true', SLACK_ALERT_WEBHOOK: 'https://example.invalid/hook' });
-  ok(on.summary.posted === true && calls.length === 1, 'switch on and something new: exactly one post');
+  const on = await digest.run(args, { ALERT_DIGEST_ENABLED: 'true', SLACK_ALERT_WEBHOOK: 'https://example.invalid/hook', N8N_API_KEY: 'test-key' });
+  ok(on.summary.posted === true && calls.length === 1 && on.summary.delivery.delivery_confirmed === true && !on.unconfirmed, 'switch on and something new: exactly one post, delivery confirmed');
+  ok(on.summary.all_problems.length === 3, 'the run output lists every problem, whatever the message cut');
+  const noKey = await digest.run(args, { ALERT_DIGEST_ENABLED: 'true', SLACK_ALERT_WEBHOOK: 'https://example.invalid/hook' });
+  ok(noKey.unconfirmed === true && noKey.summary.delivery.delivery_confirmed === false, 'accepted but unconfirmed delivery is reported as unconfirmed, so state would not move');
   const body = calls[0] && calls[0].body;
   ok(body && body.type === 'syncview_digest' && body.digest_text === on.message, 'the post carries the full message in digest_text');
   ok(body && !/https?:\/\//.test(JSON.stringify(body)), 'the post carries no web address');

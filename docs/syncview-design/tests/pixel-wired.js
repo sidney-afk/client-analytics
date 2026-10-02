@@ -12,7 +12,7 @@ const fs = require('fs');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const path = require('path');
 const { chromium } = require('playwright');
-const { serveStatic, isWriteLikeRequest } = require('./prod-test-utils');
+const { serveStatic, isNonReadRequest } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to edit.';
@@ -844,7 +844,7 @@ async function runTheme(port, browser, theme) {
     if (!refreshRestored) gaps.push({ rank: 1, state: 'browser refresh', message: 'wired detail deep link did not restore after refresh' });
     await shot(wired, 'wired-history-refresh-detail');
 
-    const writeRequests = wiredRequests.filter(isWriteLikeRequest);
+    const writeRequests = wiredRequests.filter(isNonReadRequest);
     if (writeRequests.length) gaps.push({ rank: 1, state: 'write silence', message: `wired fixture sent ${writeRequests.length} write-like request(s)` });
     if (wiredErrors.length) gaps.push({ rank: 1, state: 'console silence', message: wiredErrors.slice(0, 5).join(' | ') });
 

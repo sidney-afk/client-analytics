@@ -9,7 +9,7 @@
  */
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const { chromium } = require('playwright');
-const { installReadConsoleAudit, serveStatic, isWriteLikeRequest } = require('./prod-test-utils');
+const { installReadConsoleAudit, serveStatic, isNonReadRequest } = require('./prod-test-utils');
 
 const TOTAL = 169;
 
@@ -2342,7 +2342,7 @@ async function txt(page, sel) {
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('dark Production preview did not follow syncview_theme=dark');
     const readConsole = await readConsoleAudit.settle();
-    await ok('noWriteRequests', async () => requests.filter(isWriteLikeRequest).length === 0);
+    await ok('noWriteRequests', async () => requests.filter(isNonReadRequest).length === 0);
     await ok('noConsoleErrors', async () => readConsole.ok ? true : readConsole.error);
 
     const failed = Object.entries(results).filter(([, v]) => v !== true);

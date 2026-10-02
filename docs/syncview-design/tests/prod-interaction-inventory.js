@@ -10,7 +10,7 @@
  */
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const { chromium } = require('playwright');
-const { serveStatic, isWriteLikeRequest } = require('./prod-test-utils');
+const { serveStatic, isNonReadRequest } = require('./prod-test-utils');
 
 const selectionOnly = process.argv.includes('--selection-only');
 
@@ -626,7 +626,7 @@ async function selectionChecks(page) {
       failures.push(...await selectionChecks(page));
     }
 
-    const writes = requests.filter(r => isWriteLikeRequest(r) && !isProtectedReadPost(r));
+    const writes = requests.filter(r => isNonReadRequest(r) && !isProtectedReadPost(r));
     if (writes.length) failures.push('write-like requests observed: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
     if (errors.length) failures.push('browser errors: ' + errors.slice(0, 5).join(' | '));
     const probeErrors = await page.evaluate(() => window.__prodProbeErrors || []);

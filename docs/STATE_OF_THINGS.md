@@ -40,6 +40,12 @@ here with where it stopped, so it can be restarted.
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
   (item 7).
+- **D2. The phone experience (owner direction, 2026-10-02).** The whole site gets a phone-first design, tab by
+  tab, built by a Codex session with a real (not headless) browser the owner sets up with it first. Hard constraint:
+  **nothing changes on desktop** (same bytes at desktop widths, proven by the existing desktop gates and screenshot
+  diffs). On a phone each tab may look and behave differently from desktop; the bar is a first-class app (the owner
+  named Wise as the reference): speed, button placement, one-hand use. Delivered in slices, one PR per tab, Lighthouse
+  merges, test client only for live proof. Starts after Beacon's checklist panel (#1941) is on main.
 - **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
   least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
   daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.

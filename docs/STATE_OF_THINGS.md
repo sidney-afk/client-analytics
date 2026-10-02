@@ -41,6 +41,12 @@ here with where it stopped, so it can be restarted.
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
   (item 7).
+- **D2. The phone experience (owner direction, 2026-10-02).** The whole site gets a phone-first design, tab by
+  tab, built by a Codex session with a real (not headless) browser the owner sets up with it first. Hard constraint:
+  **nothing changes on desktop** (same bytes at desktop widths, proven by the existing desktop gates and screenshot
+  diffs). On a phone each tab may look and behave differently from desktop; the bar is a first-class app (the owner
+  named Wise as the reference): speed, button placement, one-hand use. Delivered in slices, one PR per tab, Lighthouse
+  merges, test client only for live proof. Starts after Beacon's checklist panel (#1941) is on main.
 - **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
   least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
   daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.
@@ -105,6 +111,10 @@ here with where it stopped, so it can be restarted.
    plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
    in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), owner decided 2026-10-01: stays hourly, no n8n edits (replay test and design doc kept). Last K (client approve and request-changes move).
    Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
+   **Owner decision 2026-10-02: the 30-day safety window becomes 5 days.** An old n8n workflow may be switched off 5 days after
+   its replacement ships and its live proof passes, each switch-off still its own n8n edit with the owner's go. Step K (#1906,
+   client approve and request-changes to the functions) was given the go the same day; it waits only on a rebase and Lighthouse's
+   merge. The n8n Calendar save still has one real caller (Generate Caption's Save step) that moves before that workflow goes off.
 6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 322).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
    `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
    by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).

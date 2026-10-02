@@ -651,6 +651,7 @@
     "analytics-metrics-collect.js",
     "analytics-metrics-collect-function.js",
     "client-profile-edit.js",
+    "onboarding-badge-instant.js",
     "onboarding-boot-skeleton.js",
     "syncview-session.js",
     "sheets-mirror-parity-catchup.js",

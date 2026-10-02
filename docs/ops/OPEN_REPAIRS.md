@@ -30305,3 +30305,13 @@ Fix: in the card layout only, the line above the card is now a single top-level 
 Proof (offline, synthetic ids, zero external calls): `test/native-notification-urgent-format.js`, 65 checks. New: the lead is exactly one block whose text is the mention and nothing else; the mention is not inside the card; the card blocks and attachment equal a snapshot of what #1918 sent; compact and line equal a snapshot of what they were; the request body carries the full-facts text, the lead block and the card together. The new checks fail on the previous source and pass on this one. The type ratchet stays at zero errors for `notify`.
 
 Not proved offline: how Slack draws and notifies, which only the preview lane can show. Run [Send notification preview](https://github.com/sidney-afk/client-analytics/actions/workflows/native-notification-preview.yml) with `message: urgent`, variant `card`, after the deploy and check that the phone notification reads the full sentence.
+
+## 325. [2026-10-01] The Notes dialog shows a loading skeleton, not "All clear", until the card's comments have arrived
+
+Status: page change built and tested, browser only. No database, Edge Function, flag, permission or write path touched. Merge is the owner's lighthouse.
+Problem (owner request): the Notes dialog paints at once and said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and the two comment reads were still on their way (measured live as staff on the test client: dialog at 17 ms, reads ending at 1.2 to 1.4 s). An empty-state sentence about a card whose notes have not arrived is a statement, not a wait.
+Fix: while a card's notes are pending (the crosswalk lookup is running, or any component read is still loading) and there are no rows to show, the feed shows a note-shaped shimmer with `role="status"`, `aria-busy` and "Loading notes", in both the Calendar and the Samples dialogs. Rows already held still show at once; a failed read settles to the old empty state rather than a skeleton forever (the projection already repaints an open dialog on every way out). New helpers `_prodCardCommentsPending` and `_prodCommentsSkeletonHtml` (`230`), styles `.cal-cm-skel*` (`020`), reduced-motion respected.
+Measured after, same live card: skeleton from 22 ms until 1,283 ms, then the thread (this card had only resolved notes, so "All clear" appears at 1.28 s, when it is true).
+Tests: `test/notes-loading-skeleton.js` (11 checks; fails on the old code, the helpers do not exist); full unit run 5 failures, the same five that fail on main in this sandbox.
+Not done, on purpose: no change to what the dialog shows once the notes have arrived.
+Way back: ROLLBACK.md.

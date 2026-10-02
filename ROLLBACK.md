@@ -1463,3 +1463,8 @@ poll, without disabling Production:
   redirect and nothing else; the pieces are independent.
 - **Check after a revert:** a link at a finished batch shows its title only after the finished-items read lands (about 5 s);
   new-tab links begin with a 404 for `/synclinear/<id>` in the network panel.
+
+## 2026-10-01 - inverse for the Notes loading skeleton (browser only; OPEN_REPAIRS 325)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). No flag, table, Edge Function or n8n change.
+- **Check after a revert:** opening Notes on a card with no loaded notes shows "All clear" or "No notes yet" at once again.

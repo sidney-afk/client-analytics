@@ -2287,6 +2287,28 @@ import {
                 if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             }
         }
+        /* The Notes dialog must not say "All clear" or "No notes yet" while the
+           thread is still on its way (2026-10-01). A card's notes are pending
+           from the moment the crosswalk lookup starts until every component's
+           read has answered; an empty feed in that window is a skeleton, not a
+           statement. Rows that are already held are shown as they are. */
+        function _prodCardCommentsPending(post, surface) {
+            if (!post) return false;
+            if (post._canonicalCrosswalkInFlight) return true;
+            const reads = post._canonicalCommentReads;
+            if (!reads) return false;
+            /* Only the deliverables bound to the card NOW count. A projection that
+               aborts because the card was re-pointed mid-flight leaves the old
+               deliverable's entry at 'loading' for good, and that must not hold the
+               dialog on a skeleton. */
+            const components = surface === 'sxr' ? SXR_COMPONENTS : _calComponentsFor(post);
+            const bound = new Set(components.map(component => String(_writeUiNativeId(post, component) || '')).filter(Boolean));
+            return Object.keys(reads).some(key => bound.has(String(key)) && reads[key] && reads[key].status === 'loading');
+        }
+        function _prodCommentsSkeletonHtml() {
+            const row = (long) => '<div class="cal-cm-skel-row"><span class="cal-cm-skel cal-cm-skel-avatar"></span><span class="cal-cm-skel-col"><span class="cal-cm-skel cal-cm-skel-line is-short"></span><span class="cal-cm-skel cal-cm-skel-line' + (long ? ' is-long' : '') + '"></span></span></div>';
+            return '<div class="cal-cm-skeleton" role="status" aria-busy="true" aria-label="Loading notes">' + row(true) + row(false) + row(true) + '</div>';
+        }
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);
             if (!deliverableId) return { linked: false, ready: false, client: false, status: 'unlinked' };
@@ -2684,7 +2706,7 @@ import {
     });
 export {
   _prodApplyGatewayRow, _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop,
-  _prodCanonicalCommentGate, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
+  _prodCanonicalCommentGate, _prodCardCommentsPending, _prodCommentsSkeletonHtml, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
   _prodComments, _prodComposerHTML, _prodDescriptionHTML, _prodDescriptionState,
   _prodDescriptionText, _prodDueIso, _prodGatewayWrite, _prodInvalidateScopedReads,
   _prodLabelColorStyle, _prodLabelsButtonHTML, _prodLabelsPopHTML, _prodLinkify,

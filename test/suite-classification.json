@@ -659,7 +659,8 @@
     "synclinear-early-read.js",
     "prod-tail-prefetch.js",
     "prod-lookup-equivalence.js",
-    "open-item-speed.js"
+    "open-item-speed.js",
+    "notes-loading-skeleton.js"
   ],
   "profiles": [
     {

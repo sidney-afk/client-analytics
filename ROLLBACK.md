@@ -1468,3 +1468,10 @@ poll, without disabling Production:
 
 - **Full inverse:** revert the PR (GitHub Pages redeploys on push). No flag, table, Edge Function or n8n change.
 - **Check after a revert:** opening Notes on a card with no loaded notes shows "All clear" or "No notes yet" at once again.
+
+## 2026-10-01 - inverse for the CORS max-age header and the key-verify parallel reads (source only; OPEN_REPAIRS 326)
+
+- **Before anything is deployed:** revert the PR; nothing live has changed.
+- **After deploy:** revert the PR and redeploy the same functions by the same lanes. The header only lets browsers cache a permission the
+  function already grants; removing it returns to a preflight every 5 s. The `key-verify` change is behaviour-identical except for timing,
+  so a rollback is never needed for correctness, only if the timing is unwanted.

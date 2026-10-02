@@ -271,7 +271,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     }
     const CB_STATUS_WORDS = { found: 'Found', missing: 'Missing', unknown: 'Unknown', not_applicable: 'Not needed' };
     function _cbResourcesHtml() {
-        if (_cbState.loading && !_cbState.data) return `<section class="cb-section"><h4>Resources</h4><p class="cb-lead">Loading…</p></section>`;
+        if (_cbState.loading && !_cbState.data) return `<section class="cb-section" id="cbResources"><h4>Resources</h4><p class="cb-lead">Loading…</p></section>`;
         if (!_cbState.data) return '';
         const list = _cbResourceList();
         const counts = list.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
@@ -340,8 +340,8 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         </li>`;
     }
     function _cbChecklistHtml() {
-        if (_cbState.loading && !_cbState.data) return `<section class="cb-section"><h4>Onboarding checklist</h4><p class="cb-lead">Loading…</p></section>`;
-        if (_cbState.error && !_cbState.data) return `<section class="cb-section"><h4>Onboarding checklist</h4><div class="ca-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div></section>`;
+        if (_cbState.loading && !_cbState.data) return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4><p class="cb-lead">Loading…</p></section>`;
+        if (_cbState.error && !_cbState.data) return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4><div class="ca-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div></section>`;
         const data = _cbState.data;
         if (!data) return '';
         const steps = (data.steps || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));

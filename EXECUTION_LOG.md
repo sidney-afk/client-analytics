@@ -6797,7 +6797,15 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - Tests: `test/open-item-speed.js` plus six suites taught the new link form and helpers.
 - Record and owner decisions: `docs/audits/2026-10-01-open-item-speed.md`.
 
-## 2026-10-01 - Edge Functions: preflight cache header and parallel reads in key-verify (session Comet, OPEN_REPAIRS 324)
+## 2026-10-01 - Notes dialog: loading skeleton instead of "All clear" (session Comet, OPEN_REPAIRS 325)
+
+- The dialog said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and comment reads were still
+  on their way. It now shows a shimmer (announced as busy) until they answer; rows already held show at once; a failed
+  read settles to the old empty state. Calendar and Samples dialogs.
+- Browser only. No write path, gateway, role, authority, flag, Edge Function, database or n8n change.
+- Tests: `test/notes-loading-skeleton.js`. Live check: skeleton from 22 ms to 1,283 ms, then the thread.
+
+## 2026-10-01 - Edge Functions: preflight cache header and parallel reads in key-verify (session Comet, OPEN_REPAIRS 326)
 
 - Owner decisions: A yes except production-write (waits for the next sealed Section 4 deploy); B1 yes; B2 no.
 - Source only, NOT deployed. `Access-Control-Max-Age: 7200` on seven hot-path functions; `key-verify` reads the flag and the member

@@ -1464,7 +1464,12 @@ poll, without disabling Production:
 - **Check after a revert:** a link at a finished batch shows its title only after the finished-items read lands (about 5 s);
   new-tab links begin with a 404 for `/synclinear/<id>` in the network panel.
 
-## 2026-10-01 - inverse for the CORS max-age header and the key-verify parallel reads (source only; OPEN_REPAIRS 324)
+## 2026-10-01 - inverse for the Notes loading skeleton (browser only; OPEN_REPAIRS 325)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). No flag, table, Edge Function or n8n change.
+- **Check after a revert:** opening Notes on a card with no loaded notes shows "All clear" or "No notes yet" at once again.
+
+## 2026-10-01 - inverse for the CORS max-age header and the key-verify parallel reads (source only; OPEN_REPAIRS 326)
 
 - **Before anything is deployed:** revert the PR; nothing live has changed.
 - **After deploy:** revert the PR and redeploy the same functions by the same lanes. The header only lets browsers cache a permission the

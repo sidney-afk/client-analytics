@@ -203,8 +203,8 @@ hiring senders when the editor hire closes.
 
 ## Needs a session
 
-- **Add `Access-Control-Max-Age: 7200` to `production-write` at the next sealed Section 4 deploy** (owner decision 2026-10-01; OPEN_REPAIRS 324). Seven other hot-path functions already carry it in source; `production-write` is held back only because it moves inside that ceremony. `calendar-upsert` is frozen and stays without it.
-- **`production-comments` has the two-hour preflight header in source but is not deployed** (owner decision 2026-10-02; OPEN_REPAIRS 324). It deploys only through the staff-sensitive lane's manual dispatch, which also redeploys `notify`, `production-write` and `production-archive` from the same commit; the header rides the next dispatch the owner needs anyway. `analytics-read`, `brain` and `workload-plan` (single-function lane, one dispatch each with the merge commit) also carry it in source and still need their dispatch.
+- **Add `Access-Control-Max-Age: 7200` to `production-write` at the next sealed Section 4 deploy** (owner decision 2026-10-01; OPEN_REPAIRS 326). Seven other hot-path functions already carry it in source; `production-write` is held back only because it moves inside that ceremony. `calendar-upsert` is frozen and stays without it.
+- **`production-comments` has the two-hour preflight header in source but is not deployed** (owner decision 2026-10-02; OPEN_REPAIRS 326). It deploys only through the staff-sensitive lane's manual dispatch, which also redeploys `notify`, `production-write` and `production-archive` from the same commit; the header rides the next dispatch the owner needs anyway. `analytics-read`, `brain` and `workload-plan` (single-function lane, one dispatch each with the merge commit) also carry it in source and still need their dispatch.
 - **Duplicate ledger numbers in OPEN_REPAIRS:** 13, 14, 22, 23, 175, 176, 177,
   180 each appear twice, and 220 sits before 218/219. Append a renumbering
   note; never rewrite.

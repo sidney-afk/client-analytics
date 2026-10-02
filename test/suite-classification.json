@@ -4,6 +4,7 @@
   "unit": [
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",
+    "onboarding-checklist-tables-migration.js",
     "lost-work-retry-intent.js",
     "lost-work-conflict-gate.js",
     "lost-work-drafts.js",
@@ -658,6 +659,8 @@
     "synclinear-early-read.js",
     "prod-tail-prefetch.js",
     "prod-lookup-equivalence.js",
+    "open-item-speed.js",
+    "notes-loading-skeleton.js",
     "cors-maxage-and-key-verify-reads.js",
     "key-verify-behavior.js",
     "open-item-speed.js"

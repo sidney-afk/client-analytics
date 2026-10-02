@@ -175,10 +175,15 @@ export function formatUrgent(input: UrgentInput, variant: NotifyVariant): SlackM
       { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: URGENT_LINK_TEXT }, url: p.url }] },
     ];
     const text = urgentFallbackText(input);
-    // The top-level text stays visible above the card and is what a phone
-    // notification and a screen reader use, so it carries every fact (editor
-    // mention, URGENT, title, client, who pinged) and the link, not just a lead.
-    return { text: text + " " + link, blocks, attachments: [{ color: URGENT_COLOR, fallback: text, blocks }] };
+    // WHAT IS VISIBLE vs WHAT IS READ ALOUD. The line above the card is a
+    // top-level block holding ONLY the editor mention: the tag is what notifies
+    // the editor, and the card below already shows everything else. Because the
+    // message has top-level blocks, Slack does not draw the top-level `text`; it
+    // uses it as the notification and screen-reader fallback. So `text` keeps
+    // every fact (mention, URGENT, title, client, who pinged) and the link, and
+    // none of it is shown twice.
+    const lead = [{ type: "section", text: mrkdwn(p.mention) }];
+    return { text: text + " " + link, blocks: lead, attachments: [{ color: URGENT_COLOR, fallback: text, blocks }] };
   }
   // With blocks, the top-level text is the notification and accessibility
   // fallback: the same sentence plus the link.

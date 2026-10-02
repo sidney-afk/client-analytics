@@ -1,6 +1,6 @@
 # The staff sign-in check: owner decisions on the server proposals, and what each function needs
 
-**Date:** 2026-10-01, updated 2026-10-02 · **Session:** Comet. This records the owner's decisions on the server proposals about the staff sign-in check (key-verify) and the source change that carries them out (OPEN_REPAIRS 324). **Source only. The owner deploys what is not automatic; see the deploy map.**
+**Date:** 2026-10-01, updated 2026-10-02 · **Session:** Comet. This records the owner's decisions on the server proposals about the staff sign-in check (key-verify) and the source change that carries them out (OPEN_REPAIRS 326). **Source only. The owner deploys what is not automatic; see the deploy map.**
 
 **The page-side idea was not shipped.** The first proposal also moved the page's own key-verify call to a form that skips the browser preflight (key in the request body, plain-text content type). It measured well (below) but touches files the published leave-simulation evidence is fingerprinted against, and the owner chose (2026-10-02) not to re-review those screenshots, so that change was dropped. The two-hour preflight cache header (decision A) covers most of the same gain for returning browsers once deployed.
 

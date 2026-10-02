@@ -30294,8 +30294,29 @@ Tests: `test/open-item-speed.js` (50 checks, stops at its first check on the old
 Not done, on purpose: the staff check (permission gate); re-asking the open card's reads after the board's swap (they re-check scope; the panel keeps the first answers meanwhile); Calendar cards from a new tab (bound by the same check plus one read); the Notes dialog saying "All clear" for about 1.3 s before its reads land (changes what it shows); a service worker; Samples card opens (no live sample cards on the test client to time). Owner decisions listed in the audit, section 6.
 Record: `docs/audits/2026-10-01-open-item-speed.md`. Way back: ROLLBACK.md.
 
+## 324. [2026-10-02, BUILT] The urgent Slack card repeated its whole content in the line next to the @mention
 
-## 324. [2026-10-01, BUILT, NOT DEPLOYED] Browsers may keep a preflight answer for 2 hours on the hot-path functions; the sign-in check runs its two reads together
+Status: function source and tests only; no database change. Needs a `notify` deploy to take effect (single-function lane, function `notify`, commit = main's tip after the merge). `NOTIFY_URGENT_FORMAT` is already `card` on the owner's preview and live setting, so the new look appears with the deploy.
+
+Problem: after #1918 the card layout posted the full sentence as the visible top-level text above the card ("@editor URGENT: <title> needs tweaks (<client>), pinged by <name>. Open in SyncView"), which the card below repeats field for field.
+
+Fix: in the card layout only, the line above the card is now a single top-level block holding just the mention (the tag still notifies the editor). The same full sentence and link stay in the message's top-level `text`; because the message now carries top-level blocks, Slack does not draw that text and uses it as the phone-notification and screen-reader fallback, so nothing is dropped, only no longer shown twice. The card (header, Client, Needs, Pinged by, Open in SyncView button, red bar) and its plain attachment fallback are byte for byte unchanged. `urgentRequestBody` now sends top-level blocks and a card together. The compact and line layouts are unchanged and each ping is still its own message (grouping stays a proposal).
+
+Proof (offline, synthetic ids, zero external calls): `test/native-notification-urgent-format.js`, 65 checks. New: the lead is exactly one block whose text is the mention and nothing else; the mention is not inside the card; the card blocks and attachment equal a snapshot of what #1918 sent; compact and line equal a snapshot of what they were; the request body carries the full-facts text, the lead block and the card together. The new checks fail on the previous source and pass on this one. The type ratchet stays at zero errors for `notify`.
+
+Not proved offline: how Slack draws and notifies, which only the preview lane can show. Run [Send notification preview](https://github.com/sidney-afk/client-analytics/actions/workflows/native-notification-preview.yml) with `message: urgent`, variant `card`, after the deploy and check that the phone notification reads the full sentence.
+
+## 325. [2026-10-01] The Notes dialog shows a loading skeleton, not "All clear", until the card's comments have arrived
+
+Status: page change built and tested, browser only. No database, Edge Function, flag, permission or write path touched. Merge is the owner's lighthouse.
+Problem (owner request): the Notes dialog paints at once and said "All clear" or "No notes yet" for about 1.3 s while the crosswalk lookup and the two comment reads were still on their way (measured live as staff on the test client: dialog at 17 ms, reads ending at 1.2 to 1.4 s). An empty-state sentence about a card whose notes have not arrived is a statement, not a wait.
+Fix: while a card's notes are pending (the crosswalk lookup is running, or any component read is still loading) and there are no rows to show, the feed shows a note-shaped shimmer with `role="status"`, `aria-busy` and "Loading notes", in both the Calendar and the Samples dialogs. Rows already held still show at once; a failed read settles to the old empty state rather than a skeleton forever (the projection already repaints an open dialog on every way out). New helpers `_prodCardCommentsPending` and `_prodCommentsSkeletonHtml` (`230`), styles `.cal-cm-skel*` (`020`), reduced-motion respected.
+Measured after, same live card: skeleton from 22 ms until 1,283 ms, then the thread (this card had only resolved notes, so "All clear" appears at 1.28 s, when it is true).
+Tests: `test/notes-loading-skeleton.js` (11 checks; fails on the old code, the helpers do not exist); full unit run 5 failures, the same five that fail on main in this sandbox.
+Not done, on purpose: no change to what the dialog shows once the notes have arrived.
+
+
+## 326. [2026-10-01, BUILT, NOT DEPLOYED] Browsers may keep a preflight answer for 2 hours on the hot-path functions; the sign-in check runs its two reads together
 
 Status: Edge Function SOURCE only. Nothing deployed; the owner deploys. Carries out the owner's decisions on the server proposals made with the sign-in check measurements (measurements, decisions and the deploy map are in `docs/proposals/2026-10-01-key-verify-speed-decisions.md`). The page-side half of the original proposal (key in the request body, no preflight) was measured at 736 ms to 507 ms in a page but not shipped: it touches files the published leave-simulation evidence is fingerprinted against and the owner chose not to re-review those screenshots (2026-10-02). Owner decisions 2026-10-01: A yes except `production-write`; B1 yes; B2 no.
 A. `Access-Control-Max-Age: 7200` added to the CORS map of `key-verify`, `production-comments`, `analytics-read`, `brain`, `thumbnail-revision-read`, `smm-weekly-reports` and `workload-plan`. Without it browsers re-ask every 5 s, so the first call to each function in a tab pays an extra round trip (about 0.3 s). Not added to `production-write` (waits for the next sealed Section 4 deploy) nor to `calendar-upsert` (frozen by owner directive, its repo source is never deployed).

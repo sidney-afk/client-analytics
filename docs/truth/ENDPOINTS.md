@@ -176,8 +176,9 @@ Other:
   Kasper > More > Clients (`action: list_client_profiles`, admin role key only, read-only); the
   per-client analytics reads are not yet wired into the page (plan 2026-09-24, Phase 2).
 - `functions/v1/client-profile-write` — Kasper > More > Clients edits (admin role key plus an active
-  admin member id). Writes the changed cells to the Clients Info Sheet first, then Supabase
-  (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict.
+  admin member id). While `client_profiles_authority` is `sheet`: writes the changed cells to the Clients Info Sheet first, then Supabase
+  (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict. Since 2026-10-02 the authority is `syncview`: it saves to the database only (same version check and history) and the read-only Sheet copy follows.
+  Two more n8n-only doors exist: `roster-read` and `roster-write` (key `ROSTER_SERVICE_KEY`).
 - `functions/v1/client-onboarding` — Kasper > More > Clients, under a client's details (admin role key plus an
   active admin member id, for reads AND writes). `action: get` returns the 27-step onboarding checklist, the
   resource presence list and the stored HubSpot sales state; `action: set_step` changes one step (done, skipped

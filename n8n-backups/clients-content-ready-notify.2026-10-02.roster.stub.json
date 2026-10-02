@@ -1,0 +1,54 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-02 for the Roster Steps 2 and 3 edit (docs/ops/N8N_EDIT_LOG.md). It lists the workflow as it was BEFORE the edit (version 9f692c9d-d978-4871-8ecd-67d00b945d0c): node names, types, credential references by id and name, connections. Code bodies and parameters are deliberately left out. The full graph is in n8n workflow history. ROLLBACK: restore and publish 9f692c9d-d978-4871-8ecd-67d00b945d0c.  See ROLLBACK.md section 2.",
+  "name": "Clients — Content Ready Notify",
+  "id": "II3sJbSLrptmtWLR",
+  "version_before": "9f692c9d-d978-4871-8ecd-67d00b945d0c",
+  "version_after_published": "e65371dd-8e8a-4a46-b70f-3f9d5823e17c",
+  "nodes_before": [
+    {
+      "name": "Content Ready Webhook",
+      "type": "n8n-nodes-base.webhook"
+    },
+    {
+      "name": "Get Client Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Content Ready Email",
+      "type": "n8n-nodes-base.gmail",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1Yg6XdLX5K2OpQcn",
+          "name": "Hello email"
+        }
+      }
+    },
+    {
+      "name": "Respond Notified",
+      "type": "n8n-nodes-base.respondToWebhook"
+    }
+  ],
+  "connections_before": {
+    "Content Ready Webhook": [
+      [
+        "Get Client Row"
+      ]
+    ],
+    "Get Client Row": [
+      [
+        "Content Ready Email"
+      ]
+    ],
+    "Content Ready Email": [
+      [
+        "Respond Notified"
+      ]
+    ]
+  }
+}

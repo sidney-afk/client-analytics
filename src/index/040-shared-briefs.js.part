@@ -1549,6 +1549,7 @@ import {
         }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
+        if(!mr.ok||!cr.ok)throw new Error('analytics_essentials_http');
         const metricsText=await mr.text(), clientsText=await cr.text();
         if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
         _analyticsLiveEssentials = true;

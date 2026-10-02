@@ -1,5 +1,12 @@
 # Repo map
 
+Digger's preventive audit: `docs/audits/2026-10-02-bug-archaeology.md` records the
+history-derived patterns, skeptical verdicts and bounded loop over the September
+19 to October 2 changes. Regression guards: `test/analytics-essentials-http.js`,
+`test/sheets-mirror-backfill-completeness.js`, `test/caption-jobs-scoped-read.js`
+and the extended `test/client-hubspot-sync-handler.js`. These execute actual
+read/copy code against offline transports; they never reach a live writer.
+
 Start with the [SyncView Atlas](docs/ATLAS.md) to find screens, data, jobs, secrets and release owners.
 
 **Current state (2026-09-26):** Staff work in SyncView, including native Workload. Linear is off: no `linear-*` Edge Function is deployed and its API keys were revoked on 2026-09-23 per the dated live check in STATE_OF_THINGS (the cutoff runbook's STEP 7). `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, `ROLLBACK.md` and some `docs/truth/` headers predate that check and still describe STEP 7 as pending; treat STATE_OF_THINGS as current. Linear-named paths below are retained source or history, not evidence of an active transport. See [State of things](docs/STATE_OF_THINGS.md) for the dated live check.

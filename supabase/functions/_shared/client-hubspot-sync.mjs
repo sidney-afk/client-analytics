@@ -41,6 +41,10 @@ export const FRESH_MS = 10 * 60 * 1000;
 export const MAX_BODY = 20000;
 export const DEFAULT_BATCH = 6;
 export const MAX_BATCH = 10;
+// Exhaustion is an unavailable read, never evidence that a partial set is unique.
+export const MAX_ASSOCIATION_PAGES = 20;
+export const MAX_ASSOCIATED_DEALS = 1000;
+export const DEAL_READ_BATCH = 100;
 
 const clean = (v) => String(v == null ? '' : v).trim();
 
@@ -73,14 +77,37 @@ export class HubspotError extends Error {
 
 // The only three HubSpot calls this function can make. token = the read-only private app token.
 export function makeHubspot(fetchImpl, token) {
+  const invalid = () => { throw new HubspotError(502); };
+  const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const id = (v) => {
+    if (typeof v !== 'string' && !(typeof v === 'number' && Number.isSafeInteger(v) && v >= 0)) invalid();
+    const text = clean(v);
+    if (!text) invalid();
+    return text;
+  };
+  function results(out) {
+    if (!record(out) || !Array.isArray(out.results)
+        || out.results.some((r) => !record(r))
+        || (out.status !== undefined && out.status !== 'COMPLETE')
+        || (out.numErrors !== undefined && out.numErrors !== 0)
+        || (out.errors !== undefined && (!Array.isArray(out.errors) || out.errors.length))) invalid();
+    return out.results;
+  }
+  function nextCursor(out) {
+    if (out.paging === undefined) return null;
+    if (!record(out.paging)) invalid();
+    if (out.paging.next === undefined) return null;
+    if (!record(out.paging.next)) invalid();
+    return id(out.paging.next.after);
+  }
   async function call(method, path, body) {
     const res = await fetchImpl(HUBSPOT + path, {
       method, redirect: 'error',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (!res.ok) throw new HubspotError(res.status);
-    return res.json();
+    if (!res.ok || res.status === 207) throw new HubspotError(res.status);
+    try { return await res.json(); } catch (_e) { invalid(); }
   }
   return {
     async contactsByEmail(email) {
@@ -88,17 +115,48 @@ export function makeHubspot(fetchImpl, token) {
         filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: email }] }],
         properties: ['contract_signed', 'first_invoice_paid'], limit: 3,
       });
-      return Array.isArray(out.results) ? out.results : [];
+      const rows = results(out);
+      rows.forEach((r) => id(r.id));
+      // A two-contact prefix already proves ambiguity. A singleton must be exhaustive.
+      if (rows.length < 2 && (nextCursor(out) !== null
+          || (out.total !== undefined && (!Number.isSafeInteger(out.total) || out.total !== rows.length)))) invalid();
+      return rows;
     },
     async dealIdsForContact(contactId) {
-      const out = await call('GET', '/crm/v4/objects/contacts/' + encodeURIComponent(contactId) + '/associations/deals');
-      return (Array.isArray(out.results) ? out.results : []).map((r) => clean(r.toObjectId)).filter(Boolean).slice(0, 25);
+      const path = '/crm/v4/objects/contacts/' + encodeURIComponent(id(contactId)) + '/associations/deals';
+      const ids = new Set(); const cursors = new Set();
+      let after = null;
+      for (let page = 0; page < MAX_ASSOCIATION_PAGES; page++) {
+        const out = await call('GET', path + (after === null ? '' : '?after=' + encodeURIComponent(after)));
+        for (const r of results(out)) ids.add(id(r.toObjectId));
+        if (ids.size > MAX_ASSOCIATED_DEALS) invalid();
+        after = nextCursor(out);
+        if (after === null) return [...ids];
+        if (cursors.has(after)) invalid();
+        cursors.add(after);
+      }
+      invalid();
     },
     async dealsByIds(ids) {
-      const out = await call('POST', '/crm/v3/objects/deals/batch/read', {
-        properties: ['dealstage', 'pipeline'], inputs: ids.map((id) => ({ id })),
-      });
-      return Array.isArray(out.results) ? out.results : [];
+      if (!Array.isArray(ids) || ids.length > MAX_ASSOCIATED_DEALS) invalid();
+      const requested = ids.map(id);
+      if (new Set(requested).size !== requested.length) invalid();
+      const deals = [];
+      for (let start = 0; start < requested.length; start += DEAL_READ_BATCH) {
+        const chunk = requested.slice(start, start + DEAL_READ_BATCH);
+        const out = await call('POST', '/crm/v3/objects/deals/batch/read', {
+          properties: ['dealstage', 'pipeline'], inputs: chunk.map((id) => ({ id })),
+        });
+        const rows = results(out); const seen = new Set();
+        if (out.status !== 'COMPLETE' || rows.length !== chunk.length || nextCursor(out) !== null) invalid();
+        for (const r of rows) {
+          const dealId = id(r.id);
+          if (!chunk.includes(dealId) || seen.has(dealId) || !record(r.properties)) invalid();
+          seen.add(dealId);
+        }
+        deals.push(...rows);
+      }
+      return deals;
     },
   };
 }

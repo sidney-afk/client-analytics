@@ -46,6 +46,16 @@ executes these files (see `README.md` › Repository layout).
   then only what the function needs to `service_role`, flag `analytics_top_videos_collect`
   default off. The timer file (08:00 to 12:59 UTC) uses the metrics job's Vault key. Nothing the
   pages read. `test/analytics-top-videos-collect-postgres.js` measures it.
+- **`2026-10-02-analytics-market-research-collect-shadow.sql`** and
+  **`2026-10-02-analytics-market-research-collect-schedule.sql`** are source-only until
+  Lighthouse applies them with the owner's go (OPEN_REPAIRS 329), after the two 2026-10-01
+  analytics-metrics-collect files (the first refuses to run without them). They add the shadow
+  side of the Market Research brief job: a queue of requested briefs (with a daily cap in the
+  claim), a shadow brief table, claim and commit functions and the comparison with n8n's brief,
+  RLS on, every privilege revoked from the four roles then only what the function needs to
+  `service_role`, flag `analytics_market_research_collect` default off. The timer file calls the
+  function every minute but only while a request is open, with the metrics job's Vault key.
+  Nothing the pages read. `test/analytics-market-research-collect-postgres.js` measures it.
 
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To

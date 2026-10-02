@@ -654,6 +654,8 @@
     "analytics-metrics-collect-function.js",
     "analytics-top-videos-collect.js",
     "analytics-top-videos-collect-function.js",
+    "analytics-market-research-collect.js",
+    "analytics-market-research-collect-function.js",
     "client-profile-edit.js",
     "onboarding-badge-instant.js",
     "onboarding-boot-skeleton.js",
@@ -1489,6 +1491,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-top-videos-collect-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "analytics-market-research-collect-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-market-research-collect-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

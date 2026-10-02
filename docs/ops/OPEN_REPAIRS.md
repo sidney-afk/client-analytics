@@ -30338,7 +30338,18 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7 of `docs/plans/20
 
 **Not done, said plainly.** Nothing has run against Apify, YouTube, pg_net or pg_cron (no keys or live access when built); the first real proof is the first shadow day. The equivalence is against the n8n code, not a recorded production run. The real table `analytics_top_videos` is not written (the switch is a later PR: one more allowed `source`, a decision on the daily Sheet copy lane, n8n off with the owner's go). Market Research is not started. The expected, explainable differences (rank swaps and posts published in the hour between the two runs, n8n's partial TikTok read, n8n's Instagram call for clients with no handle) are listed in section 7b.
 
-## 328. [2026-10-02, FIXED IN TESTS + TEST-CLIENT DATA] The Production heavy and interaction lanes and the card vs calendar drift check were red since 2026-09-30; none was a product defect
+## 328. [2026-10-02, BUILT, SWITCH OFF] One combined Slack problem message, built beside the old alerts
+
+Status: repository code only. Nothing deployed, no n8n edit, no database change, no Slack post. Merge is the owner's lighthouse. Switch: repository variable `ALERT_DIGEST_ENABLED` (unset today = shadow: the message is printed in the run summary, never posted).
+Carries out the owner's yes of 2026-09-28 (STATE_OF_THINGS "Needs the owner"), which waited for the analytics move to Supabase.
+Built: `scripts/alert-digest.js`, `.github/workflows/alert-digest.yml` (hourly, shadow), lane `alert_digest` in the dead-man switch (its silence is paged by the old alerts), `test/alert-digest.js` (29 checks, offline), demo inputs `test/fixtures/alert-digest-demo.json`.
+Measured while inventorying (full table in `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, "Built 2026-10-02"): the n8n monitoring pager the 29c design calls live is switched off, so its eleven keys post nothing today; the Samples nightly, Calendar nightly and morning check send plain text that the relay ignores, so they arrive as the empty "edge_alert unknown" message (3 of the 6 newest relay runs); the daily analytics copy had no Slack alert at all.
+Needs the owner (not done): one edit to the relay workflow's "Sanitize Alert" node to show the full message (snippet in the design doc; without it, switching on sends only a one-line form). Then compare shadow output with the real alerts, then switch on, then remove the old alerts one at a time.
+Reviewed-closure pin: adding the `alert_digest` lane changed `scripts/monitoring-watchdog.js`, which the F27 reconciler closure pins, so its pin in `scripts/f27-reconciler-closure.js` was re-pinned with a dated note (lane added only; no import, command or write path moved), the same way earlier lane changes were. A reviewer should confirm that.
+Not covered by the message yet: quota 80/90 usage (existing watchdog keeps posting).
+Way back: nothing to undo; delete `alert-digest.yml` or leave the variable unset.
+
+## 329. [2026-10-02, FIXED IN TESTS + TEST-CLIENT DATA] The Production heavy and interaction lanes and the card vs calendar drift check were red since 2026-09-30; none was a product defect
 Production polish gate, `production-polish-interaction` and `production-polish-heavy` (failure codes `error_generic`, `module_or_syntax_error`, `selector_timeout`), and the scheduled "Card vs calendar status drift" check. Reproduced locally against the live backend (the runner log hides the cause by design), then fixed. Nothing under `src/` or `supabase/` changed.
 Causes, all in the test estate:
 - Three suites (`behav-wired`, `pixel-wired`, `prod-interaction-inventory`) each kept their own copy of a file server that answers 404 to a clean address such as `/synclinear/<id>`. Since the app began showing clean addresses, a reload landed on a blank page and `_prodState` was undefined (`module_or_syntax_error`). They now use the shared `serveStatic`, which answers the way GitHub Pages does.

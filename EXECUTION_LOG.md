@@ -6812,3 +6812,11 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
   together and selects six columns; its audit insert stays before the answer.
 - Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read; owner agreed 2026-10-02); production-comments waits for the next staff-sensitive dispatch; analytics-read, brain and workload-plan need one dispatch each.
 - Tests: `test/key-verify-behavior.js`, `test/cors-maxage-and-key-verify-reads.js`.
+
+
+## 2026-10-02 — Proof: site-assurance, guarded TEST-only live backend
+
+- Cycles 1–2: re-proved priority docs/monitor/backup/deploy guard subsets first; actual backup/pager/deploy receipts inspected. Fresh restore/credential inputs missing; no deploy, dispatch or notification.
+- Cycles 3–4: existing client entry/media and Calendar/Samples saves; comment control defect reproduced; current identity/intake mocks and Windows assurance tools corrected. Real role-key/actor proofs unavailable.
+- Cycles 5–6: 444-row native TEST projection equality; mocked PTO lifecycle; both comment surfaces independently reproduced, repaired in source with deferred-success/refusal guard; rebuilt frontend passes 25 live-backend checks. All disposable cards archived/read back.
+- Cycles 7–8: two dry cycles on available live client/native and mocked identity/PTO/real watchdog checks. Full Tier 0/1 freshness remains incomplete. OPEN_REPAIRS 328 and docs/audits/2026-10-02-site-assurance.md account for proven scopes, red checks and missing inputs; the ledger uses real proof dates. Merge/publication belongs to Lighthouse.

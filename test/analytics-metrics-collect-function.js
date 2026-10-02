@@ -11,15 +11,15 @@
  */
 const { spawnSync } = require('child_process');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 if (process.argv[2] !== 'child') {
   const hook = path.join(__dirname, 'fixtures/metrics-collect-register.mjs');
-  const r = spawnSync(process.execPath, ['--no-warnings', '--experimental-strip-types', '--import', hook, __filename, 'child'], { stdio: 'inherit' });
+  const r = spawnSync(process.execPath, ['--no-warnings', '--experimental-strip-types', '--import', pathToFileURL(hook).href, __filename, 'child'], { stdio: 'inherit' });
   process.exit(r.status === null ? 1 : r.status);
 }
 
 const assert = require('assert/strict');
-const { pathToFileURL } = require('url');
 const ROOT = path.resolve(__dirname, '..');
 const KEY = 'k'.repeat(40);
 const TODAY = new Date().toISOString().slice(0, 10);

@@ -222,7 +222,7 @@ async function selectMember(page, member) {
     assert(await page.locator(`#staffIdentityMemberMenu [data-value="${ADMIN.id}"]`).getAttribute('aria-selected') === 'true', 'selected roster option updates aria-selected');
 
     const roleKeyToggle = page.locator('#staffIdentityKeyToggle');
-    assert(await roleKeyToggle.getAttribute('aria-label') === 'Show your key', 'role-key visibility toggle has an accessible initial label');
+    assert(/^Show (?:your|role) key$/.test(await roleKeyToggle.getAttribute('aria-label')) && await page.locator('#staffIdentityKey').getAttribute('type') === 'password', 'role-key visibility toggle has an accessible initial label matching the masked field');
     await roleKeyToggle.click();
     assert(await page.locator('#staffIdentityKey').getAttribute('type') === 'text' && await page.locator('#staffIdentityKey').inputValue() === ADMIN_KEY, 'role-key visibility toggle reveals without changing the value');
     assert(await roleKeyToggle.getAttribute('aria-label') === 'Hide your key', 'role-key visibility toggle updates its accessible label');
@@ -338,10 +338,12 @@ async function selectMember(page, member) {
     assert(await popover.isHidden() && await page.evaluate(() => document.activeElement.id) === 'headerMenuButton', 'Escape closes the account popover and restores focus to the header menu button');
     await page.click('#headerMenuButton');
     await page.waitForFunction(() => document.activeElement?.id === 'staffIdentitySignOut');
-    await page.keyboard.press('Tab');
-    assert(await popover.isVisible() && await page.evaluate(() => document.activeElement?.id) === 'themeToggle', 'Tab advances through the consolidated menu theme action without closing it');
-    await page.keyboard.press('Tab');
-    assert(await popover.isVisible() && await page.evaluate(() => document.activeElement?.id) === 'statusPaletteToggle', 'Tab advances through the consolidated menu status-palette action without closing it');
+    const menuActions = await popover.locator('button').evaluateAll(buttons => buttons.filter(button => !button.hidden && button.getClientRects().length && !button.disabled).map(button => button.id));
+    assert(menuActions[0] === 'staffIdentitySignOut' && menuActions.includes('themeToggle') && menuActions.includes('statusPaletteToggle'), 'consolidated menu retains identity, theme and status-palette actions');
+    for (const id of menuActions.slice(1)) {
+      await page.keyboard.press('Tab');
+      assert(await popover.isVisible() && await page.evaluate(() => document.activeElement?.id) === id, 'Tab reaches visible menu action ' + id + ' without closing it');
+    }
     await page.keyboard.press('Tab');
     await page.waitForTimeout(30);
     assert(await popover.isHidden(), 'Tab closes the account popover after focus leaves all consolidated menu actions');
@@ -356,6 +358,7 @@ async function selectMember(page, member) {
     await installMocks(sibling);
     await sibling.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
     await sibling.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), ADMIN.name);
+    await sibling.evaluate(() => Promise.all([svArea('templates'), svArea('kasper')]));
     await sibling.evaluate(() => {
       _ccState.modal.open = true;
       _ccState.modal.credentials = [{ id: 'dummy-sibling-secret', password: 'dummy-secret' }];
@@ -367,6 +370,7 @@ async function selectMember(page, member) {
       document.body.appendChild(overlay);
     });
 
+    await page.evaluate(() => Promise.all([svArea('templates'), svArea('kasper')]));
     await page.evaluate(async () => {
       localStorage.setItem('syncview_client_credentials_identity_v1', JSON.stringify({ key: 'dummy-legacy-credentials' }));
       localStorage.setItem('syncview_filming_plans_identity_v1', JSON.stringify({ key: 'dummy-legacy-onboarding' }));
@@ -454,10 +458,11 @@ async function selectMember(page, member) {
     await installMocks(creativePage);
     await creativePage.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
     await creativePage.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), CREATIVE.name);
+    await creativePage.evaluate(() => Promise.all([svArea('templates'), svArea('kasper')]));
     assert(await creativePage.locator('#navProd').isVisible() && (await creativePage.locator('#navProd').textContent()).trim() === 'Linear', 'creative staff also see the read-only Linear mirror tab');
     await creativePage.evaluate(() => _fpToggleAdd());
-    await creativePage.waitForSelector('.sv-toast-msg');
-    assert((await creativePage.locator('.sv-toast-msg').textContent()).includes('Sign out first') && await creativePage.locator('#staffIdentityOverlay').count() === 0, 'wrong-role onboarding action explains how to use an authorized account without a Switch user flow');
+    assert(await creativePage.evaluate(() => _syncviewStaffCan('onboarding') && _fpAddOpen)
+      && await creativePage.locator('#staffIdentityOverlay').count() === 0, 'creative account can open onboarding as the current role contract permits');
     await creativePage.evaluate(async () => { await _ccOpenModal('TEST Client'); });
     await creativePage.waitForFunction(() => document.querySelector('.sv-toast-msg')?.textContent.includes('Admin or SMM'));
     assert((await creativePage.locator('.sv-toast-msg').textContent()).includes('Sign out first') && await creativePage.locator('#ccOverlay').count() === 0, 'creative account cannot expose credentials and receives clear sign-out guidance');
@@ -490,9 +495,14 @@ async function selectMember(page, member) {
     await seedStaffApp(preview);
     await installMocks(preview);
     await preview.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
+    await preview.waitForSelector('#staffIdentityForm', { timeout: 10000 });
+    assert(await preview.locator('.prod-view').isHidden(), 'direct mirror alias remains behind the staff entry gate until sign-in');
+    await selectMember(preview, ADMIN);
+    await preview.fill('#staffIdentityKey', ADMIN_KEY);
+    await preview.click('#staffIdentitySubmit');
     await preview.waitForSelector('.prod-view', { timeout: 10000 });
     await preview.waitForTimeout(1100);
-    assert(await preview.locator('#staffIdentityOverlay').count() === 0, 'direct ?prod=1 mirror alias remains available without a sign-in prompt');
+    assert(await preview.locator('#staffIdentityOverlay').count() === 0, 'direct mirror alias opens after verified staff sign-in');
     await previewContext.close();
 
     const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });

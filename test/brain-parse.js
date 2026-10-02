@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 // Unit test for the brain Edge Function's pure parser (supabase/functions/brain/parse.mjs).
 // Synthetic fixture only: the brain itself is private and never enters this repo.
 const assert = require('assert');
@@ -6,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 (async () => {
-  const { findClientFolder, parseBrainFacts, parseSpec, parseBrief } = await import(path.join(__dirname, '../supabase/functions/brain/parse.mjs'));
+  const { findClientFolder, parseBrainFacts, parseSpec, parseBrief } = await import(pathToFileURL(path.join(__dirname, '../supabase/functions/brain/parse.mjs')).href);
 
   assert.strictEqual(findClientFolder(['alpha-beta', 'gamma'], 'alphabeta'), 'alpha-beta');
   assert.strictEqual(findClientFolder(['alpha-beta'], 'Alpha Beta'), 'alpha-beta');

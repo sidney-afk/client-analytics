@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 /*
  * Browser refusal receipts keep the page's own reason code.
  *
@@ -22,8 +23,8 @@ function ok(condition, message) {
 }
 
 (async () => {
-  const codes = await import(path.join(ROOT, 'supabase/functions/_shared/write-refusal-codes.mjs'));
-  const diag = await import(path.join(ROOT, 'supabase/functions/_shared/write-refusal-diagnostics.mjs'));
+  const codes = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/write-refusal-codes.mjs')).href);
+  const diag = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/write-refusal-diagnostics.mjs')).href);
   const { REFUSAL_CODES, BROWSER_REFUSAL_CODES } = codes;
 
   // Every literal code the page raises.

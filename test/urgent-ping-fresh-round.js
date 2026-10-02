@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 /*
  * The URGENT ping uses the round stamp the database holds, and a refused ping is
  * logged with its real reason and can be refreshed in one click.
@@ -255,7 +256,7 @@ const goodRow = (over) => Object.assign({ id: 'card-1', video_status: 'Tweaks Ne
     }
   });
   await check('which urgent codes the failed-saves log can keep as themselves (the rest still keep their real status)', async () => {
-    const mod = await import(path.join(__dirname, '../supabase/functions/_shared/write-refusal-codes.mjs'));
+    const mod = await import(pathToFileURL(path.join(__dirname, '../supabase/functions/_shared/write-refusal-codes.mjs')).href);
     const recordable = c => mod.REFUSAL_CODES.includes(c) || mod.BROWSER_REFUSAL_CODES.includes(c);
     for (const c of ['urgent_target_changed', 'urgent_round_unavailable', 'urgent_context_unavailable', 'urgent_assignment_unavailable', 'urgent_editor_unavailable', 'urgent_lookup_unavailable', 'urgent_notification_unavailable', 'invalid_urgent_request']) {
       assert.ok(recordable(c), c + ' is on the allow-list');

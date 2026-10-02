@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 // filming-plan-tabs Edge Function (docs/plans/2026-09-28-n8n-exit.md, PR 1a):
 // the pure logic under Node, plus static wiring checks on the handler, the
 // migration and the deploy lane. Nothing here touches a network.
@@ -30,7 +31,7 @@ function deps(over = {}) {
 }
 
 (async () => {
-  const T = await import(path.join(ROOT, 'supabase/functions/filming-plan-tabs/tabs.mjs'));
+  const T = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/filming-plan-tabs/tabs.mjs')).href);
 
   // --- parsing -----------------------------------------------------------
   const q = (s) => new URLSearchParams(s);

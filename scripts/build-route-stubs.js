@@ -55,7 +55,9 @@ function main() {
     const file = path.join(ROOT, name + '.html');
     const want = stubHtml(name);
     const have = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
-    if (have === want) continue;
+    // Git may check these HTML files out with CRLF on Windows. Routing bytes
+    // other than line endings must still match the generated stub exactly.
+    if (have !== null && have.replace(/\r\n/g, '\n') === want) continue;
     if (check) problems.push(name + '.html');
     else fs.writeFileSync(file, want);
   }

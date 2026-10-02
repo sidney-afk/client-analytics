@@ -878,6 +878,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
         Promise.resolve(_calFlushCardSave(pid)).then(() => {
             _calReviewState.saving[key] = false;
+            _calReviewRepaintCard(pid);
         }).catch(e => {
             _calReviewState.saving[key] = false;
             _calReviewState.errors[key] = _writeUiFailureSentence(e);

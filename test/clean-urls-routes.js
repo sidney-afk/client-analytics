@@ -5,6 +5,7 @@
 const assert = require('assert/strict');
 const { execFileSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const { routeTable } = require('../scripts/build-route-stubs.js');
 
 const r = routeTable();
@@ -48,4 +49,17 @@ for (const p of ['/onboarding_form', '/ai_onboarding_form', '/nav-icons/x.png', 
   assert.equal(r.toLegacy(p, ''), null, `${p} is not a route`); n++;
 }
 execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'build-route-stubs.js'), '--check'], { stdio: 'pipe' }); n++;
+// Exercise the actual checker on Windows line endings and an incorrect route,
+// retaining the exact original bytes even if a check throws.
+const stubPath = path.join(__dirname, '..', r.TOP[0] + '.html');
+const original = fs.readFileSync(stubPath);
+const checker = [path.join(__dirname, '..', 'scripts', 'build-route-stubs.js'), '--check'];
+try {
+  fs.writeFileSync(stubPath, original.toString('utf8').replace(/\r?\n/g, '\r\n'));
+  execFileSync(process.execPath, checker, { stdio: 'pipe' }); n++;
+  fs.writeFileSync(stubPath, original.toString('utf8').replace('location.replace', 'location.wrongRoute'));
+  assert.throws(() => execFileSync(process.execPath, checker, { stdio: 'pipe' }), /route stubs missing or stale/); n++;
+} finally {
+  fs.writeFileSync(stubPath, original);
+}
 console.log(`clean-urls-routes: ${n} checks passed ✅`);

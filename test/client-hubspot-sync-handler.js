@@ -1,4 +1,5 @@
 'use strict';
+const { pathToFileURL } = require('node:url');
 // The client-hubspot-sync Edge Function's handler (supabase/functions/_shared/client-hubspot-sync.mjs),
 // run for real in Node against a fake database and a fake HubSpot. Read only toward HubSpot (three
 // calls, nothing that writes), refused before the body is read, off unless the switch is on and the
@@ -60,7 +61,7 @@ const ADMIN_HDR = { 'x-syncview-key': 'admin-key', 'content-type': 'application/
 const TIMER_HDR = { 'x-hubspot-sync-key': TIMER, 'content-type': 'application/json' };
 
 (async () => {
-  const mod = await import(path.join(ROOT, 'supabase/functions/_shared/client-hubspot-sync.mjs'));
+  const mod = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/client-hubspot-sync.mjs')).href);
 
   // ---- pure rules ----
   ok(JSON.stringify(mod.contractPayment({ contract_signed: 'true', first_invoice_paid: 'true' })) === '{"contract":"signed","payment":"paid"}', 'true and true is signed and paid');

@@ -30349,3 +30349,18 @@ Reviewed-closure pin: adding the `alert_digest` lane changed `scripts/monitoring
 Not covered by the message yet: quota 80/90 usage (existing watchdog keeps posting).
 Way back: nothing to undo; delete `alert-digest.yml` or leave the variable unset.
 
+
+
+## 328. [2026-10-02, REPRODUCED, FIXED IN CANDIDATE] Proof site assurance: comments save but approval controls stay disabled; Windows provers repaired
+
+Status: one review branch/PR, source candidate only; Lighthouse merges. No deployment, remote configuration change, private credential file or screenshot committed. Coverage and limits: `docs/audits/2026-10-02-site-assurance.md`; real proof dates: `docs/testing/ASSURANCE_LEDGER.md`. The full Tier 0/1 freshness stop condition remains unmet despite two dry cycles on available checks.
+
+**328a — client review controls (Tier 0, P1).** Independently reproduced on disposable TEST Calendar and Samples cards against the live backend: plain comments persisted without changing status, `saving` and draft cleared, but Approve remained disabled. Calendar remained disabled after a bounded wait. Both success handlers cleared the saving state without repainting the disabled controls. Browser-only fix: repaint after successful comment saves. Regression guard `test/review-comment-unlocks-controls.js` executes both actual source handlers with deferred success/refusal and fails on old code; pending controls remain busy, settled controls repaint, status preserved and refusal visible. Live-backend candidate: 25 checks, then 25 again; all seeds archived/read back. Fresh Pages proof still owed after merge/publication. Frozen writer Edge Functions unchanged.
+
+**328b — Windows module imports (Tier 3).** Existing handler/analytics behavior suites failed on absolute drive paths passed to dynamic imports or Node's import hook. Use `pathToFileURL`; hook fixture uses a relative module URL. Existing behavioral assertions now execute and pass; no production handler or auth policy changed. The full run still records unrelated Windows permission/SQL-launcher reds rather than masking them.
+
+**328c — route-stub checker (Tier 3).** Windows CRLF checkout bytes produced false stale-route failures. Normalize only line endings in comparison. `test/clean-urls-routes.js` executes the real checker with CRLF, then deliberately changes the route and requires failure; exact original stub bytes restored in finally. 53 checks pass.
+
+**328d — staff browser prover (Tier 3).** Reproduced stale copy/fixed menu ordering, eager globals after lazy loading, outdated creative-onboarding expectation and unsigned direct-preview assumption in B4. Follow current controls and explicitly load areas; keep current capability assertions and require verified sign-in for preview. Existing denial, secret purge, keyboard and mobile guards pass (9 mocked key-verifier calls). Mock proof does not reset the live staff-identity date.
+
+No finding filed for unreproduced app behavior. Six refuted signal classes: wrong split-source invocation, obsolete Node runtime, default WSL launcher, deliberate fixture refusals, removed inbound-switch row, and incomplete probe endpoint allowlist. Live TEST native projection equality: 444 rows. Existing priority monitor/backup/deploy receipts inspected first; fresh restore, issuance and staff/native intake/Kasper write proofs still require private inputs. Real HR mutation is outside this client-only mandate. Latest hosted backup freshness receipt is historical, not claimed current.

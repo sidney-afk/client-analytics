@@ -4,8 +4,8 @@ Date: 2026-10-01. Session Harbor. Owner direction: the daily analytics data is
 written straight to our database by our own Supabase Edge Functions, not by n8n
 into Google Sheets. Order: (1) daily metrics (n8n "CLIENTS METRICS"), (2) Top
 Videos, (3) Market Research briefs. This document maps and proposes the first
-one and builds it to run **side by side** with n8n. Top Videos and Market
-Research are not mapped yet (section 7).
+one and builds it to run **side by side** with n8n. Top Videos (step 2) is
+mapped and built the same way in section 7; Market Research is not mapped yet.
 
 Reads: `docs/plans/2026-09-24-sheets-to-supabase.md`,
 `docs/plans/2026-09-28-analytics-switch-on.md`,
@@ -197,14 +197,94 @@ hold nothing the pages read.
 - The PostTracking Sheet tab stops being updated once n8n is off; nothing else
   in this repo reads it.
 
-## 7. Next: Top Videos, then Market Research (not started)
+## 7. Top Videos (built 2026-10-02, shadow, nothing deployed or applied); Market Research next
 
-Same method: map the workflow node by node, shadow function, daily comparison,
-then the switch. From the earlier surveys: TOP VIDEOS runs daily 04:00 (Apify
-Instagram and TikTok, YouTube API, appends rows, never deletes) and already mirrors
-every client; MARKET RESEARCH is webhook-driven briefs (Apify search, append or
-update on a brief id) and a disabled content-summary branch. Both read Clients Info.
-Each gets its own PR.
+### 7a. What TOP VIDEOS does today (read from the live workflow and its 2026-10-02 run)
+
+Workflow `DyVPx0neUZ94R0hJ`, active, one Schedule Trigger. It runs at **08:00 UTC** (the
+instance's "4 am") and takes 53 to 60 minutes (runs of 30 Sep to 2 Oct, all success); 36
+clients, one at a time, a 30 s wait after each. No error workflow was needed to read it; I
+did not edit it.
+
+| Step | n8n node(s) | What it does |
+|---|---|---|
+| Roster | Get Clients | Every row of Clients Info. |
+| Instagram | Scrape Instagram Posts, Process Instagram Top Videos | **Not gated on the handle.** Apify `apify~instagram-reel-scraper`, latest 50 reels, one synchronous call with a 120 s limit. Views = `videoPlayCount`, else `playCount`, else `videoViewCount`. Top **3 of the last 7 days** (rank 1 to 3) and top **5 of the last 30 days**. No post in the week: ONE row, period week, rank 0, caption "No new posts in the last 7 days", zeros. An HTTP failure or timeout takes the node's error output: no Instagram rows at all. |
+| TikTok | Has TikTok?, Apify TikTok Run, Fetch TikTok Dataset, Process TikTok Top Videos | Only for a handle that is not empty and not "N/A". `clockworks~tiktok-profile-scraper`, 50 videos, waits up to 120 s then reads the dataset (a partial one if the run is still going). Same week and month rules, by `playCount`. |
+| YouTube | Has YouTube?, YouTube Search Shorts, YouTube Video Stats, Process YouTube Top Videos | Only for a channel id that is not empty and not "N/A". Search: this channel's SHORT videos (YouTube's under-4-minute class), most viewed first, published in the last 30 days, 20 results; then the statistics of those ids. Week = published in the last 7 days; month = all 20. No short in 30 days is a normal answer: the "no new posts" row (seen in the 2026-10-02 run). A failed call takes the error output: no YouTube rows. |
+| Rows | Unpack Rows, If | A client's rows from the three platforms, caption cut at 200 characters then every run of whitespace made one space; nothing at all means nothing is written. |
+| Write | Write to TopVideos Sheet, Build Supabase Mirror Payload, Mirror to Supabase | Appends every row to the TopVideos tab (never deletes), then POSTs the same rows, one call per client, to `analytics-write` (dataset `top_videos`, source `n8n`, run id `n8n-topvideos-<execution id>`). The thumbnail column is always empty and is not mirrored. |
+
+Readers of the output: the pages, through `analytics-read` (last 90 days), and the daily
+parity lane. Sources: Apify (two actors, token held as an n8n credential), YouTube Data API
+(key held as an n8n credential), Clients Info.
+
+### 7b. What was built (this PR): `analytics-top-videos-collect`
+
+Built the way section 2 and 3 built the metrics job:
+
+- **Edge Function** `analytics-top-videos-collect`; pure rules in
+  `supabase/functions/_shared/analytics-top-videos-collect.mjs`, one function per n8n Code node.
+- **Shadow only.** It writes only `analytics_top_videos_shadow` (and its own queue). It never writes
+  `analytics_top_videos` (what the pages read) and never touches a Sheet. n8n is not edited.
+- **Roster** from `client_profiles` (active, not archived), the same list the metrics job uses.
+- **Switch row** `analytics_top_videos_collect`, default `{"mode":"off"}`; `shadow` turns it on;
+  optional `clients` list (slugs) and `batch` (1 to 4).
+- **Timer:** every minute from 08:00 to 12:59 UTC (n8n starts at 08:00 and ends about 09:00). One client
+  per tick, a slow Apify run is resumed from its saved id, the 8th attempt records a provider failure.
+- **Same key and secrets as the metrics job** (`ANALYTICS_COLLECT_KEY` in Edge Function secrets and
+  Vault, `APIFY_TOKEN`, `YOUTUBE_API_KEY`). Nothing new for the owner to create.
+- **Comparison**, every morning after about 09:30 UTC (counts only into any doc):
+
+```sql
+select client_slug, matches, mismatched, n8n_rows, shadow_rows, shadow_states
+from public.analytics_top_videos_shadow_compare();      -- today
+-- summary: select count(*) filter (where matches) ok, count(*) filter (where not matches) off
+-- from public.analytics_top_videos_shadow_compare();
+```
+
+A client-day "matches" when, for every platform and period, the same videos are present (by link),
+each has the same rank and caption, and views agree within 10 percent (minimum 50) and likes, comments
+and shares within 10 percent (minimum 10). A row one side lacks is named (`instagram:week:only_n8n`),
+and so is a client one side did not write at all. A client with no rows on either side agrees and is
+not listed. Only n8n's newest run of the day is compared.
+
+**Differences that are expected and explainable, not bugs:**
+- Both jobs scrape live data up to an hour apart: two videos with close views can swap rank, and a
+  video published in between appears on one side only.
+- n8n reads the TikTok dataset after 120 s even if the run is still going (it may take a partial one);
+  the function waits until the run ends. A TikTok run that ends FAILED or TIMED-OUT is a provider failure
+  here (no rows); n8n might have read a partial dataset.
+- n8n scrapes Instagram for every client, even one with no handle (that call fails and writes nothing).
+  The function skips an unconfigured Instagram handle, so the same nothing is written.
+- n8n waits 120 s on a synchronous Apify call and gives up (no rows); the function waits longer.
+
+**Not proven, and why:** nothing here has talked to Apify, YouTube, pg_net or pg_cron (no keys or live
+access in the build environment). The first real proof is the first shadow day. The equivalence is shown
+against the n8n Code nodes themselves (`test/fixtures/n8n-top-videos-code.js`, copied from the live
+workflow), not against a recorded production run.
+
+**Proof (offline):** `test/analytics-top-videos-collect.js` (600 random clients through the n8n Code nodes
+and through the port, identical rows, and identical to what the real mirror would store; two deliberate
+breakages caught), `test/analytics-top-videos-collect-function.js` (the real function against an in-memory
+database and scripted providers), `test/analytics-top-videos-collect-postgres.js` (the migration on a
+real PostgreSQL 16, four roles measured on every table and function, claim, commit, comparison).
+
+**Steps** (nothing happens until the owner says go; click by click in
+`docs/ops/ANALYTICS_TOP_VIDEOS_OWNER_STEPS.md`): merge (Lighthouse); apply the shadow migration (after
+the two metrics migrations); deploy `analytics-top-videos-collect` from the single-function lane with the
+merged commit; set the flag to shadow for the test client plus the one real client, then all clients; apply
+the schedule migration; compare each morning. Bar to switch: 3 clean days with all clients, as for metrics.
+
+**What this PR does NOT do:** write `analytics_top_videos`; edit n8n; port the Sheet append (the
+TopVideos tab stops growing only when n8n is switched off, in the later switch PR, which also needs one
+more value in the table's `source` check and a decision on the daily Sheet copy lane); alert on a failed
+platform (the function records every platform's outcome in the queue and in the comparison).
+
+### 7c. Market Research (not started)
+
+MARKET RESEARCH is webhook-driven briefs (Apify search, append or update on a brief id) and a disabled
+content-summary branch. It reads Clients Info. It gets its own PR.
 
 ## 8. Decisions for the owner
 

@@ -38,7 +38,7 @@ here with where it stopped, so it can be restarted.
 - **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
   checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
   shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
-  27-step checklist (admin only; OPEN_REPAIRS 327). Next, each with the owner's go: "Create client" (step 2.5),
+  27-step checklist (admin only; OPEN_REPAIRS 329). Next, each with the owner's go: "Create client" (step 2.5),
   then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
@@ -111,7 +111,7 @@ here with where it stopped, so it can be restarted.
 6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 322).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
    `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
    by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
-   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). Top Videos and Market Research are not started.
+   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). **Top Videos (2026-10-02, OPEN_REPAIRS 329, plan section 7): built the same way, in shadow beside n8n TOP VIDEOS (`analytics-top-videos-collect`, timer 08:00 to 12:59 UTC, same key and secrets, nothing new for the owner to create), not deployed, not applied; steps `docs/ops/ANALYTICS_TOP_VIDEOS_OWNER_STEPS.md`, after the metrics steps.** Market Research is not started.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -188,10 +188,10 @@ hiring senders when the editor hire closes.
   (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
   access from the owner's machine. The separate "Linear access extension to
   2026-10-15" is moot: all Linear keys were revoked on 2026-09-23.
-- **Slack alerts become one message (owner said yes, 2026-09-28).** Build the
-  single consolidated problem message with a quiet default proposed in
-  `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, AFTER the analytics
-  move to Supabase lands.
+- **Slack alerts become one message (owner said yes, 2026-09-28): BUILT 2026-10-02, switch off, in PR (OPEN_REPAIRS 328).**
+  Runs hourly in shadow (prints the message in the run summary, posts nothing); every old alert still posts. Owner's
+  steps: compare shadow with real alerts, approve one edit to the n8n alert relay (snippet in
+  `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`), set `ALERT_DIGEST_ENABLED` to `true`, then old alerts are removed one by one.
 - **Modularization C3: every script fragment is a module; only step 13 (the
   runtime switch) is left, and it waits for the owner's go.** The prep is in
   (Keystone, 2026-09-29): each module lists the functions its buttons call on

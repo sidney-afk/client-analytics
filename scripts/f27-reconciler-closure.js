@@ -339,8 +339,13 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // import, command, entrypoint or mutation path moved; closure membership is
   // unchanged. Hash from `git show HEAD:scripts/monitoring-watchdog.js | sha256sum`
   // on the retiring commit, never typed by hand. (Previous pin: a5465ab2...)
+  // Re-pinned 2026-10-02: one lane (`alert_digest`, the combined problem
+  // message, step 29c) was ADDED to the lane list, with a comment. No import,
+  // command, entrypoint or mutation path moved; closure membership is
+  // unchanged. Hash from `git show HEAD:scripts/monitoring-watchdog.js | sha256sum`
+  // on the committed file, never typed by hand. (Previous pin: 6cebc1b4...)
   'scripts/monitoring-watchdog.js':
-    '6cebc1b4aabf5c8db81e1fb599495a3b8546affbae83beede872e6d9c788da8b',
+    'd0290cb9c9b461c4e7d98d49474270b93d11071e4017c7a523a8446c2de2342a',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

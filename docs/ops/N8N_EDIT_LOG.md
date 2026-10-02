@@ -163,3 +163,47 @@ Why: owner decision 2026-10-02 to archive Project Central. Its save path cleared
 Read back after: search by name shows `active: false` for all three Project Central workflows.
 Not done: not archived or deleted in n8n, and the workbook itself is untouched, so the definition and the data stay for the retirement proof.
 Undo: in n8n open the workflow and publish it again (version `b6d3c2e7-5a85-4c1b-a1be-6816e7091f53`); its webhook address works again at once. Nothing else to restore.
+
+## 2026-10-02 Roster, Steps 2 and 3 (owner's go in the request): six workflows edited, one switched off, two temporary test workflows (session Roster)
+
+Plan: `docs/plans/2026-10-02-roster-native.md`. Every edit below reads or writes the roster through the Edge Functions
+`roster-read` / `roster-write` with the n8n login "Roster service key" (header `X-Roster-Key`). Test client only for every proof. No key is written here.
+
+Before any edit: `roster-read` and `roster-write` `status` were called with that login from a temporary manual workflow (`6j7bQHBRuFegK6gl`, owner's go, run
+once as execution 657172, archived after). Both answered 200: authority `sheet`, 36 clients, 6 managers. (Without the key both answer 401.)
+
+Readers first (published while the Sheet was still the main copy):
+
+1. Clients, Content Ready Notify (`II3sJbSLrptmtWLR`). Before `9f692c9d-d978-4871-8ecd-67d00b945d0c`, after `e65371dd-8e8a-4a46-b70f-3f9d5823e17c` (published about 19:52 UTC).
+   Changed: the Sheets step "Get Client Row" became two steps: an HTTP call to `roster-read` (`clients`, with the client name) and a Split Out named "Get Client Row" so the next steps read the same fields.
+   Tested: manual run 657173 on the test client: `roster-read` returned the one row; the email step then refused only because the test client has no email (nothing was sent). No real run since.
+   Undo: restore `9f692c9d-d978-4871-8ecd-67d00b945d0c` and publish.
+2. VIDEO PRODUCTION AUTOMATION (`BrJSe8zCKUccfmIq`). Before `e95369ca-de40-400c-802e-413efbbba853`, after `59e397fd-5cc8-4490-8c2e-5bed3695db0c` (about 19:55 UTC).
+   Changed: the two managers-tab downloads (Fetch SMM, Fetch SMM1) now call `roster-read` `managers` as CSV (same three headers, same quoting, same `data` field). The dead Linear step (Code in JavaScript7, the `/linear-issues` webhook, which read each manager's Linear key) now answers `{issues: [], error: "linear_retired"}` and reads nothing.
+   Tested: manual run 657174 of the `/linear-issues` trigger returned that answer. The two download steps could not be run alone without creating real tasks, so their CSV was proven by calling the same request from a temporary workflow (output has the three headers and 41 rows; the Lookup step's parsing is unchanged). No real run since.
+   Undo: restore `e95369ca-de40-400c-802e-413efbbba853` and publish.
+3. MARKET RESEARCH (`FD2QUIOlobkdLOgs`). Before (live) `7ba33725-5c02-42bd-bcf3-f8804f0c3301`, after `cee4d459-5a1c-4f37-9e24-b7e239f2d4d4` (about 19:56 UTC). The unpublished draft `f365365a-08eb-4b89-ada0-c66b3b8a7996` (a login rename only) went live with it.
+   Changed: the live CSV download "Fetch Client Config2" and its disabled copy "Fetch Client Config" now call `roster-read` `clients` as CSV. The disabled Sheets step "Get Clients1" was left alone.
+   Tested: the Parse step's own code run offline on the new CSV for all 36 current clients found the test client. The workflow was not run (it scrapes and spends money). No real run since.
+   Undo: restore `7ba33725-5c02-42bd-bcf3-f8804f0c3301` and publish.
+4. SyncView SMM Reports, Manager Sync (`y3rEWCVdB0esN3tO`). Before `2652b79d-b9a4-4bd9-a2ee-79b9c534446d`, after `ac986654-b6e8-4f7b-9460-dc07a8419451` (published about 19:58 UTC).
+   Changed: the payload now carries each manager's Slack id, and the call goes to `roster-write` `sync_managers` instead of `smm-weekly-reports`.
+   Tested: manual run 657177 answered `{"ok":true,"synced":6}`; afterwards 6 of 6 active managers had their Slack id in the database.
+   Then, right after the switch (about 20:01 UTC): **unpublished** (switched off, as the plan says; the function now refuses it anyway). Undo: only valid with the switch back to `sheet`: restore `2652b79d-b9a4-4bd9-a2ee-79b9c534446d` or republish `ac986654-b6e8-4f7b-9460-dc07a8419451`.
+
+Step 3, the switch (20:00:39 UTC): parity first (`node scripts/sheets-mirror-parity.js --strict`: `client_profiles` 36 of 36 matched, **PARITY: clean**; manager rows 41 of 41 equal, 0 differences), then `client_profiles_authority` set to `{"source":"syncview"}`, then the two writers were published:
+
+5. Onboarding, Append Client Row (`RFi70kokkNFHoRC0`). Before `9e4c984e-4ad0-470e-b50a-62c3b2bab9f6`, after `cd50743f-a30c-4857-b210-580b24e33d27` (published about 20:01 UTC).
+   Changed: the two Sheets steps became one HTTP call to `roster-write` `upsert_client` with the manager in the same call (adds `postforme_instagram_account_id`, drops `linear_api_key`); the answer is `{ok, roster}`. The webhook still has no sign-in (not changed here).
+   Tested: manual run 657183 on the test client: `changed: 1`, manager kept, Sheet copy done; the Sheet showed the new keyword. Undo: restore `9e4c984e-4ad0-470e-b50a-62c3b2bab9f6` and publish (and set the switch back first).
+6. Client, Slack Creative Channel Finalizer (`udkwwzdFuPW3K2CE`). Before `7afd1d3c-1099-400d-b682-f7f57585b7a8`, after `aedcda8b-4ccc-4ddd-ab86-f455117c0a91` (published about 20:01 UTC; saved as a draft earlier, never run before the switch).
+   Changed: "Read Clients Info" and "Read SMM Assignment" read from `roster-read` (HTTP call, then a Code step of the same name that keeps only this client's rows and always outputs at least one item, as the Sheet read did); "Write Clients Info Creative Channel" is one `roster-write` `set_client_fields` call with the "still empty" check; the read back reads from `roster-read`. Every new step sends its error output to "Prepare Manual Reconcile" like the old ones. The 15 minute timer, the webhook and the daily safety check are unchanged.
+   Tested: **the whole published workflow was NOT run.** The test client has a filming plan, so a run would create two real Slack channels and invite people (owner decision 2026-09-30: no real Slack channels for a test), and a test row left in the queue cannot be removed with the tools available. Instead the same calls the steps make were run from a temporary workflow on the test client: write both channel ids with the "still empty" check (changed 2, Sheet copy done), read back, both manager reads (JSON and CSV), a second write against a filled field refused with `expectation_failed`, then cleared. The next real client is the real proof.
+   Undo: restore `7afd1d3c-1099-400d-b682-f7f57585b7a8` and publish.
+
+Catch-up copy (about 20:02 UTC): `queue_full_copy` queued 77 rows (36 Clients Info, 41 Social Media Managers), `copy_to_sheet` copied 77, failed 0, pending 0 (execution 657182); parity read again afterwards: **PARITY: clean**.
+
+Proofs on the test client (all cleaned up afterwards): create or change through the Onboarding workflow (above); assign to another manager and back (Sheet showed `Raha`, then `Sidney`); the Finalizer's write (above); the Clients tab save: the database function behind it (`client_profile_admin_edit`) was run as the admin role for the test client, queued one row, and the copy put the change into the Sheet (the function's door needs the admin key, which no session holds, so that door itself was not exercised).
+
+Temporary workflows: `TEMP Roster status check` (`6j7bQHBRuFegK6gl`, archived) and `TEMP Roster switch runner` (`TgepIyq71B4mOf8M`, archived after the proofs). Both manual only, never published.
+Way back for the whole change, one step: set `client_profiles_authority` back to `{"source":"sheet"}` after `queue_full_copy` and `copy_to_sheet` until nothing is pending, then restore the versions above (plan, "Way back").

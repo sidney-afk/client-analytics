@@ -37,9 +37,9 @@ and `client-profile-write` from "Deploy one allowlisted Edge Function" (the
 workflow page, the function, and the merged commit to paste). Deploying changes
 nothing a user sees.
 
-## Step 2: the n8n edits (each needs the owner's separate go, same request)
+## Step 2: the n8n edits (DONE 2026-10-02 with the owner's go; versions and undo in `docs/ops/N8N_EDIT_LOG.md`, OPEN_REPAIRS 327)
 
-Nothing below has been touched. Every Sheets node named here exists today
+Done 2026-10-02 (the table is what the plan said; what was actually changed is in the edit log). Every Sheets node named here existed
 (read from the live workflows 2026-10-01). n8n gets one new credential, "Roster
 service key" (header `X-Roster-Key`).
 
@@ -60,7 +60,7 @@ client list and allowlist, `KASPER_SMM_URL` for the review queue's manager map).
 That is its own step (a staff-key read for the page), so Step 1 stays
 server-only. The Video Editors tab is a separate move.
 
-## Step 3: the switch, with its own go
+## Step 3: the switch (DONE 2026-10-02 20:00 UTC, clean parity before and after; steps 1 to 5 below ran in that order; step 6 is the owner's)
 
 Order, in one sitting: (1) run the daily copy once and the parity check, so the
 database equals the Sheet; (2) set `client_profiles_authority` to

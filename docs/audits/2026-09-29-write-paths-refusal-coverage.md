@@ -162,6 +162,7 @@ and SMM weekly reports.
 | `321-kasper-dashboard-replies.js` | `send` | `CC_EDGE_URL` POST | reports | `_ccApi` | Client credentials. list and history are reads; every other action is recorded as credentials_<action>. |
 | `323-kasper-dashboard-tail.js` | `_caEditPost` | `CA_WRITE_URL` POST | reports | `_caEditPost` | Client profile edit / status / refresh. Recorded as client_profile_<action>. |
 | `323-kasper-dashboard-tail.js` | `stale` | `CA_READ_URL` POST | read |  | Client profile read. |
+| `324-client-onboarding-panel.js` | `send` | `url` POST | reports | `_cbPost` | Onboarding checklist and HubSpot refresh. A checklist step change is recorded as client_onboarding_set_step; the checklist read and the HubSpot refresh are reads sent as POST and are not recorded. |
 <!-- inventory:end -->
 
 ## 5. Proof

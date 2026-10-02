@@ -7,47 +7,19 @@
  * the action stops before opening a picker, and the adapter state does not
  * change. Project-card mutations remain on the older read-only preview guard.
  */
-const fs = require('fs');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
-const http = require('http');
-const path = require('path');
 const { chromium } = require('playwright');
-const { installReadConsoleAudit } = require('./prod-test-utils');
+const { installReadConsoleAudit, serveStatic, isNonReadRequest } = require('./prod-test-utils');
 
-const root = path.resolve(__dirname, '..', '..', '..');
 const TOTAL = 169;
-const mime = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css',
-  '.js': 'text/javascript',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-};
 
-function serve() {
-  const server = http.createServer((req, res) => {
-    const u = new URL(req.url, 'http://127.0.0.1');
-    let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
-    p = path.normalize(p).replace(/^([.][\\/])+/, '');
-    const full = path.join(root, p);
-    if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-      res.writeHead(404);
-      res.end('not found');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
-    fs.createReadStream(full).pipe(res);
-  });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 async function txt(page, sel) {
   return (await page.locator(sel).first().textContent().catch(() => '') || '').trim();
 }
 
 (async () => {
-  const server = await serve();
+  const server = await serveStatic();
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -98,7 +70,7 @@ async function txt(page, sel) {
     childActivityLogged: 'deferred-B3: child activity log assertion depends on applying a status mutation',
   };
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
-  await seedStaffGate(page);
+  await seedStaffGate(page, { dropVerificationAfterBoot: true });
   await page.addInitScript(() => {
     try {
       Object.defineProperty(navigator, 'clipboard', {
@@ -260,8 +232,8 @@ async function txt(page, sel) {
       const items = Array.from(document.querySelectorAll('#headerNav > .header-nav-btn'));
       return mirror.textContent.trim() === 'Linear' && mirror.title === 'SyncLinear'
         && submit.textContent.trim() === 'Submit'
-        && mirror.getAttribute('href') === '#production'
-        && submit.getAttribute('href') === '#linear'
+        && mirror.getAttribute('href') === '/synclinear'
+        && submit.getAttribute('href') === '/submit'
         && mirror.getAttribute('onclick').includes("navTo('production')")
         && submit.getAttribute('onclick').includes("navTo('linear')")
         && items.indexOf(home) < items.indexOf(mirror)
@@ -289,7 +261,11 @@ async function txt(page, sel) {
       const target = (_prodState.deliverables || []).find(row => row && row.id && String(row.id).indexOf('b1_d_') === 0)
         || (_prodState.deliverables || []).find(row => row && row.id);
       if (!target) return false;
-      const clientTarget = (_prodState.clients || []).find(row => row && row.slug) || null;
+      // A client that has a project page: the first client in the list can be a
+      // canceled one, which has none, and the project states below would then
+      // read an empty page as a defect.
+      const projectPages = _prodProjects();
+      const clientTarget = (_prodState.clients || []).find(row => row && row.slug && projectPages[row.slug]) || null;
       const batchTarget = (_prodState.batches || []).find(row => row && row.id) || null;
       const id = String(target.id);
       const clientId = String(clientTarget && clientTarget.slug || '');
@@ -811,7 +787,7 @@ async function txt(page, sel) {
       let toasted = false;
       try {
         await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-        toasted = (await txt(page, '#prodToast')).includes('cannot be moved between clients');
+        toasted = (await txt(page, '#prodToast')).includes('move this to another client here');
       } catch (e) { toasted = false; }
       return noPicker && toasted;
     }); await reset();
@@ -1321,7 +1297,7 @@ async function txt(page, sel) {
          wired to select) and the two shortcuts that already do the job. */
       const toastText = await txt(page, '#prodToast');
       return beforeCollapsed === afterCollapsed
-        && toastText.includes('does not select the group yet')
+        && toastText.includes('select the whole group yet')
         && !toastText.includes('View only for now');
     }); await reset();
     await ok('paletteCmdClearSel', async () => {
@@ -2166,7 +2142,7 @@ async function txt(page, sel) {
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       // Same 87.10 fix as groupCheckHit above: the real, narrow reason now,
       // not the read-only sentence this surface no longer earns.
-      return (await txt(page, '#prodToast')).includes('does not select the group yet');
+      return (await txt(page, '#prodToast')).includes('select the whole group yet');
     }); await reset();
     await ok('filterMenuOpens', async () => { await page.locator('#prodFilterBtn').click(); return await page.locator('.prod-pop [data-prod-ffield]').count() >= 3; }); await reset();
     await ok('filterSubSearchable', async () => {
@@ -2366,7 +2342,7 @@ async function txt(page, sel) {
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('dark Production preview did not follow syncview_theme=dark');
     const readConsole = await readConsoleAudit.settle();
-    await ok('noWriteRequests', async () => requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)).length === 0);
+    await ok('noWriteRequests', async () => requests.filter(isNonReadRequest).length === 0);
     await ok('noConsoleErrors', async () => readConsole.ok ? true : readConsole.error);
 
     const failed = Object.entries(results).filter(([, v]) => v !== true);

@@ -1,0 +1,482 @@
+import { CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature } from './100-onboarding-staff-controls.js';
+import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
+    // ── Onboarding on the Clients profile (step 2.4 of docs/plans/2026-10-01-onboarding-checklist-and-profile.md) ──
+    // Three sections under a client's details: HubSpot (deal, contract and payment
+    // state), Resources (what the client has, found / missing / unknown, with its
+    // source and a link) and the Onboarding checklist (27 steps). ADMIN ONLY, reads
+    // and writes: the browser talks to the client-onboarding function (checklist and
+    // resources) and to client-hubspot-sync (a refresh when a profile is opened).
+    // It never reads those tables itself, and it never shows a review token, a
+    // login or a password: presence only.
+    const CB_URL = CAL_SUPABASE_URL + '/functions/v1/client-onboarding';
+    const CB_HUBSPOT_URL = CAL_SUPABASE_URL + '/functions/v1/client-hubspot-sync';
+    const CB_OPTIONAL_SKIP_NOTE = 'Skipped (optional step).';
+    const CB_MAX_TEXT = 2000;
+    // Who does the work on a step, in plain words (the catalog's `kind`).
+    const CB_KIND = { client: 'The client does this', auto: 'Happens automatically', claude: 'A Claude session does this', owner: 'Done by hand' };
+    // HubSpot board stages the sales pipeline really uses (docs/CLIENT_LIFECYCLE_MAP.md).
+    const CB_STAGES = {
+        appointmentscheduled: 'Call Scheduled', presentationscheduled: 'Next Steps Sent', closedwon: 'Contract Signed',
+        '3230372548': 'Invoice Paid', closedlost: 'Onboard Email', decisionmakerboughtin: 'Form Completed',
+        '3230452433': 'Closed Won', '3230452434': 'Closed Lost',
+    };
+    const CB_SOURCES = { manual: 'Added by hand', brain: 'Brain repo', hubspot: 'HubSpot', drive: 'Google Drive', slack: 'Slack', backfill: 'Backfill' };
+    const CB_RESOURCE_ORDER = ['saved', 'systems', 'activity', 'stored'];
+    const CB_RESOURCE_GROUPS = { saved: 'On the profile', systems: 'Set up for the client', activity: 'In use', stored: 'Saved elsewhere' };
+    // present: the view's yes/no per resource. Each entry: [key, label, group, source, hint].
+    const CB_PRESENT = [
+        ['email_present', 'Email', 'saved', 'Clients Info', ''],
+        ['instagram_present', 'Instagram handle', 'saved', 'Clients Info', ''],
+        ['tiktok_present', 'TikTok handle', 'saved', 'Clients Info', 'Can be blank on purpose.'],
+        ['youtube_present', 'YouTube channel', 'saved', 'Clients Info', 'Can be blank on purpose.'],
+        ['client_channel_present', 'Client Slack channel', 'saved', 'Clients Info', ''],
+        ['creative_channel_present', 'Creative Slack channel', 'saved', 'Clients Info', ''],
+        ['postforme_tiktok_present', 'Post For Me TikTok account', 'saved', 'Clients Info', 'Optional: needs the client to log in.'],
+        ['competitors_present', 'Competitors', 'saved', 'Clients Info', ''],
+        ['keywords_present', 'Keywords', 'saved', 'Clients Info', ''],
+        ['description_present', 'Content description', 'saved', 'Clients Info', ''],
+        ['token_present', 'Review link', 'systems', 'Review links', 'Shown as present or missing only.'],
+        ['filming_plan_linked', 'Filming plan link', 'systems', 'Filming plans', ''],
+        ['templates_row_present', 'Templates page', 'systems', 'Templates', ''],
+        ['canva_link_present', 'Thumbnail Canva link', 'systems', 'Templates', ''],
+        ['credentials_present', 'Logins saved', 'systems', 'Logins vault', 'Shown as present or missing only.'],
+        ['onboarding_form_present', 'Onboarding form answers', 'systems', 'Onboarding forms', 'Older clients may have them as a PDF in Drive.'],
+        ['cards_present', 'Calendar cards', 'activity', 'Calendar', ''],
+        ['samples_present', 'Sample reviews', 'activity', 'Samples', ''],
+        ['metrics_present', 'Analytics numbers', 'activity', 'Analytics', ''],
+    ];
+    // Resources that are saved once and kept (client_resources). No row yet = nobody has checked = unknown.
+    const CB_STORED = [
+        ['drive_client_folder', 'Google Drive client folder'],
+        ['drive_filming_plan_folder', 'Google Drive filming plan folder'],
+        ['hubspot_contact', 'HubSpot contact'],
+        ['brain_folder', 'Brain folder and brief'],
+        ['sandcastles_project', 'Sandcastles project'],
+        ['postforme_instagram_account', 'Post For Me Instagram account'],
+        ['kickoff_notes', 'Kickoff notes'],
+    ];
+    const CB_STORED_SOURCE_DEFAULT = { drive_client_folder: 'Google Drive', drive_filming_plan_folder: 'Google Drive', hubspot_contact: 'HubSpot', brain_folder: 'Brain repo', sandcastles_project: 'Sandcastles', postforme_instagram_account: 'Post For Me', kickoff_notes: 'Fathom or iClosed' };
+
+    const _cbState = { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} };
+    // Bumped by every purge and every client change, so an answer for one client
+    // can never be drawn under another, or under another staff identity.
+    let _cbGeneration = 0;
+
+    function _cbPurge() {
+        _cbGeneration++;
+        Object.assign(_cbState, { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
+        const mount = document.getElementById('caOnboarding');
+        if (mount) mount.innerHTML = '';
+    }
+
+    function _cbWhen(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    function _cbIsUrl(v) { return /^https?:\/\//i.test(String(v || '').trim()); }
+    function _cbText(v, fallback) {
+        const s = String(v == null ? '' : v).trim();
+        return s || (fallback || '');
+    }
+    function _cbEvidenceHtml(v) {
+        const s = _cbText(v);
+        if (!s) return '';
+        return _cbIsUrl(s) ? `<a href="${_calEscAttr(s)}" target="_blank" rel="noopener">${_calEsc(s)}</a>` : _calEsc(s);
+    }
+
+    // ---- talking to the functions (admin only; the server checks the key and the member again) ----
+    async function _cbIdentity() {
+        const ident = await _ccEnsureIdentity();
+        if (!ident || ident.role !== 'admin' || !ident.member || !ident.member.id) throw new Error('This needs an Admin sign-in.');
+        return ident;
+    }
+    async function _cbPost(url, body, track) {
+        const ident = await _cbIdentity();
+        const send = () => fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
+            body: JSON.stringify(Object.assign({}, body, { member_id: ident.member.id })),
+        });
+        const resp = track ? await _writeUiTrackSave('client_onboarding', ('client_onboarding_' + body.action).slice(0, 40), {}, send, { requireOk: true }) : await send();
+        let json = null;
+        try { json = await resp.json(); } catch (e) { json = null; }
+        return { resp, json: json || {}, ident };
+    }
+
+    function _cbStale(generation, slug, ident) {
+        if (generation !== _cbGeneration || _cbState.slug !== slug) return true;
+        return !!ident && _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders()) !== _syncviewStaffIdentitySignature(ident);
+    }
+
+    async function _cbFetchChecklist(slug, generation, seq) {
+        let out;
+        try { out = await _cbPost(CB_URL, { action: 'get', slug }, false); }
+        catch (e) { if (!_cbStale(generation, slug)) _cbState.error = e && e.message ? e.message : 'Could not load the checklist.'; return false; }
+        if (_cbStale(generation, slug, out.ident) || (seq !== undefined && seq !== _cbState.seq)) return false;
+        if (out.resp.status === 200 && out.json.ok) { _cbState.data = out.json; _cbState.error = null; return true; }
+        _cbState.error = out.resp.status === 401 || out.resp.status === 403
+            ? 'This needs an Admin sign-in.'
+            : out.json.error === 'client_profile_missing' ? 'This client has no profile to attach a checklist to.'
+            : 'Could not load the checklist (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').';
+        return false;
+    }
+
+    // Ask HubSpot (through our own function) for this client's deal and states. It answers
+    // "off" or "not enabled" until the switch is on for the client; never an error for that.
+    async function _cbRefreshHubspot(slug, generation) {
+        _cbState.hs = { kind: 'checking' };
+        let out;
+        try { out = await _cbPost(CB_HUBSPOT_URL, { action: 'refresh', slug }, false); }
+        catch (e) { if (!_cbStale(generation, slug)) _cbState.hs = { kind: 'error', code: 'network_error' }; return null; }
+        if (_cbStale(generation, slug, out.ident)) return null;
+        const j = out.json;
+        if (out.resp.status === 200 && j.ok) {
+            if (j.skipped) _cbState.hs = { kind: j.skipped, synced_at: j.synced_at || null };
+            else _cbState.hs = { kind: 'checked', match: j.match || '', contract_state: j.contract_state, payment_state: j.payment_state, synced_at: j.synced_at || null, changed: !!j.changed };
+        } else if (out.resp.status === 401 || out.resp.status === 403) _cbState.hs = { kind: 'error', code: 'admin_needed' };
+        else _cbState.hs = { kind: 'error', code: j.error || ('http_' + out.resp.status) };
+        return _cbState.hs;
+    }
+
+    // keep = read again in the background (the profile was saved): keep what is drawn until the new answer lands.
+    async function _cbLoad(slug, keep) {
+        const generation = _cbGeneration;
+        const seq = ++_cbState.seq;
+        if (!keep) { _cbState.loading = true; _cbState.error = null; _cbState.data = null; _cbPaint(); }
+        const hubspot = _cbRefreshHubspot(slug, generation).then(hs => { if (generation === _cbGeneration && _cbState.slug === slug) _cbPaint(); return hs; });
+        await _cbFetchChecklist(slug, generation, seq);
+        if (generation === _cbGeneration && _cbState.slug === slug) { _cbState.loading = false; _cbPaint(); }
+        const hs = await hubspot;
+        // A real lookup may have saved a new deal or state: read the sections again to show it.
+        if (hs && hs.kind === 'checked' && generation === _cbGeneration && _cbState.slug === slug && seq === _cbState.seq) {
+            if (await _cbFetchChecklist(slug, generation, seq)) _cbPaint();
+        }
+    }
+
+    function _cbReload() {
+        if (_cbState.slug) _cbLoad(_cbState.slug);
+    }
+
+    // Called by the Clients tab every time it repaints a profile (row = the selected client or null).
+    function _cbSync(row) {
+        const mount = document.getElementById('caOnboarding');
+        if (!mount) return;
+        if (!row || !_syncviewStaffCan('clients-admin')) {
+            if (_cbState.slug) _cbPurge();
+            mount.innerHTML = '';
+            return;
+        }
+        _cbState.row = row;
+        if (row.archived_at) {
+            if (_cbState.slug !== row.slug) { _cbPurge(); _cbState.slug = row.slug; _cbState.row = row; }
+            mount.innerHTML = `<section class="cb-section"><h4>Onboarding</h4><p class="cb-lead">Archived clients have no onboarding checklist.</p></section>`;
+            return;
+        }
+        if (_cbState.slug !== row.slug) {
+            _cbPurge();
+            _cbState.slug = row.slug; _cbState.row = row; _cbState.stamp = String(row.updated_at || '');
+            _cbLoad(row.slug);
+            return;
+        }
+        // The profile was saved (or copied from the sheet) while it is open: email, handles, keywords and
+        // channels feed Resources and the HubSpot search, so read them again rather than show the old answer.
+        const stamp = String(row.updated_at || '');
+        if (stamp !== _cbState.stamp) {
+            _cbState.stamp = stamp;
+            _cbLoad(row.slug, true);
+            return;
+        }
+        _cbPaint();
+    }
+
+    // ---- HubSpot section ----
+    const CB_CONTRACT = { signed: 'Signed', unsigned: 'Not signed yet', unknown: 'Unknown' };
+    const CB_PAYMENT = { paid: 'Paid', unpaid: 'Not paid yet', unknown: 'Unknown' };
+    const CB_MATCH = {
+        no_email: 'This client has no email saved, so HubSpot cannot be searched.',
+        no_contact: 'HubSpot has no contact with this email.',
+        ambiguous_contact: 'HubSpot has more than one contact with this email. Nothing was saved.',
+        no_deal: 'The HubSpot contact has no deal.',
+        ambiguous_deal: 'The HubSpot contact has several deals and none is the final one. Nothing was saved.',
+    };
+    function _cbHubspotNote() {
+        const hs = _cbState.hs || {};
+        switch (hs.kind) {
+            case 'checking': return 'Checking HubSpot…';
+            case 'off': return 'The HubSpot refresh is switched off, so this shows what was saved earlier.';
+            case 'not_enabled': return 'The HubSpot refresh is not switched on for this client yet, so this shows what was saved earlier.';
+            case 'fresh': return 'Checked with HubSpot a moment ago' + (hs.synced_at ? ` (${_cbWhen(hs.synced_at)})` : '') + '.';
+            case 'checked': return hs.match && CB_MATCH[hs.match] ? CB_MATCH[hs.match] : 'Checked with HubSpot just now.';
+            case 'error': return hs.code === 'admin_needed' ? 'The HubSpot refresh needs an Admin sign-in.'
+                : hs.code === 'hubspot_rate_limited' ? 'HubSpot asked us to slow down. Showing what was saved earlier; open this client again in a minute.'
+                : hs.code === 'hubspot_not_configured' ? 'The HubSpot refresh is not set up on the server yet. Showing what was saved earlier.'
+                : 'Could not reach HubSpot just now. Showing what was saved earlier.';
+            default: return '';
+        }
+    }
+    function _cbHubspotHtml() {
+        const sales = (_cbState.data && _cbState.data.sales) || null;
+        const stage = sales && sales.hubspot_stage ? (CB_STAGES[sales.hubspot_stage] || 'A stage HubSpot has but SyncView has no name for') : '';
+        const deal = sales && sales.hubspot_deal_id ? `Found${stage ? ' · ' + _calEsc(stage) : ''}` : '<span class="ca-empty">No deal saved yet</span>';
+        const contract = CB_CONTRACT[sales && sales.contract_state] || CB_CONTRACT.unknown;
+        const payment = CB_PAYMENT[sales && sales.payment_state] || CB_PAYMENT.unknown;
+        const imported = sales && sales.imported_unknown
+            ? `<p class="cb-lead">This customer was added to HubSpot by hand, which has no contract or payment record, so both stay Unknown.</p>` : '';
+        const synced = sales && sales.synced_at ? `Last saved from HubSpot ${_calEsc(_cbWhen(sales.synced_at))}.` : 'Not saved from HubSpot yet.';
+        const note = _cbHubspotNote();
+        return `<section class="cb-section" id="cbHubspot"><h4>HubSpot</h4>
+            <dl class="cb-facts">
+                <div class="ca-field"><dt>Deal</dt><dd>${deal}</dd></div>
+                <div class="ca-field"><dt>Contract</dt><dd>${_calEsc(contract)}</dd></div>
+                <div class="ca-field"><dt>First payment</dt><dd>${_calEsc(payment)}</dd></div>
+            </dl>
+            ${imported}
+            <p class="cb-lead">${_calEsc(synced)}${note ? ' ' + _calEsc(note) : ''}</p>
+        </section>`;
+    }
+
+    // ---- Resources section ----
+    function _cbLinkFor(key, row) {
+        const r = row || {};
+        const handle = v => String(v || '').trim().replace(/^@/, '');
+        if (key === 'email_present' && String(r.email || '').trim()) return { href: 'mailto:' + String(r.email).trim(), text: 'Email' };
+        if (key === 'instagram_present' && handle(r.instagram_handle)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(r.instagram_handle)) + '/', text: 'Open' };
+        if (key === 'tiktok_present' && handle(r.tiktok_handle)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(r.tiktok_handle)), text: 'Open' };
+        if (key === 'youtube_present' && String(r.youtube_channel_id || '').trim()) return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(String(r.youtube_channel_id).trim()), text: 'Open' };
+        // Pages inside SyncView that show this client's own data (clean addresses, docs/features/CLEAN_URLS.md).
+        const slug = encodeURIComponent(String(r.slug || '').trim());
+        if (slug) {
+            if (key === 'cards_present') return { href: '/calendar/' + slug, text: 'Open' };
+            if (key === 'samples_present') return { href: '/sample-reviews/' + slug, text: 'Open' };
+            if (key === 'templates_row_present' || key === 'canva_link_present') return { href: '/templates/' + slug, text: 'Open' };
+            if (key === 'onboarding_form_present') return { href: '/onboarding/' + slug, text: 'Open' };
+        }
+        return null;
+    }
+    function _cbStoredLink(key, value) {
+        const v = _cbText(value);
+        if (!v) return null;
+        if (_cbIsUrl(v)) return { href: v, text: 'Open' };
+        if ((key === 'drive_client_folder' || key === 'drive_filming_plan_folder') && /^[A-Za-z0-9_-]{10,}$/.test(v)) return { href: 'https://drive.google.com/drive/folders/' + v, text: 'Open' };
+        return null;
+    }
+    // One list of { label, group, status, source, hint, link }, status = found | missing | unknown | not_applicable.
+    function _cbResourceList() {
+        const data = _cbState.data || {};
+        const present = data.resources && data.resources.present;
+        const stored = (data.resources && data.resources.stored) || [];
+        const out = [];
+        for (const [key, label, group, source, hint] of CB_PRESENT) {
+            const known = present && typeof present[key] === 'boolean';
+            out.push({ label, group, status: known ? (present[key] ? 'found' : 'missing') : 'unknown', source, hint, link: known && present[key] ? _cbLinkFor(key, _cbState.row) : null });
+        }
+        if (present && Number.isFinite(Number(present.routing_lists_enrolled))) {
+            const n = Number(present.routing_lists_enrolled);
+            out.push({ label: 'Write routing lists', group: 'systems', status: n >= 4 ? 'found' : 'missing', source: 'Runtime flags', hint: `${n} of 4 lists name this client.`, link: null });
+        }
+        for (const [key, label] of CB_STORED) {
+            const row = stored.find(s => s && s.resource_key === key);
+            const status = row && ['found', 'missing', 'unknown', 'not_applicable'].includes(row.status) ? row.status : 'unknown';
+            const source = row && row.status !== 'unknown' ? (CB_SOURCES[row.source] || CB_STORED_SOURCE_DEFAULT[key]) : CB_STORED_SOURCE_DEFAULT[key];
+            out.push({ label, group: 'stored', status, source, hint: row ? '' : 'Nobody has looked for this yet.', link: status === 'found' ? _cbStoredLink(key, row && row.value) : null });
+        }
+        return out;
+    }
+    const CB_STATUS_WORDS = { found: 'Found', missing: 'Missing', unknown: 'Unknown', not_applicable: 'Not needed' };
+    function _cbResourcesHtml() {
+        if (_cbState.loading && !_cbState.data) return `<section class="cb-section" id="cbResources"><h4>Resources</h4><p class="cb-lead">Loading…</p></section>`;
+        if (!_cbState.data) return '';
+        const list = _cbResourceList();
+        const counts = list.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
+        const groups = CB_RESOURCE_ORDER.map(g => {
+            const items = list.filter(r => r.group === g);
+            if (!items.length) return '';
+            return `<div class="cb-res-group"><h5>${_calEsc(CB_RESOURCE_GROUPS[g])}</h5><ul class="cb-res">${items.map(r => `<li class="cb-res-row is-${r.status}">
+                <span class="cb-pill is-${r.status}">${_calEsc(CB_STATUS_WORDS[r.status])}</span>
+                <span class="cb-res-main"><span class="cb-res-label">${_calEsc(r.label)}</span><span class="cb-res-sub">${_calEsc(r.source)}${r.hint ? ' · ' + _calEsc(r.hint) : ''}</span></span>
+                ${r.link ? `<a class="cb-res-link" href="${_calEscAttr(r.link.href)}" target="_blank" rel="noopener">${_calEsc(r.link.text)}</a>` : ''}
+            </li>`).join('')}</ul></div>`;
+        }).join('');
+        return `<section class="cb-section" id="cbResources"><h4>Resources</h4>
+            <p class="cb-lead">${counts.found || 0} found · ${counts.missing || 0} missing · ${counts.unknown || 0} unknown. Unknown means nobody has checked yet, not that it is missing.</p>
+            ${groups}</section>`;
+    }
+
+    // ---- Checklist section ----
+    const CB_STATUS_STEP = { todo: 'To do', done: 'Done', skipped: 'Skipped', unknown: 'Unknown' };
+    function _cbStepActionsHtml(s) {
+        const key = _calEscAttr(s.step_key);
+        const busy = _cbState.busy === s.step_key ? ' disabled' : '';
+        const open = _cbState.open && _cbState.open.key === s.step_key ? _cbState.open : null;
+        if (open) return '';
+        if (s.status === 'done' || s.status === 'skipped') return `<button type="button" class="cc-btn cb-btn" onclick="_cbReopen('${key}')"${busy}>Reopen</button>`;
+        const skip = s.required
+            ? `<button type="button" class="cc-btn cb-btn" onclick="_cbOpen('${key}','skip')"${busy}>Skip with a note</button>`
+            : `<button type="button" class="cc-btn cb-btn" onclick="_cbSkipOptional('${key}')"${busy}>Skip this optional step</button>`;
+        return `<button type="button" class="cc-btn primary cb-btn" onclick="_cbOpen('${key}','done')"${busy}>Mark done</button>${skip}`;
+    }
+    function _cbStepFormHtml(s) {
+        const open = _cbState.open;
+        if (!open || open.key !== s.step_key) return '';
+        const key = _calEscAttr(s.step_key);
+        const d = _cbState.draft[s.step_key] || {};
+        const busy = _cbState.busy === s.step_key ? ' disabled' : '';
+        const isSkip = open.mode === 'skip';
+        const field = isSkip
+            ? `<label class="cb-form-label" for="cbNote_${key}">Why is this step being skipped? (required)</label>
+               <textarea class="ca-input" id="cbNote_${key}" rows="2" maxlength="${CB_MAX_TEXT}" oninput="_cbDraftInput('${key}','note',this.value)"${busy}>${_calEsc(d.note || '')}</textarea>`
+            : `<label class="cb-form-label" for="cbEv_${key}">Link or ID that shows it is done (optional)</label>
+               <input class="ca-input" id="cbEv_${key}" type="text" autocomplete="off" spellcheck="false" maxlength="${CB_MAX_TEXT}" value="${_calEscAttr(d.evidence || '')}" oninput="_cbDraftInput('${key}','evidence',this.value)"${busy}>`;
+        const confirm = isSkip
+            ? `<button type="button" class="cc-btn primary cb-btn" onclick="_cbConfirm('${key}')"${busy}>${_cbState.busy === s.step_key ? 'Saving…' : 'Skip step'}</button>`
+            : `<button type="button" class="cc-btn primary cb-btn" onclick="_cbConfirm('${key}')"${busy}>${_cbState.busy === s.step_key ? 'Saving…' : 'Mark done'}</button>`;
+        return `<div class="cb-form">${field}<div class="cb-form-actions">${confirm}<button type="button" class="cc-btn cb-btn" onclick="_cbCancel()"${busy}>Cancel</button></div></div>`;
+    }
+    function _cbStepHtml(s) {
+        const who = _cbText(s.responsible, 'owner');
+        const whoLabel = who === 'owner' ? 'Owner' : who.charAt(0).toUpperCase() + who.slice(1);
+        const evidence = s.evidence ? `<div class="cb-step-line"><span>Evidence:</span> ${_cbEvidenceHtml(s.evidence)}</div>` : '';
+        const note = s.note ? `<div class="cb-step-line"><span>Note:</span> ${_calEsc(s.note)}</div>` : '';
+        const doneBy = s.status === 'done' && s.done_by ? `<div class="cb-step-line">Marked done by ${_calEsc(s.done_by)}${s.done_at ? ' on ' + _calEsc(_cbWhen(s.done_at)) : ''}.</div>` : '';
+        const msg = _cbState.notice[s.step_key] ? `<div class="cb-msg is-error" role="alert">${_calEsc(_cbState.notice[s.step_key])}</div>` : '';
+        return `<li class="cb-step is-${s.status}${s.required ? '' : ' is-optional'}" data-step="${_calEscAttr(s.step_key)}">
+            <span class="cb-num" aria-hidden="true">${_calEsc(s.position)}</span>
+            <div class="cb-step-main">
+                <div class="cb-step-title"><span class="cb-step-label">${_calEsc(s.label)}</span>
+                    <span class="cb-badge${s.required ? ' is-required' : ''}">${s.required ? 'Required' : 'Optional'}</span></div>
+                <div class="cb-step-sub">Owner: ${_calEsc(whoLabel)} · ${_calEsc(CB_KIND[s.kind] || 'Done by hand')}${s.proof ? ' · ' + _calEsc(s.proof) : ''}</div>
+                ${evidence}${note}${doneBy}${msg}
+                ${_cbStepFormHtml(s)}
+            </div>
+            <div class="cb-step-side"><span class="cb-pill is-${s.status}">${_calEsc(CB_STATUS_STEP[s.status] || s.status)}</span>
+                <div class="cb-actions">${_cbStepActionsHtml(s)}</div></div>
+        </li>`;
+    }
+    function _cbChecklistHtml() {
+        if (_cbState.loading && !_cbState.data) return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4><p class="cb-lead">Loading…</p></section>`;
+        if (_cbState.error && !_cbState.data) return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4><div class="cb-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div></section>`;
+        const data = _cbState.data;
+        if (!data) return '';
+        const steps = (data.steps || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+        const required = steps.filter(s => s.required);
+        const done = required.filter(s => s.status === 'done').length;
+        const skipped = required.filter(s => s.status === 'skipped').length;
+        const unknown = required.filter(s => s.status === 'unknown').length;
+        const todo = required.filter(s => s.status === 'todo').length;
+        const onboarded = required.length > 0 && todo === 0;
+        const pct = required.length ? Math.round((done / required.length) * 100) : 0;
+        const stale = _cbState.error ? `<div class="cb-msg is-error" role="alert">${_calEsc(_cbState.error)} <button type="button" class="cc-btn cb-btn" onclick="_cbReload()">Try again</button></div>` : '';
+        return `<section class="cb-section" id="cbChecklist"><h4>Onboarding checklist</h4>
+            <div class="cb-summary"><span class="cb-pill ${onboarded ? 'is-done' : 'is-todo'}">${onboarded ? 'Onboarded' : 'Not onboarded yet'}</span>
+                <span>${done} of ${required.length} required steps done${skipped ? ` · ${skipped} skipped` : ''}${unknown ? ` · ${unknown} unknown` : ''}. Optional steps never block.</span></div>
+            <div class="cb-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
+            ${stale}
+            <ol class="cb-steps">${steps.map(_cbStepHtml).join('')}</ol></section>`;
+    }
+
+    function _cbPaint() {
+        const mount = document.getElementById('caOnboarding');
+        if (!mount || !_cbState.slug || (_cbState.row && _cbState.row.archived_at)) return;
+        // Keep the typed text and focus if a repaint lands while someone is typing in a form.
+        const active = document.activeElement;
+        const focusId = active && mount.contains(active) && active.id ? active.id : '';
+        const caret = focusId && typeof active.selectionStart === 'number' ? active.selectionStart : null;
+        mount.innerHTML = _cbHubspotHtml() + _cbResourcesHtml() + _cbChecklistHtml();
+        if (focusId) {
+            const el = document.getElementById(focusId);
+            if (el) { try { el.focus(); if (caret != null) el.setSelectionRange(caret, caret); } catch (e) {} }
+        }
+    }
+
+    // ---- changing a step (admin only; the database checks it again and records who did it) ----
+    function _cbStep(key) {
+        const steps = (_cbState.data && _cbState.data.steps) || [];
+        return steps.find(s => s.step_key === key) || null;
+    }
+    function _cbOpen(key, mode) {
+        if (!_cbStep(key) || _cbState.busy) return;
+        _cbState.open = { key, mode: mode === 'skip' ? 'skip' : 'done' };
+        _cbState.notice = {};
+        _cbPaint();
+        const el = document.getElementById((mode === 'skip' ? 'cbNote_' : 'cbEv_') + key);
+        if (el && !(window.matchMedia && window.matchMedia('(max-width: 767px)').matches)) { try { el.focus(); } catch (e) {} }
+    }
+    function _cbCancel() {
+        if (_cbState.busy) return;
+        _cbState.open = null;
+        _cbPaint();
+    }
+    function _cbDraftInput(key, field, value) {
+        const d = _cbState.draft[key] || (_cbState.draft[key] = {});
+        d[field] = String(value == null ? '' : value);
+    }
+    function _cbSkipOptional(key) {
+        const s = _cbStep(key);
+        if (!s || s.required || _cbState.busy) return;
+        _cbSend(key, 'skipped', { note: CB_OPTIONAL_SKIP_NOTE });
+    }
+    function _cbReopen(key) {
+        if (!_cbStep(key) || _cbState.busy) return;
+        if (!confirm('Mark this step as not done yet?')) return;
+        _cbSend(key, 'todo', {});
+    }
+    function _cbConfirm(key) {
+        const open = _cbState.open;
+        const s = _cbStep(key);
+        if (!open || open.key !== key || !s || _cbState.busy) return;
+        const d = _cbState.draft[key] || {};
+        if (open.mode === 'skip') {
+            const note = String(d.note || '').trim();
+            if (!note) { _cbState.notice[key] = 'Write why this step is being skipped first.'; _cbPaint(); return; }
+            _cbSend(key, 'skipped', { note });
+        } else {
+            _cbSend(key, 'done', { evidence: String(d.evidence || '').trim() });
+        }
+    }
+    async function _cbSend(key, status, fields) {
+        const s = _cbStep(key);
+        const slug = _cbState.slug;
+        if (!s || !slug || _cbState.busy) return;
+        const generation = _cbGeneration;
+        _cbState.busy = key; _cbState.notice = {};
+        _cbPaint();
+        const body = { action: 'set_step', slug, step_key: key, status, expected_updated_at: s.updated_at };
+        if (fields.evidence) body.evidence = fields.evidence;
+        if (fields.note) body.note = fields.note;
+        let out;
+        try { out = await _cbPost(CB_URL, body, true); }
+        catch (e) { out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' }, ident: null }; }
+        if (_cbStale(generation, slug, out.ident)) return;
+        _cbState.busy = '';
+        const { resp, json } = out;
+        if (resp.status === 200 && json.ok) {
+            _cbState.open = null;
+            delete _cbState.draft[key];
+            // Show the change now, then read the sections again so who and when come from the server.
+            Object.assign(s, { status, evidence: fields.evidence || null, note: fields.note || null });
+            if (json.result && json.result.updated_at) s.updated_at = json.result.updated_at;
+            _cbPaint();
+            await _cbFetchChecklist(slug, generation);
+            if (generation === _cbGeneration && _cbState.slug === slug) _cbPaint();
+            return;
+        }
+        const err = json.error || ('HTTP ' + resp.status);
+        if (err === 'version_conflict') {
+            if (json.row && typeof json.row === 'object') Object.assign(s, json.row);
+            _cbState.open = null;
+            _cbState.notice[key] = 'Someone else changed this step a moment ago. The latest is shown; check it and try again.';
+        } else if (err === 'skip_needs_note') _cbState.notice[key] = 'Write why this step is being skipped first.';
+        else if (resp.status === 401 || resp.status === 403) _cbState.notice[key] = 'Changing the checklist needs an Admin sign-in.';
+        else _cbState.notice[key] = 'Could not save (' + err + '). Nothing was changed.';
+        _cbPaint();
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional
+    });
+export { _cbPurge, _cbSync };

@@ -1,5 +1,7 @@
 # n8n — current truth
 
+**Corrected 2026-10-02 (Roster):** Manager Sync `y3rEWCVdB0esN3tO` is now Inactive (switched off at the Clients Info switch). Content Ready Notify, Video Production Automation, Market Research, Onboarding Append Client Row and the Slack Creative Channel Finalizer now read or write the roster through `roster-read` / `roster-write` instead of the Sheet. Details: `docs/ops/N8N_EDIT_LOG.md`.
+
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
 > Last verified: 2026-09-23 @ 344006c5 — a live READ-ONLY re-verification through the n8n API: a
@@ -144,7 +146,7 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
 | `alZ87zcRVKgcGVY7` | Active |
 | `II3sJbSLrptmtWLR` | Active |
 | `XM70AtHSrsCsfd3k` | Active |
-| `y3rEWCVdB0esN3tO` | Active |
+| `y3rEWCVdB0esN3tO` | Inactive |
 | `8stSpZUiyG7f2LQX` | Inactive |
 | `VQqqeY9B2GZbh2Bt` | Inactive |
 | `ydbhXgV3X7SVnkSy` | Active |

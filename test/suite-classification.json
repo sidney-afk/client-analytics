@@ -2,6 +2,9 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "analytics-essentials-http.js",
+    "caption-jobs-scoped-read.js",
+    "sheets-mirror-backfill-completeness.js",
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",
     "onboarding-checklist-tables-migration.js",

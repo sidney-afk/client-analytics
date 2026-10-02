@@ -4,6 +4,20 @@
 
 All times are UTC unless noted.
 
+## 2026-10-02 — Digger preventive bug archaeology over September 19 to October 2
+
+Three bounded cycles: 22 candidates, four confirmed, 16 refuted, two undecidable;
+two consecutive dry sibling cycles met the stop rule. Independent skeptical
+verification and real-code offline counterexamples preceded every finding.
+Four source fixes and four regression guards: Analytics essentials HTTP truth,
+whole-backfill completeness, caption scoped-query ordering, and complete HubSpot
+identity reads. Pattern matrix, seen ledger and proof limits:
+`docs/audits/2026-10-02-bug-archaeology.md`. The affected guard tests and all 23
+visible split-page boot groups passed locally. Whole-unit and hosted status are
+reported separately in the PR; no clean-health claim follows from focused proof.
+No live writes, deployment, merge, n8n edit or protected-owner file change.
+
+
 **Older entries are archived.** Entries more than 60 days old live word for word in [docs/ops/execution-log-archive/](docs/ops/execution-log-archive/), one file per month. Each one leaves a single "Archived entry" line below, in its original place, with a link and a fingerprint of the entry's exact text. Nothing in them was edited; `node scripts/ledger-archive.js log --check` proves it, and fails if an archived entry is later changed. Three entries older than 60 days stay in this file on purpose: the repo identity check refuses their lines as new text in a new file, and it has no exemption for a move between ledgers.
 
 ## 2026-10-01 — Calendar overall status now moves with the bridge; 5 cards repaired (owner's go; OPEN_REPAIRS 317)
@@ -6812,3 +6826,10 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
   together and selects six columns; its audit insert stays before the answer.
 - Three functions deploy by themselves on merge (key-verify, smm-weekly-reports, thumbnail-revision-read; owner agreed 2026-10-02); production-comments waits for the next staff-sensitive dispatch; analytics-read, brain and workload-plan need one dispatch each.
 - Tests: `test/key-verify-behavior.js`, `test/cors-maxage-and-key-verify-reads.js`.
+
+## 2026-10-02 - Clients Info and Social Media Managers: flag flip to the database and six n8n edits (session Roster, OPEN_REPAIRS 331)
+
+- Owner's go in the request. Parity first (36 of 36 client rows, 41 of 41 manager rows, `PARITY: clean`), then `client_profiles_authority` set to `{"source":"syncview"}` at 20:00:39 UTC.
+- n8n: Content Ready Notify, Video Production Automation, Market Research, Manager Sync (then unpublished), Onboarding Append Client Row, Slack Creative Channel Finalizer; versions, tests and undo in `docs/ops/N8N_EDIT_LOG.md`; key-free stubs in `n8n-backups/*2026-10-02.roster.stub.json`.
+- Catch-up copy: 77 queued, 77 done, 0 failed, 0 pending; parity clean again. Test client proofs cleaned up afterwards.
+- Not proven: the Finalizer end to end (next real client), the Clients tab HTTP door (admin key). Way back: see the ROLLBACK.md Live State row.

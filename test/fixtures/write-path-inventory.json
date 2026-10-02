@@ -452,6 +452,13 @@
     "270-samples-model.js.part|_sxrUpsertFetchGuarded|SXR_UPSERT_EF_URL|POST": {
       "status": "client-transport",
       "note": "Staff Samples upsert behind the saving-on check (n8n exit PR 4). Each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save, urgent_marker_save)."
+    },
+    "324-client-onboarding-panel.js.part|send|url|POST": {
+      "status": "reports",
+      "within": [
+        "_cbPost"
+      ],
+      "note": "Onboarding checklist and HubSpot refresh. A checklist step change is recorded as client_onboarding_set_step; the checklist read and the HubSpot refresh are reads sent as POST and are not recorded."
     }
   }
 }

@@ -13,7 +13,9 @@
  *     key, the admin's member id and the row version, to client-profile-write;
  *     "the sheet changed" is shown with the fields and a way to load them;
  *     on phones the edit form fits, inputs are 44px tall with 16px text;
- *   - nothing else writes: no other non-read request leaves the page.
+ *   - nothing else writes: no other non-read request leaves the page. (The onboarding sections' two calls,
+ *     client-onboarding and client-hubspot-sync, are proved by clients-onboarding-browser.js, which checks
+ *     that only `get` and `refresh` are ever sent without a click.)
  */
 const fs = require('fs');
 const http = require('http');
@@ -71,7 +73,7 @@ async function open(browser, origin, role, viewport) {
       return json({ ok: true, fields: Object.keys(b.changes || {}), row: Object.assign({}, row, b.changes, { source: 'syncview', updated_by: 'QA admin', updated_at: '2026-09-25T10:00:00Z' }) });
     }
     if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role, member: { id: 'qa_' + role, name: 'QA ' + role, role, team: null } });
-    if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics|client-profile-write|analytics-read)/.test(u.pathname)) writes.push(r.method() + ' ' + u.pathname);
+    if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics|client-profile-write|analytics-read|client-onboarding|client-hubspot-sync)/.test(u.pathname)) writes.push(r.method() + ' ' + u.pathname);
     if (/rest\/v1/.test(u.pathname)) return json([]);
     if (/functions|webhook/.test(u.pathname)) return json({});
     return route.abort();

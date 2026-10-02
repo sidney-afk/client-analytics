@@ -109,6 +109,10 @@ async function send(key, body) {
       console.log('    rejected by reason: ' + JSON.stringify(why));
     }
     if (!APPLY) continue;
+    // Completeness belongs to the whole downloaded tab, not just its last
+    // chunk. Never publish a whole-dataset receipt after rejecting an earlier
+    // row (the last chunk may be entirely valid).
+    if (rejected.length) throw new Error(`${dataset}: ${rejected.length} row(s) rejected; no rows sent`);
     const parts = dataset === 'client_profiles' ? [rows] : chunks(rows);
     let written = 0;
     for (let i = 0; i < parts.length; i++) {
@@ -122,6 +126,15 @@ async function send(key, body) {
         // The last call of a whole-Sheet copy vouches for every client.
         full_snapshot: i === parts.length - 1,
       });
+      // An HTTP success is not proof that this part was accepted. Stop before
+      // a later part can certify an incomplete copy. Profile writes may leave
+      // unchanged SyncView edits alone, so their written count can be smaller.
+      if (!Array.isArray(out.rejected) || out.rejected.length
+        || out.rows_received !== parts[i].length
+        || !Number.isInteger(out.rows_written) || out.rows_written < 0 || out.rows_written > parts[i].length
+        || (dataset !== 'client_profiles' && out.rows_written !== parts[i].length)) {
+        throw new Error(`${dataset}: part ${i} was not fully acknowledged; copy stopped`);
+      }
       written += out.rows_written;
     }
     console.log(`    sent in ${parts.length} call(s), ${written} rows written`);

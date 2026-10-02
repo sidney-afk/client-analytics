@@ -1475,3 +1475,10 @@ poll, without disabling Production:
 - **After deploy:** revert the PR and redeploy the same functions by the same lanes. The header only lets browsers cache a permission the
   function already grants; removing it returns to a preflight every 5 s. The `key-verify` change is behaviour-identical except for timing,
   so a rollback is never needed for correctness, only if the timing is unwanted.
+
+
+## 2026-10-02 — Digger preventive archaeology repairs (source only)
+
+Before any function deploy, reverting the Digger repair commit and rebuilding the page restores the prior source behavior; Lighthouse handles the merge. The page half serves on the normal Pages merge. After a caption-jobs or client-hubspot-sync deployment, a source revert alone does not change the running function: the owner must redeploy that function's reviewed prior source through the existing single-function lane. HubSpot remains off by default and this audit did not enable it. No schema, credential, flag, grant or data inverse is required. The backfill is an operator script and was not run against live writers. Keep the append-only OPEN_REPAIRS record and dated audit as evidence when preparing a rollback; do not erase those records to undo code.
+
+Reverting restores known read/completeness defects, so weigh that against the reported regression before rolling back. No Clients fragment, roster function, client-profile-write or n8n workflow belongs to this repair.

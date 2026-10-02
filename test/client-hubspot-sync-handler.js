@@ -5,6 +5,7 @@
 // client is named, and nothing secret (token, email, HubSpot id) ever comes back.
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const ROOT = path.resolve(__dirname, '..');
 let passed = 0; let failed = 0;
 function ok(cond, msg) { if (cond) { passed++; console.log('  ok  ' + msg); } else { failed++; console.error('FAIL  ' + msg); } }
@@ -60,7 +61,7 @@ const ADMIN_HDR = { 'x-syncview-key': 'admin-key', 'content-type': 'application/
 const TIMER_HDR = { 'x-hubspot-sync-key': TIMER, 'content-type': 'application/json' };
 
 (async () => {
-  const mod = await import(path.join(ROOT, 'supabase/functions/_shared/client-hubspot-sync.mjs'));
+  const mod = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/client-hubspot-sync.mjs')).href);
 
   // ---- pure rules ----
   ok(JSON.stringify(mod.contractPayment({ contract_signed: 'true', first_invoice_paid: 'true' })) === '{"contract":"signed","payment":"paid"}', 'true and true is signed and paid');
@@ -91,7 +92,7 @@ const TIMER_HDR = { 'x-hubspot-sync-key': TIMER, 'content-type': 'application/js
     sent.push({ url, init });
     if (url.endsWith('/contacts/search')) return { ok: true, json: async () => ({ results: [{ id: '7', properties: {} }] }) };
     if (url.includes('/associations/deals')) return { ok: true, json: async () => ({ results: [{ toObjectId: 11 }, { toObjectId: 12 }] }) };
-    if (url.endsWith('/deals/batch/read')) return { ok: true, json: async () => ({ results: [] }) };
+    if (url.endsWith('/deals/batch/read')) return { ok: true, json: async () => ({ status: 'COMPLETE', results: JSON.parse(init.body).inputs.map(({ id }) => ({ id, properties: { dealstage: 'open' } })) }) };
     return { ok: false, status: 404 };
   };
   const real = mod.makeHubspot(fakeFetch, TOKEN);
@@ -117,7 +118,7 @@ const TIMER_HDR = { 'x-hubspot-sync-key': TIMER, 'content-type': 'application/js
     }, extra || {}),
   });
   function make(state, hsPlan, opts = {}) {
-    const db = fakeDb(state); const hub = fakeHubspot(hsPlan || good); let made = 0;
+    const db = fakeDb(state); const hub = opts.hub || fakeHubspot(hsPlan || good); let made = 0;
     const handler = mod.buildHandler({
       authorize: (key) => (key === 'admin-key' ? { ok: true, role: 'admin' } : key === 'smm-key' ? { ok: false, role: 'smm' } : { ok: false, role: null }),
       tickKeyOk: (r) => r.headers.get('x-hubspot-sync-key') === TIMER,
@@ -129,6 +130,99 @@ const TIMER_HDR = { 'x-hubspot-sync-key': TIMER, 'content-type': 'application/js
   }
   const textOf = async (res) => res.text();
   const on = (clients, extra) => Object.assign({ mode: 'on', clients }, extra || {});
+
+  // Exercise the actual HTTP adapter through the handler: a successful prefix cannot
+  // prove unique identity, and an incomplete provider read must never reach the writer.
+  function provider(plan = {}) {
+    const calls = []; const batchSizes = [];
+    const response = (body, status = 200) => new Response(JSON.stringify(body), { status });
+    const fetch = async (url, init) => {
+      calls.push({ url, method: init.method });
+      if (url.endsWith('/contacts/search')) return response(plan.contacts || { total: 1, results: [{ id: '7', properties: { contract_signed: 'true', first_invoice_paid: 'true' } }] });
+      if (url.includes('/associations/deals')) {
+        if (plan.associations) return response(await plan.associations(new URL(url).searchParams.get('after'), calls));
+        return response({ results: (plan.ids || ['1', '2']).map((toObjectId) => ({ toObjectId })) });
+      }
+      if (url.endsWith('/deals/batch/read')) {
+        const ids = JSON.parse(init.body).inputs.map((r) => r.id); batchSizes.push(ids.length);
+        return response(plan.batch ? await plan.batch(ids) : {
+          status: 'COMPLETE', results: ids.map((id) => ({ id, properties: { dealstage: (plan.won || ['1']).includes(id) ? mod.CLOSED_WON_STAGE : 'open' } })),
+        }, plan.batchStatus || 200);
+      }
+      throw new Error('unexpected provider URL');
+    };
+    return { hub: mod.makeHubspot(fetch, TOKEN), calls, batchSizes };
+  }
+  async function adapterRefresh(plan) {
+    const p = provider(plan); const t = make(baseState(on(['alpha'])), good, { hub: p.hub });
+    const res = await t.handler(req(ADMIN_HDR, { action: 'refresh', slug: 'alpha', member_id: 'm-admin' }));
+    return { ...p, t, res, body: await res.json() };
+  }
+  const twentySix = Array.from({ length: 26 }, (_, i) => String(i + 1));
+  let a = await adapterRefresh({ ids: twentySix, won: ['1', '26'] });
+  ok(a.res.status === 200 && a.body.match === 'ambiguous_deal'
+    && a.t.db.calls.rpcs.find((r) => r.name === 'client_sales_state_apply').args.p_deal_id === null,
+  'a second Closed Won beyond the former 25-id cut prevents a unique match');
+  a = await adapterRefresh({ won: ['1', '2'], associations: (after) => after === null
+    ? { results: [{ toObjectId: '1' }], paging: { next: { after: 'page two', link: 'https://untrusted.example/' } } }
+    : { results: [{ toObjectId: '2' }] } });
+  ok(a.res.status === 200 && a.body.match === 'ambiguous_deal' && a.calls.filter((c) => c.method === 'GET').length === 2
+    && a.calls.every((c) => c.url.startsWith(mod.HUBSPOT + '/')) && a.calls.some((c) => c.url.endsWith('?after=page%20two')),
+  'the second association page participates in ambiguity; only the encoded cursor reaches the trusted host');
+  a = await adapterRefresh({ ids: Array.from({ length: 101 }, (_, i) => String(i + 1)), won: ['101'] });
+  ok(a.res.status === 200 && a.body.match === 'matched' && a.batchSizes.join() === '100,1'
+    && a.t.db.calls.rpcs.find((r) => r.name === 'client_sales_state_apply').args.p_deal_id === '101',
+  '101 deals are read in complete batches of at most 100 and the last deal can be selected');
+  a = await adapterRefresh({ associations: (after) => after === null
+    ? { results: [{ toObjectId: '1' }], paging: { next: { after: 'next' } } }
+    : { results: [{ toObjectId: '1' }, { toObjectId: '2' }] },
+  batch: (ids) => ({ status: 'COMPLETE', results: ids.slice().reverse().map((id) => ({ id, properties: { dealstage: id === '1' ? mod.CLOSED_WON_STAGE : 'open' } })) }) });
+  ok(a.res.status === 200 && a.body.match === 'matched' && a.batchSizes.join() === '2',
+    'association duplicates across pages are deduplicated and batch response order does not matter');
+  a = await adapterRefresh({ contacts: { total: 0, results: [] } });
+  ok(a.res.status === 200 && a.body.match === 'no_contact' && a.calls.length === 1, 'a complete empty contact search still means no contact');
+  a = await adapterRefresh({ ids: [] });
+  ok(a.res.status === 200 && a.body.match === 'no_deal' && a.batchSizes.length === 0, 'a complete empty association set still means no deal');
+  a = await adapterRefresh({ contacts: { total: 4, results: [{ id: '7' }, { id: '8' }, { id: '9' }], paging: { next: { after: 'more' } } } });
+  ok(a.res.status === 200 && a.body.match === 'ambiguous_contact' && a.calls.length === 1, 'two or more contacts already prove ambiguity despite a search limit');
+
+  const fullDeals = (ids) => ids.map((id) => ({ id, properties: { dealstage: 'open' } }));
+  const invalidPlans = [
+    ['missing contact results', { contacts: {} }],
+    ['malformed contact results', { contacts: { results: 'not-an-array' } }],
+    ['missing contact id', { contacts: { results: [{}] } }],
+    ['singleton contact prefix', { contacts: { total: 2, results: [{ id: '7' }] } }],
+    ['paged singleton contact', { contacts: { results: [{ id: '7' }], paging: { next: { after: 'next' } } } }],
+    ['missing association results', { associations: () => ({}) }],
+    ['malformed association id', { associations: () => ({ results: [{ toObjectId: {} }] }) }],
+    ['missing association id', { associations: () => ({ results: [{}] }) }],
+    ['malformed association paging', { associations: () => ({ results: [{ toObjectId: '1' }], paging: { next: {} } }) }],
+    ['repeated association cursor', { associations: () => ({ results: [{ toObjectId: '1' }], paging: { next: { after: 'same' } } }) }],
+    ['association page exhaustion', { associations: (_after, calls) => ({ results: [{ toObjectId: '1' }], paging: { next: { after: String(calls.length) } } }) }],
+    ['association count exhaustion', { ids: Array.from({ length: (mod.MAX_ASSOCIATED_DEALS || 1000) + 1 }, (_, i) => String(i + 1)) }],
+    ['207 partial deal read', { batchStatus: 207, batch: (ids) => ({ status: 'COMPLETE', results: fullDeals(ids.slice(0, 1)), numErrors: 1, errors: [{ category: 'OBJECT_NOT_FOUND' }] }) }],
+    ['errors on a 200 deal read', { batch: (ids) => ({ status: 'COMPLETE', results: fullDeals(ids), errors: [{ category: 'OBJECT_NOT_FOUND' }] }) }],
+    ['numErrors on a 200 deal read', { batch: (ids) => ({ status: 'COMPLETE', results: fullDeals(ids), numErrors: 1 }) }],
+    ['pending batch', { batch: (ids) => ({ status: 'PENDING', results: fullDeals(ids) }) }],
+    ['missing batch status', { batch: (ids) => ({ results: fullDeals(ids) }) }],
+    ['missing batch results', { batch: () => ({ status: 'COMPLETE' }) }],
+    ['missing requested deal', { batch: (ids) => ({ status: 'COMPLETE', results: fullDeals(ids.slice(0, 1)) }) }],
+    ['foreign deal id', { batch: (ids) => ({ status: 'COMPLETE', results: fullDeals([ids[0], 'foreign']) }) }],
+    ['duplicate deal id', { batch: (ids) => ({ status: 'COMPLETE', results: fullDeals([ids[0], ids[0]]) }) }],
+    ['malformed deal properties', { batch: (ids) => ({ status: 'COMPLETE', results: ids.map((id) => ({ id, properties: [] })) }) }],
+    ['partial later batch', { ids: Array.from({ length: 101 }, (_, i) => String(i + 1)), batch: (ids) => ({ status: 'COMPLETE', results: ids.length === 1 ? [] : fullDeals(ids) }) }],
+  ];
+  for (const [label, plan] of invalidPlans) {
+    a = await adapterRefresh(plan);
+    ok(a.res.status === 502 && a.body.ok === false && !a.t.db.calls.rpcs.some((r) => r.name === 'client_sales_state_apply'),
+      label + ': unavailable, no sales state, freshness or resource saved');
+  }
+  const partialProvider = provider(invalidPlans.find(([label]) => label === '207 partial deal read')[1]);
+  const partialTick = make(baseState(on([], { all: true })), good, { hub: partialProvider.hub });
+  const partialTickResponse = await partialTick.handler(req(TIMER_HDR, { action: 'tick' }));
+  const partialTickBody = await partialTickResponse.json();
+  ok(partialTickResponse.status === 502 && partialTickBody.errors === 2 && partialTickBody.looked_up === 0
+    && !partialTick.db.calls.rpcs.some((r) => r.name === 'client_sales_state_apply'), 'partial reads fail the daily sweep and never advance either client');
 
   // access, refused before the body is read
   for (const [label, headers, status] of [['no key', { 'content-type': 'application/json' }, 401], ['an SMM key', { 'x-syncview-key': 'smm-key' }, 403], ['an unknown key', { 'x-syncview-key': 'nope' }, 401], ['a wrong timer key', { 'x-hubspot-sync-key': 'wrong' }, 401]]) {

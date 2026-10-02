@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-single-function.yml'), 'utf8');
 const preview = fs.readFileSync(path.join(ROOT, '.github/workflows/native-notification-preview.yml'), 'utf8');
 
-const EXPECTED = ['analytics-metrics-collect', 'analytics-read', 'analytics-write', 'brain', 'caption-jobs', 'client-onboarding', 'client-profile-write', 'filming-plan-tabs', 'higgsfield-mcp', 'instagram-upload', 'notify', 'roster-read', 'roster-write', 'syncview-session', 'workload-plan', 'write-diagnostics'];
+const EXPECTED = ['analytics-metrics-collect', 'analytics-read', 'analytics-write', 'brain', 'caption-jobs', 'client-hubspot-sync', 'client-onboarding', 'client-profile-write', 'filming-plan-tabs', 'higgsfield-mcp', 'instagram-upload', 'notify', 'roster-read', 'roster-write', 'syncview-session', 'workload-plan', 'write-diagnostics'];
 // These stay on their own gated lanes (Section 4 sealed bundle, pinned inbound
 // bundle), and the two client writers are FROZEN by owner directive (AGENTS.md):
 // their repo source re-gates client links, so deploying it 401s every client.
@@ -50,6 +50,10 @@ assert(!/secrets\.(?!SUPABASE_ACCESS_TOKEN\b)/.test(wf), 'uses no secret besides
 // client-onboarding must not deploy before its checklist migration is applied.
 assert(wf.includes("inputs.function == 'client-onboarding'") && wf.includes('client_onboarding_set_step(text,text,text,text,text,text,text,timestamptz,text)'), 'client-onboarding has a schema preflight');
 assert(wf.indexOf('Refuse client-onboarding until') < wf.indexOf('name: Deploy the one selected function'), 'schema preflight runs before the deploy');
+
+// client-hubspot-sync must not deploy before its database functions exist.
+assert(wf.includes("inputs.function == 'client-hubspot-sync'") && wf.includes('client_sales_state_apply(text,text,text,text,text,text,text,text,text)'), 'client-hubspot-sync has a schema preflight');
+assert(wf.indexOf('Refuse client-hubspot-sync until') < wf.indexOf('name: Deploy the one selected function'), 'hubspot schema preflight runs before the deploy');
 
 // Preview lane: dispatch-only, existing secrets, slug typed at dispatch, counts only.
 assert(/^on:\n  workflow_dispatch:\n/m.test(preview) && !/^  (push|schedule):/m.test(preview), 'preview is dispatch only');

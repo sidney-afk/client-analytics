@@ -203,3 +203,9 @@ verify_jwt = false
 
 [functions.roster-write]
 verify_jwt = false
+
+# Kasper > Clients: HubSpot deal, contract and payment state per client (read only
+# toward HubSpot). JWT off: it is called with an admin staff key or the daily
+# timer's own key (HUBSPOT_SYNC_KEY), both checked before the body is read.
+[functions.client-hubspot-sync]
+verify_jwt = false

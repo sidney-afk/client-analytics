@@ -7,6 +7,8 @@
     "onboarding-checklist-tables-migration.js",
     "native-client-test-provision-migration.js",
     "client-onboarding-handler.js",
+    "client-hubspot-sync-handler.js",
+    "client-hubspot-sync-migration.js",
     "lost-work-retry-intent.js",
     "lost-work-conflict-gate.js",
     "lost-work-drafts.js",

@@ -66,6 +66,18 @@ function serveStatic() {
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+// The strict form of the guard: ANY method other than GET, HEAD or OPTIONS counts,
+// whatever the host, so a mutation sent to a new or renamed backend cannot slip
+// past a suite that only recognises today's hostnames. The one exemption is the
+// staff entry gate's key-verify POST (authentication, writes nothing), matched by
+// path. Suites that walk a detail add their own exact-shape read allowlist on top.
+function isNonReadRequest(req) {
+  const method = typeof req.method === 'function' ? req.method() : req.method;
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
+  const url = typeof req.url === 'function' ? req.url() : req.url;
+  return !/\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(url || '');
+}
+
 function isWriteLikeRequest(req) {
   const method = typeof req.method === 'function' ? req.method() : req.method;
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
@@ -422,6 +434,7 @@ module.exports = { legacyPageUrl, pagesFallback,
   root,
   serveStatic,
   isWriteLikeRequest,
+  isNonReadRequest,
   installReadConsoleAudit,
   installProductionInit,
   openProduction,

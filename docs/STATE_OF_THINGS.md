@@ -225,8 +225,10 @@ hiring senders when the editor hire closes.
   and down to 2 on 09-25, so it looks like one automated caller that stopped.
   The `traffic` column (256) now fills on browser reports; gateway rows stay
   empty until `production-write` is redeployed (measured 2026-09-29, item 4).
-- **Scheduled lanes that are red** (`production-polish-gate` red since 09-17;
-  the lanes in OPEN_REPAIRS 205). Repair or retire each. Not re-checked today.
+- **Scheduled lanes that are red** (the lanes in OPEN_REPAIRS 205). Repair or retire each.
+  **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
+  calendar drift check had causes found and fixed (test code and test-client data only); confirm
+  they are green on main after the merge.** The other lanes were not re-checked.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

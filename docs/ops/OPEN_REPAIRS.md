@@ -30602,3 +30602,19 @@ Not looked at: the Edit links form (it saves, and this pass did not open it) and
 
 Proof: scope guard; seen on the live page with the fix applied before committing. No pictures in the PR: the offline page has no client Templates data. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 349. [2026-10-03, BUILT] Phone polish, screen 16: a client's Analytics page, staff view and client link (session Polish)
+
+Stacked on entry 348. Phones only, styles only: a STAFF-PHONE block under `html:not(.boot-client) .client-view`, and the same layout rules added to the Analytics CLIENT-PHONE block under `html.boot-client`.
+
+The test client has no analytics, which is why this page could not be judged before. For this pass one real client's Analytics page was opened in the signed-in staff tab, read only (nothing saved, no picture kept), at 390 wide. Found:
+- Each platform card (Instagram, TikTok, YouTube) laid its four numbers in one row 78 px wider than the card, so the fourth number (average likes) was cut off and could not be seen at all. They are two by two now.
+- Top performing: the Week / Month switch was cut off at the right edge and its note was squeezed into a narrow column beside it. The note drops under the heading.
+- The period buttons were 23 px, the chart switches 19 and 25 px (staff view), Read more 13 px, Back 30 px, the three view tabs 30 px, Share with client and Send Slack Update 36 px, Generate summary 26 px. They are 40 to 44 px (Read more 32 px inside its card).
+
+The client link shares the page, so the two layout fixes and the button sizes are in its block too; the link already had the chart switch sizes from an earlier pass.
+
+Said plainly: the staff view was seen fixed on the live page. The client link version uses the same rules under its own scope and was not seen with data, because that would mean opening a real client's link.
+
+Proof: both scope guards. No pictures: the only data is a real client's. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

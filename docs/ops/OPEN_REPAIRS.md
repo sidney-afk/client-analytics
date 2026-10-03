@@ -30553,3 +30553,17 @@ Not done: the contents of the sub-tabs other than Review (Messages, Filming revi
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the bar on the Messages and Filming sub-tabs at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/12-kasper-tab-bar/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 346. [2026-10-03, BUILT] Phone polish, round 2: fixes found by looking at the staff tabs with real data (session Polish)
+
+Stacked on entry 345. Phones only, styles only, inside the STAFF-PHONE blocks. Entries 337 to 345 were built against made-up posts, because the local build has no staff sign-in. For this round the pushed styles were loaded into the live, signed-in page for viewing only (nothing saved, nothing deployed) and every staff tab was looked at on the test client and on the real boards.
+
+Found and fixed:
+- Staff Calendar and Samples Sheet: a card with no thumbnail had its picture area cut to 88 px (right for the client link), but on the staff side that area also holds the platform buttons, the colour tag, the link buttons and the missing-media warning, which collided. It is 212 px for staff.
+- The three status rows on a staff card (Video, Thumbnail, Caption), the control staff use most, were 22 px tall. They are 40 px. The link buttons are 36 px, platform buttons 28 px, the colour tag 32 px, Generate 36 px.
+- Analytics overview: the pinned client column from entry 341 let scrolled numbers show through beside the name. The pin is removed; the table still scrolls inside its own box and the page still does not move.
+
+Looked at and left alone because they were already right with real data: Today, the Workload board (it scrolls inside its own box), Month and Week.
+
+Proof: the offline staff phone test still passes; the three fixes were seen on the live page with real data before being committed. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

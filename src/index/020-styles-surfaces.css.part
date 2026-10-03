@@ -4830,11 +4830,9 @@
         /* STAFF-PHONE:BEGIN */
         @media (max-width: 767px) {
             /* The 1050px table made the whole page slide sideways. It now
-               scrolls inside its own box, with the client name pinned at the
-               left so a row can still be read while its numbers move. */
+               scrolls inside its own box. (A pinned client column was tried and
+               removed in OPEN_REPAIRS 346: scrolled numbers showed through it.) */
             html:not(.boot-client) .overview-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-            html:not(.boot-client) .overview-wrap .overview-table th:first-child, html:not(.boot-client) .overview-wrap .overview-table td:first-child { position: sticky; left: 0; z-index: 2; }
-            html:not(.boot-client) .overview-wrap .overview-table th:first-child { background: var(--bg); }
             html:not(.boot-client) .overview-wrap .overview-controls { position: sticky; left: 0; width: calc(100vw - 28px); max-width: 100%; box-sizing: border-box; flex-wrap: wrap; row-gap: 10px; }
             html:not(.boot-client) .overview-wrap .controls-left button { min-height: 44px; min-width: 56px; padding: 0 14px; font-size: 0.84rem; }
             html:not(.boot-client) .overview-wrap .view-toggle { border-radius: 12px; }
@@ -4893,6 +4891,23 @@
             html:not(.boot-client) .kasper-wrap .kasper-more-trigger { width: auto; }
             html:not(.boot-client) .kasper-wrap .kasper-refresh-btn { min-height: 44px; padding-left: 14px; padding-right: 14px; }
             html:not(.boot-client) .kasper-wrap .ked-info-btn { width: 44px; height: 44px; }
+        }
+        /* STAFF-PHONE:END */
+        /* Round 2, after looking at the staff Calendar and Samples with real data (OPEN_REPAIRS 346): the staff-only controls on a Sheet card. Same contract as the blocks above. */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* A card with no thumbnail still carries the platform buttons, the colour tag, the link buttons and the missing-media warning in its picture area, so staff need more height there than the 88px the client link uses. */
+            html:not(.boot-client) #calView .cal-card-thumb:has(> .cal-card-thumb-fallback), html:not(.boot-client) #sxrView .cal-card-thumb:has(> .cal-card-thumb-fallback) { height: 212px; }
+            /* The three status rows are the control staff use most. They were 22px. */
+            html:not(.boot-client) #calView .cal-fld-substatus-trigger, html:not(.boot-client) #sxrView .cal-fld-substatus-trigger { min-height: 40px; padding-left: 12px; padding-right: 12px; border-radius: 10px; }
+            html:not(.boot-client) #calView .cal-fld-substatus-comp, html:not(.boot-client) #calView .cal-fld-substatus-label, html:not(.boot-client) #sxrView .cal-fld-substatus-comp, html:not(.boot-client) #sxrView .cal-fld-substatus-label { font-size: 0.74rem; }
+            html:not(.boot-client) #calView .cal-fld-substatus-dot, html:not(.boot-client) #sxrView .cal-fld-substatus-dot { width: 9px; height: 9px; }
+            html:not(.boot-client) #calView .cal-card-substatus-row, html:not(.boot-client) #sxrView .cal-card-substatus-row { gap: 6px; }
+            html:not(.boot-client) #calView .cal-linear-btn, html:not(.boot-client) #sxrView .cal-linear-btn { width: 36px; height: 36px; }
+            html:not(.boot-client) #calView .cal-card-platform-btn { width: 28px; height: 28px; }
+            html:not(.boot-client) #calView .cal-card-color-tag { width: 32px; height: 32px; }
+            html:not(.boot-client) #calView .cal-card-link, html:not(.boot-client) #calView .cal-card-del, html:not(.boot-client) #sxrView .cal-card-link, html:not(.boot-client) #sxrView .cal-card-del { width: 36px; height: 36px; }
+            html:not(.boot-client) #calView .cal-cap-gen { min-height: 36px; padding-left: 12px; padding-right: 12px; }
         }
         /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-

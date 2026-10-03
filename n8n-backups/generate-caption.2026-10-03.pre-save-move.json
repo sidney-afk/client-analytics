@@ -1,0 +1,33 @@
+{
+  "_backup_note": "Public-safe copy taken 2026-10-03 BEFORE moving Generate Caption's Save step from the n8n calendar-upsert-post webhook to the calendar-upsert Edge Function (docs/ops/N8N_EDIT_LOG.md). The whole graph before the edit is the published version 8d2ffd70-bb0c-49c5-b529-bbaad90176e0 (described node by node in generate-caption.2026-09-30.step-b2.stub.json). This file keeps the one step that changed, verbatim (it holds no key). ROLLBACK, one step: in n8n restore version 8d2ffd70-bb0c-49c5-b529-bbaad90176e0 and publish it.",
+  "name": "SyncView Calendar — Generate Caption",
+  "id": "rNrRCwKPGuau7sLH",
+  "version_before": "8d2ffd70-bb0c-49c5-b529-bbaad90176e0",
+  "connections_before": {
+    "Cancel check 2": [
+      "Save Caption to Sheet"
+    ],
+    "Save Caption to Sheet": {
+      "output0": [
+        "Progress done"
+      ],
+      "output1_error": [
+        "Mark Job Failed"
+      ]
+    }
+  },
+  "node_before": {
+    "id": "ab2f209d-0586-4d60-beb7-20c5d617e4d0",
+    "name": "Save Caption to Sheet",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [
+      3808,
+      0
+    ],
+    "onError": "continueErrorOutput",
+    "parameters": {
+      "jsCode": "const ctx = $('Prepare Apify Input').first().json;\nconst caption = ($('Read Claude Answer').first().json.caption) || '';\n// Final cancel checkpoint, right before the sheet write - once the UI sets cancel_requested the caption is guaranteed never to land in the sheet. The status read is done by the step before this one; a failed read is ignored.\nconst _st = ($input.first() && $input.first().json) || {};\nconst _row = _st.jobs && _st.jobs[0];\nif (_row && _row.cancel_requested) throw new Error('CANCELLED');\nlet resp = null;\ntry {\n  resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post',\n    body: { client: ctx.client, post: { id: ctx.postId, caption: caption } },\n    json: true,\n    timeout: 30000\n  });\n} catch (e) {\n  console.log('calendar-upsert-post threw', String((e && e.message) || e).slice(0, 500));\n}\nif (!resp || resp.ok !== true) {\n  // Diagnostics stay in the execution log; the thrown message reaches the\n  // card. Colon-free on purpose (n8n splits error messages at ':'). The\n  // generated caption is preserved on the job row by Mark Job Failed.\n  console.log('calendar-upsert-post response', JSON.stringify(resp == null ? null : resp).slice(0, 500));\n  throw new Error('The caption was generated but could not be saved to the sheet — it is kept on the card, save it manually or retry');\n}\nreturn [{ json: { ok: true, client: ctx.client, postId: ctx.postId, caption, savedToSheet: true, jobId: ctx.jobId } }];"
+    }
+  }
+}

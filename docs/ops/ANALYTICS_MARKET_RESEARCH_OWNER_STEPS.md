@@ -1,7 +1,7 @@
 # Owner steps: start the shadow run of the Market Research brief job
 
 For the owner (Sidney). Plan and reasons: `docs/plans/2026-10-01-n8n-off-analytics.md`, section 7c
-(ledger entry OPEN_REPAIRS 334). Do these only after Lighthouse has merged the PR that adds this file,
+(ledger entry OPEN_REPAIRS 335). Do these only after Lighthouse has merged the PR that adds this file,
 and **after the metrics shadow steps** (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`) are done. Nothing
 here changes what anyone sees in SyncView: the new job writes to its own shadow tables, and n8n keeps
 running untouched.

@@ -207,3 +207,31 @@ Proofs on the test client (all cleaned up afterwards): create or change through 
 
 Temporary workflows: `TEMP Roster status check` (`6j7bQHBRuFegK6gl`, archived) and `TEMP Roster switch runner` (`TgepIyq71B4mOf8M`, archived after the proofs). Both manual only, never published.
 Way back for the whole change, one step: set `client_profiles_authority` back to `{"source":"sheet"}` after `queue_full_copy` and `copy_to_sheet` until nothing is pending, then restore the versions above (plan, "Way back").
+
+## 2026-10-03 Generate Caption's Save step moved off the n8n Calendar save (owner's go in the request, session Sunset)
+
+Workflow: SyncView Calendar, Generate Caption (`rNrRCwKPGuau7sLH`)
+Version before: `8d2ffd70-bb0c-49c5-b529-bbaad90176e0`      Version after: `079050d3-db68-4e10-9828-d6764e7fbe6e` (published 2026-10-03, about 18:57 UTC)
+Changed (only the save; generation, progress, cancel and error handling are as before):
+- Before: the Code step "Save Caption to Sheet" checked for a cancel, then posted `{client, post: {id, caption}}` to the n8n
+  `calendar-upsert-post` webhook from inside the code, with no login, and treated anything but `ok: true` as a failure.
+- After: three steps in a row. "Check cancel before save" (Code: the same cancel check, builds the same body) then
+  "Save caption (calendar-upsert)" (HTTP Request, POST to the `calendar-upsert` Edge Function, same body, 30 second timeout, saved
+  login "SyncView Client Credentials Staff Key", continue on error) then "Save Caption to Sheet" (Code: only `ok: true` counts as
+  saved, otherwise the same error message as before, so Mark Job Failed keeps the caption on the job row). The step keeps its
+  name so the steps after it are unchanged. No key is typed anywhere.
+- About the login: the live `calendar-upsert` is the un-gated build (see the freeze banner in its source), so today it does not
+  check a key at all. The login is sent so the call is not anonymous, but it holds `CREDENTIALS_STAFF_KEY`, which the gated
+  source in this repo would NOT accept (that source accepts a role key or `SYNCVIEW_WRITER_STAFF_KEY`, and no n8n login holds
+  either). If the gated source is ever deployed, this save fails closed: the caption stays on the job row and the card shows the
+  usual "could not be saved" message. Give the step a login holding the writer key before that deploy.
+Why: the n8n Calendar Upsert workflow was waiting on this one real caller before it can be switched off (step K report).
+A copy of the old step, verbatim: `n8n-backups/generate-caption.2026-10-03.pre-save-move.json`.
+Tested (test client only, real services):
+- Draft, manual run 658538, job `job_sunset_save_draft_1`: the function answered `ok: true`; the test card's caption changed
+  from 377 to 363 characters, `updated_at` 2026-10-03T18:56:41.752Z; job row `done/done`. The n8n Calendar Upsert workflow had
+  0 runs from 18:50 UTC on (it last ran at 14:48 UTC).
+- Published, production run 658543, job `job_sunset_save_prod_1` (mode webhook, success): card caption
+  now 341 characters, `updated_at` 2026-10-03T18:58:58.527Z; job row `done/done`. Calendar Upsert again had 0 runs.
+Not tested: a failed save on the new path (the function was not made to fail on purpose).
+Undo: in n8n, restore version `8d2ffd70-bb0c-49c5-b529-bbaad90176e0` (workflow history) and publish it. Nothing else changes.

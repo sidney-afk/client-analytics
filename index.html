@@ -9392,6 +9392,17 @@
             html:not(.boot-client) #pageTop .pin-add-btn { min-height: 44px; padding: 0 16px; font-size: 0.82rem; }
         }
         /* STAFF-PHONE:END */
+        /* Staff Submit tab (and the intake form, which shares its markup): same contract, under html:not(.boot-client) .linear-view (OPEN_REPAIRS 342). */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* 16px text in every typing box, so an iPhone does not zoom in. */
+            html:not(.boot-client) .linear-view .linear-search-input, html:not(.boot-client) .linear-view .linear-input, html:not(.boot-client) .linear-view .linear-textarea { font-size: 16px; }
+            html:not(.boot-client) .linear-view .linear-input, html:not(.boot-client) .linear-view .linear-search-input { min-height: 44px; }
+            html:not(.boot-client) .linear-view .linear-video-remove { width: 44px; height: 44px; }
+            html:not(.boot-client) .linear-view .linear-add-video-btn { min-height: 44px; padding-left: 16px; padding-right: 16px; }
+            html:not(.boot-client) .linear-view .linear-submit-btn { min-height: 48px; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

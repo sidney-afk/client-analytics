@@ -4106,6 +4106,122 @@
             html.boot-client #sxrView .cal-review-comment-btn,
             html.boot-client #sxrView .cal-review-tweak-btn { align-self: stretch; justify-content: center; min-height: 48px; padding: 0 10px; font-size: 0.9rem; white-space: nowrap; border-radius: 12px; }
             html.boot-client #sxrView .cal-review-comment-body { overflow-wrap: anywhere; }
+
+            /* POLISH PASS, screen 3 (OPEN_REPAIRS 336): the same refinements the
+               Calendar link received in entries 334 and 335, for the Sample
+               reviews link. Kept rule for rule in step with those two passes. */
+            html.boot-client #sxrView .sxr-cd-input { padding: 12px; border-radius: 12px; font-size: 16px; line-height: 1.45; }
+            html.boot-client #sxrView .sxr-cd-input::placeholder { color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-review-comment-empty,
+            html.boot-client .cal-tab-view .cal-review-comment-empty { font-size: 0.84rem; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-view-btn:not(.active),
+            html.boot-client #sxrView .cal-embed-title span { color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-toolbar { border-radius: 16px; }
+            html.boot-client #sxrView .cal-toolbar-right { display: contents; }
+            html.boot-client #sxrView .cal-embed-title strong { font-size: 1.05rem; }
+            html.boot-client #sxrView .cal-view-toggle { padding: 4px; }
+            html.boot-client #sxrView .cal-view-btn { -webkit-tap-highlight-color: transparent; }
+            html.boot-client #sxrView .cal-review-wrap > .cal-empty { padding: 40px 24px 44px; background: var(--white); border: 1px solid var(--border); border-radius: 16px; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.55; }
+            html.boot-client #sxrView .cal-review-wrap > .cal-empty::before { content: "\2713"; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 14px; border-radius: 50%; background: var(--sv-bg-dcfce7); color: var(--sv-fg-166534); font-size: 1.3rem; font-weight: 800; line-height: 1; }
+            html.boot-client #sxrView .kcard { border-radius: 16px; }
+            html.boot-client #sxrView .kcard-strip { grid-template-columns: 64px minmax(0, 1fr); gap: 12px 14px; padding: 16px; -webkit-tap-highlight-color: transparent; }
+            html.boot-client #sxrView .kcard-thumb { width: 64px; height: 64px; border-radius: 12px; }
+            html.boot-client #sxrView .kcard-main { gap: 4px; }
+            html.boot-client #sxrView .cal-review-card .kcard-title { font-size: 1.08rem; }
+            html.boot-client #sxrView .cal-review-card .kcard-pending { font-size: 0.9rem; line-height: 1.4; }
+            html.boot-client #sxrView .cal-review-card .kcard-date { font-size: 0.78rem; letter-spacing: 0; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-review-sub-row { gap: 6px; margin-top: 6px; }
+            html.boot-client #sxrView .kcard .cal-review-sub-row:not(:has(.cal-review-sub-pill:not(.cal-fld-status-client-approval))),
+            html.boot-client #sxrView .kcard .cal-review-sub-pill.cal-fld-status-client-approval { display: none; }
+            html.boot-client #sxrView .cal-review-sub-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border: 1px solid var(--border); border-radius: 99px; box-shadow: inset 0 0 0 40px var(--white); color: var(--text-primary); font-size: 0.72rem; font-weight: 600; letter-spacing: 0; text-transform: none; white-space: normal; overflow: visible; }
+            html.boot-client #sxrView .cal-review-sub-pill::before { content: ""; flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: inherit; }
+            html.boot-client #sxrView .kcard-actions { justify-content: flex-start; gap: 10px; }
+            html.boot-client #sxrView .kcard-actions .thumb-compare-slot:empty { display: none; }
+            html.boot-client #sxrView .kcard-open-sheet { width: auto; padding: 0 14px; gap: 8px; font-family: inherit; font-size: 0.86rem; font-weight: 700; color: var(--text-primary); -webkit-tap-highlight-color: transparent; }
+            html.boot-client #sxrView .kcard-open-sheet::after { content: "Open in Sheet"; }
+            html.boot-client #sxrView .kcard-open-sheet svg { width: 15px; height: 15px; }
+            html.boot-client #sxrView .kcard-expand-btn { margin-left: auto; gap: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 700; -webkit-tap-highlight-color: transparent; }
+            html.boot-client #sxrView .kcard-expand-btn svg { width: 13px; height: 13px; }
+            html.boot-client #sxrView .kcard:not(.expanded) .kcard-expand-btn { width: auto; padding: 0 16px 0 18px; background: var(--text-primary); border-color: var(--text-primary); color: var(--white); }
+            html.boot-client #sxrView .kcard:not(.expanded) .kcard-expand-btn::before { content: "Review"; }
+            html.boot-client #sxrView .cal-review-body { padding: 0 16px 8px; }
+            html.boot-client #sxrView .cal-review-panel { padding: 20px 0 22px; gap: 14px; border-radius: 0; }
+            html.boot-client #sxrView .cal-review-panel[data-state="tweaks"] { border-radius: 14px; }
+            html.boot-client #sxrView .cal-review-panel-title { font-size: 1.06rem; font-weight: 800; }
+            html.boot-client #sxrView .cal-review-video-tile,
+            html.boot-client #sxrView .cal-review-preview-thumb-btn { border-radius: 14px; }
+            html.boot-client #sxrView .cal-review-video-tile { max-width: 100%; }
+            html.boot-client #sxrView .cal-review-video-bg { object-fit: contain; filter: brightness(0.74); transform: none; }
+            html.boot-client #sxrView .cal-review-video-label { font-size: 0.9rem; }
+            html.boot-client #sxrView .cal-review-preview-caption { font-size: 1rem; line-height: 1.6; }
+            html.boot-client #sxrView .cal-review-approve-btn { border-radius: 14px; -webkit-tap-highlight-color: transparent; }
+            html.boot-client #sxrView .cal-review-approve-btn:active:not(:disabled) { transform: scale(0.985); }
+            html.boot-client #sxrView .cal-review-textarea { min-height: 92px; border-radius: 14px; line-height: 1.45; resize: none; }
+            html.boot-client #sxrView .cal-review-comment-btn,
+            html.boot-client #sxrView .cal-review-tweak-btn { border-radius: 14px; font-size: 0.92rem; font-weight: 700; gap: 8px; -webkit-tap-highlight-color: transparent; }
+            html.boot-client #sxrView .cal-review-comment-btn svg,
+            html.boot-client #sxrView .cal-review-tweak-btn svg { width: 14px; height: 14px; }
+            html.boot-client #sxrView .cal-review-comment-btn:disabled,
+            html.boot-client #sxrView .cal-review-tweak-btn:disabled { opacity: 1; background: var(--bg); border-color: var(--bg); color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-review-tweak-btn:not(:disabled) { background: var(--text-primary); color: var(--white); }
+            html.boot-client #sxrView .cal-review-thread { padding-top: 14px; gap: 12px; }
+            html.boot-client #sxrView .cal-review-comment { padding-left: 12px; }
+            html.boot-client #sxrView .cal-review-comment-head { font-size: 0.78rem; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-review-comment-body { font-size: 0.9rem; line-height: 1.5; }
+            html.boot-client #sxrView .cal-review-comment.is-resolved { opacity: 0.78; }
+            html.boot-client #sxrView .cal-toolbar-mid { flex-wrap: wrap; gap: 10px; }
+            html.boot-client #sxrView .cal-toolbar-mid > .cal-view-toggle { order: -1; flex: 1 1 100%; }
+            html.boot-client #sxrView .cal-toolbar-mid > .cal-month-filter .dropdown-trigger { min-height: 44px; padding: 0 16px; font-size: 0.86rem; -webkit-tap-highlight-color: transparent; }
+            html.boot-client #sxrView .cal-organize .dropdown-menu { min-width: 0; width: min(320px, calc(100vw - 60px)); }
+            html.boot-client #sxrView .cal-organize .dropdown-item { min-height: 44px; font-size: 0.88rem; }
+            html.boot-client #sxrView .cal-organizer-wrap { padding: 0; }
+            html.boot-client #sxrView .cal-organizer-strip { flex-direction: column; align-items: stretch; gap: 12px; padding: 0 0 8px; min-height: 0; overflow-x: visible; }
+            html.boot-client #sxrView .cal-organizer-strip > .cal-card { flex: 0 0 auto; width: 100%; box-sizing: border-box; border-radius: 16px; }
+            html.boot-client #sxrView .cal-card-grip { display: none; }
+            html.boot-client #sxrView .cal-card-thumb:has(> .cal-card-thumb-fallback) { height: 88px; }
+            html.boot-client #sxrView .cal-card-body { padding: 14px 16px 16px; gap: 10px; }
+            html.boot-client #sxrView .cal-fld-name { font-size: 1.08rem; padding: 4px 2px; }
+            html.boot-client #sxrView .cal-date-chip { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 0.9rem; gap: 8px; }
+            html.boot-client #sxrView .cal-date-chip.is-empty,
+            html.boot-client #sxrView .cal-link-field.cal-link-empty .cal-link-label { color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-link-pill-open { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 0.9rem; gap: 8px; }
+            html.boot-client #sxrView .cal-link-field.has-link .cal-link-pill-open { border-radius: 12px 0 0 12px; }
+            html.boot-client #sxrView .cal-link-folder,
+            html.boot-client #sxrView .cal-link-edit { width: 44px; }
+            html.boot-client #sxrView .cal-link-input { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 16px; }
+            html.boot-client #sxrView .cal-fld-cap { padding: 12px; border-radius: 12px; font-size: 16px; line-height: 1.5; }
+            html.boot-client #sxrView .cal-fld-cta { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 16px; }
+            html.boot-client #sxrView .cal-cap-toggle { height: 32px; padding: 0 12px; right: 8px; bottom: 8px; font-size: 0.78rem; }
+            html.boot-client #sxrView .cal-cap-toggle[hidden] { display: none; }
+            html.boot-client #sxrView .cal-comments-btn { min-height: 44px; padding: 0 10px 0 4px; font-size: 0.9rem; gap: 8px; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-comments-btn svg { width: 16px; height: 16px; }
+            html.boot-client #sxrView .cal-card-status-row { margin-top: 2px; }
+            html.boot-client #sxrView .cal-link-field.cal-link-ro .cal-link-pill-open { border-radius: 12px; }
+            html.boot-client #sxrView .cal-org-sec,
+            html.boot-client #sxrView .cal-month-filter-tag { color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-comments-overlay { padding: 0; }
+            html.boot-client #sxrView .cal-comments-modal { width: 100%; max-width: none; box-shadow: none; }
+            html.boot-client #sxrView .cal-comments-head { padding: max(12px, env(safe-area-inset-top)) 12px 12px 16px; gap: 8px; }
+            html.boot-client #sxrView .cal-comments-head-text h3 { font-size: 1.1rem; }
+            html.boot-client #sxrView .cal-comments-head-text p { font-size: 0.84rem; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-comments-hist { height: 44px; min-width: 52px; justify-content: center; padding: 0 12px; gap: 6px; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-comments-hist svg { width: 16px; height: 16px; }
+            html.boot-client #sxrView .cal-comments-hist-count { font-size: 0.8rem; }
+            html.boot-client #sxrView .cal-comments-close { width: 44px; height: 44px; font-size: 1.5rem; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-cm-row { padding: 10px 16px; }
+            html.boot-client #sxrView .cal-cm-row-body { font-size: 1rem; }
+            html.boot-client #sxrView .cal-cm-actions { margin: 6px 0 0 45px; padding: 0; border: 0; gap: 8px; }
+            html.boot-client #sxrView .cal-cm-action { min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 12px; font-size: 0.84rem; gap: 6px; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-cm-action svg { width: 14px; height: 14px; }
+            html.boot-client #sxrView .cal-cm-composer-wrap { padding: 12px 16px max(14px, env(safe-area-inset-bottom)); }
+            html.boot-client #sxrView .cal-cm-audience { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 0 0 10px; }
+            html.boot-client #sxrView .cal-cm-audience-cap { font-size: 0.8rem; color: var(--text-secondary); }
+            html.boot-client #sxrView .cal-cm-aud-seg { display: flex; border-radius: 12px; }
+            html.boot-client #sxrView .cal-cm-aud-btn { flex: 1 1 0; justify-content: center; min-height: 44px; padding: 0 8px; font-size: 0.86rem; }
+            html.boot-client #sxrView .cal-cm-composer { padding: 8px 8px 8px 12px; border-radius: 16px; align-items: center; }
+            html.boot-client #sxrView .cal-cm-composer textarea { font-size: 16px; }
+            html.boot-client #sxrView .cal-cm-send { width: 44px; height: 44px; border-radius: 12px; }
+            html.boot-client #sxrView .cal-cm-send svg { width: 18px; height: 18px; }
         }
         /* CLIENT-PHONE:END */
         /* Analytics tab of a client link: same contract as above. */

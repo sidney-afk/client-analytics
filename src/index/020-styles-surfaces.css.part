@@ -4989,6 +4989,15 @@
             html:not(.boot-client) .client-view .detail-info-btn { width: 32px; height: 32px; }
         }
         /* STAFF-PHONE:END */
+        /* Round 3, more fixes found on the live staff Calendar and Samples with real data (OPEN_REPAIRS 350). Same contract as the blocks above. */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* The More menu is anchored to the right edge of its button, which on a phone sits in the left half of the toolbar, so the menu ran 4px off the left edge of the screen. Anchor it to the left edge instead. */
+            html:not(.boot-client) #calView .cal-kebab-menu, html:not(.boot-client) #sxrView .cal-kebab-menu { right: auto; left: 0; max-width: calc(100vw - 32px); }
+            html:not(.boot-client) #calView .cal-fld-name, html:not(.boot-client) #sxrView .cal-fld-name { min-height: 44px; }
+            html:not(.boot-client) #sxrView .sxr-cd-eye { width: 36px; height: 36px; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

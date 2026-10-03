@@ -30618,3 +30618,15 @@ Said plainly: the staff view was seen fixed on the live page. The client link ve
 
 Proof: both scope guards. No pictures: the only data is a real client's. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 350. [2026-10-03, BUILT] Phone polish, round 3: the More menu, the title field and the Samples eye button (session Polish)
+
+Stacked on entry 349. Phones only, styles only, inside the STAFF-PHONE blocks. Found on the live, signed-in staff Calendar and Samples (viewing only) with the pushed styles loaded:
+- The More menu (the three dots) is anchored to the right edge of its button. On a phone that button sits in the left half of the toolbar, so the menu ran 4 px off the left edge of the screen. It is anchored to the left edge of the button now and can never be wider than the screen.
+- A card's title field was 30 px tall. It is 44 px.
+- On a Samples card the eye button in the Creative direction box was 22 px. It is 36 px.
+
+Also measured in this round and found right, so left alone: the Organize menu (every row 44 px, inside the screen), the staff review card (no control under 44 px), the toolbar.
+
+Proof: scope guard and the offline staff phone test. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

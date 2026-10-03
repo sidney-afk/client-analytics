@@ -8518,6 +8518,90 @@
             html.boot-client .cal-tab-view .cal-review-comment-btn,
             html.boot-client .cal-tab-view .cal-review-tweak-btn { align-self: stretch; justify-content: center; min-height: 48px; padding: 0 10px; font-size: 0.9rem; white-space: nowrap; border-radius: 12px; }
             html.boot-client .cal-tab-view .cal-review-comment-body { overflow-wrap: anywhere; }
+
+            /* POLISH PASS (owner direction D2, 2026-10-02). Everything below
+               refines the layout above; nothing here adds or removes a control.
+
+               Quiet labels still have to be readable on a phone outdoors: the
+               faintest grey is kept for placeholders only. */
+            html.boot-client .view-tab-toggle { margin-bottom: 12px; padding: 4px; border-radius: 14px; }
+            html.boot-client .view-tab-btn { border-radius: 10px; -webkit-tap-highlight-color: transparent; }
+            html.boot-client .view-tab-btn:not(.active),
+            html.boot-client .cal-tab-view .cal-view-btn:not(.active),
+            html.boot-client .cal-tab-view .cal-embed-title span { color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-toolbar { border-radius: 16px; }
+            /* The right-hand toolbar cell only ever holds the floating
+               "Refreshing…" pill and the retry notice. As a box of its own it
+               wrapped onto an empty line and left a blank band under the view
+               switcher; its children now sit in the toolbar directly. */
+            html.boot-client .cal-tab-view .cal-toolbar-right { display: contents; }
+            html.boot-client .cal-tab-view .cal-embed-title strong { font-size: 1.05rem; }
+            html.boot-client .cal-tab-view .cal-view-toggle { padding: 4px; }
+            html.boot-client .cal-tab-view .cal-view-btn { -webkit-tap-highlight-color: transparent; }
+
+            /* Nothing to review: a finished state, not a faint line of text. */
+            html.boot-client .cal-tab-view .cal-review-wrap > .cal-empty { padding: 40px 24px 44px; background: var(--white); border: 1px solid var(--border); border-radius: 16px; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.55; }
+            html.boot-client .cal-tab-view .cal-review-wrap > .cal-empty::before { content: "\2713"; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 14px; border-radius: 50%; background: var(--sv-bg-dcfce7); color: var(--sv-fg-166534); font-size: 1.3rem; font-weight: 800; line-height: 1; }
+
+            /* Card header. The sentence under the title already says which
+               pieces are waiting, so their three loud "ready for your review"
+               pills are dropped; a piece in any other state keeps a calm chip
+               with a status dot. The two icon buttons become a labelled
+               "Open in Sheet" and one clear "Review" action. */
+            html.boot-client .cal-tab-view .kcard { border-radius: 16px; }
+            html.boot-client .cal-tab-view .kcard-strip { grid-template-columns: 64px minmax(0, 1fr); gap: 12px 14px; padding: 16px; -webkit-tap-highlight-color: transparent; }
+            html.boot-client .cal-tab-view .kcard-thumb { width: 64px; height: 64px; border-radius: 12px; }
+            html.boot-client .cal-tab-view .kcard-main { gap: 4px; }
+            html.boot-client .cal-tab-view .cal-review-card .kcard-title { font-size: 1.08rem; }
+            html.boot-client .cal-tab-view .cal-review-card .kcard-pending { font-size: 0.9rem; line-height: 1.4; }
+            html.boot-client .cal-tab-view .cal-review-card .kcard-date { font-size: 0.78rem; letter-spacing: 0; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-review-sub-row { gap: 6px; margin-top: 6px; }
+            html.boot-client .cal-tab-view .kcard .cal-review-sub-row:not(:has(.cal-review-sub-pill:not(.cal-fld-status-client-approval))),
+            html.boot-client .cal-tab-view .kcard .cal-review-sub-pill.cal-fld-status-client-approval { display: none; }
+            html.boot-client .cal-tab-view .cal-review-sub-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border: 1px solid var(--border); border-radius: 99px; box-shadow: inset 0 0 0 40px var(--white); color: var(--text-primary); font-size: 0.72rem; font-weight: 600; letter-spacing: 0; text-transform: none; white-space: normal; overflow: visible; }
+            html.boot-client .cal-tab-view .cal-review-sub-pill::before { content: ""; flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: inherit; }
+            html.boot-client .cal-tab-view .kcard-actions { justify-content: flex-start; gap: 10px; }
+            html.boot-client .cal-tab-view .kcard-actions .thumb-compare-slot:empty { display: none; }
+            html.boot-client .cal-tab-view .kcard-open-sheet { width: auto; padding: 0 14px; gap: 8px; font-family: inherit; font-size: 0.86rem; font-weight: 700; color: var(--text-primary); -webkit-tap-highlight-color: transparent; }
+            html.boot-client .cal-tab-view .kcard-open-sheet::after { content: "Open in Sheet"; }
+            html.boot-client .cal-tab-view .kcard-open-sheet svg { width: 15px; height: 15px; }
+            html.boot-client .cal-tab-view .kcard-expand-btn { margin-left: auto; gap: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 700; -webkit-tap-highlight-color: transparent; }
+            html.boot-client .cal-tab-view .kcard-expand-btn svg { width: 13px; height: 13px; }
+            html.boot-client .cal-tab-view .kcard:not(.expanded) .kcard-expand-btn { width: auto; padding: 0 16px 0 18px; background: var(--text-primary); border-color: var(--text-primary); color: var(--white); }
+            html.boot-client .cal-tab-view .kcard:not(.expanded) .kcard-expand-btn::before { content: "Review"; }
+
+            /* Opened card. The panels are flat sections here, so the rounded
+               corners they carry on desktop bent the divider between them. */
+            html.boot-client .cal-tab-view .cal-review-body { padding: 0 16px 8px; }
+            html.boot-client .cal-tab-view .cal-review-panel { padding: 20px 0 22px; gap: 14px; border-radius: 0; }
+            html.boot-client .cal-tab-view .cal-review-panel[data-state="tweaks"] { border-radius: 14px; }
+            html.boot-client .cal-tab-view .cal-review-panel-title { font-size: 1.06rem; font-weight: 800; }
+            html.boot-client .cal-tab-view .cal-review-video-tile,
+            html.boot-client .cal-tab-view .cal-review-preview-thumb-btn { border-radius: 14px; }
+            /* The video tile showed its cover as an unreadable blur. Show the
+               cover itself, whole and slightly dimmed, behind the play button. */
+            html.boot-client .cal-tab-view .cal-review-video-tile { max-width: 100%; }
+            html.boot-client .cal-tab-view .cal-review-video-bg { object-fit: contain; filter: brightness(0.74); transform: none; }
+            html.boot-client .cal-tab-view .cal-review-video-label { font-size: 0.9rem; }
+            html.boot-client .cal-tab-view .cal-review-preview-caption { font-size: 1rem; line-height: 1.6; }
+            html.boot-client .cal-tab-view .cal-review-approve-btn { border-radius: 14px; -webkit-tap-highlight-color: transparent; }
+            html.boot-client .cal-tab-view .cal-review-approve-btn:active:not(:disabled) { transform: scale(0.985); }
+            html.boot-client .cal-tab-view .cal-review-textarea { min-height: 92px; border-radius: 14px; line-height: 1.45; resize: none; }
+            html.boot-client .cal-tab-view .cal-review-comment-btn,
+            html.boot-client .cal-tab-view .cal-review-tweak-btn { border-radius: 14px; font-size: 0.92rem; font-weight: 700; gap: 8px; -webkit-tap-highlight-color: transparent; }
+            html.boot-client .cal-tab-view .cal-review-comment-btn svg,
+            html.boot-client .cal-tab-view .cal-review-tweak-btn svg { width: 14px; height: 14px; }
+            /* Before a note is typed both buttons are off. They used to fade
+               until they looked broken; now they read as plainly inactive, and
+               Request change turns solid the moment it can be used. */
+            html.boot-client .cal-tab-view .cal-review-comment-btn:disabled,
+            html.boot-client .cal-tab-view .cal-review-tweak-btn:disabled { opacity: 1; background: var(--bg); border-color: var(--bg); color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-review-tweak-btn:not(:disabled) { background: var(--text-primary); color: var(--white); }
+            html.boot-client .cal-tab-view .cal-review-thread { padding-top: 14px; gap: 12px; }
+            html.boot-client .cal-tab-view .cal-review-comment { padding-left: 12px; }
+            html.boot-client .cal-tab-view .cal-review-comment-head { font-size: 0.78rem; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-review-comment-body { font-size: 0.9rem; line-height: 1.5; }
+            html.boot-client .cal-tab-view .cal-review-comment.is-resolved { opacity: 0.78; }
         }
         /* CLIENT-PHONE:END */
         /* Sample reviews link: same contract as the Calendar block above. */

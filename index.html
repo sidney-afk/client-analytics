@@ -9484,6 +9484,21 @@
             html:not(.boot-client) .kasper-wrap .kad-range-btn { min-width: 44px; min-height: 44px; }
         }
         /* STAFF-PHONE:END */
+        /* A client's Templates page: same contract, under html:not(.boot-client) .tpl-view (OPEN_REPAIRS 348). */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* The page kept 28px of desktop padding inside the 14px page gutter, so its cards were 56px narrower than they needed to be. */
+            html:not(.boot-client) .tpl-view { padding-left: 0; padding-right: 0; }
+            html:not(.boot-client) .tpl-view .back-btn, html:not(.boot-client) .tpl-view .tpl-edit-btn { min-height: 44px; padding-left: 14px; padding-right: 14px; font-size: 0.86rem; }
+            html:not(.boot-client) .tpl-view .tpl-link-add { min-height: 44px; padding-left: 12px; padding-right: 12px; }
+            /* A folder row put its name in a narrow left column, wrapped over three lines, with the source and date beside it. Name on one line, source and date under it. */
+            html:not(.boot-client) .tpl-view .tpl-batch-row { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; min-height: 44px; }
+            html:not(.boot-client) .tpl-view .tpl-batch-meta { text-align: left; }
+            /* This button had no styling of its own and showed as a small system button. */
+            html:not(.boot-client) .tpl-view .tpl-brain-change-btn { min-height: 44px; margin-top: 10px; padding: 0 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.86rem; font-weight: 700; }
+            html:not(.boot-client) .tpl-view .tpl-section-title { color: var(--text-secondary); }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

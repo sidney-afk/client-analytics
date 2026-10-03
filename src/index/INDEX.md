@@ -10,9 +10,9 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4451 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4503 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 2070 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
+| 7 | `040-shared-briefs.js.part` | 2071 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1790 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2221 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
@@ -33,14 +33,14 @@
 | 25 | `110-time-off.js.part` | 1378 | Kasper Time Off calendar |
 | 26 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
-| 28 | `120-calendar-flags-write-repair.js.part` | 3454 | The members a flag value offers, or null when it offers no member list at |
+| 28 | `120-calendar-flags-write-repair.js.part` | 3447 | The members a flag value offers, or null when it offers no member list at |
 | 29 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
 | 30 | `130-calendar-model-cache.js.part` | 1406 | Returns the comments array for a given component. Falls back to the |
 | 31 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 32 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 33 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
 | 34 | `134-calendar-prefs-mount.js.part` | 1081 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
-| 35 | `140-calendar-legacy-outbox.js.part` | 3498 | Shed the retired legacy rows from storage, under the surface mutation |
+| 35 | `140-calendar-legacy-outbox.js.part` | 3497 | Shed the retired legacy rows from storage, under the surface mutation |
 | 36 | `150-calendar-hydration-import.js.part` | 2175 | For a card linked to a real sub-issue (not a parent), return which of |
 | 37 | `160-calendar-organize-ui.js.part` | 2898 | Lighter path for the Order switch: update the chrome in place so the |
 | 38 | `170-calendar-links-status.js.part` | 3274 | Move a Linear sub-issue link from the old card onto the new one. The |
@@ -55,7 +55,7 @@
 | 47 | `240-production-description.js.part` | 2709 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 48 | `250-production-controls-data.js.part` | 3093 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 49 | `260-production-refresh-boot.js.part` | 2711 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 50 | `270-samples-model.js.part` | 2956 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 50 | `270-samples-model.js.part` | 2945 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 51 | `280-samples-cards-notes.js.part` | 2932 | SURFACE 3: the save engine |
 | 52 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 53 | `299-instagram-upload.js.part` | 696 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
@@ -65,8 +65,9 @@
 | 57 | `320-core-kasper-subtabs.js.part` | 20 | — |
 | 58 | `321-kasper-dashboard-replies.js.part` | 2717 | The Samples subtab was folded into Review (samples are listed in the |
 | 59 | `322-core-kasper-tab-counts.js.part` | 34 | — |
-| 60 | `323-kasper-dashboard-tail.js.part` | 576 | Review Session |
-| 61 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 62 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
-| 63 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
-| 64 | `350-footer.html.part` | 398 | Transcript preview modal |
+| 60 | `323-kasper-dashboard-tail.js.part` | 580 | Review Session |
+| 61 | `324-client-onboarding-panel.js.part` | 482 | talking to the functions (admin only; the server checks the key and the member again) |
+| 62 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 63 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
+| 64 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
+| 65 | `350-footer.html.part` | 398 | Transcript preview modal |

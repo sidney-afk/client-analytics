@@ -13,6 +13,11 @@ const L = require('./lib.js');
 const OUT = '/tmp/qa-efwp/results-failsafe.json';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// n8n exit step K (2026-10-01): the per-client flag-or-n8n routers this harness drives were removed
+// (staff in PR 2 and 4, client links in step K). Nothing is left to fail safe to n8n. Retired.
+console.log('20-routing-failsafe: retired by n8n exit step K, nothing to run');
+process.exit(0);
+
 (async () => {
   const { server } = await L.startServer();
   const browser = await L.launch();

@@ -30,16 +30,33 @@ here with where it stopped, so it can be restarted.
   admin tab is the start of its replacement. The owner will improve that UI.
   **Scope, owner 2026-10-02:** only the main SYNCVIEW Sheet and the SyncView Calendar workbook are in scope; other
   Drive files are left alone. Project Central: archive (needs an n8n edit, owner's go). **Clients Info and Social
-  Media Managers (session Roster):** Step 1 built, in PR (OPEN_REPAIRS 321, `docs/plans/2026-10-02-roster-native.md`):
-  database functions, `roster-read` and `roster-write`, a native save for the Clients tab and the read-only Sheet
-  copy; nothing switched on, no n8n edit. Next, each with its own go: apply the migration and deploy, then each n8n
-  edit, then the switch. Beacon (onboarding) will extend the Clients tab.
+  Media Managers (session Roster): DONE 2026-10-02, live.** The database is the main copy (`client_profiles_authority` =
+  `{"source":"syncview"}` since 20:00 UTC); six n8n workflows read or write through `roster-read` / `roster-write`; Manager Sync is off;
+  the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 331, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
+  the two tabs in Google; the Finalizer's first real client is its end to end proof; the page still reads both tabs itself (own step);
+  CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
+  Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
-- **C. Onboarding, someday.** The owner wants the onboarding process made better; not scheduled yet.
+- **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
+  checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
+  shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
+  27-step checklist (admin only; OPEN_REPAIRS 332). Next, each with the owner's go: "Create client" (step 2.5),
+  then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
   (item 7).
+- **D2. The phone experience (owner direction, 2026-10-02).** The whole site gets a phone-first design, tab by
+  tab, built by a Codex session with a real (not headless) browser the owner sets up with it first. Hard constraint:
+  **nothing changes on desktop** (same bytes at desktop widths, proven by the existing desktop gates and screenshot
+  diffs). On a phone each tab may look and behave differently from desktop; the bar is a first-class app (the owner
+  named Wise as the reference): speed, button placement, one-hand use. Delivered in slices, one PR per tab, Lighthouse
+  merges, test client only for live proof. Starts after Beacon's checklist panel (#1941) is on main.
+- **D3. Calendar status filters (owner request, 2026-10-02, after the phone work).** The Calendar gets filters on
+  the overall card status, including EXCLUDE (for example hide every approved post). "Overall status" means the
+  card's existing computed overall status (the roll-up of video, graphic and caption that the card already shows;
+  title review stays out of it, as designed). The filter reads that value; it does not redefine its inputs.
+  Nothing built yet.
 - **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
   least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
   daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.
@@ -102,12 +119,16 @@ here with where it stopped, so it can be restarted.
    live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's
    channels were created through the webhook. E (Filming Docs write) DONE with no new function: the only caller is the filming
    plan pipeline, which already writes through `pipeline-google`; the n8n workflow was deactivated 2026-10-01 (#1896, restore
-   in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), owner decided 2026-10-01: stays hourly, no n8n edits (replay test and design doc kept). Last K (client approve and request-changes move).
+   in `docs/ops/N8N_EDIT_LOG.md`). F (read fallbacks) DONE on the page (#1897); the three n8n readers stay on until a later check shows zero calls. C (Booking Recovery gating): the replay proof is built and passes, nothing switched (the queue is an n8n data table a database timer cannot read; see `docs/ops/BOOKING_RECOVERY_GATE.md`), owner decided 2026-10-01: stays hourly, no n8n edits (replay test and design doc kept). Last K (BUILT 2026-10-01, see OPEN_REPAIRS: client links always save through the functions; the n8n Calendar save still has one real caller, Generate Caption's Save step, to move next). Earlier note: K (client approve and request-changes move).
    Every n8n edit is logged in `docs/ops/N8N_EDIT_LOG.md`.
+   **Owner decision 2026-10-02: the 30-day safety window becomes 5 days.** An old n8n workflow may be switched off 5 days after
+   its replacement ships and its live proof passes, each switch-off still its own n8n edit with the owner's go. Step K (#1906,
+   client approve and request-changes to the functions) was given the go the same day; it waits only on a rebase and Lighthouse's
+   merge. The n8n Calendar save still has one real caller (Generate Caption's Save step) that moves before that workflow goes off.
 6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 322).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
    `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
    by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
-   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). **Top Videos (2026-10-02, OPEN_REPAIRS 327, plan section 7): built the same way, in shadow beside n8n TOP VIDEOS (`analytics-top-videos-collect`, timer 08:00 to 12:59 UTC, same key and secrets, nothing new for the owner to create), not deployed, not applied; steps `docs/ops/ANALYTICS_TOP_VIDEOS_OWNER_STEPS.md`, after the metrics steps.** **Market Research (2026-10-02, OPEN_REPAIRS 329, plan section 7c): mapped and built the same way, in shadow (`analytics-market-research-collect`; it is NOT a daily job: n8n has five webhooks and no timer, so it builds one brief per request, test client first, with a daily cap), not deployed, not applied; steps `docs/ops/ANALYTICS_MARKET_RESEARCH_OWNER_STEPS.md` (one new secret, `ANTHROPIC_API_KEY`; confirm `OPENAI_KEY`).** Evidence of use: 13 briefs for 9 clients, none since 2026-06-03; the owner decides later whether to keep the Keywords brief at all. The other four enabled branches stay on n8n for now.
+   Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). **Top Videos (2026-10-02, OPEN_REPAIRS 327, plan section 7): built the same way, in shadow beside n8n TOP VIDEOS (`analytics-top-videos-collect`, timer 08:00 to 12:59 UTC, same key and secrets, nothing new for the owner to create), not deployed, not applied; steps `docs/ops/ANALYTICS_TOP_VIDEOS_OWNER_STEPS.md`, after the metrics steps.** **Market Research (2026-10-02, OPEN_REPAIRS 334, plan section 7c): mapped and built the same way, in shadow (`analytics-market-research-collect`; it is NOT a daily job: n8n has five webhooks and no timer, so it builds one brief per request, test client first, with a daily cap), not deployed, not applied; steps `docs/ops/ANALYTICS_MARKET_RESEARCH_OWNER_STEPS.md` (one new secret, `ANTHROPIC_API_KEY`; confirm `OPENAI_KEY`).** Evidence of use: 13 briefs for 9 clients, none since 2026-06-03; the owner decides later whether to keep the Keywords brief at all. The other four enabled branches stay on n8n for now.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
    the owner's own observations.
@@ -214,8 +235,10 @@ hiring senders when the editor hire closes.
   and down to 2 on 09-25, so it looks like one automated caller that stopped.
   The `traffic` column (256) now fills on browser reports; gateway rows stay
   empty until `production-write` is redeployed (measured 2026-09-29, item 4).
-- **Scheduled lanes that are red** (`production-polish-gate` red since 09-17;
-  the lanes in OPEN_REPAIRS 205). Repair or retire each. Not re-checked today.
+- **Scheduled lanes that are red** (the lanes in OPEN_REPAIRS 205). Repair or retire each.
+  **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
+  calendar drift check had causes found and fixed (test code and test-client data only); confirm
+  they are green on main after the merge.** The other lanes were not re-checked.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since
@@ -238,7 +261,7 @@ hiring senders when the editor hire closes.
   staff scopes needed `analytics-read` deployed, which the owner did on
   2026-09-28 (#1810). Switch-on plan and every other
   reader: `docs/plans/2026-09-28-analytics-switch-on.md`.
-  `client_profiles_authority` is still `sheet`.
+  `client_profiles_authority` was `sheet` then; since 2026-10-02 20:00 UTC it is `syncview` (OPEN_REPAIRS 331).
 - **`mirror_outbox` still grows** (236 new rows in the last 24 hours, all
   receipts; 12,974 total). Retiring it is a planned later slice, not urgent.
 

@@ -205,17 +205,6 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         }
         return _sxrSampleFlagPromise;
     }
-    function _sxrSampleUseEf(clientOrSlug) {
-        let slug = '';
-        try { slug = sxrClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        return !!slug && _sxrSampleEfClients.has(slug);
-    }
-    /* Legacy router, kept ONLY for the client link's approve and request-changes
-       (n8n exit PR 4 carve-out): a write made from a client link keeps its old
-       flag-or-n8n routing and request byte for byte. */
-    function _sxrUpsertUrlForClient(clientOrSlug) {
-        return _sxrSampleUseEf(clientOrSlug) ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
-    }
     function _sxrWriteHeaders(source, url) {
         let role = 'smm';
         try { if (_isClientLink) role = 'client'; else if (svRoute.hash() === '#kasper' || new URLSearchParams(svRoute.search()).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
@@ -237,11 +226,10 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         return _calAssertFlagAllows(SXR_SAMPLE_REVIEW_FLAG_KEY, clientOrSlug, set => { _sxrSampleEfClients = set; }, 'Saving samples');
     }
     function _sxrUpsertFetchClientLink(clientOrSlug, payload, source) {
-        _sxrPrimeSampleRoutingFlag();
-        const url = _sxrUpsertUrlForClient(clientOrSlug);
-        return fetch(url, {
+        /* n8n exit step K: a client link always sends to the function, never by flag. */
+        return fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
-            headers: _sxrWriteHeaders(source, url),
+            headers: _sxrWriteHeaders(source, SXR_UPSERT_EF_URL),
             body: JSON.stringify(payload)
         });
     }
@@ -263,10 +251,11 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         }
         /* A staff retry pinned to `supabase` is held like any other save when saving
            is paused. Only a pinned `webhook` repair still replays to its pinned
-           writer, and only until the on-load migration moves it. A client link keeps
-           today's request untouched. */
+           writer, and only until the on-load migration moves it. A client link always
+           goes to the function (step K). */
         if (!_isClientLink && transport === 'supabase') return _sxrUpsertFetchGuarded(clientOrSlug, payload, source);
-        const url = transport === 'supabase' ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
+        /* Step K: a client link never replays to n8n, whatever the repair was pinned to. */
+        const url = transport === 'supabase' || _isClientLink ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
         return fetch(url, {
             method: 'POST',
             headers: _sxrWriteHeaders(source, url),
@@ -2949,7 +2938,7 @@ export {
   _sxrLastNetworkLoadAt, _sxrLinkFieldHtml, _sxrLoadPrefs, _sxrLoaderHtml, _sxrMigrateShape,
   _sxrNextLoadSeq, _sxrNormStatus, _sxrNormZoom, _sxrOpenStatusMenu, _sxrPendingEdits,
   _sxrAssertSavingOn, _sxrPersistUrgentSentForPost, _sxrPinClient, _sxrPrimeSampleRoutingFlag, _sxrReady,
-  _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason, _sxrSampleUseEf, _sxrSaveInFlight,
+  _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason, _sxrSaveInFlight,
   _sxrSavePrefs, _sxrSaveTimers, _sxrShowUrgent, _sxrSupabaseFetchAllRows,
   _sxrUpdateCardStatusDisplay, _sxrUpsertFetch, _sxrUpsertFetchPinned, _sxrV2LoadLib,
   archiveSxrCard, computeSampleOverallStatus, loadSxrCards, mountSxrView, onSxrTabClick,

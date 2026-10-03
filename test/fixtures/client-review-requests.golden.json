@@ -4,10 +4,11 @@
       "approve": [
         {
           "method": "POST",
-          "path": "/webhook/calendar-upsert-post",
+          "path": "/functions/v1/calendar-upsert",
           "headers": [
             "content-type",
             "x-syncview-actor",
+            "x-syncview-client-token",
             "x-syncview-role",
             "x-syncview-source"
           ],
@@ -26,10 +27,11 @@
       "requestChanges": [
         {
           "method": "POST",
-          "path": "/webhook/calendar-upsert-post",
+          "path": "/functions/v1/calendar-upsert",
           "headers": [
             "content-type",
             "x-syncview-actor",
+            "x-syncview-client-token",
             "x-syncview-role",
             "x-syncview-source"
           ],
@@ -71,10 +73,11 @@
       "approve": [
         {
           "method": "POST",
-          "path": "/webhook/sample-review-upsert",
+          "path": "/functions/v1/sample-review-upsert",
           "headers": [
             "content-type",
             "x-syncview-actor",
+            "x-syncview-client-token",
             "x-syncview-role",
             "x-syncview-source"
           ],
@@ -93,10 +96,11 @@
       "requestChanges": [
         {
           "method": "POST",
-          "path": "/webhook/sample-review-upsert",
+          "path": "/functions/v1/sample-review-upsert",
           "headers": [
             "content-type",
             "x-syncview-actor",
+            "x-syncview-client-token",
             "x-syncview-role",
             "x-syncview-source"
           ],
@@ -142,12 +146,12 @@
     "_sxrReviewRequestTweak": "f9ff325ea5e347fc95d82cf0939aa4ea3fb765f19f4ce925cbfa56db9fb1151e",
     "_writeUiGatewayPost": "2463b5dc6d0ff1d5f1cc8e645081484b53adb1ad5f0638dcf27e356308e502f3",
     "_calUpsertFetch": "e4d9c943d76418299f3e85363f18f3b07fb2248770f06f3c6a0643d6687583c1",
-    "_calUpsertFetchClientLink": "c4af5af0588de63f2689cdffa2b038cec22e23ce8a5ab5ca61f5101702389813",
+    "_calUpsertFetchClientLink": "59032e4415efd74ff5941da783e39ca70fe7a2180ca31ab6a68d0830951cfed1",
     "_calUpsertFetchGuarded": "2c72f07aa28fb3388c107ee7aaf4759f6434a01a5ed449b1beef49b3a2a88702",
-    "_calUpsertFetchPinned": "d30bd3f11ab5242c15b32e4f55d393e75943f4c3a39dceb90672964bfe13fa46",
+    "_calUpsertFetchPinned": "77288bbff75d51ef62f81d0a6ddf0c7684538d0b8ef8dec68ff951722d05ccd7",
     "_sxrUpsertFetch": "b88a95f4f0c044da4234bcb9e3ef892dba5a14b0fac92be2c45b573babee0aed",
-    "_sxrUpsertFetchClientLink": "bf9c9311fddc1e859eda8cd902b95967468223cd9e69e22392a03cb3ed31b44e",
+    "_sxrUpsertFetchClientLink": "0a3a71780d89e6360bd4755bf29eeab9ee54f0a54b24b1650a4e5c6d4b8d3900",
     "_sxrUpsertFetchGuarded": "5f0aceb0b13a71a6138e9b8d53eabd028ea64e8fefff56034e8a626e3bb5d459",
-    "_sxrUpsertFetchPinned": "d202e0330ac27427dc7058f1a5af94ff9d19115c2aba7da4b54228724a0c48c7"
+    "_sxrUpsertFetchPinned": "37e665bc62f6230268ce8d8a9354b1a73bd593be8ce37a4c69eeb72a6f553c7f"
   }
 }

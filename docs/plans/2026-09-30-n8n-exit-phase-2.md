@@ -350,3 +350,7 @@ merges. No n8n workflow is edited without the owner's go in that same request: s
 ## Step C status 2026-10-01
 
 Owner decision: Booking Recovery stays hourly with no n8n edits (saves 600 runs a month, not worth editing four live sales workflows). Replay test and design doc kept. Step K report: `docs/plans/2026-10-01-n8n-exit-step-k-report.md`.
+
+## Step K status 2026-10-01
+
+Built. A client link always saves through the functions (no flag lookup, retried saves included); tests replaced as in OPEN_REPAIRS. All 525 n8n save runs since 2026-09-30 were read: 520 test client, 5 from one real client via n8n's own Generate Caption Save step, 0 from a browser or client link. The n8n Calendar save workflow cannot be switched off until Generate Caption's Save step is moved to the function; the Samples one has no real caller left. Switch-off still follows the 30 day zero-calls rule (earliest 2026-10-29).

@@ -245,6 +245,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/clients-admin-browser.js
+      - name: Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/clients-onboarding-browser.js
       - name: Quick jump opens a client on a tab from the keyboard
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -272,18 +276,18 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-prompts-guard-browser.js
-      - name: Client approve and request-changes requests are byte-identical to main
+      - name: Client approve and request-changes always save through the function
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
-        run: node test/calendar-client-carveout-byte-identical-browser.js
+        run: node test/calendar-client-approve-function-browser.js
       - name: Samples write guard (fresh flag read, hold, pause, zero n8n)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/samples-write-guard-browser.js
-      - name: Samples client approve and request-changes requests are byte-identical to main
+      - name: Samples client approve and request-changes always save through the function
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
-        run: node test/samples-client-carveout-byte-identical-browser.js
+        run: node test/samples-client-approve-function-browser.js
       # n8n exit phase 2, step D: the TikTok queue poll backs off when nothing changes.
       - name: TikTok queue poll backs off when quiet and resumes on a change
         env:

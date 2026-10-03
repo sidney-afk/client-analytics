@@ -39,7 +39,7 @@ ok(/CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients'/.test(INDEX), 'front
 ok(/syncview_runtime_flags\?select=value/.test(INDEX), 'frontend must read runtime flag table once');
 ok(/_calUpsertFlagPromise/.test(INDEX), 'frontend runtime flag must be cached');
 ok(/postgres_changes'[\s\S]*table: 'syncview_runtime_flags'/.test(INDEX), 'frontend runtime flag must refresh via realtime');
-ok(/_calUpsertUrlForClient/.test(INDEX) && /_calUpsertUseEf/.test(INDEX), 'frontend per-client router missing');
+ok(!/_calUpsertUrlForClient|_calUpsertUseEf/.test(INDEX), 'step K: the per-client flag-or-n8n router must stay removed (a client link always goes to the function)');
 ok(/X-Syncview-Actor/.test(INDEX) && /X-Syncview-Role/.test(INDEX) && /X-Syncview-Source/.test(INDEX),
   'frontend upsert headers missing actor/role/source');
 

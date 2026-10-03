@@ -101,7 +101,7 @@ and SMM weekly reports.
 | `100-onboarding-staff-controls.js` | `_obPost` | `url` POST | reports-in-callers | `via _siSubmit` | Shared form post. The staff Sales Intake submit records its failure as sales_intake_submit; the public onboarding form (visitors are not signed in) has its own backup capture and failure screen and is not recorded. |
 | `100-onboarding-staff-controls.js` | `_syncviewVerifyStaffIdentity` | `STAFF_KEY_VERIFY_URL` POST | read |  | Staff key verification: answers who is signing in, saves nothing. |
 | `112-smm-weekly-reports.js` | `send` | `url` VAR | reports | `_srpApi` | SMM weekly reports. Reads (GET) are not recorded; a submit or sync is recorded as weekly_report_<action>. |
-| `120-calendar-flags-write-repair.js` | `_calUpsertFetchClientLink` | `url` POST | client-transport |  | Calendar upsert transport for the client review link (approve and request changes). Not modified by the failed-saves work; the golden test proves its requests are unchanged. |
+| `120-calendar-flags-write-repair.js` | `_calUpsertFetchClientLink` | `CALENDAR_UPSERT_EF_URL` POST | client-transport |  | Calendar upsert transport for the client review link (approve and request changes). Always the calendar-upsert function with the link token (n8n exit step K); test/calendar-client-approve-function-browser.js proves it. |
 | `120-calendar-flags-write-repair.js` | `_calUpsertFetchGuarded` | `CALENDAR_UPSERT_EF_URL` POST | client-transport |  | Staff Calendar upsert behind the saving-on check. Not modified; each staff save that uses it records its own failure (see calendar_settings_save, calendar_import, calendar_link_adopt, calendar_archive, kasper_post_save, restore). |
 | `120-calendar-flags-write-repair.js` | `_calUpsertFetchPinned` | `url` POST | client-transport |  | Pinned Calendar upsert transport (status writes, including the client approve path). Not modified; its status writes record through _writeUiReportFailure. |
 | `120-calendar-flags-write-repair.js` | `_syncviewIssueClientShareUrl` | `CLIENT_REVIEW_LINK_URL` POST | reports | `_syncviewIssueClientShareUrl` | Issuing a client share link (staff only). Recorded as client_link_issue. |
@@ -142,7 +142,7 @@ and SMM weekly reports.
 | `260-production-refresh-boot.js` | `_syncviewPreflightClientEntry` | `CLIENT_TOKEN_VERIFY_URL` POST | read |  | Client link check at boot. |
 | `270-samples-model.js` | `_sxrFillComponentSubmit` | `PROD_WRITE_EF_URL` POST | reports | `_sxrFillComponentSubmit` | Samples component fill. Already recorded (component_fill). |
 | `270-samples-model.js` | `_sxrReorderFetch` | `SXR_REORDER_EF_URL` POST | reports | `_sxrReorderFetch` | Samples drag order (sample-review-reorder), behind the saving-on check. Recorded as sample_reorder. |
-| `270-samples-model.js` | `_sxrUpsertFetchClientLink` | `url` POST | client-transport |  | Samples upsert transport for the client review link (approve and request changes). Not modified by the n8n exit; the Samples golden test proves its requests are unchanged. |
+| `270-samples-model.js` | `_sxrUpsertFetchClientLink` | `SXR_UPSERT_EF_URL` POST | client-transport |  | Samples upsert transport for the client review link (approve and request changes). Always the sample-review-upsert function with the link token (n8n exit step K); test/samples-client-approve-function-browser.js proves it. |
 | `270-samples-model.js` | `_sxrUpsertFetchGuarded` | `SXR_UPSERT_EF_URL` POST | client-transport |  | Staff Samples upsert behind the saving-on check (n8n exit PR 4). Each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save, urgent_marker_save). |
 | `270-samples-model.js` | `_sxrUpsertFetchPinned` | `url` POST | client-transport |  | Pinned Samples upsert transport (status writes, including the client approve path). Not modified. |
 | `290-samples-writes-review.js` | `_writeUiReadRepairReceipt` | `WRITE_UI_PRODUCTION_WRITE_URL` POST | read |  | Reads a repair receipt. |
@@ -162,6 +162,7 @@ and SMM weekly reports.
 | `321-kasper-dashboard-replies.js` | `send` | `CC_EDGE_URL` POST | reports | `_ccApi` | Client credentials. list and history are reads; every other action is recorded as credentials_<action>. |
 | `323-kasper-dashboard-tail.js` | `_caEditPost` | `CA_WRITE_URL` POST | reports | `_caEditPost` | Client profile edit / status / refresh. Recorded as client_profile_<action>. |
 | `323-kasper-dashboard-tail.js` | `stale` | `CA_READ_URL` POST | read |  | Client profile read. |
+| `324-client-onboarding-panel.js` | `send` | `url` POST | reports | `_cbPost` | Onboarding checklist and HubSpot refresh. A checklist step change is recorded as client_onboarding_set_step; the checklist read and the HubSpot refresh are reads sent as POST and are not recorded. |
 <!-- inventory:end -->
 
 ## 5. Proof

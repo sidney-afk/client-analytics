@@ -145,7 +145,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        way: no button, no error, just a feature that quietly never appears for
        the client it was turned on for. _calRuntimeFlagClients canonicalizes
        the roster and calClientSlug canonicalizes the request, exactly as
-       _calUpsertUseEf and _writeUiRerouteUseGateway already do. */
+       _writeUiRerouteUseGateway already does. */
     function _kasperUrgentPingOn(clientOrSlug) {
         const v = _kasperUrgentFlagValue;
         if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
@@ -407,11 +407,6 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         }
         return _calUpsertFlagPromise;
     }
-    function _calUpsertUseEf(clientOrSlug) {
-        let slug = '';
-        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        return !!slug && _calUpsertEfClients.has(slug);
-    }
     function _writeUiRerouteUseGateway(clientOrSlug) {
         let slug = '';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
@@ -452,9 +447,6 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         return _writeUiRerouteUseGateway(clientOrSlug);
     }
     window.peekWriteUiRerouteClients = function () { return Array.from(_writeUiRerouteClients); };
-    function _calUpsertUrlForClient(clientOrSlug) {
-        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
-    }
     function _syncviewClientWriteToken() {
         try { return String(new URLSearchParams(svRoute.search()).get('t') || '').trim(); } catch (e) { return ''; }
     }
@@ -3033,11 +3025,12 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         return _calAssertFlagAllows(SETTINGS_EF_FLAG_KEY, clientOrSlug, set => _settingsSetEfClients(set), 'Saving caption prompts');
     }
     function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
-        _calPrimeUpsertRoutingFlag();
-        const url = _calUpsertUrlForClient(clientOrSlug);
-        return fetch(url, {
+        /* n8n exit step K: a client link always sends to the function. It never
+           looks at the routing flag, so an unloaded flag cannot send an approve or
+           request-changes save to n8n. The function checks the link's own token. */
+        return fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
-            headers: _calUpsertHeaders(source, url),
+            headers: _calUpsertHeaders(source, CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify(payload)
         });
     }
@@ -3146,12 +3139,12 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
            saving is paused. Only a pinned `webhook` repair still replays to
            its pinned writer (its completion check reads from the same pinned
            source), and only until the on-load migration resolves it. A client
-           link keeps today's request untouched (approve and request-changes
-           carve-out). */
+           link always goes to the function (step K). */
         if (!_isClientLink && transport === 'supabase') {
             return _calUpsertFetchGuarded(clientOrSlug, payload, source);
         }
-        const url = transport === 'supabase' ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
+        /* Step K: a client link never replays to n8n, whatever the repair was pinned to. */
+        const url = transport === 'supabase' || _isClientLink ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
         return fetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),
@@ -3426,7 +3419,7 @@ export {
   _calRuntimeFlagClient, _calRuntimeFlagClients, _calSetCapJobBatch, _calSetCapJobPollBusy,
   _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,
-  _calUnionCommentCell, _calUpsertFetch, _calUpsertFetchPinned, _calUpsertHeaders, _calUpsertUseEf,
+  _calUnionCommentCell, _calUpsertFetch, _calUpsertFetchPinned, _calUpsertHeaders,
   _clientCommentGatewayOn, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
   _prodCanonicalCoversLegacy, _prodCardBindingToken, _prodCommentAddRoutesLegacy,
   _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,

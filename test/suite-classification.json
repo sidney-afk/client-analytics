@@ -2,6 +2,9 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "analytics-essentials-http.js",
+    "caption-jobs-scoped-read.js",
+    "sheets-mirror-backfill-completeness.js",
     "calendar-unarchive.js",
     "roster-stale-cleanup-migration.js",
     "onboarding-checklist-tables-migration.js",
@@ -1504,11 +1507,11 @@
       "required_for_release": true
     },
     {
-      "file": "calendar-client-carveout-byte-identical-browser.js",
+      "file": "calendar-client-approve-function-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the client approve and request-changes requests, compared byte for byte to a golden captured from main.",
-      "reproduce": "node test/calendar-client-carveout-byte-identical-browser.js (after repository Playwright/Chromium setup)",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that client approve and request-changes saves always go to the function, with the link token, never to n8n, including a retried save pinned to n8n.",
+      "reproduce": "node test/calendar-client-approve-function-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {
@@ -1536,11 +1539,11 @@
       "ci": "representative"
     },
     {
-      "file": "samples-client-carveout-byte-identical-browser.js",
+      "file": "samples-client-approve-function-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Sample Review client approve and request-changes requests, compared byte for byte to a golden captured from main.",
-      "reproduce": "node test/samples-client-carveout-byte-identical-browser.js (after repository Playwright/Chromium setup)",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that Sample Review client approve and request-changes saves always go to the function, with the link token, never to n8n, including a retried save pinned to n8n.",
+      "reproduce": "node test/samples-client-approve-function-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     }
   ]

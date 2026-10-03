@@ -1,0 +1,623 @@
+{
+  "_backup_note": "Public-safe status stub, captured 2026-10-02 for the Roster Steps 2 and 3 edit (docs/ops/N8N_EDIT_LOG.md). It lists the workflow as it was BEFORE the edit (version 7afd1d3c-1099-400d-b682-f7f57585b7a8): node names, types, credential references by id and name, connections. Code bodies and parameters are deliberately left out. The full graph is in n8n workflow history. ROLLBACK: restore and publish 7afd1d3c-1099-400d-b682-f7f57585b7a8.  See ROLLBACK.md section 2.",
+  "name": "Client — Slack Creative Channel Finalizer",
+  "id": "udkwwzdFuPW3K2CE",
+  "version_before": "7afd1d3c-1099-400d-b682-f7f57585b7a8",
+  "version_after_published": "aedcda8b-4ccc-4ddd-ab86-f455117c0a91",
+  "nodes_before": [
+    {
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "credentials": {}
+    },
+    {
+      "name": "Get Pending Slack Jobs",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "Pick One Pending Job",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Claim Pending Job",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "Read Clients Info",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Prepare Manual Reconcile",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Read SMM Assignment",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Read Filming Plan",
+      "type": "n8n-nodes-base.supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "name": "Check Readiness and Slack Decision",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Route Readiness State",
+      "type": "n8n-nodes-base.switch",
+      "credentials": {}
+    },
+    {
+      "name": "Release Waiting Job",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "Create Slack Creative Channel",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Channel Create Result",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Channel Created?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Invite Required Roster",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Invite Result",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Roster Invited?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Verify Channel Roster",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Roster Count",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Roster Verified?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Write Clients Info Creative Channel",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Read Back Clients Info Creative Channel",
+      "type": "n8n-nodes-base.googleSheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VpAfjgrqrjdzEJEf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "name": "Verify Clients Info Readback",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Clients Info Verified?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Post Kickoff to Slack",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Kickoff Delivery",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Kickoff Sent?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Record Kickoff Sent",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "Post Form Answers to Slack",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Form Brief Delivery",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Form Brief Sent?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Mark Slack Finalization Complete",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "Record Manual Reconcile",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "DM Owner Manual Reconcile",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Mark Owner Notified",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "Create Private Channel",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Private Channel Create Result",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Private Channel Created?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Invite Private Roster",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Private Invite Result",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Private Roster Invited?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Verify Private Channel Roster",
+      "type": "n8n-nodes-base.slack",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "name": "Check Private Roster Count",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Private Roster Verified?",
+      "type": "n8n-nodes-base.if",
+      "credentials": {}
+    },
+    {
+      "name": "Finalize Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "credentials": {}
+    },
+    {
+      "name": "Every Day Safety Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "credentials": {}
+    },
+    {
+      "name": "List Pending Clients",
+      "type": "n8n-nodes-base.dataTable",
+      "credentials": {}
+    },
+    {
+      "name": "One Item Per Pending Client",
+      "type": "n8n-nodes-base.code",
+      "credentials": {}
+    },
+    {
+      "name": "Trigger Finalizer For Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "credentials": {}
+    }
+  ],
+  "connections_before": {
+    "Every 15 Minutes": [
+      [
+        "Get Pending Slack Jobs"
+      ]
+    ],
+    "Get Pending Slack Jobs": [
+      [
+        "Pick One Pending Job"
+      ]
+    ],
+    "Pick One Pending Job": [
+      [
+        "Claim Pending Job"
+      ]
+    ],
+    "Claim Pending Job": [
+      [
+        "Read Clients Info"
+      ]
+    ],
+    "Read Clients Info": [
+      [
+        "Read SMM Assignment"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Prepare Manual Reconcile": [
+      [
+        "Record Manual Reconcile"
+      ]
+    ],
+    "Read SMM Assignment": [
+      [
+        "Read Filming Plan"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Read Filming Plan": [
+      [
+        "Check Readiness and Slack Decision"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Readiness and Slack Decision": [
+      [
+        "Route Readiness State"
+      ]
+    ],
+    "Route Readiness State": [
+      [
+        "Release Waiting Job"
+      ],
+      [
+        "Create Slack Creative Channel"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Create Slack Creative Channel": [
+      [
+        "Check Channel Create Result"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Channel Create Result": [
+      [
+        "Channel Created?"
+      ]
+    ],
+    "Channel Created?": [
+      [
+        "Invite Required Roster"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Invite Required Roster": [
+      [
+        "Check Invite Result"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Invite Result": [
+      [
+        "Roster Invited?"
+      ]
+    ],
+    "Roster Invited?": [
+      [
+        "Verify Channel Roster"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Verify Channel Roster": [
+      [
+        "Check Roster Count"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Roster Count": [
+      [
+        "Roster Verified?"
+      ]
+    ],
+    "Roster Verified?": [
+      [
+        "Create Private Channel"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Write Clients Info Creative Channel": [
+      [
+        "Read Back Clients Info Creative Channel"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Read Back Clients Info Creative Channel": [
+      [
+        "Verify Clients Info Readback"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Verify Clients Info Readback": [
+      [
+        "Clients Info Verified?"
+      ]
+    ],
+    "Clients Info Verified?": [
+      [
+        "Post Kickoff to Slack"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Post Kickoff to Slack": [
+      [
+        "Check Kickoff Delivery"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Kickoff Delivery": [
+      [
+        "Kickoff Sent?"
+      ]
+    ],
+    "Kickoff Sent?": [
+      [
+        "Record Kickoff Sent"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Record Kickoff Sent": [
+      [
+        "Post Form Answers to Slack"
+      ]
+    ],
+    "Post Form Answers to Slack": [
+      [
+        "Check Form Brief Delivery"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Form Brief Delivery": [
+      [
+        "Form Brief Sent?"
+      ]
+    ],
+    "Form Brief Sent?": [
+      [
+        "Mark Slack Finalization Complete"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Record Manual Reconcile": [
+      [
+        "DM Owner Manual Reconcile"
+      ]
+    ],
+    "DM Owner Manual Reconcile": [
+      [
+        "Mark Owner Notified"
+      ]
+    ],
+    "Create Private Channel": [
+      [
+        "Check Private Channel Create Result"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Private Channel Create Result": [
+      [
+        "Private Channel Created?"
+      ]
+    ],
+    "Private Channel Created?": [
+      [
+        "Invite Private Roster"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Invite Private Roster": [
+      [
+        "Check Private Invite Result"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Private Invite Result": [
+      [
+        "Private Roster Invited?"
+      ]
+    ],
+    "Private Roster Invited?": [
+      [
+        "Verify Private Channel Roster"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Verify Private Channel Roster": [
+      [
+        "Check Private Roster Count"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Check Private Roster Count": [
+      [
+        "Private Roster Verified?"
+      ]
+    ],
+    "Private Roster Verified?": [
+      [
+        "Write Clients Info Creative Channel"
+      ],
+      [
+        "Prepare Manual Reconcile"
+      ]
+    ],
+    "Finalize Webhook": [
+      [
+        "Get Pending Slack Jobs"
+      ]
+    ],
+    "Every Day Safety Check": [
+      [
+        "List Pending Clients"
+      ]
+    ],
+    "List Pending Clients": [
+      [
+        "One Item Per Pending Client"
+      ]
+    ],
+    "One Item Per Pending Client": [
+      [
+        "Trigger Finalizer For Client"
+      ]
+    ]
+  }
+}

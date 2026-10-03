@@ -38,9 +38,7 @@ import-confirmation read goes to the Supabase functions `calendar-upsert` and `c
 - The page no longer calls the n8n calendar read (retired in step F, 2026-10: a failed Supabase read is retried once, then the saved copy and a notice show; pinned repairs are verified against `calendar_posts`). `webhook/calendar-upsert-post` stays only to replay a repair already pinned
   `webhook` in someone's browser, until the on-load migration moves it. The n8n workflows stay on 30 days
   from the day this ships, then are snapshotted and deactivated.
-- **Client approve and request-changes are carved out:** a write made from a client link keeps its old
-  routing and request byte for byte (`test/calendar-client-carveout-byte-identical-browser.js`), including
-  going to `calendar-upsert-post` when the flag has not loaded. That is deliberate, by owner decision.
+- **Client approve and request-changes (n8n exit step K, 2026-10-01):** a write made from a client link always goes to `calendar-upsert` (Samples: `sample-review-upsert`) with the link's own token, whatever the routing flag says, and a retried save pinned to n8n goes to the function too (`test/calendar-client-approve-function-browser.js`). The old n8n save workflows stay on until their runs show zero calls.
 - Before every staff write and reorder the page reads `calendar_upsert_ef_clients` afresh (one read per
   write, 2 second bound, `cache: 'no-store'`, no query parameters beyond `select`, `key`, `limit`). An
   unreadable, timed-out or malformed flag HOLDS the save; a flag that does not list the client pauses it
@@ -50,7 +48,7 @@ Sample reviews (SXR). **Corrected 2026-09-24:** the legacy Samples page was remo
 `samples-*` webhooks (get, upsert, reorder) and its `content_samples` REST read are no longer called
 (old `#samples` links redirect to Sample reviews). The n8n workflows and the table still exist.
 - `webhook/sample-review-upsert` (the n8n Samples read was retired in step F, 2026-10)
-- **Sample review saves and reorders (n8n exit PR 4, 2026-09-29):** every staff and Kasper Sample save and reorder goes to `functions/v1/sample-review-upsert` and `functions/v1/sample-review-reorder` only, after a fresh, bounded read of `sample_review_ef_clients` (own read per write, 2 s, `cache: 'no-store'`, only `select`, `key`, `limit`). An unreadable, slow or malformed flag HOLDS the write; a flag that does not list the client PAUSES it with a message; neither reaches n8n. The n8n `sample-review-reorder` call is gone. The n8n Samples read (`sample-review-get`) is retired (step F, 2026-10): a failed Supabase read is retried once, then the saved copy and a notice show, and repairs still pinned `webhook` are verified against `sample_reviews`; `sample-review-upsert` stays only to replay such a repair, until the on-load migration moves it. The client link's approve and request-changes keep their old routing and request byte for byte (`test/samples-client-carveout-byte-identical-browser.js`). `sample-review-upsert` itself stays frozen and ungated.
+- **Sample review saves and reorders (n8n exit PR 4, 2026-09-29):** every staff and Kasper Sample save and reorder goes to `functions/v1/sample-review-upsert` and `functions/v1/sample-review-reorder` only, after a fresh, bounded read of `sample_review_ef_clients` (own read per write, 2 s, `cache: 'no-store'`, only `select`, `key`, `limit`). An unreadable, slow or malformed flag HOLDS the write; a flag that does not list the client PAUSES it with a message; neither reaches n8n. The n8n `sample-review-reorder` call is gone. The n8n Samples read (`sample-review-get`) is retired (step F, 2026-10): a failed Supabase read is retried once, then the saved copy and a notice show, and repairs still pinned `webhook` are verified against `sample_reviews`; `sample-review-upsert` stays only to replay such a repair, until the on-load migration moves it. A client link's approve and request-changes always go to `sample-review-upsert` with the link token, never by flag and never to n8n, including a retried save pinned to n8n (step K, `test/samples-client-approve-function-browser.js`). `sample-review-upsert` itself stays frozen and ungated.
 
 Linear bridge:
 - `webhook/linear-issues`, `webhook/log-linear-submission`
@@ -176,8 +174,19 @@ Other:
   Kasper > More > Clients (`action: list_client_profiles`, admin role key only, read-only); the
   per-client analytics reads are not yet wired into the page (plan 2026-09-24, Phase 2).
 - `functions/v1/client-profile-write` — Kasper > More > Clients edits (admin role key plus an active
-  admin member id). Writes the changed cells to the Clients Info Sheet first, then Supabase
-  (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict.
+  admin member id). While `client_profiles_authority` is `sheet`: writes the changed cells to the Clients Info Sheet first, then Supabase
+  (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict. Since 2026-10-02 the authority is `syncview`: it saves to the database only (same version check and history) and the read-only Sheet copy follows.
+  Two more n8n-only doors exist: `roster-read` and `roster-write` (key `ROSTER_SERVICE_KEY`).
+- `functions/v1/client-onboarding` — Kasper > More > Clients, under a client's details (admin role key plus an
+  active admin member id, for reads AND writes). `action: get` returns the 27-step onboarding checklist, the
+  resource presence list and the stored HubSpot sales state; `action: set_step` changes one step (done, skipped
+  with a note, back to to-do) through the admin-only database function, version checked. The page never reads
+  those tables itself and never shows a review token, a login or a password. Step 2.4 of
+  `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
+- `functions/v1/client-hubspot-sync` — the same panel asks it for a refresh when an admin opens a client
+  (`action: refresh`, admin role key plus member id). Read-only toward HubSpot (never n8n); it answers "off" or
+  "not enabled" until the switch row `client_hubspot_sync` is on for that client. The daily sweep and the ping
+  are called by the database timer with its own key, never by the page.
 - `functions/v1/kasper-ad-performance-read` — admin-only read for the Kasper tab's Ad Performance
   panel (More > Analytics). Reads four tables (service role; none have anon/authenticated grant)
   and returns `rows` (daily campaign-level counts) plus a server-computed `summary` (CPC,

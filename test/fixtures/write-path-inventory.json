@@ -416,9 +416,9 @@
       "status": "read",
       "note": "Client profile read."
     },
-    "120-calendar-flags-write-repair.js.part|_calUpsertFetchClientLink|url|POST": {
+    "120-calendar-flags-write-repair.js.part|_calUpsertFetchClientLink|CALENDAR_UPSERT_EF_URL|POST": {
       "status": "client-transport",
-      "note": "Calendar upsert transport for the client review link (approve and request changes). Not modified by the failed-saves work; the golden test proves its requests are unchanged."
+      "note": "Calendar upsert transport for the client review link (approve and request changes). Always the calendar-upsert function with the link token (n8n exit step K); test/calendar-client-approve-function-browser.js proves it."
     },
     "120-calendar-flags-write-repair.js.part|_calUpsertFetchGuarded|CALENDAR_UPSERT_EF_URL|POST": {
       "status": "client-transport",
@@ -445,13 +445,20 @@
       ],
       "note": "Samples drag order (sample-review-reorder), behind the saving-on check. Recorded as sample_reorder."
     },
-    "270-samples-model.js.part|_sxrUpsertFetchClientLink|url|POST": {
+    "270-samples-model.js.part|_sxrUpsertFetchClientLink|SXR_UPSERT_EF_URL|POST": {
       "status": "client-transport",
-      "note": "Samples upsert transport for the client review link (approve and request changes). Not modified by the n8n exit; the Samples golden test proves its requests are unchanged."
+      "note": "Samples upsert transport for the client review link (approve and request changes). Always the sample-review-upsert function with the link token (n8n exit step K); test/samples-client-approve-function-browser.js proves it."
     },
     "270-samples-model.js.part|_sxrUpsertFetchGuarded|SXR_UPSERT_EF_URL|POST": {
       "status": "client-transport",
       "note": "Staff Samples upsert behind the saving-on check (n8n exit PR 4). Each staff save that uses it records its own failure (sample_archive, sample_link_adopt, kasper_sample_save, urgent_marker_save)."
+    },
+    "324-client-onboarding-panel.js.part|send|url|POST": {
+      "status": "reports",
+      "within": [
+        "_cbPost"
+      ],
+      "note": "Onboarding checklist and HubSpot refresh. A checklist step change is recorded as client_onboarding_set_step; the checklist read and the HubSpot refresh are reads sent as POST and are not recorded."
     }
   }
 }

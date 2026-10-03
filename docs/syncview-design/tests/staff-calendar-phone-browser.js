@@ -101,9 +101,13 @@ async function run(browser, origin, [vp, w, hgt], th, surface) {
       const t = document.querySelector(ROOT + ' .cal-view-toggle').getBoundingClientRect();
       const small = [...document.querySelectorAll(ROOT + ' .cal-toolbar button')].filter(b => b.getClientRects().length && !b.closest('.dropdown-menu'))
         .map(b => { const r = b.getBoundingClientRect(); return { what: (b.getAttribute('aria-label') || b.title || b.innerText || b.className).trim().slice(0, 24), w: r.width, h: r.height }; }).filter(b => b.w < 44 || b.h < 44);
-      return { W, right: t.right, small };
+      const bar = [...document.querySelectorAll('.header .header-nav-btn, .header .sv-client-badge, .header .sv-jump-touch, .header #headerMenuButton')].filter(b => b.getClientRects().length)
+        .map(b => { const r = b.getBoundingClientRect(); return { what: (b.getAttribute('aria-label') || b.innerText || b.id).trim().slice(0, 24), w: r.width, h: r.height }; }).filter(b => b.w < 44 || b.h < 44);
+      return { W, right: t.right, small, bar };
     }, ROOT);
     if (m.right > m.W + 0.5) failures.push(`${label}: the view switcher is cut off on ${view}`);
+    // The top bar every staff tab shares (OPEN_REPAIRS 340).
+    for (const b of m.bar) failures.push(`${label}: top bar "${b.what}" is ${Math.round(b.w)}x${Math.round(b.h)}px, under 44px`);
     for (const b of m.small) failures.push(`${label}: ${view} toolbar "${b.what}" is ${Math.round(b.w)}x${Math.round(b.h)}px, under 44px`);
     if (await wide() > 0) failures.push(`${label}: ${view} scrolls sideways`);
     await shot(view);

@@ -9354,6 +9354,21 @@
             html:not(.boot-client) .tk-page .tk-submit-btn { min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 0.95rem; }
         }
         /* STAFF-PHONE:END */
+        /* Staff top bar, shared by every staff tab: same contract, under
+           html:not(.boot-client) .header (OPEN_REPAIRS 340). Sizes only; the
+           bar keeps its two rows, its order and every control. */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            html:not(.boot-client) .header .header-nav { gap: 6px; padding-bottom: 2px; }
+            html:not(.boot-client) .header .header-nav-btn { min-height: 44px; padding-top: 0; padding-bottom: 0; padding-left: 14px; padding-right: 14px; border-radius: 12px; font-size: 0.84rem; -webkit-tap-highlight-color: transparent; }
+            html:not(.boot-client) .header .header-nav-pill { border-radius: 12px; }
+            html:not(.boot-client) .header .sv-client-badge { min-height: 44px; border-radius: 12px; font-size: 0.86rem; }
+            html:not(.boot-client) .header .sv-jump-touch { width: 44px; height: 44px; border-radius: 12px; }
+            html:not(.boot-client) .header .sv-client-search { font-size: 16px; }
+            html:not(.boot-client) .header #headerMenuButton { width: 44px; height: 44px; border-radius: 12px; }
+            html:not(.boot-client) .header .staff-account-action { min-height: 44px; font-size: 0.86rem; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

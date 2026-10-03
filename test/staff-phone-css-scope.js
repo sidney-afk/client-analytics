@@ -63,7 +63,7 @@ function mediaIsPhoneOnly(prelude, alreadyCapped = false) {
 
 function selectorsScoped(prelude) {
   return prelude.split(',').map(s => s.trim()).every(s =>
-    /^html:not\(\.boot-client\) (?:#calView|#sxrView|\.tk-page)(?=[\s.:\[>~+]|$)/.test(s));
+    /^html:not\(\.boot-client\) (?:#calView|#sxrView|\.tk-page|\.header)(?=[\s.:\[>~+]|$)/.test(s));
 }
 
 // Returns a list of problems for one marked block.
@@ -123,4 +123,4 @@ for (const b of found) {
   assert.deepStrictEqual(problems, [], 'staff-phone CSS could reach desktop or another screen:\n  ' + problems.join('\n  '));
   rules += (stripComments(b).match(/\{/g) || []).length;
 }
-console.log(`staff-phone-css-scope: OK (${found.length} block(s), ${rules} braces, all under @media (max-width: <=${MAX}px) and html:not(.boot-client) #calView / #sxrView / .tk-page)`);
+console.log(`staff-phone-css-scope: OK (${found.length} block(s), ${rules} braces, all under @media (max-width: <=${MAX}px) and html:not(.boot-client) #calView / #sxrView / .tk-page / .header)`);

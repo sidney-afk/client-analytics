@@ -1,0 +1,812 @@
+[
+  {
+    "key": "calendarSheet",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarReview",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarMonth",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarWeek",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "samples",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "samplesReviewOpen",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "templates",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "filming",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "tiktok",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "analytics",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "submit",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "today",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "workload",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "linear",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "kasper",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "instagram",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "messages",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "kasperFilming",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "editors",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "timeOff",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "salesIntake",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "hiring",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "onboarding",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "quizLeads",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "credentials",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clients",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "saveProblems",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "adPerformance",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "todayWalk",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "linearDetail",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "analyticsCalendar",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "brief",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "previewState1",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientReview",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSheet",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientMonth",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientWeek",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientAnalytics",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "kasperExample",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSampleExample",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSamples",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSamplesSheet",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarSelection",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "tiktokPhotos",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "instagramFrame",
+    "th": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarSheet",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarReview",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarMonth",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarWeek",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "samples",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "samplesReviewOpen",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "templates",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "filming",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "tiktok",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "analytics",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "submit",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "today",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "workload",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "linear",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "kasper",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "instagram",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "messages",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "kasperFilming",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "editors",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "timeOff",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "salesIntake",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "hiring",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "onboarding",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "quizLeads",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "credentials",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clients",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "saveProblems",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "adPerformance",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "todayWalk",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "linearDetail",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "analyticsCalendar",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "brief",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "previewState1",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientReview",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSheet",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientMonth",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientWeek",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientAnalytics",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "kasperExample",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSampleExample",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSamples",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "clientSamplesSheet",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "calendarSelection",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "tiktokPhotos",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  },
+  {
+    "key": "instagramFrame",
+    "th": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [],
+    "clipped": []
+  }
+]

@@ -237,6 +237,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-phone-review-browser.js
+      - name: Staff Calendar works on phones (Sheet, Review, Month, Week, dark and light)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/staff-calendar-phone-browser.js
       - name: Client link Analytics reads the database behind its flag, Sheets as fallback
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

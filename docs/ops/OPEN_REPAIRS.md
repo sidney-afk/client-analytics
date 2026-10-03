@@ -30452,3 +30452,16 @@ Proof: the polish checks in `docs/syncview-design/tests/client-phone-review-brow
 
 Found, not changed (it needs the owner's word, because the wording is shared with desktop): while a sample's Notes load, the client briefly reads "Loading canonical notes. The composer unlocks after this exact deliverable is authorized." That is internal wording on a client screen.
 Way back: revert the commit.
+
+## 337. [2026-10-02, BUILT] Phone polish, screen 4: the staff Calendar tab (session Polish)
+
+Fourth slice of owner direction D2, stacked on entries 334 to 336. Phones only (767 px and narrower) and the staff Calendar tab only: a new STAFF-PHONE block in `src/index/020-styles-surfaces.css.part` whose every selector starts with `html:not(.boot-client) #calView`, enforced by the new `test/staff-phone-css-scope.js`. Styles only: no script, no markup, no saved data, no function, flag or n8n change.
+
+What was wrong on a phone: the staff Calendar was the desktop page squeezed. An opened review card kept its three desktop columns, so Video, Thumbnail and Caption were each about 90 px wide with overlapping buttons and a caption one or two words per line. Month kept its seven-column grid and showed three of the seven days. The Sheet was a sideways strip of desktop columns. Toolbar icons were 32 px, the view switcher 30 px, card fields 30 to 34 px with 11 to 12 px text. There was an empty band in the toolbar on Review and Month.
+
+What changed: the staff Calendar now uses the client Calendar link's phone layout from entries 334 and 335, rule for rule, in dark and in light. Review cards open into one column with full-width Approve, note box, Comment and Request change. The Sheet is a feed of full-width cards with 44 px fields and 16 px typing text. Month is a day-by-day list and Week a list of its seven days. Notes is a full-screen sheet. Toolbar buttons are 44 px; the card-size zoom is hidden (it means nothing in a one-column feed). Staff-only controls (Set all, the status rows, Alt caption, the select, captions and more buttons) are sized for a thumb. Staff keep every status pill on review cards.
+
+Not in this entry: the page header. The mock-up replaces the header with a title row carrying "Tabs" and "More"; that needs script, not only styles, and is the owner's call.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` (new, offline, made-up client, added to the browser job) opens Sheet, Review, Month and Week at 360, 390 and 430 wide in dark and light: no sideways scroll, stacked cards, one-column review, 44 px toolbar and fields, 16 px text. It reports 270 problems on main and none here. Pictures (made-up data): `docs/mockups/phone-polish/04-staff-calendar/`. Not looked at with real staff data: the local build has no staff sign-in, and this session does not handle the owner's key. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

@@ -1,0 +1,841 @@
+[
+  {
+    "key": "kasper",
+    "classes": [
+      "kasper-fresh",
+      "kasper-stranded",
+      "kasper-stranded-title",
+      "kasper-stranded-sub",
+      "kasper-stranded-list",
+      "kasper-history-wrap kasper-waiting-wrap",
+      "kasper-history-head",
+      "kasper-history-title",
+      "kasper-history-count",
+      "kasper-history-body",
+      "kasper-list",
+      "kasper-history-wrap",
+      "kasper-history-wrap collapsed",
+      "kasper-history-day",
+      "kasper-history-day-label",
+      "kasper-day-count",
+      "kasper-history-row",
+      "kasper-history-thumb",
+      "kasper-history-main",
+      "kasper-history-line1",
+      "kasper-history-line2",
+      "kasper-history-client",
+      "kasper-history-actions",
+      "kasper-history-skip"
+    ],
+    "inputs": [],
+    "children": [
+      {
+        "cls": "app-refresh-pill",
+        "tag": "SPAN"
+      },
+      {
+        "cls": "",
+        "tag": "SPAN"
+      },
+      {
+        "cls": "",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "messages",
+    "classes": [
+      "kasper-replies-list",
+      "kasper-replies-card",
+      "kasper-replies-head",
+      "kasper-replies-meta",
+      "kasper-replies-client",
+      "kasper-replies-newfrom",
+      "kasper-replies-title",
+      "kasper-replies-open",
+      "kasper-replies-read",
+      "kasper-replies-thread",
+      "kasper-replies-showall",
+      "kasper-replies-thumb"
+    ],
+    "inputs": [
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      }
+    ],
+    "children": [
+      {
+        "cls": "kasper-replies-list",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "kasperFilming",
+    "classes": [
+      "kasper-toolbar",
+      "ked-meta-week",
+      "ked-toolbar-actions",
+      "ked-info-btn",
+      "kasper-refresh-btn",
+      "ked-info-panel",
+      "ked-info-note"
+    ],
+    "inputs": [],
+    "children": [
+      {
+        "cls": "kasper-toolbar",
+        "tag": "DIV"
+      },
+      {
+        "cls": "ked-info-panel",
+        "tag": "DIV"
+      },
+      {
+        "cls": "",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "editors",
+    "classes": [
+      "kasper-toolbar",
+      "ked-meta-week",
+      "ked-toolbar-actions",
+      "ked-avgtoggle",
+      "ked-avgtoggle-btn is-active",
+      "ked-avgtoggle-btn",
+      "ked-info-btn",
+      "kasper-refresh-btn spinning",
+      "ked-info-panel",
+      "ked-info-note",
+      "ked-info-list",
+      "ked-legend-swatch",
+      "ked-legend-swatch ked-legend-swatch--marker",
+      "kasper-skeleton-list",
+      "kasper-skeleton-card"
+    ],
+    "inputs": [],
+    "children": [
+      {
+        "cls": "kasper-toolbar",
+        "tag": "DIV"
+      },
+      {
+        "cls": "ked-info-panel",
+        "tag": "DIV"
+      },
+      {
+        "cls": "",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "timeOff",
+    "classes": [
+      "pto-admin",
+      "pto-card-head",
+      "pto-card-title",
+      "pto-card-sub",
+      "pto-refresh",
+      "pto-admin-grid",
+      "pto-admin-card full",
+      "pto-admin-title-row",
+      "pto-status pending",
+      "pto-admin-sub",
+      "pto-admin-queue",
+      "pto-empty",
+      "pto-admin-section-break",
+      "pto-admin-title",
+      "pto-status approved",
+      "pto-upcoming-list",
+      "pto-upcoming-row",
+      "pto-request-meta",
+      "pto-type-pill wellness",
+      "pto-row-btn",
+      "pto-type-pill floating",
+      "pto-type-pill unpaid",
+      "pto-admin-history",
+      "pto-history-list",
+      "pto-history-row",
+      "pto-type-pill sick",
+      "pto-admin-card full pto-cal-admin",
+      "pto-cal-head",
+      "pto-cal-controls",
+      "pto-cal-views",
+      "pto-cal-view",
+      "pto-calendar-nav",
+      "pto-calendar-title",
+      "pto-cal-today",
+      "pto-cal-stats",
+      "pto-cal-stat",
+      "pto-cal-legend",
+      "pto-cal-legend-item",
+      "pto-cal-swatch wellness",
+      "pto-cal-swatch sick"
+    ],
+    "inputs": [
+      {
+        "type": "hidden",
+        "id": "ptoAdminMember"
+      },
+      {
+        "type": "date",
+        "id": "ptoAdminStart"
+      },
+      {
+        "type": "checkbox",
+        "id": "ptoAdminEnabled"
+      },
+      {
+        "type": "hidden",
+        "id": "ptoAdjustMember"
+      },
+      {
+        "type": "hidden",
+        "id": "ptoAdjustKind"
+      },
+      {
+        "type": "number",
+        "id": "ptoAdjustDelta"
+      },
+      {
+        "type": "date",
+        "id": "ptoAdjustDate"
+      },
+      {
+        "type": "text",
+        "id": "ptoAdjustReason"
+      }
+    ],
+    "children": [
+      {
+        "cls": "pto-admin",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "salesIntake",
+    "classes": [
+      "si-wrap",
+      "si-head",
+      "si-title",
+      "si-sub",
+      "si-card",
+      "si-grid",
+      "si-q",
+      "si-label",
+      "si-req",
+      "si-input",
+      "si-radios",
+      "si-pill",
+      "si-help",
+      "si-q si-full",
+      "si-locked-value",
+      "si-linkprev",
+      "si-clause",
+      "si-preview",
+      "si-preview-head",
+      "si-preview-head-main",
+      "si-preview-title",
+      "si-preview-subject",
+      "si-btn-ghost",
+      "si-email-preview",
+      "si-email-divider",
+      "si-email-logo",
+      "si-email-btn sign disabled",
+      "si-email-btn pay",
+      "si-email-signature",
+      "si-email-sig-text",
+      "si-err",
+      "si-actions",
+      "si-btn"
+    ],
+    "inputs": [
+      {
+        "type": "text",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "text",
+        "id": ""
+      },
+      {
+        "type": "email",
+        "id": ""
+      },
+      {
+        "type": "tel",
+        "id": ""
+      },
+      {
+        "type": "date",
+        "id": ""
+      },
+      {
+        "type": "text",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "text",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "url",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "radio",
+        "id": ""
+      },
+      {
+        "type": "textarea",
+        "id": ""
+      }
+    ],
+    "children": [
+      {
+        "cls": "si-wrap",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "hiring",
+    "classes": [
+      "hp-wrap",
+      "hp-head",
+      "hp-title",
+      "hp-sub",
+      "hp-refresh",
+      "hp-roles",
+      "hp-filter active",
+      "hp-filter",
+      "hp-filters",
+      "hp-workspace",
+      "hp-list",
+      "hp-list-head",
+      "hp-list-title",
+      "hp-list-count",
+      "hp-row",
+      "hp-row-top",
+      "hp-name",
+      "hp-row-time",
+      "hp-email",
+      "hp-status new",
+      "hp-detail",
+      "hp-detail-head",
+      "hp-detail-title",
+      "hp-muted",
+      "hp-detail-empty"
+    ],
+    "inputs": [],
+    "children": [
+      {
+        "cls": "hp-wrap",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "onboarding",
+    "classes": [],
+    "inputs": [
+      {
+        "type": "text",
+        "id": "obvSearchInput"
+      }
+    ],
+    "children": [
+      {
+        "cls": "obv-wrap",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "quizLeads",
+    "classes": [
+      "kql-wrap",
+      "kql-card-head",
+      "kql-card-title",
+      "kql-card-sub",
+      "kql-refresh",
+      "kql-search",
+      "kql-stats",
+      "kql-stat",
+      "kql-row",
+      "kql-row-head",
+      "kql-row-name",
+      "kql-row-sub",
+      "kql-badge",
+      "kql-detail",
+      "kql-qa",
+      "kql-attr"
+    ],
+    "inputs": [
+      {
+        "type": "search",
+        "id": ""
+      }
+    ],
+    "children": [
+      {
+        "cls": "kql-wrap",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "credentials",
+    "classes": [
+      "cc-wrap",
+      "cc-topbar",
+      "cc-title",
+      "cc-sub",
+      "cc-actions",
+      "cc-search",
+      "cc-btn",
+      "cc-btn primary",
+      "cc-body",
+      "cc-grid",
+      "cc-card cc-collapsible",
+      "cc-card-head",
+      "cc-card-toggle",
+      "cc-client",
+      "cc-client-meta",
+      "cc-chip",
+      "cc-rows",
+      "cc-row",
+      "cc-platform",
+      "cc-chip warn",
+      "cc-handle",
+      "cc-mini",
+      "cc-secret",
+      "cc-row-actions",
+      "cc-updated",
+      "cc-select",
+      "cc-select-trigger",
+      "cc-select-menu",
+      "cc-select-option active",
+      "cc-select-option"
+    ],
+    "inputs": [
+      {
+        "type": "text",
+        "id": "ccKasperSearch"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_89b12cd8-def3-40a1-8499-912b3716ce3d"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_88fe5e9e-b5cc-4162-a130-71ac45119d8c"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_64a769d6-a18c-4393-a492-1d43f96213da"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_5e919f5d-b0f7-4e6a-bfb2-210c9435c7be"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_df4857a9-192a-4270-8a6e-f508cfc4d670"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_dad8ff49-6db2-4ca4-9311-6cf7a15a27b2"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_e5b0f71e-3dcd-46ea-ae0d-719f98eb282f"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_31cc25f7-cc30-472e-a0e5-604d51ca7711"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_f61187fb-7378-4c1e-97e7-7f2b42320e81"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_ae4fd8f5-16ea-47b8-b62f-d0b0ca79b1c4"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_2b5c1d76-c601-491a-ad91-1e07e598ece6"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_cf1c7928-fb04-4af6-99b3-40b91a2a60c4"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_9b53bd2f-e159-410a-996b-acff9405fc74"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_a68f2668-56c9-4a4f-ad1a-90a2d3383b60"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_7d88945b-eb7b-4ddc-ad8b-07ad75b1de47"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_e953415c-69af-4c2b-85e9-f2978d48bf2e"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_ff6a7a15-f65d-413c-bfd6-25db13fc3a94"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_693becee-78a6-4871-a34d-145eeede2ea4"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_9594a4f1-e16e-4233-84c1-c6dff0aff728"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_47b9b6e4-a31c-4853-a480-cd56e648ec36"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_f9286a39-c612-4a58-a05a-4583232d5fcf"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_9e0287c1-39e4-481f-af10-b1a0f04539c4"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_2bc958a5-5980-42b0-9467-f24d6693605c"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_be010a9e-c9b2-4709-9d75-74f3c70dbc47"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_317775a4-1d47-47ef-ae92-6760cfc975ce"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_7c62b7b3-7986-4d79-81f6-d08c6918c39e"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_ff7879ec-ef2d-4c3c-ac8e-27e39c5e4949"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_bdaac6ad-2572-4245-bc64-bce00a5738a2"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_969a8334-ad8e-4d92-bf65-b2a71e27d7b2"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_7394258f-731e-40e6-ba24-3e257254d4a6"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_4e678e67-efd6-4731-8dc7-c2324a16d4a8"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_58aedd96-df2a-4b0f-94d5-1961726b1442"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_a357495f-16d0-45c9-a606-06ead7520e28"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_070256b6-6dbf-4f17-be25-e898c1e563bf"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_ad590743-f6dc-4057-ba6a-fdd9fc88a91e"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_0a9abff6-c403-4cdb-bebb-dd2a5197f437"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_eaffe5c9-66e1-4235-afd6-43eb47c62baf"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_bf02ccb5-8cea-464e-be7b-7ba7a9f9d88b"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_c2e8d440-284a-404e-9c78-b96609d686ff"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_c84c2041-cfca-4e08-b936-bc63e8330ca8"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_671e58f4-7292-4dbe-9703-7c13045ebe1b"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_21b28a9b-7b0b-4742-a1a7-717e586d73f0"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_b0257f56-24e4-4c22-ab88-d633481f040e"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_34082145-2a02-4aae-b550-1ce2fd8ce53b"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_12515956-20d6-4708-acad-ed0c4b0dd2a3"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_c5e9090b-7d6a-4dba-a938-ab5d8a31ace0"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_31c87dca-d2bc-4921-b1e1-f2ef92a2207d"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_3f8584f9-3d7b-4651-af36-e49b90aafa4c"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_75456bde-e911-4efe-8070-6b0ebab07401"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_e9f26528-e582-4077-a105-23919a5090a8"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_d1709c03-5ce7-4b62-bc0f-bb961e81020c"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_89b18f6e-5282-499b-930e-803c06a4e1f7"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_0934abab-8dd3-4b8b-b8af-381a5ca3c288"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_34a663f4-01f1-4fd8-934a-d250925c1350"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_a9e45a07-422a-4893-aa6b-ba4f7543828e"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_aaef870f-785a-4b35-82be-55140f153985"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_34612fe9-8a56-4dcb-89f8-b6444623957e"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_2ca31b44-c5ab-403b-b2f6-7c231a2bcc11"
+      },
+      {
+        "type": "hidden",
+        "id": "ccReassign_71a4db93-de57-42d9-a41d-c3436971921c"
+      }
+    ],
+    "children": [
+      {
+        "cls": "cc-wrap",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "clients",
+    "classes": [
+      "cc-wrap ca-wrap",
+      "cc-topbar",
+      "cc-title",
+      "cc-sub",
+      "cc-actions",
+      "cc-search",
+      "cc-btn"
+    ],
+    "inputs": [
+      {
+        "type": "search",
+        "id": "caSearch"
+      }
+    ],
+    "children": [
+      {
+        "cls": "cc-wrap ca-wrap",
+        "tag": "DIV"
+      }
+    ]
+  },
+  {
+    "key": "saveProblems",
+    "classes": [
+      "kql-wrap",
+      "kql-card-head",
+      "kql-card-title",
+      "kql-card-sub",
+      "kql-refresh sp-refresh",
+      "sp-controls",
+      "sp-control",
+      "sp-control-label",
+      "sp-check",
+      "sp-summary",
+      "sp-scroll",
+      "sp-table",
+      "sp-code",
+      "sp-detail",
+      "sp-muted"
+    ],
+    "inputs": [
+      {
+        "type": "hidden",
+        "id": "spDays"
+      },
+      {
+        "type": "hidden",
+        "id": "spScreen"
+      },
+      {
+        "type": "hidden",
+        "id": "spPage"
+      },
+      {
+        "type": "checkbox",
+        "id": ""
+      }
+    ],
+    "children": [
+      {
+        "cls": "kql-wrap",
+        "tag": "DIV"
+      }
+    ]
+  }
+]

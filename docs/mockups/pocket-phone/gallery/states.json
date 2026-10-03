@@ -1,0 +1,227 @@
+[
+  [
+    "calendarSheet",
+    "Calendar",
+    "Sheet"
+  ],
+  [
+    "calendarReview",
+    "Calendar",
+    "Review"
+  ],
+  [
+    "calendarMonth",
+    "Calendar",
+    "Month"
+  ],
+  [
+    "calendarWeek",
+    "Calendar",
+    "Week"
+  ],
+  [
+    "samples",
+    "Samples",
+    "Sheet"
+  ],
+  [
+    "samplesReviewOpen",
+    "Samples",
+    "Review"
+  ],
+  [
+    "templates",
+    "Templates",
+    "Reference links"
+  ],
+  [
+    "filming",
+    "Filming Plans",
+    "Document list"
+  ],
+  [
+    "tiktok",
+    "TikTok Upload",
+    "Composer"
+  ],
+  [
+    "analytics",
+    "Analytics",
+    "Current empty state"
+  ],
+  [
+    "submit",
+    "Submit",
+    "Saved batch"
+  ],
+  [
+    "today",
+    "Today",
+    "Work queue"
+  ],
+  [
+    "workload",
+    "Workload",
+    "Team overview"
+  ],
+  [
+    "linear",
+    "Linear",
+    "Test workspace issues"
+  ],
+  [
+    "kasper",
+    "Kasper",
+    "Review Session"
+  ],
+  [
+    "instagram",
+    "Instagram Upload",
+    "Composer"
+  ],
+  [
+    "messages",
+    "Messages",
+    "Kasper"
+  ],
+  [
+    "kasperFilming",
+    "Filming review",
+    "Kasper"
+  ],
+  [
+    "editors",
+    "Editors",
+    "Kasper"
+  ],
+  [
+    "timeOff",
+    "Time Off",
+    "Kasper"
+  ],
+  [
+    "salesIntake",
+    "Sales Intake",
+    "Kasper"
+  ],
+  [
+    "hiring",
+    "Hiring Process",
+    "Kasper"
+  ],
+  [
+    "onboarding",
+    "Onboarding",
+    "Kasper"
+  ],
+  [
+    "quizLeads",
+    "Quiz Leads",
+    "Kasper"
+  ],
+  [
+    "credentials",
+    "Client Credentials",
+    "Kasper"
+  ],
+  [
+    "clients",
+    "Clients",
+    "Kasper"
+  ],
+  [
+    "saveProblems",
+    "Save problems",
+    "Kasper"
+  ],
+  [
+    "adPerformance",
+    "Ad Performance",
+    "Kasper"
+  ],
+  [
+    "todayWalk",
+    "Today",
+    "Walk-through"
+  ],
+  [
+    "linearDetail",
+    "Linear",
+    "Post detail"
+  ],
+  [
+    "analyticsCalendar",
+    "Analytics",
+    "Content Calendar"
+  ],
+  [
+    "brief",
+    "Brief",
+    "Reference"
+  ],
+  [
+    "previewState1",
+    "Client review",
+    "Preview example"
+  ],
+  [
+    "clientReview",
+    "Client queue",
+    "Current empty queue"
+  ],
+  [
+    "clientSheet",
+    "Client Sheet",
+    "Collaborative Sheet"
+  ],
+  [
+    "clientMonth",
+    "Client month",
+    "Calendar"
+  ],
+  [
+    "clientWeek",
+    "Client week",
+    "Calendar"
+  ],
+  [
+    "clientAnalytics",
+    "Client analytics",
+    "Current empty state"
+  ],
+  [
+    "kasperExample",
+    "Kasper review",
+    "Preview example"
+  ],
+  [
+    "clientSampleExample",
+    "Client Samples review",
+    "Preview example"
+  ],
+  [
+    "clientSamples",
+    "Client Samples queue",
+    "Current empty queue"
+  ],
+  [
+    "clientSamplesSheet",
+    "Client Samples Sheet",
+    "Sheet cards"
+  ],
+  [
+    "calendarSelection",
+    "Calendar",
+    "Selection"
+  ],
+  [
+    "tiktokPhotos",
+    "TikTok Upload",
+    "Photo carousel"
+  ],
+  [
+    "instagramFrame",
+    "Instagram Upload",
+    "Frame cover"
+  ]
+]

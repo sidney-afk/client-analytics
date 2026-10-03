@@ -1,0 +1,48 @@
+Pocket portable-gallery handoff — 2026-10-03
+These are standalone design-preview checks, not product or deployment gates.
+No product implementation, merge, deployment or live data mutation in this export.
+Earlier desktop FAIL/UNPROVEN and baseline truth/unit results remain in pr-checks.txt.
+
+node gallery/build-gallery.cjs (exit 0):
+GALLERY_BUILD: 45 states; standalone offline HTML generated; application files untouched.
+
+Visible Chrome, exported gallery (exit 0):
+EXPORTED_GALLERY: 180 mounts; 1080 layout cases; 0 layout failures; 0 browser errors; 0 external requests.
+EXPORTED_INTERACTIONS: 14 checks; 0 failures.
+Raw results: evidence/export-gallery-checks.json.
+Initial harness/setup failures and interrupted executions are not counted as passes.
+The final harness corrected dependency resolution, the heading selector and the
+Playwright element/argument signature. Geometry reads flush layout after loading
+local fonts; background animation-frame throttling adds no measurement proof.
+
+node gallery/check-source-equality.cjs <merge-base-checkout> (exit 0):
+SOURCE_EQUALITY: 2891 existing files compared byte for byte; 0 differences outside the two documentation index edits.
+
+npm run check:index (exit 0):
+check-index: OK — assembled == working tree == committed (HEAD)
+
+node test/repo-map-sync.js (exit 0):
+repo-map-sync: 1066 passed, 0 failed
+Earlier draft path attempt: repo-map-sync: 1065 passed, 1 failed.
+The short path in REPO_MAP was corrected to the full repository path.
+
+node test/atlas-sync.js (exit 0):
+atlas-sync: 295 passed, 0 failed
+
+node --check, preview.js/build-gallery.cjs/check-gallery.cjs/desktop-visible-adapter.cjs (exit 0):
+No output.
+
+Email fixture scan (exit 0):
+{"emailValues":1,"nonExampleEmails":0}
+
+The final export privacy report is evidence/export-privacy.json.
+The repository identity check is run after committing and before pushing;
+its actual result is included in the PR handoff and final response.
+Token usage is not exposed by this session; no count has been invented.
+
+node gallery/check-privacy.cjs (exit 0):
+EXPORT_PRIVACY: {"files":29,"rosterTerms":56,"protectedMatches":0,"tokenPatterns":0,"originalHandlers":0,"externalAttributes":0,"networkCalls":0}
+
+Visible-browser opening and screenshot (success):
+The standalone gallery opened locally in visible Chrome and remains open.
+gallery-overview.png was inspected visually; no identifying names or secrets.

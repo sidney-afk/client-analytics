@@ -1,18 +1,48 @@
 # Pocket phone experience — Claude review packet
 
-**Status: draft design review, 2026-10-02. No product implementation or merge approval.**
+**Status: draft design review, 2026-10-03. No product implementation or merge approval.**
 
 SyncView needs a phone experience designed around the same actions and decision
 flow as the desktop app. The owner wants clear, comfortable, one-hand use, with
 Wise as the quality reference. Each tab may have its own phone layout. Desktop
 must remain exactly as it is.
 
-This PR carries two curated comparison boards and the review contract. The full
-45-state interactive gallery remains private; raw live DOM, account data, review
-URLs, contacts, credentials and HR captures are not part of this packet. These
-images were visually checked for client names, slugs and secrets. The existing
-phone screen uses test content, and the review examples use private copies of
-that content. They do not represent newly queued live reviews.
+This PR includes the complete interactive gallery: 45 states, A/B layouts,
+and light/dark appearance, plus its editable sources, comparison boards,
+interaction checklist, design findings and recorded validation evidence. All
+60 captured screen/menu structures are included with example private fields.
+Account identifiers, contacts, credentials, real messages, sensitive HR data
+and review tokens are excluded. The public export uses synthetic examples
+where publication would expose private information; it preserves the design
+and control structure. It is not a connection to the live app.
+
+## Open the interactive gallery
+
+For the complete handoff in one download, use
+[pocket-phone-review.zip](pocket-phone-review.zip). Extract it and open
+`gallery/gallery.html` in visible Chrome. The archive includes the interactive
+gallery, editable sources, notes, boards and measurement evidence.
+
+Download or check out this PR, then open
+[gallery/gallery.html](gallery/gallery.html) in visible Chrome. This single file
+contains the styles, font, images, screen data and interactions. It works
+offline through a file URL; no server, build, sign-in or test review link is
+required. GitHub's source view displays HTML text; download the file and open
+it locally to use the gallery.
+
+Choose a tab, a state and Light/Dark. Compare A and B, scroll inside each phone,
+open Tabs and More, expand sections, type draft notes, try view switches, and
+explore the platform-specific upload forms. Save, approve, send, link-opening
+and upload actions display a preview notice or stay gated; they do not perform
+business writes. The gallery is a layout/interaction prototype, not a full
+implementation of the product's backend or accessibility behavior.
+
+The [complete handoff](HANDOFF.md) explains every supplied artifact and the
+remaining work. [gallery/](gallery/) contains the editable renderer, styles,
+fixtures, shells, local assets and offline builder. Rebuild only this document
+with `node docs/mockups/pocket-phone/gallery/build-gallery.cjs`. This does
+not run the app build or modify generated app HTML. The local font license is
+in [gallery/fonts/OFL.txt](gallery/fonts/OFL.txt).
 
 ## Compare the placements
 
@@ -25,10 +55,10 @@ that content. They do not represent newly queued live reviews.
 - **B — Compact:** quieter continuous lists and expandable sections. Review
   components or long forms can open one at a time while retaining their actions.
 
-Both directions exist in light and dark appearance in the private gallery. The
-boards show selected examples, not every state in that gallery. Approval of a
-placement is still the owner's decision; no direction or first implementation
-tab has been selected.
+Both directions exist in light and dark appearance in the interactive gallery.
+The boards show selected examples; the gallery contains every state. Approval
+of a placement is still the owner's decision; no direction or first
+implementation tab has been selected.
 
 ## Owner decisions already given
 
@@ -67,7 +97,7 @@ Their controls are disconnected from saves, approvals, messages and uploads.
 One test review link was issued through the existing Share UI during the earlier
 visible-browser session; no post status or message was changed.
 
-## Private gallery coverage
+## Interactive gallery coverage
 
 These are the 45 reviewed states, each with A/B and light/dark versions:
 
@@ -85,6 +115,10 @@ These are the 45 reviewed states, each with A/B and light/dark versions:
 | Linear | Issues, Issue detail |
 | Kasper | Review queue, Review example, Messages, Filming review, Editors, Time Off, Sales Intake, Hiring, Onboarding, Quiz Leads, Credentials, Clients, Save problems, Ad Performance |
 | Client link | Calendar review example, current Calendar queue, Sheet, Month, Week, Analytics, Samples review example, current Samples queue, Samples Sheet |
+
+The portable export is checked separately; see
+[export-checks.txt](export-checks.txt). The original preview results are
+historical evidence, not a product release-gate claim.
 
 ## Request to Claude
 
@@ -108,15 +142,16 @@ or mutate any non-test client as part of this review.
 
 ## Evidence and limits
 
-The original private preview checks are recorded in
-[preview-checks.txt](preview-checks.txt). They passed 1,080 layout cases across
+The original preview checks, before the portable export, are recorded in
+[preview-checks.txt](preview-checks.txt), with safe raw measurement data in
+[evidence/](evidence/). They passed 1,080 layout cases across
 360/375/390/430 portrait widths and 667/740 landscape widths, 152 menu cases,
 50 interaction checks, 90 lower-section cases and 180 gallery mounts. The
 layout checks measured visible enabled controls, 16 px editable fields, clipped
 labels and horizontal overflow. These are prototype measurements, not the
 existing product phone gates, a complete accessibility audit or backend proof.
 
-This PR changes documentation and images only. `src/index`, generated
+This PR changes documentation and standalone design-preview artifacts only. `src/index`, generated
 `index.html`, `js`, app assets, routes and `OPEN_REPAIRS.md` must remain identical
 to its base. Desktop source equality and final PR check results are recorded in
 [pr-checks.txt](pr-checks.txt). The complete existing live client desktop parity

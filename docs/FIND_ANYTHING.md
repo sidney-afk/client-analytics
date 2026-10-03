@@ -44,7 +44,7 @@
 | Linear teams/states/what syncs | `docs/truth/LINEAR.md` |
 | How surface X behaves in `index.html` | `docs/truth/APP.md`, then `docs/independence/SYSTEM_MAP.md` §4 for the full surface catalog |
 | Feature X's contract/spec | `docs/features/<FEATURE>.md` (each carries a status header — believe it) |
-| Pocket phone redesign, owner placement decisions and Claude review packet | `docs/mockups/pocket-phone/README.md` (draft design only; implementation and first-tab choice still pending) |
+| Pocket phone interactive gallery, source handoff, owner placement decisions and Claude review | `docs/mockups/pocket-phone/README.md` (open `gallery/gallery.html` offline; full handoff in `HANDOFF.md`; draft design only) |
 | Operational runbooks (new client, monitoring, flip, backups) | `docs/ops/` — new-client setup is `docs/ops/NEW_CLIENT_ONBOARDING.md` |
 | Should this repo go private, and what would it cost? | `docs/ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md` (decision: stays public; private deferred to SyncView v2) |
 | "Share with client" fails / a client link is missing, invalid, or needs re-issuing | `docs/ops/NEW_CLIENT_ONBOARDING.md` §6k (how the review token is provisioned and how to verify it; rotation stays owner-gated behind full re-issue — `ROLLBACK.md` F35) |

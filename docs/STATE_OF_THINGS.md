@@ -53,7 +53,7 @@ here with where it stopped, so it can be restarted.
   named Wise as the reference): speed, button placement, one-hand use. Delivered in slices, one PR per tab, Lighthouse
   merges, test client only for live proof. Starts after Beacon's checklist panel (#1941) is on main.
   **Started 2026-10-02 (session Polish, Claude with the app's own browser):** screen 1, the client Calendar review
-  link, screen 2, the client Sheet / Month / Week and Notes, and screen 3, the client Sample reviews link, screen 4, the staff Calendar tab, and screen 5, the staff Samples tab, are built and waiting for Lighthouse (OPEN_REPAIRS 334 to 338; each PR is stacked on the one before). Next in order: the
+  link, screen 2, the client Sheet / Month / Week and Notes, and screen 3, the client Sample reviews link, screen 4, the staff Calendar tab, screen 5, the staff Samples tab, and screen 6, the staff Upload tab, are built and waiting for Lighthouse (OPEN_REPAIRS 334 to 339; each PR is stacked on the one before). Next in order: the
   other staff tabs, Kasper. Waiting on the owner: client Analytics (the test client has no data to judge it by) and the phone header (title row with Tabs and More).
 - **D3. Calendar status filters (owner request, 2026-10-02, after the phone work).** The Calendar gets filters on
   the overall card status, including EXCLUDE (for example hide every approved post). "Overall status" means the

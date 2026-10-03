@@ -30474,3 +30474,14 @@ The staff Samples tab had the staff Calendar's faults on a phone: an opened revi
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` now runs on both tabs at 360, 390 and 430 wide in dark and light (132 Samples problems on main, none here). Pictures (made-up data): `docs/mockups/phone-polish/05-staff-samples/`. Not looked at with real staff data, for the reason given in entry 337. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 339. [2026-10-02, BUILT] Phone polish, screen 6: the staff Upload tab, TikTok and Instagram (session Polish)
+
+Sixth slice of owner direction D2, stacked on entry 338. Phones only and the Upload tab only: a third STAFF-PHONE block in `src/index/020-styles-surfaces.css.part`, every selector under `html:not(.boot-client) .tk-page`; `test/staff-phone-css-scope.js` accepts that root. Styles only: no script, no upload, scheduling or Post now logic touched.
+
+What was wrong on a phone: the page title sat beside the 220 px platform switch and wrapped one word per line; the page kept desktop side padding, so the form was 70 px narrower than the screen; the TikTok options summary was squeezed into a narrow column beside "Show options"; the platform switch and Post now were 40 px and the client search 37 px, with text small enough to make an iPhone zoom in.
+
+What changed: title first with the platform switch full width under it; 16 px page gutters; the options and scheduling headings let their control drop under the summary; 44 px switch, radio halves and "Show options", a 48 px Post now; 16 px text in every typing box; section labels in the secondary text colour.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` now also opens the Upload tab at 360, 390 and 430 wide in dark and light (title not squeezed, switch full width, 44 px controls, 16 px text, no sideways scroll). Pictures (no client selected, nothing uploaded): `docs/mockups/phone-polish/06-staff-upload/`. Not exercised: choosing a client, attaching media, the photo carousel and the queue, which need real data. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

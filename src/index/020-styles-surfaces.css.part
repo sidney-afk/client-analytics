@@ -4234,6 +4234,18 @@
             html.boot-client .chart-mode-btn { min-height: 44px; min-width: 44px; padding: 0 14px; font-size: 0.8rem; }
             html.boot-client .chart-plat-toggle { gap: 8px; }
             html.boot-client .chart-plat-btn { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 14px; font-size: 0.8rem; }
+
+            /* Polish pass (OPEN_REPAIRS 349), the same layout the staff view of
+               this page gets: four numbers two by two instead of a row whose
+               fourth number was cut off, and the Top performing note under
+               its heading instead of squeezed beside the period switch. */
+            html.boot-client .client-view .metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
+            html.boot-client .client-view .metrics-row .metric-block { padding-left: 0; padding-right: 12px; }
+            html.boot-client .client-view .top-videos-head { flex-wrap: wrap; row-gap: 8px; }
+            html.boot-client .client-view .top-videos-subnote { flex: 1 1 100%; text-align: left; }
+            html.boot-client .client-view .period-btn { min-height: 40px; padding-left: 14px; padding-right: 14px; }
+            html.boot-client .client-view .read-more-btn { min-height: 32px; }
+            html.boot-client .client-view .platform-handle-link { padding: 12px 0; }
         }
         /* CLIENT-PHONE:END */
         /* Calendar Month and Week views on a client link: same contract as
@@ -4953,6 +4965,28 @@
             /* This button had no styling of its own and showed as a small system button. */
             html:not(.boot-client) .tpl-view .tpl-brain-change-btn { min-height: 44px; margin-top: 10px; padding: 0 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.86rem; font-weight: 700; }
             html:not(.boot-client) .tpl-view .tpl-section-title { color: var(--text-secondary); }
+        }
+        /* STAFF-PHONE:END */
+        /* A client's Analytics page as staff see it: same contract, under html:not(.boot-client) .client-view (OPEN_REPAIRS 349). The client link gets the same layout rules in its own CLIENT-PHONE block. */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* Each platform card laid its four numbers in one row wider than the card, so the fourth was cut off. Two by two. */
+            html:not(.boot-client) .client-view .metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
+            html:not(.boot-client) .client-view .metrics-row .metric-block { padding-left: 0; padding-right: 12px; }
+            /* Top performing: the period switch was cut off and its note squeezed into a narrow column beside it. The note drops under. */
+            html:not(.boot-client) .client-view .top-videos-head { flex-wrap: wrap; row-gap: 8px; }
+            html:not(.boot-client) .client-view .top-videos-subnote { flex: 1 1 100%; text-align: left; }
+            html:not(.boot-client) .client-view .period-btn { min-height: 40px; padding-left: 14px; padding-right: 14px; }
+            html:not(.boot-client) .client-view .chart-mode-toggle { padding: 3px; }
+            html:not(.boot-client) .client-view .chart-mode-btn, html:not(.boot-client) .client-view .chart-plat-btn { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 14px; font-size: 0.8rem; }
+            html:not(.boot-client) .client-view .chart-plat-toggle { gap: 8px; }
+            html:not(.boot-client) .client-view .read-more-btn { min-height: 32px; }
+            html:not(.boot-client) .client-view .platform-handle-link { padding: 12px 0; }
+            /* Staff-only controls. */
+            html:not(.boot-client) .client-view .back-btn, html:not(.boot-client) .client-view .share-btn, html:not(.boot-client) .client-view .cs-regen-btn { min-height: 44px; }
+            html:not(.boot-client) .client-view .view-tab-toggle { display: flex; width: 100%; box-sizing: border-box; }
+            html:not(.boot-client) .client-view .view-tab-btn { flex: 1 1 auto; justify-content: center; min-height: 44px; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+            html:not(.boot-client) .client-view .detail-info-btn { width: 32px; height: 32px; }
         }
         /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-

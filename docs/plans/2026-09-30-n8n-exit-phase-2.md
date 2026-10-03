@@ -357,4 +357,4 @@ Built. A client link always saves through the functions (no flag lookup, retried
 
 ## Generate Caption Save step, 2026-10-03
 
-Done (OPEN_REPAIRS 334, `docs/ops/N8N_EDIT_LOG.md`). The "Later step" under B2 is closed: Generate Caption saves through `calendar-upsert`. All 395 runs of the two n8n save workflows since 2026-10-02 23:55 UTC were read: all test-client drills, no real caller. Switch-off stays a separate step with the owner's go after the 5 day window.
+Done (OPEN_REPAIRS 334, `docs/ops/N8N_EDIT_LOG.md`). The "Later step" under B2 is closed: Generate Caption saves through `calendar-upsert`. All 395 runs of the two n8n save workflows since 2026-10-02 23:55 UTC were read: all test-client drills, no real caller in the traffic. Still open before switch-off: saved staff repairs pinned to n8n that the on-load migration keeps (committed-tweak or unverifiable) still replay to n8n; reroute them or prove none exist. Switch-off stays a separate step with the owner's go after the 5 day window.

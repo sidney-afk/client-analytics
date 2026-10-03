@@ -223,6 +223,8 @@ async function runUpload(browser, origin, [vp, w, hgt], th) {
   const SIZED = [
     { nav: 'navLinear', name: 'Submit', root: '.linear-view', controls: '.linear-input, .linear-search-input, .linear-video-remove, .linear-add-video-btn, .linear-submit-btn', typing: '.linear-input, .linear-search-input, .linear-textarea' },
     { nav: 'navWorkload', name: 'Workload toolbar', root: '.workload-toolbar', controls: '.workload-nav button, .workload-pills button, .dropdown-trigger, .wl-client-search-input', typing: '.wl-client-search-input' },
+    { nav: 'navTemplates', name: 'Templates start', root: '.tpl-index-centered', controls: '.search-bar-pill, .pin-add-btn', typing: '.search-bar-input' },
+    { nav: 'navFilmingPlans', name: 'Filming Plans start', root: '.fp-view', controls: '.search-bar-pill, .fp-btn', typing: '.search-bar-input' },
   ];
   for (const t of SIZED) {
     await page.evaluate(id => document.getElementById(id).click(), t.nav);

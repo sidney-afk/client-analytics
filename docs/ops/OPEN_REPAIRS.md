@@ -30531,3 +30531,14 @@ Not done: the board itself on a phone. It needs real work items to judge, which 
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the toolbar at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/10-staff-workload/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 344. [2026-10-03, BUILT] Phone polish, screen 11: the staff Templates and Filming Plans start pages (session Polish)
+
+Eleventh slice of owner direction D2, stacked on entry 343. Phones only: a STAFF-PHONE block in `src/index/020-styles-surfaces.css.part`, every selector under `html:not(.boot-client) .tpl-index-centered` or `html:not(.boot-client) .fp-view`. Styles only, sizes only.
+
+These are the two pages that ask staff to pick a client. On a phone their search box used 13.6 px text (an iPhone zooms in), Pin a client was 24 px tall, and Filming Plans' Refresh and Add / update buttons were 34 px. The search is full width with 16 px text; Pin a client, Refresh and Add / update are 44 px.
+
+Not done: a client's Templates page and a client's Filming Plans documents on a phone. They need real client data to judge, which the offline page does not have.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks both pages at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/11-staff-templates-filming/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

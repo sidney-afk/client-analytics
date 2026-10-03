@@ -30509,3 +30509,14 @@ Not seen with real rows: the offline page has no clients, so the pictures show t
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the overview at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/08-staff-analytics/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 342. [2026-10-03, BUILT] Phone polish, screen 9: the staff Submit tab (session Polish)
+
+Ninth slice of owner direction D2, stacked on entry 341. Phones only: a STAFF-PHONE block in `src/index/020-styles-surfaces.css.part`, every selector under `html:not(.boot-client) .linear-view`. Styles only, sizes only; nothing about what is submitted or how.
+
+On a phone the Submit form's 50 typing boxes used 13.6 px text, which makes an iPhone zoom in on every tap; the per-video Remove buttons were 22 px, Add video 34 px and the submit buttons 42 px. Typing boxes use 16 px text now, fields and Add video are 44 px, Remove is 44 px and the submit buttons 48 px.
+
+Said plainly: the public intake form (`?intake=1`) is built from the same markup and is not a client review link, so it gets the same phone sizes. Nothing else about it changes.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the form at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/09-staff-submit/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

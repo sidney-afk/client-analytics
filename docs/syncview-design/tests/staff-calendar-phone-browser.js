@@ -216,6 +216,30 @@ async function runUpload(browser, origin, [vp, w, hgt], th) {
     if (a.font < 16) failures.push(`${label}: the client search uses ${a.font}px text, under 16px (iOS will zoom)`);
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `staff-analytics-${w}-${th}.png`), fullPage: true });
   }
+
+  // Other staff tabs whose phone pass is sizes only: every listed control is at
+  // least 44px, every typing box uses 16px text, and the page does not scroll
+  // sideways. One entry per tab; add a tab here when it gets its phone block.
+  const SIZED = [
+    { nav: 'navLinear', name: 'Submit', root: '.linear-view', controls: '.linear-input, .linear-search-input, .linear-video-remove, .linear-add-video-btn, .linear-submit-btn', typing: '.linear-input, .linear-search-input, .linear-textarea' },
+  ];
+  for (const t of SIZED) {
+    await page.evaluate(id => document.getElementById(id).click(), t.nav);
+    const drewTab = await page.waitForSelector(t.root, { timeout: 15000 }).then(() => true, () => false);
+    if (!drewTab) { failures.push(`${label}: the ${t.name} tab never drew`); continue; }
+    await page.waitForTimeout(700);
+    const z = await page.evaluate(t => {
+      const W = document.documentElement.clientWidth; const shown = e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
+      const small = [...document.querySelectorAll(t.controls.split(',').map(x => t.root + ' ' + x.trim()).join(','))].filter(shown)
+        .map(e => ({ what: (e.getAttribute('aria-label') || e.title || e.placeholder || e.innerText || e.className).toString().trim().slice(0, 22), w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height })).filter(x => x.w < 44 || x.h < 44);
+      const fonts = t.typing ? [...document.querySelectorAll(t.typing.split(',').map(x => t.root + ' ' + x.trim()).join(','))].filter(shown).map(e => parseFloat(getComputedStyle(e).fontSize)).filter(f => f < 16) : [];
+      return { W, sw: document.documentElement.scrollWidth, small: small.slice(0, 6), fonts };
+    }, t);
+    if (z.sw > z.W) failures.push(`${label}: ${t.name} scrolls sideways (${z.sw}px in ${z.W}px)`);
+    for (const x of z.small) failures.push(`${label}: ${t.name} "${x.what}" is ${Math.round(x.w)}x${Math.round(x.h)}px, under 44px`);
+    if (z.fonts.length) failures.push(`${label}: a ${t.name} typing box uses ${z.fonts[0]}px text, under 16px (iOS will zoom)`);
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `staff-${t.name.toLowerCase().replace(/\W+/g, '-')}-${w}-${th}.png`), fullPage: true });
+  }
   await ctx.close();
   return failures;
 }

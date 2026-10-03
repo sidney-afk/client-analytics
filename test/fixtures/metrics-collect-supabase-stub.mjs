@@ -1,5 +1,5 @@
 // In-memory stand-in for the parts of the Supabase client that
-// analytics-metrics-collect and analytics-top-videos-collect use. State lives in globalThis.__DB (tables as
+// analytics-metrics-collect, analytics-top-videos-collect and analytics-market-research-collect use. State lives in globalThis.__DB (tables as
 // arrays of rows); globalThis.__DB_FAIL.commit makes the commit RPC fail.
 const T = () => globalThis.__DB;
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -82,6 +82,24 @@ export function createClient() {
         sh.push({ slug: a.p_client_slug, run_date: a.p_run_date, rows: clone(a.p_rows), states: clone(a.p_states), run_id: a.p_run_id });
         const row = db.analytics_top_videos_collect_queue.find(r => r.run_date === a.p_run_date && r.client_slug === a.p_client_slug);
         Object.assign(row, { state: 'done', lease_until: null, outcome: clone(a.p_states) });
+        return { data: null, error: null };
+      }
+      if (name === 'analytics_market_research_collect_claim') {
+        const now = Date.now();
+        const q = (db.analytics_market_research_collect_queue = db.analytics_market_research_collect_queue || []);
+        for (const r of q) if (['pending', 'running'].includes(r.state) && r.attempts >= a.p_max_attempts) { r.state = 'failed'; r.last_error = 'attempts_exhausted'; }
+        const today = new Date().toISOString().slice(0, 10);
+        const startedToday = q.filter(r => r.started_at && r.started_at.slice(0, 10) === today).length;
+        const pool = q.filter(r => ['pending', 'running'].includes(r.state) && (!r.lease_until || Date.parse(r.lease_until) < now)
+          && (r.started_at || startedToday < a.p_max_new_per_day)).sort((x, y) => (x.started_at ? 0 : 1) - (y.started_at ? 0 : 1) || (x.created_at < y.created_at ? -1 : 1)).slice(0, 1);
+        for (const r of pool) { r.state = 'running'; r.attempts += 1; r.started_at = r.started_at || new Date(now).toISOString(); r.lease_until = new Date(now + a.p_lease_seconds * 1000).toISOString(); }
+        return { data: clone(pool), error: null };
+      }
+      if (name === 'analytics_market_research_collect_commit_shadow') {
+        if (globalThis.__DB_FAIL && globalThis.__DB_FAIL.commit) return { data: null, error: new Error('commit refused') };
+        (db.mr_shadow = db.mr_shadow || []).push({ queue_id: a.p_id, row: clone(a.p_row), outcome: clone(a.p_outcome), run_id: a.p_run_id });
+        const row = db.analytics_market_research_collect_queue.find(r => r.id === a.p_id);
+        Object.assign(row, { state: 'done', lease_until: null, outcome: clone(a.p_outcome), stages: { finished: true } });
         return { data: null, error: null };
       }
       return { data: null, error: new Error('unknown rpc ' + name) };

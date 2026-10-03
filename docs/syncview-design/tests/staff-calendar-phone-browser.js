@@ -161,7 +161,7 @@ async function run(browser, origin, [vp, w, hgt], th, surface) {
 async function runUpload(browser, origin, [vp, w, hgt], th) {
   const label = `upload ${vp} ${th}`; const failures = [];
   const ctx = await browser.newContext({ viewport: { width: w, height: hgt }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
-  await ctx.addInitScript(t => { try { if (t === 'dark') localStorage.setItem('syncview_theme', 'dark'); else localStorage.removeItem('syncview_theme'); sessionStorage.setItem('syncview_ttpilot_unlocked', 'ok'); } catch (e) {} }, th);
+  await ctx.addInitScript(t => { try { if (t === 'dark') localStorage.setItem('syncview_theme', 'dark'); else localStorage.removeItem('syncview_theme'); sessionStorage.setItem('syncview_ttpilot_unlocked', 'ok'); sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {} }, th);
   const page = await ctx.newPage();
   await seedStaffGate(page);
   await page.route('**/*', async route => {
@@ -225,19 +225,24 @@ async function runUpload(browser, origin, [vp, w, hgt], th) {
     { nav: 'navWorkload', name: 'Workload toolbar', root: '.workload-toolbar', controls: '.workload-nav button, .workload-pills button, .dropdown-trigger, .wl-client-search-input', typing: '.wl-client-search-input' },
     { nav: 'navTemplates', name: 'Templates start', root: '.tpl-index-centered', controls: '.search-bar-pill, .pin-add-btn', typing: '.search-bar-input' },
     { nav: 'navFilmingPlans', name: 'Filming Plans start', root: '.fp-view', controls: '.search-bar-pill, .fp-btn', typing: '.search-bar-input' },
+    { nav: 'navKasper', sub: 'replies', name: 'Kasper Messages', root: '.kasper-wrap', controls: '.kasper-subtab, .kasper-refresh-btn', oneRow: '.kasper-subtabs' },
+    { nav: 'navKasper', sub: 'filming', name: 'Kasper Filming', root: '.kasper-wrap', controls: '.kasper-subtab, .kasper-refresh-btn, .ked-info-btn', oneRow: '.kasper-subtabs' },
   ];
   for (const t of SIZED) {
     await page.evaluate(id => document.getElementById(id).click(), t.nav);
     const drewTab = await page.waitForSelector(t.root, { timeout: 15000 }).then(() => true, () => false);
     if (!drewTab) { failures.push(`${label}: the ${t.name} tab never drew`); continue; }
+    if (t.sub) { await page.evaluate(k => _kasperGotoTab(k), t.sub); }
     await page.waitForTimeout(700);
     const z = await page.evaluate(t => {
       const W = document.documentElement.clientWidth; const shown = e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
       const small = [...document.querySelectorAll(t.controls.split(',').map(x => t.root + ' ' + x.trim()).join(','))].filter(shown)
         .map(e => ({ what: (e.getAttribute('aria-label') || e.title || e.placeholder || e.innerText || e.className).toString().trim().slice(0, 22), w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height })).filter(x => x.w < 44 || x.h < 44);
       const fonts = t.typing ? [...document.querySelectorAll(t.typing.split(',').map(x => t.root + ' ' + x.trim()).join(','))].filter(shown).map(e => parseFloat(getComputedStyle(e).fontSize)).filter(f => f < 16) : [];
-      return { W, sw: document.documentElement.scrollWidth, small: small.slice(0, 6), fonts };
+      const row = t.oneRow ? [...new Set([...document.querySelectorAll(t.root + ' ' + t.oneRow + ' > *')].filter(shown).map(e => Math.round(e.getBoundingClientRect().top)))].length : 1;
+      return { W, sw: document.documentElement.scrollWidth, small: small.slice(0, 6), fonts, row };
     }, t);
+    if (z.row > 1) failures.push(`${label}: ${t.name} tab bar is stacked in ${z.row} rows instead of one`);
     if (z.sw > z.W) failures.push(`${label}: ${t.name} scrolls sideways (${z.sw}px in ${z.W}px)`);
     for (const x of z.small) failures.push(`${label}: ${t.name} "${x.what}" is ${Math.round(x.w)}x${Math.round(x.h)}px, under 44px`);
     if (z.fonts.length) failures.push(`${label}: a ${t.name} typing box uses ${z.fonts[0]}px text, under 16px (iOS will zoom)`);

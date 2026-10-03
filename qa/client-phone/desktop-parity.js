@@ -13,8 +13,9 @@ require('../../test/helpers/single-file-index.js'); // split switch on (plan ste
  *   Client pages: the canonical TEST client only, live READ-ONLY boot of
  *   analytics, calendar, brief and sample-reviews. Nothing is clicked.
  *
- * Both builds are served from the same origin by request interception, and
- * each pair is shot back to back so live data cannot drift between them.
+ * Both builds are served from the same origin by request interception. Each
+ * pair replays the same read responses in memory, including image failures,
+ * so changing data or a transient image fetch cannot become a layout diff.
  * Animations and transitions are frozen identically in both builds.
  *
  * Rendering noise, measured: with the SAME build on both sides
@@ -44,8 +45,27 @@ const ORIGIN = 'http://127.0.0.1:8765';
 const SETTLE_STAFF = 3500;
 const SETTLE_CLIENT = 12000;
 
+/* BOTH SIDES MUST BE THE SAME KIND OF PAGE. Since the load-per-tab split
+   (#1848) the committed index.html is a loader page whose code lives in js/.
+   This gate used to read BEFORE from git (the loader page, which adds its
+   script elements to the body) and AFTER through the single-file preload
+   above (no such elements), so the two element lists could never match and
+   the gate failed on a change that touched nothing (OPEN_REPAIRS 336). BEFORE
+   is now read as the single-file page too, built from the BEFORE ref's own
+   fragments: the same bytes that ref's index.html held before the switch. */
+const fromRef = rel => execFileSync('git', ['show', `${BEFORE_REF}:${rel}`], { cwd: ROOT, maxBuffer: 64 << 20 });
+function singleFileAt() {
+  const { readModuleList, servedBytes, stripWindowBlock } = require(path.join(ROOT, 'scripts', 'index-modules'));
+  const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'parity-before-'));
+  const names = fromRef('src/index/manifest.txt').toString('utf8').split(/\r?\n/).map(x => x.trim()).filter(x => x && !x.startsWith('#'));
+  for (const f of ['manifest.txt', 'modules.txt', 'areas.txt', 'split.json', ...names]) { try { fs.writeFileSync(path.join(tmp, f), fromRef('src/index/' + f)); } catch (e) {} }
+  const modules = readModuleList(tmp);
+  const out = Buffer.concat(names.map(e => { const b = servedBytes(e, fs.readFileSync(path.join(tmp, e)), modules); return modules.has(e) ? Buffer.from(stripWindowBlock(b.toString('utf8'))) : b; }));
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return out;
+}
 const builds = {
-  before: execFileSync('git', ['show', `${BEFORE_REF}:index.html`], { cwd: ROOT, maxBuffer: 64 << 20 }),
+  before: singleFileAt(),
   after: fs.readFileSync(path.join(ROOT, 'index.html')),
 };
 if (process.env.PARITY_CONTROL) builds.after = builds.before; // same build twice: measures harness noise
@@ -75,22 +95,31 @@ function offlineAnswer(route) {
 // to an exact, verified read-only Edge Function. Every other write, every
 // PostgREST RPC included, is refused locally and never reaches the backend.
 const LIVE_POST_READS = new Set(['/functions/v1/client-token-verify', '/functions/v1/thumbnail-revision-read']);
-async function liveRelay(route) {
+async function liveRelay(route, snapshot) {
   const q = route.request();
   const u = new URL(q.url());
   const readOnly = q.method() === 'GET' || q.method() === 'HEAD' || q.method() === 'OPTIONS'
     || (q.method() === 'POST' && u.hostname.endsWith('.supabase.co') && LIVE_POST_READS.has(u.pathname));
   if (!readOnly) return route.fulfill({ status: 403, headers: CORS, body: '{"error":"parity harness is read-only"}' });
-  try {
-    const h = { ...q.headers() }; delete h.host;
-    const r = await fetch(q.url(), { method: q.method(), headers: h, body: ['GET', 'HEAD'].includes(q.method()) ? undefined : q.postDataBuffer() });
-    const body = Buffer.from(await r.arrayBuffer());
-    const headers = {}; r.headers.forEach((v, k) => { if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(k)) headers[k] = v; });
-    await route.fulfill({ status: r.status, headers, body });
-  } catch (e) { await route.abort().catch(() => {}); }
+  // The write refusal above always runs, even if a response is cached. Keys
+  // and replies can contain private inputs: never serialize or log this map.
+  const key = q.method() + ' ' + q.url() + ' ' + (q.headers().range || '') + ' ' + (q.postData() || '');
+  const read = async () => {
+    try {
+      const h = { ...q.headers() }; delete h.host;
+      const r = await fetch(q.url(), { method: q.method(), headers: h, body: ['GET', 'HEAD'].includes(q.method()) ? undefined : q.postDataBuffer() });
+      const body = Buffer.from(await r.arrayBuffer());
+      const headers = {}; r.headers.forEach((v, k) => { if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(k)) headers[k] = v; });
+      return { status: r.status, headers, body };
+    } catch (e) { return null; }
+  };
+  if (!snapshot.has(key)) snapshot.set(key, read());
+  const reply = await snapshot.get(key);
+  if (reply) await route.fulfill(reply);
+  else await route.abort().catch(() => {});
 }
 
-async function shoot(browser, build, width, url, mode, clickId, view, token) {
+async function shoot(browser, build, width, url, mode, clickId, view, token, snapshot) {
   const ctx = await browser.newContext({ viewport: { width, height: HEIGHT }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   await ctx.route(u => u.toString().startsWith(ORIGIN), r => serveLocal(r, build));
   if (mode === 'staff') {
@@ -98,7 +127,7 @@ async function shoot(browser, build, width, url, mode, clickId, view, token) {
     await seedStaffGate(ctx);
     await ctx.addInitScript(() => { try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); sessionStorage.setItem('syncview_ttpilot_unlocked', 'ok'); } catch (e) {} });
   } else {
-    await ctx.route(u => !u.toString().startsWith(ORIGIN), liveRelay);
+    await ctx.route(u => !u.toString().startsWith(ORIGIN), r => liveRelay(r, snapshot));
   }
   await ctx.addInitScript(css => { document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s); }); }, FREEZE);
   const page = await ctx.newPage();
@@ -167,10 +196,11 @@ async function staffTabs(browser) {
     for (const w of WIDTHS) {
       let a, b, same = false;
       let attempts = 0;
+      const snapshot = new Map(); // one pair only; released after this width
       for (let attempt = 0; attempt < 4 && !same; attempt++) {
         attempts++;
-        a = await shoot(browser, 'before', w, pg.url, pg.mode, pg.clickId, pg.view, pg.token);
-        b = await shoot(browser, 'after', w, pg.url, pg.mode, pg.clickId, pg.view, pg.token);
+        a = await shoot(browser, 'before', w, pg.url, pg.mode, pg.clickId, pg.view, pg.token, snapshot);
+        b = await shoot(browser, 'after', w, pg.url, pg.mode, pg.clickId, pg.view, pg.token, snapshot);
         same = a.png.equals(b.png) && a.styleHash === b.styleHash;
       }
       if (OUT) {

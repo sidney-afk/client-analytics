@@ -27,6 +27,7 @@ import {
 import { _calMarkLocalStatus, _calV2Log } from './150-calendar-hydration-import.js';
 import {
   _calClientCompPillsHtml, _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo,
+  _calPhoneClient, _calPhoneFoldHtml,
   _calFolderOpenUrl, _calFrameOpenUrl, _calIsFolderLink, _calIsFrameLink, _calMiniLinkBadgeHtml,
   _calRenderBody, _calReviewFrameHtml, _calStatusLabel, _calThumbIconSvg, _calThumbImgTag,
   _kcardReuseThumbInto, _thumbCompareSlotHtml
@@ -313,8 +314,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
                     ${_thumbCompareSlotHtml('calendar', p, true, 'review')}
-                    <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
-                    <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                    <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg>${_calPhoneClient() ? '<span>Open in Sheet</span>' : ''}</button>
+                    <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"${_calPhoneClient() ? ` aria-expanded="${expanded}"` : ''}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>${_calPhoneClient() ? `<span>${expanded ? 'Close' : 'Review'}</span>` : ''}</button>
                 </div>
             </div>
             ${body}
@@ -335,7 +336,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
         }
-        const panels = activeComps.map(comp => _calReviewPanelHtml(p, comp)).join('');
+        const panels = activeComps.map((comp, i) => {
+            const html = _calReviewPanelHtml(p, comp);
+            if (!_calPhoneClient()) return html;
+            const key = p.id + '|' + comp;
+            const status = _calReviewState.saving[key] ? 'Sending…'
+                : _calReviewState.errors[key] ? 'Save failed · retry inside'
+                : _calReviewState.drafts[key] ? 'Note not sent'
+                : _calNormStatus(p[comp + '_status']) === 'Client Approval' ? 'Awaiting your approval'
+                : _calNormStatus(p[comp + '_status']);
+            return _calPhoneFoldHtml('review:' + p.id, comp, COMP_LABELS[comp], status, html, i === 0);
+        }).join('');
         const cols = activeComps.length;
         // 4 components (a YouTube card with title review on) lay out 2×2 instead
         // of a cramped 4-wide row; 1–3 keep their natural column count.
@@ -576,7 +587,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     function _calReviewToggleCard(pid) {
         if (_calReviewState.expanded.has(pid)) _calReviewState.expanded.delete(pid);
-        else _calReviewState.expanded.add(pid);
+        else {
+            if (_calPhoneClient()) {
+                const prior = Array.from(_calReviewState.expanded);
+                _calReviewState.expanded.clear();
+                prior.forEach(id => _calReviewRepaintCard(id));
+            }
+            _calReviewState.expanded.add(pid);
+        }
         _calReviewRepaintCard(pid);
     }
 
@@ -640,6 +658,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _calReviewState.drafts[key] = ta.value;
         delete _calReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
+        const phoneSummary = ta.closest('.pocket-cal-fold')?.querySelector('.pocket-cal-fold-status');
+        if (phoneSummary) phoneSummary.textContent = _calReviewState.saving[key] ? 'Sending…' : _calReviewState.errors[key] ? 'Save failed · retry inside' : nowHasDraft ? 'Note not sent' : 'Awaiting your approval';
         // Don't repaint on every keystroke — just toggle the two action
         // buttons in place. Approve is gated off while a draft is in
         // flight (it's visible but unclickable), Request tweaks lights

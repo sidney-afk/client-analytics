@@ -1,0 +1,22 @@
+[
+  {
+    "width": 1024,
+    "identical": true,
+    "sha256": "c24bc837d3ad2130a1b582612997f37c2f6f27f1435d7fd2f982cb3121e9edf5"
+  },
+  {
+    "width": 1280,
+    "identical": true,
+    "sha256": "41db5959cf5663115869ca6c762e2d55f67df20a328090328df618199753c123"
+  },
+  {
+    "width": 1440,
+    "identical": true,
+    "sha256": "2740b18921a40f1de6d221fab1a9a94a8963d41af71deaefc1ebae3972d534f8"
+  },
+  {
+    "width": 1920,
+    "identical": true,
+    "sha256": "bcdb6892e87663e3783e00806c9d4b531fae83604353819ed3cd7528da33c083"
+  }
+]

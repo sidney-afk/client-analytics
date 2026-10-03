@@ -1,0 +1,19 @@
+{
+  "candidate": true,
+  "testOnly": true,
+  "width": 390,
+  "approve": {
+    "exists": true,
+    "approved": true,
+    "stamped": true
+  },
+  "requestChanges": {
+    "exists": true,
+    "changes": true,
+    "note": true
+  },
+  "cleanup": {
+    "http": 200,
+    "archived": true
+  }
+}

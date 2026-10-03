@@ -1,0 +1,361 @@
+{
+  "status": "staff_pass_client_repeat_pending",
+  "beforeRef": "6273485e25dabe3aaca61459500c6707d91234e3",
+  "rows": [
+    {
+      "page": "staff-tab-01",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "f2430429b6a1",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-02",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "c24bc837d3ad",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-03",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "0090c094baf7",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-04",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "08dd5da79092",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-05",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "2c13f229b28e",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-06",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "d0b2181d39d3",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-07",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "f2430429b6a1",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-08",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "24d8f57c6351",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-09",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "68aecaafb5d5",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-10",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "65e99d69feb2",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-11",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "ca762fc8a576",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-01",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "456cb4cc0a25",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-02",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "41db5959cf56",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-03",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "77ab3e402be0",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-04",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "a802498da2ae",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-05",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "89301be37a63",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-06",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "a9e3f35d2d1b",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-07",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "456cb4cc0a25",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-08",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "8e1b8a149f14",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-09",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "9d58adb9cf69",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-10",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "998032b37f33",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-11",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "fa2a4b7c87d6",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-01",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "4512f2058946",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-02",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "2740b18921a4",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-03",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "37e81180f578",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-04",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "2076657a5ad8",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-05",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "aebfdd6e67fb",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-06",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "c7ad056f886a",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-07",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "4512f2058946",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-08",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "200aeda246a1",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-09",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "ba027fc42813",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-10",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "2a3a2b965395",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-11",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "a2f331371d82",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-01",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "a37a63080053",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-02",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "bcdb6892e876",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-03",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "1ca68ce4949d",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-04",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "35a20f2d3f0a",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-05",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "86ed4bdd89e3",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-06",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "21b612d2e7ca",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-07",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "a37a63080053",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-08",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "d9f8ac663468",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-09",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "b72c638ea00d",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-10",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "024d2565235f",
+      "attempts": 1
+    },
+    {
+      "page": "staff-tab-11",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "9244b1ede574",
+      "attempts": 1
+    }
+  ],
+  "pending": [
+    "Final live-read client comparisons at all four desktop widths"
+  ]
+}

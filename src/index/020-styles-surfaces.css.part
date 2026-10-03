@@ -4983,7 +4983,7 @@
             html:not(.boot-client) .client-view .read-more-btn { min-height: 32px; }
             html:not(.boot-client) .client-view .platform-handle-link { padding: 12px 0; }
             /* Staff-only controls. */
-            html:not(.boot-client) .client-view .back-btn, html:not(.boot-client) .client-view .share-btn, html:not(.boot-client) .client-view .cs-regen-btn { min-height: 44px; }
+            html:not(.boot-client) #pageTop .back-btn, html:not(.boot-client) .client-view .share-btn, html:not(.boot-client) .client-view .cs-regen-btn { min-height: 44px; }
             html:not(.boot-client) .client-view .view-tab-toggle { display: flex; width: 100%; box-sizing: border-box; }
             html:not(.boot-client) .client-view .view-tab-btn { flex: 1 1 auto; justify-content: center; min-height: 44px; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
             html:not(.boot-client) .client-view .detail-info-btn { width: 32px; height: 32px; }

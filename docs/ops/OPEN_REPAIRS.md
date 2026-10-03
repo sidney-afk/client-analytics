@@ -30496,3 +30496,16 @@ Not done here, and still the owner's call: the mock-up's replacement of this bar
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` now checks the bar's buttons on every view it opens (44 px at 360, 390 and 430, dark and light). Pictures: `docs/mockups/phone-polish/07-staff-top-bar/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 341. [2026-10-03, BUILT] Phone polish, screen 8: the staff Analytics overview (session Polish)
+
+Eighth slice of owner direction D2, stacked on entry 340. Phones only: a fifth STAFF-PHONE block in `src/index/020-styles-surfaces.css.part`, every selector under `html:not(.boot-client) .overview-wrap` or `html:not(.boot-client) #pageTop`. Styles only.
+
+What was wrong on a phone: the overview table is 1050 px wide and sat straight in the page, so the whole page (the top bar included) was 1064 px wide on a 390 px phone and slid sideways. The Day / Week switch was 20 px tall, the table / cards switch 34 by 30 px, Pin client 24 px, and the search box was a fixed 440 px with text small enough to make an iPhone zoom in.
+
+What changed: the table scrolls inside its own box with the client name pinned at the left; the page itself no longer moves. Day / Week, table / cards and Pin client are 44 px; the search is full width with 16 px text.
+
+Not seen with real rows: the offline page has no clients, so the pictures show the heading row only. The table itself is unchanged (same columns and widths), only what scrolls. Worth one look on a real phone after merge.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the overview at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/08-staff-analytics/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

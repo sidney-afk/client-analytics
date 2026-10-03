@@ -1,6 +1,6 @@
 'use strict';
-/* staff-calendar-phone-browser.js -- the staff Calendar and Samples tabs on a
- * phone, fully offline (OPEN_REPAIRS 337 and 338).
+/* staff-calendar-phone-browser.js -- the staff Calendar, Samples and Upload
+ * tabs on a phone, fully offline (OPEN_REPAIRS 337, 338 and 339).
  *
  * Drives the real index.html in a real browser at phone sizes, in dark and in
  * light, against a made-up client whose every backend answer is local, and
@@ -151,6 +151,49 @@ async function run(browser, origin, [vp, w, hgt], th, surface) {
   return failures;
 }
 
+// The Upload tab (TikTok and Instagram), OPEN_REPAIRS 339: the title is not
+// squeezed beside the platform switch, the switch and Post now are thumb-sized,
+// typing boxes use 16px text, and the page never scrolls sideways.
+async function runUpload(browser, origin, [vp, w, hgt], th) {
+  const label = `upload ${vp} ${th}`; const failures = [];
+  const ctx = await browser.newContext({ viewport: { width: w, height: hgt }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  await ctx.addInitScript(t => { try { if (t === 'dark') localStorage.setItem('syncview_theme', 'dark'); else localStorage.removeItem('syncview_theme'); sessionStorage.setItem('syncview_ttpilot_unlocked', 'ok'); } catch (e) {} }, th);
+  const page = await ctx.newPage();
+  await seedStaffGate(page);
+  await page.route('**/*', async route => {
+    const r = route.request(); const u = new URL(r.url());
+    if (r.url().startsWith(origin)) return route.continue();
+    if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+    const json = body => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
+    if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role: 'admin', member: { id: 'm1', name: 'Fixture Staff', role: 'admin', team: null } });
+    if (/\/rest\/v1\//.test(u.pathname)) return json([]);
+    if (/\/functions\/v1\/|\/webhook\//.test(u.pathname)) return json({});
+    if (/docs\.google\.com/.test(u.host)) return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body: '' });
+    return route.abort();
+  });
+  await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof navTo === 'function' && typeof _syncviewStaffCan === 'function', null, { timeout: 30000 });
+  await page.evaluate(() => { _syncviewStaffIdentityVerified = true; navTo('tiktok-upload'); });
+  const drew = await page.waitForSelector('.tk-page .tk-title', { timeout: 20000 }).then(() => true, () => false);
+  if (!drew) { await ctx.close(); return [`${label}: the Upload tab never drew`]; }
+  await page.waitForTimeout(800);
+  const m = await page.evaluate(() => {
+    const W = document.documentElement.clientWidth; const box = s => { const e = document.querySelector(s); return e ? e.getBoundingClientRect() : null; };
+    const small = [...document.querySelectorAll('.tk-page .tk-q-tab, .tk-page .tk-submit-btn, .tk-page .tk-seg .tk-radio, .tk-page .tk-opts-more')].filter(e => e.getClientRects().length)
+      .map(e => ({ what: e.innerText.trim().slice(0, 20), h: e.getBoundingClientRect().height })).filter(x => x.h < 44);
+    const fonts = [...document.querySelectorAll('.tk-page input[type="text"], .tk-page input[type="search"], .tk-page textarea')].filter(e => e.getClientRects().length).map(e => parseFloat(getComputedStyle(e).fontSize)).filter(f => f < 16);
+    return { W, sw: document.documentElement.scrollWidth, title: box('.tk-page .tk-title').width, sw2: box('.tk-page .tk-platform-switch').width, page: box('.tk-page').width, small, fonts };
+  });
+  if (m.sw > m.W) failures.push(`${label}: the page scrolls sideways`);
+  if (m.title < m.page * 0.6) failures.push(`${label}: the title is squeezed to ${Math.round(m.title)}px beside the platform switch`);
+  if (m.sw2 < m.page * 0.8) failures.push(`${label}: the platform switch is not full width (${Math.round(m.sw2)}px)`);
+  for (const x of m.small) failures.push(`${label}: "${x.what}" is ${Math.round(x.h)}px tall, under 44px`);
+  if (m.fonts.length) failures.push(`${label}: a typing box uses ${m.fonts[0]}px text, under 16px (iOS will zoom)`);
+  if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `staff-upload-${w}-${th}.png`), fullPage: true }); }
+  await ctx.close();
+  return failures;
+}
+
 (async () => {
   const server = await serve(); const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch(); let bad = 0;
@@ -161,7 +204,14 @@ async function run(browser, origin, [vp, w, hgt], th, surface) {
     for (const x of f) console.log('       ' + x);
     bad += f.length;
   }
+  for (const vp of VIEWPORTS) for (const th of ['dark', 'light']) {
+    let f;
+    try { f = await runUpload(browser, origin, vp, th); } catch (e) { f = [`upload ${vp[0]} ${th}: ${String(e.message || e).split('\n')[0]}`]; }
+    console.log((f.length ? 'FAIL ' : 'ok   ') + `staff upload ${vp[0]} ${vp[1]}x${vp[2]} ${th}`);
+    for (const x of f) console.log('       ' + x);
+    bad += f.length;
+  }
   await browser.close(); server.close();
   if (bad) { console.log(`\nstaff-calendar-phone: FAILED (${bad} problem(s))`); process.exit(1); }
-  console.log('\nstaff-calendar-phone: OK (Calendar and Samples at 3 phone sizes, dark and light)');
+  console.log('\nstaff-calendar-phone: OK (Calendar, Samples and Upload at 3 phone sizes, dark and light)');
 })();

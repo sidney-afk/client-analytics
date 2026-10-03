@@ -9322,6 +9322,38 @@
             html:not(.boot-client) #sxrView .sxr-cd-input { padding: 12px; border-radius: 12px; font-size: 16px; line-height: 1.45; }
         }
         /* STAFF-PHONE:END */
+        /* Staff Upload tab (TikTok and Instagram): same contract, under
+           html:not(.boot-client) .tk-page (OPEN_REPAIRS 339). */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* 16px gutters; room at the bottom for the Post now bar. */
+            html:not(.boot-client) .tk-page { padding: 16px 16px calc(40px + env(safe-area-inset-bottom)); gap: 18px; }
+            /* The title sat beside the 220px platform switch and wrapped one
+               word per line. Title first, the switch full width under it. */
+            html:not(.boot-client) .tk-page .tk-header { flex-direction: column; align-items: stretch; gap: 14px; }
+            html:not(.boot-client) .tk-page .tk-title { font-size: 1.5rem; }
+            html:not(.boot-client) .tk-page .tk-sub { font-size: 0.9rem; line-height: 1.45; }
+            html:not(.boot-client) .tk-page .tk-platform-switch { width: 100%; }
+            html:not(.boot-client) .tk-page .tk-q-tab, html:not(.boot-client) .tk-page .tk-q-btn { min-height: 44px; }
+            html:not(.boot-client) .tk-page .tk-q-x { width: 44px; }
+            html:not(.boot-client) .tk-page #tkFormCol > .tk-card, html:not(.boot-client) .tk-page #igFormCol > .tk-card { padding-left: 36px; }
+            /* Step headings whose right-hand control squeezed the summary
+               into a narrow column: let the control drop under it. */
+            html:not(.boot-client) .tk-page .tk-opts-head, html:not(.boot-client) .tk-page .tk-sched-head { flex-wrap: wrap; row-gap: 8px; }
+            html:not(.boot-client) .tk-page .tk-opts-more { min-height: 44px; }
+            html:not(.boot-client) .tk-page .tk-step-note { font-size: 0.86rem; line-height: 1.45; }
+            html:not(.boot-client) .tk-page .tk-card h3 { color: var(--text-secondary); }
+            html:not(.boot-client) .tk-page .tk-row label { font-size: 0.8rem; }
+            html:not(.boot-client) .tk-page .tk-row .tk-help { font-size: 0.78rem; color: var(--text-secondary); }
+            /* 16px text in every typing box, so an iPhone does not zoom in. */
+            html:not(.boot-client) .tk-page input[type="text"], html:not(.boot-client) .tk-page input[type="search"], html:not(.boot-client) .tk-page input[type="url"], html:not(.boot-client) .tk-page textarea, html:not(.boot-client) .tk-page .tk-select { font-size: 16px; }
+            html:not(.boot-client) .tk-page input[type="text"], html:not(.boot-client) .tk-page input[type="search"], html:not(.boot-client) .tk-page input[type="url"], html:not(.boot-client) .tk-page .tk-select { min-height: 44px; }
+            html:not(.boot-client) .tk-page .tk-seg .tk-radio { min-height: 44px; }
+            html:not(.boot-client) .tk-page .tk-ampm-btn { min-height: 40px; padding: 0 14px; }
+            html:not(.boot-client) .tk-page .tk-submit-bar { padding: 12px 14px; gap: 12px; border-radius: 16px; }
+            html:not(.boot-client) .tk-page .tk-submit-btn { min-height: 48px; padding: 0 24px; border-radius: 12px; font-size: 0.95rem; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

@@ -44,8 +44,27 @@ const ORIGIN = 'http://127.0.0.1:8765';
 const SETTLE_STAFF = 3500;
 const SETTLE_CLIENT = 12000;
 
+/* BOTH SIDES MUST BE THE SAME KIND OF PAGE. Since the load-per-tab split
+   (#1848) the committed index.html is a loader page whose code lives in js/.
+   This gate used to read BEFORE from git (the loader page, which adds its
+   script elements to the body) and AFTER through the single-file preload
+   above (no such elements), so the two element lists could never match and
+   the gate failed on a change that touched nothing (OPEN_REPAIRS 334). BEFORE
+   is now read as the single-file page too, built from the BEFORE ref's own
+   fragments: the same bytes that ref's index.html held before the switch. */
+const fromRef = rel => execFileSync('git', ['show', `${BEFORE_REF}:${rel}`], { cwd: ROOT, maxBuffer: 64 << 20 });
+function singleFileAt() {
+  const { readModuleList, servedBytes, stripWindowBlock } = require(path.join(ROOT, 'scripts', 'index-modules'));
+  const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'parity-before-'));
+  const names = fromRef('src/index/manifest.txt').toString('utf8').split(/\r?\n/).map(x => x.trim()).filter(x => x && !x.startsWith('#'));
+  for (const f of ['manifest.txt', 'modules.txt', 'areas.txt', 'split.json', ...names]) { try { fs.writeFileSync(path.join(tmp, f), fromRef('src/index/' + f)); } catch (e) {} }
+  const modules = readModuleList(tmp);
+  const out = Buffer.concat(names.map(e => { const b = servedBytes(e, fs.readFileSync(path.join(tmp, e)), modules); return modules.has(e) ? Buffer.from(stripWindowBlock(b.toString('utf8'))) : b; }));
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return out;
+}
 const builds = {
-  before: execFileSync('git', ['show', `${BEFORE_REF}:index.html`], { cwd: ROOT, maxBuffer: 64 << 20 }),
+  before: singleFileAt(),
   after: fs.readFileSync(path.join(ROOT, 'index.html')),
 };
 if (process.env.PARITY_CONTROL) builds.after = builds.before; // same build twice: measures harness noise

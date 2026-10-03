@@ -52,6 +52,9 @@ here with where it stopped, so it can be restarted.
   diffs). On a phone each tab may look and behave differently from desktop; the bar is a first-class app (the owner
   named Wise as the reference): speed, button placement, one-hand use. Delivered in slices, one PR per tab, Lighthouse
   merges, test client only for live proof. Starts after Beacon's checklist panel (#1941) is on main.
+  **Started 2026-10-02 (session Polish, Claude with the app's own browser):** screen 1, the client Calendar review
+  link, is built and waiting for Lighthouse (OPEN_REPAIRS 334). Next in order: client Sheet / Month / Week, client
+  Samples, client Analytics, staff Calendar, the other staff tabs, Kasper.
 - **D3. Calendar status filters (owner request, 2026-10-02, after the phone work).** The Calendar gets filters on
   the overall card status, including EXCLUDE (for example hide every approved post). "Overall status" means the
   card's existing computed overall status (the roll-up of video, graphic and caption that the card already shows;

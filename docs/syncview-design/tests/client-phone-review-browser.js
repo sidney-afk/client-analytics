@@ -104,6 +104,29 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   const drew = await page.waitForSelector(card, { timeout: CAP_MS }).then(() => true, () => false);
   if (!drew) { await ctx.close(); return [`${label}: review card never drew`]; }
   await page.waitForTimeout(600);
+  // Polish pass (OPEN_REPAIRS 334), Calendar link: the collapsed card states its
+  // one action in words, the waiting pieces are not repeated as loud pills, and
+  // the toolbar carries no empty band under the view switcher.
+  if (surfaceName === 'calendar') {
+    const h = await page.evaluate(sel => {
+      const c = document.querySelector(sel);
+      const shown = e => !!(e && e.getClientRects().length);
+      const right = document.querySelector('.cal-tab-view .cal-toolbar-right');
+      const tb = document.querySelector('.cal-tab-view .cal-toolbar').getBoundingClientRect();
+      const toggle = document.querySelector('.cal-tab-view .cal-view-toggle').getBoundingClientRect();
+      return {
+        review: getComputedStyle(c.querySelector('.kcard-expand-btn'), '::before').content,
+        sheet: getComputedStyle(c.querySelector('.kcard-open-sheet'), '::after').content,
+        loudPills: [...c.querySelectorAll('.cal-review-sub-pill.cal-fld-status-client-approval')].filter(shown).length,
+        rightBox: right ? getComputedStyle(right).display : '',
+        bandUnderToggle: Math.round(tb.bottom - toggle.bottom),
+      };
+    }, card);
+    if (!/Review/.test(h.review)) failures.push(`${label}: the collapsed card's open button does not say Review (${h.review})`);
+    if (!/Open in Sheet/.test(h.sheet)) failures.push(`${label}: the Sheet button has no visible label (${h.sheet})`);
+    if (h.loudPills) failures.push(`${label}: ${h.loudPills} "ready for your review" pill(s) still shown beside the sentence that already says it`);
+    if (h.rightBox !== 'contents' || h.bandUnderToggle > 24) failures.push(`${label}: blank band under the view switcher (${h.bandUnderToggle}px, toolbar-right is ${h.rightBox})`);
+  }
   await page.tap(`${card} .kcard-expand-btn`);
   await page.waitForSelector(`${card} .cal-review-body`, { timeout: 5000 }).catch(() => failures.push(`${label}: card did not open`));
   await page.waitForTimeout(400);

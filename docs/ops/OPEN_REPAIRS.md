@@ -30465,3 +30465,12 @@ Not in this entry: the page header. The mock-up replaces the header with a title
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` (new, offline, made-up client, added to the browser job) opens Sheet, Review, Month and Week at 360, 390 and 430 wide in dark and light: no sideways scroll, stacked cards, one-column review, 44 px toolbar and fields, 16 px text. It reports 270 problems on main and none here. Pictures (made-up data): `docs/mockups/phone-polish/04-staff-calendar/`. Not looked at with real staff data: the local build has no staff sign-in, and this session does not handle the owner's key. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 338. [2026-10-02, BUILT] Phone polish, screen 5: the staff Samples tab (session Polish)
+
+Fifth slice of owner direction D2, stacked on entry 337. Phones only and the staff Samples tab only: a second STAFF-PHONE block in `src/index/020-styles-surfaces.css.part` whose every selector starts with `html:not(.boot-client) #sxrView`; `test/staff-phone-css-scope.js` now accepts that root beside the Calendar's. Styles only.
+
+The staff Samples tab had the staff Calendar's faults on a phone: an opened review card kept two squeezed columns with small, crowded buttons, the Sheet was a sideways strip of desktop columns, and toolbar buttons and fields were 30 to 34 px. It now uses the same layout as entry 337, in dark and in light: one-column review cards with full-width Approve, note box, Comment and Request change, a Sheet that is a feed of full-width cards, Notes as a full-screen sheet, 44 px controls, 16 px typing text.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` now runs on both tabs at 360, 390 and 430 wide in dark and light (132 Samples problems on main, none here). Pictures (made-up data): `docs/mockups/phone-polish/05-staff-samples/`. Not looked at with real staff data, for the reason given in entry 337. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

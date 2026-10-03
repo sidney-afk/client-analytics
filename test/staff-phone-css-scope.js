@@ -10,9 +10,10 @@
  * in index.html must
  *   1. sit inside @media (max-width: N px) with N <= 767, and
  *   2. have EVERY selector in its list start with
- *      `html:not(.boot-client) #calView`: the staff Calendar tab is the only
- *      screen that renders #calView, and client links are excluded because
- *      they have their own block.
+ *      `html:not(.boot-client) #calView` or `html:not(.boot-client) #sxrView`:
+ *      the staff Calendar and Samples tabs are the only screens that render
+ *      those roots, and client links are excluded because they have their own
+ *      blocks.
  * The checker is also exercised against known-bad input so a broken parser
  * cannot pass silently.
  */
@@ -62,7 +63,7 @@ function mediaIsPhoneOnly(prelude, alreadyCapped = false) {
 
 function selectorsScoped(prelude) {
   return prelude.split(',').map(s => s.trim()).every(s =>
-    /^html:not\(\.boot-client\) #calView(?=[\s.:\[>~+])/.test(s));
+    /^html:not\(\.boot-client\) #(?:calView|sxrView)(?=[\s.:\[>~+])/.test(s));
 }
 
 // Returns a list of problems for one marked block.
@@ -77,7 +78,7 @@ function checkBlock(css, underPhoneMedia = false) {
       continue;
     }
     if (!underPhoneMedia) { problems.push(`rule not inside a phone-only @media: ${it.prelude.slice(0, 60)}`); continue; }
-    if (!selectorsScoped(it.prelude)) problems.push(`selector not scoped to the staff Calendar: ${it.prelude.slice(0, 80)}`);
+    if (!selectorsScoped(it.prelude)) problems.push(`selector not scoped to the staff Calendar or Samples tab: ${it.prelude.slice(0, 80)}`);
   }
   return problems;
 }
@@ -122,4 +123,4 @@ for (const b of found) {
   assert.deepStrictEqual(problems, [], 'staff-phone CSS could reach desktop or another screen:\n  ' + problems.join('\n  '));
   rules += (stripComments(b).match(/\{/g) || []).length;
 }
-console.log(`staff-phone-css-scope: OK (${found.length} block(s), ${rules} braces, all under @media (max-width: <=${MAX}px) and html:not(.boot-client) #calView)`);
+console.log(`staff-phone-css-scope: OK (${found.length} block(s), ${rules} braces, all under @media (max-width: <=${MAX}px) and html:not(.boot-client) #calView / #sxrView)`);

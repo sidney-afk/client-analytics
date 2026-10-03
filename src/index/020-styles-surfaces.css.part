@@ -4193,6 +4193,96 @@
             html.boot-client .cal-tab-view .cal-week-stack { padding: 0; gap: 8px; min-width: 0; justify-content: center; }
             html.boot-client .cal-tab-view .cal-week-stack:not(:has(*))::after { content: "Nothing scheduled"; font-size: 0.84rem; color: var(--text-muted); padding: 12px 0; }
             html.boot-client .cal-tab-view .cal-week-card { width: 100%; }
+
+            /* POLISH PASS, screen 2 (OPEN_REPAIRS 335): the Sheet becomes a
+               feed, and Month and Week get readable labels and whole rows.
+
+               Toolbar on the Sheet: the view switcher keeps the full width and
+               Organize drops to a tools line of its own under it. Side by side
+               they pushed the page 15px wider than the phone and cut "Week". */
+            html.boot-client .cal-tab-view .cal-toolbar-mid { flex-wrap: wrap; gap: 10px; }
+            html.boot-client .cal-tab-view .cal-toolbar-mid > .cal-view-toggle { order: -1; flex: 1 1 100%; }
+            html.boot-client .cal-tab-view .cal-toolbar-mid > .cal-month-filter .dropdown-trigger { min-height: 44px; padding: 0 16px; font-size: 0.86rem; -webkit-tap-highlight-color: transparent; }
+            html.boot-client .cal-tab-view .cal-organize .dropdown-menu { min-width: 0; width: min(320px, calc(100vw - 60px)); }
+            html.boot-client .cal-tab-view .cal-organize .dropdown-item { min-height: 44px; font-size: 0.88rem; }
+
+            /* Sheet: one full-width card under another. The desktop strip
+               scrolls sideways through 320px columns, which on a phone showed
+               one card and a sliver of the next. The drag grip is hidden: a
+               finger cannot start that drag. */
+            html.boot-client .cal-tab-view .cal-organizer-wrap { padding: 0; }
+            html.boot-client .cal-tab-view .cal-organizer-strip { flex-direction: column; align-items: stretch; gap: 12px; padding: 0 0 8px; min-height: 0; overflow-x: visible; }
+            html.boot-client .cal-tab-view .cal-organizer-strip > .cal-card { flex: 0 0 auto; width: 100%; box-sizing: border-box; border-radius: 16px; }
+            html.boot-client .cal-tab-view .cal-card-grip { display: none; }
+            html.boot-client .cal-tab-view .cal-card-thumb:has(> .cal-card-thumb-fallback) { height: 88px; }
+            html.boot-client .cal-tab-view .cal-card-body { padding: 14px 16px 16px; gap: 10px; }
+            html.boot-client .cal-tab-view .cal-fld-name { font-size: 1.08rem; padding: 4px 2px; }
+            html.boot-client .cal-tab-view .cal-date-chip { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 0.9rem; gap: 8px; }
+            html.boot-client .cal-tab-view .cal-date-chip.is-empty,
+            html.boot-client .cal-tab-view .cal-link-field.cal-link-empty .cal-link-label { color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-link-pill-open { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 0.9rem; gap: 8px; }
+            html.boot-client .cal-tab-view .cal-link-field.has-link .cal-link-pill-open { border-radius: 12px 0 0 12px; }
+            html.boot-client .cal-tab-view .cal-link-folder,
+            html.boot-client .cal-tab-view .cal-link-edit { width: 44px; }
+            html.boot-client .cal-tab-view .cal-link-input { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 16px; }
+            html.boot-client .cal-tab-view .cal-fld-cap { padding: 12px; border-radius: 12px; font-size: 16px; line-height: 1.5; }
+            html.boot-client .cal-tab-view .cal-fld-cta { min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 16px; }
+            html.boot-client .cal-tab-view .cal-cap-toggle { height: 32px; padding: 0 12px; right: 8px; bottom: 8px; font-size: 0.78rem; }
+            /* The script hides "Show more" on a caption with nothing more to
+               show, but the button's own display rule kept it on screen. */
+            html.boot-client .cal-tab-view .cal-cap-toggle[hidden] { display: none; }
+            html.boot-client .cal-tab-view .cal-comments-btn { min-height: 44px; padding: 0 10px 0 4px; font-size: 0.9rem; gap: 8px; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-comments-btn svg { width: 16px; height: 16px; }
+            html.boot-client .cal-tab-view .cal-card-status-row { margin-top: 2px; }
+
+            html.boot-client .cal-tab-view .cal-link-field.cal-link-ro .cal-link-pill-open { border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-org-sec,
+            html.boot-client .cal-tab-view .cal-month-filter-tag { color: var(--text-secondary); }
+
+            /* Notes, opened from a Sheet card: a true full-screen sheet. The
+               dimmed backdrop kept a 20px margin on each side and the buttons
+               inside were 25 to 32px tall. */
+            html.boot-client .cal-tab-view .cal-comments-overlay { padding: 0; }
+            html.boot-client .cal-tab-view .cal-comments-modal { width: 100%; max-width: none; box-shadow: none; }
+            html.boot-client .cal-tab-view .cal-comments-head { padding: max(12px, env(safe-area-inset-top)) 12px 12px 16px; gap: 8px; }
+            html.boot-client .cal-tab-view .cal-comments-head-text h3 { font-size: 1.1rem; }
+            html.boot-client .cal-tab-view .cal-comments-head-text p { font-size: 0.84rem; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-comments-hist { height: 44px; min-width: 52px; justify-content: center; padding: 0 12px; gap: 6px; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-comments-hist svg { width: 16px; height: 16px; }
+            html.boot-client .cal-tab-view .cal-comments-hist-count { font-size: 0.8rem; }
+            html.boot-client .cal-tab-view .cal-comments-close { width: 44px; height: 44px; font-size: 1.5rem; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-cm-row { padding: 10px 16px; }
+            html.boot-client .cal-tab-view .cal-cm-row-body { font-size: 1rem; }
+            html.boot-client .cal-tab-view .cal-cm-actions { margin: 6px 0 0 45px; padding: 0; border: 0; gap: 8px; }
+            html.boot-client .cal-tab-view .cal-cm-action { min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 12px; font-size: 0.84rem; gap: 6px; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-cm-action svg { width: 14px; height: 14px; }
+            html.boot-client .cal-tab-view .cal-cm-composer-wrap { padding: 12px 16px max(14px, env(safe-area-inset-bottom)); }
+            html.boot-client .cal-tab-view .cal-cm-audience { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 0 0 10px; }
+            html.boot-client .cal-tab-view .cal-cm-audience-cap { font-size: 0.8rem; color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-cm-aud-seg { display: flex; border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-cm-aud-btn { flex: 1 1 0; justify-content: center; min-height: 44px; padding: 0 8px; font-size: 0.86rem; }
+            html.boot-client .cal-tab-view .cal-cm-composer { padding: 8px 8px 8px 12px; border-radius: 16px; align-items: center; }
+            html.boot-client .cal-tab-view .cal-cm-composer textarea { font-size: 16px; }
+            html.boot-client .cal-tab-view .cal-cm-send { width: 44px; height: 44px; border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-cm-send svg { width: 18px; height: 18px; }
+
+            /* Month and Week. */
+            /* A week label ("28 Sept – 4 Oct 2026") has to fit beside three
+               buttons: tighter gaps, and a clean two-line wrap on the
+               narrowest phones rather than a cut-off date. */
+            html.boot-client .cal-tab-view .cal-month-header { gap: 8px; }
+            html.boot-client .cal-tab-view .cal-month-label { font-size: 1rem; line-height: 1.2; padding-left: 4px; }
+            html.boot-client .cal-tab-view .cal-today-btn { padding: 0 12px; }
+            html.boot-client .cal-tab-view .cal-unscheduled { margin-top: 0; margin-bottom: 12px; border-radius: 16px; background: var(--white); }
+            html.boot-client .cal-tab-view .cal-unscheduled-h { color: var(--text-secondary); line-height: 1.4; }
+            html.boot-client .cal-tab-view .cal-month-grid { border-radius: 16px; overflow: hidden; }
+            html.boot-client .cal-tab-view .cal-month-dow,
+            html.boot-client .cal-tab-view .cal-week-day { color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-week-col { border-radius: 16px; }
+            html.boot-client .cal-tab-view .cal-week-stack:not(:has(*))::after { color: var(--text-secondary); }
+            /* Today's number sits in a 36px disc; the slim empty row it lives
+               in when posts can be moved was 1px too short and cut it off. */
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-month-pill[draggable="true"]) .cal-month-cell:not(.out) { min-height: 76px; }
         }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).

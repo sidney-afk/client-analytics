@@ -4930,7 +4930,7 @@
             html:not(.boot-client) .kasper-wrap .si-input { font-size: 16px; }
             html:not(.boot-client) .kasper-wrap input.si-input { min-height: 44px; }
             html:not(.boot-client) .kasper-wrap .si-btn, html:not(.boot-client) .kasper-wrap .si-btn-ghost, html:not(.boot-client) .kasper-wrap .si-email-btn { min-height: 44px; }
-            html:not(.boot-client) .kasper-wrap .hp-filter { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .hp-filter { min-width: 44px; min-height: 44px; }
             html:not(.boot-client) .kasper-wrap .obv-refresh { width: 44px; height: 44px; }
             html:not(.boot-client) .kasper-wrap .search-bar-input { font-size: 16px; }
             html:not(.boot-client) .kasper-wrap .kql-refresh, html:not(.boot-client) .kasper-wrap .kad-refresh { min-height: 44px; }

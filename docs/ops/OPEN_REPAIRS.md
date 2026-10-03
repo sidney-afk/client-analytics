@@ -30583,7 +30583,7 @@ Measured on the live, signed-in page with real data (viewing only), every Kasper
 
 Not done: Time Off. Its page is 642 px wide on a phone (a wide calendar and table), and it has its own test suite; it needs its own careful pass. Save problems and Ad Performance keep their wide tables scrolling inside their own boxes, which is right.
 
-Said plainly: no pictures of these sub-tabs are in the PR, because they hold staff, hiring, sales and credential information and the offline page has none of it. Editors was seen fixed on the live page; the size changes were measured there before, not re-measured after.
+Said plainly: no pictures of these sub-tabs are in the PR, because they hold staff, hiring, sales and credential information and the offline page has none of it. After the change, the pushed styles were loaded into the live page again and nine sub-tabs were re-measured: no control under 44 px was left on Messages, Filming, Editors, Quiz Leads and Credentials, and no sub-tab slid sideways.
 
 Proof: scope guard and the offline staff phone test (tab bar, no sideways scroll on Messages and Filming). Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.

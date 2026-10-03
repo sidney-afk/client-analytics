@@ -30542,3 +30542,14 @@ Not done: a client's Templates page and a client's Filming Plans documents on a 
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks both pages at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/11-staff-templates-filming/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 345. [2026-10-03, BUILT] Phone polish, screen 12: Kasper's tab bar on every sub-tab (session Polish)
+
+Twelfth slice of owner direction D2, stacked on entry 344. Phones only: a STAFF-PHONE block in `src/index/020-styles-surfaces.css.part`, every selector under `html:not(.boot-client) .kasper-wrap`. Styles only.
+
+Kasper's Review tab got a phone layout in entry 258, written so that it applies only while the Review tab is showing. On every other sub-tab (Messages, Filming and the ones under More) the section tabs fell back to a column of 31 px rows that filled the top of the screen, and Refresh was 28 px. The same one-row, scrollable, 44 px tab bar now shows on every Kasper sub-tab, and Refresh and the info button are 44 px.
+
+Not done: the contents of the sub-tabs other than Review (Messages, Filming review, Editors, Time Off, Sales Intake, Hiring, Onboarding, Quiz Leads, Credentials, Clients, Save problems, Ad Performance). They need real data to judge, which the offline page does not have.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the bar on the Messages and Filming sub-tabs at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/12-kasper-tab-bar/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

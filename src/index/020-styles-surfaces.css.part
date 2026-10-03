@@ -4882,6 +4882,19 @@
             html:not(.boot-client) .fp-view .fp-btn { min-height: 44px; padding-left: 16px; padding-right: 16px; font-size: 0.86rem; }
         }
         /* STAFF-PHONE:END */
+        /* Kasper, every sub-tab: the section tab bar and the shared small buttons, under html:not(.boot-client) .kasper-wrap (OPEN_REPAIRS 345). The Review tab already had this bar from the KASPER-PHONE block (OPEN_REPAIRS 258); these are the same rules for the other sub-tabs. */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* Section tabs: one scrollable row instead of a column of thin rows. */
+            html:not(.boot-client) .kasper-wrap .kasper-subtabs { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 4px; margin-bottom: 16px; }
+            html:not(.boot-client) .kasper-wrap .kasper-subtabs::-webkit-scrollbar { display: none; }
+            html:not(.boot-client) .kasper-wrap .kasper-subtab { flex: 0 0 auto; min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .kasper-more { width: auto; grid-column: auto; margin-left: 0; }
+            html:not(.boot-client) .kasper-wrap .kasper-more-trigger { width: auto; }
+            html:not(.boot-client) .kasper-wrap .kasper-refresh-btn { min-height: 44px; padding-left: 14px; padding-right: 14px; }
+            html:not(.boot-client) .kasper-wrap .ked-info-btn { width: 44px; height: 44px; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

@@ -9454,6 +9454,36 @@
             html:not(.boot-client) #calView .cal-cap-gen { min-height: 36px; padding-left: 12px; padding-right: 12px; }
         }
         /* STAFF-PHONE:END */
+        /* Kasper sub-tabs other than Review: thumb-sized controls, measured on the live page with real data (OPEN_REPAIRS 347). Same contract, under html:not(.boot-client) .kasper-wrap. Time Off is left alone (it has its own tests). */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* Review: the urgent button. */
+            html:not(.boot-client) .kasper-wrap .kcard-urgent-btn { min-height: 44px; }
+            /* Messages. */
+            html:not(.boot-client) .kasper-wrap .kasper-replies-open, html:not(.boot-client) .kasper-wrap .kasper-replies-read { min-height: 44px; padding-left: 14px; padding-right: 14px; }
+            html:not(.boot-client) .kasper-wrap .kasper-replies-showall { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .cal-review-textarea { font-size: 16px; }
+            html:not(.boot-client) .kasper-wrap .cal-review-tweak-btn, html:not(.boot-client) .kasper-wrap .cal-review-comment-btn { min-height: 44px; }
+            /* Filming. */
+            html:not(.boot-client) .kasper-wrap .kfilm-open { min-height: 44px; padding-left: 14px; padding-right: 14px; }
+            /* Editors: the name column had collapsed to nothing and the three numbers pushed the page 40px wider than the phone. Name on the first line, the numbers in three equal columns under it. */
+            html:not(.boot-client) .kasper-wrap .ked-row-head { grid-template-columns: 38px minmax(0, 1fr) 14px; row-gap: 10px; }
+            html:not(.boot-client) .kasper-wrap .ked-row-stats { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            html:not(.boot-client) .kasper-wrap .ked-avgtoggle-btn { min-height: 44px; padding-left: 14px; padding-right: 14px; }
+            /* Sales Intake, Hiring, Onboarding, Quiz Leads, Credentials, Ad Performance. */
+            html:not(.boot-client) .kasper-wrap .si-input { font-size: 16px; }
+            html:not(.boot-client) .kasper-wrap input.si-input { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .si-btn, html:not(.boot-client) .kasper-wrap .si-btn-ghost, html:not(.boot-client) .kasper-wrap .si-email-btn { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .hp-filter { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .obv-refresh { width: 44px; height: 44px; }
+            html:not(.boot-client) .kasper-wrap .search-bar-input { font-size: 16px; }
+            html:not(.boot-client) .kasper-wrap .kql-refresh, html:not(.boot-client) .kasper-wrap .kad-refresh { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .kql-search { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .cc-search { min-height: 44px; font-size: 16px; }
+            html:not(.boot-client) .kasper-wrap .cc-btn, html:not(.boot-client) .kasper-wrap .cc-card-toggle { min-height: 44px; }
+            html:not(.boot-client) .kasper-wrap .kad-range-btn { min-width: 44px; min-height: 44px; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

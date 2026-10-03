@@ -30567,3 +30567,23 @@ Looked at and left alone because they were already right with real data: Today, 
 
 Proof: the offline staff phone test still passes; the three fixes were seen on the live page with real data before being committed. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 347. [2026-10-03, BUILT] Phone polish, screen 14: inside Kasper's other sub-tabs (session Polish)
+
+Stacked on entry 346. Phones only, styles only, a STAFF-PHONE block under `html:not(.boot-client) .kasper-wrap`. Sizes and one layout fix; no behaviour, no data.
+
+Measured on the live, signed-in page with real data (viewing only), every Kasper sub-tab at 390 wide:
+- Editors: each editor's name column had collapsed to nothing and the three numbers pushed the page 40 px wider than the phone, so it slid sideways. The name now has its own line and the numbers sit in three equal columns under it. The Totals / Per day switch is 44 px.
+- Messages: Open and Mark read were 30 px, Show all 23 px, the reply box used 13.4 px text (an iPhone zooms in) and its send button was 32 px. All 44 px, 16 px text.
+- Filming: the two Open links on each plan were 28 px. 44 px.
+- Sales Intake: fields 37 px with 13.6 px text, buttons 34 to 39 px. 44 px, 16 px text.
+- Hiring: the stage filters were 34 px. 44 px.
+- Onboarding, Quiz Leads, Credentials, Ad Performance: refresh, search, range and row buttons were 32 to 39 px. 44 px; searches use 16 px text.
+- Review: the urgent button was 33 px. 44 px.
+
+Not done: Time Off. Its page is 642 px wide on a phone (a wide calendar and table), and it has its own test suite; it needs its own careful pass. Save problems and Ad Performance keep their wide tables scrolling inside their own boxes, which is right.
+
+Said plainly: no pictures of these sub-tabs are in the PR, because they hold staff, hiring, sales and credential information and the offline page has none of it. Editors was seen fixed on the live page; the size changes were measured there before, not re-measured after.
+
+Proof: scope guard and the offline staff phone test (tab bar, no sideways scroll on Messages and Filming). Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

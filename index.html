@@ -9177,6 +9177,17 @@
             html:not(.boot-client) #calView .cal-week-col { border-radius: 16px; }
             html:not(.boot-client) #calView .cal-week-stack:not(:has(*))::after { color: var(--text-secondary); }
             html:not(.boot-client) #calView .cal-month-wrap:has(.cal-month-pill[draggable="true"]) .cal-month-cell:not(.out) { min-height: 76px; }
+
+            html:not(.boot-client) #calView .cal-view-btn:not(.active) { color: var(--text-secondary); }
+            /* Staff-only controls the client link does not have. */
+            html:not(.boot-client) #calView .cal-toolbar-right { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+            html:not(.boot-client) #calView .cal-toolbar-right:not(:has(> :not([hidden]):not(.cal-refreshing))) { display: contents; }
+            html:not(.boot-client) #calView .cal-toolbar-right button { min-width: 44px; min-height: 44px; border-radius: 12px; }
+            html:not(.boot-client) #calView .cal-toolbar-right button svg { width: 18px; height: 18px; }
+            html:not(.boot-client) #calView .cal-altcap-add { min-height: 36px; padding: 0 14px; font-size: 0.8rem; gap: 6px; }
+            html:not(.boot-client) #calView .cal-fld-setall { min-height: 44px; }
+            html:not(.boot-client) #calView .cal-fld-status-wrap { min-height: 40px; border-radius: 10px; }
+            html:not(.boot-client) #calView .cal-linear-pile { gap: 8px; }
         }
         /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-

@@ -30587,3 +30587,18 @@ Said plainly: no pictures of these sub-tabs are in the PR, because they hold sta
 
 Proof: scope guard and the offline staff phone test (tab bar, no sideways scroll on Messages and Filming). Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 348. [2026-10-03, BUILT] Phone polish, screen 15: a client's Templates page (session Polish)
+
+Stacked on entry 347. Phones only, styles only, a STAFF-PHONE block under `html:not(.boot-client) .tpl-view`.
+
+Seen on the live, signed-in page with the test client (viewing only), at 390 wide:
+- The page kept 28 px of desktop padding inside the page gutter, so its cards were 56 px narrower than they needed to be. Removed.
+- "All templates" and "Edit links" were 30 and 32 px, "Add link" 24 px. They are 44 px.
+- Each folder row (Latest frame folders, Latest raw footage) put its name in a narrow left column wrapped over three lines, with the source and date beside it. The name is on one line now, the source and date under it.
+- "Add something the brain is missing" showed as a small unstyled system button, 24 px tall. It is a proper 44 px button.
+
+Not looked at: the Edit links form (it saves, and this pass did not open it) and a client with many links, colours and reference documents; the test client has few.
+
+Proof: scope guard; seen on the live page with the fix applied before committing. No pictures in the PR: the offline page has no client Templates data. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

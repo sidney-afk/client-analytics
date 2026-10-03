@@ -9415,6 +9415,17 @@
             html:not(.boot-client) .workload-toolbar .wl-client-search-clear { width: 36px; height: 36px; }
         }
         /* STAFF-PHONE:END */
+        /* Staff Templates and Filming Plans start pages (pick a client): same contract, under html:not(.boot-client) .tpl-index-centered and .fp-view (OPEN_REPAIRS 344). */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            html:not(.boot-client) .tpl-index-centered .search-bar-wrap, html:not(.boot-client) .fp-view .search-bar-wrap { width: 100%; }
+            html:not(.boot-client) .tpl-index-centered .search-bar-pill, html:not(.boot-client) .fp-view .search-bar-pill { width: 100%; box-sizing: border-box; padding: 0 8px 0 18px; }
+            html:not(.boot-client) .tpl-index-centered .search-bar-input, html:not(.boot-client) .fp-view .search-bar-input { font-size: 16px; padding: 13px 0; }
+            html:not(.boot-client) .tpl-index-centered .search-bar-icon, html:not(.boot-client) .fp-view .search-bar-icon { width: 36px; height: 36px; }
+            html:not(.boot-client) .tpl-index-centered .pin-add-btn { min-height: 44px; padding: 0 16px; font-size: 0.82rem; }
+            html:not(.boot-client) .fp-view .fp-btn { min-height: 44px; padding-left: 16px; padding-right: 16px; font-size: 0.86rem; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

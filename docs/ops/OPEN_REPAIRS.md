@@ -30441,3 +30441,14 @@ Owner's call to veto: on a phone the Sheet scrolls down, not sideways (the mock-
 
 Proof: `docs/syncview-design/tests/client-phone-review-browser.js` now also opens the Sheet, Notes, Month and Week at five phone sizes (stacked cards on screen, switcher not cut, 44 px fields, 16 px text, full-width Notes with 44 px buttons, no sideways scroll, title not cut); its offline client gained one finished post because a client link's Sheet hides unfinished ones. Looked at on the live test client in a real browser: Organize menu, Notes, date picker. Pictures (test client, name masked): `docs/mockups/phone-polish/02-client-calendar-views/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 336. [2026-10-02, BUILT] Phone polish, screen 3: the client Sample reviews link (session Polish)
+
+Third slice of owner direction D2, stacked on entries 334 and 335. Same contract: phones only and client links only, styles only, inside the Sample reviews CLIENT-PHONE block of `src/index/020-styles-surfaces.css.part`. No script, no markup, no saved data, no function, flag or n8n change.
+
+The Sample reviews link is the Calendar link's twin, and it had the same faults: three loud capital pills repeating the sentence above them, two bare icon buttons, a blurred video cover, note buttons that faded until they looked broken, a bent divider, a faint "nothing to review" line, a Sheet that scrolled sideways through desktop columns, and Notes with a dimmed margin and 25 to 32 px buttons. It now gets the same treatment as entries 334 and 335, rule for rule: one "Review" action and a labelled "Open in Sheet", calm status chips, the cover shown behind the play button, clear inactive and active note buttons, a card with a check mark when nothing is waiting, a Sheet that is a feed of full-width cards with 44 px fields, and Notes as a full-screen sheet. The Creative direction box uses 16 px text.
+
+Proof: the polish checks in `docs/syncview-design/tests/client-phone-review-browser.js` now run on both links at five phone sizes. On the live test client, from the phone layout: a thumbnail change request and a video approval were sent on the test sample and read back from the staff Samples tab (Video Approved, Thumbnail Tweaks Needed). Pictures (test client, name masked): `docs/mockups/phone-polish/03-client-samples/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+
+Found, not changed (it needs the owner's word, because the wording is shared with desktop): while a sample's Notes load, the client briefly reads "Loading canonical notes. The composer unlocks after this exact deliverable is authorized." That is internal wording on a client screen.
+Way back: revert the commit.

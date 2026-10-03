@@ -30485,3 +30485,14 @@ What changed: title first with the platform switch full width under it; 16 px pa
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` now also opens the Upload tab at 360, 390 and 430 wide in dark and light (title not squeezed, switch full width, 44 px controls, 16 px text, no sideways scroll). Pictures (no client selected, nothing uploaded): `docs/mockups/phone-polish/06-staff-upload/`. Not exercised: choosing a client, attaching media, the photo carousel and the queue, which need real data. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 340. [2026-10-02, BUILT] Phone polish, screen 7: the staff top bar (session Polish)
+
+Seventh slice of owner direction D2, stacked on entry 339. Phones only: a fourth STAFF-PHONE block in `src/index/020-styles-surfaces.css.part`, every selector under `html:not(.boot-client) .header` (the bar is already hidden on client links, forms and onboarding pages). Styles only, sizes only: the bar keeps its two rows, its order and every control.
+
+On a phone the tab buttons were 32 px tall, the client picker and quick jump 30 px, and the staff menu button 34 px. All are 44 px now, the tab labels a size larger, the client search uses 16 px text, and the staff menu's rows are 44 px.
+
+Not done here, and still the owner's call: the mock-up's replacement of this bar by a title row with "Tabs" and "More". That needs script.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` now checks the bar's buttons on every view it opens (44 px at 360, 390 and 430, dark and light). Pictures: `docs/mockups/phone-polish/07-staff-top-bar/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

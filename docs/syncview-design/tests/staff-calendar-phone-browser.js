@@ -194,6 +194,28 @@ async function runUpload(browser, origin, [vp, w, hgt], th) {
   for (const x of m.small) failures.push(`${label}: "${x.what}" is ${Math.round(x.h)}px tall, under 44px`);
   if (m.fonts.length) failures.push(`${label}: a typing box uses ${m.fonts[0]}px text, under 16px (iOS will zoom)`);
   if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `staff-upload-${w}-${th}.png`), fullPage: true }); }
+
+  // The Analytics overview (OPEN_REPAIRS 341): its wide table scrolls inside its
+  // own box instead of sliding the whole page, and its controls are thumb-sized.
+  await page.evaluate(() => document.getElementById('navHome').click());
+  const ov = await page.waitForSelector('.overview-wrap .overview-table', { timeout: 15000 }).then(() => true, () => false);
+  if (!ov) failures.push(`${label}: the Analytics overview never drew`);
+  else {
+    await page.waitForTimeout(600);
+    const a = await page.evaluate(() => {
+      const W = document.documentElement.clientWidth; const wrap = document.querySelector('.overview-wrap');
+      const small = [...document.querySelectorAll('.overview-wrap .overview-controls button, #pageTop .pin-add-btn')].filter(e => e.getClientRects().length)
+        .map(e => ({ what: (e.title || e.innerText).trim().slice(0, 20), w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height })).filter(x => x.w < 44 || x.h < 44);
+      return { W, sw: document.documentElement.scrollWidth, inner: wrap.scrollWidth > wrap.clientWidth, ctl: document.querySelector('.overview-controls').getBoundingClientRect().right, small,
+        font: parseFloat(getComputedStyle(document.querySelector('#pageTop .search-bar-input')).fontSize) };
+    });
+    if (a.sw > a.W) failures.push(`${label}: the Analytics overview scrolls the whole page sideways (${a.sw}px in ${a.W}px)`);
+    if (!a.inner) failures.push(`${label}: the Analytics table does not scroll inside its own box`);
+    if (a.ctl > a.W + 0.5) failures.push(`${label}: the Analytics controls run off the screen`);
+    for (const x of a.small) failures.push(`${label}: Analytics "${x.what}" is ${Math.round(x.w)}x${Math.round(x.h)}px, under 44px`);
+    if (a.font < 16) failures.push(`${label}: the client search uses ${a.font}px text, under 16px (iOS will zoom)`);
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `staff-analytics-${w}-${th}.png`), fullPage: true });
+  }
   await ctx.close();
   return failures;
 }
@@ -217,5 +239,5 @@ async function runUpload(browser, origin, [vp, w, hgt], th) {
   }
   await browser.close(); server.close();
   if (bad) { console.log(`\nstaff-calendar-phone: FAILED (${bad} problem(s))`); process.exit(1); }
-  console.log('\nstaff-calendar-phone: OK (Calendar, Samples and Upload at 3 phone sizes, dark and light)');
+  console.log('\nstaff-calendar-phone: OK (Calendar, Samples, Upload and the Analytics overview at 3 phone sizes, dark and light)');
 })();

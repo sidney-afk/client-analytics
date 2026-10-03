@@ -4825,6 +4825,29 @@
             html:not(.boot-client) .header .staff-account-action { min-height: 44px; font-size: 0.86rem; }
         }
         /* STAFF-PHONE:END */
+        /* Staff Analytics overview: same contract, under
+           html:not(.boot-client) .overview-wrap and #pageTop (OPEN_REPAIRS 341). */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* The 1050px table made the whole page slide sideways. It now
+               scrolls inside its own box, with the client name pinned at the
+               left so a row can still be read while its numbers move. */
+            html:not(.boot-client) .overview-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            html:not(.boot-client) .overview-wrap .overview-table th:first-child, html:not(.boot-client) .overview-wrap .overview-table td:first-child { position: sticky; left: 0; z-index: 2; }
+            html:not(.boot-client) .overview-wrap .overview-table th:first-child { background: var(--bg); }
+            html:not(.boot-client) .overview-wrap .overview-controls { position: sticky; left: 0; width: calc(100vw - 28px); max-width: 100%; box-sizing: border-box; flex-wrap: wrap; row-gap: 10px; }
+            html:not(.boot-client) .overview-wrap .controls-left button { min-height: 44px; min-width: 56px; padding: 0 14px; font-size: 0.84rem; }
+            html:not(.boot-client) .overview-wrap .view-toggle { border-radius: 12px; }
+            html:not(.boot-client) .overview-wrap .view-toggle-btn { width: 48px; height: 44px; }
+            html:not(.boot-client) #pageTop { gap: 14px; margin-bottom: 18px; }
+            html:not(.boot-client) #pageTop .page-title { font-size: 1.6rem; }
+            html:not(.boot-client) #pageTop .selector-wrap, html:not(.boot-client) #pageTop .search-bar-wrap { width: 100%; }
+            html:not(.boot-client) #pageTop .search-bar-pill { width: 100%; box-sizing: border-box; padding: 0 8px 0 18px; }
+            html:not(.boot-client) #pageTop .search-bar-input { font-size: 16px; padding: 13px 0; }
+            html:not(.boot-client) #pageTop .search-bar-icon { width: 36px; height: 36px; }
+            html:not(.boot-client) #pageTop .pin-add-btn { min-height: 44px; padding: 0 16px; font-size: 0.82rem; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

@@ -60,6 +60,7 @@ const VIEWPORTS = [
   ['small Android', 360, 800], ['iPhone SE landscape', 667, 375],
 ];
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
+const SHEET_CARD = 'p_phone_fixture_2';
 const CAP_MS = 20000;
 
 async function run(browser, origin, [vpLabel, width, height], surfaceName) {
@@ -85,7 +86,9 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
       if (/\/rest\/v1\//.test(u.pathname)) return json([Object.assign({}, ROW)]);
       return json({ ok: true });
     }
-    if (u.pathname === '/rest/v1/' + table) return json([ROW]);
+    // A second, finished post: a client link's Sheet hides work still in progress,
+    // so this is the card the Sheet checks below look at. It never enters Review.
+    if (u.pathname === '/rest/v1/' + table) return json(surfaceName === 'calendar' ? [ROW, Object.assign({}, BASE_ROW, { id: SHEET_CARD, name: 'Phone fixture finished post', order_index: 2, video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', status: 'Approved' })] : [ROW]);
     if (u.pathname === '/rest/v1/calendar_posts' || u.pathname === '/rest/v1/sample_reviews') return json([]);
     if (u.pathname === '/rest/v1/clients') return json([{ slug: SLUG, kind: 'client', active: true }]);
     // Team authority must be readable or every status write pauses safely.
@@ -190,6 +193,68 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   if (!tweakWrites.some(w => w.body.includes('shorten the first line'))) failures.push(`${label}: Request change did not send the note (${tweakWrites.map(w => w.method + ' ' + w.path).join(', ') || 'no writes'})`);
   const after = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   if (after) failures.push(`${label}: page scrolls sideways after the change request`);
+  // Screen 2 (OPEN_REPAIRS 335), Calendar link: the Sheet is a feed of full-width
+  // cards that never widens the page, its fields are thumb-sized, and Notes opens
+  // as a full-screen sheet with thumb-sized controls. Month and Week must not
+  // widen the page either.
+  if (surfaceName === 'calendar') {
+    const wide = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    // The fixture's stand-in backend never confirms the change request above, so a
+    // "not saved" notice can arrive late; dismiss it rather than let it cover the page.
+    const dismissNotice = async () => { if (await page.locator('#confirmOverlay.active').count()) { await page.tap('#confirmOverlay.active #confirmYes').catch(() => {}); await page.waitForTimeout(250); } };
+    await page.waitForTimeout(1200);
+    await dismissNotice();
+    await page.tap('.cal-tab-view [data-cal-view="organizer"]');
+    await page.waitForSelector('.cal-tab-view .cal-organizer-strip .cal-card', { timeout: 8000 }).catch(() => failures.push(`${label}: Sheet drew no card`));
+    await page.waitForTimeout(500);
+    const sh = await page.evaluate(() => {
+      const W = document.documentElement.clientWidth;
+      const strip = document.querySelector('.cal-tab-view .cal-organizer-strip');
+      const c = strip && strip.querySelector('.cal-card');
+      if (!c) return null;
+      const r = c.getBoundingClientRect();
+      const small = [...c.querySelectorAll('.cal-date-chip, .cal-link-pill-open, .cal-fld-cta, .cal-comments-btn')].filter(e => e.getClientRects().length)
+        .map(e => ({ what: String(e.className).split(' ')[0], h: e.getBoundingClientRect().height })).filter(x => x.h < 44);
+      const fonts = [...c.querySelectorAll('textarea, input[type="text"]')].filter(e => e.getClientRects().length && !e.readOnly).map(e => parseFloat(getComputedStyle(e).fontSize)).filter(f => f < 16);
+      return { W, left: r.left, right: r.right, dir: getComputedStyle(strip).flexDirection, toggleRight: document.querySelector('.cal-tab-view .cal-view-toggle').getBoundingClientRect().right, small, fonts };
+    });
+    if (!sh) failures.push(`${label}: Sheet card not found`);
+    else {
+      if (sh.dir !== 'column') failures.push(`${label}: Sheet cards are not stacked (${sh.dir})`);
+      if (sh.left < -0.5 || sh.right > sh.W + 0.5) failures.push(`${label}: Sheet card runs off the screen (${Math.round(sh.left)}..${Math.round(sh.right)} of ${sh.W})`);
+      if (sh.toggleRight > sh.W + 0.5) failures.push(`${label}: the view switcher is cut off on the Sheet (${Math.round(sh.toggleRight)} of ${sh.W})`);
+      for (const x of sh.small) failures.push(`${label}: Sheet "${x.what}" is ${Math.round(x.h)}px tall, under 44px`);
+      if (sh.fonts.length) failures.push(`${label}: a Sheet text field uses ${sh.fonts[0]}px text, under 16px (iOS will zoom)`);
+    }
+    if (await wide() > 0) failures.push(`${label}: the Sheet scrolls sideways`);
+    if (process.env.CLIENT_PHONE_DEBUG) console.log(label, 'sheet:', JSON.stringify(sh), await page.evaluate(() => { const c = document.querySelector('.cal-tab-view .cal-organizer-strip .cal-card'); return c ? c.outerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '').slice(0, 1500) : document.querySelector('.cal-tab-view .cal-body').innerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/\s+/g, ' ').slice(0, 1800); }));
+    await page.tap('.cal-tab-view .cal-organizer-strip .cal-card .cal-comments-btn');
+    await page.waitForSelector('.cal-comments-overlay.open', { timeout: 5000 }).catch(() => failures.push(`${label}: Notes did not open`));
+    await page.waitForTimeout(300);
+    const notes = await page.evaluate(() => {
+      const o = document.querySelector('.cal-comments-overlay.open'); if (!o) return null;
+      const m = o.querySelector('.cal-comments-modal').getBoundingClientRect();
+      return { W: document.documentElement.clientWidth, left: m.left, width: m.width,
+        small: [...o.querySelectorAll('button')].filter(b => b.getClientRects().length).map(b => { const r = b.getBoundingClientRect(); return { what: (b.getAttribute('aria-label') || b.innerText || b.className).trim().slice(0, 24), w: r.width, h: r.height }; }).filter(b => b.w < 44 || b.h < 44),
+        font: parseFloat(getComputedStyle(o.querySelector('.cal-cm-composer textarea')).fontSize) };
+    });
+    if (notes) {
+      if (Math.abs(notes.left) > 0.5 || Math.abs(notes.width - notes.W) > 0.5) failures.push(`${label}: Notes is not full width (${Math.round(notes.left)}, ${Math.round(notes.width)} of ${notes.W})`);
+      for (const b of notes.small) failures.push(`${label}: Notes "${b.what}" is ${Math.round(b.w)}x${Math.round(b.h)}px, under 44px`);
+      if (notes.font < 16) failures.push(`${label}: Notes message box text is ${notes.font}px, under 16px (iOS will zoom)`);
+      if (process.env.CLIENT_PHONE_DEBUG) console.log(label, 'notes:', JSON.stringify(notes), await page.evaluate(() => { const o = document.querySelector('#confirmOverlay.active'); return o ? o.innerText.replace(/\s+/g, ' ').slice(0, 300) : 'no confirm'; }));
+      await dismissNotice();
+      await page.tap('.cal-comments-overlay.open .cal-comments-close');
+      await page.waitForTimeout(300);
+    }
+    for (const v of ['month', 'week']) {
+      await page.tap(`.cal-tab-view [data-cal-view="${v}"]`);
+      await page.waitForTimeout(700);
+      if (await wide() > 0) failures.push(`${label}: ${v} view scrolls sideways`);
+      const cut = await page.evaluate(() => { const l = document.querySelector('.cal-tab-view .cal-month-label'); return l ? l.scrollWidth - l.clientWidth : 0; });
+      if (cut > 1) failures.push(`${label}: the ${v} title is cut off by ${cut}px`);
+    }
+  }
   if (pageErrors.length) failures.push(`${label}: page errors: ${pageErrors.slice(0, 2).join(' | ')}`);
   if (process.env.CLIENT_PHONE_SHOTS) {
     fs.mkdirSync(process.env.CLIENT_PHONE_SHOTS, { recursive: true });

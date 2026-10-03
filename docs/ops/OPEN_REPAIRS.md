@@ -30423,3 +30423,21 @@ Proof: `docs/syncview-design/tests/client-phone-review-browser.js` gained four c
 
 Found on the way, and repaired here: that desktop gate could not pass on any change since the load-per-tab switch (#1848). It read its BEFORE page from git (the small loader page, which adds its script elements to the body) and its AFTER page through the single-file preload (no such elements), so the two element lists never matched; that is the "identical pixels, different computed styles" failure recorded on the documentation-only PR #1950. BEFORE is now built as the single-file page too, from the before ref's own fragments. Measured: the Today tab at 1024 failed four attempts before the repair and passes first time after it; same build on both sides (`PARITY_CONTROL=1`) passed throughout. Test harness only.
 Way back: revert the commit.
+
+## 335. [2026-10-02, BUILT] Phone polish, screen 2: the client Calendar's Sheet, Month and Week, and Notes (session Polish)
+
+Second slice of owner direction D2, stacked on entry 334. Same contract: phones only and client links only, styles only, every rule inside the CLIENT-PHONE block of `src/index/020-styles-surfaces.css.part`. No script, no markup, no saved data, no function, flag or n8n change.
+
+What was wrong on a phone (live link, 360, 390 and 430 wide) and what changed:
+- The Sheet made the whole page 15 px wider than the phone: Organize and the view switcher shared one line, so "Week" was cut off and the page slid sideways. The switcher keeps the full width; Organize sits on its own tools line under it.
+- The Sheet was the desktop strip of 320 px columns scrolled sideways: one card and a sliver of the next. It is now a feed, one full-width card under another. The drag grip is hidden (a finger cannot start that drag).
+- A card with no thumbnail spent about 250 px on an empty picture area. It is 88 px now; a card with a thumbnail is unchanged.
+- Sheet fields were 30 to 34 px tall with 11 to 12 px text. Date, link, call to action and Notes are 44 px; the caption, call to action and link boxes use 16 px text, so an iPhone no longer zooms in when one is tapped.
+- "Show more" showed on captions with nothing more to show. Hidden when the script says so.
+- Notes (opened from a Sheet card) kept a 20 px dimmed margin each side and had 25 to 32 px buttons. It is a full-screen sheet: 44 px close, history, Reply, Delete, send and the Video / Thumbnail / Caption and Comment / Request a change choices, and a 16 px message box.
+- Month and Week: weekday names, "Nothing scheduled" and the Unscheduled heading used the faintest grey; they use the secondary text colour. Today's number disc was cut off at the bottom in Month. The week title no longer crowds its buttons.
+
+Owner's call to veto: on a phone the Sheet scrolls down, not sideways (the mock-up's direction).
+
+Proof: `docs/syncview-design/tests/client-phone-review-browser.js` now also opens the Sheet, Notes, Month and Week at five phone sizes (stacked cards on screen, switcher not cut, 44 px fields, 16 px text, full-width Notes with 44 px buttons, no sideways scroll, title not cut); its offline client gained one finished post because a client link's Sheet hides unfinished ones. Looked at on the live test client in a real browser: Organize menu, Notes, date picker. Pictures (test client, name masked): `docs/mockups/phone-polish/02-client-calendar-views/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

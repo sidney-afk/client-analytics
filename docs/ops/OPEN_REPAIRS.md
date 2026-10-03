@@ -30520,3 +30520,14 @@ Said plainly: the public intake form (`?intake=1`) is built from the same markup
 
 Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the form at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/09-staff-submit/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
 Way back: revert the commit.
+
+## 343. [2026-10-03, BUILT] Phone polish, screen 10: the staff Workload toolbar (session Polish)
+
+Tenth slice of owner direction D2, stacked on entry 342. Phones only: a STAFF-PHONE block in `src/index/020-styles-surfaces.css.part`, every selector under `html:not(.boot-client) .workload-toolbar`. Styles only, sizes only. The board (the calendar of work days, its cards and its popovers) is not touched.
+
+On a phone the Workload toolbar's buttons were 24 to 30 px tall: previous, Today, next, refresh, Week / Month, All / Video / Graphics, the deadline mode, the editor filter and the client search (12.5 px text). They are 44 px now, the two filters are full width, and the client search uses 16 px text.
+
+Not done: the board itself on a phone. It needs real work items to judge, which the offline page does not have.
+
+Proof: `docs/syncview-design/tests/staff-calendar-phone-browser.js` checks the toolbar at 360, 390 and 430 wide in dark and light. Pictures: `docs/mockups/phone-polish/10-staff-workload/`. Desktop: `qa/client-phone/desktop-parity.js`, result in the PR.
+Way back: revert the commit.

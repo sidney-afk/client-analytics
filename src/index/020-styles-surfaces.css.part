@@ -4859,6 +4859,18 @@
             html:not(.boot-client) .linear-view .linear-submit-btn { min-height: 48px; }
         }
         /* STAFF-PHONE:END */
+        /* Staff Workload tab, its toolbar only: same contract, under html:not(.boot-client) .workload-toolbar (OPEN_REPAIRS 343). The board itself is not touched. */
+        /* STAFF-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            html:not(.boot-client) .workload-toolbar .workload-nav button { min-width: 44px; min-height: 44px; }
+            html:not(.boot-client) .workload-toolbar .workload-pills button { min-height: 44px; padding-left: 14px; padding-right: 14px; font-size: 0.84rem; }
+            html:not(.boot-client) .workload-toolbar .dropdown-trigger { min-height: 44px; font-size: 0.86rem; }
+            html:not(.boot-client) .workload-toolbar .wl-dropdown, html:not(.boot-client) .workload-toolbar .wl-client-search { width: 100%; }
+            html:not(.boot-client) .workload-toolbar .wl-dropdown .dropdown-trigger { width: 100%; box-sizing: border-box; }
+            html:not(.boot-client) .workload-toolbar .wl-client-search-input { width: 100%; box-sizing: border-box; min-height: 44px; font-size: 16px; }
+            html:not(.boot-client) .workload-toolbar .wl-client-search-clear { width: 36px; height: 36px; }
+        }
+        /* STAFF-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

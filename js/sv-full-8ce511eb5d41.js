@@ -15713,6 +15713,8 @@
     // Client phone presentation only. Move the existing controls, preserving
     // their handlers, values and permissions; restore their places on desktop.
     const _svClientPhoneRoots = new Map();
+    let _svClientPhoneSamplesRefresh = null;
+    function _svClientPhoneRegisterSamplesRefresh(refresh) { _svClientPhoneSamplesRefresh = refresh; }
     let _svClientPhoneWidth = window.matchMedia('(max-width: 767px)').matches;
     function _svClientPhoneActive() {
         return !!_isClientLink && _svClientPhoneWidth && !!_syncviewClientEntryCapability?.verified;
@@ -15738,19 +15740,22 @@
         }
         root.querySelectorAll(':scope > .pocket-client-phone-heading, :scope > .pocket-client-phone-menu').forEach(node => node.remove());
         root.querySelectorAll('.pocket-client-phone-action').forEach(node => node.remove());
+        root.querySelectorAll('.pocket-client-phone-saving').forEach(node => node.remove());
         root.querySelectorAll('[data-pocket-review-toggle]').forEach(node => {
             node.removeAttribute('aria-expanded');
             node.removeAttribute('data-pocket-review-toggle');
         });
         root.removeAttribute('data-pocket-client-phone');
         _svClientPhoneRoots.delete(root);
+        if (state.kind === 'samples' && _svClientPhoneSamplesRefresh) _svClientPhoneSamplesRefresh(root);
         if (state.wrapper && root.parentNode) root.replaceWith(...root.childNodes);
     }
     function _svClientPhoneMount(root, title, kind, moreSelector, wrapper) {
         if (!_svClientPhoneActive() || !root || _svClientPhoneRoots.has(root)) return;
-        const state = { moved: [], wrapper: !!wrapper };
+        const state = { moved: [], wrapper: !!wrapper, kind };
         _svClientPhoneRoots.set(root, state);
         root.setAttribute('data-pocket-client-phone', kind);
+        if (kind === 'samples' && _svClientPhoneSamplesRefresh) _svClientPhoneSamplesRefresh(root);
         if (kind === 'samples') root.querySelectorAll('.kcard-open-sheet, .kcard-expand-btn').forEach(button => {
             if (button.querySelector('.pocket-client-phone-action')) return;
             const label = document.createElement('span');
@@ -15805,7 +15810,10 @@
         }
         const moreBody = root.querySelector('[data-pocket-menu=more] .pocket-client-phone-menu-body');
         root.querySelectorAll(moreSelector).forEach(node => move(node, moreBody));
-        if (!moreBody.children.length) {
+        if (!moreBody.children.length || Array.from(moreBody.children).every(node => {
+            const style = getComputedStyle(node);
+            return style.display === 'none' || style.visibility === 'hidden';
+        })) {
             const note = document.createElement('p');
             note.className = 'pocket-client-phone-menu-note';
             note.textContent = 'All available actions are shown on this page.';
@@ -68908,7 +68916,9 @@
         const info = _sxrDeriveThumbInfo(p);
         const thumbHtml = info.url ? _calThumbImgTag(info, '_calOnMiniThumbError') : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
         const pendingLabel = _sxrReviewPendingLabel(p);
-        const compPills = _sxrClientCompPillsHtml(p);
+        const compPills = _svClientPhoneActive()
+            ? _sxrClientCompPillsHtml(Object.assign({}, p, ...SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewState.saving[p.id + '|' + c]).map(c => ({ [c + '_status']: 'Saving…' }))))
+            : _sxrClientCompPillsHtml(p);
         const body = expanded ? _sxrReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_sxrReviewToggleCard('${escId}')">
@@ -68931,7 +68941,7 @@
         const mode = _sxrReviewMode();
         const activeComps = (mode === 'smm')
             ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'smm'))
-            : (_isClientLink ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'client')) : SXR_REVIEW_COMPONENTS.slice());
+            : (_isClientLink ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'client') || (_svClientPhoneActive() && _sxrReviewState.saving[p.id + '|' + c])) : SXR_REVIEW_COMPONENTS.slice());
         if (!activeComps.length) return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing left to review on this sample.</div></div>`;
         const cols = activeComps.length;
         return `<div class="cal-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${activeComps.map(comp => _sxrReviewPanelHtml(p, comp)).join('')}</div>`;
@@ -68941,9 +68951,10 @@
         const subStatus = _sxrNormStatus(p[comp + '_status'] || '');
         const state = subStatus === 'Approved' ? 'approved' : (subStatus === 'Tweaks Needed' ? 'tweaks' : 'pending');
         const comments = _sxrCommentsForView(p, comp);
+        const phoneSending = _isClientLink && window.matchMedia('(max-width: 767px)').matches && !!_sxrReviewState.saving[p.id + '|' + comp];
         if (state === 'approved') {
             const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
-            return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="approved"><span class="cal-review-mini-icon">${checkIco}</span><span class="cal-review-mini-label">${_sxrEsc(COMP_LABELS[comp])} approved</span><span class="cal-review-mini-sub">Locked in</span></div>`;
+            return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="approved"><span class="cal-review-mini-icon">${checkIco}</span><span class="cal-review-mini-label">${_sxrEsc(COMP_LABELS[comp])} approved</span><span class="cal-review-mini-sub">Locked in</span>${phoneSending ? '<span class="pocket-client-phone-saving" role="status">Saving ' + _sxrEsc(COMP_LABELS[comp].toLowerCase()) + '…</span>' : ''}</div>`;
         }
         const previewHtml = _sxrReviewComponentPreview(p, comp);
         const draftKey = p.id + '|' + comp;
@@ -68991,6 +69002,7 @@
             <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span>${firstReviewBadge}${aatBadge}<div class="cal-review-panel-head-right">${statusPill}</div></div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
             ${approveControl}
+            ${phoneSending ? '<div class="pocket-client-phone-saving" role="status">Saving…</div>' : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_sxrReviewOnDraftInput(this,'${escId}','${escComp}')" ${canAct ? '' : 'readonly'}>${_sxrEsc(draft)}</textarea>
                 <div class="cal-review-tweak-actions">
@@ -69320,7 +69332,7 @@
         delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
         _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
-        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; if (_isClientLink && window.matchMedia('(max-width: 767px)').matches) _sxrReviewRepaintCard(pid); }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
     }
     function _sxrReviewRequestTweak(pid, comp) {
         const initialPost = sxrState.posts.find(p => p.id === pid);
@@ -70901,6 +70913,11 @@
     window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
     const _sxrLinearPushChain = Object.create(null);
 
+    // Re-render presentation from the current native state at the breakpoint.
+    // This also restores desktop status pills after a pending phone decision.
+    _svClientPhoneRegisterSamplesRefresh(root => {
+        root.querySelectorAll('[data-cal-review-pid]').forEach(card => _sxrReviewRepaintCard(card.dataset.calReviewPid));
+    });
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _sxrBeginCommentEdit, _sxrBeginReply, _sxrDeleteComment, _sxrOnComposerInput, _sxrOnComposerKey,
@@ -85152,4 +85169,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-2368f639166d.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-8ce511eb5d41.js");

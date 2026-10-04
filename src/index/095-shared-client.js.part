@@ -401,6 +401,8 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
     // Client phone presentation only. Move the existing controls, preserving
     // their handlers, values and permissions; restore their places on desktop.
     const _svClientPhoneRoots = new Map();
+    let _svClientPhoneSamplesRefresh = null;
+    function _svClientPhoneRegisterSamplesRefresh(refresh) { _svClientPhoneSamplesRefresh = refresh; }
     let _svClientPhoneWidth = window.matchMedia('(max-width: 767px)').matches;
     function _svClientPhoneActive() {
         return !!_isClientLink && _svClientPhoneWidth && !!_syncviewClientEntryCapability?.verified;
@@ -426,19 +428,22 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         }
         root.querySelectorAll(':scope > .pocket-client-phone-heading, :scope > .pocket-client-phone-menu').forEach(node => node.remove());
         root.querySelectorAll('.pocket-client-phone-action').forEach(node => node.remove());
+        root.querySelectorAll('.pocket-client-phone-saving').forEach(node => node.remove());
         root.querySelectorAll('[data-pocket-review-toggle]').forEach(node => {
             node.removeAttribute('aria-expanded');
             node.removeAttribute('data-pocket-review-toggle');
         });
         root.removeAttribute('data-pocket-client-phone');
         _svClientPhoneRoots.delete(root);
+        if (state.kind === 'samples' && _svClientPhoneSamplesRefresh) _svClientPhoneSamplesRefresh(root);
         if (state.wrapper && root.parentNode) root.replaceWith(...root.childNodes);
     }
     function _svClientPhoneMount(root, title, kind, moreSelector, wrapper) {
         if (!_svClientPhoneActive() || !root || _svClientPhoneRoots.has(root)) return;
-        const state = { moved: [], wrapper: !!wrapper };
+        const state = { moved: [], wrapper: !!wrapper, kind };
         _svClientPhoneRoots.set(root, state);
         root.setAttribute('data-pocket-client-phone', kind);
+        if (kind === 'samples' && _svClientPhoneSamplesRefresh) _svClientPhoneSamplesRefresh(root);
         if (kind === 'samples') root.querySelectorAll('.kcard-open-sheet, .kcard-expand-btn').forEach(button => {
             if (button.querySelector('.pocket-client-phone-action')) return;
             const label = document.createElement('span');
@@ -493,7 +498,10 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         }
         const moreBody = root.querySelector('[data-pocket-menu=more] .pocket-client-phone-menu-body');
         root.querySelectorAll(moreSelector).forEach(node => move(node, moreBody));
-        if (!moreBody.children.length) {
+        if (!moreBody.children.length || Array.from(moreBody.children).every(node => {
+            const style = getComputedStyle(node);
+            return style.display === 'none' || style.visibility === 'hidden';
+        })) {
             const note = document.createElement('p');
             note.className = 'pocket-client-phone-menu-note';
             note.textContent = 'All available actions are shown on this page.';
@@ -546,6 +554,6 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         svOpenAnalytics
     });
 export {
-  SV_CLIENT_FOLLOW_TABS, _svClientPhoneActive, _svClientPhoneMount, _svClientPhoneRestore, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
+  SV_CLIENT_FOLLOW_TABS, _svClientPhoneActive, _svClientPhoneMount, _svClientPhoneRestore, _svClientPhoneRegisterSamplesRefresh, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
   svSharedClientGet, svSharedClientNote
 };

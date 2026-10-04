@@ -55,7 +55,7 @@ async function entryErrors(page, width, prefix) {
   await shot(page, prefix + '-verify-error-' + width);
   await page.locator('[data-client-entry-state=retry] button').click();
   await page.waitForFunction(() => !!_syncviewClientEntryCapability?.verified);
-  await page.locator(prefix === 'samples' ? '#sxrView' : '.error-state').waitFor();
+  await (prefix === 'samples' ? page.locator('#sxrView') : page.getByText('No analytics yet', { exact: true })).waitFor();
   if (!before) {
     await page.locator('[data-pocket-client-phone]').waitFor();
     await measure(page, prefix + '-retry-restored-' + width);
@@ -128,8 +128,28 @@ async function samples(browser, origin, width) {
     await shot(page, 'samples-save-error-' + width);
     await page.evaluate(id => { delete _sxrReviewState.errors[id + '|graphic']; _sxrReviewState.saving[id + '|graphic'] = true; _sxrReviewRepaintCard(id); }, row.id);
     ok(await card.locator('[data-comp=graphic] .cal-review-approve-btn').isDisabled(), 'pending save permits another approval');
+    ok(await card.locator('[data-comp=graphic] .pocket-client-phone-saving').isVisible(), 'pending decision has no visible saving label');
     await measure(page, 'samples-sending-' + width);
     await shot(page, 'samples-sending-' + width);
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.locator('[data-pocket-client-phone]').waitFor({ state: 'detached' });
+    ok(await page.locator('.pocket-client-phone-saving').count() === 0, 'phone saving label leaked to desktop');
+    await page.setViewportSize({ width, height: 844 });
+    await page.locator('[data-pocket-client-phone=samples]').waitFor();
+    ok(await card.locator('[data-comp=graphic] .pocket-client-phone-saving').isVisible(), 'pending save lost its label on return to phone');
+    await page.evaluate(id => { sxrState.posts.find(row => row.id === id).graphic_status = 'Approved'; _sxrReviewRepaintCard(id); }, row.id);
+    ok(await card.locator('[data-comp=graphic] .pocket-client-phone-saving').isVisible(), 'uncommitted approval looked finished');
+    ok(!await card.locator('[data-comp=graphic] .cal-review-mini-sub').isVisible(), 'pending approval said Locked in');
+    ok((await card.locator('[data-comp-pill=graphic]').innerText()).includes('Saving'), 'pending approval pill looked finished');
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.locator('[data-pocket-client-phone]').waitFor({ state: 'detached' });
+    ok((await card.locator('[data-comp-pill=graphic]').innerText()).toLowerCase().includes('approved'), 'desktop retained the phone saving pill');
+    await page.setViewportSize({ width, height: 844 });
+    await page.locator('[data-pocket-client-phone=samples]').waitFor();
+    ok(await card.locator('[data-comp=graphic] .pocket-client-phone-saving').isVisible(), 'pending approval lost its phone label');
+    await measure(page, 'samples-approve-sending-' + width);
+    await shot(page, 'samples-approve-sending-' + width);
+    await page.evaluate(id => { sxrState.posts.find(row => row.id === id).graphic_status = 'Client Approval'; }, row.id);
     await page.evaluate(id => { _sxrReviewState.saving[id + '|graphic'] = false; _sxrReviewRepaintCard(id); }, row.id);
     ok(writes.length === 0, 'navigation or disclosure sent a write');
   }
@@ -145,12 +165,13 @@ async function samples(browser, origin, width) {
     await page.locator('.cal-comments-close').click();
     await page.locator('[data-pocket-open=more]').click();
     ok(await page.locator('[data-pocket-menu=more] #sxrZoomCtl').count() === 1, 'card size is outside More');
+    ok((await page.locator('[data-pocket-menu=more]').innerText()).includes('All available actions'), 'More opened an empty sheet for unavailable card sizing');
     await measure(page, 'samples-more-' + width);
     await shot(page, 'samples-more-' + width);
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.locator('[data-pocket-client-phone]').waitFor({ state: 'detached' });
-    ok(await page.locator('.pocket-client-phone-heading, .pocket-client-phone-menu, .pocket-client-phone-action').count() === 0, 'phone nodes leaked to desktop');
+    ok(await page.locator('.pocket-client-phone-heading, .pocket-client-phone-menu, .pocket-client-phone-action, .pocket-client-phone-saving').count() === 0, 'phone nodes leaked to desktop');
     ok(await page.locator('.cal-toolbar-mid > #sxrZoomCtl').count() === 1, 'native card size was not restored');
     await page.setViewportSize({ width, height: 844 });
     await page.locator('[data-pocket-client-phone=samples]').waitFor();
@@ -230,13 +251,14 @@ async function analytics(browser, origin, width, emptyCase = false) {
     await page.setViewportSize({ width, height: 844 });
     await page.locator('[data-pocket-client-phone=analytics]').waitFor();
     ok(writes.length === 0, 'Analytics navigation wrote data');
+    ok(errors.length === 0, 'Analytics page errors: ' + errors.join(' | '));
   }
     await ctx.close();
     // A populated session deliberately keeps its saved copy during refresh.
     // Prove first-use empty separately, without changing that product rule.
     return analytics(browser, origin, width, true);
   }
-  await page.locator('.error-state').waitFor().catch(async error => {
+  await page.getByText('No analytics yet', { exact: true }).waitFor().catch(async error => {
     console.error('Synthetic empty-state diagnostic:', await page.locator('#content').innerText());
     throw error;
   });
@@ -262,7 +284,16 @@ async function analytics(browser, origin, width, emptyCase = false) {
   const server = await serve();
   const browser = await chromium.launch({ headless: !headed, ...(headed ? { channel: 'chrome' } : {}) });
   const origin = 'http://127.0.0.1:' + server.address().port;
-  try { for (const width of widths) { await samples(browser, origin, width); await analytics(browser, origin, width); } }
+  // Widths have independent contexts and fictional backend state. Wait for
+  // every context to finish before closing the shared visible browser.
+  try {
+    const results = await Promise.allSettled(widths.map(async width => {
+      await samples(browser, origin, width);
+      await analytics(browser, origin, width);
+    }));
+    const failures = results.filter(result => result.status === 'rejected');
+    if (failures.length) throw new AggregateError(failures.map(result => result.reason), 'Phone checks failed');
+  }
   finally { await browser.close(); server.close(); }
   if (shots) fs.writeFileSync(path.join(shots, 'measurements.json'), JSON.stringify(measurements, null, 2) + '\n');
   console.log(before ? 'client-links-expanded: BEFORE screenshots recorded; no Expanded acceptance claimed.' : `client-links-expanded: OK (${checks} assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 360/390/430).`);

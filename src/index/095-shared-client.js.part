@@ -459,14 +459,14 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         });
         const heading = document.createElement('div');
         heading.className = 'pocket-client-phone-heading';
-        heading.innerHTML = `<h1>${_calEsc(title)}</h1><div><button type="button" data-pocket-open="tabs" onclick="_svClientPhoneOpenMenu(this)" aria-haspopup="dialog">Tabs <span aria-hidden="true">⌄</span></button><button type="button" data-pocket-open="more" onclick="_svClientPhoneOpenMenu(this)" aria-haspopup="dialog" aria-label="More options">•••</button></div>`;
+        heading.innerHTML = `<h1>${_calEsc(title)}</h1><div><button type="button" data-pocket-open="tabs" onclick="_svClientPhoneOpenMenu(this)" aria-haspopup="dialog">Tabs <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button><button type="button" data-pocket-open="more" onclick="_svClientPhoneOpenMenu(this)" aria-haspopup="dialog" aria-label="More options"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></button></div>`;
         root.prepend(heading);
         for (const key of ['tabs', 'more']) {
             const dialog = document.createElement('dialog');
             dialog.className = 'pocket-client-phone-menu';
             dialog.dataset.pocketMenu = key;
             dialog.setAttribute('aria-label', key === 'tabs' ? 'Tabs' : 'More options');
-            dialog.innerHTML = `<div class="pocket-client-phone-menu-head"><h2>${key === 'tabs' ? 'Tabs' : 'More options'}</h2><button type="button" onclick="_svClientPhoneCloseMenu(this)" aria-label="Close">×</button></div><div class="pocket-client-phone-menu-body"></div>`;
+            dialog.innerHTML = `<div class="pocket-client-phone-menu-head"><h2>${key === 'tabs' ? 'Tabs' : 'More'}</h2><button type="button" onclick="_svClientPhoneCloseMenu(this)" aria-label="Close"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div><div class="pocket-client-phone-menu-body"></div>`;
             // The existing About overlay lives outside this dialog. Retire
             // the phone menu before its native handler opens that overlay.
             dialog.addEventListener('click', event => {

@@ -30439,3 +30439,19 @@ Source build, module and phone CSS scope checks pass. Visible-browser proof is p
 Final client Samples/Analytics proof: Expanded phone gate passes 831 assertions at 360/390/430; the existing Calendar/Samples phone gate passes all five sizes per surface including landscape. Full desktop comparison passes 68/68 at four widths. A normal TEST Create Post sample with native work items passed real client Approve and Request change, normal-reader timestamp and exact-note confirmation, verified archive and both work items read back in Backlog. An earlier unlinked fixture was correctly refused and archived. Fictional before/after screenshots, sanitized receipts and check tails live in `docs/syncview-design/proofs/client-links-expanded/README.md`. Source-only candidate proof; no merge or deployment.
 
 Final current-source follow-up, 2026-10-04: phone gate passes 897 assertions, including pending decisions across the desktop breakpoint; 72 fictional after screenshots. The full desktop run matches every screenshot and 66/68 style pairs; isolated unchanged-source repeats of both Month pairs match, completing all 68 comparisons. Real TEST Approve and Request change return HTTP 200, normal-reader approval timestamp and exact-note reads confirm saves, archive and both work items in Backlog are verified. Nine real read-only layouts pass at 360/390/430. The required Production editor-placement check remains red on unchanged main too. Complete receipts and actual check tails are in the batch proof folder. No merge or deployment.
+
+## 339. [2026-10-04, BUILT, NOT DEPLOYED] Client Samples and Analytics on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 337. Phones and client links only; every new style sits in the same `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`, and the script edit is inside the phone-only shell. Desktop markup and styles are not touched. Same fixes as entry 338 on the client Calendar, so the three client screens match.
+
+Fixed:
+- Tabs button: a real chevron icon. More button: a real three-dot icon at normal size. Sheets close with a real cross icon.
+- Tabs and More sheets: grab handle, mock-up title sizes, full-width rows with left-aligned labels and a line between them; the current tab is bold with a tick. "About this client" and Card size are full-width rows. The More sheet is titled "More".
+- Samples Review card: the grey status pills under the title are gone. An open sample closes with the quiet chevron button. Approve is the mock-up's dark 48 px button. Comment and Request change sit right-aligned. The video preview spans the card.
+- Samples Sheet card: the video link is a quiet field with its link icon; status pills are 13 px with full-contrast text and wrap side by side.
+- Analytics: the "Today's gains" label read "TODAY'SGAINS" because its line break was hidden with nothing in its place. It is two words again.
+
+Still different from the mock-up, on purpose: a closed Review card keeps a labelled "Review" button (the mock-up only draws the open card), and the Analytics page shows real numbers and charts where the mock-up only has the empty state.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check/`. Approve and Request change on a sample were not re-tested for real in this pass; see the pull request comment.
+Way back: revert the commit.

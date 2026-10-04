@@ -1,6 +1,7 @@
 {
-  "status": "staff_pass_client_repeat_pending",
+  "status": "pass",
   "beforeRef": "6273485e25dabe3aaca61459500c6707d91234e3",
+  "candidateIndexSha256": "2d3397a3412aba1343a8e381e331c489ac34ffc951d7f7ef4778dcb61c8ce4fc",
   "rows": [
     {
       "page": "staff-tab-01",
@@ -87,7 +88,55 @@
       "width": 1024,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "ca762fc8a576",
+      "sha": "c983e265a654",
+      "attempts": 2
+    },
+    {
+      "page": "client-analytics",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "e2293f388b8a",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "242f1f3e4b3d",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-month",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "70773e92d08f",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-week",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "902235a2cb82",
+      "attempts": 1
+    },
+    {
+      "page": "client-brief",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "242f1f3e4b3d",
+      "attempts": 1
+    },
+    {
+      "page": "client-sample-reviews",
+      "width": 1024,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "e05ce30d75e1",
       "attempts": 1
     },
     {
@@ -175,7 +224,55 @@
       "width": 1280,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "fa2a4b7c87d6",
+      "sha": "cc1c703a804a",
+      "attempts": 2
+    },
+    {
+      "page": "client-analytics",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "3f8967da229c",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "9352c5de1444",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-month",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "b17dcd8c1d71",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-week",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "8cf91703e549",
+      "attempts": 1
+    },
+    {
+      "page": "client-brief",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "9352c5de1444",
+      "attempts": 1
+    },
+    {
+      "page": "client-sample-reviews",
+      "width": 1280,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "192ebb3a4b3c",
       "attempts": 1
     },
     {
@@ -263,7 +360,55 @@
       "width": 1440,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "a2f331371d82",
+      "sha": "70f7ffa76cee",
+      "attempts": 1
+    },
+    {
+      "page": "client-analytics",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "bced56923721",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "eb9c15c3143e",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-month",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "97a844108378",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-week",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "c6ea5e0d8216",
+      "attempts": 1
+    },
+    {
+      "page": "client-brief",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "eb9c15c3143e",
+      "attempts": 1
+    },
+    {
+      "page": "client-sample-reviews",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "7946014bb0e8",
       "attempts": 1
     },
     {
@@ -351,11 +496,56 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "9244b1ede574",
+      "sha": "37a8801c3a5b",
+      "attempts": 2
+    },
+    {
+      "page": "client-analytics",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "e6fc782390a9",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "1ac4c1dfd592",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-month",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "f6ae064ac279",
+      "attempts": 1
+    },
+    {
+      "page": "client-calendar-week",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "3d6078d71cd1",
+      "attempts": 1
+    },
+    {
+      "page": "client-brief",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "1ac4c1dfd592",
+      "attempts": 1
+    },
+    {
+      "page": "client-sample-reviews",
+      "width": 1920,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "8efa8351f7c9",
       "attempts": 1
     }
-  ],
-  "pending": [
-    "Final live-read client comparisons at all four desktop widths"
   ]
 }

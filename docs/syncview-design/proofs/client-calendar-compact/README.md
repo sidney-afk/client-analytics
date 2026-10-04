@@ -43,7 +43,7 @@ All local browser checks used visible Chrome. The candidate app was served from
 the local branch while retaining the signed-in test client's existing backend.
 This is candidate proof, not deployment proof.
 
-The last completed candidate save proof clicked Approve and Request change at 390px
+The final candidate save proof clicked Approve and Request change at 390px
 on a disposable test card. The normal app reader confirmed Approved with its
 sign-off timestamp, then Tweaks Needed with the exact note saved. The card was
 archived and read back as Archived. No other client was changed. The identity-free
@@ -69,7 +69,7 @@ media failures: transient thumbnail responses had produced false differences on
 Month and Week. Both sides now receive the exact same inputs; pixel/style
 assertions, four retries and settle timings remain unchanged. A separate offline
 relay check proves that cached responses cannot bypass the existing write refusal.
-The final comparison runs at 1024/1280/1440/1920 for every staff header tab and
+The final comparison passed **68/68** at 1024/1280/1440/1920 for every staff header tab and
 the designated test client's views. Each width uses the unchanged gate timings
 in visible Chrome. Raw client desktop images stay private because they contain
 identities; the public equality/hashes receipt is `desktop-parity.json`.
@@ -90,15 +90,23 @@ separate from the local proof.
 No merge, deployment, database/schema change or n8n workflow edit was performed.
 Lighthouse owns merging. Next action for the owner: review this checkpoint and
 say whether the phone layout is good before work starts on another screen.
-Session token usage is not exposed by this environment; no number is claimed.
+The cumulative goal token count is reported in the handoff. It includes prior
+work in this goal; a separate per-PR token count is not available.
 
-## Pending final proof
+## Final verification
 
-The visible browser tool restarted during a repeat save check. The restored
-sign-in tab is waiting for the owner to sign in. The last completed save receipt
-above is earlier candidate proof; the final repeat and disposable-card cleanup
-readback are pending. The full live-read desktop comparison must also be rerun
-after the viewport repair. This checkpoint is not ready for approval or a push.
+Visible Chrome verified the final candidate on the designated test workspace.
+Approve and Request change both returned HTTP 200 and their normal-reader
+readbacks passed. Cleanup returned HTTP 200 and read back as Archived. The
+read-only pass covered all four views at all three widths, plus real Tabs, More
+and Organize menus. View navigation wrote no data. The offline Compact gate
+passed **1,533 assertions**.
+
+The relay permits the existing `analytics-read` POST after verifying that its
+source only selects data. This keeps normal client boot working during proof.
+Its regression check executes the actual relay allow-list and verifies that
+both builds get the same read response while writes remain refused. The final
+68-pair desktop pass used this complete read relay.
 
 The viewport repair preserves the last visible layout when Chrome briefly uses
 a 1-pixel measurement viewport during full-page capture. The offline phone gate

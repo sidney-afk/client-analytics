@@ -1,8 +1,9 @@
-LOCAL CHECK RECEIPTS — checkpoint still pending final signed-in proof
+LOCAL CHECK RECEIPTS — client Calendar checkpoint
 
-Current phone gate: 1,533 assertions passed at 360/390/430.
-Staff desktop gate: 44/44 passed at 1024/1280/1440/1920.
-Final live client desktop comparison, repeat decision saves, and cleanup readback: PENDING.
+Compact phone gate: 1,533 assertions passed at 360/390/430.
+Final desktop gate with normal analytics reads: 68/68 pixel/style pairs identical at 1024/1280/1440/1920.
+Real TEST decision saves: Approve and Request change returned HTTP 200; decisions, approval timestamp and exact note read back. Cleanup read back as Archived.
+Real read-only view pass: all four views at all three widths; light, 44px visited targets, 16px fields, no sideways page scroll.
 Full unit lane: 17/675 failed; all 17 also failed on unchanged main.
 Production write browser gate: FAILED; same editor geometry failure on unchanged main.
 
@@ -10,8 +11,7 @@ The actual last nonblank lines of every captured check log follow, including
 historical diagnostic failures before the viewport repair. Historical diagnostics
 are not final proof. Offline tall-page diagnostics use a synthetic spacer.
 Absolute paths, staff tab labels and generated bundle filenames are normalized
-below for public safety;
-pass/fail wording and numbers are unchanged. No output is recorded as no output.
+for public safety; pass/fail wording and numbers are unchanged.
 
 [baseline-alert-digest.js.log]
 FAIL  accepted but unconfirmed delivery is reported as unconfirmed, so state would not move
@@ -163,6 +163,9 @@ ok   client-calendar-month @1024: pixels identical, computed styles identical (7
 
 1/1 desktop shots identical to origin/main
 
+[css-checkpoint.log]
+client-phone-css-scope: OK (5 block(s), 226 braces, all under @media (max-width: <=767px) and html.boot-client)
+
 [css-complete-final.log]
 client-phone-css-scope: OK (5 block(s), 225 braces, all under @media (max-width: <=767px) and html.boot-client)
 
@@ -189,10 +192,60 @@ ok   client-sample-reviews @1920: pixels identical, computed styles identical (8
 
 16/17 desktop shots identical to origin/main
 
+[desktop-complete-1024.log]
+ok   client-sample-reviews @1024: pixels identical, computed styles identical (e05ce30d75e1)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-complete-1280.log]
+ok   client-sample-reviews @1280: pixels identical, computed styles identical (192ebb3a4b3c)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-complete-1440.log]
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (7946014bb0e8)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-complete-1920.log]
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (8efa8351f7c9)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-complete.log]
+Desktop width 1280: exit 0
+Desktop width 1920: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
 [desktop-final.log]
 Desktop width 1440: exit 1
 Desktop width 1024: exit 1
 64/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+[desktop-release-1024.log]
+ok   client-sample-reviews @1024: pixels identical, computed styles identical (e05ce30d75e1)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-release-1280.log]
+ok   client-sample-reviews @1280: pixels identical, computed styles identical (192ebb3a4b3c)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-release-1440.log]
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (7946014bb0e8)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-release-1920.log]
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (8efa8351f7c9)
+
+17/17 desktop shots identical to origin/main
+
+[desktop-release.log]
+Desktop width 1024: exit 0
+Desktop width 1920: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
 
 [desktop-staff-1024.log]
 ok   staff-tab-11 @1024: pixels identical, computed styles identical (ca762fc8a576)
@@ -230,10 +283,25 @@ FAIL client-calendar-month @1024: pixels DIFFERENT, computed styles DIFFERENT (8
 [diff-final.log]
 warning: in the working copy of 'docs/syncview-design/proofs/client-calendar-compact/after/measurements.json', LF will be replaced by CRLF the next time Git touches it
 
+[diff-proof-final.log]
+warning: in the working copy of 'docs/syncview-design/proofs/client-calendar-compact/after/measurements.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/syncview-design/proofs/client-calendar-compact/before/measurements.json', LF will be replaced by CRLF the next time Git touches it
+docs/syncview-design/proofs/client-calendar-compact/gallery.html:17: new blank line at EOF.
+
+[identity-checkpoint.log]
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
 [identity-final.log]
   WHERE (counts only — this tool never prints what it matched):
 
 This change adds no client slug and no colleague's name ✅
+
+[index-checkpoint.log]
+check-index: committed index.html (HEAD) — sha256=2d3397a3412aba1343a8e381e331c489ac34ffc951d7f7ef4778dcb61c8ce4fc bytes=961458
+
+check-index: OK — assembled == working tree == committed (HEAD)
 
 [index-final.log]
 check-index: committed index.html (HEAD) — sha256=1093c94c5231f6f8e67b085e32c553d69f198833d2353b4b8794f92021f479a1 bytes=960972
@@ -249,6 +317,11 @@ repo-map-sync: 1073 passed, 0 failed
 OK  REPO_MAP.md path `test/atlas-sync.js` exists
 
 repo-map-sync: 1073 passed, 0 failed
+
+[modules-checkpoint.log]
+minified parts: 19 files, 2551 KB, 5056 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
 
 [modules-complete-final.log]
 minified parts: 19 files, 2551 KB, 5056 top-level names, 0 lost, 0 changed kind
@@ -301,6 +374,11 @@ client-phone-review: OK (calendar + samples, 5 phone sizes each, approve + reque
 [phone-scope.log]
 client-phone-css-scope: OK (5 block(s), 223 braces, all under @media (max-width: <=767px) and html.boot-client)
 
+[pins-checkpoint.log]
+  test/linear-exit-provider-terminal-history.js: 0 CRLF, 44 LF, 0 lone CR, 14021 bytes
+  test/linear-exit-retirement-switch-postgres.js: 62 CRLF, 6 LF, 0 lone CR, 19647 bytes
+  test/linear-exit-source-phases-postgres.js: 1 CRLF, 28 LF, 0 lone CR, 7595 bytes
+
 [pins-complete-final.log]
   test/linear-exit-provider-terminal-history.js: 0 CRLF, 44 LF, 0 lone CR, 14021 bytes
   test/linear-exit-retirement-switch-postgres.js: 62 CRLF, 6 LF, 0 lone CR, 19647 bytes
@@ -327,6 +405,9 @@ Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read vi
 
 [relay-complete-final.log]
 desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; read-only verification retained).
+
+[relay-complete-native-read.log]
+desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; native verification and analytics reads retained).
 
 [relay-final.log]
 desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; read-only verification retained).
@@ -419,31 +500,3 @@ FAIL client-calendar-week @1024: pixels DIFFERENT, computed styles DIFFERENT (c0
 FAIL client-calendar-week @1024: pixels DIFFERENT, computed styles DIFFERENT (c038285400b8, attempts 4)
 
 0/1 desktop shots identical to origin/main
-
-[index-checkpoint.log]
-check-index: committed index.html (HEAD) — sha256=2d3397a3412aba1343a8e381e331c489ac34ffc951d7f7ef4778dcb61c8ce4fc bytes=961458
-
-check-index: OK — assembled == working tree == committed (HEAD)
-
-[modules-checkpoint.log]
-minified parts: 19 files, 2551 KB, 5056 top-level names, 0 lost, 0 changed kind
-
-check-modules: all checks passed
-
-[css-checkpoint.log]
-client-phone-css-scope: OK (5 block(s), 226 braces, all under @media (max-width: <=767px) and html.boot-client)
-
-[pins-checkpoint.log]
-  test/linear-exit-provider-terminal-history.js: 0 CRLF, 44 LF, 0 lone CR, 14021 bytes
-  test/linear-exit-retirement-switch-postgres.js: 62 CRLF, 6 LF, 0 lone CR, 19647 bytes
-  test/linear-exit-source-phases-postgres.js: 1 CRLF, 28 LF, 0 lone CR, 7595 bytes
-
-[identity-checkpoint.log]
-  WHERE (counts only — this tool never prints what it matched):
-
-This change adds no client slug and no colleague's name ✅
-
-[diff-proof-final.log]
-warning: in the working copy of 'docs/syncview-design/proofs/client-calendar-compact/after/measurements.json', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/syncview-design/proofs/client-calendar-compact/before/measurements.json', LF will be replaced by CRLF the next time Git touches it
-docs/syncview-design/proofs/client-calendar-compact/gallery.html:17: new blank line at EOF.

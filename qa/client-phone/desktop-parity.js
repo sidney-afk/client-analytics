@@ -94,7 +94,9 @@ function offlineAnswer(route) {
 // the bundled browser). Read-only: GET/HEAD/OPTIONS pass; a POST passes ONLY
 // to an exact, verified read-only Edge Function. Every other write, every
 // PostgREST RPC included, is refused locally and never reaches the backend.
-const LIVE_POST_READS = new Set(['/functions/v1/client-token-verify', '/functions/v1/thumbnail-revision-read']);
+// analytics-read's source handler only selects data, including its staff
+// overview action. The native client boot uses it before rendering Calendar.
+const LIVE_POST_READS = new Set(['/functions/v1/client-token-verify', '/functions/v1/thumbnail-revision-read', '/functions/v1/analytics-read']);
 async function liveRelay(route, snapshot) {
   const q = route.request();
   const u = new URL(q.url());

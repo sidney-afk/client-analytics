@@ -5,9 +5,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const source = fs.readFileSync(path.join(__dirname, '../../../qa/client-phone/desktop-parity.js'), 'utf8');
-const code = source.slice(source.indexOf('async function liveRelay('), source.indexOf('async function shoot('));
+const code = source.slice(source.indexOf('const LIVE_POST_READS ='), source.indexOf('async function shoot('));
 let calls = 0;
-const context = vm.createContext({ Buffer, URL, CORS: {}, LIVE_POST_READS: new Set(['/functions/v1/client-token-verify', '/functions/v1/thumbnail-revision-read']),
+const context = vm.createContext({ Buffer, URL, CORS: {},
   fetch: async url => {
     calls++;
     if (url.endsWith('/failed-image')) throw Error('Synthetic media read failure');
@@ -42,5 +42,11 @@ function route(method, pathname, body = '') {
   await context.relay(verified, snapshot);
   assert.equal(verified.result().reply.status, 200, 'existing read-only token verification was lost');
   assert.equal(calls, 3);
-  console.log('desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; read-only verification retained).');
+  const analytics = route('POST', '/functions/v1/analytics-read', '{"slug":"fixture"}');
+  const replay = route('POST', '/functions/v1/analytics-read', '{"slug":"fixture"}');
+  await context.relay(analytics, snapshot); await context.relay(replay, snapshot);
+  assert.equal(analytics.result().reply.status, 200, 'native read-only analytics boot was refused');
+  assert.deepEqual(analytics.result().reply.body, replay.result().reply.body, 'analytics read snapshot changed');
+  assert.equal(calls, 4, 'analytics input was fetched separately for the two builds');
+  console.log('desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; native verification and analytics reads retained).');
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -1,19 +1,28 @@
 {
-  "candidate": true,
-  "testOnly": true,
-  "width": 390,
-  "approve": {
-    "exists": true,
+  "verifiedAt": "2026-10-03T22:16:30.458Z",
+  "candidateIndexSha256": "2d3397a3412aba1343a8e381e331c489ac34ffc951d7f7ef4778dcb61c8ce4fc",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "approveRead": {
     "approved": true,
-    "stamped": true
+    "timestampSaved": true
   },
-  "requestChanges": {
-    "exists": true,
-    "changes": true,
-    "note": true
+  "changeRead": {
+    "tweaksNeeded": true,
+    "exactNoteSaved": true
   },
-  "cleanup": {
-    "http": 200,
+  "archiveReply": {
+    "ok": true,
+    "http": 200
+  },
+  "archiveRead": {
     "archived": true
-  }
+  },
+  "clientWriteHttpStatuses": [
+    200,
+    200
+  ],
+  "testScopeGuard": true
 }

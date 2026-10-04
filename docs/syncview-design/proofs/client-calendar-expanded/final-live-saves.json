@@ -1,0 +1,29 @@
+{
+  "verifiedAt": "2026-10-04T05:22:25.889Z",
+  "layout": "Expanded",
+  "candidateIndexSha256": "a619c1963b52c9e5f0cc8cf35d990c232c50cdba9fdcec70928e13b0c7d2a815",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "approveReceipt": {
+    "approved": true,
+    "timestampPresent": true,
+    "status": 200
+  },
+  "changeReceipt": {
+    "requested": true,
+    "notePresent": true,
+    "writeStatus": 200,
+    "readStatus": 200
+  },
+  "archiveRead": true,
+  "cleanupPending": false,
+  "realBrowserActions": true,
+  "finalNoteReadMethod": "same REST reader used by the app; only the disposable test card",
+  "archiveReply": {
+    "ok": true,
+    "http": 200
+  },
+  "cleanupVerifiedAt": "2026-10-04T17:21:49.412Z"
+}

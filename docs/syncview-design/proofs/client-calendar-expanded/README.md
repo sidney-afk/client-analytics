@@ -108,6 +108,8 @@ was unchanged during the setup and the phone gate. No headless browser was used.
 The final Month polish changes CSS only; its index hash is in the desktop receipt.
 The verified Expanded decision-save and archived-card receipt precedes that
 cosmetic polish and uses the same built JavaScript. A further confirmation run
-saved Approve and Request change, then browser control restarted before the
-fresh note readback and second cleanup could be verified. That final cleanup is
-pending owner sign-in. No PR or final completion is claimed until it is resolved.
+saved Approve and Request change. A later read using the app's same REST reader
+confirmed the exact saved note. After the owner signed in again, the native
+Calendar writer archived only that disposable card with HTTP 200; the normal
+app reader confirmed Archived. The final receipt is
+[final-live-saves.json](final-live-saves.json). The cleanup hold is resolved.

@@ -532,3 +532,31 @@ Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read vi
 
 [expanded-relay.log]
 desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; native verification and analytics reads retained).
+
+FINAL PRE-PUSH REFRESH (same candidate and unchanged origin/main)
+
+[check:index]
+check-index: assembled bytes — sha256=a619c1963b52c9e5f0cc8cf35d990c232c50cdba9fdcec70928e13b0c7d2a815 bytes=961251
+check-index: working-tree index.html — sha256=a619c1963b52c9e5f0cc8cf35d990c232c50cdba9fdcec70928e13b0c7d2a815 bytes=961251
+check-index: committed index.html (HEAD) — sha256=a619c1963b52c9e5f0cc8cf35d990c232c50cdba9fdcec70928e13b0c7d2a815 bytes=961251
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+[check-modules]
+module 340-kasper-editors-board.js.part: 47 imports, 1 exports
+module 345-core-tooltip-date-picker.js.part: 2 imports, 0 exports
+window exports: 539 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2550 KB, 5054 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+[prod-write-gateway-browser: same known failure on unchanged main]
+--- phase: due_write ---
+--- phase: due_receipt ---
+--- phase: assignee_projection ---
+--- phase: description_markdown ---
+--- phase: inplace_place ---
+Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
+    at expect (<checkout>\docs\syncview-design\tests\prod-write-gateway-browser.js:81:53)
+    at <checkout>\docs\syncview-design\tests\prod-write-gateway-browser.js:1546:5

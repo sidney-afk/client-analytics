@@ -45,32 +45,18 @@ import { _calApprovalBadgeCount, _calUpdateReviewBadge, _calWireReviewExpand, re
 import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
-    // Pocket Compact is a presentation of the existing client Calendar only.
-    // No phone nodes are mounted on desktop; disclosure never writes a post.
-    const _calPhoneFolds = new Map();
+    // Pocket Expanded presents the existing client Calendar on phones.
+    // No phone nodes are mounted on desktop; sections never write a post.
     const _calPhoneShells = new WeakSet();
     let _calPhoneWidth = window.matchMedia('(max-width: 767px)').matches;
     function _calPhoneClient() {
         return !!_isClientLink && _calPhoneWidth;
     }
-    function _calPhoneFoldHtml(pid, part, title, status, html, initial) {
+    function _calPhoneSectionHtml(pid, part, title, status, html) {
         if (!_calPhoneClient()) return html;
-        const group = calClientSlug(calState.client) + ':' + pid;
-        if (!_calPhoneFolds.has(group)) _calPhoneFolds.set(group, initial ? part : '');
-        const open = _calPhoneFolds.get(group) === part;
-        return `<details class="pocket-cal-fold" name="${_calEscAttr(group)}" data-phone-group="${_calEscAttr(group)}" data-phone-part="${_calEscAttr(part)}"${open ? ' open' : ''} ontoggle="_calPhoneFoldToggle(this)">
-            <summary><span>${_calEsc(title)}</span>${status ? `<span class="pocket-cal-fold-status">${_calEsc(status)}</span>` : ''}</summary>
-            <div class="pocket-cal-fold-body">${html}</div></details>`;
-    }
-    function _calPhoneFoldToggle(el) {
-        if (!_calPhoneClient() || !el.isConnected) return;
-        const group = el.dataset.phoneGroup, part = el.dataset.phonePart;
-        if (el.open) {
-            _calPhoneFolds.set(group, part);
-            document.querySelectorAll('.pocket-cal-fold[open]').forEach(other => {
-                if (other !== el && other.dataset.phoneGroup === group) other.open = false;
-            });
-        } else if (_calPhoneFolds.get(group) === part) _calPhoneFolds.set(group, '');
+        return `<section class="pocket-cal-section" data-phone-part="${_calEscAttr(part)}">
+            <div class="pocket-cal-section-head"><span>${_calEsc(title)}</span>${status ? `<span class="pocket-cal-section-status" aria-live="polite">${_calEsc(status)}</span>` : ''}</div>
+            <div class="pocket-cal-section-body">${html}</div></section>`;
     }
     function _calPhoneOpenMenu(kind) {
         if (!_calPhoneClient()) return;
@@ -2956,14 +2942,14 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         _calCloseClientLinks, _calCloseKebab, _calEditLink, _calFillComponent, _calLinearClear,
         _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel, _calOnLinkBlur,
         _calOnLinkInput, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError, _calOpenLink,
-        _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneFoldToggle, _calPhoneOpenMenu, _calTabScrollBy,
+        _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
         _calToggleClientLinks, _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop,
         _calUpdateTabScroll, _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen,
         _thumbCompareSignIn, calZoom, onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle,
         onCalStatusFilterChange, onCalTabAddClick, onCalTabClick, onCalTabRemove, onCalViewChange
     });
 export {
-  _calPhoneClient, _calPhoneFoldHtml,
+  _calPhoneClient, _calPhoneSectionHtml,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,
   _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo, _calDriveWarnHtml,

@@ -27,7 +27,7 @@ import {
 import { _calMarkLocalStatus, _calV2Log } from './150-calendar-hydration-import.js';
 import {
   _calClientCompPillsHtml, _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo,
-  _calPhoneClient, _calPhoneFoldHtml,
+  _calPhoneClient, _calPhoneSectionHtml,
   _calFolderOpenUrl, _calFrameOpenUrl, _calIsFolderLink, _calIsFrameLink, _calMiniLinkBadgeHtml,
   _calRenderBody, _calReviewFrameHtml, _calStatusLabel, _calThumbIconSvg, _calThumbImgTag,
   _kcardReuseThumbInto, _thumbCompareSlotHtml
@@ -345,7 +345,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 : _calReviewState.drafts[key] ? 'Note not sent'
                 : _calNormStatus(p[comp + '_status']) === 'Client Approval' ? 'Awaiting your approval'
                 : _calNormStatus(p[comp + '_status']);
-            return _calPhoneFoldHtml('review:' + p.id, comp, COMP_LABELS[comp], status, html, i === 0);
+            return _calPhoneSectionHtml('review:' + p.id, comp, COMP_LABELS[comp], status, html, i === 0);
         }).join('');
         const cols = activeComps.length;
         // 4 components (a YouTube card with title review on) lay out 2×2 instead
@@ -588,11 +588,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calReviewToggleCard(pid) {
         if (_calReviewState.expanded.has(pid)) _calReviewState.expanded.delete(pid);
         else {
-            if (_calPhoneClient()) {
-                const prior = Array.from(_calReviewState.expanded);
-                _calReviewState.expanded.clear();
-                prior.forEach(id => _calReviewRepaintCard(id));
-            }
             _calReviewState.expanded.add(pid);
         }
         _calReviewRepaintCard(pid);
@@ -658,7 +653,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _calReviewState.drafts[key] = ta.value;
         delete _calReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
-        const phoneSummary = ta.closest('.pocket-cal-fold')?.querySelector('.pocket-cal-fold-status');
+        const phoneSummary = ta.closest('.pocket-cal-section')?.querySelector('.pocket-cal-section-status');
         if (phoneSummary) phoneSummary.textContent = _calReviewState.saving[key] ? 'Sending…' : _calReviewState.errors[key] ? 'Save failed · retry inside' : nowHasDraft ? 'Note not sent' : 'Awaiting your approval';
         // Don't repaint on every keystroke — just toggle the two action
         // buttons in place. Approve is gated off while a draft is in

@@ -8655,8 +8655,8 @@
             html.boot-client .cal-tab-view .cal-week-card { width: 100%; }
         }
         /* CLIENT-PHONE:END */
-        /* Pocket Compact: client Calendar only. Native actions and statuses
-           stay mounted inside disclosures; every rule is phone-capped. */
+        /* Pocket Expanded: client Calendar only. Native actions and statuses
+           stay visible in full sections; every rule is phone-capped. */
         /* CLIENT-PHONE:BEGIN */
         @media (max-width: 767px) {
             html.boot-client body:has(.pocket-client-calendar) > .header { display: none; }
@@ -8695,11 +8695,10 @@
             html.boot-client .cal-tab-view .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
             html.boot-client .cal-tab-view .cal-toolbar-right:has(> [hidden]):not(:has(> :not([hidden]))) { display: none; }
             html.boot-client .cal-tab-view .cal-review-wrap { padding: 0 0 24px; }
-            html.boot-client .cal-tab-view .cal-review-list { gap: 0; background: var(--white); border-radius: 18px; overflow: hidden; }
-            html.boot-client .cal-tab-view .cal-review-card { border: 0; border-radius: 0; margin: 0; box-shadow: none; }
-            html.boot-client .cal-tab-view .cal-review-card + .cal-review-card { border-top: 1px solid var(--border-light); }
-            html.boot-client .cal-tab-view .kcard-strip { padding: 16px; gap: 12px; grid-template-columns: 60px minmax(0, 1fr); }
-            html.boot-client .cal-tab-view .kcard-thumb { width: 60px; height: 70px; border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-review-list { gap: 20px; background: transparent; overflow: visible; }
+            html.boot-client .cal-tab-view .cal-review-card { border: 1px solid var(--border); border-radius: 22px; margin: 0; box-shadow: none; overflow: hidden; }
+            html.boot-client .cal-tab-view .kcard-strip { padding: 18px 16px; gap: 14px; grid-template-columns: 68px minmax(0, 1fr); }
+            html.boot-client .cal-tab-view .kcard-thumb { width: 68px; height: 82px; border-radius: 12px; }
             html.boot-client .cal-tab-view .kcard-title { font-size: 16px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
             html.boot-client .cal-tab-view .kcard-pending { font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
             html.boot-client .cal-tab-view .kcard-date { font-size: 12px; color: var(--text-secondary); }
@@ -8710,15 +8709,12 @@
             html.boot-client .cal-tab-view .kcard-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 44px; min-height: 44px; padding: 0 12px; gap: 7px; font: inherit; font-size: 12px; font-weight: 700; }
             html.boot-client .cal-tab-view .kcard-expand-btn { margin-left: auto; background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
             html.boot-client .cal-tab-view .cal-review-body { padding: 0 16px 12px; }
-            html.boot-client .pocket-cal-fold { min-width: 0; border: 0; border-top: 1px solid var(--border-light); }
-            html.boot-client .pocket-cal-fold > summary { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 22px 10px 0; box-sizing: border-box; position: relative; list-style: none; cursor: pointer; font-size: 14px; font-weight: 700; }
-            html.boot-client .pocket-cal-fold > summary::-webkit-details-marker { display: none; }
-            html.boot-client .pocket-cal-fold > summary::after { content: '⌄'; position: absolute; right: 2px; font-size: 18px; }
-            html.boot-client .pocket-cal-fold[open] > summary::after { transform: rotate(180deg); }
-            html.boot-client .pocket-cal-fold-status { margin-left: auto; max-width: 65%; font-size: 11px; font-weight: 500; color: var(--text-secondary); text-align: right; line-height: 1.5; }
-            html.boot-client .pocket-cal-fold-body { padding-bottom: 14px; min-width: 0; }
-            html.boot-client .pocket-cal-fold .cal-review-panel { padding: 0; border: 0; gap: 12px; }
-            html.boot-client .pocket-cal-fold .cal-review-panel-head { display: none; }
+            html.boot-client .pocket-cal-section { min-width: 0; border-top: 1px solid var(--border-light); padding: 18px 0; }
+            html.boot-client .pocket-cal-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; font-size: 15px; font-weight: 700; line-height: 1.5; }
+            html.boot-client .pocket-cal-section-status { margin-left: auto; max-width: 65%; font-size: 12px; font-weight: 500; color: var(--text-secondary); text-align: right; }
+            html.boot-client .pocket-cal-section-body { min-width: 0; }
+            html.boot-client .pocket-cal-section .cal-review-panel { padding: 0; border: 0; gap: 14px; }
+            html.boot-client .pocket-cal-section .cal-review-panel-head { display: none; }
             html.boot-client .cal-tab-view .cal-review-video-tile { max-width: min(100%, 264px); border-radius: 14px; }
             html.boot-client .cal-tab-view .cal-review-video-bg { filter: brightness(0.75); transform: none; object-fit: contain; }
             html.boot-client .cal-tab-view .cal-review-preview-thumb-btn { width: 100%; max-width: 100%; background: var(--field-bg); border-radius: 14px; }
@@ -8732,17 +8728,18 @@
             html.boot-client .cal-tab-view .cal-review-comment-empty,
             html.boot-client .cal-tab-view .cal-review-preview-empty { color: var(--text-secondary); font-style: normal; }
             html.boot-client .cal-tab-view .cal-organizer-wrap { padding: 0; }
-            html.boot-client .cal-tab-view .cal-organizer-strip { flex-direction: column; gap: 0; align-items: stretch; padding: 0; min-height: 0; background: var(--white); border-radius: 18px; overflow: visible; }
+            html.boot-client .cal-tab-view .cal-organizer-strip { flex-direction: column; gap: 20px; align-items: stretch; padding: 0; min-height: 0; background: transparent; overflow: visible; }
             html.boot-client .cal-tab-view .cal-organizer-strip::after { flex-basis: 24px; }
-            html.boot-client .cal-tab-view .cal-organizer-strip > .cal-card { width: 100%; flex: 0 0 auto; border: 0; border-radius: 0; margin: 0; box-shadow: none; }
-            html.boot-client .cal-tab-view .cal-organizer-strip > .cal-card + .cal-card { border-top: 1px solid var(--border); }
+            html.boot-client .cal-tab-view .cal-organizer-strip > .cal-card { width: 100%; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 22px; margin: 0; box-shadow: none; overflow: hidden; }
             html.boot-client .cal-tab-view .cal-card-grip { display: none; }
             html.boot-client .cal-tab-view .cal-card-add { align-self: stretch; width: auto; height: 52px; min-height: 52px; margin: 16px; border-radius: 14px; color: var(--text-primary); background: var(--bg); }
             html.boot-client .cal-tab-view .cal-card-add:not(.cal-card-add-hero)::after { content: 'Suggest a post'; font-size: 14px; font-weight: 700; }
             html.boot-client .cal-tab-view .cal-card-add-hero { flex-direction: row; gap: 12px; }
-            html.boot-client .cal-tab-view .cal-card-thumb { height: 180px; min-height: 0; aspect-ratio: auto; border-radius: 0; }
+            html.boot-client .cal-tab-view .cal-card-thumb { height: 220px; min-height: 0; aspect-ratio: auto; border-radius: 0; }
             html.boot-client .cal-tab-view .cal-card-thumb:has(.cal-card-thumb-fallback) { height: 96px; }
-            html.boot-client .cal-tab-view .cal-card-body { padding: 16px; gap: 12px; }
+            html.boot-client .cal-tab-view .cal-card-body { padding: 18px 16px; gap: 14px; }
+            html.boot-client .cal-tab-view .cal-cap-toggle { position: static; align-self: flex-end; margin-top: 8px; box-shadow: none; border-radius: 12px; padding: 0 12px; font-size: 12px; }
+            html.boot-client .cal-tab-view .cal-cap-fade { bottom: 52px; }
             html.boot-client .cal-tab-view input,
             html.boot-client .cal-tab-view textarea { font-size: 16px; max-width: 100%; box-sizing: border-box; min-height: 44px; }
             html.boot-client .cal-tab-view button { min-height: 44px; min-width: 44px; }
@@ -8763,13 +8760,12 @@
             html.boot-client .cal-tab-view .cal-empty .cal-link { min-width: 44px; min-height: 44px; }
             html.boot-client .cal-tab-view .cal-month-label { color: var(--text-primary); font-size: 17px; }
             html.boot-client .cal-tab-view .cal-month-grid,
-            html.boot-client .cal-tab-view .cal-week-grid { border: 0; background: var(--white); border-radius: 18px; overflow: hidden; gap: 0; }
+            html.boot-client .cal-tab-view .cal-week-grid { border: 0; background: transparent; border-radius: 18px; overflow: visible; gap: 16px; }
             html.boot-client .cal-tab-view .cal-month-dow,
             html.boot-client .cal-tab-view .cal-week-day { color: var(--text-secondary); font-size: 11px; }
             html.boot-client .cal-tab-view .cal-month-pill,
             html.boot-client .cal-tab-view .cal-week-card { box-shadow: none; border-color: var(--border-light); }
-            html.boot-client .cal-tab-view .cal-week-col { border: 0; border-radius: 0; background: transparent; }
-            html.boot-client .cal-tab-view .cal-week-col + .cal-week-col { border-top: 1px solid var(--border-light); }
+            html.boot-client .cal-tab-view .cal-week-col { border: 1px solid var(--border); border-radius: 17px; background: var(--white); }
             html.boot-client .cal-tab-view .cal-week-stack:not(:has(*))::after { color: var(--text-secondary); }
             html.boot-client .cal-tab-view .cal-unscheduled-list { flex-wrap: wrap; overflow-x: visible; }
             html.boot-client .cal-tab-view .cal-unscheduled-list .cal-month-pill { flex: 1 1 110px; min-height: 44px; }
@@ -8795,8 +8791,7 @@
             html.boot-client body:has(.pocket-client-calendar) .dp-nav-btn,
             html.boot-client body:has(.pocket-client-calendar) .dp-foot-btn { min-width: 44px; min-height: 44px; }
             html.boot-client .pocket-cal-menu button:focus-visible,
-            html.boot-client .pocket-cal-heading-actions button:focus-visible,
-            html.boot-client .pocket-cal-fold > summary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+            html.boot-client .pocket-cal-heading-actions button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
         }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).
@@ -9707,8 +9702,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-b8452ee319fa.js";
-        var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-751c4604eee4.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-4a20429fcea6.js";
+        var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-324e70bff96a.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-29255d239193.js"};
         var FORCE = null;
         var CLIENTS = true;

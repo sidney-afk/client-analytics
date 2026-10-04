@@ -1,0 +1,426 @@
+{
+  "checks": 1725,
+  "before": false,
+  "cases": [
+    {
+      "label": "review-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "thumbnail-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "lightbox-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 23,
+      "fields": 3
+    },
+    {
+      "label": "caption-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "save-error-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "sending-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "tabs-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 25,
+      "fields": 3
+    },
+    {
+      "label": "organizer-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 21,
+      "fields": 6
+    },
+    {
+      "label": "date-picker-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 67,
+      "fields": 6
+    },
+    {
+      "label": "notes-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 29,
+      "fields": 7
+    },
+    {
+      "label": "sheet-cta-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 21,
+      "fields": 6
+    },
+    {
+      "label": "more-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 25,
+      "fields": 6
+    },
+    {
+      "label": "organize-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 34,
+      "fields": 7
+    },
+    {
+      "label": "suggest-post-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 27,
+      "fields": 10
+    },
+    {
+      "label": "month-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 11,
+      "fields": 0
+    },
+    {
+      "label": "month-post-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 17,
+      "fields": 0
+    },
+    {
+      "label": "week-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 11,
+      "fields": 0
+    },
+    {
+      "label": "week-post-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 17,
+      "fields": 0
+    },
+    {
+      "label": "error-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 7,
+      "fields": 0
+    },
+    {
+      "label": "empty-360",
+      "width": 360,
+      "scrollWidth": 360,
+      "controls": 9,
+      "fields": 0
+    },
+    {
+      "label": "review-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "thumbnail-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "lightbox-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 23,
+      "fields": 3
+    },
+    {
+      "label": "caption-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "save-error-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "sending-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "tabs-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 25,
+      "fields": 3
+    },
+    {
+      "label": "organizer-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 21,
+      "fields": 6
+    },
+    {
+      "label": "date-picker-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 67,
+      "fields": 6
+    },
+    {
+      "label": "notes-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 29,
+      "fields": 7
+    },
+    {
+      "label": "sheet-cta-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 21,
+      "fields": 6
+    },
+    {
+      "label": "more-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 25,
+      "fields": 6
+    },
+    {
+      "label": "organize-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 34,
+      "fields": 7
+    },
+    {
+      "label": "suggest-post-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 27,
+      "fields": 10
+    },
+    {
+      "label": "month-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 11,
+      "fields": 0
+    },
+    {
+      "label": "month-post-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 17,
+      "fields": 0
+    },
+    {
+      "label": "week-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 11,
+      "fields": 0
+    },
+    {
+      "label": "week-post-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 17,
+      "fields": 0
+    },
+    {
+      "label": "error-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 7,
+      "fields": 0
+    },
+    {
+      "label": "empty-390",
+      "width": 390,
+      "scrollWidth": 390,
+      "controls": 9,
+      "fields": 0
+    },
+    {
+      "label": "review-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "thumbnail-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "lightbox-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 23,
+      "fields": 3
+    },
+    {
+      "label": "caption-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "save-error-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "sending-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 22,
+      "fields": 3
+    },
+    {
+      "label": "tabs-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 25,
+      "fields": 3
+    },
+    {
+      "label": "organizer-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 21,
+      "fields": 6
+    },
+    {
+      "label": "date-picker-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 67,
+      "fields": 6
+    },
+    {
+      "label": "notes-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 29,
+      "fields": 7
+    },
+    {
+      "label": "sheet-cta-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 21,
+      "fields": 6
+    },
+    {
+      "label": "more-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 25,
+      "fields": 6
+    },
+    {
+      "label": "organize-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 34,
+      "fields": 7
+    },
+    {
+      "label": "suggest-post-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 27,
+      "fields": 10
+    },
+    {
+      "label": "month-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 11,
+      "fields": 0
+    },
+    {
+      "label": "month-post-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 17,
+      "fields": 0
+    },
+    {
+      "label": "week-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 11,
+      "fields": 0
+    },
+    {
+      "label": "week-post-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 17,
+      "fields": 0
+    },
+    {
+      "label": "error-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 7,
+      "fields": 0
+    },
+    {
+      "label": "empty-430",
+      "width": 430,
+      "scrollWidth": 430,
+      "controls": 9,
+      "fields": 0
+    }
+  ]
+}

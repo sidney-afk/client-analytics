@@ -1,0 +1,83 @@
+Local checks for the generated product. Visible Chrome reused; original gate assertions retained.
+Candidate index SHA256: 43bb86de1d913a0b589340021bafd380f3e7064179807e2c0b4db2fbf66d32d5
+No hosted CI or deployment result is claimed.
+
+Build
+build-index: js/sv-16-kasper-29255d239193.js (289258 bytes)
+build-index: wrote index.html (965036 bytes) from 65 fragment(s)
+build-index: wrote src/index/INDEX.md
+
+Phone states
+client-links-expanded: OK (897 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 360/390/430).
+
+Existing phone gate
+ok   samples iPhone SE landscape 667x375
+
+client-phone-review: OK (calendar + samples, 5 phone sizes each, approve + request change)
+
+Phone CSS scope
+client-phone-css-scope: OK (5 block(s), 227 braces, all under @media (max-width: <=767px) and html.boot-client)
+
+Index
+check-index: assembled bytes — sha256=43bb86de1d913a0b589340021bafd380f3e7064179807e2c0b4db2fbf66d32d5 bytes=965036
+check-index: working-tree index.html — sha256=43bb86de1d913a0b589340021bafd380f3e7064179807e2c0b4db2fbf66d32d5 bytes=965036
+check-index: committed index.html (HEAD) — sha256=43bb86de1d913a0b589340021bafd380f3e7064179807e2c0b4db2fbf66d32d5 bytes=965036
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+Modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2553 KB, 5057 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+Relay
+desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; native verification and analytics reads retained).
+
+Repository map
+repo-map-sync: 1073 passed, 0 failed
+
+Truth
+truth-sync: 510 passed, 0 failed
+
+Entry preflight
+client entry strict preflight checks: ok
+
+Entry navigation
+Client-entry navigation redaction checks: ok
+
+Identity
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+Production (FAIL; also fails on unchanged main)
+--- phase: inplace_place ---
+Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
+    at expect (docs\syncview-design\tests\prod-write-gateway-browser.js:81:53)
+    at docs\syncview-design\tests\prod-write-gateway-browser.js:1546:5
+
+git diff --check: exit 0 (no diagnostic output).
+Historical diagnostic runs: a smaller-state assertion and the desktop relay had failed before their fixes. A partial desktop run timed out opening Week at two widths; its stale JSON was discarded. Final results replace those runs; none of the diagnostic failures is called green.
+
+Full desktop gate (first run exit 1; two Month style pairs required repeats)
+Desktop width 1440: exit 0
+Desktop width 1280: exit 0
+Desktop width 1920: exit 1
+Desktop width 1024: exit 1
+66/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Targeted desktop repeat (exit 0, unchanged source/assertions/timings)
+ok   client-calendar-month @1024: pixels identical, computed styles identical (f7746648f81c)
+
+1/1 desktop shots identical to origin/main
+
+Targeted desktop repeat (exit 0, unchanged source/assertions/timings)
+ok   client-calendar-month @1920: pixels identical, computed styles identical (de3ed726d2f2)
+
+1/1 desktop shots identical to origin/main
+
+Final comparison set: 68/68 pixel and computed-style pairs match.
+Public desktop pairs: 4/4 exact PNG byte comparisons.

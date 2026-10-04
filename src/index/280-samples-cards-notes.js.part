@@ -13,6 +13,7 @@ import {
   _writeUiSourceClientSlug, _writeUiSourceEditsOnly
 } from './120-calendar-flags-write-repair.js';
 import { _calShouldBumpThumbRevForGraphicStatus } from './130-calendar-model-cache.js';
+import { _svClientPhoneActive } from './095-shared-client.js';
 import { _writeUiLegacyWithoutRetired } from './134-calendar-prefs-mount.js';
 import {
   _writeUiApplyOverallStatus, _writeUiApplySupersededTeamDelivery,
@@ -924,8 +925,8 @@ import {
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
                     ${_thumbCompareSlotHtml('samples', p, true, 'review')}
-                    <button class="kcard-open-sheet" type="button" onclick="_sxrReviewOpenInSheet('${escId}')" title="Open this sample in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
-                    <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                    <button class="kcard-open-sheet" type="button" onclick="_sxrReviewOpenInSheet('${escId}')" title="Open this sample in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg>${_svClientPhoneActive() ? '<span class="pocket-client-phone-action">Open in Sheet</span>' : ''}</button>
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"${_svClientPhoneActive() ? ` data-pocket-review-toggle aria-expanded="${expanded}"` : ''}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>${_svClientPhoneActive() ? `<span class="pocket-client-phone-action">${expanded ? 'Close' : 'Review'}</span>` : ''}</button>
                 </div>
             </div>
             ${body}

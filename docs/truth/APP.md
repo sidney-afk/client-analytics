@@ -335,6 +335,17 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
 
 ## Samples (SXR + legacy)
 
+- Source-only Expanded client phone presentation: verified links below 768px
+  use a title with Tabs and More, comfortable separate Sheet/Review cards and
+  full component sections. Native decision/comment/media/Notes handlers and
+  client field permissions are kept; card size moves into More. Client Analytics
+  uses the same phone header, moves its existing tabs and About control into the
+  menus, and keeps native metrics, charts, saved copies, loading and retry.
+  Controls and their original contents are restored at desktop widths. All new
+  styles are capped at 767px and scoped to client links. Source checks pass;
+  final visible-browser, real test-save and desktop proof is pending. See the
+  [client phone batch note](../syncview-design/proofs/client-links-expanded/README.md).
+
 - Logic map: `docs/audits/2026-07-05-logic-samples.md`.
 - Source-only finding (2026-09-26): an existing-card Samples Retry with no
   retained edits copied the local whole row, including untouched statuses,

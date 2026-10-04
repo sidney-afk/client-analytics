@@ -1,7 +1,7 @@
 {
   "status": "pass",
   "beforeRef": "6273485e25dabe3aaca61459500c6707d91234e3",
-  "candidateIndexSha256": "2d3397a3412aba1343a8e381e331c489ac34ffc951d7f7ef4778dcb61c8ce4fc",
+  "candidateIndexSha256": "a619c1963b52c9e5f0cc8cf35d990c232c50cdba9fdcec70928e13b0c7d2a815",
   "rows": [
     {
       "page": "staff-tab-01",
@@ -88,8 +88,8 @@
       "width": 1024,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "c983e265a654",
-      "attempts": 2
+      "sha": "f7fe9558a8a6",
+      "attempts": 1
     },
     {
       "page": "client-analytics",
@@ -224,8 +224,8 @@
       "width": 1280,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "cc1c703a804a",
-      "attempts": 2
+      "sha": "5c6f2ff533a1",
+      "attempts": 1
     },
     {
       "page": "client-analytics",
@@ -360,7 +360,7 @@
       "width": 1440,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "70f7ffa76cee",
+      "sha": "dd9e7ec9bfa9",
       "attempts": 1
     },
     {
@@ -393,7 +393,7 @@
       "pixels": "identical",
       "styles": "identical",
       "sha": "c6ea5e0d8216",
-      "attempts": 1
+      "attempts": 2
     },
     {
       "page": "client-brief",
@@ -416,7 +416,7 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "a37a63080053",
+      "sha": "e9fb20917757",
       "attempts": 1
     },
     {
@@ -424,7 +424,7 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "bcdb6892e876",
+      "sha": "26bd8183de14",
       "attempts": 1
     },
     {
@@ -432,7 +432,7 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "1ca68ce4949d",
+      "sha": "3365dfaaa14d",
       "attempts": 1
     },
     {
@@ -440,7 +440,7 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "35a20f2d3f0a",
+      "sha": "db41309fdc23",
       "attempts": 1
     },
     {
@@ -464,7 +464,7 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "a37a63080053",
+      "sha": "e9fb20917757",
       "attempts": 1
     },
     {
@@ -472,7 +472,7 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "d9f8ac663468",
+      "sha": "935cb109cc0b",
       "attempts": 1
     },
     {
@@ -480,7 +480,7 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "b72c638ea00d",
+      "sha": "d10b165ce7e8",
       "attempts": 1
     },
     {
@@ -496,8 +496,8 @@
       "width": 1920,
       "pixels": "identical",
       "styles": "identical",
-      "sha": "37a8801c3a5b",
-      "attempts": 2
+      "sha": "a40c529a361d",
+      "attempts": 1
     },
     {
       "page": "client-analytics",

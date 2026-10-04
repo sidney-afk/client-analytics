@@ -1,28 +1,29 @@
 {
-  "verifiedAt": "2026-10-03T22:16:30.458Z",
-  "candidateIndexSha256": "2d3397a3412aba1343a8e381e331c489ac34ffc951d7f7ef4778dcb61c8ce4fc",
+  "verifiedAt": "2026-10-04T04:33:20.641Z",
+  "layout": "Expanded",
+  "candidateIndexSha": "33c8839305420ef2010dfc64ed493d74c07a564fdefd6285a23aa13789eecd8e",
   "viewport": {
     "width": 390,
     "height": 844
   },
-  "approveRead": {
+  "approveReceipt": {
     "approved": true,
-    "timestampSaved": true
+    "timestampPresent": true,
+    "status": 200
   },
-  "changeRead": {
-    "tweaksNeeded": true,
-    "exactNoteSaved": true
+  "changeReceipt": {
+    "requested": true,
+    "notePresent": true,
+    "status": 200
   },
   "archiveReply": {
     "ok": true,
     "http": 200
   },
-  "archiveRead": {
-    "archived": true
-  },
+  "archiveRead": true,
   "clientWriteHttpStatuses": [
     200,
     200
   ],
-  "testScopeGuard": true
+  "guardedTestFixture": true
 }

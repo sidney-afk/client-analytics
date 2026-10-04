@@ -158,9 +158,14 @@ async function shoot(browser, build, width, url, mode, clickId, view, token, sna
     }
     return out.join('\n');
   });
+  let publicPng = null;
+  if (process.env.PARITY_PUBLIC_DESKTOP && mode === 'staff' && clickId === 'navCalendar') {
+    const top = await page.locator('.header').evaluate(el => Math.ceil(el.getBoundingClientRect().bottom));
+    publicPng = await page.screenshot({ clip: { x: 0, y: top, width, height: HEIGHT - top } });
+  }
   await ctx.close();
   if (process.env.PARITY_DUMP) fs.writeFileSync(process.env.PARITY_DUMP + '-' + build + '.txt', styles);
-  return { png, styleHash: crypto.createHash('sha256').update(styles).digest('hex') };
+  return { png, publicPng, styleHash: crypto.createHash('sha256').update(styles).digest('hex') };
 }
 
 async function staffTabs(browser) {
@@ -208,6 +213,13 @@ async function staffTabs(browser) {
       if (OUT) {
         fs.writeFileSync(path.join(OUT, `${pg.name}-${w}-before.png`), a.png);
         fs.writeFileSync(path.join(OUT, `${pg.name}-${w}-after.png`), b.png);
+      }
+      if (a.publicPng && b.publicPng) {
+        const dir = process.env.PARITY_PUBLIC_DESKTOP;
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, `calendar-${w}-before.png`), a.publicPng);
+        fs.writeFileSync(path.join(dir, `calendar-${w}-after.png`), b.publicPng);
+        fs.writeFileSync(path.join(dir, `calendar-${w}-pair.json`), JSON.stringify({ width: w, contentOnly: true, pngBytesIdentical: a.publicPng.equals(b.publicPng), sha256: crypto.createHash('sha256').update(b.publicPng).digest('hex') }, null, 2) + '\n');
       }
       const row = { page: pg.name, width: w, pixels: a.png.equals(b.png) ? 'identical' : 'DIFFERENT', styles: a.styleHash === b.styleHash ? 'identical' : 'DIFFERENT', sha: crypto.createHash('sha256').update(b.png).digest('hex').slice(0, 12), attempts };
       if (!same) fail++;

@@ -1,22 +1,26 @@
 [
   {
     "width": 1024,
-    "identical": true,
-    "sha256": "c24bc837d3ad2130a1b582612997f37c2f6f27f1435d7fd2f982cb3121e9edf5"
+    "contentOnly": true,
+    "pngBytesIdentical": true,
+    "sha256": "4ba25b375c098a8992540d30330008d28ecec73eafaf395bf200988fd25c6ea8"
   },
   {
     "width": 1280,
-    "identical": true,
-    "sha256": "41db5959cf5663115869ca6c762e2d55f67df20a328090328df618199753c123"
+    "contentOnly": true,
+    "pngBytesIdentical": true,
+    "sha256": "55187fd8899de32b834f2d8a967634a267daa98743a125b57a1a1df76275821b"
   },
   {
     "width": 1440,
-    "identical": true,
-    "sha256": "2740b18921a40f1de6d221fab1a9a94a8963d41af71deaefc1ebae3972d534f8"
+    "contentOnly": true,
+    "pngBytesIdentical": true,
+    "sha256": "d1fa17891284145c074fd51f51ac4669bbe0680cae7f0be4c0943d913e4049c2"
   },
   {
     "width": 1920,
-    "identical": true,
-    "sha256": "bcdb6892e87663e3783e00806c9d4b531fae83604353819ed3cd7528da33c083"
+    "contentOnly": true,
+    "pngBytesIdentical": true,
+    "sha256": "05cc82e435de768fdfa1881ce0cce1f958d92d25ff3dc4c7006afb11a153c735"
   }
 ]

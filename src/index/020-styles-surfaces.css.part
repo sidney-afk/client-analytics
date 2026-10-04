@@ -4221,6 +4221,8 @@
             html.boot-client .cal-tab-view .cal-week-day { color: var(--text-secondary); font-size: 11px; }
             html.boot-client .cal-tab-view .cal-month-pill,
             html.boot-client .cal-tab-view .cal-week-card { box-shadow: none; border-color: var(--border-light); }
+            html.boot-client .cal-tab-view .cal-month-cell { border: 1px solid var(--border); border-radius: 17px; }
+            html.boot-client .cal-tab-view .cal-month-cell:not(.out):not(:has(.cal-month-pill))::after { content: 'Nothing scheduled'; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
             html.boot-client .cal-tab-view .cal-week-col { border: 1px solid var(--border); border-radius: 17px; background: var(--white); }
             html.boot-client .cal-tab-view .cal-week-stack:not(:has(*))::after { color: var(--text-secondary); }
             html.boot-client .cal-tab-view .cal-unscheduled-list { flex-wrap: wrap; overflow-x: visible; }

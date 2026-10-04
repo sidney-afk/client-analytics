@@ -43,7 +43,7 @@ All local browser checks used visible Chrome. The candidate app was served from
 the local branch while retaining the signed-in test client's existing backend.
 This is candidate proof, not deployment proof.
 
-The historical Compact save proof clicked Approve and Request change at 390px
+The Expanded save proof clicked Approve and Request change at 390px
 on a disposable test card. The normal app reader confirmed Approved with its
 sign-off timestamp, then Tweaks Needed with the exact note saved. The card was
 archived and read back as Archived. No other client was changed. The identity-free
@@ -69,7 +69,7 @@ media failures: transient thumbnail responses had produced false differences on
 Month and Week. Both sides now receive the exact same inputs; pixel/style
 assertions, four retries and settle timings remain unchanged. A separate offline
 relay check proves that cached responses cannot bypass the existing write refusal.
-The historical Compact comparison passed **68/68** at 1024/1280/1440/1920 for every staff header tab and
+The final Expanded comparison passed **68/68** at 1024/1280/1440/1920 for every staff header tab and
 the designated test client's views. Each width uses the unchanged gate timings
 in visible Chrome. Raw client desktop images stay private because they contain
 identities; the public equality/hashes receipt is `desktop-parity.json`.
@@ -78,7 +78,7 @@ Identity-free staff Calendar screenshot pairs are also included:
 [1280 before](desktop/calendar-1280-before.png) / [after](desktop/calendar-1280-after.png),
 [1440 before](desktop/calendar-1440-before.png) / [after](desktop/calendar-1440-after.png),
 [1920 before](desktop/calendar-1920-before.png) / [after](desktop/calendar-1920-after.png).
-Their exact PNG-byte comparison is [desktop/public-pairs.json](desktop/public-pairs.json).
+Public desktop captures include only the content below the staff header; the full native screenshots and all 68 whole-page comparisons remain in the private proof. Their exact PNG-byte comparison is [desktop/public-pairs.json](desktop/public-pairs.json).
 
 The actual final lines of local checks are in `checks.txt`. Two checks have
 known baseline failures and are **not green**: the Production write browser gate
@@ -93,34 +93,21 @@ review the phone layout; revisions take priority over opening another PR.
 The cumulative goal token count is reported in the handoff. It includes prior
 work in this goal; a separate per-PR token count is not available.
 
-## Historical Compact verification
-
-Visible Chrome verified the earlier Compact candidate on the designated test workspace.
-Approve and Request change both returned HTTP 200 and their normal-reader
-readbacks passed. Cleanup returned HTTP 200 and read back as Archived. The
-read-only pass covered all four views at all three widths, plus real Tabs, More
-and Organize menus. View navigation wrote no data. The earlier Compact gate passed 1,533 assertions. Expanded now passes 1,725 assertions, with full sections visible.
-
-The relay permits the existing `analytics-read` POST after verifying that its
-source only selects data. This keeps normal client boot working during proof.
-Its regression check executes the actual relay allow-list and verifies that
-both builds get the same read response while writes remain refused. The earlier Compact
-68-pair desktop pass used this complete read relay.
+## Saved copies and visible-browser setup
 
 The viewport repair preserves the last visible layout when Chrome briefly uses
-a 1-pixel measurement viewport during full-page capture. The offline phone gate
-now proves that this does not rebuild the phone shell or shift desktop Week,
-alongside its real phone/desktop breakpoint checks.
+a 1-pixel measurement viewport during full-page capture. The phone gate proves
+that this does not rebuild the phone shell or shift desktop Week, alongside its
+normal phone/desktop breakpoint checks.
 
-## Browser focus interruption
+The final Expanded desktop and phone gates reused visible Chrome on a second
+monitor. A private CDP transport creates background targets and refuses activation
+requests; native window placement uses no-activate flags. The foreground window
+was unchanged during the setup and the phone gate. No headless browser was used.
 
-The owner is playing a game. Browser checks were stopped and explicit foreground
-calls removed. The final Expanded desktop comparison and final save receipt are
-pending a browser setup that does not steal focus. Existing Compact receipts are
-historical proof, not final Expanded desktop proof. No PR is open yet.
-
-Expanded real-save progress: Approve returned HTTP 200 and read back Approved
-with its timestamp. Request change returned HTTP 200 and read back Tweaks Needed
-with the exact note. The fixture was archived and read back successfully. These
-actions used the Expanded JavaScript; final desktop proof and the real layout
-repeat after the cosmetic Sheet button fix remain pending.
+The final Month polish changes CSS only; its index hash is in the desktop receipt.
+The verified Expanded decision-save and archived-card receipt precedes that
+cosmetic polish and uses the same built JavaScript. A further confirmation run
+saved Approve and Request change, then browser control restarted before the
+fresh note readback and second cleanup could be verified. That final cleanup is
+pending owner sign-in. No PR or final completion is claimed until it is resolved.

@@ -1,17 +1,13 @@
 {
-  "verifiedAt": "2026-10-03T22:18:44.581Z",
-  "testOnly": true,
-  "readOnly": true,
-  "normalAnalyticsRead": true,
+  "layout": "Expanded",
+  "candidateIndexSha": "33c8839305420ef2010dfc64ed493d74c07a564fdefd6285a23aa13789eecd8e",
   "cases": [
     {
       "view": "review",
       "width": 360,
       "scrollWidth": 360,
       "light": true,
-      "headerY": 20,
-      "controls": 6,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -19,9 +15,7 @@
       "width": 360,
       "scrollWidth": 360,
       "light": true,
-      "headerY": 20,
-      "controls": 182,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -29,9 +23,7 @@
       "width": 360,
       "scrollWidth": 360,
       "light": true,
-      "headerY": 20,
-      "controls": 30,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -39,9 +31,7 @@
       "width": 360,
       "scrollWidth": 360,
       "light": true,
-      "headerY": 20,
-      "controls": 30,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -49,9 +39,7 @@
       "width": 390,
       "scrollWidth": 390,
       "light": true,
-      "headerY": 20,
-      "controls": 6,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -59,9 +47,7 @@
       "width": 390,
       "scrollWidth": 390,
       "light": true,
-      "headerY": 20,
-      "controls": 182,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -69,9 +55,7 @@
       "width": 390,
       "scrollWidth": 390,
       "light": true,
-      "headerY": 20,
-      "controls": 30,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -79,9 +63,7 @@
       "width": 390,
       "scrollWidth": 390,
       "light": true,
-      "headerY": 20,
-      "controls": 30,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -89,9 +71,7 @@
       "width": 430,
       "scrollWidth": 430,
       "light": true,
-      "headerY": 20,
-      "controls": 6,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -99,9 +79,7 @@
       "width": 430,
       "scrollWidth": 430,
       "light": true,
-      "headerY": 20,
-      "controls": 182,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -109,9 +87,7 @@
       "width": 430,
       "scrollWidth": 430,
       "light": true,
-      "headerY": 20,
-      "controls": 30,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     },
     {
@@ -119,10 +95,15 @@
       "width": 430,
       "scrollWidth": 430,
       "light": true,
-      "headerY": 20,
-      "controls": 30,
-      "smallTargets": 0,
+      "small": 0,
       "smallFields": 0
     }
-  ]
+  ],
+  "realMore": {
+    "open": true,
+    "organizeVisible": true,
+    "overflow": false
+  },
+  "realTabs": 2,
+  "navigationWrites": 0
 }

@@ -30450,7 +30450,7 @@ Expanded desktop follow-up: the final Month-polished candidate passed all 68 nat
 
 Final Expanded cleanup completed after owner sign-in: the app's normal reader confirmed the exact request-change note on the disposable TEST card. The native Calendar writer archived only that card with HTTP 200, and the normal reader confirmed Archived. The final identity-free receipt is `docs/syncview-design/proofs/client-calendar-expanded/final-live-saves.json`. Current source and main hashes still match the completed 68/68 desktop proof; no browser or backend deployment is claimed.
 
-## 337. [2026-10-04, BUILT, NOT DEPLOYED] Client Calendar on phones: design check against the approved mock-up (session Polish)
+## 338. [2026-10-04, BUILT, NOT DEPLOYED] Client Calendar on phones: design check against the approved mock-up (session Polish)
 
 On the same branch as entry 336. Phones and client links only; every new style sits in the same `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`, and the two script edits are inside the phone-only shell and the phone-only date branch. Desktop markup and styles are not touched.
 

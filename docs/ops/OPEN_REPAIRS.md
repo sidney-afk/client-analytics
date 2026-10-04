@@ -30449,3 +30449,26 @@ Owner direction update: layout A (Expanded) replaces Compact. Keep the shared ph
 Expanded desktop follow-up: the final Month-polished candidate passed all 68 native desktop pixel/style pairs at four widths. The phone gate passes 1,725 assertions. Public desktop pairs capture only the content below the header; full captures remain private and the original full-page assertions remain unchanged. Browser checks now reuse visible Chrome on a second monitor, refuse activation requests and use no-activate window placement. The foreground window stayed unchanged during setup and the phone gate. A further real decision-save repeat returned HTTP 200 for both actions and read back Approved with its timestamp and Tweaks Needed. Browser control then restarted before the fresh note readback and second disposable-card cleanup could be verified. Keep that cleanup pending; no PR or deployment is claimed. Offline work continues on the next client batch from main.
 
 Final Expanded cleanup completed after owner sign-in: the app's normal reader confirmed the exact request-change note on the disposable TEST card. The native Calendar writer archived only that card with HTTP 200, and the normal reader confirmed Archived. The final identity-free receipt is `docs/syncview-design/proofs/client-calendar-expanded/final-live-saves.json`. Current source and main hashes still match the completed 68/68 desktop proof; no browser or backend deployment is claimed.
+
+## 337. [2026-10-04, BUILT, NOT DEPLOYED] Client Calendar on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 336. Phones and client links only; every new style sits in the same `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`, and the two script edits are inside the phone-only shell and the phone-only date branch. Desktop markup and styles are not touched.
+
+What was compared: the real app at 360, 390 and 430 wide beside layout A (Expanded) of the mock-up gallery, for Review with a post open, Sheet, Month, Week, the Tabs sheet and the More sheet.
+
+Fixed:
+- Tabs button: a real chevron icon in place of the small text arrow, centred, same colour as the label. More button: a real three-dot icon at normal size, same height as Tabs. Sheets close with a real cross icon.
+- Tabs and More sheets: grab handle on top, title sizes from the mock-up, full-width rows with left-aligned labels and a line between them. The current tab is bold with a tick; the others show a chevron. Organize and Card size are the same full width. The More sheet is titled "More".
+- Review card: the three grey status pills under the title are gone (the sentence above and each section's own status already say it). When a post is open, its close control is the quiet chevron button from the mock-up, not a black "Close" button. Approve is the mock-up's dark button, 48 px tall. Comment and Request change sit right-aligned at their natural width. The video preview spans the card, 188 px tall.
+- Sheet card: the video link is a quiet field like the others and keeps its link icon. The three status pills are 13 px with full-contrast text and wrap side by side.
+- One date format on phones, "Sat, 3 Oct 2026", including the Sheet's date field (desktop keeps its month-first format).
+- Month and Week: a day with nothing on it is one slim line, not a card. When a client cannot schedule, Month already shows only days with posts.
+
+Still different from the mock-up, on purpose:
+- Month is a list of days, not the mock-up's small month grid. The grid has no design for a day that holds posts, and the list is where a post is opened or dropped.
+- Each Review section keeps its status on the right ("Awaiting your approval", "Note not sent", "Sending…"). The mock-up has none; removing it would hide whether a note was sent.
+- A closed Review card keeps a labelled "Review" button; the mock-up only draws the open card.
+- The video preview keeps its dark surround so the white "Open video" label stays readable when there is no thumbnail.
+
+Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (1,725 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check/`. Approve was clicked for real on the test client through this layout and read back after a reload. Request change was not re-tested for real in this pass; see the pull request comment.
+Way back: revert the commit.

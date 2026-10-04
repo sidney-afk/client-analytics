@@ -8794,6 +8794,57 @@
             html.boot-client body:has(.pocket-client-calendar) .dp-foot-btn { min-width: 44px; min-height: 44px; }
             html.boot-client .pocket-cal-menu button:focus-visible,
             html.boot-client .pocket-cal-heading-actions button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+            /* Design check against the approved mock-up (layout A). Same scope: phones, client links. */
+            html.boot-client .pocket-client-calendar { gap: 9px; margin-bottom: 14px; }
+            html.boot-client .pocket-client-calendar h1 { font-size: 26px; letter-spacing: -0.8px; }
+            html.boot-client .pocket-cal-heading-actions { flex: none; gap: 7px; }
+            html.boot-client .pocket-cal-heading-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 44px; padding: 0 12px; font-weight: 600; line-height: 1; }
+            html.boot-client .pocket-cal-heading-actions button:last-child { width: 44px; padding: 0; font-size: 13px; letter-spacing: 0; }
+            html.boot-client .pocket-cal-heading-actions svg { flex: none; width: 17px; height: 17px; }
+            html.boot-client .pocket-cal-menu { padding-top: 10px; border-radius: 25px 25px 0 0; }
+            html.boot-client .pocket-cal-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 15px; border-radius: 4px; background: var(--border); }
+            html.boot-client .pocket-cal-menu-head { margin-bottom: 8px; }
+            html.boot-client .pocket-cal-menu-head h2 { font-size: 22px; letter-spacing: -0.7px; }
+            html.boot-client .pocket-cal-menu-head button { display: grid; place-items: center; padding: 0; background: var(--white); }
+            html.boot-client .pocket-cal-menu-head button svg { width: 18px; height: 18px; }
+            html.boot-client .pocket-cal-menu-body { gap: 0; }
+            html.boot-client .pocket-cal-menu .view-tab-toggle { gap: 0; }
+            html.boot-client .pocket-cal-menu .view-tab-btn { justify-content: space-between; min-height: 55px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; font-size: 14px; font-weight: 500; color: var(--text-primary); }
+            html.boot-client .pocket-cal-menu .view-tab-btn::after { content: ''; flex: none; width: 7px; height: 7px; margin-right: 4px; border-top: 1.6px solid var(--text-secondary); border-right: 1.6px solid var(--text-secondary); transform: rotate(45deg); }
+            html.boot-client .pocket-cal-menu .view-tab-btn.active { font-weight: 800; }
+            html.boot-client .pocket-cal-menu .view-tab-btn.active::after { width: 6px; height: 12px; margin-right: 6px; border-top: 0; border-right: 2px solid var(--text-primary); border-bottom: 2px solid var(--text-primary); }
+            html.boot-client .pocket-cal-menu .cal-organize { border-bottom: 1px solid var(--border); }
+            html.boot-client .pocket-cal-menu .dropdown-trigger { justify-content: flex-start; gap: 10px; min-height: 55px; padding: 0 2px; border: 0; border-radius: 0; background: transparent; font-size: 14px; font-weight: 500; text-align: left; }
+            html.boot-client .pocket-cal-menu .dropdown-trigger > :last-child { margin-left: auto; }
+            html.boot-client .pocket-cal-menu-body .cal-zoom { align-self: stretch; align-items: center; gap: 7px; box-sizing: border-box; width: 100%; min-height: 55px; padding: 5px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+            html.boot-client .pocket-cal-menu-body .cal-zoom::before { margin-right: auto; padding: 0; font-size: 14px; font-weight: 500; }
+            html.boot-client .pocket-cal-menu-body .cal-zoom button { border: 1px solid var(--border); border-radius: 12px; background: var(--field-bg); }
+            html.boot-client .pocket-cal-menu-empty { padding-top: 14px; }
+            html.boot-client .cal-tab-view .kcard-strip .cal-review-sub-row { display: none; }
+            html.boot-client .cal-tab-view .kcard-expand-btn[aria-expanded="true"] { width: 44px; padding: 0; background: var(--white); color: var(--text-primary); border-color: var(--border); }
+            html.boot-client .cal-tab-view .kcard-expand-btn[aria-expanded="true"] span { display: none; }
+            html.boot-client .cal-tab-view .cal-review-approve-btn { min-height: 48px; border-color: var(--text-primary); border-radius: 13px; background: var(--text-primary); color: var(--white); box-shadow: none; font-size: 13px; font-weight: 700; }
+            html.boot-client .cal-tab-view .cal-review-tweak-actions { display: flex; justify-content: flex-end; gap: 7px; }
+            html.boot-client .cal-tab-view .cal-review-comment-btn,
+            html.boot-client .cal-tab-view .cal-review-tweak-btn { flex: 0 0 auto; padding: 0 12px; border-radius: 12px; font-size: 12px; }
+            html.boot-client .cal-tab-view .cal-review-comment-btn:disabled,
+            html.boot-client .cal-tab-view .cal-review-tweak-btn:disabled { background: var(--white); border-color: var(--border); }
+            html.boot-client .cal-tab-view .cal-review-video-tile { width: 100%; max-width: 100%; height: 188px; min-height: 188px; border-radius: 15px; }
+            html.boot-client .cal-tab-view .cal-card .cal-link-field.has-link { border: 1px solid var(--border); border-radius: 11px; background: var(--field-bg); }
+            html.boot-client .cal-tab-view .cal-card .cal-link-pill-open { background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 600; }
+            html.boot-client .cal-tab-view .cal-card .cal-link-pill-open svg { color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-client-status { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+            html.boot-client .cal-tab-view .cal-client-status .cal-review-sub-pill { width: auto; padding: 6px 10px; border-color: var(--border); border-radius: 9px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text-primary) !important; }
+            html.boot-client .cal-tab-view .cal-cap-toggle { border: 0; background: transparent; color: var(--text-secondary); }
+            /* Month and Week: a day with nothing on it is not a card. When a client can schedule, empty days stay as slim one-line rows (they are where a post is dropped); otherwise Month already hides them. */
+            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)) { flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
+            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)) .cal-month-cellhead { position: static; flex-direction: row; align-items: baseline; gap: 6px; width: 64px; }
+            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)) .cal-month-num { width: auto; height: auto; font-size: 15px; }
+            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)).today .cal-month-num { padding: 2px 8px; border-radius: 9px; }
+            html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); }
+            html.boot-client .cal-tab-view .cal-week-grid { gap: 10px; }
+            html.boot-client .cal-tab-view .cal-week-col:nth-child(n+8):nth-child(-n+14):not(:has(.cal-week-card)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
+            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { padding: 2px 8px; border-radius: 9px; background: var(--text-primary); color: var(--white); }
         }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).
@@ -9704,8 +9755,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-4a20429fcea6.js";
-        var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-324e70bff96a.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-1b979e0ec4cf.js";
+        var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d7487b20aa5d.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-29255d239193.js"};
         var FORCE = null;
         var CLIENTS = true;

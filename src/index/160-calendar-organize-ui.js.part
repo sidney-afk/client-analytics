@@ -82,8 +82,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     }
     function _calPhoneShellHtml() {
         if (!_calPhoneClient()) return '';
-        const menu = (kind, title) => `<dialog class="pocket-cal-menu" id="pocketCal${kind}" aria-labelledby="pocketCal${kind}Title"><div class="pocket-cal-menu-head"><h2 id="pocketCal${kind}Title">${title}</h2><button type="button" onclick="_calPhoneCloseMenu(this)" aria-label="Close ${title.toLowerCase()}">×</button></div><div id="pocketCal${kind}Body" class="pocket-cal-menu-body"></div></dialog>`;
-        return `<div class="pocket-client-calendar"><h1>Calendar</h1><div class="pocket-cal-heading-actions"><button type="button" onclick="_calPhoneOpenMenu('tabs')" aria-haspopup="dialog" aria-controls="pocketCalTabs">Tabs <span aria-hidden="true">⌄</span></button><button type="button" onclick="_calPhoneOpenMenu('more')" aria-label="More options" aria-haspopup="dialog" aria-controls="pocketCalMore">•••</button></div></div>${menu('Tabs', 'Tabs')}${menu('More', 'More options').replace('</dialog>', '<p class="pocket-cal-menu-empty">Organize and card size are available in Sheet.</p></dialog>')}`;
+        const menu = (kind, title) => `<dialog class="pocket-cal-menu" id="pocketCal${kind}" aria-labelledby="pocketCal${kind}Title"><div class="pocket-cal-menu-head"><h2 id="pocketCal${kind}Title">${title}</h2><button type="button" onclick="_calPhoneCloseMenu(this)" aria-label="Close ${title.toLowerCase()}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div><div id="pocketCal${kind}Body" class="pocket-cal-menu-body"></div></dialog>`;
+        return `<div class="pocket-client-calendar"><h1>Calendar</h1><div class="pocket-cal-heading-actions"><button type="button" onclick="_calPhoneOpenMenu('tabs')" aria-haspopup="dialog" aria-controls="pocketCalTabs">Tabs <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button><button type="button" onclick="_calPhoneOpenMenu('more')" aria-label="More options" aria-haspopup="dialog" aria-controls="pocketCalMore"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></button></div></div>${menu('Tabs', 'Tabs')}${menu('More', 'More').replace('</dialog>', '<p class="pocket-cal-menu-empty">Organize and card size are available in Sheet.</p></dialog>')}`;
     }
     // Cross the breakpoint using the same renderers and their existing draft
     // storage. Restore the native client tabs before replacing a phone shell.
@@ -2153,6 +2153,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const day = String(d.getDate()).padStart(2, '0');
         const mon = String(d.getMonth() + 1).padStart(2, '0');
         const yr = String(d.getFullYear()).slice(2);
+        // Phones use one date format on every client Calendar view.
+        if (_calPhoneClient()) return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
         // US order (owner 2026-08-18): clients are American, so month first.
         return `${dayName} ${mon}/${day}/${yr}`;
     }

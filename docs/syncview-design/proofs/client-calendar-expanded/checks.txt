@@ -573,3 +573,25 @@ Desktop width 1440: exit 0
 68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
 
 Both real client decisions were repeated against the latest design candidate and read back; owned sources were archived. The Samples native items were read back in Backlog. See final-design-saves.json.
+
+
+Final index — exit 0
+check-index: working-tree index.html — sha256=743151607cab3660897287fd60e4b80c16bd736327fa828dac2254c9ac1e1bb4 bytes=970384
+check-index: committed index.html (HEAD) — sha256=743151607cab3660897287fd60e4b80c16bd736327fa828dac2254c9ac1e1bb4 bytes=970384
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+Final modules — exit 0
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2552 KB, 5057 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+Final scope — exit 0
+client-phone-css-scope: OK (5 block(s), 282 braces, all under @media (max-width: <=767px) and html.boot-client)
+
+Final identity — exit 0
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅

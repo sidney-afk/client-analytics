@@ -1,6 +1,6 @@
 {
   "baseline": "6273485e25dabe3aaca61459500c6707d91234e3",
-  "productCommit": "1fe3a8f5",
+  "productCommit": "15bb394b46dd11d3fcdac5fdf0ce76c2513058c6",
   "browser": "Existing visible owner Chrome; retained sign-in",
   "standard": {
     "command": "qa/client-phone/desktop-parity.js",
@@ -15,7 +15,9 @@
     "computedStylesIdentical": 68,
     "receipt": "standard-parity.json",
     "rawLiveShotsPublished": false,
-    "reviewCorrectionsVerified": true
+    "reviewCorrectionsVerified": true,
+    "finalPhoneCorrectionsVerified": true,
+    "note": "First parallel run was incomplete at client Calendar boot; a focused comparison passed, then the unchanged full gate passed with one current test entry shared in memory across workers."
   },
   "populated": {
     "states": 18,

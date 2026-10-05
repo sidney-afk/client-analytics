@@ -1,5 +1,5 @@
 {
-  "checks": 6396,
+  "checks": 6480,
   "rows": [
     {
       "label": "review-empty",
@@ -78,18 +78,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -137,18 +137,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -285,18 +285,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -344,18 +344,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-approve-btn cal-review-approve-main kasper-hero-approve",
@@ -440,18 +440,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -694,8 +694,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -755,8 +755,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -3929,18 +3929,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -4077,18 +4077,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -4583,18 +4583,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -4642,18 +4642,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -4790,18 +4790,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -4849,18 +4849,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-approve-btn cal-review-approve-main kasper-hero-approve",
@@ -4945,18 +4945,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -5199,8 +5199,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -5260,8 +5260,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -8434,18 +8434,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -8582,18 +8582,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 119,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 119,
-          "h": 54
+          "w": 153.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -9088,18 +9088,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -9147,18 +9147,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -9295,18 +9295,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -9354,18 +9354,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-approve-btn cal-review-approve-main kasper-hero-approve",
@@ -9450,18 +9450,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -9704,8 +9704,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -9765,8 +9765,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -12939,18 +12939,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -13087,18 +13087,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -13593,18 +13593,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -13652,18 +13652,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -13800,18 +13800,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -13859,18 +13859,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-approve-btn cal-review-approve-main kasper-hero-approve",
@@ -13955,18 +13955,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -14209,8 +14209,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -14270,8 +14270,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -17444,18 +17444,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -17592,18 +17592,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 134,
-          "h": 54
+          "w": 136.421875,
+          "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 134,
-          "h": 54
+          "w": 183.578125,
+          "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 54
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -18098,18 +18098,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -18157,18 +18157,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -18305,18 +18305,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -18364,18 +18364,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-approve-btn cal-review-approve-main kasper-hero-approve",
@@ -18460,18 +18460,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -18714,8 +18714,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -18775,8 +18775,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -21949,18 +21949,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -22097,18 +22097,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -22603,18 +22603,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -22662,18 +22662,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -22810,18 +22810,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         }
       ],
       "fields": []
@@ -22869,18 +22869,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-approve-btn cal-review-approve-main kasper-hero-approve",
@@ -22965,18 +22965,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -23219,8 +23219,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -23280,8 +23280,8 @@
           "h": 44
         },
         {
-          "name": "kasper-replies-showall",
-          "w": 105.109375,
+          "name": "kasper-replies-showall pocket-admin-new-toggle",
+          "w": 98.59375,
           "h": 44
         },
         {
@@ -26454,18 +26454,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",
@@ -26602,18 +26602,18 @@
         },
         {
           "name": "kcard-done-btn",
-          "w": 154,
+          "w": 136.421875,
           "h": 48
         },
         {
           "name": "kcard-watch-btn",
-          "w": 154,
+          "w": 223.578125,
           "h": 48
         },
         {
           "name": "kcard-close-btn pocket-admin-card-close",
-          "w": 44,
-          "h": 48
+          "w": 106.4375,
+          "h": 44
         },
         {
           "name": "cal-review-video-tile",

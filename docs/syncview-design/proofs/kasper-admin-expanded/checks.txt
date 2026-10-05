@@ -256,3 +256,77 @@ Desktop width 1440: exit 0
 Desktop width 1024: exit 0
 Desktop width 1280: exit 0
 68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+
+FINAL THREE PHONE CORRECTIONS — 2026-10-05
+Product source: 15bb394b46dd11d3fcdac5fdf0ce76c2513058c6
+Baseline: 6273485e25dabe3aaca61459500c6707d91234e3
+No live decisions or admin data saved; no merge or deployment.
+
+npm run -s check:index
+check-index: assembled bytes — sha256=ccab39a52c6da8b56ac4529c31ee68699eefbe03318996a4d4fc68fac3021559 bytes=978240
+check-index: working-tree index.html — sha256=ccab39a52c6da8b56ac4529c31ee68699eefbe03318996a4d4fc68fac3021559 bytes=978240
+check-index: committed index.html (HEAD) — sha256=ccab39a52c6da8b56ac4529c31ee68699eefbe03318996a4d4fc68fac3021559 bytes=978240
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+node scripts/check-modules.js
+window exports: 537 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2555 KB, 5046 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+node scripts/repo-identity-exposure-check.js --diff=origin/main
+  roster terms checked             53   (client slugs + staff full names)
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+qa/client-phone/desktop-parity.js, four widths in existing visible Chrome
+PARITY_SHARED_ENTRY: one current test entry resolved in memory for all four workers; gate assertions unchanged.
+Desktop width 1024: exit 0
+Desktop width 1440: exit 0
+Desktop width 1280: exit 0
+Desktop width 1920: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Final phone sweep: 360/390/430, light/dark
+KASPER_ADMIN_EXPANDED: 378 native states; 6480 checks; 0 failures; fictional data; no live writes.
+
+Matching main Messages before captures
+KASPER_ADMIN_EXPANDED: 18 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+Quick desktop scope guard
+KASPER_ADMIN_SCOPE: 243 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+
+Existing reviewer scope guard
+kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)
+
+leave-evidence fingerprint coupling
+leave-evidence fingerprint coupling checks passed
+
+PTO public evidence validation
+PTO public evidence passed without a browser: 101 reviewed screenshots; current source fingerprint and hashes match.
+
+node test/run-all.js in private standard Linux filesystem; exact committed product source
+All 676 classified unit suites passed; 92 required profiles NOT_RUN in this lane ✅
+
+Earlier incomplete desktop attempt; not passing proof
+Desktop width 1920: exit 2
+Desktop width 1280: exit 2
+Desktop width 1024: exit 2
+Desktop width 1440: exit 2
+0/0 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Focused client Calendar diagnostic; gate assertions unchanged
+1/1 desktop shots identical to origin/main
+
+Module dependency setup attempt; rerun above uses the documented parser dependency
+check-modules: the acorn parser is not installed. See the DEPENDENCY note at the top of this file.
+
+Linux runner setup ordering attempt; stopped before unit tests; corrected before the passing run
+fatal: update_ref failed for ref 'refs/remotes/origin/main': cannot update ref 'refs/remotes/origin/main': trying to write ref 'refs/remotes/origin/main' with nonexistent object 6273485e25dabe3aaca61459500c6707d91234e3

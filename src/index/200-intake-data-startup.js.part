@@ -616,6 +616,8 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
     function _linearSavedWhen(iso) {
         const d = new Date(iso);
         if (!iso || isNaN(d)) return 'earlier';
+        const phoneDay = (window.svPhoneDate ? window.svPhoneDate(d) : '');
+        if (phoneDay) return phoneDay + ', ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         return d.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     }
     function _linearSavedBoxHtml() {

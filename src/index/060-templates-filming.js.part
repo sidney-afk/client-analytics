@@ -1111,7 +1111,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         try { const h = new URL(u).hostname.replace(/^www\./, ''); return /dropbox/.test(h) ? 'Dropbox' : /frame\.io/.test(h) ? 'Frame.io' : /google/.test(h) ? 'Google Drive' : h; } catch (e) { return ''; }
     }
     function _tplFolderDate(at) {
-        const d = new Date(at); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        const d = new Date(at); return isNaN(d) ? '' : ((window.svPhoneDate ? window.svPhoneDate(d) : '') || d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }));
     }
     function _tplRecentFolders(name) {
         _tplFoldersEnsure(name);
@@ -1558,7 +1558,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         // Loading state — first paint while the GET is in flight.
         if (!_tplClientReady(name) && !templatesLoadError) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;"><span class="tpl-back-arrow" aria-hidden="true">←</span><svg class="tpl-back-svg" hidden width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-skeleton tpl-skeleton-pill" style="width:160px;height:24px;margin-bottom:18px;"></div>
                 <div class="tpl-skeleton-card">
@@ -1575,7 +1575,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         }
         if (templatesLoadError && !_tplClientReady(name)) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;"><span class="tpl-back-arrow" aria-hidden="true">←</span><svg class="tpl-back-svg" hidden width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>
             </div>`;
@@ -1627,7 +1627,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             : '';
 
         return `<div class="tpl-view${isEdit?' editing':''}">
-            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;"><span class="tpl-back-arrow" aria-hidden="true">←</span><svg class="tpl-back-svg" hidden width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates</button>
             <div class="tpl-client-head">
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}<span class="tpl-social" data-tpl-social>${_tplSocialLinksHtml(name)}</span></div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>

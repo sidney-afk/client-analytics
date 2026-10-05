@@ -232,7 +232,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
         }
         if (_linearPlanMapState === 'failed') {
             _linearResolvedPlanUrl = '';
-            el.textContent = '⚠ Could not load filming plans. The server will resolve this when submitted.';
+            el.innerHTML = '<span class="linear-warn-glyph" aria-hidden="true">⚠</span> Could not load filming plans. The server will resolve this when submitted.';
             el.title = _linearPlanMapError;
             el.classList.add('warn'); el.classList.remove('empty');
             saveLinearForm();
@@ -251,7 +251,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
             el.title = url;
             el.classList.remove('empty', 'warn');
         } else {
-            el.textContent = '⚠ No filming plan found for this client';
+            el.innerHTML = '<span class="linear-warn-glyph" aria-hidden="true">⚠</span> No filming plan found for this client';
             el.removeAttribute('title');
             el.classList.add('warn'); el.classList.remove('empty');
         }

@@ -313,7 +313,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
     }
     function _tdyTop(views, on) {
-        const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+        const d = (window.svPhoneDate ? window.svPhoneDate(new Date()) : '') || new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
         return `<div class="tdy-top"><h1 class="tdy-date">${_calEsc(d)}</h1><div class="tdy-vw" role="group" aria-label="View">${views.map(v => `<button type="button" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
     }
     const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
@@ -375,7 +375,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyShortDate(iso) {
         const d = new Date(String(iso || '') + 'T12:00:00');
-        return isNaN(d) ? '' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+        return isNaN(d) ? '' : ((window.svPhoneDate ? window.svPhoneDate(d) : '') || d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }));
     }
     function _tdyWalkList(d) {
         const approving = p => /smm approval/i.test(p.video_status || '') || /smm approval/i.test(p.graphic_status || '') || /smm approval/i.test(p.status || '');

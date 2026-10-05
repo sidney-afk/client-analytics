@@ -30472,3 +30472,20 @@ Still different from the mock-up, on purpose:
 
 Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (1,725 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check/`. Approve was clicked for real on the test client through this layout and read back after a reload. Request change was not re-tested for real in this pass; see the pull request comment.
 Way back: revert the commit.
+
+## 340. [2026-10-05, BUILT, NOT DEPLOYED] Staff Today, Templates, Filming Plans and Submit on phones: Expanded layout (session Wren)
+
+Built from the approved mock-up, layout A (Expanded), on top of the client Calendar branch (entry 336, PR 1969). Phones and staff only. Desktop widths are unchanged: every new style sits in one `STAFF-PHONE` block inside `@media (max-width: 767px)` and every selector in it starts with `body:has(.pocket-staff-bar)`; that bar is created by script only on a phone-width screen showing one of the four tabs and removed everywhere else (guard: `test/staff-phone-css-scope.js`).
+
+What changed:
+- New title row for Today, Templates, Filming Plans and Submit: the screen name on the left, Tabs and More on the right. The wide header gives way to it. Tabs lists every tab the header shows (same visible set, same routes: Linear is still SyncLinear, Submit is still Submit). More holds what the header's account menu held: change client, quick jump, light or dark appearance, original status colours, Time Off, Onboarding, Client Credentials and sign in or out. Every row presses the existing header control, so permissions and handlers are exactly the old ones.
+- Today, Templates, Filming Plans and Submit: single-column cards, 44 px targets, 16 px fields, labelled buttons where the old phone layout showed icon-only buttons, one date format "Sat, 3 Oct 2026" (Today's date and post dates, the Templates folder dates, Submit's "saved" time; desktop keeps its own wording).
+- Text characters used as icons were replaced on phones by drawn icons (back arrow, the Onboarding link arrow, the pin remove cross, the brief line menu dots, the filming-plan warning sign). On desktop the same characters still show.
+- The global title tooltip is hidden on these four phone screens (a touch screen has no hover; it pinned itself after a tap). The keyboard-only hints "Enter to accept" in the search boxes and "Shift, paste last link" in Submit are hidden on phones.
+
+Still different from the mock-up, on purpose: see the PR text and `docs/syncview-design/proofs/staff-phone-templates-filming-submit-today/README.md`.
+
+Not tested here (needs a real signed-in staff session, done later by another session): real data volumes, the real brain and filming-plan answers, real Today queues for each role.
+
+Proof: `docs/syncview-design/tests/staff-phone-browser.js` (every state at 360, 390 and 430, light and dark, no writes) and the pictures under `docs/syncview-design/proofs/staff-phone-templates-filming-submit-today/`.
+Way back: revert the commit.

@@ -21,6 +21,7 @@
 096-quick-jump.js.part
 097-today.js.part
 098-smm-clients.js.part
+099-staff-phone-bar.js.part
 100-onboarding-staff-controls.js.part
 110-time-off.js.part
 112-smm-weekly-reports.js.part

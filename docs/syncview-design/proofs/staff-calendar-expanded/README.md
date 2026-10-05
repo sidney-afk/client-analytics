@@ -2,8 +2,8 @@
 
 This builds the actual staff Calendar Review, Sheet, Month and Week in
 `src/index/`, in light and dark at 360, 390 and 430. It starts independently
-from main. Selection and staff Samples are the next batch; client links and
-admin layouts keep their existing paths.
+from main. Selection and staff Samples are covered separately in PR #1973. Client links
+and admin layouts keep their existing paths.
 
 The page title, Tabs and More share one row. Calendar Tools stays above the
 content. More contains the native Organize, card size, setup, workspace picker

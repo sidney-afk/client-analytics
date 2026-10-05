@@ -31,7 +31,7 @@ not a separate prototype. Scroll within the phones to see the full sections.
 | Samples Sheet | [Before](before/samples-sheet-light-360.png) / [After](after/samples-sheet-light-360.png) | [Before](before/samples-sheet-light-390.png) / [After](after/samples-sheet-light-390.png) | [Before](before/samples-sheet-light-430.png) / [After](after/samples-sheet-light-430.png) |
 | Calendar Selection | [Before](before/calendar-selection-light-360.png) / [After](after/calendar-selection-light-360.png) | [Before](before/calendar-selection-light-390.png) / [After](after/calendar-selection-light-390.png) | [Before](before/calendar-selection-light-430.png) / [After](after/calendar-selection-light-430.png) |
 
-There are 24 before and 192 after screenshots. They cover selection with zero and
+There are 24 before and 240 after screenshots. They cover selection with zero and
 one selected card, caption selection, archive confirmation, Tabs, More, Quick
 jump, Notes, media, status menus, Set all, Create Post, archived rows/loading/
 empty/error, Review and Sheet loading/empty/error, saving and refused saves.
@@ -73,3 +73,9 @@ No merge, deploy, workflow edit or database installation was performed by Pocket
 
 [Owned gallery coverage](owned-gallery-coverage.json) maps the 16 Pocket-owned
 states to the four product PRs. The other gallery screens are assigned elsewhere.
+
+### Thumbnail comparison dialog
+
+The native comparison remains a full, vertically stacked Previous and Current view on phones. Close and Retry have 44px targets. Retry returns keyboard focus to Close while its temporary button is replaced, so Escape continues to work. All eight reader/image states are captured at every phone width in both themes. Only the assigned phone surfaces receive the change; the desktop gate is repeated afterward. No approval writer or decision rule changes in this follow-up. The real decision receipts above predate this dialog-only adjustment.
+
+The shared-client check now opens the native client picker and card size through More on phones, with its original desktop assertions retained. Its local 1440px long-label failure also reproduces on unchanged main; no desktop navigation repair is included.

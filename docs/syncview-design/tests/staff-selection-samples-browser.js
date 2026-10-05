@@ -12,6 +12,7 @@ const beforeRoot = process.argv.find(arg => arg.startsWith('--before-root='))?.s
 const before = process.argv.includes('--capture-before');
 const headed = process.argv.includes('--headed');
 const shots = process.env.POCKET_PHONE_SHOTS;
+const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const widths = [360, 390, 430];
 const measurements = [];
 let checks = 0;
@@ -19,7 +20,7 @@ const ok = (value, message) => { assert(value, message); checks++; };
 async function measure(page, label) {
   const result = await page.evaluate(() => {
     const visible = node => node.checkVisibility({ checkVisibilityCSS: true });
-    const surfaces = '#svJump:not([hidden]), #calView, #sxrView, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-comments-overlay.open, .cal-lightbox.open, .dp-popup, .cal-fld-status-menu';
+    const surfaces = '#svJump:not([hidden]), #calView, #sxrView, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-comments-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, .dp-popup, .cal-fld-status-menu';
     const nodes = [...document.querySelectorAll(surfaces)].flatMap(root => [...root.querySelectorAll('button, a[href], [role=button], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea')]);
     return {
       width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
@@ -59,7 +60,7 @@ async function shot(page, label) {
     }
   });
   await page.evaluate(() => document.fonts.ready);
-  const overlay = await page.locator('#svJump:not([hidden]), dialog[open], .cal-select-bar, .cal-lightbox.open, .cal-comments-overlay.open, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-fld-status-menu, .dp-popup, #confirmOverlay.active, #notifyOverlay.active').count();
+  const overlay = await page.locator('#svJump:not([hidden]), dialog[open], .cal-select-bar, .cal-lightbox.open, .thumb-compare-overlay.open, .cal-comments-overlay.open, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-fld-status-menu, .dp-popup, #confirmOverlay.active, #notifyOverlay.active').count();
   await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay, animations: 'disabled' });
 }
 async function runPhone(browser, origin, width, theme) {
@@ -133,6 +134,7 @@ async function runPhone(browser, origin, width, theme) {
       await page.locator('#sxrLightbox.open').waitFor();
       await measure(page, 'samples-lightbox-' + suffix); await shot(page, 'samples-lightbox-' + suffix);
       await page.locator('#sxrLightbox .cal-lightbox-close').click();
+      await phoneThumbnailComparison(page, ctx, { surface: 'samples', id: row.id, measure, shot, suffix: suffix, prefix: 'samples-' });
       await page.evaluate(id => { _sxrReviewState.errors[id + '|graphic'] = 'Synthetic save refusal'; _sxrReviewRepaintCard(id); }, row.id);
       await measure(page, 'samples-save-error-' + suffix); await shot(page, 'samples-save-error-' + suffix);
       await page.evaluate(id => { delete _sxrReviewState.errors[id + '|graphic']; _sxrReviewState.saving[id + '|graphic'] = true; sxrState.posts[0].graphic_status = 'Approved'; _sxrReviewRepaintCard(id); }, row.id);

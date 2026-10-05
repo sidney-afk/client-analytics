@@ -50,6 +50,113 @@ import {
   _writeUiResumeSourceRepairs
 } from './290-samples-writes-review.js';
 import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
+    // Staff Samples phone chrome delegates every action to its native control.
+    // Nothing is mounted at desktop widths or on another staff surface.
+    let _sxrStaffPhoneState = null;
+    let _sxrStaffPhoneWidth = window.matchMedia('(max-width: 767px)').matches;
+    function _sxrStaffPhoneActive() { return !_isClientLink && _sxrStaffPhoneWidth && !sxrState.embedded && !!document.getElementById('sxrView'); }
+    function _sxrStaffPhoneRestore() {
+        const state = _sxrStaffPhoneState;
+        if (!state) return;
+        for (const item of state.moved) {
+            if (item.next?.parentNode === item.parent) item.parent.insertBefore(item.node, item.next);
+            else item.parent.append(item.node);
+        }
+        if (state.kebab) state.kebab.node.hidden = state.kebab.hidden;
+        state.root.querySelectorAll(':scope > .pocket-staff-samples-heading, :scope > .pocket-staff-samples-menu, :scope > .pocket-staff-samples-tools').forEach(node => node.remove());
+        state.root.removeAttribute('data-pocket-staff-samples');
+        state.observer.disconnect();
+        _sxrStaffPhoneState = null;
+    }
+    function _sxrStaffPhoneMount() {
+        if (!_sxrStaffPhoneActive()) return;
+        const root = document.getElementById('sxrView');
+        if (!root || _sxrStaffPhoneState) return;
+        const state = { root, moved: [], observer: null, kebab: null };
+        _sxrStaffPhoneState = state;
+        root.setAttribute('data-pocket-staff-samples', 'samples');
+        const heading = document.createElement('div');
+        heading.className = 'pocket-staff-samples-heading';
+        heading.innerHTML = '<h1>Samples</h1><button type="button" data-staff-menu="tabs" aria-haspopup="dialog">Tabs <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button><button type="button" data-staff-menu="more" aria-haspopup="dialog" aria-label="More options"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></button>';
+        root.prepend(heading);
+        const menus = {};
+        for (const kind of ['tabs', 'more']) {
+            const dialog = document.createElement('dialog');
+            dialog.className = 'pocket-staff-samples-menu';
+            dialog.setAttribute('aria-label', kind === 'tabs' ? 'Tabs' : 'More');
+            dialog.innerHTML = `<div class="pocket-staff-samples-menu-head"><h2>${kind === 'tabs' ? 'Tabs' : 'More'}</h2><button type="button" aria-label="Close menu"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div><div class="pocket-staff-samples-menu-body"></div>`;
+            dialog.querySelector('button').addEventListener('click', () => dialog.close());
+            dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+            root.append(dialog);
+            menus[kind] = dialog;
+            const trigger = heading.querySelector(`[data-staff-menu=${kind}]`);
+            trigger.addEventListener('click', () => {
+                if (kind === 'more' && state.kebab) state.kebab.node.hidden = false;
+                dialog.showModal();
+                dialog.scrollTop = 0;
+            });
+            dialog.addEventListener('close', () => { if (document.getElementById('svJump')?.hidden !== false) trigger.focus(); });
+        }
+        const tabBody = menus.tabs.querySelector('.pocket-staff-samples-menu-body');
+        document.querySelectorAll('#headerNav > .header-nav-btn').forEach(native => {
+            if (native.hidden || getComputedStyle(native).display === 'none') return;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = native.textContent.trim();
+            button.disabled = !!native.disabled;
+            if (native.classList.contains('active')) button.setAttribute('aria-current', 'page');
+            button.addEventListener('click', () => { menus.tabs.close(); native.click(); });
+            tabBody.append(button);
+        });
+        const tools = document.createElement('div');
+        tools.className = 'pocket-staff-samples-tools';
+        tools.textContent = 'Samples Tools';
+        root.querySelector('.cal-toolbar').before(tools);
+        const moreBody = menus.more.querySelector('.pocket-staff-samples-menu-body');
+        menus.more.addEventListener('click', event => {
+            if (event.target.closest('.sv-jump-touch')) menus.more.close();
+            const button = event.target.closest('.cal-kebab-item');
+            if (button && !button.classList.contains('cal-kebab-toggle') && !button.classList.contains('cal-kebab-import-toggle')) menus.more.close();
+            queueMicrotask(() => { if (menus.more.open && state.kebab) state.kebab.node.hidden = false; });
+        }, true);
+        const arrange = () => {
+            for (const node of root.querySelectorAll('.cal-toolbar .cal-organize, .cal-toolbar .cal-zoom, .cal-toolbar .cal-kebab-wrap')) {
+                state.moved.push({ node, parent: node.parentNode, next: node.nextSibling });
+                const next = node.classList.contains('cal-organize')
+                    ? moreBody.querySelector('.cal-zoom, .cal-kebab-wrap')
+                    : node.classList.contains('cal-zoom') ? moreBody.querySelector('.cal-kebab-wrap') : null;
+                moreBody.insertBefore(node, next);
+                const kebab = node.querySelector('#sxrKebabMenu');
+                if (kebab && !state.kebab) {
+                    state.kebab = { node: kebab, hidden: kebab.hidden };
+                    kebab.hidden = false;
+                }
+            }
+            for (const selector of ['#svClientBadgeWrap', '#staffIdentityWrap', '.header .sv-jump-touch']) {
+                const control = document.querySelector(selector);
+                if (control && !moreBody.contains(control)) {
+                    state.moved.push({ node: control, parent: control.parentNode, next: control.nextSibling });
+                    moreBody.prepend(control);
+                }
+            }
+        };
+        arrange();
+        state.observer = new MutationObserver(() => {
+            if (!root.isConnected) _sxrStaffPhoneRestore();
+            else arrange();
+        });
+        state.observer.observe(document.getElementById('content'), { childList: true, subtree: true });
+    }
+    window.addEventListener('resize', () => {
+        if (innerWidth < 5 || innerHeight < 5 || visualViewport && (visualViewport.width < 5 || visualViewport.height < 5)) return;
+        const next = window.matchMedia('(max-width: 767px)').matches;
+        if (next === _sxrStaffPhoneWidth) return;
+        _sxrStaffPhoneWidth = next;
+        if (_isClientLink || !document.getElementById('sxrView')) return;
+        _sxrStaffPhoneRestore();
+        _sxrRenderShell();
+        _sxrRenderBody({ preserveScroll: true });
+    });
     // >>> SXR_BEGIN
     /* ============================================================
        SAMPLES (REVIEW) MODULE  —  ?sxr=1 (default-OFF), route #sample-reviews
@@ -516,6 +623,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
     }
 
     function _sxrRenderShell() {
+        _sxrStaffPhoneRestore();
         const view = document.getElementById('sxrView');
         if (!view) return;
         const embedded = !!sxrState.embedded;
@@ -582,6 +690,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             _sxrWireOutsideTabSearchClose();
         }
         _sxrApplyZoom();
+        _sxrStaffPhoneMount();
     }
 
     /* Zoom — three discrete card sizes (Sheet only), saved to localStorage. */
@@ -760,6 +869,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (v !== 'organizer') sxrState.focusPid = null;
         _sxrSavePrefs();
         if (v !== 'organizer' && sxrState.selectMode) _sxrResetSelection();
+        if (_sxrStaffPhoneActive()) _sxrRenderShell();
         document.querySelectorAll('#sxrView .cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === v));
         const selBtn = document.querySelector('#sxrView .cal-select-btn');
         if (selBtn) { selBtn.style.display = v === 'organizer' ? '' : 'none'; selBtn.classList.toggle('active', sxrState.selectMode); }
@@ -2474,7 +2584,14 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         _sxrCloseStatusMenu();
     }, true);
     window.addEventListener('resize', _sxrCloseStatusMenu);
-    window.addEventListener('scroll', _sxrCloseStatusMenu, true);
+    window.addEventListener('scroll', () => { if (!_sxrStaffPhoneActive()) _sxrCloseStatusMenu(); }, true);
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !_sxrStaffPhoneActive() || !_sxrOpenStatusMenu) return;
+        const trigger = _sxrOpenStatusMenu.triggerEl;
+        _sxrCloseStatusMenu();
+        if (trigger && trigger.isConnected) trigger.focus();
+        event.preventDefault();
+    });
 
     /* _sxrCommentsBtnHtml — real version in Surface 4 (open-tweak count), hoisted.
        openSxrComments — real version in Surface 5 (Notes modal), hoisted. */
@@ -2930,7 +3047,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
     });
 export {
-  SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
+  _sxrStaffPhoneActive, SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
   SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrAdoptLinksAfterCreate,
   _sxrApplyClearSentinels, _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheRead,
   _sxrCacheWrite, _sxrClearStaleApprovals, _sxrClientCompPillsHtml, _sxrDeriveThumbInfo,

@@ -62,13 +62,8 @@ const VIEWPORTS = [
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const CAP_MS = 20000;
 
-async function run(browser, origin, [vpLabel, width, height], surfaceName) {
-  const { card: CARD, query, table, panels, tweakComp } = SURFACES[surfaceName];
-  const ROW = Object.assign({}, BASE_ROW, { id: CARD });
-  const label = `${surfaceName} / ${vpLabel}`;
-  const failures = [];
-  const writes = [];
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+async function installFixture(ctx, origin, ROW, writes, surfaceName) {
+  const { table } = SURFACES[surfaceName];
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (u.pathname === '/__fixture_thumb.svg') return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: THUMB });
@@ -95,6 +90,16 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
     if (/docs\.google\.com/.test(u.host)) return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body: '' });
     return route.abort();
   });
+}
+
+async function run(browser, origin, [vpLabel, width, height], surfaceName) {
+  const { card: CARD, query, table, panels, tweakComp } = SURFACES[surfaceName];
+  const ROW = Object.assign({}, BASE_ROW, { id: CARD });
+  const label = `${surfaceName} / ${vpLabel}`;
+  const failures = [];
+  const writes = [];
+  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await installFixture(ctx, origin, ROW, writes, surfaceName);
   const page = await ctx.newPage();
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(String(e.message || e).slice(0, 160)));
@@ -108,23 +113,38 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   await page.waitForSelector(`${card} .cal-review-body`, { timeout: 5000 }).catch(() => failures.push(`${label}: card did not open`));
   await page.waitForTimeout(400);
 
-  const m = await page.evaluate(sel => {
+  // Measure every decision after reaching it through the phone disclosure.
+  const foldCount = await page.locator(`${card} .pocket-cal-fold`).count();
+  const measurements = [];
+  for (let i = 0; i < (foldCount || 1); i++) {
+    if (foldCount) {
+      const fold = page.locator(`${card} .pocket-cal-fold`).nth(i);
+      if (await fold.getAttribute("open") === null) await fold.locator(":scope > summary").click();
+    }
+    const part = await page.evaluate(sel => {
     const W = document.documentElement.clientWidth;
     const c = document.querySelector(sel);
-    const panels = [...c.querySelectorAll('.cal-review-panel')].map(p => p.getBoundingClientRect());
-    const controls = [...c.querySelectorAll('button, a, textarea')].filter(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')
+    const panels = [...c.querySelectorAll('.cal-review-panel')].filter(e => e.checkVisibility({ checkVisibilityCSS: true })).map(p => p.getBoundingClientRect());
+    const controls = [...c.querySelectorAll('button, a, textarea')].filter(e => e.checkVisibility({ checkVisibilityCSS: true }))
       .map(e => { const r = e.getBoundingClientRect(); return { what: (e.getAttribute('aria-label') || e.innerText || e.className).trim().slice(0, 30), w: r.width, h: r.height }; });
     const media = [...c.querySelectorAll('img, video, iframe, .cal-review-video-tile')].filter(e => e.getClientRects().length)
       .map(e => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right }; });
     const textareas = [...c.querySelectorAll('textarea')].map(t => parseFloat(getComputedStyle(t).fontSize));
     return { W, scrollW: document.documentElement.scrollWidth, panels: panels.map(r => [Math.round(r.left), Math.round(r.width)]), controls, media, textareas };
   }, card);
+    measurements.push(part);
+  }
+  const m = { ...measurements[0], panels: measurements.flatMap(x => x.panels), controls: measurements.flatMap(x => x.controls) };
   if (m.scrollW > m.W) failures.push(`${label}: page scrolls sideways (${m.scrollW}px content in a ${m.W}px screen)`);
   if (m.panels.length !== panels) failures.push(`${label}: expected ${panels} review panels, found ${m.panels.length}`);
   if (new Set(m.panels.map(p => p[0])).size !== 1) failures.push(`${label}: panels are not stacked in one column (${JSON.stringify(m.panels)})`);
   for (const c of m.controls) if (c.w < 44 || c.h < 44) failures.push(`${label}: "${c.what}" is ${Math.round(c.w)}x${Math.round(c.h)}px, under 44px`);
   for (const t of m.textareas) if (t < 16) failures.push(`${label}: note box text is ${t}px, under 16px (iOS will zoom)`);
   for (const x of m.media) if (x.left < -0.5 || x.right > m.W + 0.5) failures.push(`${label}: media overflows the screen (${Math.round(x.left)}..${Math.round(x.right)})`);
+
+  // Disclosures change the route to an action, never the action itself.
+  const videoFold = page.locator(`${card} details:has(.cal-review-panel[data-comp="video"])`);
+  if (await videoFold.count() && !await videoFold.getAttribute("open").then(v => v !== null)) await videoFold.locator(":scope > summary").click();
 
   // Approve the video with a tap.
   const approve = `${card} .cal-review-panel[data-comp="video"] .cal-review-approve-btn`;
@@ -155,6 +175,8 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   // Request a change (caption on the Calendar, thumbnail on Samples): type a note, tap Request change.
   const panel = `${card} .cal-review-panel[data-comp="${tweakComp}"]`;
   const note = 'Phone fixture: please shorten the first line.';
+  const noteFold = page.locator(`${card} details:has(.cal-review-panel[data-comp="${tweakComp}"])`);
+  if (await noteFold.count() && !await noteFold.getAttribute("open").then(v => v !== null)) await noteFold.locator(":scope > summary").click();
   await page.locator(`${panel} .cal-review-textarea`).scrollIntoViewIfNeeded();
   await page.tap(`${panel} .cal-review-textarea`);
   await page.keyboard.type(note);
@@ -177,7 +199,7 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   return failures;
 }
 
-(async () => {
+async function runMain() {
   const server = await serve();
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch({ headless: true });
@@ -191,4 +213,7 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error('\n' + failures.join('\n')); process.exit(1); }
   console.log(`\nclient-phone-review: OK (${Object.keys(SURFACES).join(' + ')}, ${VIEWPORTS.length} phone sizes each, approve + request change)`);
-})().catch(e => { console.error(e); process.exit(2); });
+}
+if (require.main === module) runMain().catch(e => { console.error(e); process.exit(2); });
+
+module.exports = { serve, installFixture, BASE_ROW, VIEWPORTS, runMain };

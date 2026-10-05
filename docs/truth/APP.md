@@ -1,5 +1,15 @@
 # App logic (`index.html`) — current truth
 
+**Pocket phone source, 2026-10-04, not deployed:** staff Samples Review and Sheet
+use full Expanded sections below 768px in light and dark, with title/Tabs/More,
+native Tools and setup controls. Calendar and Samples selection actions sit at
+the bottom on phones. Desktop controls restore their original positions.
+Pending staff decisions stay visibly Saving until acknowledged. Existing
+permissions and writers remain native. Fictional product screenshots, visible
+TEST decision saves and desktop receipts are in
+[the proof note](../syncview-design/proofs/staff-selection-samples-expanded/README.md).
+Client layouts, other staff tabs and admin pages are outside this batch.
+
 **Digger source repair, 2026-10-02:** Analytics' Sheets fallback now requires
 successful Metrics and roster HTTP responses before consuming either body,
 marking data fresh, replacing good rows or saving a cache. A failed fallback

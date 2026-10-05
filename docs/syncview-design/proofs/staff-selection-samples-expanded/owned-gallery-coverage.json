@@ -1,0 +1,35 @@
+{
+  "scope": "Remaining Pocket-owned gallery states; other staff tabs and admin pages assigned elsewhere",
+  "galleryStateCount": 45,
+  "ownedStates": {
+    "calendarSheet": 1971,
+    "calendarReview": 1971,
+    "calendarMonth": 1971,
+    "calendarWeek": 1971,
+    "calendarSelection": "this batch",
+    "samples": "this batch",
+    "samplesReviewOpen": "this batch",
+    "previewState1": 1969,
+    "clientReview": 1969,
+    "clientSheet": 1969,
+    "clientMonth": 1969,
+    "clientWeek": 1969,
+    "clientAnalytics": 1970,
+    "clientSampleExample": 1970,
+    "clientSamples": 1970,
+    "clientSamplesSheet": 1970
+  },
+  "widths": [
+    360,
+    390,
+    430
+  ],
+  "staffThemes": [
+    "light",
+    "dark"
+  ],
+  "clientThemes": [
+    "light"
+  ],
+  "proof": "Per-batch generated-product screenshots, QA and anonymous TEST save receipts"
+}

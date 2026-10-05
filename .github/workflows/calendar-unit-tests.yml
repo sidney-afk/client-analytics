@@ -233,6 +233,12 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-link-split-key-browser.js
+      - name: Expanded staff Selection and Samples phone states
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/staff-selection-samples-browser.js
+      - name: Desktop comparison relay refuses cached writes
+        run: node docs/syncview-design/tests/desktop-parity-relay.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

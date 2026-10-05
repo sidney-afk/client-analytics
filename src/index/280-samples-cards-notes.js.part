@@ -43,7 +43,7 @@ import { CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE } from './190-calendar-
 import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink, _syncviewClientEntryCapability, _syncviewClientEntrySlug, _syncviewInvalidClientLinkScreen } from './260-production-refresh-boot.js';
 import {
-  SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS, _sxrApplyClearSentinels,
+  SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS, _sxrStaffPhoneActive, _sxrApplyClearSentinels,
   _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheWrite, _sxrClearStaleApprovals,
   _sxrClientCompPillsHtml, _sxrDeriveThumbInfo, _sxrEnabled, _sxrEsc, _sxrEscAttr,
   _sxrForceThumbRefresh, _sxrIsBlankId, _sxrJsArg, _sxrLastNetworkLoadAt, _sxrLoadPrefs,
@@ -832,8 +832,9 @@ import {
     function _sxrReviewItems() {
         const mode = _sxrReviewMode();
         return (sxrState.posts || []).filter(p => {
-            if (_sxrNormStatus(p.status || '') === 'Approved') return false;
-            if (mode === 'smm') { if (!_sxrHasMedia(p)) return false; return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'smm')); }
+            const phoneSaving = _sxrStaffPhoneActive() && mode === 'smm' && SXR_REVIEW_COMPONENTS.some(c => _sxrReviewState.saving[p.id + '|' + c]);
+            if (_sxrNormStatus(p.status || '') === 'Approved' && !phoneSaving) return false;
+            if (mode === 'smm') { if (!_sxrHasMedia(p)) return false; return phoneSaving || SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'smm')); }
             if (_isClientLink) return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'client'));
             return true;
         }).slice().sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));
@@ -912,7 +913,9 @@ import {
         const info = _sxrDeriveThumbInfo(p);
         const thumbHtml = info.url ? _calThumbImgTag(info, '_calOnMiniThumbError') : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
         const pendingLabel = _sxrReviewPendingLabel(p);
-        const compPills = _sxrClientCompPillsHtml(p);
+        const compPills = _sxrStaffPhoneActive()
+            ? _sxrClientCompPillsHtml(Object.assign({}, p, ...SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewState.saving[p.id + '|' + c]).map(c => ({ [c + '_status']: 'Saving…' }))))
+            : _sxrClientCompPillsHtml(p);
         const body = expanded ? _sxrReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_sxrReviewToggleCard('${escId}')">
@@ -934,13 +937,16 @@ import {
     function _sxrReviewCardBody(p) {
         const mode = _sxrReviewMode();
         const activeComps = (mode === 'smm')
-            ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'smm'))
+            ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'smm') || (_sxrStaffPhoneActive() && _sxrReviewState.saving[p.id + '|' + c]))
             : (_isClientLink ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'client')) : SXR_REVIEW_COMPONENTS.slice());
         if (!activeComps.length) return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing left to review on this sample.</div></div>`;
         const cols = activeComps.length;
         return `<div class="cal-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${activeComps.map(comp => _sxrReviewPanelHtml(p, comp)).join('')}</div>`;
     }
     function _sxrReviewPanelHtml(p, comp) {
+        if (_sxrStaffPhoneActive() && _sxrReviewState.saving[p.id + '|' + comp]) {
+            return `<div class="cal-review-panel" data-comp="${_sxrEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-samples-saving" role="status">Saving…</div></div>`;
+        }
         const escId = _sxrEscAttr(p.id), escComp = _sxrEscAttr(comp);
         const subStatus = _sxrNormStatus(p[comp + '_status'] || '');
         const state = subStatus === 'Approved' ? 'approved' : (subStatus === 'Tweaks Needed' ? 'tweaks' : 'pending');
@@ -1324,7 +1330,7 @@ import {
         delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
         _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
-        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; if (_sxrStaffPhoneActive()) _sxrReviewRepaintCard(pid); }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
     }
     function _sxrReviewRequestTweak(pid, comp) {
         const initialPost = sxrState.posts.find(p => p.id === pid);

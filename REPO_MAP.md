@@ -665,3 +665,10 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 | `docs/ATLAS.md` | Whole SyncView inventory and routes to owners; live facts are dated. |
 | `docs/plans/2026-10-03-sheets-remaining-map.md` | Cartographer's measured 84-tab Google Sheets exit map, remaining dependencies and owner decisions. |
 | `test/atlas-sync.js` | Unit check for missing or stale edge folders, table-creating migrations, Actions files and n8n truth IDs. |
+
+| `docs/syncview-design/tests/staff-selection-samples-browser.js` | Generated-product Selection and staff Samples phone states, both themes and 360/390/430, with fictional transport. |
+| `test/staff-samples-phone-css-scope.js` | Staff Samples phone-width and standalone-surface CSS lock with adversarial controls. |
+| `test/staff-selection-phone-css-scope.js` | Calendar Selection phone-width and surface CSS lock with adversarial controls. |
+| `docs/syncview-design/tests/desktop-parity-relay.js` | Desktop relay read/cache isolation guard. |
+| `docs/syncview-design/proofs/staff-selection-samples-expanded/README.md` | Public fictional before/after screenshots and verification notes. |
+| `test/staff-calendar-phone-css-scope.js` | Shared Calendar phone CSS lock, retained with the reused foundation. |

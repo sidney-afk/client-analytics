@@ -1,0 +1,85 @@
+Actual local check tails. Browser checks reused visible Chrome.
+
+build — exit 0
+build-index: js/sv-14-tiktok-24bb7e66f434.js (121878 bytes)
+build-index: js/sv-16-kasper-29255d239193.js (289258 bytes)
+build-index: wrote index.html (1047247 bytes) from 65 fragment(s)
+build-index: wrote src/index/INDEX.md
+
+phone — exit 0
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+staff-selection-samples: OK (4188 checks; Selection, Samples Review/Sheet, light/dark, dialogs, loading/empty/error/saving and desktop restore; 360/390/430).
+
+before — exit 0
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+staff-selection-samples: BEFORE pictures captured; no acceptance claimed.
+
+Samples CSS scope — exit 0
+staff-samples-phone-css-scope: OK (1 block(s), 267 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])
+
+Selection CSS scope — exit 0
+staff-selection-phone-css-scope: OK (1 block(s), 12 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+
+Shared Calendar CSS scope — exit 0
+staff-calendar-phone-css-scope: OK (1 block(s), 318 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+
+theme colours — exit 0
+No hardcoded color literals outside allowed variable/validation blocks.
+
+modules — exit 0
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2557 KB, 5055 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+existing client phone — exit 0
+ok   samples small Android 360x800
+ok   samples iPhone SE landscape 667x375
+
+client-phone-review: OK (calendar + samples, 5 phone sizes each, approve + request change)
+
+review draft-title — exit 0
+  ok  mid-typing: BOTH segments explain the draft and are disabled
+  ok  after clearing: the alt segment routing hint is back verbatim, not blank -- this is the exact regression a naive `title = ''` reset would cause
+
+Review approve draft-title checks passed
+
+Calendar stranded-review — exit 0
+  ok  the badge still counts only reviewable items
+  ok  ...and says on the record WHY it does not count stranded work, so the next reader does not "fix" it into disagreeing with the list it sits next to
+
+SMM stranded-review checks passed
+
+Samples stranded-review — exit 0
+  ok  and samples now has its twin _sxrReviewStrandedForMedia
+  ok  and samples now has its twin _sxrReviewStrandedNoticeHtml
+
+samples stranded-media checks passed
+
+Samples archive parking — exit 0
+  ok  the single archive passes its captured row
+  ok  the bulk archive passes each captured row
+  ok  no restore path pushes a status back
+samples-archive-parks-work-items: PASS
+
+map — exit 0
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-selection-samples-expanded/README.md` exists
+OK  REPO_MAP.md path `test/staff-calendar-phone-css-scope.js` exists
+
+repo-map-sync: 1079 passed, 0 failed
+
+truth — exit 0
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+
+truth-sync: 510 passed, 0 failed
+
+Production browser baseline — exit 1
+--- phase: inplace_place ---
+Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
+    at expect ([private checkout]\docs\syncview-design\tests\prod-write-gateway-browser.js:81:53)
+    at [private checkout]\docs\syncview-design\tests\prod-write-gateway-browser.js:1546:5
+
+Resolved intermediate checks: the proof map first referenced a different folder name, then passed with the actual path. Selection screenshots changed to viewport capture so the fixed native actions appear at the bottom. The browser-controller interruption was recovered; native reads and final decisions were completed afterward.
+
+Production is the same PWG_PHASE_INPLACE_PLACE failure on unchanged main; no Production repair is claimed. Private trace paths are explicitly redacted; error text and dimensions are preserved.

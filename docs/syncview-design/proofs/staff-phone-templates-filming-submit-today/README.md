@@ -33,8 +33,8 @@ name is on screen.
 * [before/](before/) the unchanged screens, light, 360 / 390 / 430.
 * [after/](after/) every state, light, 360 / 390 / 430 (`<state>-light-<width>.png`).
 * [after-dark/](after-dark/) the main states in dark, 360 / 390 / 430.
-* [measurements.json](measurements.json) counts and smallest sizes for all 270
-  renders (45 states x 3 widths x light and dark).
+* [measurements.json](measurements.json) counts and smallest sizes for all 276
+  renders (46 states x 3 widths x light and dark).
 * [checks.txt](checks.txt) the real last line of every check that was run, including the
   ones that are red here and red on the base branch too.
 
@@ -42,9 +42,9 @@ name is on screen.
 | --- | --- |
 | Today (SMM / admin) | Rings, a ring opened, Walk-through, all clear, could not load, loading |
 | Today (editor) | List, Deck, all clear |
-| Templates | Index, index with pins, pin editing, pin picker, search results, index load error; client page loading, ready (Quick look, Links, folders, Editor brief), no brain folder, brain unreachable, facts view without a brief, brief line menu (Source / Change), many links, editing links, spec form, Send a change box |
+| Templates | Index (empty pins line), index with pins, pin editing, pin picker, search results, index load error; client page loading, ready (Quick look, Links, folders, Editor brief), no brain folder, brain unreachable, facts view without a brief, brief line menu (Source / Change), many links, editing links, spec form, Send a change box |
 | Filming Plans | List, search with no match, Add / update form, row editing, empty, could not load, loading, status note |
-| Submit | Form, client search results, no match, client chosen, filled in, saved copy box, status message, success banner |
+| Submit | Form (one video block), add a video, client search results, no match, client chosen, filled in, saved copy box, status message, success banner |
 | Shared | Tabs sheet, More sheet (on Today and on Templates), client picker sheet |
 
 ## What the checks do
@@ -56,7 +56,7 @@ read (the run fails if a write is attempted). For every state, width and theme i
 checks: no sideways page scroll, every visible control at least 44 px high and
 wide, every editable text field at least 16 px, no text character standing in
 for an icon (arrows, check marks, crosses, warning signs, emoji), and no built-in
-client name on screen. Result: 270 renders, 0 problems.
+client name on screen. Result: 276 renders, 0 problems.
 
 ## Still different from the mock-up, and why
 

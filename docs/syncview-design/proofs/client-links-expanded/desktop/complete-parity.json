@@ -84,7 +84,7 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "8aff9607ef7d",
+    "sha": "d35856a7ce80",
     "attempts": 1
   },
   {
@@ -101,7 +101,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "242f1f3e4b3d",
-    "attempts": 1
+    "attempts": 3
   },
   {
     "page": "client-calendar-month",
@@ -117,7 +117,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "6dda851b8267",
-    "attempts": 1
+    "attempts": 3
   },
   {
     "page": "client-brief",
@@ -132,7 +132,7 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "502b4abfd084",
+    "sha": "e05ce30d75e1",
     "attempts": 1
   },
   {
@@ -220,8 +220,8 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "73f64ebbca60",
-    "attempts": 2
+    "sha": "b1ec1791a027",
+    "attempts": 1
   },
   {
     "page": "client-analytics",
@@ -237,7 +237,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "9352c5de1444",
-    "attempts": 1
+    "attempts": 3
   },
   {
     "page": "client-calendar-month",
@@ -268,7 +268,7 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "c5bed3984282",
+    "sha": "192ebb3a4b3c",
     "attempts": 1
   },
   {
@@ -356,7 +356,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "6f0829ffcf19",
+    "sha": "c8ebcf582048",
     "attempts": 2
   },
   {
@@ -372,7 +372,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "eb9c15c3143e",
+    "sha": "2e3a23ccb022",
     "attempts": 1
   },
   {
@@ -404,7 +404,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "85e3ba37bb61",
+    "sha": "7946014bb0e8",
     "attempts": 1
   },
   {
@@ -492,15 +492,15 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "c875a787e013",
-    "attempts": 2
+    "sha": "ea05bde6b073",
+    "attempts": 1
   },
   {
     "page": "client-analytics",
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "eca5e76ea810",
+    "sha": "80a89ab8b4a1",
     "attempts": 1
   },
   {
@@ -540,7 +540,7 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "e229fc4b3b26",
+    "sha": "8efa8351f7c9",
     "attempts": 1
   }
 ]

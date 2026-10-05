@@ -667,3 +667,5 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 | `docs/ATLAS.md` | Whole SyncView inventory and routes to owners; live facts are dated. |
 | `docs/plans/2026-10-03-sheets-remaining-map.md` | Cartographer's measured 84-tab Google Sheets exit map, remaining dependencies and owner decisions. |
 | `test/atlas-sync.js` | Unit check for missing or stale edge folders, table-creating migrations, Actions files and n8n truth IDs. |
+
+- `docs/syncview-design/tests/phone-thumbnail-comparison.js` — native phone thumbnail comparison fixture: loading, pending, empty, denied, error, retry, stacked images, image failure and dismissal.

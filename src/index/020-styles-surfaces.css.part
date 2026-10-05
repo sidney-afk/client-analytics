@@ -4314,6 +4314,10 @@
             html.boot-client .cal-tab-view .cal-week-col:nth-child(n+8):nth-child(-n+14):not(.pocket-run-head):not(.pocket-run-rest):not(:has(.cal-week-card)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
             html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { padding: 2px 8px; border-radius: 9px; background: var(--text-primary); color: var(--white); }
         }
+        @media (max-width: 767px) {
+            html.boot-client .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
+            html.boot-client .thumb-compare-close svg { width: 18px; height: 18px; }
+        }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).
            Same contract as the client-phone blocks: every rule between the

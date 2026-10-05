@@ -11,6 +11,7 @@ const assert = require('assert');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const widths = [360, 390, 430];
 const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.split('=').slice(1).join('=');
 const before = process.argv.includes('--capture-before');
@@ -41,7 +42,7 @@ async function shot(page, label) {
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
-  const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-preview-overlay.open, .cal-lightbox.open, .dp-popup').count();
+  const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-preview-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, .dp-popup').count();
   await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay });
 }
 async function run(browser, origin, width) {
@@ -82,6 +83,8 @@ async function run(browser, origin, width) {
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin + '/index.html?c=Phone%20Fixture%20Client&t=synthetic-phone-token&v=calendar', { waitUntil: 'domcontentloaded' });
   await page.locator('.cal-review-card').first().waitFor();
+  await shot(page, 'review-queue-' + width);
+  if (!before) await measure(page, 'review-queue-' + width);
   await page.locator('.kcard-expand-btn').first().click();
   await shot(page, 'review-' + width);
   if (!before) {
@@ -190,6 +193,7 @@ async function run(browser, origin, width) {
     }
   }
   if (!before) {
+    await phoneThumbnailComparison(page, ctx, { surface: 'calendar', id: row.id, measure, shot, suffix: width, prefix: '' });
     // Presentation crossing must return the existing desktop shell and tabs.
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.locator('.pocket-client-calendar').waitFor({ state: 'detached' });

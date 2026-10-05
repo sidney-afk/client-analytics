@@ -330,3 +330,39 @@ check-modules: the acorn parser is not installed. See the DEPENDENCY note at the
 
 Linux runner setup ordering attempt; stopped before unit tests; corrected before the passing run
 fatal: update_ref failed for ref 'refs/remotes/origin/main': cannot update ref 'refs/remotes/origin/main': trying to write ref 'refs/remotes/origin/main' with nonexistent object 6273485e25dabe3aaca61459500c6707d91234e3
+
+Final reviewer segments and badge follow-up, 2026-10-05
+Product: 9bb9962f025fd155c60f731de8f04cdced158dc1
+Desktop baseline: 6273485e25dabe3aaca61459500c6707d91234e3
+
+npm run -s check:index
+check-index: OK — assembled == working tree == committed (HEAD)
+
+node scripts/check-modules.js
+check-modules: all checks passed
+
+node scripts/repo-identity-exposure-check.js --diff=origin/main
+This change adds no client slug and no colleague's name ✅
+
+qa/client-phone/desktop-parity.js, all four widths in visible Chrome
+PARITY_SHARED_ENTRY: one current test entry resolved in memory for all four workers; gate assertions unchanged.
+Desktop width 1024: exit 0
+Desktop width 1280: exit 0
+Desktop width 1440: exit 0
+Desktop width 1920: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Reviewer phone views: 360/390/430, light/dark
+KASPER_ADMIN_EXPANDED: 96 native states; 1866 checks; 0 failures; fictional data; no live writes.
+
+Reviewer menus: 360/390/430, light/dark
+KASPER_ADMIN_EXPANDED: 24 native states; 582 checks; 0 failures; fictional data; no live writes.
+
+Quick desktop scope guard
+KASPER_ADMIN_SCOPE: 244 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+
+PTO evidence fingerprint coupling
+leave-evidence fingerprint coupling checks passed
+
+node test/run-all.js; exact product commit, private Linux filesystem
+All 676 classified unit suites passed; 92 required profiles NOT_RUN in this lane ✅

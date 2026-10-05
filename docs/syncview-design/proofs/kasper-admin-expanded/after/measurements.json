@@ -1,5 +1,5 @@
 {
-  "checks": 6480,
+  "checks": 2448,
   "rows": [
     {
       "label": "review-empty",
@@ -19,17 +19,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -53,17 +53,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -112,17 +112,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -260,17 +260,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -319,17 +319,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -405,17 +405,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -563,17 +563,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -607,12 +607,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -641,12 +641,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -675,12 +675,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -736,12 +736,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -914,12 +914,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -958,12 +958,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -1012,12 +1012,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -2854,17 +2854,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -2888,17 +2888,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -2997,17 +2997,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -3148,17 +3148,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -3904,17 +3904,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -4052,17 +4052,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -4524,17 +4524,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -4558,17 +4558,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -4617,17 +4617,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -4765,17 +4765,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -4824,17 +4824,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -4910,17 +4910,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -5068,17 +5068,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -5112,12 +5112,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -5146,12 +5146,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -5180,12 +5180,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -5241,12 +5241,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -5419,12 +5419,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -5463,12 +5463,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -5517,12 +5517,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 103.34375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 103.328125,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -7359,17 +7359,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -7393,17 +7393,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -7502,17 +7502,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -7653,17 +7653,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         }
       ],
@@ -8409,17 +8409,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -8557,17 +8557,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 103.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 103.34375,
           "h": 44
         },
         {
@@ -9029,17 +9029,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -9063,17 +9063,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9122,17 +9122,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9270,17 +9270,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9329,17 +9329,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9415,17 +9415,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9573,17 +9573,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9617,12 +9617,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -9651,12 +9651,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -9685,12 +9685,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9746,12 +9746,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9924,12 +9924,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -9968,12 +9968,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -10022,12 +10022,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -11864,17 +11864,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -11898,17 +11898,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -12007,17 +12007,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -12158,17 +12158,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -12914,17 +12914,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -13062,17 +13062,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -13534,17 +13534,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -13568,17 +13568,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -13627,17 +13627,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -13775,17 +13775,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -13834,17 +13834,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -13920,17 +13920,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -14078,17 +14078,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -14122,12 +14122,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -14156,12 +14156,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -14190,12 +14190,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -14251,12 +14251,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -14429,12 +14429,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -14473,12 +14473,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -14527,12 +14527,12 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 113.34375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 113.328125,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -16369,17 +16369,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -16403,17 +16403,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -16512,17 +16512,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -16663,17 +16663,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         }
       ],
@@ -17419,17 +17419,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -17567,17 +17567,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 75.890625,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 92.4375,
+          "w": 113.328125,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 75.75,
+          "w": 113.34375,
           "h": 44
         },
         {
@@ -18039,17 +18039,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -18073,17 +18073,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18132,17 +18132,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18280,17 +18280,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18339,17 +18339,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18425,17 +18425,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18583,17 +18583,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18632,7 +18632,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -18666,7 +18666,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -18700,7 +18700,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18761,7 +18761,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18939,7 +18939,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -18983,7 +18983,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -19037,7 +19037,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -20874,17 +20874,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -20908,17 +20908,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -21017,17 +21017,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -21168,17 +21168,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -21924,17 +21924,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -22072,17 +22072,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -22544,17 +22544,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -22578,17 +22578,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -22637,17 +22637,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -22785,17 +22785,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -22844,17 +22844,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -22930,17 +22930,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -23088,17 +23088,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -23137,7 +23137,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -23171,7 +23171,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -23205,7 +23205,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -23266,7 +23266,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -23444,7 +23444,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -23488,7 +23488,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -23542,7 +23542,7 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 126.671875,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -25379,17 +25379,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -25413,17 +25413,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -25522,17 +25522,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -25673,17 +25673,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         }
       ],
@@ -26429,17 +26429,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -26577,17 +26577,17 @@
         },
         {
           "name": "kasper-subtab kasper-primary-tab active",
-          "w": 78.5,
+          "w": 126.65625,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 95.046875,
+          "w": 126.671875,
           "h": 44
         },
         {
           "name": "kasper-subtab kasper-primary-tab",
-          "w": 78.359375,
+          "w": 126.65625,
           "h": 44
         },
         {
@@ -27032,5 +27032,30 @@
       "fields": []
     }
   ],
-  "failures": []
+  "failures": [],
+  "previousFullSweep": {
+    "productCommit": "15bb394b46dd11d3fcdac5fdf0ce76c2513058c6",
+    "shots": 378,
+    "checks": 6480,
+    "failures": 0
+  },
+  "latestFocusedSweep": {
+    "productCommit": "9bb9962f025fd155c60f731de8f04cdced158dc1",
+    "shots": 120,
+    "checks": 2448,
+    "coverage": [
+      {
+        "screens": "reviewer views",
+        "shots": 96,
+        "checks": 1866
+      },
+      {
+        "screens": "reviewer menus",
+        "shots": 24,
+        "checks": 582
+      }
+    ],
+    "failures": 0
+  },
+  "coverageNote": "Latest check count covers the focused reviewer captures; rows also retain unchanged admin screenshots from the prior full sweep."
 }

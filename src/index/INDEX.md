@@ -10,11 +10,11 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4966 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4973 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2071 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1790 | Market Research Brief Tab Renderers |
-| 9 | `060-templates-filming.js.part` | 2229 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 9 | `060-templates-filming.js.part` | 2235 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
 | 12 | `067-workload-board-source.js.part` | 2580 | The roster saved with a cached board, checked with the same rules the |
@@ -29,7 +29,7 @@
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 22 | `097-today.js.part` | 624 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 24 | `099-staff-phone-bar.js.part` | 150 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
+| 24 | `099-staff-phone-bar.js.part` | 157 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 25 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 26 | `110-time-off.js.part` | 1378 | Kasper Time Off calendar |
 | 27 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
@@ -49,7 +49,7 @@
 | 41 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 42 | `186-archived-restore.js.part` | 462 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 43 | `190-calendar-approval-comments.js.part` | 3204 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 44 | `200-intake-data-startup.js.part` | 1875 | Video-only and Thumbnail-only were already built, but sat |
+| 44 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 45 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 46 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
 | 47 | `230-production-create-comments.js.part` | 2717 | `production_create_closed` is a DEFINITIVE no-replay verdict, |

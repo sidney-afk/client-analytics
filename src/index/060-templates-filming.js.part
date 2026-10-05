@@ -848,6 +848,12 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             editBtn.onclick = _tplTogglePinsEdit;
             row.appendChild(editBtn);
         }
+        if (!pins.length && window.svIsStaffPhone && window.svIsStaffPhone()) {
+            const note = document.createElement('p');
+            note.className = 'tpl-pins-empty';
+            note.textContent = 'Pin up to 5 clients you work on';
+            row.appendChild(note);
+        }
         addRow.innerHTML = '';
         const showAddBtn = pins.length < TPL_MAX_PINS && (pins.length === 0 || _tplPinsEditMode || _tplPinSelectorOpen);
         if (showAddBtn) {

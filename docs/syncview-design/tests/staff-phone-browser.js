@@ -260,6 +260,7 @@ state('filming-loading', async p => { await holdThen(async () => { await go(p, '
 
 /* Submit */
 state('submit', async p => { await go(p, 'linear'); await settle(p, 500); });
+state('submit-add-video', async p => { await go(p, 'linear'); await p.locator('.linear-add-video-btn').click(); await p.locator('#vid_main_1').fill('https://drive.google.com/file/d/fixture_main_one'); await settle(p, 300); });
 state('submit-client-menu', async p => { await go(p, 'linear'); await p.locator('#linearClientSearch').click(); await p.keyboard.type('sam'); await settle(p, 500); });
 state('submit-client-chosen', async p => {
   await go(p, 'linear'); await p.evaluate(() => { const i = document.getElementById('linearClientSearch'); i.value = 'Sample Client One'; i.dataset.clientSlug = 'sample-one'; saveLinearForm(); });

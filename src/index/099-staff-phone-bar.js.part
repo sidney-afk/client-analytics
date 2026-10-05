@@ -26,6 +26,13 @@
            than a phone (and on a bad date), so every caller keeps its own desktop
            wording by writing  window.svPhoneDate(d) || <its existing text>.
            Locale-independent on purpose: the same words on every phone. */
+        /* True on a phone-width staff page (never a client link, never the public intake or onboarding form).
+           Render code that words or sizes something differently on phones asks this; wider screens get false,
+           so their output stays exactly what it was. */
+        window.svIsStaffPhone = function () {
+            return !!(phone && phone.matches) && !document.documentElement.classList.contains('boot-client')
+                && !document.body.classList.contains('intake-mode') && !document.body.classList.contains('onboarding-mode');
+        };
         const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         window.svPhoneDate = function (value) {

@@ -216,7 +216,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
         const client = document.getElementById('linearClientSearch')?.value?.trim() || '';
         if (!client) {
             _linearResolvedPlanUrl = '';
-            el.textContent = 'Select a client…';
+            el.textContent = (window.svIsStaffPhone && window.svIsStaffPhone()) ? 'Found from the client you pick' : 'Select a client…';
             el.classList.add('empty'); el.classList.remove('warn');
             el.removeAttribute('title');
             saveLinearForm();
@@ -272,7 +272,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
             && hold.client_name === String(input && input.value || '').trim()
             && hold.client_slug === String(input && input.dataset && input.dataset.clientSlug || '').trim();
         const t = holdMatches ? hold.computed_title : buildLinearTitle();
-        el.textContent = t || 'Select a client…';
+        el.textContent = t || ((window.svIsStaffPhone && window.svIsStaffPhone()) ? 'Made from the client and today\'s date' : 'Select a client…');
         el.classList.toggle('empty', !t);
         saveLinearForm();
     }

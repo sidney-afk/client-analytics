@@ -4244,7 +4244,26 @@
             html.boot-client [data-pocket-client-phone=analytics] .gains-platform-header { flex-wrap: wrap; }
             html.boot-client [data-pocket-client-phone=analytics] .gain-chip-label { font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
             html.boot-client [data-pocket-client-phone=analytics] .gain-chip-num.empty,
-            html.boot-client [data-pocket-client-phone=analytics] .gains-no-data-note { color: var(--text-secondary); }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar-label { white-space: nowrap; }
+            /* No earlier day to compare with: one calm line instead of three tinted rows of dashes. */
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar:has(.gains-no-data-note) .gains-platform-card { display: none; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar:has(.gains-no-data-note) { gap: 8px; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-no-data-note { display: block; margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--field-bg); font-size: 14px; font-style: normal; line-height: 1.5; color: var(--text-secondary); }
+            /* One colour per platform: the dots on the cards and on the chart switches match the chart lines. */
+            html.boot-client [data-pocket-client-phone=analytics] .gp-ig .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn[onclick*="'ig'"] .cpb-dot { background: var(--ig) !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .gp-tt .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn[onclick*="'tt'"] .cpb-dot { background: var(--tt) !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .gp-yt .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn[onclick*="'yt'"] .cpb-dot { background: var(--yt) !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section.ig .platform-pill { background: var(--ig); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section.tt .platform-pill { background: var(--tt); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section.yt .platform-pill { background: var(--yt); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-pill { width: 8px; height: 8px; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .cpb-dot { width: 8px; height: 8px; }
+            /* The tab that is not selected is a button, not a disabled one. */
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-view-btn:not(.active) { color: var(--text-primary); opacity: 1; font-weight: 600; }
             html.boot-client [data-pocket-client-phone=analytics] .chart-mode-toggle,
             html.boot-client [data-pocket-client-phone=analytics] .chart-plat-toggle { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
             html.boot-client [data-pocket-client-phone=analytics] .chart-mode-btn,
@@ -4275,7 +4294,6 @@
             html.boot-client .pocket-client-phone-menu .cal-zoom button { border: 1px solid var(--border); border-radius: 12px; background: var(--field-bg); }
             html.boot-client .pocket-client-phone-menu .detail-info-btn { justify-content: space-between; height: auto; min-height: 55px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; font-weight: 500; }
             html.boot-client .pocket-client-phone-menu .detail-info-btn::after { content: ''; flex: none; width: 7px; height: 7px; margin-right: 4px; border-top: 1.6px solid var(--text-secondary); border-right: 1.6px solid var(--text-secondary); transform: rotate(45deg); }
-            html.boot-client [data-pocket-client-phone=analytics] .gains-bar-label br { display: inline-block; content: ''; width: 0.4em; }
             html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-strip .cal-review-sub-row { display: none; }
             html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-expand-btn[aria-expanded="true"] { width: 44px; padding: 0; background: var(--white); color: var(--text-primary); border-color: var(--border); }
             html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-expand-btn[aria-expanded="true"] .pocket-client-phone-action { display: none; }

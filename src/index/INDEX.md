@@ -10,10 +10,10 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4686 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4704 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2071 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
-| 8 | `050-market-briefs.js.part` | 1790 | Market Research Brief Tab Renderers |
+| 8 | `050-market-briefs.js.part` | 1794 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2221 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `066-core-workload-state.js.part` | 123 | Workload Calendar |

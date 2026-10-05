@@ -30455,3 +30455,20 @@ Still different from the mock-up, on purpose: a closed Review card keeps a label
 
 Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check/`. Approve and Request change on a sample were not re-tested for real in this pass; see the pull request comment.
 Way back: revert the commit.
+
+## 341. [2026-10-04, BUILT, NOT DEPLOYED] Client Analytics and Samples tabs on phones: second design check (session Polish)
+
+On the same branch as entries 337 and 339. Phones and client links only. Styles sit in the `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`; the two script changes act only when `_svClientPhoneActive()` is true (a client link at phone width), so desktop output is unchanged.
+
+Fixed:
+- "Today's gains" is on one line. Its label had a line break that the phone styles hid, which glued the words together; a space is added for phone client links and the label no longer wraps.
+- When there is no earlier day to compare with, the three pink, grey and red boxes of dashes are replaced by one calm line, "Gains show after 2+ days".
+- The vertical axis on the follower and views charts has about five steps and no repeated labels (2.3K, 2.4K, 2.5K, 2.6K). If the steps are closer than 0.1K a second decimal is used, so two neighbours are never the same.
+- "Last scraped" and "comparing vs" show "Sat, 3 Oct 2026". The chart's own date labels are unchanged.
+- Each platform has one colour: the dot on its card, the dot on its chart switch and its chart line now match (Instagram pink, TikTok black, YouTube red). Before, TikTok was grey on the card and teal on the switch.
+- On the Samples page the tab that is not selected ("Sheet") reads as a button, not a disabled one: full-strength text instead of a faded grey.
+
+Not changed on purpose: desktop keeps its own date format, axis labels and dot colours.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check-analytics/`. A real Request change was sent on a test sample's thumbnail through this layout and read back as "Tweaks needed" with the exact note saved.
+Way back: revert the commit.

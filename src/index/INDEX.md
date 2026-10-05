@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4503 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4738 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2071 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1790 | Market Research Brief Tab Renderers |
@@ -63,7 +63,7 @@
 | 55 | `305-core-kasper-shared.js.part` | 752 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 56 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 57 | `320-core-kasper-subtabs.js.part` | 20 | — |
-| 58 | `321-kasper-dashboard-replies.js.part` | 2717 | The Samples subtab was folded into Review (samples are listed in the |
+| 58 | `321-kasper-dashboard-replies.js.part` | 2880 | The Samples subtab was folded into Review (samples are listed in the |
 | 59 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 60 | `323-kasper-dashboard-tail.js.part` | 580 | Review Session |
 | 61 | `324-client-onboarding-panel.js.part` | 482 | talking to the functions (admin only; the server checks the key and the member again) |

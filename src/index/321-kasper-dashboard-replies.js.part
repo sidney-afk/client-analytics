@@ -7,8 +7,8 @@ import { _svCss, _svRgb } from './050-market-briefs.js';
 import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-core-client-names.js';
 import {
-  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _ptoInvalidateOverviewCaches, _svSelectHtml,
-  _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _ptoInvalidateOverviewCaches, _svDateHtml, _svSelectHtml, _svSyncDateControl,
+  _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffAccount, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
   _syncviewStaffCan, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid,
   _syncviewStaffRoleValue
@@ -2696,6 +2696,169 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         try { if (newest) localStorage.setItem(KASPER_ONBOARDING_SEEN_KEY, newest); } catch (e) {}
         _kasperSetTabCount('onboarding', 0);
     }
+
+    /* Expanded phone navigation. Move the native controls rather than copying
+       their handlers: capability checks, drafts and destinations keep one owner.
+       No DOM changes are made on an initial desktop-width page. */
+    function _pocketAdminPhoneNavigation() {
+        const media = matchMedia('(max-width: 767px)');
+        const main = document.getElementById('mainWrap');
+        if (!main) return;
+        let tabs = null, home = null, clientHome = null, returnFocus = null;
+        const closeTabs = () => {
+            if (!tabs) return;
+            if (tabs.open) tabs.close();
+            if (home && home.parentNode) {
+                home.replaceWith(document.getElementById('headerNav'));
+                home = null;
+            }
+            if (clientHome && clientHome.parentNode) {
+                if (!document.getElementById('svClientPop')?.hidden) document.getElementById('svClientBadge')?.click();
+                clientHome.replaceWith(document.getElementById('svClientBar')); clientHome = null;
+            }
+            tabs.remove(); tabs = null;
+            if (returnFocus && returnFocus.isConnected) returnFocus.focus();
+            returnFocus = null;
+        };
+        const openTabs = event => {
+            if (tabs) return;
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            returnFocus = event.currentTarget;
+            tabs = document.createElement('dialog');
+            tabs.className = 'pocket-admin-tabs';
+            tabs.setAttribute('aria-label', 'Tabs');
+            const head = document.createElement('div');
+            head.className = 'pocket-admin-sheet-head';
+            const title = document.createElement('strong'); title.textContent = 'Tabs';
+            const close = document.createElement('button');
+            close.type = 'button'; close.textContent = 'Close';
+            close.addEventListener('click', closeTabs);
+            head.append(title, close);
+            home = document.createComment('phone tabs return position');
+            nav.before(home);
+            const overview = document.createElement('button'); overview.type = 'button';
+            overview.className = 'pocket-admin-overview'; overview.textContent = 'Overview';
+            overview.addEventListener('click', () => { document.querySelector('header .logo')?.click(); closeTabs(); });
+            tabs.append(head, overview);
+            const clientBar = document.getElementById('svClientBar');
+            if (clientBar && !clientBar.hidden) {
+                clientHome = document.createComment('phone client picker return position');
+                clientBar.before(clientHome); tabs.append(clientBar);
+            }
+            tabs.append(nav);
+            document.body.append(tabs);
+            tabs.addEventListener('cancel', event => { event.preventDefault(); closeTabs(); });
+            tabs.addEventListener('click', event => {
+                if (event.target === tabs || event.target.closest('.header-nav-btn')) closeTabs();
+            });
+            tabs.showModal();
+            const current = nav.querySelector('.header-nav-btn.active');
+            (current || close).focus();
+        };
+        const sync = () => {
+            const wrap = main.querySelector('.kasper-wrap');
+            const active = media.matches && !!wrap;
+            document.documentElement.classList.toggle('pocket-admin-phone', active);
+            if (!active) {
+                closeTabs();
+                main.querySelectorAll('.pocket-admin-date').forEach(date => {
+                    const input = date.querySelector('input');
+                    if (!input || !input._pocketDateAttrs) return;
+                    for (const [name, value] of Object.entries(input._pocketDateAttrs)) {
+                        if (value === null) input.removeAttribute(name);
+                        else input.setAttribute(name, value);
+                    }
+                    date.replaceWith(input);
+                });
+                const more = main.querySelector('.kasper-more');
+                const nav = main.querySelector('.kasper-subtabs');
+                if (more && nav && more.parentNode !== nav) nav.append(more);
+                main.querySelectorAll('.pocket-admin-heading').forEach(node => node.remove());
+                main.querySelectorAll('.pocket-admin-account').forEach(node => node.remove());
+                main.querySelectorAll('.pocket-admin-more-backdrop').forEach(node => node.remove());
+                return;
+            }
+            let heading = wrap.querySelector('.pocket-admin-heading');
+            if (!heading) {
+                heading = document.createElement('div'); heading.className = 'pocket-admin-heading';
+                const title = document.createElement('h1');
+                const actions = document.createElement('div'); actions.className = 'pocket-admin-heading-actions';
+                const button = document.createElement('button'); button.type = 'button';
+                button.textContent = 'Tabs'; button.addEventListener('click', openTabs);
+                actions.append(button); heading.append(title, actions); wrap.prepend(heading);
+            }
+            const selected = wrap.querySelector('.kasper-more-item.active .kasper-tab-label-full');
+            const title = selected ? selected.textContent : (wrap.querySelector('.kasper-title')?.textContent || 'Client Credentials');
+            if (heading.firstChild.textContent !== title) heading.firstChild.textContent = title;
+            const actions = heading.lastChild;
+            const more = wrap.querySelector('.kasper-more');
+            if (more && more.parentNode !== actions) actions.append(more);
+            if (more && !more.querySelector('.pocket-admin-more-backdrop')) {
+                const backdrop = document.createElement('button'); backdrop.type = 'button';
+                backdrop.className = 'pocket-admin-more-backdrop';
+                backdrop.setAttribute('aria-label', 'Close More'); backdrop.tabIndex = -1;
+                backdrop.addEventListener('click', event => {
+                    event.preventDefault(); event.stopPropagation();
+                    _kasperSetMoreOpen(false, false, true);
+                });
+                more.append(backdrop);
+            }
+            const menu = wrap.querySelector('#kasperMoreMenu');
+            if (menu && !menu.querySelector('.pocket-admin-account')) {
+                const account = document.createElement('button'); account.type = 'button';
+                account.className = 'kasper-subtab kasper-more-item pocket-admin-account';
+                account.setAttribute('role', 'menuitem'); account.tabIndex = -1;
+                account.textContent = 'Account & appearance';
+                account.addEventListener('click', () => {
+                    _kasperSetMoreOpen(false, false, false);
+                    _syncviewOpenStaffAccount();
+                });
+                menu.append(account);
+            }
+            if (!more && !actions.querySelector('.pocket-admin-account')) {
+                const account = document.createElement('button'); account.type = 'button';
+                account.className = 'pocket-admin-account'; account.textContent = 'More';
+                account.setAttribute('aria-label', 'Account and appearance');
+                account.addEventListener('click', () => _syncviewOpenStaffAccount());
+                actions.append(account);
+            }
+            wrap.querySelectorAll('.si-input[type=date]:not(.sv-date-value)').forEach(input => {
+                const attrs = {};
+                for (const name of ['id', 'class', 'tabindex', 'aria-hidden']) attrs[name] = input.getAttribute(name);
+                input._pocketDateAttrs = attrs;
+                const id = input.id || 'pocket-admin-date-' + input.dataset.si;
+                const holder = document.createElement('div');
+                holder.innerHTML = _svDateHtml(id, input.value, { disabled: input.disabled, min: input.min, max: input.max });
+                const date = holder.firstChild;
+                date.classList.add('pocket-admin-date');
+                input.before(date);
+                input.id = id;
+                input.classList.add('sv-date-value');
+                input.tabIndex = -1;
+                input.setAttribute('aria-hidden', 'true');
+                date.querySelector('input').replaceWith(input);
+                date.querySelector('button').setAttribute('aria-label', input.closest('.si-q')?.querySelector('.si-label')?.textContent || 'Choose date');
+                if (!input._pocketDateSync) {
+                    input._pocketDateSync = () => _svSyncDateControl(input.id);
+                    input.addEventListener('change', input._pocketDateSync);
+                }
+            });
+        };
+        new MutationObserver(sync).observe(main, { childList: true, subtree: true });
+        media.addEventListener('change', sync);
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || !media.matches || !main.querySelector('.kasper-wrap')) return;
+            const account = document.getElementById('staffAccountPopover');
+            if (!account || account.hidden) return;
+            event.preventDefault();
+            _syncviewCloseStaffAccount();
+            (main.querySelector('[data-kasper-more-trigger]') || main.querySelector('.pocket-admin-account'))?.focus();
+        }, true);
+        sync();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _pocketAdminPhoneNavigation);
+    else _pocketAdminPhoneNavigation();
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {

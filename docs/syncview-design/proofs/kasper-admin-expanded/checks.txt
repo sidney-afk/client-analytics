@@ -1,0 +1,97 @@
+Final focused checks. All browser runs used visible Chrome. All fixture writes were intercepted.
+
+[build-final.log]
+build-index: js/sv-16-kasper-cec0fab10939.js (294678 bytes)
+build-index: wrote index.html (973501 bytes) from 65 fragment(s)
+build-index: wrote src/index/INDEX.md
+
+[scope-final.log]
+KASPER_ADMIN_SCOPE: 210 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+
+[kasper-phone-css-scope.log]
+kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)
+
+[kasper-priority-more-nav.log]
+  ok  narrow screens, visible focus, and popover viewport containment are styled
+
+Kasper priority + More navigation checks passed
+
+[kasper-click-during-rerender.log]
+✓  teardown removes the pointerdown guard listener  (got true, want true)
+
+All kasper-click-during-rerender checks passed.
+
+[kasper-never-lose-decision.log]
+ok - alerts are saved when set and when acknowledged
+
+All kasper-never-lose-decision assertions passed.
+
+[kasper-review-state-global.log]
+✓  inv6: and if Finish is blocked, the card is not already reading as finished  (got true, want true)
+
+All kasper-review-state-global checks passed.
+
+[kasper-filming-tab-source.log]
+KASPER_FILMING_TAB_SOURCE_OK
+
+[credentials-mark-reviewed.log]
+  ok  the action strip gained no nested <div> wrapper
+
+all green
+
+[credentials-identity-persist.log]
+  ok  onboarding write controls carry an admin capability gate
+
+Staff identity consolidation checks passed
+
+[clients-admin-browser-final.log]
+ok   creative is kept out
+
+clients-admin-browser: OK (admin desktop + two phones, edit + sheet conflict, smm and creative kept out)
+
+[staff-onboarding-page-browser.log]
+PASS a failed read shows its message
+PASS an empty list shows its message
+staff-onboarding-page: PASS
+
+[test-suite-routing.log]
+{"marker":"TEST_SUITE_ROUTING_OK","checks":17,"unit_count":676,"required_not_run_by_unit":92,"coverage_implicit_skips":0}
+
+[truth-sync-final.log]
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+
+truth-sync: 511 passed, 0 failed
+
+[repo-map-sync-final.log]
+OK  REPO_MAP.md path `test/atlas-sync.js` exists
+
+repo-map-sync: 1076 passed, 0 failed
+
+[before-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 366 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+[phone-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 366 native states; 6096 checks; 0 failures; fictional data; no live writes.
+
+[onboarding-final.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 30 native states; 252 checks; 0 failures; fictional data; no live writes.
+
+[desktop-before-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 144 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+[desktop-after-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 144 native states; 8 checks; 0 failures; fictional data; no live writes.
+
+[populated-desktop-final.log]
+KASPER_ADMIN_DESKTOP: 144/144 populated native desktop screenshots and computed styles identical to main.
+
+[Production gateway browser: FAIL on branch and unchanged main]
+Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
+Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
+
+Earlier overlapping dialog runs were inconclusive Chrome protocol failures; admin checks were rerun sequentially. A missing local acorn dependency path was corrected before the successful module check. Neither is claimed as a passing run.

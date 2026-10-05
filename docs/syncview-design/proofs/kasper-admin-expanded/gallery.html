@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Expanded phone layout — product proof</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 system-ui;background:#f5f5f2;color:#17191b}
+header{padding:24px;position:sticky;top:0;background:#f5f5f2ed;z-index:2;border-bottom:1px solid #ddd}
+h1{font-size:24px;margin:0 0 8px}p{margin:4px 0}nav{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+label{display:grid;gap:4px}select,button{font:inherit;padding:10px 12px;min-height:44px;border:1px solid #ddd;border-radius:12px;background:white}
+main{padding:24px;display:flex;gap:24px;align-items:flex-start;justify-content:center}figure{margin:0;width:var(--phone);max-width:calc(50vw - 36px)}
+figcaption{margin-bottom:12px;font-weight:650}img{display:block;width:100%;border:1px solid #ddd;border-radius:16px;background:white}a{color:inherit}footer{padding:24px}
+body.dark{background:#101216;color:#eff0f3}body.dark header{background:#101216ed;border-color:#34373b}body.dark select,body.dark button{background:#1c1f25;color:inherit;border-color:#34373b}
+@media(max-width:700px){main{display:grid}figure{max-width:100%;width:var(--phone)}header{position:static}}
+</style>
+<header><h1>Expanded phone layout — real product</h1>
+<p>Before is unchanged main; after is this branch. Fictional people, workspaces and media. Both use the actual app renderers and controls.</p>
+<nav><label>Page or state<select id="state"></select></label><label>Phone width<select id="width"><option>360</option><option selected>390</option><option>430</option></select></label><label>Appearance<select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label><button id="prev" type="button">Previous</button><button id="next" type="button">Next</button></nav>
+</header>
+<main><figure><figcaption>Before — main</figcaption><a id="bLink"><img id="b" alt="Before phone screenshot"></a></figure><figure><figcaption>After — Expanded</figcaption><a id="aLink"><img id="a" alt="After phone screenshot"></a></figure></main>
+<footer><a href="README.md">Coverage and limits</a> · <a href="checks.txt">Real check output</a> · <a href="desktop/summary.json">Desktop comparison</a></footer>
+<script>
+const state=document.querySelector('#state'),width=document.querySelector('#width'),theme=document.querySelector('#theme');
+Promise.resolve({"rows":[{"label":"review-empty"},{"label":"review-queue"},{"label":"review-open"},{"label":"review-single"},{"label":"review-unsaved"},{"label":"review-error"},{"label":"review-loading"},{"label":"messages-empty"},{"label":"messages"},{"label":"messages-compose"},{"label":"editors-empty"},{"label":"editors"},{"label":"editor-info"},{"label":"filming-empty"},{"label":"filming"},{"label":"filming-info"},{"label":"time-off-empty"},{"label":"time-off"},{"label":"time-off-error"},{"label":"sales-intake"},{"label":"hiring-empty"},{"label":"hiring"},{"label":"hiring-detail"},{"label":"hiring-error"},{"label":"onboarding-empty"},{"label":"credentials-empty"},{"label":"credentials"},{"label":"credential-add"},{"label":"clients"},{"label":"client-detail"},{"label":"clients-error"},{"label":"quiz-empty"},{"label":"quiz"},{"label":"quiz-detail"},{"label":"quiz-error"},{"label":"ads-empty"},{"label":"ads"},{"label":"ads-error"},{"label":"save-problems-empty"},{"label":"save-problems"},{"label":"save-problems-error"},{"label":"more"},{"label":"tabs"},{"label":"tabs-client-picker"},{"label":"account"},{"label":"client-edit"},{"label":"credential-history"},{"label":"credential-platform"},{"label":"sales-date"},{"label":"sales-draft"},{"label":"review-note"},{"label":"review-lightbox"},{"label":"credentials-loading"},{"label":"quiz-loading"},{"label":"ads-loading"},{"label":"save-problems-loading"},{"label":"onboarding"},{"label":"onboarding-detail"},{"label":"onboarding-error"},{"label":"standalone-credentials"},{"label":"standalone-onboarding"}]}).then(data=>{
+  for(const value of [...new Set(data.rows.map(r=>r.label))]) {const option=document.createElement('option');option.value=value;option.textContent=value.replaceAll('-',' ');state.append(option);}
+  const parts=location.hash.slice(1).split('/');
+  if([...state.options].some(o=>o.value===parts[0]))state.value=parts[0];
+  if(['360','390','430'].includes(parts[1]))width.value=parts[1];
+  if(['light','dark'].includes(parts[2]))theme.value=parts[2];
+  draw();
+});
+function draw(){const s=state.value+'-'+theme.value+'-'+width.value+'.png';document.documentElement.style.setProperty('--phone',width.value+'px');document.body.classList.toggle('dark',theme.value==='dark');for(const [id,dir] of [['b','before'],['a','after']]){document.querySelector('#'+id).src=dir+'/'+s;document.querySelector('#'+id+'Link').href=dir+'/'+s;}location.hash=[state.value,width.value,theme.value].join('/');}
+for(const node of [state,width,theme])node.onchange=draw;
+document.querySelector('#prev').onclick=()=>{state.selectedIndex=(state.selectedIndex+state.length-1)%state.length;draw();};
+document.querySelector('#next').onclick=()=>{state.selectedIndex=(state.selectedIndex+1)%state.length;draw();};
+</script>
+</html>

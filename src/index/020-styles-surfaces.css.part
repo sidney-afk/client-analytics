@@ -1459,6 +1459,8 @@
             border-radius: 8px; cursor: pointer; padding: 8px 15px; }
         .cal-select-archive { background: var(--sv-bg-dc2626); color: var(--sv-fg-fff); }
         .cal-select-archive:disabled { opacity: 0.4; cursor: default; }
+            #calView[data-pocket-staff-phone] .cal-select-archive[onclick*="_calBulkGenerateCaptions"] { border-color: var(--text-primary); background: var(--text-primary); color: var(--white); opacity: 1; }
+            #calView[data-pocket-staff-phone] .cal-select-archive[onclick*="_calBulkGenerateCaptions"]:disabled { border-color: var(--border); background: var(--field-bg); color: var(--text-secondary); }
         .cal-select-cancel { background: var(--sv-bg-rgba-255-255-255-0_16); color: var(--sv-fg-fff); }
         .cal-select-cancel:hover { background: var(--sv-bg-rgba-255-255-255-0_26); }
         /* Bulk colour-tag swatches shown in the select bar when colour mode is
@@ -5233,6 +5235,24 @@
             #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; margin: 0; padding: 0 14px; background: var(--field-bg); color: var(--text-primary); }
             #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch::after { content: 'Quick jump'; font-size: 14px; }
         }
+        /* Design check against the approved mock-up: same scope as the block above. */
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-tools { display: none !important; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-slot { gap: 10px; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn { width: 44px; height: 44px; min-width: 44px; border-radius: 12px; border: 1px solid var(--border) !important; background: var(--surface-raised) !important; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); display: inline-flex; align-items: center; justify-content: center; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn svg { width: 18px; height: 18px; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn-video { color: var(--cal-comp-video-dot) !important; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn-graphic { color: var(--cal-comp-graphic-dot) !important; }
+            #sxrView[data-pocket-staff-samples] .cal-select-btn.active { color: var(--white) !important; }
+            #sxrView[data-pocket-staff-samples]:has(.cal-select-bar)::before { content: ''; position: fixed; inset: 0; z-index: 79; background: rgba(0, 0, 0, 0.34); pointer-events: none; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive { grid-column: auto; justify-self: start; width: auto; padding: 0 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--sv-fg-dc2626) 45%, var(--border)); background: transparent; color: var(--sv-fg-dc2626); font-weight: 700; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive:disabled { color: var(--text-secondary); border-color: var(--border); opacity: 0.6; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive[onclick*="_calBulkGenerateCaptions"] { border-color: var(--text-primary); background: var(--text-primary); color: var(--white); opacity: 1; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive[onclick*="_calBulkGenerateCaptions"]:disabled { border-color: var(--border); background: var(--field-bg); color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-mode-toggle { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-mode-toggle span { min-height: 44px; padding: 6px 4px; font-size: 12px; line-height: 1.2; text-align: center; white-space: normal; }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-batch-name { font-size: 16px; font-weight: 400; letter-spacing: -0.2px; padding: 0 8px; height: 46px; text-overflow: clip; }
+        }
                 /* STAFF-SAMPLES-PHONE:END */
         /* STAFF-SELECTION-PHONE:BEGIN */
         @media (max-width: 767px) {
@@ -5247,5 +5267,25 @@
             #calView[data-pocket-staff-phone] .cal-select-archive { grid-column: 1 / -1; padding: 12px; border-radius: 12px; }
             #calView[data-pocket-staff-phone] .cal-select-cancel { grid-column: 2; grid-row: 1; color: var(--text-primary); background: var(--field-bg); border-radius: 12px; }
             #calView[data-pocket-staff-phone] .cal-card-select-check { top: 12px; right: 12px; }
+        }
+        /* Design check against the approved mock-up: same scope as the block above. */
+        @media (max-width: 767px) {
+            #calView[data-pocket-staff-phone] .pocket-staff-cal-tools { display: none !important; }
+            #calView[data-pocket-staff-phone] .cal-linear-slot { gap: 10px; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn { width: 44px; height: 44px; min-width: 44px; border-radius: 12px; border: 1px solid var(--border) !important; background: var(--surface-raised) !important; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); display: inline-flex; align-items: center; justify-content: center; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn svg { width: 18px; height: 18px; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn-video { color: var(--cal-comp-video-dot) !important; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn-graphic { color: var(--cal-comp-graphic-dot) !important; }
+            #calView[data-pocket-staff-phone] .cal-select-btn.active { color: var(--white) !important; }
+            #calView[data-pocket-staff-phone]:has(.cal-select-bar)::before { content: ''; position: fixed; inset: 0; z-index: 79; background: rgba(0, 0, 0, 0.34); pointer-events: none; }
+            #calView[data-pocket-staff-phone] .cal-select-archive { grid-column: auto; justify-self: start; width: auto; padding: 0 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--sv-fg-dc2626) 45%, var(--border)); background: transparent; color: var(--sv-fg-dc2626); font-weight: 700; }
+            #calView[data-pocket-staff-phone] .cal-select-archive:disabled { color: var(--text-secondary); border-color: var(--border); opacity: 0.6; }
+            #calView[data-pocket-staff-phone] .cal-select-archive[onclick*="_calBulkGenerateCaptions"] { border-color: var(--text-primary); background: var(--text-primary); color: var(--white); opacity: 1; }
+            #calView[data-pocket-staff-phone] .cal-select-archive[onclick*="_calBulkGenerateCaptions"]:disabled { border-color: var(--border); background: var(--field-bg); color: var(--text-secondary); }
+            body:has(#calView[data-pocket-staff-phone]) #calNativePostOverlay .cal-native-mode-toggle { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+            body:has(#calView[data-pocket-staff-phone]) #calNativePostOverlay .cal-native-mode-toggle span { min-height: 44px; padding: 6px 4px; font-size: 12px; line-height: 1.2; text-align: center; white-space: normal; }
+            body:has(#calView[data-pocket-staff-phone]) #calNativePostOverlay .cal-native-batch-name { font-size: 16px; font-weight: 400; letter-spacing: -0.2px; padding: 0 8px; height: 46px; text-overflow: clip; }
+            #calView[data-pocket-staff-phone] .cal-card-color-tag { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-raised); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); display: inline-flex; align-items: center; justify-content: center; }
+            #calView[data-pocket-staff-phone] .cal-card-color-tag-dot { width: 14px; height: 14px; }
         }
         /* STAFF-SELECTION-PHONE:END */

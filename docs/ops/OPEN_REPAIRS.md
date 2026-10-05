@@ -30435,3 +30435,21 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 Samples Review and Sheet use full sections and comfortable individual cards below 768px in light and dark. Calendar and Samples Selection keep native actions at the bottom, with counts and Done. Native status, decision, archive and comment writers remain; pending staff decisions keep Saving until acknowledged. Desktop rules and restored controls remain unchanged. The native Sheet Select action is retained when switching from Review on a phone.
 
 Fictional screenshots at 360/390/430, loading/empty/error/dialog states, real TEST client decision saves and cleanup, desktop comparisons and exact check tails are in [the proof note](../syncview-design/proofs/staff-selection-samples-expanded/README.md). No deployment, merge, workflow edit or database installation is claimed. Other staff tabs, client layouts and admin screens remain outside this batch.
+
+## 344. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: design check against the owner's list (session Polish)
+
+On the same branch as entry 343. Phones and the standalone staff Calendar and Samples only: the one script change acts only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]` or `#sxrView[data-pocket-staff-samples]` (Create Post under `body:has(...)` of the same markers). Desktop markup and styles are not touched.
+
+Fixed:
+- The "Samples Tools" and "Calendar Tools" labels above the tabs are gone.
+- The outlined pink and blue buttons on a card's image and the grey circle (colour tag) are one calm chip style: a solid surface, a hairline border, 44 px, and only the icon keeps its colour (video pink, thumbnail blue).
+- The active "Select cards" button has white text on the dark button (it was grey).
+- Selection tray: "Color" has no colon. Archive is a quiet outlined destructive button of normal width, not a full-width red one, and still opens the same confirmation. "Generate captions" (which shares that button's class) is a dark button, not red. The page behind the tray is dimmed so the tray no longer cuts through a row.
+- Create Post: the batch name uses 16 px regular text like the other fields and fits at 390 and 430 wide; the post type picker is one row of three, as in the mock-up.
+
+Not changed on purpose: at 360 wide the batch name still truncates for the test fixture's long client name (the field cannot wrap and stays at 16 px so a phone does not zoom); a typical client name fits.
+
+Not tested for real: Archive on the test client through the new button (the confirmation and click code are unchanged; the offline test opens the confirmation). Item 2 of the owner's list refers to "the same fix as #1971 item 5"; I read it as the chip style above and applied it here only.
+
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,204 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
+Way back: revert the commit.

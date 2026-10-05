@@ -2264,7 +2264,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         // together, so one selection can be color-tagged or archived.
         const actionBtn = isCaptionAction
                 ? `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calBulkGenerateCaptions()" disabled>Generate captions</button>`
-                : `<span class="cal-bulk-color-label">Color:</span><div class="cal-bulk-color-swatches" id="calBulkColorSwatches">${_calBulkColorSwatchesHtml()}</div><span class="cal-select-divider"></span><button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
+                : `<span class="cal-bulk-color-label">Color${_calStaffPhoneActive() ? '' : ':'}</span><div class="cal-bulk-color-swatches" id="calBulkColorSwatches">${_calBulkColorSwatchesHtml()}</div><span class="cal-select-divider"></span><button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
         const selectBar = (calState.selectMode && !_isClientLink)
             ? `<div class="cal-select-bar" id="calSelectBar">
                     <span class="cal-select-count" id="calSelectCount">0 selected</span>

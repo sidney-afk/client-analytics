@@ -101,3 +101,87 @@ Desktop width 1440: exit 0
 Desktop width 1280: exit 0
 Desktop width 1024: exit 0
 68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+
+Final comparison-dialog follow-up (generated source committed).
+
+build:index — exit 0
+build-index: js/sv-02-templates-59304a3ba2a3.js (100362 bytes)
+build-index: js/sv-04-workload-395f2adabc06.js (188387 bytes)
+build-index: js/sv-14-tiktok-24bb7e66f434.js (121878 bytes)
+build-index: js/sv-16-kasper-29255d239193.js (289258 bytes)
+build-index: wrote index.html (1047817 bytes) from 65 fragment(s)
+build-index: wrote src/index/INDEX.md
+
+phone gate — exit 0
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+staff-selection-samples: OK (5268 checks; Selection, Samples Review/Sheet, light/dark, dialogs, loading/empty/error/saving and desktop restore; 360/390/430).
+
+desktop parity — exit 0
+Desktop width 1440: exit 0
+Desktop width 1280: exit 0
+Desktop width 1920: exit 0
+Desktop width 1024: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+phone CSS scope — exit 0
+staff-samples-phone-css-scope: OK (1 block(s), 270 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])
+
+check:index — exit 0
+check-index: assembled bytes — sha256=570058889521d69d88f553d239284a667dff0dda73b0f7fbba64c65b40fae74b bytes=1047817
+check-index: working-tree index.html — sha256=570058889521d69d88f553d239284a667dff0dda73b0f7fbba64c65b40fae74b bytes=1047817
+check-index: committed index.html (HEAD) — sha256=570058889521d69d88f553d239284a667dff0dda73b0f7fbba64c65b40fae74b bytes=1047817
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+check-modules — exit 0
+module 345-core-tooltip-date-picker.js.part: 2 imports, 0 exports
+window exports: 537 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2557 KB, 5055 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+repo-map-sync — exit 0
+OK  REPO_MAP.md path `docs/syncview-design/tests/desktop-parity-relay.js` exists
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-selection-samples-expanded/README.md` exists
+OK  REPO_MAP.md path `test/staff-calendar-phone-css-scope.js` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+
+repo-map-sync: 1080 passed, 0 failed
+
+truth-sync with single-file preload — exit 0
+OK  migrations/title-review-migration.sql is labelled as deployed historical schema
+OK  migrations/title-review-migration.sql contains no current manual-rollout instruction
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+
+truth-sync: 510 passed, 0 failed
+
+identity exposure, committed diff to origin/main — exit 0
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+shared-client browser — exit 1
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+shared-client failures:
+  - full labels @1440 with a long client: tabs compact or icons only: navToday,navSxr,navTemplates,navFilmingPlans,navTiktokUpload,navHome,navWorkload,navProd,navLinear,navKasper
+
+unchanged-main shared-client browser — exit 1
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+shared-client failures:
+  - full labels @1440 with a long client: tabs compact or icons only: navToday,navSxr,navTemplates,navFilmingPlans,navTiktokUpload,navHome,navWorkload,navProd,navLinear,navKasper
+
+The same local 1440px long-label failure occurs on unchanged main. Phone picker/More/card-size checks pass. No desktop navigation repair is claimed.
+
+Selection CSS scope — exit 0
+staff-selection-phone-css-scope: OK (1 block(s), 12 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+
+Shared Calendar CSS scope — exit 0
+staff-calendar-phone-css-scope: OK (1 block(s), 321 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+
+Intermediate checks: comparison Escape initially failed after retry and passes with the phone-only focus repair. Overlapping background browser runs timed out; final foreground runs replace those incomplete attempts. The direct truth check without the single-file preload failed; the supported invocation above passes. Production retains its already-recorded unchanged-main failure. Approval writers were not edited in this follow-up.

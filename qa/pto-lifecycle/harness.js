@@ -281,6 +281,15 @@ class LifecycleHarness {
       && typeof window._ptoEnabled === 'function'
       && window._ptoEnabled()
       && document.getElementById('headerTimeOffMenuItem')?.hidden === false);
+    // On a phone, Today, Templates, Filming Plans and Submit replace the wide header with a title row whose
+    // More sheet holds the staff menu (099-staff-phone-bar). Use it when it is there; every other screen
+    // still has the header's own staff menu.
+    if (await this.openPhoneMoreSheet(page)) {
+      await page.locator('.pocket-staff-sheet[open] .pocket-staff-row', { hasText: 'Time Off' }).waitFor({ state: 'visible', timeout: 5000 });
+      await settle(page);
+      await injectSyntheticBanner(page);
+      return;
+    }
     if (options.keyboard) {
       await tabToControl(page, '#headerMenuButton');
       await page.keyboard.press('Enter');
@@ -294,7 +303,27 @@ class LifecycleHarness {
     await injectSyntheticBanner(page);
   }
 
+  // True when the phone title row's More sheet was opened (a phone-width staff screen that has one).
+  async openPhoneMoreSheet(page) {
+    if (!await page.evaluate(() => innerWidth <= 767)) return false;
+    const more = page.locator('.pocket-staff-more-btn');
+    if (!await more.waitFor({ state: 'visible', timeout: 3000 }).then(() => true, () => false)) return false;
+    await more.click();
+    await page.locator('.pocket-staff-sheet[open]').waitFor({ state: 'visible', timeout: 5000 });
+    return true;
+  }
+
   async chooseStaffTimeOff(session, page = this.page(session), options = {}) {
+    const sheetRow = page.locator('.pocket-staff-sheet[open] .pocket-staff-row', { hasText: 'Time Off' });
+    if (await sheetRow.count()) {
+      await sheetRow.click();
+      await page.waitForFunction(() => typeof _ptoState !== 'undefined'
+        && !!_ptoState.overview && !_ptoState.loading
+        && !!document.getElementById('ptoRequestTypeBtn'), null, { timeout: 15000 });
+      await settle(page);
+      await injectSyntheticBanner(page);
+      return;
+    }
     const timeOffItem = page.locator('#headerTimeOffMenuItem');
     await timeOffItem.waitFor({ state: 'visible', timeout: 5000 });
     if (options.keyboard) {

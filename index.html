@@ -9058,14 +9058,18 @@
  html.pocket-admin-phone #mainWrap { padding: 0 18px 32px !important; margin: 0 !important; width: 100%; min-width: 0; }
  html.pocket-admin-phone .kasper-wrap { width: 100%; max-width: none; min-width: 0; padding: 0; margin: 0; }
  html.pocket-admin-phone .kasper-head { display: none; }
- html.pocket-admin-phone .pocket-admin-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 88px; padding: 18px 0; }
- html.pocket-admin-phone .pocket-admin-heading h1 { flex: 1; min-width: 0; margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: -.8px; font-weight: 750; overflow-wrap: anywhere; }
+ html.pocket-admin-phone .pocket-admin-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 0 14px; }
+ html.pocket-admin-phone .pocket-admin-heading h1 { flex: 1; min-width: 0; margin: 0; font-size: 26px; line-height: 1.2; letter-spacing: -.8px; font-weight: 800; overflow-wrap: anywhere; }
  html.pocket-admin-phone .pocket-admin-heading-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; }
- html.pocket-admin-phone .pocket-admin-heading-actions > button { padding: 0 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--white); color: var(--text-primary); font-weight: 650; font-size: 13px; }
+ html.pocket-admin-phone .pocket-admin-heading-actions > button { display:inline-flex; align-items:center; justify-content:center; gap:7px; height:44px; padding: 0 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--white); color: var(--text-primary); font-weight: 600; font-size: 13px; line-height:1; }
  html.pocket-admin-phone .pocket-admin-heading .kasper-more { width:44px; min-width:44px; flex:0 0 44px; }
  html.pocket-admin-phone .pocket-admin-heading .kasper-more-trigger { width: 44px; height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--white); color: var(--text-primary); }
  html.pocket-admin-phone .pocket-admin-heading .kasper-more-trigger > * { display: none !important; }
- html.pocket-admin-phone .pocket-admin-heading .kasper-more-trigger::after { content: '•••'; font-size: 17px; letter-spacing: 2px; }
+ html.pocket-admin-phone .pocket-admin-heading .kasper-more-trigger::after { content:none; }
+ html.pocket-admin-phone .pocket-admin-heading-actions svg { flex:none; width:17px; height:17px; }
+ html.pocket-admin-phone .pocket-admin-heading .kasper-more-trigger > .pocket-admin-more-icon { display:inline-flex !important; }
+ html.pocket-admin-phone .pocket-admin-heading-actions > .pocket-admin-account { width:44px; padding:0; margin:0; }
+ html.pocket-admin-phone .kasper-wrap:not([data-pocket-reviewer]) > .kasper-subtabs { display:none; }
  html.pocket-admin-phone .kasper-subtabs { display: flex; padding: 4px; margin: 0 0 20px; gap: 3px; width: 100%; border: 0; border-radius: 15px; background: var(--surface-subtle); overflow: visible; }
  html.pocket-admin-phone .kasper-primary-tab { flex: 1; min-width: 44px; justify-content: center; padding: 0 5px; border-radius: 11px; color: var(--text-secondary); font-size: 12px; box-shadow: none; }
  html.pocket-admin-phone .kasper-primary-tab > svg { display: none; }
@@ -9111,7 +9115,7 @@
  html.pocket-admin-phone #kasperContent :is(.ca-row,.hp-row) { min-height: 78px; }
  html.pocket-admin-phone #kasperContent :is(.ca-row,.ca-pair,.ca-edit-head,.pto-upcoming-row,.pto-history-row,.pto-balance-row,.pto-request-top,.kasper-replies-head) { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
  html.pocket-admin-phone #kasperContent .ca-value { min-width: 0; overflow-wrap: anywhere; }
- html.pocket-admin-phone #kasperContent .cc-row { display: flex; flex-direction: column; gap: 12px; padding: 15px 0; }
+ html.pocket-admin-phone #kasperContent .cc-row { display: flex; flex-direction: column; align-items:stretch; gap: 12px; padding: 15px 0; }
  html.pocket-admin-phone #kasperContent .cc-secret { display: flex; width: 100%; min-width: 0; gap: 8px; align-items: center; }
  html.pocket-admin-phone #kasperContent .cc-secret code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 16px; color: var(--text-secondary); }
  html.pocket-admin-phone #kasperContent :is(.cc-row-actions,.cc-mini) { min-height: 44px; }
@@ -9184,9 +9188,11 @@
  html.pocket-admin-phone #kasperContent .si-email-preview img { object-fit:contain; }
  html.pocket-admin-phone #kasperContent .cal-review-approve-btn { background:var(--text-primary); color:var(--bg); border-color:var(--text-primary); }
  html.pocket-admin-phone #kasperContent .cal-review-approve-btn:disabled { background:var(--field-bg); color:var(--text-secondary); border-color:var(--border); }
- html.pocket-admin-phone #kasperContent .cal-review-tweak-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ html.pocket-admin-phone #kasperContent .cal-review-tweak-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; align-self:stretch; gap:7px; }
  html.pocket-admin-phone #kasperContent :is(.cal-review-tweak-btn,.cal-review-comment-btn,.cal-review-aat-btn) { width:100%; min-width:44px; min-height:44px; white-space:normal; padding:10px 8px; font-size:12px; line-height:1.5; border-radius:12px; }
- html.pocket-admin-phone #kasperContent .cal-review-aat-btn { grid-column:1 / -1; order:3; }
+ html.pocket-admin-phone #kasperContent :is(.cal-review-comment-btn,.cal-review-aat-btn,.cal-review-tweak-btn) { justify-content:center; align-self:stretch; grid-column:auto; gap:4px; padding:8px 5px; font-size:12px; line-height:1.5; }
+ html.pocket-admin-phone #kasperContent :is(.cal-review-comment-btn,.cal-review-aat-btn,.cal-review-tweak-btn) svg { display:none; }
+ html.pocket-admin-phone #kasperContent .cal-review-aat-btn { grid-column:auto; order:0; }
  html.pocket-admin-phone :is(.cal-import-modal,.cc-modal-wide) { width:calc(100vw - 24px); max-width:calc(100vw - 24px); max-height:calc(100dvh - 32px); border-radius:22px; }
  html.pocket-admin-phone .cc-form-grid { display:flex; flex-direction:column; gap:16px; }
  html.pocket-admin-phone .cal-import-foot { display:flex; flex-wrap:wrap; gap:8px; }
@@ -9278,6 +9284,27 @@
 @media (max-width:767px) {
  html.pocket-admin-phone #kasperContent .obv-wrap:has(.obv-detail) { position:relative; }
  html.pocket-admin-phone #kasperContent .obv-wrap:has(.obv-detail) > .obv-head { position:absolute; top:8px; right:0; margin:0; padding:0; }
+}
+@media (max-width:767px) {
+ html.pocket-admin-phone #kasperContent .kcard-dot { display:none; }
+ html.pocket-admin-phone #kasperContent .kcard-done-btn:not(:disabled) { opacity:1; background:var(--text-primary); color:var(--bg); border-color:var(--text-primary); }
+ html.pocket-admin-phone #kasperContent .kcard-actions { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px; align-items:stretch; }
+ html.pocket-admin-phone #kasperContent .kcard-actions > .kcard-urgent-btn { grid-column:1 / -1; }
+ html.pocket-admin-phone #kasperContent .kcard-actions > .pocket-admin-card-close { position:static; width:44px; height:auto; min-height:48px; opacity:1; padding:0; border:1px solid var(--border); border-radius:12px; }
+ html.pocket-admin-phone #kasperContent .kcard-actions > :is(.kcard-done-btn,.kcard-watch-btn) { justify-content:center; width:100%; padding:10px 8px; }
+ html.pocket-admin-phone #kasperContent .kcard-actions .kcard-expand-btn { display:none; }
+ html.pocket-admin-phone #kasperContent .kcard-line1 { display:grid; grid-template-columns:minmax(0,1fr) 44px; }
+ html.pocket-admin-phone #kasperContent .kcard-line1 > :not(.pocket-admin-card-disclosure) { grid-column:1; }
+ html.pocket-admin-phone #kasperContent .kcard-line1 > .pocket-admin-card-disclosure { grid-column:2; grid-row:1 / span 3; align-self:start; }
+ html.pocket-admin-phone #kasperContent .cc-card-head { flex-wrap:wrap; }
+ html.pocket-admin-phone #kasperContent .cc-card-head > .cc-actions { flex:1 1 100%; flex-flow:row nowrap; width:100%; }
+ html.pocket-admin-phone #kasperContent .cc-card-head > .cc-actions .cc-btn { flex:1; }
+ html.pocket-admin-phone #kasperContent .cc-topbar .cc-actions .cc-btn { flex:1; min-height:48px; white-space:nowrap; padding-inline:9px; }
+ html.pocket-admin-phone #kasperContent .pocket-admin-no-password { background:transparent; padding:0; font-size:13px; }
+ html.pocket-admin-phone #kasperContent :is(.hp-filters,.hp-roles) { flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px; overscroll-behavior-x:contain; }
+ html.pocket-admin-phone #kasperContent .hp-filter { flex:none; white-space:nowrap; }
+ html.pocket-admin-phone #kasperContent .hp-detail:has(.hp-detail-empty) { display:none; }
+ html.pocket-admin-phone #kasperContent .kasper-replies-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; white-space:normal; text-overflow:clip; overflow-wrap:anywhere; }
 }
 /* POCKET-ADMIN-PHONE:END */
     </style>
@@ -9798,9 +9825,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-845d90fd56f3.js";
+        var FULL = "js/sv-full-23534dc33225.js";
         var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-c01b1ff59fd1.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-cec0fab10939.js"};
+        var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-987242dc2d26.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

@@ -2704,6 +2704,9 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         const media = matchMedia('(max-width: 767px)');
         const main = document.getElementById('mainWrap');
         if (!main) return;
+        // Same icon geometry as the approved Calendar phone header.
+        const moreSvg = '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>';
+        const stopCardToggleBubble = event => event.stopPropagation();
         let tabs = null, home = null, clientHome = null, returnFocus = null;
         const closeTabs = () => {
             if (!tabs) return;
@@ -2762,6 +2765,23 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
             document.documentElement.classList.toggle('pocket-admin-phone', active);
             if (!active) {
                 closeTabs();
+                main.querySelectorAll('[data-pocket-reviewer]').forEach(node => node.removeAttribute('data-pocket-reviewer'));
+                main.querySelectorAll('.pocket-admin-more-icon').forEach(node => node.remove());
+                main.querySelectorAll('.pocket-admin-no-password').forEach(node => {
+                    node.textContent = 'empty'; node.classList.remove('pocket-admin-no-password');
+                });
+                main.querySelectorAll('.pocket-admin-credential-import').forEach(node => {
+                    node.textContent = node._pocketImportText; node.classList.remove('pocket-admin-credential-import');
+                });
+                main.querySelectorAll('.pocket-admin-card-disclosure').forEach(node => {
+                    node._pocketCardHome?.replaceWith(node);
+                    node.classList.remove('pocket-admin-card-disclosure');
+                    node.removeEventListener('click', stopCardToggleBubble);
+                });
+                main.querySelectorAll('.pocket-admin-card-close').forEach(node => {
+                    node._pocketCloseHome?.replaceWith(node);
+                    node.classList.remove('pocket-admin-card-close');
+                });
                 main.querySelectorAll('.pocket-admin-date').forEach(date => {
                     const input = date.querySelector('input');
                     if (!input || !input._pocketDateAttrs) return;
@@ -2779,13 +2799,15 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                 main.querySelectorAll('.pocket-admin-more-backdrop').forEach(node => node.remove());
                 return;
             }
+            wrap.toggleAttribute('data-pocket-reviewer', ['review', 'replies', 'filming'].includes(_kasperState.tab));
             let heading = wrap.querySelector('.pocket-admin-heading');
             if (!heading) {
                 heading = document.createElement('div'); heading.className = 'pocket-admin-heading';
                 const title = document.createElement('h1');
                 const actions = document.createElement('div'); actions.className = 'pocket-admin-heading-actions';
                 const button = document.createElement('button'); button.type = 'button';
-                button.textContent = 'Tabs'; button.addEventListener('click', openTabs);
+                button.innerHTML = 'Tabs <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>';
+                button.setAttribute('aria-haspopup', 'dialog'); button.addEventListener('click', openTabs);
                 actions.append(button); heading.append(title, actions); wrap.prepend(heading);
             }
             const selected = wrap.querySelector('.kasper-more-item.active .kasper-tab-label-full');
@@ -2794,6 +2816,11 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
             const actions = heading.lastChild;
             const more = wrap.querySelector('.kasper-more');
             if (more && more.parentNode !== actions) actions.append(more);
+            const moreTrigger = more?.querySelector('[data-kasper-more-trigger]');
+            if (moreTrigger && !moreTrigger.querySelector('.pocket-admin-more-icon')) {
+                const icon = document.createElement('span'); icon.className = 'pocket-admin-more-icon';
+                icon.setAttribute('aria-hidden', 'true'); icon.innerHTML = moreSvg; moreTrigger.append(icon);
+            }
             if (more && !more.querySelector('.pocket-admin-more-backdrop')) {
                 const backdrop = document.createElement('button'); backdrop.type = 'button';
                 backdrop.className = 'pocket-admin-more-backdrop';
@@ -2818,11 +2845,35 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
             }
             if (!more && !actions.querySelector('.pocket-admin-account')) {
                 const account = document.createElement('button'); account.type = 'button';
-                account.className = 'pocket-admin-account'; account.textContent = 'More';
+                account.className = 'pocket-admin-account'; account.innerHTML = moreSvg;
                 account.setAttribute('aria-label', 'Account and appearance');
                 account.addEventListener('click', () => _syncviewOpenStaffAccount());
                 actions.append(account);
             }
+            wrap.querySelectorAll('.cc-secret code').forEach(code => {
+                if (code.textContent !== 'empty') return;
+                code.textContent = 'No password saved'; code.classList.add('pocket-admin-no-password');
+            });
+            wrap.querySelectorAll('.cc-topbar button[onclick="_ccOpenOnboardingImport()"]:not(.pocket-admin-credential-import)').forEach(button => {
+                button._pocketImportText = button.textContent;
+                button.textContent = 'Import'; button.classList.add('pocket-admin-credential-import');
+            });
+            wrap.querySelectorAll('.kcard-actions .kcard-expand-btn').forEach(button => {
+                const line = button.closest('.kcard')?.querySelector('.kcard-line1');
+                if (!line) return;
+                button._pocketCardHome = document.createComment('phone disclosure return position');
+                button.before(button._pocketCardHome);
+                button.classList.add('pocket-admin-card-disclosure');
+                button.addEventListener('click', stopCardToggleBubble);
+                line.append(button);
+            });
+            wrap.querySelectorAll('.kcard > .kcard-close-btn').forEach(button => {
+                const cardActions = button.parentNode.querySelector('.kcard-actions');
+                if (!cardActions) return;
+                button._pocketCloseHome = document.createComment('phone close return position');
+                button.before(button._pocketCloseHome);
+                button.classList.add('pocket-admin-card-close'); cardActions.append(button);
+            });
             wrap.querySelectorAll('.si-input[type=date]:not(.sv-date-value)').forEach(input => {
                 const attrs = {};
                 for (const name of ['id', 'class', 'tabindex', 'aria-hidden']) attrs[name] = input.getAttribute(name);

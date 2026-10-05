@@ -28,12 +28,14 @@ const add = (label, tab, setup, action) => tests.push({ label, tab, setup, actio
 add('review-empty', 'review');
 add('review-queue', 'review', data => { _kasperState.items = [data]; _kasperPaintReviewNow(); });
 add('review-open', 'review', data => { data._expanded = true; _kasperState.items = [data]; _kasperPaintReviewNow(); });
+add('review-finish-ready', 'review', data => { data._expanded = true; data.post.status = data.post.video_status = data.post.graphic_status = data.post.caption_status = 'Approved'; _kasperState.items = [data]; document.getElementById('kasperReviewBody').innerHTML = _kasperRenderCard(data); });
 add('review-single', 'review', data => { data._expanded = true; data.post.video_status = 'Approved'; data.post.graphic_status = 'Approved'; _kasperState.items = [data]; _kasperPaintReviewNow(); });
 add('review-unsaved', 'review', data => { data._expanded = true; _kasperState.items = [data]; _kasperState.saveAlerts = [{ pid: data.post.id, client: data.client, name: data.post.name, text: 'Your decision has not saved. Keep this page open and retry.' }]; _kasperPaintReviewNow(); });
 add('review-error', 'review', () => { _kasperState.items = []; _kasperState.error = 'The review queue could not load. Try again.'; _kasperPaintReviewNow(); });
 add('review-loading', 'review', () => { document.getElementById('kasperContent').innerHTML = _svLoadingSkeletonHtml('kasper', { label: 'Loading review queue' }); });
 add('messages-empty', 'replies');
 add('messages', 'replies', data => {
+  data.post.name = 'Make room for a better day with one small habit you can keep.';
   data.post.tweaks = [{ id: 'm_fixture_root', comp: 'caption', role: 'kasper', author: 'Reviewer', audience: 'internal', body: 'Please simplify this opening sentence.', created_at: '2026-10-03T10:00:00Z' }, { id: 'm_fixture_reply', parent_id: 'm_fixture_root', comp: 'caption', role: 'smm', author: 'Team member', audience: 'internal', body: 'The opening is shorter now. Please take another look.', created_at: '2026-10-04T10:00:00Z' }];
   data._showAllReplies = true; _kasperState.replies = [data]; _kasperRenderReplies();
 });
@@ -55,6 +57,7 @@ add('hiring-error', 'hiring-process', () => { _hpState.list = []; _hpState.listE
 add('onboarding-empty', 'onboarding');
 add('credentials-empty', 'client-credentials');
 add('credentials', 'client-credentials', () => { _ccState.kasper.credentials = [{ id: 'fixture-credential', client_slug: 'phone-fixture', client_name: 'Example workspace', platform: 'instagram', handle: '@example', password: '', notes: 'Example account; no private information.', status: 'active' }]; _ccState.kasper.loaded = true; _ccState.kasper.loading = false; _ccState.kasper.error = null; _ccExpanded.add('phone-fixture'); _ccPaintKasper(); });
+add('credentials-masked', 'client-credentials', () => { _ccState.kasper.credentials = [{ id: 'fixture-credential', client_slug: 'phone-fixture', client_name: 'Example workspace', platform: 'instagram', handle: '@example', password: 'synthetic-fixture-value', notes: 'Fictional value, shown masked.', status: 'active' }]; _ccState.kasper.loaded = true; _ccState.kasper.loading = false; _ccState.kasper.error = null; _ccExpanded.add('phone-fixture'); _ccPaintKasper(); });
 add('credential-add', 'client-credentials', null, p => p.locator('.cc-topbar .cc-btn').filter({ hasText: 'Add credential' }).click());
 add('clients', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = null; _caPaint(); });
 add('client-detail', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = row.slug; _caPaint(); });
@@ -72,7 +75,7 @@ add('save-problems-error', 'save-problems', () => { _spState.loading = false; _s
 add('more', 'review', null, p => p.locator('[data-kasper-more-trigger]').click());
 add('tabs', 'review', null, async p => { if (!before && !desktop) await p.getByRole('button', { name: 'Tabs', exact: true }).click(); });
 add('tabs-client-picker','review',null,async p=>{ if(!before&&!desktop) await p.getByRole('button',{name:'Tabs',exact:true}).click();await p.locator('#svClientBadge').click();await p.locator('#svClientSearch').fill('Example'); });
-add('account', 'review', null, p => p.evaluate(() => _syncviewOpenStaffAccount()));
+add('account', 'review', null, async p => { if (!before && !desktop) { await p.locator('[data-kasper-more-trigger]').click(); await p.locator('#kasperMoreMenu .pocket-admin-account').click(); } else await p.evaluate(() => _syncviewOpenStaffAccount()); });
 
 
 add('client-edit', 'clients', (data,row) => { _caState.rows=[row];_caState.selected=row.slug;_caState.loaded=true;_caState.loading=false;_caState.error=null;_caPaint(); }, p => p.locator('.ca-detail-head .cc-btn').filter({hasText:'Edit'}).click());
@@ -219,11 +222,50 @@ async function runMain() {
               await page.evaluate(({source,item,profile}) => new Function('data','row','return ('+source+')(data,row)')(item,profile),{source,item:JSON.parse(JSON.stringify(item)),profile});
             }
             if (t.action) await t.action(page);
+            if (!before && !desktop) {
+              await page.waitForTimeout(50);
+              const dashboard = ['review','replies','filming'].includes(t.tab) && !t.label.startsWith('staff-');
+              expect(await page.locator('.kasper-subtabs:visible').count() === (dashboard ? 1 : 0), t.label+': reviewer navigation belongs only to dashboard');
+              const header = await page.locator('.pocket-admin-heading').evaluate(el => ({ tabs:!!el.querySelector('button[aria-haspopup="dialog"] svg path[d="m5 7 5 5 5-5"]'),dots:[...el.querySelectorAll('.pocket-admin-more-icon circle,.pocket-admin-heading-actions > .pocket-admin-account circle')].map(n=>n.getAttribute('r')) }));
+              expect(header.tabs && header.dots.length===3 && header.dots.every(r=>r==='1.7'), t.label+': approved Calendar header icons');
+              if (t.label === 'review-open') {
+                const actionRows = await page.locator('.cal-review-tweak-actions').evaluateAll(rows => rows.map(row => [...row.children].map(b=>b.getBoundingClientRect().top)));
+                expect(actionRows.length===3 && actionRows.every(tops=>tops.length===3 && Math.max(...tops)-Math.min(...tops)<1),'Review: three secondary actions stay on one row per part');
+                expect(await page.locator('.kcard-actions .kcard-expand-btn:visible').count()===0,'Review: no floating disclosure under card');
+                expect(await page.locator('.kcard-dot:visible').count()===0,'Review: no trailing workspace separator');
+                await page.getByRole('button',{name:'Collapse card',exact:true}).click();
+                expect(await page.locator('.kasper-review-body').count()===0,'Moved disclosure invokes native collapse once');
+                await page.getByRole('button',{name:'Expand card',exact:true}).click();
+                expect(await page.locator('.cal-review-panel').count()===3,'Moved disclosure invokes native expand once');
+              }
+              if (t.label==='review-finish-ready') {
+                const ready=await page.locator('.kcard-done-btn').evaluate(b=>({disabled:b.disabled,opacity:getComputedStyle(b).opacity,color:getComputedStyle(b).color,background:getComputedStyle(b).backgroundColor}));
+                expect(!ready.disabled && Number(ready.opacity)===1 && ready.color!==ready.background,'Finish reviewing is enabled and visually actionable after every decision');
+              }
+              if (t.label==='credentials' || t.label==='credentials-masked') {
+                expect(await page.locator('.cc-secret code').textContent()===(t.label==='credentials'?'No password saved':'••••••'),'Credentials: absent and hidden values have clear, distinct labels');
+                const tops=await page.locator('.cc-card-head .cc-actions button').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
+                expect(tops.length===2 && Math.max(...tops)-Math.min(...tops)<1,'Credentials: History and Add share one row');
+                const toolbar=await page.locator('.cc-topbar .cc-actions button').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
+                expect(toolbar.length===3 && Math.max(...toolbar)-Math.min(...toolbar)<1,'Credentials: Refresh, Import and Add fit one row');
+              }
+              if (t.label==='hiring') {
+                expect(await page.locator('.hp-detail:visible').count()===0,'Hiring hides unselected detail panel');
+                for (const filter of ['.hp-filters','.hp-roles']) {
+                  const tops=await page.locator(filter+' button').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
+                  expect(Math.max(...tops)-Math.min(...tops)<1,'Hiring filters stay in one horizontally scrollable row');
+                }
+              }
+              if (t.label==='messages') {
+                const text=await page.locator('.kasper-replies-title').evaluate(n=>({height:n.getBoundingClientRect().height,line:parseFloat(getComputedStyle(n).lineHeight),whiteSpace:getComputedStyle(n).whiteSpace}));
+                expect(text.whiteSpace==='normal' && text.height>text.line && text.height<=text.line*2+1,'Messages title wraps to two lines');
+              }
+            }
             await capture(page,t.label,width,theme);
             if (!before && !desktop && t.label === 'tabs') {
               await page.keyboard.press('Escape');
               expect(await page.locator('dialog.pocket-admin-tabs').count() === 0,'Tabs Escape closes dialog');
-              expect(await page.evaluate(()=>document.activeElement?.textContent==='Tabs'),'Tabs Escape returns focus');
+              expect(await page.evaluate(()=>document.activeElement?.textContent.trim()==='Tabs'),'Tabs Escape returns focus');
               expect(await page.locator('header #headerNav').count() === 1,'Tabs restores original navigation');
               expect(await page.locator('header #svClientBar').count()===1,'Tabs restores original client picker');
               await page.getByRole('button',{name:'Tabs',exact:true}).click();

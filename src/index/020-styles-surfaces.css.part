@@ -4908,6 +4908,10 @@
             body:has(#calView[data-pocket-staff-phone]) .cal-import-skip-chk:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
             body:has(#calView[data-pocket-staff-phone]) .cal-import-pick-row { min-height: 44px; }
         }
+        @media (max-width: 767px) {
+            body:has(#calView[data-pocket-staff-phone]) .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
+            body:has(#calView[data-pocket-staff-phone]) .thumb-compare-close svg { width: 18px; height: 18px; }
+        }
         /* STAFF-CALENDAR-PHONE:END */
 
         /* STAFF-SAMPLES-PHONE:BEGIN */
@@ -5233,7 +5237,11 @@
             #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; margin: 0; padding: 0 14px; background: var(--field-bg); color: var(--text-primary); }
             #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch::after { content: 'Quick jump'; font-size: 14px; }
         }
-                /* STAFF-SAMPLES-PHONE:END */
+                @media (max-width: 767px) {
+            body:has(#sxrView[data-pocket-staff-samples]) .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .thumb-compare-close svg { width: 18px; height: 18px; }
+        }
+        /* STAFF-SAMPLES-PHONE:END */
         /* STAFF-SELECTION-PHONE:BEGIN */
         @media (max-width: 767px) {
             #calView[data-pocket-staff-phone]:has(.cal-select-bar) .cal-organizer-wrap { padding-bottom: 250px; }

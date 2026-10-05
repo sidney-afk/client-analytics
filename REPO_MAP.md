@@ -672,3 +672,5 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 | `docs/syncview-design/tests/desktop-parity-relay.js` | Desktop relay read/cache isolation guard. |
 | `docs/syncview-design/proofs/staff-selection-samples-expanded/README.md` | Public fictional before/after screenshots and verification notes. |
 | `test/staff-calendar-phone-css-scope.js` | Shared Calendar phone CSS lock, retained with the reused foundation. |
+
+- `docs/syncview-design/tests/phone-thumbnail-comparison.js` — native phone thumbnail comparison fixture: loading, pending, empty, denied, error, retry, stacked images, image failure and dismissal.

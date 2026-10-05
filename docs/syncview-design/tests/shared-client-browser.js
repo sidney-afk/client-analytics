@@ -364,6 +364,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svClientBar'));
       await page.waitForTimeout(1500);
       await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND]);
+      if (await page.locator('[data-pocket-staff-phone]').count()) await page.locator('[data-staff-menu=more]').click();
       await page.evaluate(() => svClientPopToggle());
       await page.waitForTimeout(200);
       const box = await page.evaluate(() => {
@@ -414,11 +415,17 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
           // focusable control.
           const mid = bar.querySelector('.cal-toolbar-mid');
           const firstFocusable = [...mid.children].find(el => el.matches('button,a[href],input,select,[tabindex]') || el.querySelector('button,a[href],input,select,[tabindex]'));
-          return { toggleGap: Math.round(t.left - b.left), zoomGap: Math.round(b.right - r.right), togLeftOfZoom: t.left < r.left, togFirstInDom: firstFocusable === tog, page: document.documentElement.scrollWidth };
+          return { phone: !!document.querySelector('[data-pocket-staff-phone], [data-pocket-staff-samples]'), toggleGap: Math.round(t.left - b.left), zoomGap: Math.round(b.right - r.right), togLeftOfZoom: t.left < r.left, togFirstInDom: firstFocusable === tog, page: document.documentElement.scrollWidth };
         }, zoom);
         const tag = `${path.slice(1)} @${width}`;
         expect(m.toggleGap < 40, `${tag}: the view switch is not at the left end of the toolbar (${m.toggleGap}px in)`);
-        expect(m.togLeftOfZoom, `${tag}: the view switch should sit left of zoom`);
+        if (m.phone) {
+          expect(await page.isVisible('.cal-view-toggle'), tag + ': phone view switch must remain visible');
+          expect(!(await page.isVisible(zoom)), tag + ': card size belongs inside More');
+          await page.locator('[data-staff-menu=more], [data-samples-menu=more]').click();
+          expect(await page.isVisible(zoom), tag + ': More must expose the original card size control');
+          await page.keyboard.press('Escape');
+        } else expect(m.togLeftOfZoom, `${tag}: the view switch should sit left of zoom`);
         expect(m.togFirstInDom, `${tag}: the view switch is not the first focusable group in the toolbar DOM (tab order would jump)`);
         if (width > 800) expect(m.zoomGap < 200, `${tag}: zoom should stay on the right (${m.zoomGap}px from the edge)`);
         expect(m.page <= width, `${tag}: the page is ${m.page}px wide on a ${width}px screen`);

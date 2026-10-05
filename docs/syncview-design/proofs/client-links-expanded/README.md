@@ -96,3 +96,10 @@ Lighthouse owns merging. Owner action: review the phone design; keep the signed-
 browser open. Revisions to the Calendar checkpoint take priority before another
 PR opens. Cumulative goal tokens are reported in the handoff; per-PR usage is
 unavailable.
+
+Final design verification: the hosted-test harness was repaired, phone pictures
+were refreshed at all three widths, and desktop was rechecked at all four sizes
+(68/68 identical). Real Approve and Request change saves were repeated on the
+owned TEST source and freshly read back, with cleanup confirmed. The anonymous
+receipt is [final-design-saves.json](final-design-saves.json); exact final check
+tails are in [checks.txt](checks.txt). This remains local candidate proof.

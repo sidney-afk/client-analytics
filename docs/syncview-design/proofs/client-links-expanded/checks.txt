@@ -81,3 +81,22 @@ ok   client-calendar-month @1920: pixels identical, computed styles identical (d
 
 Final comparison set: 68/68 pixel and computed-style pairs match.
 Public desktop pairs: 4/4 exact PNG byte comparisons.
+
+
+Final design recheck — exit 0
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+client-links-expanded: OK (897 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 360/390/430).
+
+Final design recheck — exit 0
+Desktop width 1920: exit 0
+Desktop width 1024: exit 0
+Desktop width 1440: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Receipt test repair — exit 0
+  ok  charts omit failed points and compare recovery against the last trusted point
+  ok  charts never turn not_configured or malformed receipts into zero points
+
+Analytics receipt UI checks passed
+
+Both real client decisions were repeated against the latest design candidate and read back; owned sources were archived. The Samples native items were read back in Backlog. See final-design-saves.json.

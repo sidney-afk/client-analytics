@@ -30430,7 +30430,7 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 **Not done, said plainly.** Nothing has run against Apify, OpenAI, Anthropic (including the Batches API), pg_net or pg_cron; the first real proof is the first shadow brief. The equivalence is against the n8n code, not a recorded run (n8n keeps none); the reel order in the prompt follows n8n's Merge default and is unconfirmed. The real table `analytics_market_research_briefs` is not written (the switch is a later PR). The page is unchanged. Decisions left to the owner, later: keep the Keywords brief at all (what it shows and what it costs are in section 7c.2), and whether the AI summaries move off n8n as a small separate step.
 
 
-## 338. [2026-10-05, BUILT, NOT DEPLOYED] Expanded staff Calendar on phones
+## 342. [2026-10-05, BUILT, NOT DEPLOYED] Expanded staff Calendar on phones
 
 Standalone Review, Sheet, Month and Week now use phone cards and vertical days
 at 360/390/430, in light and dark. Tabs and More sit beside Calendar; native

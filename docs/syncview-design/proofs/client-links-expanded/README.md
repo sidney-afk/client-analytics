@@ -103,3 +103,9 @@ were refreshed at all three widths, and desktop was rechecked at all four sizes
 owned TEST source and freshly read back, with cleanup confirmed. The anonymous
 receipt is [final-design-saves.json](final-design-saves.json); exact final check
 tails are in [checks.txt](checks.txt). This remains local candidate proof.
+
+### Thumbnail comparison dialog
+
+The native comparison remains a full, vertically stacked Previous and Current view on phones. Close and Retry have 44px targets. Retry returns keyboard focus to Close while its temporary button is replaced, so Escape continues to work. All eight reader/image states are captured at every phone width. Only the assigned phone surfaces receive the change; the desktop gate is repeated afterward. No approval writer or decision rule changes in this follow-up. The real decision receipts above predate this dialog-only adjustment.
+
+The viewer distinguishes the pending Samples queue (`samples-list`) from the native Nothing to review state (`samples-queue`). Pending cards retain their status and open action.

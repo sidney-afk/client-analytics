@@ -4311,6 +4311,10 @@
             html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-status .cal-review-sub-pill,
             html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-status .cal-client-comp-pill { display: inline-block; width: auto; padding: 6px 10px; border-color: var(--border); border-radius: 9px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text-primary) !important; }
         }
+        @media (max-width: 767px) {
+            html.boot-client .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
+            html.boot-client .thumb-compare-close svg { width: 18px; height: 18px; }
+        }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).
            Same contract as the client-phone blocks: every rule between the

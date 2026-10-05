@@ -7,6 +7,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
+const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const widths = [360, 390, 430];
 const before = process.argv.includes('--capture-before');
 const headed = process.argv.includes('--headed');
@@ -21,7 +22,7 @@ async function measure(page, label) {
     const root = document.querySelector('[data-pocket-client-phone], [data-client-entry-state]');
     return {
       width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
-      controls: [...root.querySelectorAll('button, a[href], input:not([type=hidden]), textarea'), ...document.querySelectorAll('#confirmOverlay.active button, .detail-info-overlay.open button')].filter(visible).map(node => {
+      controls: [...root.querySelectorAll('button, a[href], input:not([type=hidden]), textarea'), ...document.querySelectorAll('#confirmOverlay.active button, .detail-info-overlay.open button, .thumb-compare-overlay.open button')].filter(visible).map(node => {
         const r = node.getBoundingClientRect();
         return { what: node.getAttribute('aria-label') || node.className, w: r.width, h: r.height };
       }),
@@ -38,7 +39,7 @@ async function shot(page, label) {
   fs.mkdirSync(shots, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
   await page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
-  const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-lightbox.open, #confirmOverlay.active, .detail-info-overlay.open').count();
+  const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, #confirmOverlay.active, .detail-info-overlay.open').count();
   await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay, animations: 'disabled' });
 }
 async function entryErrors(page, width, prefix) {
@@ -153,6 +154,7 @@ async function samples(browser, origin, width) {
     await page.evaluate(id => { _sxrReviewState.saving[id + '|graphic'] = false; _sxrReviewRepaintCard(id); }, row.id);
     ok(writes.length === 0, 'navigation or disclosure sent a write');
   }
+  if (!before) await phoneThumbnailComparison(page, ctx, { surface: 'samples', id: row.id, measure, shot, suffix: width, prefix: 'samples-' });
   await page.locator('[data-cal-view=organizer]').click();
   await shot(page, 'samples-sheet-' + width);
   if (!before) {
@@ -205,6 +207,7 @@ async function samples(browser, origin, width) {
     await shot(page, 'samples-read-error-' + width);
     ok(errors.length === 0, 'Samples page errors: ' + errors.join(' | '));
   }
+  ok(!(await page.locator('#confirmOverlay.active').count()), 'unexpected confirmation after fixture review: ' + await page.locator('#confirmOverlay').innerText());
   await entryErrors(page, width, 'samples');
   if (!before) ok(errors.length === 0, 'Samples retry page errors: ' + errors.join(' | '));
   await ctx.close();

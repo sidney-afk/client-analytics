@@ -32,7 +32,7 @@ The initial PR populated native-fixture comparison covers 18 review/admin states
 - The Production gateway browser check has an existing desktop inline-editor placement failure on unchanged main. Its exact output is in [checks.txt](checks.txt); this PR does not change that editor.
 - The fixture captures the states named in the gallery. It does not claim every possible combination of all administrative data or a live hiring/credential/PTO write.
 
-The full Windows unit run found 17 platform-related failures; every failing suite also failed on unchanged main. This is recorded separately from the Linux unit result and does not count as a passing full run.
+The full Windows unit run found 17 platform-related failures; every failing suite also failed on unchanged main. The complete Linux run of node test/run-all.js passed all 676 classified unit suites on product commit 1fe3a8f547aaf94f85ed9d9c84bec01fc20f2366, with 92 required profiles explicitly NOT_RUN in this lane. It used the same repository tests and assertions, full historical Git objects, and a private standard Linux filesystem. Early environment-setup attempts were failures and are not claimed as passing proof.
 
 See [actual check output](checks.txt). Tests used the existing visible Chrome; the owner's sign-in was retained. Overlapping dialog-based browser checks produced inconclusive protocol errors, then were rerun without that overlap.
 

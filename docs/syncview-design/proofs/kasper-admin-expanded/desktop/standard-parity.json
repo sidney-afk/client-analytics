@@ -84,7 +84,7 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "68b6f1cb39d9",
+    "sha": "8bc33a0ea065",
     "attempts": 1
   },
   {
@@ -100,7 +100,7 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "242f1f3e4b3d",
+    "sha": "a88d9eb579dd",
     "attempts": 1
   },
   {
@@ -124,7 +124,7 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "242f1f3e4b3d",
+    "sha": "a1127b0fa2c2",
     "attempts": 1
   },
   {
@@ -220,8 +220,8 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "da1bb06ecd26",
-    "attempts": 2
+    "sha": "e0c2d26d7ce5",
+    "attempts": 1
   },
   {
     "page": "client-analytics",
@@ -236,7 +236,7 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "9352c5de1444",
+    "sha": "5634d2e0809c",
     "attempts": 1
   },
   {
@@ -260,7 +260,7 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "9352c5de1444",
+    "sha": "2e5fff42fdbb",
     "attempts": 1
   },
   {
@@ -356,7 +356,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "b6e1ac3b3c71",
+    "sha": "0087a6ef2f32",
     "attempts": 1
   },
   {
@@ -372,7 +372,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "eb9c15c3143e",
+    "sha": "745339fed4ec",
     "attempts": 1
   },
   {
@@ -396,7 +396,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "eb9c15c3143e",
+    "sha": "7c69f4b6f33f",
     "attempts": 1
   },
   {
@@ -492,8 +492,8 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "6fe6d3569cd9",
-    "attempts": 2
+    "sha": "d2ed28ce687d",
+    "attempts": 1
   },
   {
     "page": "client-analytics",
@@ -508,7 +508,7 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "1ac4c1dfd592",
+    "sha": "66dfd66bd794",
     "attempts": 1
   },
   {
@@ -532,7 +532,7 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "1ac4c1dfd592",
+    "sha": "49634e422158",
     "attempts": 1
   },
   {

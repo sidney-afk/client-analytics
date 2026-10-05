@@ -34,7 +34,7 @@ generated product with fictional data and media, not a separate prototype.
 | Month | [Before](before/month-light-360.png) / [After](after/month-light-360.png) | [Before](before/month-light-390.png) / [After](after/month-light-390.png) | [Before](before/month-light-430.png) / [After](after/month-light-430.png) |
 | Week | [Before](before/week-light-360.png) / [After](after/week-light-360.png) | [Before](before/week-light-390.png) / [After](after/week-light-390.png) | [Before](before/week-light-430.png) / [After](after/week-light-430.png) |
 
-There are 30 before and 270 after screenshots across both themes and all three
+There are 30 before and 318 after screenshots across both themes and all three
 widths. They include Review queue and open post, Tabs, More, Organize, account, Quick jump,
 Platform, Import including column mapping and post selection, caption prompt, Create Post and thumbnail-only creation,
 Archived cards with rows/loading/empty/error, Notes, lightbox, status pickers,
@@ -77,5 +77,11 @@ dialogs owned by the other session, a complete file-import write/readback pass,
 or real staff approval writes. Import mapping and selection are verified using
 fictional parsed rows. Staff action guards are exercised with fictional
 transport; the real save proof exercises the important client decisions.
-No backend, workflow or database installation was performed, and nothing was
+No backend, n8n workflow or database installation was performed, and nothing was
 merged or deployed by Pocket.
+
+### Thumbnail comparison dialog
+
+The native comparison remains a full, vertically stacked Previous and Current view on phones. Close and Retry have 44px targets. Retry returns keyboard focus to Close while its temporary button is replaced, so Escape continues to work. All eight reader/image states are captured at every phone width in both themes. Only the assigned phone surfaces receive the change; the desktop gate is repeated afterward. No approval writer or decision rule changes in this follow-up. The real decision receipts above predate this dialog-only adjustment.
+
+The shared-client check now opens the native client picker and card size through More on phones, with its original desktop assertions retained. Its local 1440px long-label failure also reproduces on unchanged main; no desktop navigation repair is included.

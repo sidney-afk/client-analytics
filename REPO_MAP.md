@@ -670,3 +670,5 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 | `test/staff-calendar-phone-css-scope.js` | Phone-width and standalone staff Calendar selector lock, including adversarial parser controls. | Unit guard. |
 | `docs/syncview-design/tests/desktop-parity-relay.js` | Desktop comparison relay mutation/cache isolation controls. | Browser support guard. |
 | `docs/syncview-design/proofs/staff-calendar-expanded/README.md` | Staff Calendar Expanded before/after screenshots and local verification receipts. | Public fictional evidence. |
+
+- `docs/syncview-design/tests/phone-thumbnail-comparison.js` — native phone thumbnail comparison fixture: loading, pending, empty, denied, error, retry, stacked images, image failure and dismissal.

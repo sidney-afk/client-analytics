@@ -1,6 +1,27 @@
 [
   {
+    "label": "review-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 25,
+    "fields": 3
+  },
+  {
+    "label": "review-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 25,
+    "fields": 3
+  },
+  {
     "label": "review-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 25,
+    "fields": 3
+  },
+  {
+    "label": "review-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 25,
@@ -14,20 +35,6 @@
     "fields": 3
   },
   {
-    "label": "review-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 25,
-    "fields": 3
-  },
-  {
-    "label": "review-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 25,
-    "fields": 3
-  },
-  {
     "label": "review-light-390",
     "width": 390,
     "scrollWidth": 390,
@@ -35,10 +42,24 @@
     "fields": 3
   },
   {
-    "label": "review-dark-360",
+    "label": "tabs-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 25,
+    "controls": 37,
+    "fields": 3
+  },
+  {
+    "label": "tabs-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 37,
+    "fields": 3
+  },
+  {
+    "label": "tabs-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 37,
     "fields": 3
   },
   {
@@ -59,48 +80,6 @@
     "label": "tabs-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 37,
-    "fields": 3
-  },
-  {
-    "label": "tabs-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 37,
-    "fields": 3
-  },
-  {
-    "label": "tabs-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 37,
-    "fields": 3
-  },
-  {
-    "label": "tabs-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 37,
-    "fields": 3
-  },
-  {
-    "label": "more-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 37,
-    "fields": 3
-  },
-  {
-    "label": "more-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 37,
-    "fields": 3
-  },
-  {
-    "label": "more-light-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 37,
     "fields": 3
   },
@@ -126,14 +105,49 @@
     "fields": 3
   },
   {
-    "label": "platform-dark-430",
+    "label": "more-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 37,
+    "fields": 3
+  },
+  {
+    "label": "more-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 37,
+    "fields": 3
+  },
+  {
+    "label": "more-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 37,
+    "fields": 3
+  },
+  {
+    "label": "platform-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 31,
+    "fields": 3
+  },
+  {
+    "label": "platform-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 31,
     "fields": 3
   },
   {
-    "label": "platform-light-430",
+    "label": "platform-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 31,
+    "fields": 3
+  },
+  {
+    "label": "platform-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 31,
@@ -147,24 +161,17 @@
     "fields": 3
   },
   {
-    "label": "platform-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 31,
-    "fields": 3
-  },
-  {
-    "label": "platform-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 31,
-    "fields": 3
-  },
-  {
     "label": "platform-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 31,
+    "fields": 3
+  },
+  {
+    "label": "import-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 29,
     "fields": 3
   },
   {
@@ -182,20 +189,6 @@
     "fields": 3
   },
   {
-    "label": "import-map-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 49,
-    "fields": 19
-  },
-  {
-    "label": "import-map-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 49,
-    "fields": 19
-  },
-  {
     "label": "import-dark-360",
     "width": 360,
     "scrollWidth": 360,
@@ -210,11 +203,18 @@
     "fields": 3
   },
   {
-    "label": "import-light-360",
+    "label": "import-map-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 29,
-    "fields": 3
+    "controls": 49,
+    "fields": 19
+  },
+  {
+    "label": "import-map-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 49,
+    "fields": 19
   },
   {
     "label": "import-dark-390",
@@ -224,11 +224,11 @@
     "fields": 3
   },
   {
-    "label": "import-select-dark-430",
+    "label": "import-map-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 33,
-    "fields": 3
+    "controls": 49,
+    "fields": 19
   },
   {
     "label": "import-map-dark-360",
@@ -252,11 +252,18 @@
     "fields": 19
   },
   {
-    "label": "import-map-light-360",
+    "label": "import-select-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 33,
+    "fields": 3
+  },
+  {
+    "label": "import-select-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 49,
-    "fields": 19
+    "controls": 33,
+    "fields": 3
   },
   {
     "label": "import-select-light-430",
@@ -266,14 +273,7 @@
     "fields": 3
   },
   {
-    "label": "import-select-empty-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 33,
-    "fields": 3
-  },
-  {
-    "label": "import-select-light-360",
+    "label": "import-select-dark-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 33,
@@ -294,30 +294,23 @@
     "fields": 3
   },
   {
-    "label": "import-select-empty-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 33,
-    "fields": 3
-  },
-  {
-    "label": "import-select-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 33,
-    "fields": 3
-  },
-  {
-    "label": "account-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 42,
-    "fields": 3
-  },
-  {
     "label": "import-select-empty-light-360",
     "width": 360,
     "scrollWidth": 360,
+    "controls": 33,
+    "fields": 3
+  },
+  {
+    "label": "import-select-empty-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 33,
+    "fields": 3
+  },
+  {
+    "label": "import-select-empty-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 33,
     "fields": 3
   },
@@ -343,20 +336,6 @@
     "fields": 3
   },
   {
-    "label": "account-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 42,
-    "fields": 3
-  },
-  {
-    "label": "quick-jump-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 26,
-    "fields": 4
-  },
-  {
     "label": "account-light-360",
     "width": 360,
     "scrollWidth": 360,
@@ -364,9 +343,9 @@
     "fields": 3
   },
   {
-    "label": "account-light-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "account-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 42,
     "fields": 3
   },
@@ -378,39 +357,25 @@
     "fields": 3
   },
   {
-    "label": "account-dark-390",
+    "label": "account-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 42,
+    "fields": 3
+  },
+  {
+    "label": "account-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 42,
     "fields": 3
   },
   {
-    "label": "caption-prompt-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 35,
-    "fields": 5
-  },
-  {
-    "label": "quick-jump-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 26,
-    "fields": 4
-  },
-  {
-    "label": "create-post-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 34,
-    "fields": 6
-  },
-  {
-    "label": "caption-prompt-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 35,
-    "fields": 5
+    "label": "account-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 42,
+    "fields": 3
   },
   {
     "label": "quick-jump-light-360",
@@ -420,11 +385,18 @@
     "fields": 4
   },
   {
-    "label": "create-thumbnail-dark-430",
+    "label": "quick-jump-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 33,
-    "fields": 6
+    "controls": 26,
+    "fields": 4
+  },
+  {
+    "label": "quick-jump-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 4
   },
   {
     "label": "quick-jump-light-390",
@@ -434,9 +406,9 @@
     "fields": 4
   },
   {
-    "label": "quick-jump-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "quick-jump-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 26,
     "fields": 4
   },
@@ -455,23 +427,23 @@
     "fields": 5
   },
   {
-    "label": "create-post-light-430",
+    "label": "caption-prompt-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 34,
-    "fields": 6
+    "controls": 35,
+    "fields": 5
   },
   {
-    "label": "archived-empty-dark-430",
+    "label": "caption-prompt-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 27,
-    "fields": 3
+    "controls": 35,
+    "fields": 5
   },
   {
-    "label": "caption-prompt-light-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "caption-prompt-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 35,
     "fields": 5
   },
@@ -483,16 +455,9 @@
     "fields": 5
   },
   {
-    "label": "create-thumbnail-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 33,
-    "fields": 6
-  },
-  {
-    "label": "caption-prompt-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "caption-prompt-light-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 35,
     "fields": 5
   },
@@ -504,11 +469,11 @@
     "fields": 6
   },
   {
-    "label": "archived-loading-dark-430",
+    "label": "create-post-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 27,
-    "fields": 3
+    "controls": 34,
+    "fields": 6
   },
   {
     "label": "create-thumbnail-light-360",
@@ -518,23 +483,30 @@
     "fields": 6
   },
   {
-    "label": "archived-empty-light-430",
+    "label": "create-post-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 34,
+    "fields": 6
+  },
+  {
+    "label": "create-post-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 27,
-    "fields": 3
+    "controls": 34,
+    "fields": 6
+  },
+  {
+    "label": "create-thumbnail-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 33,
+    "fields": 6
   },
   {
     "label": "create-post-dark-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 34,
-    "fields": 6
-  },
-  {
-    "label": "create-post-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
     "controls": 34,
     "fields": 6
   },
@@ -546,18 +518,18 @@
     "fields": 6
   },
   {
-    "label": "archived-error-dark-430",
+    "label": "create-thumbnail-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 28,
-    "fields": 3
+    "controls": 33,
+    "fields": 6
   },
   {
-    "label": "archived-loading-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 27,
-    "fields": 3
+    "label": "create-thumbnail-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 33,
+    "fields": 6
   },
   {
     "label": "create-thumbnail-dark-390",
@@ -581,42 +553,42 @@
     "fields": 3
   },
   {
-    "label": "create-thumbnail-light-390",
+    "label": "archived-empty-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 33,
-    "fields": 6
-  },
-  {
-    "label": "archived-rows-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 28,
-    "fields": 3
-  },
-  {
-    "label": "archived-error-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 28,
-    "fields": 3
-  },
-  {
-    "label": "archived-loading-light-360",
-    "width": 360,
-    "scrollWidth": 360,
     "controls": 27,
     "fields": 3
   },
   {
-    "label": "archived-rows-light-430",
+    "label": "archived-empty-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 28,
+    "controls": 27,
     "fields": 3
   },
   {
     "label": "archived-empty-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "archived-empty-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "archived-loading-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "archived-loading-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 27,
@@ -630,23 +602,16 @@
     "fields": 3
   },
   {
-    "label": "archived-empty-light-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "archived-loading-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 27,
     "fields": 3
   },
   {
-    "label": "notes-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 37,
-    "fields": 5
-  },
-  {
-    "label": "archived-error-light-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "archived-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 28,
     "fields": 3
   },
@@ -658,6 +623,13 @@
     "fields": 3
   },
   {
+    "label": "archived-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 28,
+    "fields": 3
+  },
+  {
     "label": "archived-loading-dark-360",
     "width": 360,
     "scrollWidth": 360,
@@ -665,30 +637,23 @@
     "fields": 3
   },
   {
-    "label": "archived-loading-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 27,
-    "fields": 3
-  },
-  {
-    "label": "notes-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 37,
-    "fields": 5
-  },
-  {
-    "label": "lightbox-dark-430",
+    "label": "archived-loading-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 27,
     "fields": 3
   },
   {
-    "label": "archived-rows-light-360",
+    "label": "archived-error-light-360",
     "width": 360,
     "scrollWidth": 360,
+    "controls": 28,
+    "fields": 3
+  },
+  {
+    "label": "archived-rows-light-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 28,
     "fields": 3
   },
@@ -700,14 +665,28 @@
     "fields": 3
   },
   {
-    "label": "archived-error-light-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "archived-rows-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 28,
     "fields": 3
   },
   {
     "label": "archived-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 28,
+    "fields": 3
+  },
+  {
+    "label": "archived-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 28,
+    "fields": 3
+  },
+  {
+    "label": "archived-rows-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 28,
@@ -721,34 +700,6 @@
     "fields": 3
   },
   {
-    "label": "notes-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 37,
-    "fields": 5
-  },
-  {
-    "label": "save-error-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 25,
-    "fields": 3
-  },
-  {
-    "label": "lightbox-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 27,
-    "fields": 3
-  },
-  {
-    "label": "archived-rows-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 28,
-    "fields": 3
-  },
-  {
     "label": "archived-rows-dark-360",
     "width": 360,
     "scrollWidth": 360,
@@ -756,9 +707,44 @@
     "fields": 3
   },
   {
+    "label": "notes-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 37,
+    "fields": 5
+  },
+  {
+    "label": "archived-rows-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 28,
+    "fields": 3
+  },
+  {
+    "label": "notes-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 37,
+    "fields": 5
+  },
+  {
+    "label": "notes-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 37,
+    "fields": 5
+  },
+  {
     "label": "notes-dark-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 37,
+    "fields": 5
+  },
+  {
+    "label": "notes-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 37,
     "fields": 5
   },
@@ -770,24 +756,31 @@
     "fields": 5
   },
   {
-    "label": "sending-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "notes-light-390",
+    "label": "lightbox-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 37,
-    "fields": 5
+    "controls": 27,
+    "fields": 3
   },
   {
-    "label": "save-error-light-430",
+    "label": "lightbox-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 25,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "lightbox-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "lightbox-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
     "fields": 3
   },
   {
@@ -798,17 +791,10 @@
     "fields": 3
   },
   {
-    "label": "sending-light-430",
+    "label": "comparison-loading-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "lightbox-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 27,
+    "controls": 26,
     "fields": 3
   },
   {
@@ -819,10 +805,339 @@
     "fields": 3
   },
   {
-    "label": "lightbox-light-390",
+    "label": "comparison-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-pending-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-loading-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-loading-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-pending-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-loading-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-pending-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-pending-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-pending-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-retry-loading-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-pending-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-retry-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-retry-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-retry-loading-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-retry-loading-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-retry-loading-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-empty-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-empty-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-empty-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-empty-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-empty-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-empty-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-error-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-error-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-denied-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-denied-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-denied-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-denied-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-denied-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-denied-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 3
+  },
+  {
+    "label": "comparison-ready-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-ready-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-ready-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-ready-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-image-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-ready-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-ready-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-image-error-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-image-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-image-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-image-error-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "comparison-image-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 26,
+    "fields": 3
+  },
+  {
+    "label": "save-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 25,
     "fields": 3
   },
   {
@@ -833,35 +1148,21 @@
     "fields": 3
   },
   {
-    "label": "review-loaded-dark-430",
+    "label": "save-error-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 25,
     "fields": 3
   },
   {
-    "label": "save-error-dark-390",
+    "label": "save-error-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 25,
     "fields": 3
   },
   {
-    "label": "sending-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "review-loading-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "save-error-light-390",
+    "label": "save-error-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 25,
@@ -875,25 +1176,25 @@
     "fields": 3
   },
   {
-    "label": "review-read-error-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "sending-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "sending-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 20,
     "fields": 2
   },
   {
-    "label": "review-loaded-light-430",
+    "label": "sending-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 25,
-    "fields": 3
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "sending-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 20,
+    "fields": 2
   },
   {
     "label": "sending-light-390",
@@ -910,9 +1211,156 @@
     "fields": 2
   },
   {
+    "label": "sending-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "review-loaded-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 25,
+    "fields": 3
+  },
+  {
+    "label": "review-loaded-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 25,
+    "fields": 3
+  },
+  {
+    "label": "review-loaded-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 25,
+    "fields": 3
+  },
+  {
+    "label": "review-loaded-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 25,
+    "fields": 3
+  },
+  {
+    "label": "review-loaded-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 25,
+    "fields": 3
+  },
+  {
     "label": "review-loading-light-430",
     "width": 430,
     "scrollWidth": 430,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-loading-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-loading-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-loaded-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 25,
+    "fields": 3
+  },
+  {
+    "label": "review-loading-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-read-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "review-read-error-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "review-read-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "review-read-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "review-read-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "review-read-error-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "review-empty-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-empty-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "review-empty-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 6,
     "fields": 0
   },
@@ -924,21 +1372,7 @@
     "fields": 0
   },
   {
-    "label": "review-read-error-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "review-loaded-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 25,
-    "fields": 3
-  },
-  {
-    "label": "review-loading-light-360",
+    "label": "review-empty-dark-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 6,
@@ -952,46 +1386,18 @@
     "fields": 0
   },
   {
-    "label": "review-loaded-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 25,
-    "fields": 3
+    "label": "sheet-loaded-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 30,
+    "fields": 4
   },
   {
-    "label": "review-loaded-dark-390",
+    "label": "sheet-loaded-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 25,
-    "fields": 3
-  },
-  {
-    "label": "review-loaded-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 25,
-    "fields": 3
-  },
-  {
-    "label": "review-loading-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "review-loading-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "review-loading-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
-    "fields": 0
+    "controls": 30,
+    "fields": 4
   },
   {
     "label": "sheet-loaded-dark-430",
@@ -1001,91 +1407,7 @@
     "fields": 4
   },
   {
-    "label": "review-read-error-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "sheet-loaded-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 30,
-    "fields": 4
-  },
-  {
-    "label": "review-read-error-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "review-read-error-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "review-empty-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "review-read-error-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "review-empty-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "review-empty-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "review-empty-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "organize-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 54,
-    "fields": 5
-  },
-  {
-    "label": "sheet-loaded-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 30,
-    "fields": 4
-  },
-  {
-    "label": "organize-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 54,
-    "fields": 5
-  },
-  {
-    "label": "sheet-loaded-light-390",
+    "label": "sheet-loaded-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 30,
@@ -1099,25 +1421,25 @@
     "fields": 4
   },
   {
-    "label": "sheet-loaded-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "sheet-loaded-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 30,
     "fields": 4
   },
   {
-    "label": "sheet-more-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 45,
-    "fields": 4
+    "label": "organize-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 54,
+    "fields": 5
   },
   {
-    "label": "sheet-more-light-430",
+    "label": "organize-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 45,
-    "fields": 4
+    "controls": 54,
+    "fields": 5
   },
   {
     "label": "organize-light-360",
@@ -1127,23 +1449,9 @@
     "fields": 5
   },
   {
-    "label": "status-menu-dark-430",
+    "label": "organize-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 39,
-    "fields": 4
-  },
-  {
-    "label": "status-menu-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 39,
-    "fields": 4
-  },
-  {
-    "label": "organize-light-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 54,
     "fields": 5
   },
@@ -1155,37 +1463,30 @@
     "fields": 5
   },
   {
-    "label": "sheet-more-light-360",
+    "label": "organize-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 54,
+    "fields": 5
+  },
+  {
+    "label": "sheet-more-dark-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 45,
     "fields": 4
   },
   {
-    "label": "organize-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 54,
-    "fields": 5
-  },
-  {
-    "label": "all-statuses-dark-430",
+    "label": "sheet-more-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 39,
+    "controls": 45,
     "fields": 4
   },
   {
-    "label": "all-statuses-light-430",
+    "label": "sheet-more-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 39,
-    "fields": 4
-  },
-  {
-    "label": "sheet-more-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 45,
     "fields": 4
   },
@@ -1197,31 +1498,17 @@
     "fields": 4
   },
   {
-    "label": "sheet-more-dark-360",
+    "label": "sheet-more-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 45,
     "fields": 4
   },
   {
-    "label": "status-menu-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 39,
-    "fields": 4
-  },
-  {
-    "label": "date-picker-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 76,
-    "fields": 4
-  },
-  {
-    "label": "date-picker-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 76,
+    "label": "sheet-more-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 45,
     "fields": 4
   },
   {
@@ -1246,35 +1533,21 @@
     "fields": 4
   },
   {
-    "label": "all-statuses-light-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "status-menu-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 39,
     "fields": 4
   },
   {
-    "label": "sheet-loading-dark-430",
+    "label": "status-menu-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 8,
-    "fields": 0
-  },
-  {
-    "label": "all-statuses-light-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 39,
     "fields": 4
   },
   {
-    "label": "sheet-loading-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 8,
-    "fields": 0
-  },
-  {
-    "label": "all-statuses-dark-360",
+    "label": "status-menu-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 39,
@@ -1288,25 +1561,39 @@
     "fields": 4
   },
   {
-    "label": "date-picker-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 76,
+    "label": "all-statuses-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 39,
     "fields": 4
   },
   {
-    "label": "sheet-read-error-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
+    "label": "all-statuses-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 39,
+    "fields": 4
   },
   {
-    "label": "sheet-read-error-dark-430",
+    "label": "all-statuses-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 39,
+    "fields": 4
+  },
+  {
+    "label": "all-statuses-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
+    "controls": 39,
+    "fields": 4
+  },
+  {
+    "label": "all-statuses-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 39,
+    "fields": 4
   },
   {
     "label": "date-picker-light-390",
@@ -1330,52 +1617,31 @@
     "fields": 4
   },
   {
-    "label": "sheet-empty-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "sheet-empty-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "sheet-loading-light-360",
+    "label": "date-picker-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 8,
-    "fields": 0
+    "controls": 76,
+    "fields": 4
+  },
+  {
+    "label": "date-picker-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 76,
+    "fields": 4
+  },
+  {
+    "label": "date-picker-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 76,
+    "fields": 4
   },
   {
     "label": "sheet-loading-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 8,
-    "fields": 0
-  },
-  {
-    "label": "month-loaded-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 10,
-    "fields": 0
-  },
-  {
-    "label": "month-loaded-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 10,
-    "fields": 0
-  },
-  {
-    "label": "sheet-read-error-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 9,
     "fields": 0
   },
   {
@@ -1393,10 +1659,24 @@
     "fields": 0
   },
   {
-    "label": "sheet-empty-light-360",
+    "label": "sheet-loading-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 9,
+    "controls": 8,
+    "fields": 0
+  },
+  {
+    "label": "sheet-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 8,
+    "fields": 0
+  },
+  {
+    "label": "sheet-loading-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 8,
     "fields": 0
   },
   {
@@ -1407,28 +1687,7 @@
     "fields": 0
   },
   {
-    "label": "month-preview-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "month-preview-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 22,
-    "fields": 0
-  },
-  {
     "label": "sheet-read-error-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "sheet-empty-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 9,
@@ -1442,30 +1701,37 @@
     "fields": 0
   },
   {
-    "label": "month-loading-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "month-loading-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "month-loaded-light-360",
+    "label": "sheet-read-error-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 10,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "sheet-read-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "sheet-empty-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 9,
     "fields": 0
   },
   {
     "label": "sheet-empty-dark-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "sheet-read-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 9,
     "fields": 0
   },
@@ -1477,24 +1743,24 @@
     "fields": 0
   },
   {
-    "label": "month-loaded-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 10,
+    "label": "sheet-empty-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 9,
     "fields": 0
   },
   {
-    "label": "month-read-error-dark-430",
+    "label": "sheet-empty-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 7,
+    "controls": 9,
     "fields": 0
   },
   {
-    "label": "month-read-error-light-430",
+    "label": "sheet-empty-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 7,
+    "controls": 9,
     "fields": 0
   },
   {
@@ -1512,45 +1778,38 @@
     "fields": 0
   },
   {
+    "label": "month-loaded-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "month-loaded-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "month-loaded-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "month-loaded-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 10,
+    "fields": 0
+  },
+  {
     "label": "month-preview-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "month-preview-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "month-empty-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "month-empty-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "month-loading-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "month-loading-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
     "fields": 0
   },
   {
@@ -1568,35 +1827,28 @@
     "fields": 0
   },
   {
-    "label": "month-read-error-light-360",
+    "label": "month-preview-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 7,
+    "controls": 22,
     "fields": 0
   },
   {
-    "label": "week-loaded-dark-430",
+    "label": "month-preview-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 10,
+    "controls": 22,
     "fields": 0
   },
   {
-    "label": "week-loaded-light-430",
+    "label": "month-preview-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 10,
+    "controls": 22,
     "fields": 0
   },
   {
-    "label": "month-read-error-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "month-loading-dark-390",
+    "label": "month-loading-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 6,
@@ -1610,31 +1862,45 @@
     "fields": 0
   },
   {
-    "label": "month-empty-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "week-preview-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "week-preview-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "month-empty-light-390",
+    "label": "month-loading-dark-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 9,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "month-read-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "month-loading-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "month-loading-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "month-read-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "month-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 6,
     "fields": 0
   },
   {
@@ -1645,9 +1911,177 @@
     "fields": 0
   },
   {
-    "label": "month-read-error-dark-360",
+    "label": "month-read-error-light-360",
     "width": 360,
     "scrollWidth": 360,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "month-read-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "month-read-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "month-empty-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "month-empty-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "month-empty-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "month-empty-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "month-empty-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "month-empty-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "week-loaded-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "week-loaded-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "week-loaded-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "week-loaded-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "week-loaded-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "week-loaded-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 10,
+    "fields": 0
+  },
+  {
+    "label": "week-preview-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 22,
+    "fields": 0
+  },
+  {
+    "label": "week-preview-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 22,
+    "fields": 0
+  },
+  {
+    "label": "week-preview-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 22,
+    "fields": 0
+  },
+  {
+    "label": "week-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "week-preview-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 22,
+    "fields": 0
+  },
+  {
+    "label": "week-loading-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "week-preview-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 22,
+    "fields": 0
+  },
+  {
+    "label": "week-preview-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 22,
+    "fields": 0
+  },
+  {
+    "label": "week-loading-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "week-read-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 7,
     "fields": 0
   },
@@ -1666,17 +2100,17 @@
     "fields": 0
   },
   {
-    "label": "week-loaded-light-360",
+    "label": "week-read-error-dark-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 10,
+    "controls": 7,
     "fields": 0
   },
   {
-    "label": "month-empty-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 9,
+    "label": "week-loading-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
     "fields": 0
   },
   {
@@ -1694,143 +2128,10 @@
     "fields": 0
   },
   {
-    "label": "month-empty-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "week-loaded-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 10,
-    "fields": 0
-  },
-  {
-    "label": "week-preview-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "week-empty-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "week-empty-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "week-loading-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "week-loaded-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 10,
-    "fields": 0
-  },
-  {
-    "label": "week-loaded-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 10,
-    "fields": 0
-  },
-  {
-    "label": "week-preview-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 22,
-    "fields": 0
-  },
-  {
     "label": "week-read-error-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "week-loading-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "week-preview-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "week-preview-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 22,
-    "fields": 0
-  },
-  {
-    "label": "week-empty-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 9,
-    "fields": 0
-  },
-  {
-    "label": "week-read-error-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "week-loading-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "week-loading-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "week-read-error-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "week-read-error-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 7,
-    "fields": 0
-  },
-  {
-    "label": "week-empty-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 9,
     "fields": 0
   },
   {
@@ -1841,9 +2142,44 @@
     "fields": 0
   },
   {
+    "label": "week-empty-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "week-read-error-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 7,
+    "fields": 0
+  },
+  {
+    "label": "week-empty-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 9,
+    "fields": 0
+  },
+  {
     "label": "week-empty-dark-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "week-empty-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 9,
+    "fields": 0
+  },
+  {
+    "label": "week-empty-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 9,
     "fields": 0
   }

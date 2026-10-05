@@ -35,6 +35,8 @@ name is on screen.
 * [after-dark/](after-dark/) the main states in dark, 360 / 390 / 430.
 * [measurements.json](measurements.json) counts and smallest sizes for all 270
   renders (45 states x 3 widths x light and dark).
+* [checks.txt](checks.txt) the real last line of every check that was run, including the
+  ones that are red here and red on the base branch too.
 
 | Screen | States covered (each at 360, 390, 430, light and dark) |
 | --- | --- |

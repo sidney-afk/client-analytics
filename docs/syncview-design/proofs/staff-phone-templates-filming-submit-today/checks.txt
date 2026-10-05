@@ -1,0 +1,70 @@
+# Real last lines of every check, run on commit f727c95 (2026-10-05, offline sandbox)
+
+$ npm run -s check:index
+check-index: OK — assembled == working tree == committed (HEAD)
+
+$ NODE_PATH=<acorn, eslint-scope> node scripts/check-modules.js
+check-modules: all checks passed
+
+$ node test/staff-phone-css-scope.js
+staff-phone-css-scope: OK (1 block(s), 238 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))
+
+$ node test/client-phone-css-scope.js
+client-phone-css-scope: OK (5 block(s), 271 braces, all under @media (max-width: <=767px) and html.boot-client)
+
+$ node test/kasper-phone-css-scope.js
+kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)
+
+$ node docs/syncview-design/tests/desktop-parity-relay.js
+desktop-parity-relay: OK (same read bytes and failures on both sides; cached writes refused; native verification and analytics reads retained).
+
+$ node scripts/repo-identity-exposure-check.js --diff=origin/main
+This change adds no client slug and no colleague's name ✅
+
+$ node docs/syncview-design/tests/staff-phone-browser.js --shots=... --report=measurements.json
+staff-phone-browser: 270 state renders, 0 problems
+
+$ node qa/client-phone/desktop-parity.js --before=origin/pocket/client-calendar-expanded --staff-only   (all staff tabs at 1024, 1280, 1440, 1920)
+43/44 desktop shots identical to origin/pocket/client-calendar-expanded
+  one pair (Linear at 1024) differed on 4 tries; the same width run again alone:
+  11/11 desktop shots identical to origin/pocket/client-calendar-expanded
+  control, the SAME build on both sides at 1024 (harness noise):
+  10/11 desktop shots identical to origin/pocket/client-calendar-expanded
+
+$ node test/run-all.js   (the unit suite)
+6 of 676 unit suite(s) failed ❌
+failed suites: test/leave-evidence-fingerprint-coupling.js, test/native-intake-editor-browser.js, test/native-label-catalog-foundation.js, test/track-b-recovery-deferred-defaults.js, test/truth-sync.js, test/workload-native-membership.js
+  the same six suites fail on origin/pocket/client-calendar-expanded with no change of mine (checked one by one).
+
+# existing offline browser gates, last two lines each
+== today-phone-actions-browser
+PASS 390px walk-through shows Open card, SyncLinear and Skip
+today-phone-actions: PASS
+== templates-social-links-browser
+templates-social-links: late client info fills the strip
+templates-social-links: PASS
+== templates-no-row-browser
+PASS no page errors: 
+templates-no-row-browser: all passed
+== saved-submission-browser
+PASS Create Post: nothing was sent
+saved-submission: PASS
+== quick-jump-browser
+quick-jump: PASS
+== shared-client-browser
+shared-client: PASS
+== tab-switch-boot-browser
+tab-switch-boot: 10 tabs checked (navToday, navCalendar, navSxr, navTemplates, navFilmingPlans, navTiktokUpload, navWorkload, navProd, navLinear, navKasper)
+tab-switch-boot: PASS
+== split-load-browser
+split-load: failed download: 1 reload, then 15 file(s) ran
+split-load: PASS
+== prod-write-gateway-browser
+--- phase: archive_park_sub_issues ---
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+
+$ node docs/syncview-design/tests/prod-boot-budget.js
+  FAILS in this sandbox, and identically on origin/pocket/client-calendar-expanded: it needs the real fonts, CDN and backend (ERR_CERT_AUTHORITY_INVALID / no route).
+
+$ node test/filming-plans-source.js
+  FAIL filming-plans-source: Filming Plans must be a fast tab   (fails identically on origin/pocket/client-calendar-expanded)

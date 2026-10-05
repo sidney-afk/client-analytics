@@ -1,4 +1,4 @@
-# Real last lines of every check, run on commit f727c95 (2026-10-05, offline sandbox)
+# Real last lines of every check, run on commit 5feb003 (2026-10-05, offline sandbox), after the review fixes
 
 $ npm run -s check:index
 check-index: OK — assembled == working tree == committed (HEAD)
@@ -7,10 +7,10 @@ $ NODE_PATH=<acorn, eslint-scope> node scripts/check-modules.js
 check-modules: all checks passed
 
 $ node test/staff-phone-css-scope.js
-staff-phone-css-scope: OK (1 block(s), 238 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))
+staff-phone-css-scope: OK (1 block(s), 244 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))
 
 $ node test/client-phone-css-scope.js
-client-phone-css-scope: OK (5 block(s), 271 braces, all under @media (max-width: <=767px) and html.boot-client)
+client-phone-css-scope: OK (5 block(s), 285 braces, all under @media (max-width: <=767px) and html.boot-client)
 
 $ node test/kasper-phone-css-scope.js
 kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)
@@ -22,19 +22,20 @@ $ node scripts/repo-identity-exposure-check.js --diff=origin/main
 This change adds no client slug and no colleague's name ✅
 
 $ node docs/syncview-design/tests/staff-phone-browser.js --shots=... --report=measurements.json
-staff-phone-browser: 270 state renders, 0 problems
+staff-phone-browser: 276 state renders, 0 problems
 
 $ node qa/client-phone/desktop-parity.js --before=origin/pocket/client-calendar-expanded --staff-only   (all staff tabs at 1024, 1280, 1440, 1920)
-43/44 desktop shots identical to origin/pocket/client-calendar-expanded
-  one pair (Linear at 1024) differed on 4 tries; the same width run again alone:
-  11/11 desktop shots identical to origin/pocket/client-calendar-expanded
-  control, the SAME build on both sides at 1024 (harness noise):
+42/44 desktop shots identical to origin/pocket/client-calendar-expanded
+  the two pairs that missed (Linear and Kasper, both at 1024, tabs this slice does not touch), run again at 1280 and 1024:
+  20/22 desktop shots identical to origin/pocket/client-calendar-expanded
+  and 1280 alone, with the pictures kept (Filming Plans pair has 0 differing pixels; this time a different tab missed):
   10/11 desktop shots identical to origin/pocket/client-calendar-expanded
+  Every full run misses 1 or 2 pairs, a different pair each time, and a control with the SAME build on both sides also misses one: that is the gate's own noise.
 
 $ node test/run-all.js   (the unit suite)
 6 of 676 unit suite(s) failed ❌
 failed suites: test/leave-evidence-fingerprint-coupling.js, test/native-intake-editor-browser.js, test/native-label-catalog-foundation.js, test/track-b-recovery-deferred-defaults.js, test/truth-sync.js, test/workload-native-membership.js
-  the same six suites fail on origin/pocket/client-calendar-expanded with no change of mine (checked one by one).
+  the same six suites fail on origin/pocket/client-calendar-expanded with no change of mine.
 
 # existing offline browser gates, last two lines each
 == today-phone-actions-browser
@@ -64,7 +65,7 @@ split-load: PASS
 prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
 
 $ node docs/syncview-design/tests/prod-boot-budget.js
-  FAILS in this sandbox, and identically on origin/pocket/client-calendar-expanded: it needs the real fonts, CDN and backend (ERR_CERT_AUTHORITY_INVALID / no route).
+  FAILS in this sandbox, and identically on the base branch: it needs the real fonts, CDN and backend (ERR_CERT_AUTHORITY_INVALID / no route).
 
 $ node test/filming-plans-source.js
-  FAIL filming-plans-source: Filming Plans must be a fast tab   (fails identically on origin/pocket/client-calendar-expanded)
+  FAIL filming-plans-source: Filming Plans must be a fast tab   (fails identically on the base branch)

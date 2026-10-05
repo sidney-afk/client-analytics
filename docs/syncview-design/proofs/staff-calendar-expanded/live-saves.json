@@ -225,5 +225,19 @@
     ],
     "archiveHttp": 200,
     "sourceArchived": true
+  },
+  "repeatAfterDesignUpdate": {
+    "verifiedAt": "2026-10-05T01:36:15.905Z",
+    "candidateIndexSha": "6707cc653d4a10fdb840d2d4fef5f12dcea4c3868772dde40413dab087777cef",
+    "viewport": 390,
+    "approvedSaved": true,
+    "changesSaved": true,
+    "exactNoteSaved": true,
+    "decisionHttpStatuses": [
+      200,
+      200
+    ],
+    "archiveHttp": 200,
+    "archiveReadback": true
   }
 }

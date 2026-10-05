@@ -10,8 +10,9 @@ content. More contains the native Organize, card size, setup, workspace picker
 and account controls. Tabs delegates to the existing permitted navigation.
 Review keeps the full Video, Thumbnail and Caption sections, their decisions,
 notes and media. Sheet becomes comfortable individual cards. Month and Week
-become vertical days; every current-month date and all seven current-week days
-remain available. Opening a section never changes a decision. Pending decisions
+become vertical days. Consecutive empty days share a labelled Nothing scheduled
+line; starting a native drag reveals every retained date target, and ending it
+restores the grouping. Today and scheduled material remain visible. Opening a section never changes a decision. Pending decisions
 say Saving until the native acknowledgement; failures remain visible.
 
 All added styles are inside phone media queries capped at 767px and guarded by
@@ -53,7 +54,8 @@ the exact typed note and its timestamp. The owned disposable card was archived
 through the normal app and read back as Archived. No other client was mutated.
 The anonymous receipt is [live-saves.json](live-saves.json). Its source hash is
 the candidate used for that pass. Both real client decisions were repeated after
-the hosted-check fixes; fresh reads again confirmed the saved decisions and note,
+the hosted-check fixes and the concurrent design update; fresh reads again
+confirmed the saved decisions and note,
 and the owned card was archived. This proves a local candidate, not deployment.
 
 ## Desktop and checks

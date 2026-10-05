@@ -277,6 +277,17 @@ async function review(browser, origin, width, theme) {
         ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
         ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
         ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');
+        const dragDays = await page.evaluate(v => {
+          const wrap = document.querySelector(v === 'month' ? '.cal-month-wrap' : '.cal-week-wrap');
+          const source = wrap.querySelector('[data-cal-move]');
+          const folded = [...wrap.querySelectorAll('.pocket-run-rest')];
+          source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: new DataTransfer() }));
+          const revealed = folded.every(node => node.checkVisibility({ checkVisibilityCSS: true }));
+          source.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: new DataTransfer() }));
+          return { revealed, restored: folded.every(node => !node.checkVisibility({ checkVisibilityCSS: true })) };
+        }, view);
+        ok(dragDays.revealed, view + ': native drag must reveal every folded date target');
+        ok(dragDays.restored, view + ': native drag end must restore empty-day grouping');
         await page.locator(view === 'month' ? '.cal-month-cell:not(.out) .cal-month-pill' : '.cal-week-col:visible .cal-week-card').first().click();
         await measure(page, name + '-preview-' + suffix);
         await shot(page, name + '-preview-' + suffix);

@@ -113,3 +113,11 @@ VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible 
 quick-jump: PASS
 
 Hosted findings corrected: Quick jump restored in More with native focus; theme colours use existing tokens; request-change harness supplies its new phone-only predicate. Desktop gate was interrupted by lost connectivity, then rerun to 68/68. Audience test must use the existing single-file-index preload; its raw invocation failed before loading the function.
+
+
+calendar-deep-link-focus — exit 0
+  ok  a sub-issue with NEITHER a Linear identifier nor a native id still shows the "no Linear identifier" notice, as before
+
+calendar deep-link focus checks passed
+
+Concurrent design update preserved; phone snapshots, native drag reveal/restore checks, full 68/68 desktop parity and real TEST Caption Approve/Request change saves rerun against the combined source. Owned source read back Archived.

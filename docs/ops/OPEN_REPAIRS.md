@@ -30447,7 +30447,7 @@ The Production editor-placement gate remains a reproduced unchanged-main failure
 Selection, Samples and admin screens are outside this batch. No merge, deploy,
 backend installation, database change or n8n edit was performed.
 
-## 342. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: design check against the approved mock-up (session Polish)
+## 345. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: design check against the approved mock-up (session Polish)
 
 On the same branch as entry 338 of this branch. Phones and the standalone staff Calendar only: the markup is added only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]`. Desktop markup and styles are not touched.
 
@@ -30469,4 +30469,5 @@ Still different from the mock-up, on purpose:
 Not tested for real: Approve and Request change on the test client through these restyled buttons. The click handlers were not touched and the offline test clicks them; the signed-in staff page cannot run this branch from here. The unfold during a real drag on a touch phone is covered by the markup test only.
 
 Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (6,852 checks) and the scope guard; before and after pictures in `docs/syncview-design/proofs/staff-calendar-expanded/design-check/`.
+Added on the same branch, after Codex's latest commits were merged in: the "Calendar Tools" label above the tabs is hidden, and the buttons and colour circle on a card's image use one calm chip style (solid surface, thin border, 44 px, only the icon keeps its colour), the same as the staff Samples batch. This entry was numbered 342 and clashed with Codex's own 342 on this branch, so it is renumbered 345.
 Way back: revert the commit.

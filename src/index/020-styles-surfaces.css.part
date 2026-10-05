@@ -4912,4 +4912,16 @@
             body:has(#calView[data-pocket-staff-phone]) .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
             body:has(#calView[data-pocket-staff-phone]) .thumb-compare-close svg { width: 18px; height: 18px; }
         }
+        /* The controls on a card image: one calm chip style, only the icon keeps its colour (same as the staff Samples batch). */
+        @media (max-width: 767px) {
+            #calView[data-pocket-staff-phone] .pocket-staff-cal-tools { display: none !important; }
+            #calView[data-pocket-staff-phone] .cal-linear-slot { gap: 10px; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn { width: 44px; height: 44px; min-width: 44px; border-radius: 12px; border: 1px solid var(--border) !important; background: var(--surface-raised) !important; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); display: inline-flex; align-items: center; justify-content: center; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn svg { width: 18px; height: 18px; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn-video { color: var(--cal-comp-video-dot) !important; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn-graphic { color: var(--cal-comp-graphic-dot) !important; }
+            #calView[data-pocket-staff-phone] .cal-card-color-tag { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-raised); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); display: inline-flex; align-items: center; justify-content: center; }
+            #calView[data-pocket-staff-phone] .cal-card-color-tag-dot { width: 14px; height: 14px; }
+            #calView[data-pocket-staff-phone] .cal-select-btn.active { color: var(--white) !important; }
+        }
         /* STAFF-CALENDAR-PHONE:END */

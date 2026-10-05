@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "staff-calendar-phone-css-scope.js",
     "analytics-essentials-http.js",
     "caption-jobs-scoped-read.js",
     "sheets-mirror-backfill-completeness.js",

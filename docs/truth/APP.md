@@ -1,5 +1,15 @@
 # App logic (`index.html`) — current truth
 
+**Pocket phone source, 2026-10-05, not deployed:** standalone staff Calendar
+Review, Sheet, Month and Week use Expanded cards below 768px in light and dark.
+Tabs and More sit beside the title; native Organize, card size, setup, account
+and client selection move into More. Permissions and writers stay native.
+Pending decisions keep a Saving label until the acknowledgement. Desktop
+positions are restored when the width changes. Fictional product screenshots,
+visible-browser TEST saves and desktop comparison receipts are in
+[the proof note](../syncview-design/proofs/staff-calendar-expanded/README.md).
+This does not implement Selection, Samples, client links or admin layouts.
+
 **Digger source repair, 2026-10-02:** Analytics' Sheets fallback now requires
 successful Metrics and roster HTTP responses before consuming either body,
 marking data fresh, replacing good rows or saving a cache. A failed fallback

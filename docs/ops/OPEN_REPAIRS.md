@@ -30428,3 +30428,21 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 **Proof (offline).** `test/analytics-market-research-collect.js`: the brief branch's Code nodes as they ran (fixture copied from the live workflow, with the unused catch-block fallback's client name and niche replaced by placeholders because the repository is public) and the port give identical results at every stage on 250 random runs, the prompt and request body equal character for character; three deliberate breakages caught. `test/analytics-market-research-collect-function.js`: auth, off switch, allow-list, daily cap, resume, transcripts only where they can matter, Claude batch across ticks, pieces, no reels, a skipped search, a failed batch, a refused commit, attempts exhausted, real table untouched. `test/analytics-market-research-collect-postgres.js`: migration applied twice on PostgreSQL 16, four roles measured on every table and function, claim, commit, comparison. Deno type ratchet at 0 for the new function.
 
 **Not done, said plainly.** Nothing has run against Apify, OpenAI, Anthropic (including the Batches API), pg_net or pg_cron; the first real proof is the first shadow brief. The equivalence is against the n8n code, not a recorded run (n8n keeps none); the reel order in the prompt follows n8n's Merge default and is unconfirmed. The real table `analytics_market_research_briefs` is not written (the switch is a later PR). The page is unchanged. Decisions left to the owner, later: keep the Keywords brief at all (what it shows and what it costs are in section 7c.2), and whether the AI summaries move off n8n as a small separate step.
+
+
+## 338. [2026-10-05, BUILT, NOT DEPLOYED] Expanded staff Calendar on phones
+
+Standalone Review, Sheet, Month and Week now use phone cards and vertical days
+at 360/390/430, in light and dark. Tabs and More sit beside Calendar; native
+Organize, card size, setup, account and client selection move into More. Current
+month dates and all seven week days remain. Pending review decisions say Saving
+until acknowledged; drafts, errors, permission checks and native writers remain.
+All new styles are phone-width and standalone-Calendar scoped; returning to
+desktop restores the original controls and positions. Visible-browser fictional
+phone checks cover dialogs and recovery, and real TEST Caption Approve and
+Request change were read back with timestamps and the exact note. The owned
+disposable card was archived and read back. The desktop gate and public-safe
+screenshots are recorded in `docs/syncview-design/proofs/staff-calendar-expanded/README.md`.
+The Production editor-placement gate remains a reproduced unchanged-main failure.
+Selection, Samples and admin screens are outside this batch. No merge, deploy,
+backend installation, database change or n8n edit was performed.

@@ -27,7 +27,7 @@ import {
 import {
   _calBlankPost, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calCompStatusLabel,
   _calDeriveThumbInfo, _calFmtDateShort, _calIsBlankId, _calLinearPileHtml, _calLinkFieldHtml,
-  _calPendingLinkMove, _calRenderBody, _calResolveThumbnailFolder, _calSetThumbMedia,
+  _calPendingLinkMove, _calRenderBody, _calResolveThumbnailFolder, _calSetThumbMedia, _calStaffPhoneActive,
   _calStatusLabel, _calStripThumbnailFolderFields, _calThumbContent, _calThumbFrameHtml,
   _calThumbIconHtml, _calThumbImgTag, _calTitleRowHtml, onCalMonthFilterChange
 } from './160-calendar-organize-ui.js';
@@ -690,7 +690,19 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         _calCloseStatusMenu();
     }, true);
     window.addEventListener('resize', _calCloseStatusMenu);
-    window.addEventListener('scroll', _calCloseStatusMenu, true);
+    window.addEventListener('scroll', () => {
+        // The phone picker stays at the bottom of the screen. Scrolling its
+        // choices or finishing the page scroll that brought the trigger into
+        // view must not dismiss it before the person can choose.
+        if (!_calStaffPhoneActive()) _calCloseStatusMenu();
+    }, true);
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !_calStaffPhoneActive() || !_calOpenStatusMenu) return;
+        const trigger = _calOpenStatusMenu.triggerEl;
+        _calCloseStatusMenu();
+        if (trigger && trigger.isConnected) trigger.focus();
+        event.preventDefault();
+    });
     /* Client-link view — the only status action a client can take is to
        approve a post. Flips the status to "Approved" and saves it. */
     function _calClientApprove(pid) {

@@ -1,0 +1,210 @@
+{
+  "verifiedAt": "2026-10-04T23:56:43.199Z",
+  "candidateIndexSha": "ce704d5164f3c56c6e311d87aeee5a588da76d2795a3cfd2a2229e3eedbea167",
+  "viewports": [
+    360,
+    390,
+    430
+  ],
+  "staffNativeViews": [
+    {
+      "view": "smmreview",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "organizer",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "month",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "week",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "smmreview",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "organizer",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "month",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "week",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "smmreview",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "organizer",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "month",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "week",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "smmreview",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "organizer",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "month",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "week",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "smmreview",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "organizer",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "month",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "week",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "smmreview",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "organizer",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "month",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "week",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    }
+  ],
+  "clientDecisionViewport": {
+    "width": 390,
+    "height": 844
+  },
+  "approveRead": {
+    "approved": true,
+    "timestampPresent": true
+  },
+  "changeRead": {
+    "requested": true,
+    "notePresent": true,
+    "timestampPresent": true
+  },
+  "clientWriteHttpStatuses": [
+    200,
+    200
+  ],
+  "blockedClientWrites": 0,
+  "ownedFixtureArchived": true
+}

@@ -18,8 +18,8 @@ scope — exit 0
 staff-calendar-phone-css-scope: OK (1 block(s), 258 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
 
 index — exit 0
-check-index: working-tree index.html — sha256=a4c1c0ac6f11a66d19fb77d67f07b6960e1bcb0907b2c38c271e7a3c75459452 bytes=987709
-check-index: committed index.html (HEAD) — sha256=a4c1c0ac6f11a66d19fb77d67f07b6960e1bcb0907b2c38c271e7a3c75459452 bytes=987709
+check-index: working-tree index.html — sha256=cad54327785cb45dafa4b140796088a33898271a7ffb0a9da68cfed9db5364f5 bytes=988160
+check-index: committed index.html (HEAD) — sha256=cad54327785cb45dafa4b140796088a33898271a7ffb0a9da68cfed9db5364f5 bytes=988160
 
 check-index: OK — assembled == working tree == committed (HEAD)
 

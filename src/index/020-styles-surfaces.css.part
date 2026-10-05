@@ -4890,8 +4890,14 @@
             html.fph-on[data-fph="workload"] .workload-toolbar .dropdown-trigger { min-height: 44px; min-width: 44px; }
             html.fph-on[data-fph="workload"] .workload-toolbar input { min-height: 44px; font-size: 16px; box-sizing: border-box; }
             html.fph-on[data-fph="workload"] .wl-client-search-clear { min-width: 44px; min-height: 44px; }
-            html.fph-on[data-fph="workload"] .workload-weekdays { display: none; }
-            html.fph-on[data-fph="workload"] .workload-grid-wrap { overflow: visible; }
+            html.fph-on[data-fph="workload"] .workload-weekdays:not(.workload-timeline-weekdays) { display: none; }
+            html.fph-on[data-fph="workload"] .workload-grid-wrap:not(.workload-timeline-wrap) { overflow: visible; }
+            /* Plan + Due Date keeps its editors-by-days board; it scrolls sideways inside its own frame, never the page. */
+            html.fph-on[data-fph="workload"] .workload-timeline-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+            html.fph-on[data-fph="workload"] .workload-timeline-header,
+            html.fph-on[data-fph="workload"] .workload-timeline-stage { min-width: 720px; }
+            html.fph-on[data-fph="workload"] .workload-timeline-day-total,
+            html.fph-on[data-fph="workload"] summary.workload-timeline-plan-chip { min-height: 44px; min-width: 44px; box-sizing: border-box; }
             html.fph-on[data-fph="workload"] .workload-grid { display: flex; flex-direction: column; gap: 10px; min-width: 0; width: 100%; }
             html.fph-on[data-fph="workload"] .workload-day { box-sizing: border-box; min-height: 52px; height: auto; padding: 12px 14px; border-radius: 14px; }
             html.fph-on[data-fph="workload"] .workload-day::before { content: attr(data-fph-day); display: block; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
@@ -4917,7 +4923,7 @@
             html.fph-on[data-fph="production"] .prod-topbar { flex-wrap: nowrap; gap: 4px; min-height: 52px; padding: 4px 8px 4px 12px; }
             html.fph-on[data-fph="production"] .prod-crumb { min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
             html.fph-on[data-fph="production"] .prod-crumb::-webkit-scrollbar { display: none; }
-            html.fph-on[data-fph="production"] .prod-crumb-link { min-height: 44px; padding: 0 6px; }
+            html.fph-on[data-fph="production"] .prod-crumb-link { min-height: 44px; min-width: 44px; padding: 0 6px; }
             html.fph-on[data-fph="production"] .prod-freshness { flex: none; gap: 0; }
             html.fph-on[data-fph="production"] .prod-freshness-age { display: none; }
             html.fph-on[data-fph="production"] .prod-icon-btn { width: 44px; height: 44px; min-width: 44px; }
@@ -4943,6 +4949,7 @@
             html.fph-on[data-fph="production"] .prod-due { order: 5; min-height: 44px; min-width: 44px; }
             html.fph-on[data-fph="production"] .prod-assign-hot { order: 6; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
             html.fph-on[data-fph="production"] .prod-created { display: none; }
+            html.fph-on[data-fph="production"] .prod-cmd-input { font-size: 16px; min-height: 44px; box-sizing: border-box; }
             html.fph-on[data-fph="production"] .prod-pop { max-width: calc(100vw - 16px); }
             html.fph-on[data-fph="production"] .prod-mi { min-height: 44px; box-sizing: border-box; }
             html.fph-on[data-fph="production"] .prod-pop input { font-size: 16px; min-height: 44px; box-sizing: border-box; }

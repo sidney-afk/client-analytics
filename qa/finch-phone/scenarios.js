@@ -90,6 +90,26 @@ const SCENARIOS = [
   { id: 'analytics-error', open: base('#analytics', { csv: sheets({ 'sheet=Metrics': { status: 500, contentType: 'text/plain', body: 'down' } }) }), settle: 4500 },
   { id: 'analytics-content-calendar', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.overview-table tbody >> text=Client A'); await wait(p, 2000); await p.click('text=Content Calendar'); await wait(p, 2500); } },
   { id: 'analytics-brief', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.overview-table tbody >> text=Client A'); await wait(p, 2000); await p.click('.view-tab-btn >> text=Brief'); await wait(p, 2500); } },
+  TK('tiktok-post-error', seq(pick('Client A'), async p => {
+    await p.setInputFiles('#tkFile', { name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(2048) }); await wait(p, 500);
+    await p.fill('#tkTitle', 'Three tips for a calmer morning'); await p.click('#tkSubmit'); await wait(p, 1200);
+  }), { routes: [['**/webhook/tiktok-upload', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Post For Me did not accept this video (example refusal).' }) })]] }),
+  TK('tiktok-posting', seq(pick('Client A'), async p => {
+    await p.setInputFiles('#tkFile', { name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(2048) }); await wait(p, 500);
+    await p.fill('#tkTitle', 'Three tips for a calmer morning'); await p.click('#tkSubmit'); await wait(p, 800);
+  }), { routes: [['**/webhook/tiktok-upload', () => new Promise(() => {})]] }),
+  { id: 'analytics-search', open: base('#analytics'), settle: 3500, steps: async p => { await p.fill('#searchInput', 'Client'); await wait(p, 700); } },
+  { id: 'analytics-pin', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.pin-add-btn'); await wait(p, 600); } },
+  { id: 'analytics-week', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.controls-left >> text=Week'); await wait(p, 800); } },
+  { id: 'workload-editors-menu', open: wl(), settle: 4000, steps: async p => { await p.click('text=All editors'); await wait(p, 600); } },
+  { id: 'workload-clients-search', open: wl(), settle: 4000, steps: async p => { await p.click('#wlClientSearchInput'); await wait(p, 700); } },
+  { id: 'workload-popover', open: wl(), settle: 4000, steps: async p => { await p.click('.workload-day .workload-day-card-chip >> nth=0'); await wait(p, 800); } },
+  { id: 'workload-plan-due', open: wl(), settle: 4000, steps: async p => { await p.click('text=Plan + Due Date'); await wait(p, 800); } },
+  { id: 'linear-search', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('#fphMoreBtn'); await wait(p); await p.click('.fph-row >> text=Search'); await wait(p, 900); } },
+  { id: 'linear-status-picker', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-row .prod-status >> nth=0'); await wait(p, 700); } },
+  { id: 'linear-assignee-picker', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-row .prod-assign-hot >> nth=0'); await wait(p, 700); } },
+  { id: 'linear-due-picker', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-row .prod-due >> nth=0'); await wait(p, 700); } },
+  { id: 'linear-backlog', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-tab >> text=Backlog'); await wait(p, 700); } },
   { id: 'workload-week', open: wl(), settle: 4000 },
   { id: 'workload-month', open: wl(), settle: 4000, steps: async p => { await p.click('text=Month'); await wait(p, 800); } },
   { id: 'workload-loading', open: (() => { const o = wl(); o.fn = Object.assign({}, o.fn, { 'workload-plan': { __hold: true } }); return o; })(), settle: 2500 },

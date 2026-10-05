@@ -5282,11 +5282,19 @@
         if (el) el.innerHTML = _tplSocialLinksHtml(_templatesSelected);
     }
 
+    // "← All templates". On a phone the arrow is a drawn icon, not a text character; wider screens keep the original text.
+    function _tplBackLabel() {
+        const phone = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+        return phone
+            ? '<svg class="tpl-back-svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates'
+            : '← All templates';
+    }
+
     function renderClientTemplate(name) {
         // Loading state — first paint while the GET is in flight.
         if (!_tplClientReady(name) && !templatesLoadError) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;"><span class="tpl-back-arrow" aria-hidden="true">←</span><svg class="tpl-back-svg" hidden width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-skeleton tpl-skeleton-pill" style="width:160px;height:24px;margin-bottom:18px;"></div>
                 <div class="tpl-skeleton-card">
@@ -5303,7 +5311,7 @@
         }
         if (templatesLoadError && !_tplClientReady(name)) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;"><span class="tpl-back-arrow" aria-hidden="true">←</span><svg class="tpl-back-svg" hidden width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>
             </div>`;
@@ -5355,7 +5363,7 @@
             : '';
 
         return `<div class="tpl-view${isEdit?' editing':''}">
-            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;"><span class="tpl-back-arrow" aria-hidden="true">←</span><svg class="tpl-back-svg" hidden width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates</button>
+            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
             <div class="tpl-client-head">
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}<span class="tpl-social" data-tpl-social>${_tplSocialLinksHtml(name)}</span></div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
@@ -85245,4 +85253,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-f64fa9f6886f.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-8ea5155b849e.js");

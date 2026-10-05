@@ -13,6 +13,7 @@
  *     [--widths=360,390]    default 360,390,430
  *     [--themes=light]      default light,dark
  *     [--before-root=<dir>] serve the app from another checkout (the BEFORE shots)
+ *     [--freeze]            stop animations (for exact before/after comparisons)
  *     [--report=<file>]     write a JSON measurement receipt (counts and smallest sizes only)
  *     [--fonts=<dir>]       folder holding plus-jakarta-<weight>.ttf (sandbox has no web fonts)
  *
@@ -38,9 +39,12 @@ const THEMES = arg('themes', 'light,dark').split(',');
 const SERVE_ROOT = path.resolve(arg('before-root', ROOT));
 const FONTS = arg('fonts', process.env.POCKET_FONT_DIR || '');
 const BEFORE = !!arg('before-root', '');
+const FREEZE = process.argv.includes('--freeze');   // stop animations and carets, for exact before/after picture comparison
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
 
 /* ------------------------------------------------------------------ data */
+// One fixed time of day, so two runs on the same day draw the same clock times (the app shows them).
+const STAMP = (() => { const d = new Date(); d.setHours(9, 30, 0, 0); return d.toISOString(); })();
 const day = n => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 const CLIENTS = [
   { slug: 'sample-one', display_name: 'Sample Client One', active: true, kind: 'client' },
@@ -50,15 +54,15 @@ const CLIENTS = [
 ];
 const NAMES = CLIENTS.map(c => c.display_name);
 const TEMPLATE_ROWS = [
-  { client_slug: 'sample-one', updated_at: new Date().toISOString(), data: { client_name: 'Sample Client One',
+  { client_slug: 'sample-one', updated_at: STAMP, data: { client_name: 'Sample Client One',
     filming_plans_link: 'https://docs.google.com/document/d/fixture_plan_one/edit',
     reels_editor_folder_link: 'https://drive.google.com/drive/folders/fixture_editor_folder',
     reels_reference_link: 'https://www.instagram.com/reel/fixture1/',
     reels_reference_link_list: JSON.stringify(['https://www.instagram.com/reel/fixture1/', 'https://www.instagram.com/reel/fixture2/']),
     thumbnails_photos_link: 'https://drive.google.com/drive/folders/fixture_photos',
     thumbnails_canva_link: 'https://www.canva.com/design/fixture/edit' } },
-  { client_slug: 'sample-two', updated_at: new Date().toISOString(), data: { client_name: 'Sample Client Two' } },
-  { client_slug: 'sample-three', updated_at: new Date().toISOString(), data: { client_name: 'Sample Client Three' } },
+  { client_slug: 'sample-two', updated_at: STAMP, data: { client_name: 'Sample Client Two' } },
+  { client_slug: 'sample-three', updated_at: STAMP, data: { client_name: 'Sample Client Three' } },
 ];
 const BRAIN = {
   ok: true, found: true, folder: 'sample-one',
@@ -85,7 +89,7 @@ const PLANS = [
   { client_name: 'Sample Client Three', client_slug: 'sample-three', doc_url: '', notes: 'No document yet' },
 ];
 const deliverable = (id, slug, title, status, extra) => Object.assign({ id, client_slug: slug, team: 'video', kind: 'video', title, status,
-  status_at: new Date().toISOString(), assignee_id: 'qa_editor', due_date: day(2), origin: 'native', card_id: null, linear_issue_uuid: null }, extra || {});
+  status_at: STAMP, assignee_id: 'qa_editor', due_date: day(2), origin: 'native', card_id: null, linear_issue_uuid: null }, extra || {});
 const DELIVERABLES = [
   deliverable('d1', 'sample-one', 'Opening hook edit for the October reel', 'smm_approval'),
   deliverable('d2', 'sample-two', 'A very long working title that has to wrap on a narrow phone screen', 'tweak'),
@@ -379,6 +383,7 @@ function judge(m, width) {
         }, NAMES);
         await page.evaluate(n => { try { wlMergeClientsFromSheet(n); } catch (e) {} Object.assign(clientMap, { 'Sample Client One': { instagram_handle: 'sample.one', tiktok_handle: 'sampleone', youtube_channel_id: 'UCsample0000000000000000' } }); }, NAMES).catch(() => {});
         await st.setup(page);
+        if (FREEZE) await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}' });
         await settle(page, 300);
         const label = `${st.name} ${width} ${theme}`;
         if (process.env.EVAL_JS) console.log('  eval:', JSON.stringify(await page.evaluate(process.env.EVAL_JS)));

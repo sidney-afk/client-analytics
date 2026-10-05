@@ -113,3 +113,16 @@ confirmed the exact saved note. After the owner signed in again, the native
 Calendar writer archived only that disposable card with HTTP 200; the normal
 app reader confirmed Archived. The final receipt is
 [final-live-saves.json](final-live-saves.json). The cleanup hold is resolved.
+
+Final design verification: the hosted-test harness was repaired, phone pictures
+were refreshed at all three widths, and desktop was rechecked at all four sizes
+(68/68 identical). Real Approve and Request change saves were repeated on the
+owned TEST source and freshly read back, with cleanup confirmed. The anonymous
+receipt is [final-design-saves.json](final-design-saves.json); exact final check
+tails are in [checks.txt](checks.txt). This remains local candidate proof.
+
+### Thumbnail comparison dialog
+
+The native comparison remains a full, vertically stacked Previous and Current view on phones. Close and Retry have 44px targets. Retry returns keyboard focus to Close while its temporary button is replaced, so Escape continues to work. All eight reader/image states are captured at every phone width. Only the assigned phone surfaces receive the change; the desktop gate is repeated afterward. No approval writer or decision rule changes in this follow-up. The real decision receipts above predate this dialog-only adjustment.
+
+The viewer includes a separate pending Review queue before a post is opened, at all three widths. Pending cards keep their review statuses and open action.

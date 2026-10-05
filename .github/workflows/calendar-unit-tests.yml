@@ -237,7 +237,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-phone-review-browser.js
-      - name: Client Calendar Compact layout, disclosures and dialogs
+      - name: Client Calendar Expanded layout, sections and dialogs
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-calendar-expanded-browser.js

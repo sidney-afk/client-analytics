@@ -35438,6 +35438,12 @@
         content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>Couldn’t load the comparison</strong><p>${_calEsc(message || 'Try again in a moment.')}</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareLoad()">Try again</button></div>`;
     }
     async function _thumbCompareLoad() {
+        // The retry button is replaced by the loading paint. On these phone
+        // surfaces, return its keyboard focus to the stable Close control.
+        const restorePhoneFocus = window.matchMedia('(max-width: 767px)').matches
+            && (document.documentElement.classList.contains('boot-client')
+                || !!document.querySelector('#calView[data-pocket-staff-phone], #sxrView[data-pocket-staff-samples]'))
+            && !!document.activeElement?.closest('.thumb-compare-retry');
         const state = _thumbCompareState;
         if (!state) return;
         if (!_isClientLink && !_syncviewStaffIdentityForHeaders()) { _thumbCompareRenderSignIn(); return; }
@@ -35446,6 +35452,7 @@
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         state.controller = controller;
         _thumbCompareLoading('Loading thumbnail history…');
+        if (restorePhoneFocus) document.querySelector('.thumb-compare-close')?.focus();
         try {
             const headers = _syncviewEfHeaders({
                 'Content-Type': 'application/json',
@@ -35479,7 +35486,12 @@
             if (_thumbCompareState !== state) return;
             _thumbCompareRenderError(error && error.message ? error.message : 'Try again in a moment.');
         } finally {
-            if (_thumbCompareState === state) state.controller = null;
+            if (_thumbCompareState === state) {
+                state.controller = null;
+                if (restorePhoneFocus && !document.getElementById('thumbCompareDialog')?.contains(document.activeElement)) {
+                    document.querySelector('.thumb-compare-close')?.focus();
+                }
+            }
         }
     }
     function _thumbCompareNormalize(json) {
@@ -85303,4 +85315,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-85212d1d2359.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-46cea97e0529.js");

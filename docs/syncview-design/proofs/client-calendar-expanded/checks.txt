@@ -560,3 +560,108 @@ check-modules: all checks passed
 Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
     at expect (<checkout>\docs\syncview-design\tests\prod-write-gateway-browser.js:81:53)
     at <checkout>\docs\syncview-design\tests\prod-write-gateway-browser.js:1546:5
+
+
+Final design recheck — exit 0
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+client-calendar-expanded: OK (1743 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/430).
+
+Final design recheck — exit 0
+Desktop width 1024: exit 0
+Desktop width 1280: exit 0
+Desktop width 1440: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Both real client decisions were repeated against the latest design candidate and read back; owned sources were archived. The Samples native items were read back in Backlog. See final-design-saves.json.
+
+
+Final index — exit 0
+check-index: working-tree index.html — sha256=743151607cab3660897287fd60e4b80c16bd736327fa828dac2254c9ac1e1bb4 bytes=970384
+check-index: committed index.html (HEAD) — sha256=743151607cab3660897287fd60e4b80c16bd736327fa828dac2254c9ac1e1bb4 bytes=970384
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+Final modules — exit 0
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2552 KB, 5057 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+Final scope — exit 0
+client-phone-css-scope: OK (5 block(s), 282 braces, all under @media (max-width: <=767px) and html.boot-client)
+
+Final identity — exit 0
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+Final comparison-dialog follow-up (generated source committed).
+
+build:index — exit 0
+build-index: js/sv-02-templates-59304a3ba2a3.js (100362 bytes)
+build-index: js/sv-04-workload-395f2adabc06.js (188387 bytes)
+build-index: js/sv-14-tiktok-24bb7e66f434.js (121878 bytes)
+build-index: js/sv-16-kasper-29255d239193.js (289258 bytes)
+build-index: wrote index.html (970613 bytes) from 65 fragment(s)
+build-index: wrote src/index/INDEX.md
+
+phone gate — exit 0
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+client-calendar-expanded: OK (2094 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/430).
+
+desktop parity — exit 0
+Desktop width 1920: exit 0
+Desktop width 1280: exit 0
+Desktop width 1440: exit 0
+Desktop width 1024: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+phone CSS scope — exit 0
+client-phone-css-scope: OK (5 block(s), 285 braces, all under @media (max-width: <=767px) and html.boot-client)
+
+check:index — exit 0
+check-index: assembled bytes — sha256=6ff3318f474b5de8f1ed76492a2e5a5b5a00b9a1528d7b289206d21f6033c3bc bytes=970613
+check-index: working-tree index.html — sha256=6ff3318f474b5de8f1ed76492a2e5a5b5a00b9a1528d7b289206d21f6033c3bc bytes=970613
+check-index: committed index.html (HEAD) — sha256=6ff3318f474b5de8f1ed76492a2e5a5b5a00b9a1528d7b289206d21f6033c3bc bytes=970613
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+check-modules — exit 0
+module 345-core-tooltip-date-picker.js.part: 2 imports, 0 exports
+window exports: 539 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2552 KB, 5057 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+repo-map-sync — exit 0
+OK  REPO_MAP.md path `docs/ATLAS.md` exists
+OK  REPO_MAP.md path `docs/plans/2026-10-03-sheets-remaining-map.md` exists
+OK  REPO_MAP.md path `test/atlas-sync.js` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+
+repo-map-sync: 1074 passed, 0 failed
+
+truth-sync with single-file preload — exit 0
+OK  migrations/title-review-migration.sql is labelled as deployed historical schema
+OK  migrations/title-review-migration.sql contains no current manual-rollout instruction
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+
+truth-sync: 510 passed, 0 failed
+
+identity exposure, committed diff to origin/main — exit 0
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+
+Additional pending queue before pictures — exit 0
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+client-calendar-expanded: BEFORE screenshots recorded at 360, 390, 430; no Expanded pass claimed.
+
+Intermediate checks: comparison Escape initially failed after retry and passes with the phone-only focus repair. Overlapping background browser runs timed out; final foreground runs replace those incomplete attempts. The direct truth check without the single-file preload failed; the supported invocation above passes. Production retains its already-recorded unchanged-main failure. Approval writers were not edited in this follow-up.

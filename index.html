@@ -9237,6 +9237,268 @@
         .arx-wi-to.is-move { color: var(--sv-fg-166534); }
         .arx-wi-to.is-left { color: var(--sv-fg-854d0e); }
         .arx-note { font-size: 0.74rem; color: var(--text-secondary); margin: -6px 0 16px; line-height: 1.45; }
+        /* FINCH-PHONE:BEGIN
+           PHONE LAYOUT FOR THE STAFF TikTok/Instagram Upload, Analytics,
+           Workload and SyncLinear screens (approved mock-up, layout A).
+           One block for all four so parallel phone work merges cleanly.
+           Every rule sits inside @media (max-width: 767px) and every selector
+           starts with `html.fph-on`, a class the script sets only while one of
+           these four staff screens is open on a phone, so no desktop width, no
+           client link and no other screen can match it. Enforced by
+           test/finch-phone-css-scope.js. */
+        @media (max-width: 767px) {
+            /* Shell: the logo header and nav row give way to a title row with
+               Tabs and More. The header stays in the page (its client picker and
+               staff menu are reached from More) but takes no space. */
+            html.fph-on { --fph-ico-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='8'/%3E%3Cpath d='M10 6v5M10 13.6v.2'/%3E%3C/svg%3E"); --fph-ico-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m5 5 10 10M15 5 5 15'/%3E%3C/svg%3E"); }
+            html.fph-on .header { position: fixed; top: 0; left: 0; width: 0; height: 0; padding: 0; border: 0; overflow: visible; background: none; box-shadow: none; }
+            html.fph-on .header > * { visibility: hidden; }
+            html.fph-on .header .sv-client-pop:not([hidden]) { visibility: visible; }
+            html.fph-on .main { padding-top: 0; }
+            html.fph-on .fph-bar { display: flex; align-items: center; gap: 9px; padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); background: var(--bg); }
+            html.fph-on .fph-title { flex: 1; min-width: 0; margin: 0; font-size: 26px; line-height: 1.2; font-weight: 800; letter-spacing: -0.8px; color: var(--text-primary); }
+            html.fph-on .fph-actions { display: flex; flex: none; gap: 7px; }
+            html.fph-on .fph-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 44px; min-width: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--white); color: var(--text-primary); font: inherit; font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; }
+            html.fph-on .fph-btn svg { flex: none; width: 17px; height: 17px; }
+            html.fph-on .fph-btn-icon { width: 44px; padding: 0; }
+            html.fph-on .fph-btn:focus-visible,
+            html.fph-on .fph-menu button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+            html.fph-on .fph-menu { box-sizing: border-box; position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 560px; max-height: 85dvh; padding: 10px max(20px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); border: 0; border-radius: 25px 25px 0 0; background: var(--white); color: var(--text-primary); overflow-y: auto; }
+            html.fph-on .fph-menu::backdrop { background: var(--overlay); }
+            html.fph-on .fph-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 15px; border-radius: 4px; background: var(--border); }
+            html.fph-on .fph-menu-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+            html.fph-on .fph-menu-head h2 { flex: 1; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.7px; }
+            html.fph-on .fph-menu-head button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--white); color: var(--text-primary); }
+            html.fph-on .fph-menu-head button svg { width: 18px; height: 18px; }
+            html.fph-on .fph-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 55px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text-primary); font: inherit; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; }
+            html.fph-on .fph-row svg { flex: none; width: 16px; height: 16px; color: var(--text-secondary); }
+            html.fph-on .fph-row.is-current { font-weight: 800; }
+            html.fph-on .fph-row.is-current svg { color: var(--text-primary); }
+            /* The client picker opens as a bottom sheet instead of hanging off
+               the (hidden) header. */
+            html.fph-on .sv-client-pop { position: fixed; inset: auto 0 0; top: auto !important; left: 0 !important; z-index: 2147483000; width: 100%; max-width: 560px; margin: 0 auto; box-sizing: border-box; max-height: 70dvh; border-radius: 25px 25px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+
+            html.fph-on .search-bar-input { font-size: 16px; min-height: 44px; }
+            html.fph-on .search-bar-icon { width: 44px; height: 44px; }
+            html.fph-on .tk-client-search .search-bar-pill { min-height: 48px; }
+            /* ---- TikTok and Instagram Upload ---- */
+            html.fph-on[data-fph="tiktok-upload"] .main { padding-left: 0; padding-right: 0; padding-top: 0; }
+            html.fph-on .tk-page { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0 max(16px, env(safe-area-inset-right)) calc(110px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); max-width: none; }
+            html.fph-on .tk-header { display: block; margin: 0 0 14px; }
+            html.fph-on .tk-header > div:first-child { display: none; }
+            html.fph-on .tk-platform-switch { display: flex; width: 100%; box-sizing: border-box; padding: 4px; gap: 3px; border: 0; border-radius: 15px; background: var(--border-light); margin: 0; }
+            html.fph-on .tk-platform-switch .tk-q-tab { flex: 1; min-height: 44px; border-radius: 11px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+            html.fph-on .tk-platform-switch .tk-q-tab.on { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+            html.fph-on .tk-col { width: 100%; max-width: none; gap: 17px; }
+            html.fph-on #tkFormCol > .tk-card,
+            html.fph-on #igFormCol > .tk-card,
+            html.fph-on .tk-card { box-sizing: border-box; padding: 19px 17px; margin: 0; background: var(--white); border: 1px solid var(--border); border-radius: 22px; box-shadow: none; }
+            html.fph-on #tkFormCol > .tk-card::after,
+            html.fph-on #igFormCol > .tk-card::after { display: none; }
+            html.fph-on #tkFormCol > .tk-card::before,
+            html.fph-on #igFormCol > .tk-card::before { display: none; }
+            html.fph-on .tk-card h3 { margin: 0 0 15px; font-size: 16px; font-weight: 750; letter-spacing: -0.3px; text-transform: none; color: var(--text-primary); }
+            html.fph-on .tk-card h3 .tk-card-hint { font-size: 11px; font-weight: 550; letter-spacing: 0; color: var(--text-secondary); }
+            html.fph-on .tk-row { margin: 12px 0; }
+            html.fph-on .tk-row > label { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+            html.fph-on .tk-profile-line { display: block; font-size: 12px; line-height: 1.7; padding: 13px; border-radius: 12px; background: var(--surface-subtle); color: var(--text-secondary); overflow-wrap: anywhere; }
+            html.fph-on .tk-profile-line code { background: transparent; font-size: 11px; color: inherit; overflow-wrap: anywhere; }
+            html.fph-on .tk-radio-row.tk-seg { display: flex; gap: 6px; padding: 4px; border-radius: 14px; background: var(--surface-subtle); }
+            html.fph-on .tk-seg .tk-radio { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 6px; border-radius: 10px; font-size: 13px; white-space: nowrap; color: var(--text-secondary); }
+            html.fph-on .tk-seg .tk-radio.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+            html.fph-on .tk-drop { min-height: 143px; box-sizing: border-box; padding: 25px 16px; border: 1.5px dashed var(--border); border-radius: 16px; background: var(--surface-subtle); }
+            html.fph-on .tk-drop-icon { width: 44px; height: 44px; margin-bottom: 11px; border-radius: 14px; color: var(--text-primary); }
+            html.fph-on .tk-drop-title { font-size: 14px; line-height: 1.5; }
+            html.fph-on .tk-drop-sub { font-size: 12px; line-height: 1.65; }
+            html.fph-on .tk-card textarea { min-height: 120px; box-sizing: border-box; font-size: 16px; }
+            html.fph-on .tk-card input[type="text"]:not(.search-bar-input),
+            html.fph-on .tk-card input[type="number"],
+            html.fph-on .tk-card input[type="search"],
+            html.fph-on .tk-card input:not([type]):not(.search-bar-input),
+            html.fph-on .tk-select { font-size: 16px; min-height: 46px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; background: var(--field-bg); color: var(--text-primary); }
+            html.fph-on .tk-card input[type="date"],
+            html.fph-on .tk-card input[type="time"],
+            html.fph-on .tk-card .tpl-input { font-size: 16px; min-height: 46px; box-sizing: border-box; }
+            html.fph-on .confirm-overlay .brief-action-btn { min-height: 44px; min-width: 88px; font-size: 15px; border-radius: 12px; }
+            html.fph-on .tk-counter { font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
+            html.fph-on .tk-grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+            html.fph-on .tk-opts-head { min-height: 48px; align-items: center; }
+            html.fph-on .tk-toggle { min-height: 44px; font-size: 13px; }
+            html.fph-on .tk-photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; min-width: 0; width: 100%; }
+            html.fph-on .tk-preview-card { box-sizing: border-box; padding: 18px; border: 1px solid var(--border); border-radius: 22px; background: var(--white); }
+            html.fph-on .tk-right-col { margin-top: 17px; }
+            html.fph-on .tk-q-tabs:not(.tk-platform-switch) { flex-wrap: wrap; gap: 5px; }
+            html.fph-on .tk-q-tab { min-height: 44px; font-size: 13px; border-radius: 11px; padding: 0 11px; }
+            html.fph-on .tk-q-tabs:not(.tk-platform-switch) .tk-q-tab.on { background: var(--text-primary); color: var(--bg); }
+            html.fph-on .tk-q-btn { min-height: 44px; min-width: 44px; }
+            html.fph-on .tk-queue-actions .tk-q-btn { min-height: 44px; padding: 0 10px; }
+            html.fph-on .tk-q-x { width: 44px; }
+            html.fph-on .tk-q-more { min-height: 44px; }
+            html.fph-on .tk-mini-btn { min-height: 44px; padding: 0 14px; }
+            html.fph-on .tk-photo-btn { min-width: 44px; min-height: 44px; }
+            html.fph-on #tkScheduleFields .tk-grid-2 { grid-template-columns: minmax(0, 1fr); }
+            html.fph-on .tk-time-row { flex-wrap: wrap; }
+            html.fph-on .tk-time-select { min-height: 46px; font-size: 16px; }
+            html.fph-on .tk-ampm-btn { min-height: 44px; min-width: 44px; }
+            html.fph-on .tk-radio { min-height: 44px; font-size: 13px; }
+            html.fph-on .tk-toggles { gap: 2px 20px; }
+            html.fph-on .tk-file-meta { flex-wrap: wrap; }
+            html.fph-on .tk-file-actions { width: 100%; }
+            html.fph-on .tk-file-actions .tk-mini-btn { flex: 1; }
+            html.fph-on .tk-warn-chip { display: flex; gap: 0; padding: 0; margin-bottom: 6px; background: transparent; font-size: 12px; font-weight: 700; }
+            html.fph-on .tk-warn-chip::before { content: ''; flex: none; width: 17px; height: 17px; margin-right: 8px; background: currentColor; -webkit-mask: var(--fph-ico-alert) center / contain no-repeat; mask: var(--fph-ico-alert) center / contain no-repeat; }
+            html.fph-on .tk-q-x { font-size: 0; }
+            html.fph-on .tk-q-x::before { content: ''; display: block; width: 16px; height: 16px; margin: 0 auto; background: currentColor; -webkit-mask: var(--fph-ico-x) center / contain no-repeat; mask: var(--fph-ico-x) center / contain no-repeat; }
+            /* Post now: pinned to the bottom of the screen, full width. */
+            html.fph-on .tk-submit-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; box-sizing: border-box; margin: 0; padding: 10px max(18px, env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); gap: 10px; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: var(--white); box-shadow: none; }
+            html.fph-on .tk-submit-btn { flex: 1; min-height: 50px; padding: 0 20px; border-radius: 14px; font-size: 15px; font-weight: 650; }
+            html.fph-on .tk-submit-btn:disabled { opacity: 1; background: var(--field-bg); color: var(--text-muted); }
+            html.fph-on .tk-submit-bar .tk-progress { position: absolute; left: 0; right: 0; top: -1px; height: 3px; border-radius: 0; background: transparent; }
+
+            /* ---- Analytics (staff) ---- */
+            html.fph-on[data-fph="home"] .main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+            html.fph-on[data-fph="home"] #pageTop { display: block; margin: 0 0 14px; padding: 0; }
+            html.fph-on[data-fph="home"] #pageTop.overview-mode #titleRow,
+            html.fph-on[data-fph="home"] #pageTop.overview-mode .page-sub { display: none; }
+            html.fph-on[data-fph="home"] .selector-wrap { width: 100%; margin: 0; }
+            html.fph-on[data-fph="home"] .search-bar-wrap { width: 100%; max-width: none; }
+            html.fph-on[data-fph="home"] .search-bar-pill { width: 100%; box-sizing: border-box; min-height: 48px; }
+            html.fph-on[data-fph="home"] .search-bar-input { font-size: 16px; }
+            html.fph-on[data-fph="home"] .search-bar-icon { width: 44px; height: 44px; }
+            html.fph-on[data-fph="home"] .pins-area { margin: 12px 0 0; min-height: 0; }
+            html.fph-on[data-fph="home"] .pins-row:empty { display: none; }
+            html.fph-on[data-fph="home"] .pins-add-row { justify-content: flex-start; }
+            html.fph-on[data-fph="home"] .pin-add-btn { min-height: 44px; padding: 0 14px; }
+            html.fph-on[data-fph="home"] .overview-table { border-spacing: 0 10px; }
+            html.fph-on[data-fph="home"] .overview-table tbody td:nth-child(2) { width: 84px; min-width: 84px; padding-left: 4px; padding-right: 8px; white-space: normal; font-size: 12px; line-height: 1.35; }
+            html.fph-on[data-fph="home"] .overview-table thead th:nth-child(2) { width: 84px; min-width: 84px; }
+            html.fph-on[data-fph="home"] .overview-table tbody td:nth-child(1) { min-width: 340px; }
+            html.fph-on[data-fph="home"] .overview-wrap a,
+            html.fph-on[data-fph="home"] .overview-wrap button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+            html.fph-on[data-fph="home"] .overview-wrap a.client-name-link,
+            html.fph-on[data-fph="home"] .overview-wrap a.card-client-link { justify-content: flex-start; min-width: 0; }
+            html.fph-on[data-fph="home"] .overview-wrap .view-toggle-btn { min-width: 44px; }
+            html.fph-on[data-fph="home"] .card-head { flex-wrap: wrap; row-gap: 0; }
+            html.fph-on[data-fph="home"] .card-head > div { flex-wrap: wrap; min-width: 0; }
+            html.fph-on[data-fph="home"] .card-head .card-date { flex: 1 0 100%; padding: 0 0 6px 2px; font-size: 12px; }
+            html.fph-on[data-fph="home"] .overview-wrap a.card-client-link { min-width: 44px; white-space: nowrap; }
+            html.fph-on[data-fph="home"] .cards-grid { gap: 14px; }
+            html.fph-on[data-fph="home"] .platform-handle-link { display: inline-flex; align-items: center; min-height: 44px; }
+            html.fph-on[data-fph="home"] .search-bar-input { min-height: 44px; }
+            html.fph-on[data-fph="home"] #pinDropCloseBtn { box-sizing: border-box; min-width: 44px; min-height: 44px; }
+            html.fph-on[data-fph="home"] .overview-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 4px; padding-bottom: 0; }
+            html.fph-on[data-fph="home"] .view-toggle-btn { min-width: 44px; min-height: 44px; }
+            html.fph-on[data-fph="home"] .controls-left button,
+            html.fph-on[data-fph="home"] .controls-left .seg-btn { min-height: 44px; min-width: 44px; }
+            html.fph-on[data-fph="home"] .overview-wrap { max-width: 100%; }
+            html.fph-on[data-fph="home"] .overview-table { display: block; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+            html.fph-on[data-fph="home"] .client-view > .view-tab-toggle { display: flex; width: 100%; box-sizing: border-box; padding: 4px; gap: 3px; border: 0; border-radius: 15px; background: var(--border-light); margin: 0 0 14px; }
+            html.fph-on[data-fph="home"] .client-view > .view-tab-toggle .view-tab-btn { flex: 1; justify-content: center; min-height: 44px; padding: 0 6px; border-radius: 11px; font-size: 13px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+            html.fph-on[data-fph="home"] .client-view > .view-tab-toggle .view-tab-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+            html.fph-on[data-fph="home"] .gains-bar { flex-direction: column; flex-wrap: nowrap; align-items: stretch; padding: 16px; gap: 10px; border-radius: 22px; }
+            html.fph-on[data-fph="home"] .gains-bar-label { padding-right: 0; }
+            html.fph-on[data-fph="home"] .gains-platform-card { flex: none; min-width: 0; }
+            html.fph-on[data-fph="home"] .detail-hero .share-btn,
+            html.fph-on[data-fph="home"] #pageTop .back-btn,
+            html.fph-on[data-fph="home"] #titleRow button { min-height: 44px; min-width: 44px; }
+            html.fph-on[data-fph="home"] .chart-section,
+            html.fph-on[data-fph="home"] .platform-section { border-radius: 22px; }
+            /* The Content Calendar inside a client's Analytics: only the toolbar is kept inside the screen here; the full staff Calendar phone layout is its own work. */
+            html.fph-on[data-fph="home"] .cal-toolbar { box-sizing: border-box; max-width: 100%; flex-wrap: wrap; }
+            html.fph-on[data-fph="home"] .cal-toolbar-left,
+            html.fph-on[data-fph="home"] .cal-toolbar-mid,
+            html.fph-on[data-fph="home"] .cal-toolbar-right { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+            html.fph-on[data-fph="home"] .cal-toolbar-mid { width: 100%; }
+            html.fph-on[data-fph="home"] .cal-view-toggle { flex: 1 1 100%; display: flex; }
+            html.fph-on[data-fph="home"] .cal-toolbar .dropdown-menu { max-width: calc(100vw - 32px); box-sizing: border-box; }
+            html.fph-on[data-fph="home"] .cal-client-links .dropdown-menu { left: auto; right: 0; }
+            html.fph-on[data-fph="home"] .cal-toolbar .dropdown-trigger,
+            html.fph-on[data-fph="home"] .cal-zoom button,
+            html.fph-on[data-fph="home"] .cal-select-btn,
+            html.fph-on[data-fph="home"] .cal-kebab { min-height: 44px; min-width: 44px; box-sizing: border-box; }
+            html.fph-on[data-fph="home"] .cal-view-btn { flex: 1 1 0; justify-content: center; min-height: 44px; }
+            html.fph-on[data-fph="home"] .chart-mode-toggle { padding: 3px; }
+            html.fph-on[data-fph="home"] .chart-mode-btn { min-height: 44px; min-width: 44px; padding: 0 14px; font-size: 13px; }
+            html.fph-on[data-fph="home"] .chart-plat-toggle { gap: 8px; }
+            html.fph-on[data-fph="home"] .chart-plat-btn { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 14px; font-size: 13px; }
+            html.fph-on[data-fph="home"] .cpb-dot[style*="2ec4b6"] { background: var(--tt) !important; }
+            html.fph-on[data-fph="home"] .cpb-dot[style*="ff4444"] { background: var(--yt) !important; }
+
+            /* ---- Workload ---- */
+            html.fph-on[data-fph="workload"] .main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+            html.fph-on[data-fph="workload"] .workload-view { padding: 0; gap: 14px; }
+            html.fph-on[data-fph="workload"] .workload-calendar-module,
+            html.fph-on[data-fph="workload"] .workload-overview-matrix { box-sizing: border-box; padding: 18px 16px; border: 1px solid var(--border); border-radius: 22px; background: var(--white); box-shadow: none; }
+            html.fph-on[data-fph="workload"] .workload-calendar-heading h2 { font-size: 20px; letter-spacing: -0.5px; text-align: left; }
+            html.fph-on[data-fph="workload"] .workload-toolbar button,
+            html.fph-on[data-fph="workload"] .workload-toolbar .dropdown-trigger { min-height: 44px; min-width: 44px; }
+            html.fph-on[data-fph="workload"] .workload-toolbar input { min-height: 44px; font-size: 16px; box-sizing: border-box; }
+            html.fph-on[data-fph="workload"] .wl-client-search-clear { min-width: 44px; min-height: 44px; }
+            html.fph-on[data-fph="workload"] .workload-weekdays { display: none; }
+            html.fph-on[data-fph="workload"] .workload-grid-wrap { overflow: visible; }
+            html.fph-on[data-fph="workload"] .workload-grid { display: flex; flex-direction: column; gap: 10px; min-width: 0; width: 100%; }
+            html.fph-on[data-fph="workload"] .workload-day { box-sizing: border-box; min-height: 52px; height: auto; padding: 12px 14px; border-radius: 14px; }
+            html.fph-on[data-fph="workload"] .workload-day::before { content: attr(data-fph-day); display: block; margin-bottom: 2px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+            html.fph-on[data-fph="workload"] .workload-day:not(:has(*:not(.workload-day-num))) { min-height: 44px; }
+            html.fph-on[data-fph="workload"] .workload-day-num { display: none; }
+            html.fph-on[data-fph="workload"] .workload-day.out-of-month { display: none; }
+            html.fph-on[data-fph="workload"] a.workload-chip,
+            html.fph-on[data-fph="workload"] a.wl-now-client-chip,
+            html.fph-on[data-fph="workload"] a.wl-loose-open,
+            html.fph-on[data-fph="workload"] .workload-overview-status-total,
+            html.fph-on[data-fph="workload"] .workload-chip button,
+            html.fph-on[data-fph="workload"] .wl-loose-client-head button { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; box-sizing: border-box; }
+            html.fph-on[data-fph="workload"] .workload-day-card-total,
+            html.fph-on[data-fph="workload"] summary.workload-day-card-chip,
+            html.fph-on[data-fph="workload"] .wl-day-status-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; box-sizing: border-box; }
+            html.fph-on[data-fph="workload"] .workload-overview-status-total { justify-content: center; }
+            html.fph-on[data-fph="workload"] .workload-overview-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+            html.fph-on[data-fph="workload"] .workload-overview-editor,
+            html.fph-on[data-fph="workload"] .workload-overview-capacity { min-height: 44px; }
+
+            /* ---- Linear (SyncLinear) ---- */
+            html.fph-on[data-fph="production"] .main { padding: 0; }
+            html.fph-on[data-fph="production"] .prod-topbar { flex-wrap: nowrap; gap: 4px; min-height: 52px; padding: 4px 8px 4px 12px; }
+            html.fph-on[data-fph="production"] .prod-crumb { min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+            html.fph-on[data-fph="production"] .prod-crumb::-webkit-scrollbar { display: none; }
+            html.fph-on[data-fph="production"] .prod-crumb-link { min-height: 44px; padding: 0 6px; }
+            html.fph-on[data-fph="production"] .prod-freshness { flex: none; gap: 0; }
+            html.fph-on[data-fph="production"] .prod-freshness-age { display: none; }
+            html.fph-on[data-fph="production"] .prod-icon-btn { width: 44px; height: 44px; min-width: 44px; }
+            html.fph-on[data-fph="production"] .prod-subbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 4px; height: auto; padding: 8px 8px 8px 12px; }
+            html.fph-on[data-fph="production"] .prod-tabs { grid-column: 1 / -1; display: flex; gap: 3px; padding: 4px; border-radius: 15px; background: var(--border-light); }
+            html.fph-on[data-fph="production"] .prod-tab { flex: 1; justify-content: center; min-height: 44px; padding: 0 6px; border-radius: 11px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--text-secondary); }
+            html.fph-on[data-fph="production"] .prod-tab.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+            html.fph-on[data-fph="production"] .prod-filter-pills { min-width: 0; }
+            html.fph-on[data-fph="production"] .prod-filter-pill { min-height: 44px; max-width: 100%; padding: 0 12px; font-size: 13px; }
+            html.fph-on[data-fph="production"] .prod-subbar > .prod-spacer { display: none; }
+            html.fph-on[data-fph="production"] .prod-group { height: 48px; padding: 0 14px; }
+            html.fph-on[data-fph="production"] .prod-group-title,
+            html.fph-on[data-fph="production"] .prod-group-count { font-size: 14px; }
+            html.fph-on[data-fph="production"] .prod-row { box-sizing: border-box; height: auto; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 12px 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--white); contain-intrinsic-size: 0 96px; }
+            html.fph-on[data-fph="production"] .prod-check { display: none; }
+            html.fph-on[data-fph="production"] .prod-status { order: 0; }
+            html.fph-on[data-fph="production"] .prod-title { order: 1; flex: 1 1 calc(100% - 32px); min-width: 0; white-space: normal; font-size: 15px; font-weight: 600; line-height: 1.4; }
+            html.fph-on[data-fph="production"] .prod-title b { overflow: visible; white-space: normal; overflow-wrap: anywhere; font-weight: 650; }
+            html.fph-on[data-fph="production"] .prod-id { order: 2; width: auto; margin-left: 24px; font-size: 12px; }
+            html.fph-on[data-fph="production"] .prod-chip { order: 3; }
+            html.fph-on[data-fph="production"] .prod-chip.optional { display: inline-flex; }
+            html.fph-on[data-fph="production"] .prod-spacer { order: 4; flex: 1 1 0; }
+            html.fph-on[data-fph="production"] .prod-due { order: 5; min-height: 44px; min-width: 44px; }
+            html.fph-on[data-fph="production"] .prod-assign-hot { order: 6; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+            html.fph-on[data-fph="production"] .prod-created { display: none; }
+            html.fph-on[data-fph="production"] .prod-pop { max-width: calc(100vw - 16px); }
+            html.fph-on[data-fph="production"] .prod-mi { min-height: 44px; box-sizing: border-box; }
+            html.fph-on[data-fph="production"] .prod-pop input { font-size: 16px; min-height: 44px; box-sizing: border-box; }
+            html.fph-on[data-fph="production"] .prod-pop button { min-height: 44px; min-width: 44px; box-sizing: border-box; }
+            html.fph-on[data-fph="production"] .prod-detail button,
+            html.fph-on[data-fph="production"] .prod-detail-inner button { min-height: 44px; min-width: 44px; box-sizing: border-box; }
+            html.fph-on[data-fph="production"] .prod-detail-title { min-height: 44px; }
+            html.fph-on[data-fph="production"] .prod-composer-input,
+            html.fph-on[data-fph="production"] .prod-detail textarea,
+            html.fph-on[data-fph="production"] .prod-detail input { font-size: 16px; }
+        }
+        /* FINCH-PHONE:END */
     </style>
 </head>
 <body>
@@ -9755,8 +10017,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-1b979e0ec4cf.js";
-        var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d7487b20aa5d.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-afea7b08f16d.js";
+        var PARTS = ["js/sv-01-core-e60e9606ed73.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-5bf4243411f1.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d7487b20aa5d.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-29255d239193.js"};
         var FORCE = null;
         var CLIENTS = true;

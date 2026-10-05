@@ -30473,10 +30473,20 @@ Still different from the mock-up, on purpose:
 Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (1,725 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check/`. Approve was clicked for real on the test client through this layout and read back after a reload. Request change was not re-tested for real in this pass; see the pull request comment.
 Way back: revert the commit.
 
+## 340. [2026-10-04, BUILT, NOT DEPLOYED] Client Calendar on phones: Month and Week fold runs of empty days (session Polish)
 
-## 339. [2026-10-05, BUILT, NOT DEPLOYED] Staff phone layout: TikTok and Instagram Upload, Analytics, Workload, SyncLinear (session Finch)
+On the same branch as entries 336 and 338. Phones and client links only: the markup is added only when `_calPhoneClient()` is true (a client link at phone width), and every style sits in the `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`. Desktop markup and styles are not touched.
 
-Draft pull request on top of the client Calendar branch (entry 336 and 338). Phones and staff only. The four screens drop the logo header and nav row on a phone and show a title with Tabs and More beside it, then follow layout A (Expanded) of the approved mock-up. Nothing is created at desktop widths: the shell is built by `src/index/099-phone-staff-shell.js.part` only while the viewport is 767 px or narrower, and every new rule sits in one `FINCH-PHONE` block under `@media (max-width: 767px)` and `html.fph-on` (guard: `test/finch-phone-css-scope.js`).
+Month and Week used one line per empty day, so a quiet week was a long column of "Nothing scheduled". Each run of consecutive empty days is now one slim line, for example "Thu 1 to Fri 2 · Nothing scheduled" (one day: "Sat 3 · Nothing scheduled"). Today and any day with a post stay separate rows. In Month only the days of the shown month count; in Week only the seven days of the shown week.
+
+Every folded day keeps its own element and date, so dragging a post onto a day still works where a client may reschedule: while a post is being dragged the folded days unfold, and fold again when it is dropped.
+
+Not tested: the unfold during a real drag on a touch phone; it is covered by the markup test only (each folded day keeps its date), not by a real drag.
+
+Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 1,743 assertions) checks that no folded day shows, that every run line names its days, and that folded days keep their date. Before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check-runs/`.
+## 351. [2026-10-05, BUILT, NOT DEPLOYED] Staff phone layout: TikTok and Instagram Upload, Analytics, Workload, SyncLinear (session Finch)
+
+Draft pull request on top of the client Calendar branch (entries 336, 338 and 340). Numbered 351 because 342 to 350 are already claimed on other open pull requests. Phones and staff only. The four screens drop the logo header and nav row on a phone and show a title with Tabs and More beside it, then follow layout A (Expanded) of the approved mock-up. Nothing is created at desktop widths: the shell is built by `src/index/099-phone-staff-shell.js.part` only while the viewport is 767 px or narrower, and every new rule sits in one `FINCH-PHONE` block under `@media (max-width: 767px)` and `html.fph-on` (guard: `test/finch-phone-css-scope.js`).
 
 What a phone gets:
 - Tabs (every existing tab, same links) and More (change client, quick jump, dark or light appearance, and the existing Time Off, Onboarding, Client Credentials and sign-out entries; on SyncLinear also Search and the sidebar views My issues, Projects and each team's Issues and Projects, which the hidden sidebar used to hold). All of them click the existing control; none is new behaviour.

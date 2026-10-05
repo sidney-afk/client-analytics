@@ -4292,14 +4292,26 @@
             html.boot-client .cal-tab-view .cal-client-status { flex-direction: row; flex-wrap: wrap; gap: 6px; }
             html.boot-client .cal-tab-view .cal-client-status .cal-review-sub-pill { width: auto; padding: 6px 10px; border-color: var(--border); border-radius: 9px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text-primary) !important; }
             html.boot-client .cal-tab-view .cal-cap-toggle { border: 0; background: transparent; color: var(--text-secondary); }
-            /* Month and Week: a day with nothing on it is not a card. When a client can schedule, empty days stay as slim one-line rows (they are where a post is dropped); otherwise Month already hides them. */
-            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)) { flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
-            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)) .cal-month-cellhead { position: static; flex-direction: row; align-items: baseline; gap: 6px; width: 64px; }
-            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)) .cal-month-num { width: auto; height: auto; font-size: 15px; }
-            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(:has(.cal-month-pill)).today .cal-month-num { padding: 2px 8px; border-radius: 9px; }
+            /* Month and Week: runs of empty days are one slim line. The days stay in the page (a drag still needs each one) and unfold while a post is being dragged. */
+            html.boot-client .cal-tab-view .pocket-run-rest { display: none !important; }
+            html.boot-client .cal-tab-view .cal-month-cell.pocket-run-head,
+            html.boot-client .cal-tab-view .cal-week-col.pocket-run-head { display: flex; flex-direction: row; align-items: center; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
+            html.boot-client .cal-tab-view .cal-month-cell.pocket-run-head { min-height: 44px !important; padding: 0 14px !important; border-top: 0 !important; justify-content: flex-start !important; }
+            html.boot-client .cal-tab-view .pocket-run-label { text-align: left; margin: 0 auto 0 0; }
+            html.boot-client .cal-tab-view .pocket-run-head > :not(.pocket-run-label) { display: none; }
+            html.boot-client .cal-tab-view .pocket-run-head::after { content: none !important; }
+            html.boot-client .cal-tab-view .pocket-run-label { color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-card-dragging) .pocket-run-rest { display: flex !important; }
+            html.boot-client .cal-tab-view .cal-week-wrap:has(.cal-card-dragging) .pocket-run-rest { display: flex !important; }
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-card-dragging) .pocket-run-label { display: none; }
+            html.boot-client .cal-tab-view .cal-week-wrap:has(.cal-card-dragging) .pocket-run-label { display: none; }
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label) { display: revert; }
+            html.boot-client .cal-tab-view .cal-week-wrap:has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label) { display: revert; }
+            html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(.pocket-run-head):not(.pocket-run-rest):not(:has(.cal-month-pill)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
+            html.boot-client .cal-tab-view .cal-month-cell.today:not(:has(.cal-month-pill)) .cal-month-cellhead { position: static; flex-direction: row; width: 64px; }
             html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); }
             html.boot-client .cal-tab-view .cal-week-grid { gap: 10px; }
-            html.boot-client .cal-tab-view .cal-week-col:nth-child(n+8):nth-child(-n+14):not(:has(.cal-week-card)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
+            html.boot-client .cal-tab-view .cal-week-col:nth-child(n+8):nth-child(-n+14):not(.pocket-run-head):not(.pocket-run-rest):not(:has(.cal-week-card)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
             html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { padding: 2px 8px; border-radius: 9px; background: var(--text-primary); color: var(--white); }
         }
         /* CLIENT-PHONE:END */

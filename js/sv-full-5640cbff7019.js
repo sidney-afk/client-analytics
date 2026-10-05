@@ -623,9 +623,7 @@
     }
     function n(v){const x=Number(v);return isNaN(x)?0:x;}
     function fmt(v){const x=n(v);if(!x)return null;if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
-    /* On a phone (staff, not a client link) dates read "Sat, 3 Oct 2026". Desktop keeps day/month/year. */
-    function _fphLongDate(p){const t=new Date(Date.UTC(Number(p[0]),Number(p[1])-1,Number(p[2])));if(isNaN(t.getTime()))return null;return t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).replace(/^(\w+) /,'$1, ');}
-    function fmtDate(d){if(!d)return'';const p=d.split('-');if(p.length===3&&(window.matchMedia('(max-width: 767px)').matches&&!document.documentElement.classList.contains('boot-client'))){const l=_fphLongDate(p);if(l)return l;}return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d;}
+    function fmtDate(d){if(!d)return'';const p=d.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d;}
     function fmtCompact(v){const x=n(v);if(v===''||v===undefined||v===null)return'—';if(!x&&v!=='0'&&v!==0)return'—';if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
     const ANALYTICS_RECEIPT_SCHEMA='syncview.analytics.receipt.v1';
     const ANALYTICS_RECEIPT_STATES=new Set(['success','genuinely_empty','provider_failed','not_configured']);
@@ -2896,8 +2894,7 @@
         if (m) return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) };
         return { r: 0, g: 0, b: 0 };
     }
-    // On a phone (staff, not a client link) the date axis shows short labels ("3 Oct") that stay level and never repeat.
-    const _xAxis=()=>{if((window.matchMedia('(max-width: 767px)').matches&&!document.documentElement.classList.contains('boot-client'))){return{grid:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},maxTicksLimit:5,maxRotation:0,minRotation:0,autoSkip:true,padding:6,callback(v){const l=String(this.getLabelForValue(v)||'');return l.replace(/^\w+, /,'').replace(/ \d{4}$/,'');}}};}return{grid:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},maxTicksLimit:8,padding:4}};};
+    const _xAxis=()=>({grid:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},maxTicksLimit:8,padding:4}});
     const _mkYAxis=(show)=>({type:'linear',display:show,position:'left',grid:show?{color:_svCss('--chart-grid'),drawTicks:false}:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},padding:10,callback:v=>fmt(v)||v}});
     function _mkGrad(c2d,h,cssVar){const rgb=_svRgb(cssVar);const gr=c2d.createLinearGradient(0,0,0,h);gr.addColorStop(0,`rgba(${rgb.r},${rgb.g},${rgb.b},0.2)`);gr.addColorStop(1,`rgba(${rgb.r},${rgb.g},${rgb.b},0)`);return gr;}
     const _platCfg={ig:{label:'Instagram',key:'ig_followers',css:'--ig'},tt:{label:'TikTok',key:'tiktok_followers',css:'--tt'},yt:{label:'YouTube',key:'yt_subscribers',css:'--yt'}};
@@ -16580,185 +16577,6 @@
         return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
     }
 
-    /* PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload,
-       Analytics, Workload, SyncLinear; approved mock-up, layout A).
-       On a phone these screens drop the logo header and nav row and show a
-       title with Tabs and More beside it. Nothing is built at desktop widths:
-       the bar is created only while the viewport is 767px or narrower, and
-       every action (nav links, client picker, theme, staff menu) is the
-       existing control, reached by clicking it. */
-    const FPH_SCREENS = {
-        'tiktok-upload': { title: () => (document.getElementById('tkPlatInstagram')?.classList.contains('on') ? 'Instagram Upload' : 'TikTok Upload'), client: true },
-        home: { title: () => 'Analytics', client: true },
-        workload: { title: () => 'Workload', client: false },
-        production: { title: () => 'Linear', client: false }
-    };
-    const FPH_MQ = window.matchMedia('(max-width: 767px)');
-    let _fphBar = null;
-    let _fphRaf = 0;
-    const FPH_ICON = {
-        chev: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>',
-        dots: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>',
-        close: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>',
-        go: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>',
-        check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 10.5 3.5 3.5 7.5-8"/></svg>'
-    };
-    function _fphScreen() {
-        if (_isClientLink || !document.body) return null;
-        if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return null;
-        return FPH_SCREENS[currentNav] || null;
-    }
-    function _fphEsc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-    function _fphBuild() {
-        if (_fphBar) return;
-        const main = document.getElementById('mainWrap');
-        if (!main || !main.parentNode) return;
-        const bar = document.createElement('div');
-        bar.className = 'fph-bar';
-        bar.id = 'fphBar';
-        bar.innerHTML = '<h1 class="fph-title" id="fphTitle"></h1><div class="fph-actions">'
-            + '<button type="button" class="fph-btn" id="fphTabsBtn" aria-haspopup="dialog" aria-controls="fphTabs">Tabs ' + FPH_ICON.chev + '</button>'
-            + '<button type="button" class="fph-btn fph-btn-icon" id="fphMoreBtn" aria-haspopup="dialog" aria-controls="fphMore" aria-label="More">' + FPH_ICON.dots + '</button></div>'
-            + '<dialog class="fph-menu" id="fphTabs" aria-labelledby="fphTabsTitle"></dialog>'
-            + '<dialog class="fph-menu" id="fphMore" aria-labelledby="fphMoreTitle"></dialog>';
-        main.parentNode.insertBefore(bar, main);
-        bar.querySelector('#fphTabsBtn').addEventListener('click', () => _fphOpen('fphTabs'));
-        bar.querySelector('#fphMoreBtn').addEventListener('click', () => _fphOpen('fphMore'));
-        bar.querySelectorAll('dialog').forEach(d => d.addEventListener('click', ev => {
-            if (ev.target === d || ev.target.closest('[data-fph-close]')) d.close();
-        }));
-        _fphBar = bar;
-    }
-    function _fphMenuHead(id, title) {
-        return '<div class="fph-menu-head"><h2 id="' + id + 'Title">' + _fphEsc(title) + '</h2><button type="button" data-fph-close aria-label="Close ' + _fphEsc(title.toLowerCase()) + '">' + FPH_ICON.close + '</button></div>';
-    }
-    function _fphVisible(el) { return !!el && el.style.display !== 'none' && !el.hidden; }
-    function _fphOpen(id) {
-        const dialog = document.getElementById(id);
-        if (!dialog || dialog.open) return;
-        if (id === 'fphTabs') {
-            const links = [...document.querySelectorAll('#headerNav > .header-nav-btn')].filter(a => _fphVisible(a));
-            dialog.innerHTML = _fphMenuHead('fphTabs', 'Tabs') + '<div class="fph-menu-body">' + links.map((a, i) => {
-                const label = (a.getAttribute('title') || a.textContent).replace(/\s+/g, ' ').trim().replace(/^SyncLinear$/, 'Linear');
-                return '<button type="button" class="fph-row' + (a.classList.contains('active') ? ' is-current' : '') + '" data-fph-nav="' + i + '"'
-                    + (a.classList.contains('active') ? ' aria-current="page"' : '') + '><span>' + _fphEsc(label) + '</span>'
-                    + (a.classList.contains('active') ? FPH_ICON.check : FPH_ICON.go) + '</button>';
-            }).join('') + '</div>';
-            dialog.querySelectorAll('[data-fph-nav]').forEach(b => b.addEventListener('click', () => {
-                const link = links[Number(b.getAttribute('data-fph-nav'))];
-                dialog.close();
-                if (link && !link.classList.contains('active')) link.click();
-            }));
-        } else {
-            const cfg = _fphScreen();
-            const rows = [];
-            const proxy = (label, sel, note) => {
-                const el = document.querySelector(sel);
-                if (!el || el.hidden || el.disabled) return;
-                rows.push({ label, note: note || '', sel });
-            };
-            if (currentNav === 'production') {
-                // The Linear sidebar is hidden on a phone: its views are reached from here.
-                const search = document.querySelector('.prod-search-btn');
-                if (search) rows.push({ label: 'Search', el: search });
-                document.querySelectorAll('.prod-side .prod-nav').forEach(nav => {
-                    const team = nav.querySelector('.prod-team-name');
-                    nav.querySelectorAll('.prod-nav-btn').forEach(btn => {
-                        const label = btn.textContent.replace(/\s+/g, ' ').trim();
-                        if (label) rows.push({ label: team ? team.textContent.trim() + ': ' + label : label, el: btn });
-                    });
-                });
-            }
-            if (cfg && cfg.client) proxy('Change client', '#svClientBadge');
-            proxy('Quick jump', '.sv-jump-touch');
-            proxy(document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light appearance' : 'Dark appearance', '#themeToggle');
-            proxy('Time Off', '#headerTimeOffMenuItem');
-            proxy('Onboarding', '#headerOnboardingMenuItem');
-            proxy('Client Credentials', '#headerCredentialsMenuItem');
-            const signOut = document.getElementById('staffIdentitySignOut');
-            if (signOut && !signOut.hidden) rows.push({ label: (document.getElementById('staffIdentityMenuLabel')?.textContent || 'Staff sign in').trim(), sel: '#staffIdentitySignOut' });
-            dialog.innerHTML = _fphMenuHead('fphMore', 'More') + '<div class="fph-menu-body">' + rows.map((r, i) =>
-                '<button type="button" class="fph-row" data-fph-act="' + i + '"><span>' + _fphEsc(r.label) + '</span>' + FPH_ICON.go + '</button>').join('') + '</div>';
-            dialog.querySelectorAll('[data-fph-act]').forEach(b => b.addEventListener('click', () => {
-                const r = rows[Number(b.getAttribute('data-fph-act'))];
-                dialog.close();
-                const el = r && (r.el || document.querySelector(r.sel));
-                // After this tap finishes bubbling, so an outside-click listener does not close what it opens.
-                if (el) setTimeout(() => el.click(), 0);
-            }));
-        }
-        dialog.showModal();
-    }
-    // Workload days: each day cell is labelled "Sat, 3 Oct 2026" so the week and month can read as a day-by-day list.
-    function _fphLabelDays() {
-        document.querySelectorAll('.workload-day[data-wl-day]:not([data-fph-day])').forEach(cell => {
-            const p = String(cell.getAttribute('data-wl-day')).split('-');
-            const t = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
-            if (isNaN(t.getTime())) return;
-            cell.setAttribute('data-fph-day', t.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).replace(/^(\w+) /, '$1, '));
-        });
-    }
-    /* Text arrows and crosses on these controls (never a post's own text) are drawn as icons on a phone. */
-    const FPH_GLYPHS = { '\u2190': 'left', '\u2192': 'right', '\u2191': 'up', '\u2193': 'down', '\u2197': 'upright', '\u2039': 'chev-left', '\u203A': 'chev-right', '\u25BE': 'chev-down', '\u21BB': 'refresh', '\u00D7': 'x' };
-    const FPH_GLYPH_RE = new RegExp('([' + Object.keys(FPH_GLYPHS).join('') + '])');
-    const FPH_GLYPH_SCOPE = '.tk-photo-btn, .tk-q-x, .back-btn, .m-delta, .platform-handle-link, .workload-overview-heading span, .workload-toolbar button, .dd-arrow, .wl-refresh-icon, .wl-client-search-clear, .overview-table thead th span';
-    function _fphIconify() {
-        document.querySelectorAll(FPH_GLYPH_SCOPE).forEach(el => {
-            [...el.childNodes].forEach(node => {
-                if (node.nodeType !== 3 || !FPH_GLYPH_RE.test(node.nodeValue)) return;
-                const frag = document.createDocumentFragment();
-                node.nodeValue.split(FPH_GLYPH_RE).forEach(part => {
-                    if (FPH_GLYPHS[part]) {
-                        const icon = document.createElement('span');
-                        icon.className = 'fph-gl fph-gl-' + FPH_GLYPHS[part];
-                        icon.setAttribute('aria-hidden', 'true');
-                        frag.appendChild(icon);
-                    } else if (part) frag.appendChild(document.createTextNode(part));
-                });
-                node.replaceWith(frag);
-            });
-        });
-    }
-    function _fphSync() {
-        _fphRaf = 0;
-        const cfg = _fphScreen();
-        const on = !!cfg && FPH_MQ.matches;
-        const root = document.documentElement;
-        if (on) {
-            _fphBuild();
-            const title = document.getElementById('fphTitle');
-            const text = cfg.title();
-            if (title && title.textContent !== text) title.textContent = text;
-            // The warning glyph is a text character; on a phone the icon is
-            // drawn by the layout instead, so the character is dropped.
-            document.querySelectorAll('.tk-warn-chip').forEach(chip => {
-                const t = chip.firstChild;
-                if (t && t.nodeType === 3 && /^\u26A0\uFE0F?\s*/.test(t.nodeValue)) t.nodeValue = t.nodeValue.replace(/^\u26A0\uFE0F?\s*/, '');
-            });
-            if (currentNav === 'workload') _fphLabelDays();
-            _fphIconify();
-            root.classList.add('fph-on');
-            root.setAttribute('data-fph', currentNav);
-        } else {
-            root.classList.remove('fph-on');
-            root.removeAttribute('data-fph');
-            if (_fphBar) { _fphBar.querySelectorAll('dialog[open]').forEach(d => d.close()); }
-        }
-    }
-    function _fphQueue() { if (!_fphRaf) _fphRaf = requestAnimationFrame(_fphSync); }
-    function _fphInit() {
-        const nav = document.getElementById('headerNav');
-        const main = document.getElementById('mainWrap');
-        if (!nav || !main) return;
-        const watch = new MutationObserver(_fphQueue);
-        watch.observe(nav, { attributes: true, attributeFilter: ['class'], subtree: true });
-        // The Upload page swaps its platform inside the same route.
-        watch.observe(main, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
-        if (FPH_MQ.addEventListener) FPH_MQ.addEventListener('change', _fphQueue);
-        _fphQueue();
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _fphInit);
-    else _fphInit();
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
@@ -41895,6 +41713,28 @@
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
         return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
     }
+    /* Phone client links: runs of consecutive empty days become one slim line
+       ("Thu 1 to Fri 2 · Nothing scheduled"). Every day keeps its own element and
+       data-iso, so a drag still has each day to land on; the first day of a run
+       carries the label and the rest are folded away until a drag starts.
+       isos: the days in order; isEmpty(iso): true for a day that may fold. */
+    function _calPhoneEmptyRuns(isos, isEmpty) {
+        const runs = new Map();
+        if (!_calPhoneClient()) return runs;
+        const dayLabel = iso => _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + parseInt(iso.slice(8, 10), 10);
+        let run = [];
+        const flush = () => {
+            if (!run.length) return;
+            const label = (run.length === 1 ? dayLabel(run[0]) : dayLabel(run[0]) + ' to ' + dayLabel(run[run.length - 1])) + ' · Nothing scheduled';
+            run.forEach((iso, i) => runs.set(iso, i === 0 ? { head: true, label } : { head: false }));
+            run = [];
+        };
+        isos.forEach(iso => { if (isEmpty(iso)) run.push(iso); else flush(); });
+        flush();
+        return runs;
+    }
+    function _calPhoneRunClass(run) { return run ? (run.head ? ' pocket-run-head' : ' pocket-run-rest') : ''; }
+    function _calPhoneRunLabel(run) { return run && run.head ? `<span class="pocket-run-label">${_calEsc(run.label)}</span>` : ''; }
     function _calMonthPillHtml(p) {
         const info = _calDeriveThumbInfo(p);
         const thumb = info.url
@@ -41945,6 +41785,7 @@
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
+        const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
         return `<div class="cal-month-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calMonthShift(-1)" title="Previous month">‹</button>
@@ -41960,7 +41801,9 @@
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = monthRuns.get(iso);
+                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-month-cellhead">
                             <span class="cal-month-dow">${dow}</span>
                             <span class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</span>
@@ -42009,6 +41852,7 @@
         const endDate = _calParseIso(_calAddDaysISO(start, 6));
         const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         const todayISO = _calIsoOf(new Date());
+        const weekRuns = _calPhoneEmptyRuns(days.slice(_CAL_WEEK_BUFFER, _CAL_WEEK_BUFFER + 7), iso => iso !== todayISO && !(byDate.get(iso) || []).length);
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
@@ -42026,7 +41870,9 @@
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-week-col${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = weekRuns.get(iso);
+                    return `<div class="cal-week-col${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-week-head">
                             <div class="cal-week-day">${dow}</div>
                             <div class="cal-week-num">${parseInt(iso.slice(8,10), 10)}</div>
@@ -85275,4 +85121,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-db89d8b76207.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-5640cbff7019.js");

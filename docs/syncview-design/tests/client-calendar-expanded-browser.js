@@ -139,6 +139,13 @@ async function run(browser, origin, width) {
     await shot(page, view + '-' + width);
     if (!before) await measure(page, view + '-' + width);
     if (!before && view !== 'organizer') {
+      // Runs of empty days fold into one labelled line; the folded days stay in the page for drag and drop.
+      const dayRows = await page.evaluate(v => [...document.querySelectorAll(v === 'month' ? '.cal-month-cell[data-iso]' : '.cal-week-col[data-iso]')]
+        .filter(e => !e.classList.contains('out') && e.checkVisibility({ checkVisibilityCSS: true }))
+        .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', posts: e.querySelectorAll('.cal-month-pill, .cal-week-card').length, run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
+      ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
+      ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
+      ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');
       const cards = page.locator(view === 'month' ? '.cal-month-pill:visible' : '.cal-week-card:visible');
       if (view === 'week' && !await cards.count()) await page.locator('.cal-nav-btn').last().click();
       await cards.first().click();

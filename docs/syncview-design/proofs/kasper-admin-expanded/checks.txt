@@ -95,3 +95,31 @@ Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read vi
 Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
 
 Earlier overlapping dialog runs were inconclusive Chrome protocol failures; admin checks were rerun sequentially. A missing local acorn dependency path was corrected before the successful module check. Neither is claimed as a passing run.
+
+[npm run -s check:index]
+check-index: assembled bytes — sha256=2ad8b285c816eb962ba9f2ae20327405f8f98311fe96a922c25126f20071c459 bytes=973501
+check-index: working-tree index.html — sha256=2ad8b285c816eb962ba9f2ae20327405f8f98311fe96a922c25126f20071c459 bytes=973501
+check-index: committed index.html (HEAD) — sha256=2ad8b285c816eb962ba9f2ae20327405f8f98311fe96a922c25126f20071c459 bytes=973501
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+[node scripts/check-modules.js]
+window exports: 537 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2551 KB, 5046 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+[node scripts/repo-identity-exposure-check.js --diff=origin/main]
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+[qa/client-phone/desktop-parity.js: all four widths]
+Desktop width 1440: exit 0
+Desktop width 1024: exit 0
+Desktop width 1920: exit 0
+Desktop width 1280: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).

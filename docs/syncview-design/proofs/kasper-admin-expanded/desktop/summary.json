@@ -1,0 +1,38 @@
+{
+  "baseline": "6273485e25dabe3aaca61459500c6707d91234e3",
+  "productCommit": "d9d84898",
+  "browser": "Existing visible owner Chrome; retained sign-in",
+  "standard": {
+    "command": "qa/client-phone/desktop-parity.js",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920
+    ],
+    "pairs": 68,
+    "pngIdentical": 68,
+    "computedStylesIdentical": 68,
+    "receipt": "standard-parity.json",
+    "rawLiveShotsPublished": false
+  },
+  "populated": {
+    "states": 18,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920
+    ],
+    "pairs": 144,
+    "pngIdentical": 144,
+    "computedStylesIdentical": 144,
+    "receipt": "populated-parity.json",
+    "rasterRetryReceipt": "raster-retries.json"
+  },
+  "liveWrites": 0
+}

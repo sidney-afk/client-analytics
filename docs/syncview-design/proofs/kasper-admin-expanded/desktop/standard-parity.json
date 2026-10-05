@@ -1,0 +1,546 @@
+[
+  {
+    "page": "staff-navToday",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "f2430429b6a1",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navCalendar",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "c24bc837d3ad",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navSxr",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "0090c094baf7",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTemplates",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "08dd5da79092",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navFilmingPlans",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "2c13f229b28e",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTiktokUpload",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "d0b2181d39d3",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navHome",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "f2430429b6a1",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navWorkload",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "24d8f57c6351",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navProd",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "68aecaafb5d5",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navLinear",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "65e99d69feb2",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navKasper",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "68b6f1cb39d9",
+    "attempts": 1
+  },
+  {
+    "page": "client-analytics",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "cc9c3739ec7e",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "242f1f3e4b3d",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-month",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "ffea61c5e3b1",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-week",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "2402021df564",
+    "attempts": 1
+  },
+  {
+    "page": "client-brief",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "242f1f3e4b3d",
+    "attempts": 1
+  },
+  {
+    "page": "client-sample-reviews",
+    "width": 1024,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "e05ce30d75e1",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navToday",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "456cb4cc0a25",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navCalendar",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "41db5959cf56",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navSxr",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "77ab3e402be0",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTemplates",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "a802498da2ae",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navFilmingPlans",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "89301be37a63",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTiktokUpload",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "a9e3f35d2d1b",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navHome",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "456cb4cc0a25",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navWorkload",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "8e1b8a149f14",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navProd",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "9d58adb9cf69",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navLinear",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "998032b37f33",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navKasper",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "da1bb06ecd26",
+    "attempts": 2
+  },
+  {
+    "page": "client-analytics",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "3b7fbe3b24ed",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "9352c5de1444",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-month",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "e4b26efb3469",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-week",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "5eda250ec32a",
+    "attempts": 1
+  },
+  {
+    "page": "client-brief",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "9352c5de1444",
+    "attempts": 1
+  },
+  {
+    "page": "client-sample-reviews",
+    "width": 1280,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "192ebb3a4b3c",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navToday",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "4512f2058946",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navCalendar",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "2740b18921a4",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navSxr",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "37e81180f578",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTemplates",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "2076657a5ad8",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navFilmingPlans",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "aebfdd6e67fb",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTiktokUpload",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "c7ad056f886a",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navHome",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "4512f2058946",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navWorkload",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "200aeda246a1",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navProd",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "ba027fc42813",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navLinear",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "2a3a2b965395",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navKasper",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "b6e1ac3b3c71",
+    "attempts": 1
+  },
+  {
+    "page": "client-analytics",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "ee53ba8831df",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "eb9c15c3143e",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-month",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "c7a84d5c1ed5",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-week",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "49b542adfe49",
+    "attempts": 1
+  },
+  {
+    "page": "client-brief",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "eb9c15c3143e",
+    "attempts": 1
+  },
+  {
+    "page": "client-sample-reviews",
+    "width": 1440,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "7946014bb0e8",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navToday",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "a37a63080053",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navCalendar",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "bcdb6892e876",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navSxr",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "1ca68ce4949d",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTemplates",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "35a20f2d3f0a",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navFilmingPlans",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "86ed4bdd89e3",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navTiktokUpload",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "21b612d2e7ca",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navHome",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "a37a63080053",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navWorkload",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "d9f8ac663468",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navProd",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "b72c638ea00d",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navLinear",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "024d2565235f",
+    "attempts": 1
+  },
+  {
+    "page": "staff-navKasper",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "6fe6d3569cd9",
+    "attempts": 2
+  },
+  {
+    "page": "client-analytics",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "cfaaa2af6ad3",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "1ac4c1dfd592",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-month",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "06a57a97c8e8",
+    "attempts": 1
+  },
+  {
+    "page": "client-calendar-week",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "65557834dad0",
+    "attempts": 1
+  },
+  {
+    "page": "client-brief",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "1ac4c1dfd592",
+    "attempts": 1
+  },
+  {
+    "page": "client-sample-reviews",
+    "width": 1920,
+    "pixels": "identical",
+    "styles": "identical",
+    "sha": "8efa8351f7c9",
+    "attempts": 1
+  }
+]

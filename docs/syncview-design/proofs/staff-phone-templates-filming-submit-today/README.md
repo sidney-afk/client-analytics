@@ -67,9 +67,10 @@ client name on screen. Result: 270 renders, 0 problems.
   reachable, so all are in More.
 * **The client picker is a bottom sheet opened from More.** The old header had a
   client chip on all four screens; the mock-up has none. It is the same picker.
-* **Today rows show the full title and the buttons under it.** The mock-up cuts
-  the title to "Example p..." so two buttons fit beside it. A cut title hides
-  which post it is, so the buttons sit on their own line.
+* **Today rows keep the full title and show the actions as small icon buttons on the card's right** (SyncLinear, and Open card where there is a calendar card), with the Urgent tag on its own line under the client name. The mock-up cuts the title to "Example p..." so labelled buttons fit beside it; a cut title hides which post it is. The Walk-through and Deck cards keep labelled buttons.
+* **Submit opens with one video block** and an Add Video button, as asked in review (the mock-up shows the first block only too). Wider screens still open with twelve.
+* **Templates with no pinned clients** shows a short line and a normal Pin client button. The Analytics tab (another session) has the same faded button; this one is the pattern to match.
+* **Filming Plans' count** ("3 / 3", or a status word such as "Saved") sits inline to the right of the search box.
 * **Today's meter has as many segments as there are items.** The mock-up's 8 are
   example data.
 * **Done rings keep a drawn check mark in a quiet grey circle**, like the

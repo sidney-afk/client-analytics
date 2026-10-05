@@ -24,9 +24,10 @@ function metricsCsv(days) {
         tiktok_followers: 5200 + ci * 1900 + t * (22 + ci * 5) + ((t * 5) % 13) * 6,
         yt_subscribers: 800 + ci * 240 + t * 2,
         yt_total_views: 90000 + ci * 21000 + t * 310,
-        ig_views_this_month: 40000 + ci * 9000 + (t % 30) * 1900,
+        /* A rolling 30 day total that keeps growing; one client repeats the same total so the "no 30 day total yet" dash is visible. */
+        ig_views_this_month: ci === 2 ? 52000 : 40000 + ci * 9000 + t * 850,
         ig_views_gained_today: 900 + ((t * 37 + ci * 11) % 17) * 130,
-        tiktok_plays_this_month: 62000 + ci * 12000 + (t % 30) * 2600,
+        tiktok_plays_this_month: 62000 + ci * 12000 + t * 1100,
         tiktok_plays_gained_today: 1500 + ((t * 41 + ci * 7) % 19) * 210,
         ig_avg_views: 2100 + ci * 300, tiktok_avg_plays: 3300 + ci * 410,
       });

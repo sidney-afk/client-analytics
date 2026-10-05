@@ -83,6 +83,7 @@ const SCENARIOS = [
   IG('instagram-frame-cover', async p => { await p.click('#igFormCol >> text=Frame from video'); await wait(p); }),
   IG('instagram-queue', null, { igRows: F.uploadRows().map(r => Object.assign({}, r)) }),
   { id: 'analytics-overview', open: base('#analytics'), settle: 3500 },
+  { id: 'analytics-detail-dash', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.overview-table tbody >> text=Client C'); await wait(p, 2500); } },
   { id: 'analytics-grid', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.view-toggle-btn:nth-child(2)'); await wait(p, 600); } },
   { id: 'analytics-detail', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.overview-table tbody >> text=Client A'); await wait(p, 2500); } },
   { id: 'analytics-loading', open: base('#analytics', { csv: sheets({ 'sheet=Metrics': { hold: true }, 'sheet=Clients%20Info': { hold: true } }) }), settle: 2500 },

@@ -139,6 +139,60 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             });
         });
     }
+    // Workload: the refresh button moves into the title row (same button, same click handler).
+    function _fphWorkloadChrome() {
+        const heading = document.querySelector('.workload-calendar-heading');
+        const refresh = document.querySelector('.workload-toolbar [data-wl-nav="refresh"]');
+        if (!heading || !refresh) return;
+        heading.querySelectorAll('.fph-wl-refresh').forEach(old => old.remove());
+        refresh.classList.add('fph-wl-refresh');
+        heading.insertBefore(refresh, heading.querySelector('.workload-weekend-notice'));
+    }
+    /* Analytics: every client gets its rank (the page numbers only the first three), and a 30 day views total of 0 beside a
+       positive gain is shown as a dash with its reason: the total is today's count minus the count from 30 days ago, so a
+       0 next to a gain cannot be a real total. */
+    const FPH_VIEWS_REASON = 'No 30 day total yet: today\u2019s count matches the count from 30 days ago, so the total cannot be told apart from missing data.';
+    function _fphAnalyticsRanks() {
+        document.querySelectorAll('.cards-grid .client-card').forEach((card, i) => {
+            const head = card.querySelector('.card-head > div');
+            if (!head || head.querySelector('.card-rank')) return;
+            const badge = document.createElement('span');
+            badge.className = 'card-rank card-rank-n';
+            badge.textContent = String(i + 1);
+            head.insertBefore(badge, head.firstChild);
+        });
+        document.querySelectorAll('.overview-table tbody tr').forEach((row, i) => {
+            const inner = row.querySelector('td .cell-inner');
+            if (!inner || inner.querySelector('.top-rank-badge')) return;
+            const badge = document.createElement('span');
+            badge.className = 'top-rank-badge fph-rank';
+            badge.textContent = String(i + 1);
+            inner.insertBefore(badge, inner.firstChild);
+        });
+    }
+    function _fphViewsDash() {
+        const dash = (valEl, label) => {
+            if (!valEl || valEl.getAttribute('data-fph-views')) return;
+            valEl.setAttribute('data-fph-views', '1');
+            valEl.textContent = '\u2014';
+            valEl.setAttribute('title', FPH_VIEWS_REASON);
+            valEl.setAttribute('aria-label', label + ': ' + FPH_VIEWS_REASON);
+        };
+        document.querySelectorAll('.card-metric').forEach(box => {
+            const label = box.querySelector('.card-metric-label');
+            const val = box.querySelector('.card-metric-val');
+            const gain = box.querySelector('.card-metric-gain.up');
+            if (label && val && gain && /views last 30d/i.test(label.textContent) && val.textContent.trim() === '0') dash(val, label.textContent.trim());
+        });
+        document.querySelectorAll('.metric-block').forEach(box => {
+            const label = box.querySelector('.m-label');
+            const val = box.querySelector('.m-value');
+            const gain = box.querySelector('.m-delta.up, .m-delta.gain, .m-delta.pos');
+            const delta = box.querySelector('.m-delta');
+            const positive = gain || (delta && /^\s*\u2191|\+/.test(delta.textContent));
+            if (label && val && positive && /views last 30d/i.test(label.textContent) && val.textContent.trim() === '0') dash(val, label.textContent.trim());
+        });
+    }
     function _fphSync() {
         _fphRaf = 0;
         const cfg = _fphScreen();
@@ -155,8 +209,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 const t = chip.firstChild;
                 if (t && t.nodeType === 3 && /^\u26A0\uFE0F?\s*/.test(t.nodeValue)) t.nodeValue = t.nodeValue.replace(/^\u26A0\uFE0F?\s*/, '');
             });
-            if (currentNav === 'workload') _fphLabelDays();
+            if (currentNav === 'workload') { _fphLabelDays(); _fphWorkloadChrome(); }
             _fphIconify();
+            if (currentNav === 'home') { _fphAnalyticsRanks(); _fphViewsDash(); }
             root.classList.add('fph-on');
             root.setAttribute('data-fph', currentNav);
         } else {

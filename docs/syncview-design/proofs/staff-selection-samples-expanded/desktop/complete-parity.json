@@ -44,8 +44,8 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "1b075cd76f16",
-    "attempts": 3
+    "sha": "d0b2181d39d3",
+    "attempts": 1
   },
   {
     "page": "staff-navHome",
@@ -84,8 +84,8 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "7e3a4cdca5cb",
-    "attempts": 1
+    "sha": "4e17552f9916",
+    "attempts": 2
   },
   {
     "page": "client-analytics",
@@ -109,7 +109,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "596905e91b93",
-    "attempts": 1
+    "attempts": 3
   },
   {
     "page": "client-calendar-week",
@@ -117,7 +117,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "6dda851b8267",
-    "attempts": 1
+    "attempts": 2
   },
   {
     "page": "client-brief",
@@ -180,8 +180,8 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "56d3de4fe393",
-    "attempts": 3
+    "sha": "a9e3f35d2d1b",
+    "attempts": 1
   },
   {
     "page": "staff-navHome",
@@ -220,7 +220,7 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "0b57232994d5",
+    "sha": "a9702bafce99",
     "attempts": 1
   },
   {
@@ -237,7 +237,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "9352c5de1444",
-    "attempts": 2
+    "attempts": 1
   },
   {
     "page": "client-calendar-month",
@@ -253,7 +253,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "e3b2acce7dfb",
-    "attempts": 1
+    "attempts": 3
   },
   {
     "page": "client-brief",
@@ -316,8 +316,8 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "4fce5873d0ad",
-    "attempts": 2
+    "sha": "c7ad056f886a",
+    "attempts": 1
   },
   {
     "page": "staff-navHome",
@@ -356,8 +356,8 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "cda4bffe6e2e",
-    "attempts": 2
+    "sha": "e5f535813da6",
+    "attempts": 1
   },
   {
     "page": "client-analytics",
@@ -389,7 +389,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "a6924ac957c9",
-    "attempts": 1
+    "attempts": 2
   },
   {
     "page": "client-brief",
@@ -452,8 +452,8 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "20cc9ca963f7",
-    "attempts": 2
+    "sha": "21b612d2e7ca",
+    "attempts": 1
   },
   {
     "page": "staff-navHome",
@@ -492,8 +492,8 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "3ca9d16c03bf",
-    "attempts": 2
+    "sha": "c9f509363680",
+    "attempts": 1
   },
   {
     "page": "client-analytics",
@@ -509,7 +509,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "1ac4c1dfd592",
-    "attempts": 3
+    "attempts": 1
   },
   {
     "page": "client-calendar-month",
@@ -525,7 +525,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "3890825420dc",
-    "attempts": 1
+    "attempts": 2
   },
   {
     "page": "client-brief",

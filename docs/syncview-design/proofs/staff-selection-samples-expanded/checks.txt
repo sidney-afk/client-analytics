@@ -83,3 +83,21 @@ Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read vi
 Resolved intermediate checks: the proof map first referenced a different folder name, then passed with the actual path. Selection screenshots changed to viewport capture so the fixed native actions appear at the bottom. The browser-controller interruption was recovered; native reads and final decisions were completed afterward.
 
 Production is the same PWG_PHASE_INPLACE_PLACE failure on unchanged main; no Production repair is claimed. Private trace paths are explicitly redacted; error text and dimensions are preserved.
+
+index — exit 0
+check-index: working-tree index.html — sha256=4f48d4f153fdd10e575254e72f525354ee43453fb454f2047fe3cfccd9b711cd bytes=1047247
+check-index: committed index.html (HEAD) — sha256=4f48d4f153fdd10e575254e72f525354ee43453fb454f2047fe3cfccd9b711cd bytes=1047247
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+identity — exit 0
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+desktop — exit 0
+Desktop width 1440: exit 0
+Desktop width 1280: exit 0
+Desktop width 1024: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).

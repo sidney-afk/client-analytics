@@ -4744,9 +4744,11 @@
 @media (max-width:767px) {
  html.pocket-admin-phone #kasperContent .kcard-dot { display:none; }
  html.pocket-admin-phone #kasperContent .kcard-done-btn:not(:disabled) { opacity:1; background:var(--text-primary); color:var(--bg); border-color:var(--text-primary); }
- html.pocket-admin-phone #kasperContent .kcard-actions { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px; align-items:stretch; }
+ html.pocket-admin-phone #kasperContent .kcard-done-btn:disabled { opacity:.55; background:var(--field-bg); color:var(--text-primary); border-color:var(--border); }
+ html.pocket-admin-phone #kasperContent .kcard-done-btn { white-space:nowrap; }
+ html.pocket-admin-phone #kasperContent .kcard-actions { display:grid; grid-template-columns:max-content minmax(0,1fr); align-items:stretch; }
  html.pocket-admin-phone #kasperContent .kcard-actions > .kcard-urgent-btn { grid-column:1 / -1; }
- html.pocket-admin-phone #kasperContent .kcard-actions > .pocket-admin-card-close { position:static; width:44px; height:auto; min-height:48px; opacity:1; padding:0; border:1px solid var(--border); border-radius:12px; }
+ html.pocket-admin-phone #kasperContent .kcard-actions > .pocket-admin-card-close { position:static; grid-column:1 / -1; justify-self:end; width:auto; height:auto; min-height:44px; opacity:1; padding:10px 12px; gap:6px; color:var(--text-secondary); font-family:inherit; font-size:13px; font-weight:600; line-height:1.5; border:1px solid var(--border); border-radius:12px; }
  html.pocket-admin-phone #kasperContent .kcard-actions > :is(.kcard-done-btn,.kcard-watch-btn) { justify-content:center; width:100%; padding:10px 8px; }
  html.pocket-admin-phone #kasperContent .kcard-actions .kcard-expand-btn { display:none; }
  html.pocket-admin-phone #kasperContent .kcard-line1 { display:grid; grid-template-columns:minmax(0,1fr) 44px; }
@@ -4757,9 +4759,15 @@
  html.pocket-admin-phone #kasperContent .cc-card-head > .cc-actions .cc-btn { flex:1; }
  html.pocket-admin-phone #kasperContent .cc-topbar .cc-actions .cc-btn { flex:1; min-height:48px; white-space:nowrap; padding-inline:9px; }
  html.pocket-admin-phone #kasperContent .pocket-admin-no-password { background:transparent; padding:0; font-size:13px; }
- html.pocket-admin-phone #kasperContent :is(.hp-filters,.hp-roles) { flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px; overscroll-behavior-x:contain; }
+ html.pocket-admin-phone #kasperContent :is(.hp-filters,.hp-roles) { flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px; overscroll-behavior-x:contain; scrollbar-width:none; -ms-overflow-style:none; }
+ html.pocket-admin-phone #kasperContent :is(.hp-filters,.hp-roles)::-webkit-scrollbar { display:none; }
  html.pocket-admin-phone #kasperContent .hp-filter { flex:none; white-space:nowrap; }
  html.pocket-admin-phone #kasperContent .hp-detail:has(.hp-detail-empty) { display:none; }
  html.pocket-admin-phone #kasperContent .kasper-replies-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; white-space:normal; text-overflow:clip; overflow-wrap:anywhere; }
+ html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle { position:relative; align-self:flex-start; display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:8px 0; color:var(--text-secondary); font-size:13px; }
+ html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle::before { content:''; width:32px; height:20px; flex:none; border-radius:20px; background:var(--border); }
+ html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle::after { content:''; position:absolute; left:3px; width:14px; height:14px; border-radius:50%; background:var(--white); }
+ html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle[aria-checked=true]::before { background:var(--text-primary); }
+ html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle[aria-checked=true]::after { left:15px; background:var(--bg); }
 }
 /* POCKET-ADMIN-PHONE:END */

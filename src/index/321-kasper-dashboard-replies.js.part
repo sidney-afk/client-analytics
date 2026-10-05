@@ -2780,7 +2780,14 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                 });
                 main.querySelectorAll('.pocket-admin-card-close').forEach(node => {
                     node._pocketCloseHome?.replaceWith(node);
+                    node.querySelector('.pocket-admin-close-label')?.remove();
+                    node.setAttribute('aria-label', node._pocketCloseLabel);
                     node.classList.remove('pocket-admin-card-close');
+                });
+                main.querySelectorAll('.pocket-admin-new-toggle').forEach(node => {
+                    node.textContent = node._pocketNewText;
+                    node.removeAttribute('role'); node.removeAttribute('aria-checked');
+                    node.classList.remove('pocket-admin-new-toggle');
                 });
                 main.querySelectorAll('.pocket-admin-date').forEach(date => {
                     const input = date.querySelector('input');
@@ -2872,7 +2879,16 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                 if (!cardActions) return;
                 button._pocketCloseHome = document.createComment('phone close return position');
                 button.before(button._pocketCloseHome);
+                button._pocketCloseLabel = button.getAttribute('aria-label'); button.setAttribute('aria-label', 'Hide card');
+                const label = document.createElement('span'); label.className = 'pocket-admin-close-label';
+                label.textContent = 'Hide card'; button.append(label);
                 button.classList.add('pocket-admin-card-close'); cardActions.append(button);
+            });
+            wrap.querySelectorAll('.kasper-replies-showall:not(.pocket-admin-new-toggle)').forEach(button => {
+                button._pocketNewText = button.textContent;
+                button.setAttribute('role', 'switch');
+                button.setAttribute('aria-checked', String(button.textContent === 'Show all messages'));
+                button.textContent = 'Only new'; button.classList.add('pocket-admin-new-toggle');
             });
             wrap.querySelectorAll('.si-input[type=date]:not(.sv-date-value)').forEach(input => {
                 const attrs = {};

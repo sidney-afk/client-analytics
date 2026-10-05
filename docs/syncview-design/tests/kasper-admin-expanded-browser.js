@@ -36,7 +36,8 @@ add('review-loading', 'review', () => { document.getElementById('kasperContent')
 add('messages-empty', 'replies');
 add('messages', 'replies', data => {
   data.post.name = 'Make room for a better day with one small habit you can keep.';
-  data.post.tweaks = [{ id: 'm_fixture_root', comp: 'caption', role: 'kasper', author: 'Reviewer', audience: 'internal', body: 'Please simplify this opening sentence.', created_at: '2026-10-03T10:00:00Z' }, { id: 'm_fixture_reply', parent_id: 'm_fixture_root', comp: 'caption', role: 'smm', author: 'Team member', audience: 'internal', body: 'The opening is shorter now. Please take another look.', created_at: '2026-10-04T10:00:00Z' }];
+  data.post.caption_comments = [{ id: 'm_fixture_old', role: 'kasper', author: 'Reviewer', audience: 'internal', is_tweak: false, body: 'Keep the tone relaxed.', created_at: '2026-10-02T10:00:00Z' }, { id: 'm_fixture_root', role: 'kasper', author: 'Reviewer', audience: 'internal', is_tweak: false, body: 'Please simplify this opening sentence.', created_at: '2026-10-03T10:00:00Z' }, { id: 'm_fixture_reply', parent_id: 'm_fixture_root', role: 'smm', author: 'Team member', audience: 'internal', is_tweak: false, body: 'The opening is shorter now. Please take another look.', created_at: '2026-10-04T10:00:00Z' }];
+  _kasperMarkSeenAt(data.post.id, '2026-10-03T12:00:00Z');
   data._showAllReplies = true; _kasperState.replies = [data]; _kasperRenderReplies();
 });
 add('messages-compose', 'replies', data => { data._replyDraft = 'Thanks — I will check the updated version.'; data._showAllReplies = true; _kasperState.replies = [data]; _kasperRenderReplies(); });
@@ -108,6 +109,7 @@ function serve() {
   return new Promise(resolve => server.listen(0,'127.0.0.1',() => resolve(server)));
 }
 async function capture(page,label,width,theme) {
+  await page.mouse.move(0,0);
   // Visible labels only, for public proof. Native controls/handlers stay intact.
   await page.evaluate(() => {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -229,6 +231,9 @@ async function runMain() {
               const header = await page.locator('.pocket-admin-heading').evaluate(el => ({ tabs:!!el.querySelector('button[aria-haspopup="dialog"] svg path[d="m5 7 5 5 5-5"]'),dots:[...el.querySelectorAll('.pocket-admin-more-icon circle,.pocket-admin-heading-actions > .pocket-admin-account circle')].map(n=>n.getAttribute('r')) }));
               expect(header.tabs && header.dots.length===3 && header.dots.every(r=>r==='1.7'), t.label+': approved Calendar header icons');
               if (t.label === 'review-open') {
+                const finish = await page.locator('.kcard-done-btn').evaluate(b => ({ disabled:b.disabled, opacity:getComputedStyle(b).opacity, nowrap:getComputedStyle(b).whiteSpace, fits:b.scrollWidth<=b.clientWidth }));
+                expect(finish.disabled && Number(finish.opacity)===.55 && finish.nowrap==='nowrap' && finish.fits,'Pending Finish uses the shared disabled appearance and fits on one line');
+                expect(await page.getByRole('button',{name:'Hide card',exact:true}).textContent()==='Hide card','Native queue-hide action has a visible label distinct from Collapse');
                 const actionRows = await page.locator('.cal-review-tweak-actions').evaluateAll(rows => rows.map(row => [...row.children].map(b=>b.getBoundingClientRect().top)));
                 expect(actionRows.length===3 && actionRows.every(tops=>tops.length===3 && Math.max(...tops)-Math.min(...tops)<1),'Review: three secondary actions stay on one row per part');
                 expect(await page.locator('.kcard-actions .kcard-expand-btn:visible').count()===0,'Review: no floating disclosure under card');
@@ -239,8 +244,9 @@ async function runMain() {
                 expect(await page.locator('.cal-review-panel').count()===3,'Moved disclosure invokes native expand once');
               }
               if (t.label==='review-finish-ready') {
-                const ready=await page.locator('.kcard-done-btn').evaluate(b=>({disabled:b.disabled,opacity:getComputedStyle(b).opacity,color:getComputedStyle(b).color,background:getComputedStyle(b).backgroundColor}));
+                const ready=await page.locator('.kcard-done-btn').evaluate(b=>({disabled:b.disabled,opacity:getComputedStyle(b).opacity,color:getComputedStyle(b).color,background:getComputedStyle(b).backgroundColor,nowrap:getComputedStyle(b).whiteSpace,fits:b.scrollWidth<=b.clientWidth}));
                 expect(!ready.disabled && Number(ready.opacity)===1 && ready.color!==ready.background,'Finish reviewing is enabled and visually actionable after every decision');
+                expect(ready.nowrap==='nowrap' && ready.fits,'Enabled Finish fits on one line');
               }
               if (t.label==='credentials' || t.label==='credentials-masked') {
                 expect(await page.locator('.cc-secret code').textContent()===(t.label==='credentials'?'No password saved':'••••••'),'Credentials: absent and hidden values have clear, distinct labels');
@@ -254,14 +260,35 @@ async function runMain() {
                 for (const filter of ['.hp-filters','.hp-roles']) {
                   const tops=await page.locator(filter+' button').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
                   expect(Math.max(...tops)-Math.min(...tops)<1,'Hiring filters stay in one horizontally scrollable row');
+                  const scroll=await page.locator(filter).evaluate(n=>{const style=getComputedStyle(n);n.scrollLeft=40;const result={hidden:style.scrollbarWidth==='none',overflow:style.overflowX,overflows:n.scrollWidth>n.clientWidth,moved:n.scrollLeft>0};n.scrollLeft=0;return result;});
+                  expect(scroll.hidden && scroll.overflow==='auto' && (!scroll.overflows || scroll.moved),'Hiring hides the scrollbar without disabling chip scrolling');
                 }
               }
               if (t.label==='messages') {
                 const text=await page.locator('.kasper-replies-title').evaluate(n=>({height:n.getBoundingClientRect().height,line:parseFloat(getComputedStyle(n).lineHeight),whiteSpace:getComputedStyle(n).whiteSpace}));
                 expect(text.whiteSpace==='normal' && text.height>text.line && text.height<=text.line*2+1,'Messages title wraps to two lines');
+                const toggle=page.getByRole('switch',{name:'Only new',exact:true});
+                expect(await toggle.getAttribute('aria-checked')==='false','Only-new toggle starts off while all messages are shown');
+                expect(await page.locator('.kasper-replies-thread').evaluate(n=>n.firstElementChild.matches('.pocket-admin-new-toggle') && Math.abs(n.firstElementChild.getBoundingClientRect().left-n.getBoundingClientRect().left)<1),'Only-new toggle sits at the top edge of the message list');
+                expect(await page.locator('.kasper-replies-thread .cal-review-comment').count()===3,'All messages includes the older conversation');
+                await toggle.click();
+                expect(await toggle.getAttribute('aria-checked')==='true' && await page.locator('.kasper-replies-thread .cal-review-comment').count()===2,'Only-new toggle invokes the native filter and retains its unread conversation');
+                await toggle.click();
+                expect(await toggle.getAttribute('aria-checked')==='false' && await page.locator('.kasper-replies-thread .cal-review-comment').count()===3,'Turning off Only-new restores all messages');
               }
             }
             await capture(page,t.label,width,theme);
+            if (!before && !desktop && ['review-open','messages'].includes(t.label)) {
+              await page.setViewportSize({width:1280,height:844}); await page.waitForTimeout(100);
+              if (t.label==='review-open') {
+                expect(await page.locator('.kcard > .kcard-close-btn').count()===1 && await page.locator('.pocket-admin-close-label').count()===0,'Desktop restores the original queue-hide position and icon');
+                expect(await page.locator('.kcard-close-btn').getAttribute('aria-label')==='Close card','Desktop restores the native close label');
+              } else {
+                expect(await page.locator('.kasper-replies-showall').textContent()==='Show only new' && await page.locator('.kasper-replies-showall').getAttribute('role')===null,'Desktop restores the original message-filter text and semantics');
+                expect(await page.locator('.kasper-replies-thread .cal-review-comment').count()===3,'Desktop resize retains the selected message filter');
+              }
+              await page.setViewportSize({width,height:844}); await page.waitForTimeout(100);
+            }
             if (!before && !desktop && t.label === 'tabs') {
               await page.keyboard.press('Escape');
               expect(await page.locator('dialog.pocket-admin-tabs').count() === 0,'Tabs Escape closes dialog');

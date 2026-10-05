@@ -30430,7 +30430,7 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 **Not done, said plainly.** Nothing has run against Apify, OpenAI, Anthropic (including the Batches API), pg_net or pg_cron; the first real proof is the first shadow brief. The equivalence is against the n8n code, not a recorded run (n8n keeps none); the reel order in the prompt follows n8n's Merge default and is unconfirmed. The real table `analytics_market_research_briefs` is not written (the switch is a later PR). The page is unchanged. Decisions left to the owner, later: keep the Keywords brief at all (what it shows and what it costs are in section 7c.2), and whether the AI summaries move off n8n as a small separate step.
 
 
-## 339. [2026-10-04, BUILT, NOT DEPLOYED] Expanded staff Samples and Calendar Selection on phones
+## 343. [2026-10-04, BUILT, NOT DEPLOYED] Expanded staff Samples and Calendar Selection on phones
 
 Samples Review and Sheet use full sections and comfortable individual cards below 768px in light and dark. Calendar and Samples Selection keep native actions at the bottom, with counts and Done. Native status, decision, archive and comment writers remain; pending staff decisions keep Saving until acknowledged. Desktop rules and restored controls remain unchanged. The native Sheet Select action is retained when switching from Review on a phone.
 

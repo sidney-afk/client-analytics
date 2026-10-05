@@ -8,14 +8,14 @@ build-index: wrote src/index/INDEX.md
 
 phone — exit 0
 VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
-staff-calendar-expanded: OK (6816 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+staff-calendar-expanded: OK (7038 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
 
 before — exit 0
 VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
 staff-calendar-expanded: BEFORE pictures captured; no acceptance claimed.
 
 scope — exit 0
-staff-calendar-phone-css-scope: OK (1 block(s), 255 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+staff-calendar-phone-css-scope: OK (1 block(s), 258 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
 
 index — exit 0
 check-index: working-tree index.html — sha256=a4c1c0ac6f11a66d19fb77d67f07b6960e1bcb0907b2c38c271e7a3c75459452 bytes=987709
@@ -83,7 +83,7 @@ OVERALL: PASS
 desktop-final — exit 0
 Desktop width 1280: exit 0
 Desktop width 1024: exit 0
-Desktop width 1920: exit 0
+Desktop width 1440: exit 0
 68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
 
 production — exit 1 (unchanged-main failure)
@@ -97,3 +97,19 @@ git diff --check origin/main — exit 0, no whitespace errors.
 Resolved intermediate checks: Create Post close was 30px, then its stepper input was 40px; both were enlarged. A UTC/local fixture-date mismatch caused the Week preview timeout; the fixture now uses Calendar local dates. A full-page menu capture was corrected to a viewport capture. The module checker first lacked NODE_PATH and passed with the existing dependency directories. check:index first refused pre-commit/un-normalized bytes; LF normalization matched the already committed bytes and the final check passed.
 
 Production trace paths above are explicitly redacted for public hygiene; error text and measured boxes are unchanged. These are local candidate results, not deployment proof.
+
+
+theme-colors — exit 0
+No hardcoded color literals outside allowed variable/validation blocks.
+
+review-request-change-audience — exit 0
+✓  client request-change stays audience=client  (got "client", want "client")
+✓  client view SHOWS the client's own request  (got true, want true)
+
+All review-request-change-audience checks passed.
+
+quick-jump — exit 0
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+quick-jump: PASS
+
+Hosted findings corrected: Quick jump restored in More with native focus; theme colours use existing tokens; request-change harness supplies its new phone-only predicate. Desktop gate was interrupted by lost connectivity, then rerun to 68/68. Audience test must use the existing single-file-index preload; its raw invocation failed before loading the function.

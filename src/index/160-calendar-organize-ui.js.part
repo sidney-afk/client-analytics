@@ -90,7 +90,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 dialog.showModal();
                 dialog.scrollTop = 0;
             });
-            dialog.addEventListener('close', () => trigger.focus());
+            dialog.addEventListener('close', () => { if (document.getElementById('svJump')?.hidden !== false) trigger.focus(); });
         }
         const tabBody = menus.tabs.querySelector('.pocket-staff-cal-menu-body');
         document.querySelectorAll('#headerNav > .header-nav-btn').forEach(native => {
@@ -109,6 +109,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         root.querySelector('.cal-toolbar').before(tools);
         const moreBody = menus.more.querySelector('.pocket-staff-cal-menu-body');
         menus.more.addEventListener('click', event => {
+            if (event.target.closest('.sv-jump-touch')) menus.more.close();
             const button = event.target.closest('.cal-kebab-item');
             if (button && !button.classList.contains('cal-kebab-toggle') && !button.classList.contains('cal-kebab-import-toggle')) menus.more.close();
             queueMicrotask(() => { if (menus.more.open && state.kebab) state.kebab.node.hidden = false; });
@@ -126,8 +127,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                     kebab.hidden = false;
                 }
             }
-            for (const id of ['svClientBadgeWrap', 'staffIdentityWrap']) {
-                const control = document.getElementById(id);
+            for (const selector of ['#svClientBadgeWrap', '#staffIdentityWrap', '.header .sv-jump-touch']) {
+                const control = document.querySelector(selector);
                 if (control && !moreBody.contains(control)) {
                     state.moved.push({ node: control, parent: control.parentNode, next: control.nextSibling });
                     moreBody.prepend(control);

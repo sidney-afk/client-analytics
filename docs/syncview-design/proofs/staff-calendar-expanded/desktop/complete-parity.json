@@ -84,8 +84,8 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "82d304d2c0a7",
-    "attempts": 1
+    "sha": "a1500fcbb992",
+    "attempts": 2
   },
   {
     "page": "client-analytics",
@@ -109,7 +109,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "596905e91b93",
-    "attempts": 2
+    "attempts": 1
   },
   {
     "page": "client-calendar-week",
@@ -220,8 +220,8 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "aa931fcb36b0",
-    "attempts": 1
+    "sha": "c9218034336c",
+    "attempts": 2
   },
   {
     "page": "client-analytics",
@@ -356,8 +356,8 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "37025276f83e",
-    "attempts": 1
+    "sha": "2ddf7601e226",
+    "attempts": 2
   },
   {
     "page": "client-analytics",
@@ -492,7 +492,7 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "86fce1bd5dc0",
+    "sha": "a6f995079acb",
     "attempts": 1
   },
   {
@@ -517,7 +517,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "868e108c15a9",
-    "attempts": 2
+    "attempts": 1
   },
   {
     "page": "client-calendar-week",

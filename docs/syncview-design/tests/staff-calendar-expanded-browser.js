@@ -19,7 +19,7 @@ const ok = (value, message) => { assert(value, message); checks++; };
 async function measure(page, label) {
   const result = await page.evaluate(() => {
     const visible = node => node.checkVisibility({ checkVisibilityCSS: true });
-    const surfaces = '#calView, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-comments-overlay.open, .cal-lightbox.open, .dp-popup, .cal-fld-status-menu';
+    const surfaces = '#svJump:not([hidden]), #calView, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-comments-overlay.open, .cal-lightbox.open, .dp-popup, .cal-fld-status-menu';
     const nodes = [...document.querySelectorAll(surfaces)].flatMap(root => [...root.querySelectorAll('button, a[href], [role=button], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea')]);
     return {
       width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
@@ -59,7 +59,7 @@ async function shot(page, label) {
     }
   });
   await page.evaluate(() => document.fonts.ready);
-  const overlay = await page.locator('dialog[open], .cal-lightbox.open, .cal-comments-overlay.open, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-fld-status-menu, .dp-popup, #confirmOverlay.active, #notifyOverlay.active').count();
+  const overlay = await page.locator('#svJump:not([hidden]), dialog[open], .cal-lightbox.open, .cal-comments-overlay.open, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-fld-status-menu, .dp-popup, #confirmOverlay.active, #notifyOverlay.active').count();
   await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay, animations: 'disabled' });
 }
 async function review(browser, origin, width, theme) {
@@ -162,6 +162,14 @@ async function review(browser, origin, width, theme) {
     await shot(page, 'account-' + suffix);
     await page.evaluate(() => _syncviewCloseStaffAccount());
     await page.keyboard.press('Escape');
+      await page.locator('[data-staff-menu=more]').click();
+      await page.locator('dialog[open] .sv-jump-touch').click();
+      await page.locator('#svJump:not([hidden])').waitFor();
+      ok(await page.locator('dialog[open]').count() === 0, 'More trapped native Quick jump');
+      await page.locator('#svJumpInput').fill('phone fixture');
+      ok(await page.locator('#svJumpInput').evaluate(node => node === document.activeElement), 'Quick jump input lost focus');
+      await measure(page, 'quick-jump-' + suffix); await shot(page, 'quick-jump-' + suffix);
+      await page.keyboard.press('Escape');
     await page.evaluate(() => _calOpenCaptionPromptModal());
     await page.locator('#calPromptOverlay.open').waitFor();
     await measure(page, 'caption-prompt-' + suffix);

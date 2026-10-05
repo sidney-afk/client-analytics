@@ -33,8 +33,8 @@ generated product with fictional data and media, not a separate prototype.
 | Month | [Before](before/month-light-360.png) / [After](after/month-light-360.png) | [Before](before/month-light-390.png) / [After](after/month-light-390.png) | [Before](before/month-light-430.png) / [After](after/month-light-430.png) |
 | Week | [Before](before/week-light-360.png) / [After](after/week-light-360.png) | [Before](before/week-light-390.png) / [After](after/week-light-390.png) | [Before](before/week-light-430.png) / [After](after/week-light-430.png) |
 
-There are 30 before and 246 after screenshots across both themes and all three
-widths. They include Review queue and open post, Tabs, More, Organize, account,
+There are 30 before and 252 after screenshots across both themes and all three
+widths. They include Review queue and open post, Tabs, More, Organize, account, Quick jump,
 Platform, Import, caption prompt, Create Post and thumbnail-only creation,
 Archived cards with rows/loading/empty/error, Notes, lightbox, status pickers,
 date picker, archive confirmation, previews, saving, refused saves, read errors,
@@ -52,9 +52,9 @@ The real client Caption Approve and Request change buttons each returned HTTP
 the exact typed note and its timestamp. The owned disposable card was archived
 through the normal app and read back as Archived. No other client was mutated.
 The anonymous receipt is [live-saves.json](live-saves.json). Its source hash is
-the candidate used for that pass; subsequent changes only corrected the staff
-Create Post label and enlarged Create Post/Archived dialog controls. Decision
-handlers did not change afterward. This proves a local candidate, not deployment.
+the candidate used for that pass. Both real client decisions were repeated after
+the hosted-check fixes; fresh reads again confirmed the saved decisions and note,
+and the owned card was archived. This proves a local candidate, not deployment.
 
 ## Desktop and checks
 

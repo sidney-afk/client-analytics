@@ -4,7 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+// The app code now lives in the src/index/ fragments (index.html loads it as
+// split js/ bundles), so read the fragments, not the built page.
+const SRC = path.join(ROOT, 'src', 'index');
+const INDEX = fs.readdirSync(SRC).filter(f => f.endsWith('.part')).sort()
+  .map(f => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
 
 function ok(cond, msg) {
   if (!cond) {

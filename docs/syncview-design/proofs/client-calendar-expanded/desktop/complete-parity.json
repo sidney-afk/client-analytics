@@ -84,8 +84,8 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "8aff9607ef7d",
-    "attempts": 2
+    "sha": "403b7a07c093",
+    "attempts": 1
   },
   {
     "page": "client-analytics",
@@ -132,7 +132,7 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "502b4abfd084",
+    "sha": "e05ce30d75e1",
     "attempts": 1
   },
   {
@@ -220,7 +220,7 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "414bc333ecb8",
+    "sha": "49fd274bf5ef",
     "attempts": 1
   },
   {
@@ -229,7 +229,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "41cb158a6a62",
-    "attempts": 2
+    "attempts": 1
   },
   {
     "page": "client-calendar",
@@ -268,7 +268,7 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "c5bed3984282",
+    "sha": "192ebb3a4b3c",
     "attempts": 1
   },
   {
@@ -356,7 +356,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "8c308624f6a5",
+    "sha": "14da900f5dbd",
     "attempts": 1
   },
   {
@@ -365,7 +365,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "d3f0354ff253",
-    "attempts": 2
+    "attempts": 1
   },
   {
     "page": "client-calendar",
@@ -404,7 +404,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "85e3ba37bb61",
+    "sha": "7946014bb0e8",
     "attempts": 1
   },
   {
@@ -492,7 +492,7 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "d1e50c9f8409",
+    "sha": "363635c80696",
     "attempts": 1
   },
   {
@@ -540,7 +540,7 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "efd301b76424",
+    "sha": "8efa8351f7c9",
     "attempts": 1
   }
 ]

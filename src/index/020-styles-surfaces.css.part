@@ -4707,6 +4707,30 @@
                Tabs and More. The header stays in the page (its client picker and
                staff menu are reached from More) but takes no space. */
             html.fph-on { --fph-ico-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='8'/%3E%3Cpath d='M10 6v5M10 13.6v.2'/%3E%3C/svg%3E"); --fph-ico-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m5 5 10 10M15 5 5 15'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 10H4M9 5l-5 5 5 5'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10h12M11 5l5 5-5 5'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 16V4M5 9l5-5 5 5'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 4v12M5 11l5 5 5-5'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-upright: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 14 14 6M7 6h7v7'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-chev-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 5-5 5 5 5'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-chev-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m8 5 5 5-5 5'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-chev-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 8 5 5 5-5'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-refresh: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 10a6 6 0 1 1-2-4.5M16 3v4h-4'/%3E%3C/svg%3E"); }
+            html.fph-on { --fph-gl-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 5 10 10M15 5 5 15'/%3E%3C/svg%3E"); }
+            html.fph-on .fph-gl { display: inline-block; flex: none; width: 1em; height: 1em; vertical-align: -0.15em; background: currentColor; -webkit-mask: var(--fph-gl) center / contain no-repeat; mask: var(--fph-gl) center / contain no-repeat; }
+            html.fph-on .fph-gl-left { --fph-gl: var(--fph-gl-left); }
+            html.fph-on .fph-gl-right { --fph-gl: var(--fph-gl-right); }
+            html.fph-on .fph-gl-up { --fph-gl: var(--fph-gl-up); }
+            html.fph-on .fph-gl-down { --fph-gl: var(--fph-gl-down); }
+            html.fph-on .fph-gl-upright { --fph-gl: var(--fph-gl-upright); }
+            html.fph-on .fph-gl-chev-left { --fph-gl: var(--fph-gl-chev-left); }
+            html.fph-on .fph-gl-chev-right { --fph-gl: var(--fph-gl-chev-right); }
+            html.fph-on .fph-gl-chev-down { --fph-gl: var(--fph-gl-chev-down); }
+            html.fph-on .fph-gl-refresh { --fph-gl: var(--fph-gl-refresh); }
+            html.fph-on .fph-gl-x { --fph-gl: var(--fph-gl-x); }
+            html.fph-on .tk-photo-btn, html.fph-on .tk-q-x { display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
+            html.fph-on .back-btn, html.fph-on .platform-handle-link, html.fph-on .m-delta { gap: 4px; }
+            html.fph-on .workload-toolbar .fph-gl, html.fph-on .tk-photo-btn .fph-gl { font-size: 18px; }
             html.fph-on .header { position: fixed; top: 0; left: 0; width: 0; height: 0; padding: 0; border: 0; overflow: visible; background: none; box-shadow: none; }
             html.fph-on .header > * { visibility: hidden; }
             html.fph-on .header .sv-client-pop:not([hidden]) { visibility: visible; }
@@ -4803,8 +4827,6 @@
             html.fph-on .tk-file-actions .tk-mini-btn { flex: 1; }
             html.fph-on .tk-warn-chip { display: flex; gap: 0; padding: 0; margin-bottom: 6px; background: transparent; font-size: 12px; font-weight: 700; }
             html.fph-on .tk-warn-chip::before { content: ''; flex: none; width: 17px; height: 17px; margin-right: 8px; background: currentColor; -webkit-mask: var(--fph-ico-alert) center / contain no-repeat; mask: var(--fph-ico-alert) center / contain no-repeat; }
-            html.fph-on .tk-q-x { font-size: 0; }
-            html.fph-on .tk-q-x::before { content: ''; display: block; width: 16px; height: 16px; margin: 0 auto; background: currentColor; -webkit-mask: var(--fph-ico-x) center / contain no-repeat; mask: var(--fph-ico-x) center / contain no-repeat; }
             /* Post now: pinned to the bottom of the screen, full width. */
             html.fph-on .tk-submit-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; box-sizing: border-box; margin: 0; padding: 10px max(18px, env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); gap: 10px; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: var(--white); box-shadow: none; }
             html.fph-on .tk-submit-btn { flex: 1; min-height: 50px; padding: 0 20px; border-radius: 14px; font-size: 15px; font-weight: 650; }

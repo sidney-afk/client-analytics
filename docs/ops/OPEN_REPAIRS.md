@@ -30472,3 +30472,25 @@ Still different from the mock-up, on purpose:
 
 Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (1,725 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check/`. Approve was clicked for real on the test client through this layout and read back after a reload. Request change was not re-tested for real in this pass; see the pull request comment.
 Way back: revert the commit.
+
+
+## 339. [2026-10-05, BUILT, NOT DEPLOYED] Staff phone layout: TikTok and Instagram Upload, Analytics, Workload, SyncLinear (session Finch)
+
+Draft pull request on top of the client Calendar branch (entry 336 and 338). Phones and staff only. The four screens drop the logo header and nav row on a phone and show a title with Tabs and More beside it, then follow layout A (Expanded) of the approved mock-up. Nothing is created at desktop widths: the shell is built by `src/index/099-phone-staff-shell.js.part` only while the viewport is 767 px or narrower, and every new rule sits in one `FINCH-PHONE` block under `@media (max-width: 767px)` and `html.fph-on` (guard: `test/finch-phone-css-scope.js`).
+
+What a phone gets:
+- Tabs (every existing tab, same links) and More (change client, quick jump, dark or light appearance, and the existing Time Off, Onboarding, Client Credentials and sign-out entries; on SyncLinear also Search and the sidebar views My issues, Projects and each team's Issues and Projects, which the hidden sidebar used to hold). All of them click the existing control; none is new behaviour.
+- Upload: one platform at a time under the title, numbered steps become cards, the Post now bar is pinned to the bottom, queue tabs and row actions are 44 px, the warning glyph is drawn as an icon.
+- Analytics: Analytics, Content Calendar and Brief as one segmented row; the overview table scrolls inside its own frame; dates read "Sat, 3 Oct 2026"; chart date axes show short level labels ("3 Oct"); the TikTok and YouTube chart chips use the line colours.
+- Workload: Team overview rows stack; the week and month are a day-by-day list; Plan + Due Date keeps its board and scrolls inside its own frame.
+- SyncLinear: Active, Backlog and All issues as one segmented row, each issue is a card, filters and pickers are 44 px.
+
+Still different from the mock-up, on purpose:
+- The mock-up's Analytics shows only an empty client; the real screen also has the overview table and cards, kept.
+- The mock-up's number badges and rail on the Upload steps are left out (they overlapped the card edge).
+- Content Calendar inside Analytics only keeps its toolbar on screen here; the full staff Calendar phone layout is its own pull request.
+- Plan + Due Date is still an editors-by-days board; it scrolls sideways inside a frame.
+
+Not tested here: the real signed-in app (another session does that), real uploads (none were attempted; every Upload write is refused by the harness), and real data volumes.
+Proof: `node qa/finch-phone/shots.js` (offline, invented data) at 360, 390 and 430, light and dark; before and after pictures in `docs/syncview-design/proofs/finch-phone/`.
+Way back: revert the commit.

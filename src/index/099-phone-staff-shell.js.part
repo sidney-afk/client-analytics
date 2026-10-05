@@ -118,6 +118,27 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             cell.setAttribute('data-fph-day', t.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).replace(/^(\w+) /, '$1, '));
         });
     }
+    /* Text arrows and crosses on these controls (never a post's own text) are drawn as icons on a phone. */
+    const FPH_GLYPHS = { '\u2190': 'left', '\u2192': 'right', '\u2191': 'up', '\u2193': 'down', '\u2197': 'upright', '\u2039': 'chev-left', '\u203A': 'chev-right', '\u25BE': 'chev-down', '\u21BB': 'refresh', '\u00D7': 'x' };
+    const FPH_GLYPH_RE = new RegExp('([' + Object.keys(FPH_GLYPHS).join('') + '])');
+    const FPH_GLYPH_SCOPE = '.tk-photo-btn, .tk-q-x, .back-btn, .m-delta, .platform-handle-link, .workload-overview-heading span, .workload-toolbar button, .dd-arrow, .wl-refresh-icon, .wl-client-search-clear, .overview-table thead th span';
+    function _fphIconify() {
+        document.querySelectorAll(FPH_GLYPH_SCOPE).forEach(el => {
+            [...el.childNodes].forEach(node => {
+                if (node.nodeType !== 3 || !FPH_GLYPH_RE.test(node.nodeValue)) return;
+                const frag = document.createDocumentFragment();
+                node.nodeValue.split(FPH_GLYPH_RE).forEach(part => {
+                    if (FPH_GLYPHS[part]) {
+                        const icon = document.createElement('span');
+                        icon.className = 'fph-gl fph-gl-' + FPH_GLYPHS[part];
+                        icon.setAttribute('aria-hidden', 'true');
+                        frag.appendChild(icon);
+                    } else if (part) frag.appendChild(document.createTextNode(part));
+                });
+                node.replaceWith(frag);
+            });
+        });
+    }
     function _fphSync() {
         _fphRaf = 0;
         const cfg = _fphScreen();
@@ -135,6 +156,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 if (t && t.nodeType === 3 && /^\u26A0\uFE0F?\s*/.test(t.nodeValue)) t.nodeValue = t.nodeValue.replace(/^\u26A0\uFE0F?\s*/, '');
             });
             if (currentNav === 'workload') _fphLabelDays();
+            _fphIconify();
             root.classList.add('fph-on');
             root.setAttribute('data-fph', currentNav);
         } else {

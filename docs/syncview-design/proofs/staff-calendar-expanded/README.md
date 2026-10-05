@@ -34,9 +34,9 @@ generated product with fictional data and media, not a separate prototype.
 | Month | [Before](before/month-light-360.png) / [After](after/month-light-360.png) | [Before](before/month-light-390.png) / [After](after/month-light-390.png) | [Before](before/month-light-430.png) / [After](after/month-light-430.png) |
 | Week | [Before](before/week-light-360.png) / [After](after/week-light-360.png) | [Before](before/week-light-390.png) / [After](after/week-light-390.png) | [Before](before/week-light-430.png) / [After](after/week-light-430.png) |
 
-There are 30 before and 252 after screenshots across both themes and all three
+There are 30 before and 270 after screenshots across both themes and all three
 widths. They include Review queue and open post, Tabs, More, Organize, account, Quick jump,
-Platform, Import, caption prompt, Create Post and thumbnail-only creation,
+Platform, Import including column mapping and post selection, caption prompt, Create Post and thumbnail-only creation,
 Archived cards with rows/loading/empty/error, Notes, lightbox, status pickers,
 date picker, archive confirmation, previews, saving, refused saves, read errors,
 native skeletons and empty views. The phone acceptance receipt is
@@ -56,7 +56,9 @@ The anonymous receipt is [live-saves.json](live-saves.json). Its source hash is
 the candidate used for that pass. Both real client decisions were repeated after
 the hosted-check fixes and the concurrent design update; fresh reads again
 confirmed the saved decisions and note,
-and the owned card was archived. This proves a local candidate, not deployment.
+and the owned card was archived. The final import-only CSS adjustment enlarges
+column toggles and stacks mapping fields; it does not touch the decisions.
+This proves a local candidate, not deployment.
 
 ## Desktop and checks
 
@@ -71,8 +73,9 @@ browser gate still fails its existing `PWG_PHASE_INPLACE_PLACE` check on unchang
 main (697×68 read view versus 682×92 editor); this batch does not repair Production.
 
 Not claimed: native OS/iPhone hardware testing, deployment, credentials/admin
-dialogs owned by the other session, a full file-import mapping/process pass,
-or real staff approval writes. Staff action guards are exercised with fictional
+dialogs owned by the other session, a complete file-import write/readback pass,
+or real staff approval writes. Import mapping and selection are verified using
+fictional parsed rows. Staff action guards are exercised with fictional
 transport; the real save proof exercises the important client decisions.
 No backend, workflow or database installation was performed, and nothing was
 merged or deployed by Pocket.

@@ -154,6 +154,22 @@ async function review(browser, origin, width, theme) {
     await page.locator('.cal-import-overlay.open').waitFor();
     await measure(page, 'import-' + suffix);
     await shot(page, 'import-' + suffix);
+    await page.evaluate(() => {
+      _calSetImportHeaders(['Post name', 'Caption']);
+      _calSetImportRows([{ 'Post name': 'Phone fixture import', Caption: 'A fictional caption.' }]);
+      _calRenderImportMap();
+    });
+    await measure(page, 'import-map-' + suffix);
+    const importChecks = await page.locator('.cal-import-skip-chk').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { w: r.width, h: r.height }; }));
+    ok(importChecks.every(r => r.w >= 44 && r.h >= 44), 'import column toggles need 44px targets');
+    await shot(page, 'import-map-' + suffix);
+    await page.locator('#calImportGo').click();
+    await measure(page, 'import-select-' + suffix);
+    await shot(page, 'import-select-' + suffix);
+    await page.locator('.cal-import-pick-toggle').click();
+    ok(await page.locator('#calImportGo').isDisabled(), 'Import must stay disabled with no selected rows');
+    await measure(page, 'import-select-empty-' + suffix);
+    await shot(page, 'import-select-empty-' + suffix);
     await page.evaluate(() => closeCalImport());
     await page.locator('[data-staff-menu=more]').click();
     await page.evaluate(() => _syncviewOpenStaffAccount());

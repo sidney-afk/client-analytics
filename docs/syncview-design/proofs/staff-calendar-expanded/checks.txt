@@ -121,3 +121,6 @@ calendar-deep-link-focus — exit 0
 calendar deep-link focus checks passed
 
 Concurrent design update preserved; phone snapshots, native drag reveal/restore checks, full 68/68 desktop parity and real TEST Caption Approve/Request change saves rerun against the combined source. Owned source read back Archived.
+
+
+Import depth: mapping toggle acceptance initially failed at 16px. Phone-only 44px touch areas and stacked fields fixed it. Mapping, selection and no-selection now pass in the final 7,968 checks; desktop rerun is 68/68. This uses fictional parsed rows and claims no full file-import write/readback.

@@ -30504,3 +30504,9 @@ Still different from the mock-up, on purpose:
 Not tested here: the real signed-in app (another session does that), real uploads (none were attempted; every Upload write is refused by the harness), and real data volumes.
 Proof: `node qa/finch-phone/shots.js` (offline, invented data) at 360, 390 and 430, light and dark; before and after pictures in `docs/syncview-design/proofs/finch-phone/`.
 Way back: revert the commit.
+
+Round 2 (Lighthouse review, same branch):
+- Workload: the team overview is one card per person, an empty status line is not drawn (a person with nothing gets one calm line), text is 13 to 16 px, the refresh button sits in the title row, the filters are a small grid, the legend is 14 px.
+- Analytics: "Views last 30D" of 0 next to a gain was a real arithmetic effect, not a display slip. The card shows today's count minus the count from 30 days ago; my invented data repeated the same total every 30 days, so the difference was exactly 0 while the day's gain was positive. On a phone a 0 next to a positive gain is now a dash with its reason on touch or hover; the invented data now grows like a real rolling total. Every client card and table row shows its rank (the page numbered only the first three), the "Pin client" button is a normal button, and the purple line under each card is gone on phones.
+- Upload: the Upcoming, Failed and Done counts are readable (the number was the same colour as its circle).
+- Linear: an issue with no date no longer draws an empty date pill (the date is still set from the issue page).

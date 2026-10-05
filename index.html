@@ -8845,9 +8845,12 @@
             html.boot-client .cal-tab-view .pocket-run-head > :not(.pocket-run-label) { display: none; }
             html.boot-client .cal-tab-view .pocket-run-head::after { content: none !important; }
             html.boot-client .cal-tab-view .pocket-run-label { color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
-            html.boot-client .cal-tab-view :is(.cal-month-wrap, .cal-week-wrap):has(.cal-card-dragging) .pocket-run-rest { display: flex !important; }
-            html.boot-client .cal-tab-view :is(.cal-month-wrap, .cal-week-wrap):has(.cal-card-dragging) .pocket-run-label { display: none; }
-            html.boot-client .cal-tab-view :is(.cal-month-wrap, .cal-week-wrap):has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label) { display: revert; }
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-card-dragging) .pocket-run-rest { display: flex !important; }
+            html.boot-client .cal-tab-view .cal-week-wrap:has(.cal-card-dragging) .pocket-run-rest { display: flex !important; }
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-card-dragging) .pocket-run-label { display: none; }
+            html.boot-client .cal-tab-view .cal-week-wrap:has(.cal-card-dragging) .pocket-run-label { display: none; }
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label) { display: revert; }
+            html.boot-client .cal-tab-view .cal-week-wrap:has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label) { display: revert; }
             html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(.pocket-run-head):not(.pocket-run-rest):not(:has(.cal-month-pill)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
             html.boot-client .cal-tab-view .cal-month-cell.today:not(:has(.cal-month-pill)) .cal-month-cellhead { position: static; flex-direction: row; width: 64px; }
             html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); }

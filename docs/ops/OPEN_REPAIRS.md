@@ -30446,3 +30446,27 @@ screenshots are recorded in `docs/syncview-design/proofs/staff-calendar-expanded
 The Production editor-placement gate remains a reproduced unchanged-main failure.
 Selection, Samples and admin screens are outside this batch. No merge, deploy,
 backend installation, database change or n8n edit was performed.
+
+## 342. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 338 of this branch. Phones and the standalone staff Calendar only: the markup is added only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]`. Desktop markup and styles are not touched.
+
+What was compared: the real app at 360, 390 and 430 wide, light and dark, beside layout A of the mock-up gallery, for Review with a post open, Sheet, Month, Week, the Tabs sheet and the More sheet.
+
+Fixed:
+- Tabs button: a real chevron icon in place of the small text arrow. More button: a real three-dot icon at normal size, same height as Tabs. Sheets close with a real cross icon.
+- Tabs and More sheets: bottom sheets with a grab handle and the mock-up's title size; the More sheet is titled "More". Rows are full width with left-aligned labels and a line between them. The current tab is bold with a tick. Organize and Card size are the same full width.
+- Tools: "Select cards" and "Write captions" show their names next to their icons.
+- Review card: the three grey status pills under the title are gone (the sentence above and each section already say it). Open in Sheet is a labelled button; an open post closes with a quiet chevron button. Approve is the mock-up's dark button (green before), with its route chip kept.
+- Sheet card: one date format on phones, "Sun, 4 Oct 2026" (desktop keeps its own); the Thumbnail and Video link fields are calm neutral fields with their link icon, their edit pencils neutral too; the three status rows use 13 px text.
+- Month and Week: each run of consecutive empty days is one slim line, for example "Thu 1 to Sat 3 · Nothing scheduled". Today and days with a post stay separate rows. Every folded day keeps its own element and date, and unfolds while a post is being dragged.
+
+Still different from the mock-up, on purpose:
+- Month is a list of days, not the mock-up's small grid: staff can drag posts onto days, and the list is where they are dropped.
+- A closed Review card keeps its labelled "Open in Sheet" next to the chevron; the mock-up only draws the empty Review state.
+- Approve keeps the "Reviewer" route chip and the "Client" alternate button: they are real routing choices.
+
+Not tested for real: Approve and Request change on the test client through these restyled buttons. The click handlers were not touched and the offline test clicks them; the signed-in staff page cannot run this branch from here. The unfold during a real drag on a touch phone is covered by the markup test only.
+
+Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (6,852 checks) and the scope guard; before and after pictures in `docs/syncview-design/proofs/staff-calendar-expanded/design-check/`.
+Way back: revert the commit.

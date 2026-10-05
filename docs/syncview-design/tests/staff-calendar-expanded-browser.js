@@ -261,7 +261,14 @@ async function review(browser, origin, width, theme) {
         await page.locator('#confirmOverlay.active button', { hasText: /^Cancel$/ }).click();
       }
       if (view === 'month' || view === 'week') {
-        if (view === 'week') ok(await page.locator('.cal-week-col:visible').count() === 7, 'Week lost a current day or exposed buffer days');
+        // Runs of empty days fold into one labelled line; the folded days stay in the page for drag and drop.
+        if (view === 'week') ok(await page.locator('.cal-week-col:visible').count() + await page.locator('.cal-week-col.pocket-run-rest').count() === 7, 'Week lost a current day or exposed buffer days');
+        const dayRows = await page.evaluate(v => [...document.querySelectorAll(v === 'month' ? '.cal-month-cell[data-iso]' : '.cal-week-col[data-iso]')]
+          .filter(e => !e.classList.contains('out') && e.checkVisibility({ checkVisibilityCSS: true }))
+          .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
+        ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
+        ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
+        ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');
         await page.locator(view === 'month' ? '.cal-month-cell:not(.out) .cal-month-pill' : '.cal-week-col:visible .cal-week-card').first().click();
         await measure(page, name + '-preview-' + suffix);
         await shot(page, name + '-preview-' + suffix);

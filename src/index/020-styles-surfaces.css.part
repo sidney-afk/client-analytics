@@ -4895,6 +4895,7 @@
             html.fph-on[data-fph="home"] .cal-select-btn,
             html.fph-on[data-fph="home"] .cal-kebab { min-height: 44px; min-width: 44px; box-sizing: border-box; }
             html.fph-on[data-fph="home"] .cal-view-btn { flex: 1 1 0; justify-content: center; min-height: 44px; }
+            html.fph-on[data-fph="home"] .platform-section .metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; row-gap: 14px; }
             html.fph-on[data-fph="home"] .chart-mode-toggle { padding: 3px; }
             html.fph-on[data-fph="home"] .chart-mode-btn { min-height: 44px; min-width: 44px; padding: 0 14px; font-size: 13px; }
             html.fph-on[data-fph="home"] .chart-plat-toggle { gap: 8px; }

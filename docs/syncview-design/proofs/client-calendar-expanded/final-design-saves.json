@@ -1,0 +1,20 @@
+{
+  "verifiedAt": "2026-10-05T02:08:58.652Z",
+  "candidateIndexSha": "743151607cab3660897287fd60e4b80c16bd736327fa828dac2254c9ac1e1bb4",
+  "approvedSaved": true,
+  "changesSaved": true,
+  "exactNoteSaved": true,
+  "decisionHttpStatuses": [
+    200,
+    200
+  ],
+  "archiveHttp": 200,
+  "archiveReadback": true,
+  "phoneMeasurement": {
+    "width": 390,
+    "noSidewaysScroll": true,
+    "controls": 11,
+    "allTargets44": true,
+    "allFields16": true
+  }
+}

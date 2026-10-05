@@ -113,3 +113,10 @@ confirmed the exact saved note. After the owner signed in again, the native
 Calendar writer archived only that disposable card with HTTP 200; the normal
 app reader confirmed Archived. The final receipt is
 [final-live-saves.json](final-live-saves.json). The cleanup hold is resolved.
+
+Final design verification: the hosted-test harness was repaired, phone pictures
+were refreshed at all three widths, and desktop was rechecked at all four sizes
+(68/68 identical). Real Approve and Request change saves were repeated on the
+owned TEST source and freshly read back, with cleanup confirmed. The anonymous
+receipt is [final-design-saves.json](final-design-saves.json); exact final check
+tails are in [checks.txt](checks.txt). This remains local candidate proof.

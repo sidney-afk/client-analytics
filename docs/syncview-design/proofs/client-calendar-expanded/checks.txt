@@ -560,3 +560,16 @@ check-modules: all checks passed
 Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
     at expect (<checkout>\docs\syncview-design\tests\prod-write-gateway-browser.js:81:53)
     at <checkout>\docs\syncview-design\tests\prod-write-gateway-browser.js:1546:5
+
+
+Final design recheck — exit 0
+VISIBLE_CHROME_NO_FOCUS: existing gate assertions and timing unchanged; visible Chrome reused on second monitor; activation refused.
+client-calendar-expanded: OK (1743 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/430).
+
+Final design recheck — exit 0
+Desktop width 1024: exit 0
+Desktop width 1280: exit 0
+Desktop width 1440: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Both real client decisions were repeated against the latest design candidate and read back; owned sources were archived. The Samples native items were read back in Backlog. See final-design-saves.json.

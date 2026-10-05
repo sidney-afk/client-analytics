@@ -46,7 +46,9 @@ async function shot(page, label) {
 }
 async function run(browser, origin, width) {
   const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
-  const row = { ...BASE_ROW, id: 'p_phone_fixture_1', name: 'A little change. A better day.', scheduled_date: '2026-10-03', cta: 'Save this for later.', thumbnail_url: 'https://drive.google.com/file/d/fixture_thumbnail_asset/view', video_deliverable_id: '00000000-0000-4000-a000-000000000001', graphic_deliverable_id: '00000000-0000-4000-a000-000000000002' };
+  const now = new Date();
+  const fixtureDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+  const row = { ...BASE_ROW, id: 'p_phone_fixture_1', name: 'A little change. A better day.', scheduled_date: fixtureDate, cta: 'Save this for later.', thumbnail_url: 'https://drive.google.com/file/d/fixture_thumbnail_asset/view', video_deliverable_id: '00000000-0000-4000-a000-000000000001', graphic_deliverable_id: '00000000-0000-4000-a000-000000000002' };
   const finished = { ...row, id: 'p_phone_fixture_2', name: 'Make room for what matters.', thumbnail_url: origin + '/__fixture_unavailable.png', order_index: 2, status: 'Approved', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved' };
   const settings = { id: 'p_cal_settings', client: row.client, caption: JSON.stringify({ collab_mode: true }) };
   const writes = [];

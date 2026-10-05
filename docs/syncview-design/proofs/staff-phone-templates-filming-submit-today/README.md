@@ -99,4 +99,4 @@ client name on screen. Result: 270 renders, 0 problems.
 * Real phones and real touch keyboards (Chromium's phone emulation was used).
 * No live writes of any kind were made; this slice needs none.
 
-Entry: `docs/ops/OPEN_REPAIRS.md` 340.
+Entry: `docs/ops/OPEN_REPAIRS.md` 341.

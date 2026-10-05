@@ -11,6 +11,7 @@ const assert = require('assert');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const widths = [360, 390, 430];
 const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.split('=').slice(1).join('=');
 const before = process.argv.includes('--capture-before');
@@ -41,12 +42,14 @@ async function shot(page, label) {
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
-  const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-preview-overlay.open, .cal-lightbox.open, .dp-popup').count();
+  const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-preview-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, .dp-popup').count();
   await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay });
 }
 async function run(browser, origin, width) {
   const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
-  const row = { ...BASE_ROW, id: 'p_phone_fixture_1', name: 'A little change. A better day.', scheduled_date: '2026-10-03', cta: 'Save this for later.', thumbnail_url: 'https://drive.google.com/file/d/fixture_thumbnail_asset/view', video_deliverable_id: '00000000-0000-4000-a000-000000000001', graphic_deliverable_id: '00000000-0000-4000-a000-000000000002' };
+  const now = new Date();
+  const fixtureDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+  const row = { ...BASE_ROW, id: 'p_phone_fixture_1', name: 'A little change. A better day.', scheduled_date: fixtureDate, cta: 'Save this for later.', thumbnail_url: 'https://drive.google.com/file/d/fixture_thumbnail_asset/view', video_deliverable_id: '00000000-0000-4000-a000-000000000001', graphic_deliverable_id: '00000000-0000-4000-a000-000000000002' };
   const finished = { ...row, id: 'p_phone_fixture_2', name: 'Make room for what matters.', thumbnail_url: origin + '/__fixture_unavailable.png', order_index: 2, status: 'Approved', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved' };
   const settings = { id: 'p_cal_settings', client: row.client, caption: JSON.stringify({ collab_mode: true }) };
   const writes = [];
@@ -80,6 +83,8 @@ async function run(browser, origin, width) {
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin + '/index.html?c=Phone%20Fixture%20Client&t=synthetic-phone-token&v=calendar', { waitUntil: 'domcontentloaded' });
   await page.locator('.cal-review-card').first().waitFor();
+  await shot(page, 'review-queue-' + width);
+  if (!before) await measure(page, 'review-queue-' + width);
   await page.locator('.kcard-expand-btn').first().click();
   await shot(page, 'review-' + width);
   if (!before) {
@@ -139,6 +144,13 @@ async function run(browser, origin, width) {
     await shot(page, view + '-' + width);
     if (!before) await measure(page, view + '-' + width);
     if (!before && view !== 'organizer') {
+      // Runs of empty days fold into one labelled line; the folded days stay in the page for drag and drop.
+      const dayRows = await page.evaluate(v => [...document.querySelectorAll(v === 'month' ? '.cal-month-cell[data-iso]' : '.cal-week-col[data-iso]')]
+        .filter(e => !e.classList.contains('out') && e.checkVisibility({ checkVisibilityCSS: true }))
+        .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', posts: e.querySelectorAll('.cal-month-pill, .cal-week-card').length, run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
+      ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
+      ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
+      ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');
       const cards = page.locator(view === 'month' ? '.cal-month-pill:visible' : '.cal-week-card:visible');
       if (view === 'week' && !await cards.count()) await page.locator('.cal-nav-btn').last().click();
       await cards.first().click();
@@ -181,6 +193,7 @@ async function run(browser, origin, width) {
     }
   }
   if (!before) {
+    await phoneThumbnailComparison(page, ctx, { surface: 'calendar', id: row.id, measure, shot, suffix: width, prefix: '' });
     // Presentation crossing must return the existing desktop shell and tabs.
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.locator('.pocket-client-calendar').waitFor({ state: 'detached' });

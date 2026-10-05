@@ -4576,12 +4576,6 @@
             editBtn.onclick = _tplTogglePinsEdit;
             row.appendChild(editBtn);
         }
-        if (!pins.length && window.svIsStaffPhone && window.svIsStaffPhone()) {
-            const note = document.createElement('p');
-            note.className = 'tpl-pins-empty';
-            note.textContent = 'Pin up to 5 clients you work on';
-            row.appendChild(note);
-        }
         addRow.innerHTML = '';
         const showAddBtn = pins.length < TPL_MAX_PINS && (pins.length === 0 || _tplPinsEditMode || _tplPinSelectorOpen);
         if (showAddBtn) {
@@ -4845,7 +4839,7 @@
         try { const h = new URL(u).hostname.replace(/^www\./, ''); return /dropbox/.test(h) ? 'Dropbox' : /frame\.io/.test(h) ? 'Frame.io' : /google/.test(h) ? 'Google Drive' : h; } catch (e) { return ''; }
     }
     function _tplFolderDate(at) {
-        const d = new Date(at); return isNaN(d) ? '' : ((window.svPhoneDate ? window.svPhoneDate(d) : '') || d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }));
+        const d = new Date(at); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     }
     function _tplRecentFolders(name) {
         _tplFoldersEnsure(name);
@@ -5288,19 +5282,11 @@
         if (el) el.innerHTML = _tplSocialLinksHtml(_templatesSelected);
     }
 
-    // "← All templates". On a phone the arrow is a drawn icon, not a text character; wider screens keep the original text.
-    function _tplBackLabel() {
-        const phone = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
-        return phone
-            ? '<svg class="tpl-back-svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates'
-            : '← All templates';
-    }
-
     function renderClientTemplate(name) {
         // Loading state — first paint while the GET is in flight.
         if (!_tplClientReady(name) && !templatesLoadError) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-skeleton tpl-skeleton-pill" style="width:160px;height:24px;margin-bottom:18px;"></div>
                 <div class="tpl-skeleton-card">
@@ -5317,7 +5303,7 @@
         }
         if (templatesLoadError && !_tplClientReady(name)) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>
             </div>`;
@@ -5369,7 +5355,7 @@
             : '';
 
         return `<div class="tpl-view${isEdit?' editing':''}">
-            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
+            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
             <div class="tpl-client-head">
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}<span class="tpl-social" data-tpl-social>${_tplSocialLinksHtml(name)}</span></div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
@@ -14662,7 +14648,7 @@
         const client = document.getElementById('linearClientSearch')?.value?.trim() || '';
         if (!client) {
             _linearResolvedPlanUrl = '';
-            el.textContent = (window.svIsStaffPhone && window.svIsStaffPhone()) ? 'Found from the client you pick' : 'Select a client…';
+            el.textContent = 'Select a client…';
             el.classList.add('empty'); el.classList.remove('warn');
             el.removeAttribute('title');
             saveLinearForm();
@@ -14678,7 +14664,7 @@
         }
         if (_linearPlanMapState === 'failed') {
             _linearResolvedPlanUrl = '';
-            el.innerHTML = '<span class="linear-warn-glyph" aria-hidden="true">⚠</span> Could not load filming plans. The server will resolve this when submitted.';
+            el.textContent = '⚠ Could not load filming plans. The server will resolve this when submitted.';
             el.title = _linearPlanMapError;
             el.classList.add('warn'); el.classList.remove('empty');
             saveLinearForm();
@@ -14697,7 +14683,7 @@
             el.title = url;
             el.classList.remove('empty', 'warn');
         } else {
-            el.innerHTML = '<span class="linear-warn-glyph" aria-hidden="true">⚠</span> No filming plan found for this client';
+            el.textContent = '⚠ No filming plan found for this client';
             el.removeAttribute('title');
             el.classList.add('warn'); el.classList.remove('empty');
         }
@@ -14718,7 +14704,7 @@
             && hold.client_name === String(input && input.value || '').trim()
             && hold.client_slug === String(input && input.dataset && input.dataset.clientSlug || '').trim();
         const t = holdMatches ? hold.computed_title : buildLinearTitle();
-        el.textContent = t || ((window.svIsStaffPhone && window.svIsStaffPhone()) ? 'Made from the client and today\'s date' : 'Select a client…');
+        el.textContent = t || 'Select a client…';
         el.classList.toggle('empty', !t);
         saveLinearForm();
     }
@@ -16202,7 +16188,7 @@
         return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
     }
     function _tdyTop(views, on) {
-        const d = (window.svPhoneDate ? window.svPhoneDate(new Date()) : '') || new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+        const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
         return `<div class="tdy-top"><h1 class="tdy-date">${_calEsc(d)}</h1><div class="tdy-vw" role="group" aria-label="View">${views.map(v => `<button type="button" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
     }
     const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
@@ -16264,7 +16250,7 @@
     }
     function _tdyShortDate(iso) {
         const d = new Date(String(iso || '') + 'T12:00:00');
-        return isNaN(d) ? '' : ((window.svPhoneDate ? window.svPhoneDate(d) : '') || d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }));
+        return isNaN(d) ? '' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     }
     function _tdyWalkList(d) {
         const approving = p => /smm approval/i.test(p.video_status || '') || /smm approval/i.test(p.graphic_status || '') || /smm approval/i.test(p.status || '');
@@ -16591,163 +16577,6 @@
         return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
     }
 
-    /* STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded").
-     *
-     * On a phone, four staff screens (Today, Templates, Filming Plans, Submit)
-     * drop the wide desktop header and show one title row instead: the screen
-     * name on the left, Tabs and More on the right. Tabs lists every tab the
-     * header shows today; More holds the header's account, appearance and
-     * client controls. Nothing here is a new action: every row presses the
-     * existing header control (same permissions, same handlers).
-     *
-     * The bar is created only on a phone-width screen showing one of these four
-     * tabs, and removed again everywhere else, so desktop widths never get a
-     * single new element. Its look is the STAFF-PHONE block in
-     * 020-styles-surfaces, every rule of which is phone-capped and rooted at
-     * `body:has(.pocket-staff-bar)`.
-     *
-     * Other staff screens join by adding their nav id to POCKET_STAFF_PAGES. */
-    (function () {
-        const POCKET_STAFF_PAGES = { navToday: 'Today', navTemplates: 'Templates', navFilmingPlans: 'Filming Plans', navLinear: 'Submit' };
-        const phone = window.matchMedia ? window.matchMedia('(max-width: 767px)') : null;
-        const chevron = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>';
-        const dots = '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>';
-        const close = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>';
-        const next = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>';
-        const tick = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 10.5 3.6 3.6 7.4-8"/></svg>';
-        /* ONE PHONE DATE FORMAT: "Sat, 3 Oct 2026". Returns '' on anything wider
-           than a phone (and on a bad date), so every caller keeps its own desktop
-           wording by writing  window.svPhoneDate(d) || <its existing text>.
-           Locale-independent on purpose: the same words on every phone. */
-        /* True on a phone-width staff page (never a client link, never the public intake or onboarding form).
-           Render code that words or sizes something differently on phones asks this; wider screens get false,
-           so their output stays exactly what it was. */
-        window.svIsStaffPhone = function () {
-            return !!(phone && phone.matches) && !document.documentElement.classList.contains('boot-client')
-                && !document.body.classList.contains('intake-mode') && !document.body.classList.contains('onboarding-mode');
-        };
-        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        window.svPhoneDate = function (value) {
-            if (!phone || !phone.matches || document.documentElement.classList.contains('boot-client')) return '';
-            const d = value instanceof Date ? value : new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? value + 'T12:00:00' : value);
-            return isNaN(d) ? '' : DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
-        };
-        const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-        function activeNavId() {
-            const a = document.querySelector('#headerNav > .header-nav-btn.active');
-            return a ? a.id : '';
-        }
-        function wanted() {
-            if (!phone || !phone.matches) return '';
-            if (document.documentElement.classList.contains('boot-client')) return '';
-            if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return '';
-            return POCKET_STAFF_PAGES[activeNavId()] || '';
-        }
-        function dialogHtml(kind, title) {
-            return '<dialog class="pocket-staff-sheet" id="pocketStaff' + kind + '" aria-labelledby="pocketStaff' + kind + 'Title">'
-                + '<div class="pocket-staff-sheet-head"><h2 id="pocketStaff' + kind + 'Title">' + title + '</h2>'
-                + '<button type="button" class="pocket-staff-sheet-close" aria-label="Close ' + title.toLowerCase() + '">' + close + '</button></div>'
-                + '<div class="pocket-staff-sheet-body" id="pocketStaff' + kind + 'Body"></div></dialog>';
-        }
-        function row(label, attrs, extra) {
-            return '<button type="button" class="pocket-staff-row"' + (attrs || '') + '><span>' + esc(label) + '</span>' + (extra || next) + '</button>';
-        }
-        // The visible tab label, widened to the full name when the header only abbreviates it (Filming, TikTok).
-        function tabLabel(el) {
-            const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-            const full = (el.getAttribute('aria-label') || '').trim();
-            return full && full.toLowerCase().indexOf(text.toLowerCase()) === 0 ? full : text;
-        }
-        function tabsHtml() {
-            const cur = activeNavId();
-            return [...document.querySelectorAll('#headerNav > .header-nav-btn')]
-                .filter(el => el.style.display !== 'none')
-                .map(el => row(tabLabel(el), ' data-nav="' + esc(el.id) + '"' + (el.id === cur ? ' aria-current="page"' : ''), el.id === cur ? tick : next))
-                .join('');
-        }
-        function control(id) {
-            const el = document.getElementById(id);
-            return el && !el.hidden && el.style.display !== 'none' ? el : null;
-        }
-        function moreHtml() {
-            const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-            const rows = [];
-            const bar = document.getElementById('svClientBar');
-            if (bar && !bar.hidden) rows.push(row('Change client', ' data-proxy="svClientBadge"'));
-            if (bar && !bar.hidden && document.querySelector('#svClientBar .sv-jump-touch')) rows.push(row('Quick jump to a client or tab', ' data-proxy-sel="#svClientBar .sv-jump-touch"'));
-            rows.push(row(dark ? 'Light appearance' : 'Dark appearance', ' data-proxy="themeToggle"'));
-            if (control('statusPaletteToggle')) {
-                const classic = document.documentElement.getAttribute('data-status-palette') === 'classic';
-                rows.push(row(classic ? 'Current status colors' : 'Original status colors', ' data-proxy="statusPaletteToggle"'));
-            }
-            [['headerTimeOffMenuItem', 'Time Off'], ['headerOnboardingMenuItem', 'Onboarding'], ['headerCredentialsMenuItem', 'Client Credentials']].forEach(p => {
-                if (control(p[0])) rows.push(row(p[1], ' data-proxy="' + p[0] + '"'));
-            });
-            const out = document.getElementById('staffIdentityMenuLabel');
-            if (document.getElementById('staffIdentitySignOut')) rows.push(row((out && out.textContent.trim()) || 'Staff menu', ' data-proxy="staffIdentitySignOut"'));
-            const who = document.getElementById('staffAccountSummary');
-            const caption = who && who.textContent.replace(/\s+/g, ' ').trim();
-            return (caption ? '<p class="pocket-staff-who">' + esc(caption) + '</p>' : '') + rows.join('');
-        }
-        function open(kind) {
-            const dialog = document.getElementById('pocketStaff' + kind);
-            if (!dialog || dialog.open) return;
-            document.getElementById('pocketStaff' + kind + 'Body').innerHTML = kind === 'Tabs' ? tabsHtml() : moreHtml();
-            dialog.showModal();
-        }
-        function wireBar(bar) {
-            bar.querySelector('.pocket-staff-tabs-btn').addEventListener('click', () => open('Tabs'));
-            bar.querySelector('.pocket-staff-more-btn').addEventListener('click', () => open('More'));
-            bar.querySelectorAll('dialog').forEach(dialog => {
-                dialog.querySelector('.pocket-staff-sheet-close').addEventListener('click', () => dialog.close());
-                dialog.addEventListener('click', ev => {
-                    if (ev.target === dialog) { dialog.close(); return; }
-                    const r = ev.target.closest('.pocket-staff-row');
-                    if (!r) return;
-                    const target = r.dataset.nav ? document.getElementById(r.dataset.nav)
-                        : r.dataset.proxy ? document.getElementById(r.dataset.proxy)
-                        : r.dataset.proxySel ? document.querySelector(r.dataset.proxySel) : null;
-                    dialog.close();
-                    // After the sheet has closed, so focus and any popover it opens land on the page.
-                    if (target) setTimeout(() => target.click(), 0);
-                });
-            });
-        }
-        function sync() {
-            const title = wanted();
-            let bar = document.getElementById('pocketStaffBar');
-            if (!title) {
-                if (bar) bar.remove();
-                return;
-            }
-            if (!bar) {
-                const main = document.getElementById('mainWrap');
-                if (!main) return;
-                bar = document.createElement('div');
-                bar.id = 'pocketStaffBar';
-                bar.className = 'pocket-staff-bar';
-                bar.innerHTML = '<h1 class="pocket-staff-title"></h1><div class="pocket-staff-actions">'
-                    + '<button type="button" class="pocket-staff-tabs-btn" aria-haspopup="dialog" aria-controls="pocketStaffTabs">Tabs ' + chevron + '</button>'
-                    + '<button type="button" class="pocket-staff-more-btn" aria-label="More options" aria-haspopup="dialog" aria-controls="pocketStaffMore">' + dots + '</button></div>'
-                    + dialogHtml('Tabs', 'Tabs') + dialogHtml('More', 'More');
-                main.parentNode.insertBefore(bar, main);
-                wireBar(bar);
-            }
-            const h1 = bar.querySelector('.pocket-staff-title');
-            if (h1.textContent !== title) h1.textContent = title;
-        }
-        function start() {
-            const nav = document.getElementById('headerNav');
-            if (!nav) return;
-            new MutationObserver(sync).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
-            if (phone && phone.addEventListener) phone.addEventListener('change', sync);
-            sync();
-        }
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-        else start();
-    })();
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
@@ -41884,6 +41713,28 @@
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
         return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
     }
+    /* Phone client links: runs of consecutive empty days become one slim line
+       ("Thu 1 to Fri 2 · Nothing scheduled"). Every day keeps its own element and
+       data-iso, so a drag still has each day to land on; the first day of a run
+       carries the label and the rest are folded away until a drag starts.
+       isos: the days in order; isEmpty(iso): true for a day that may fold. */
+    function _calPhoneEmptyRuns(isos, isEmpty) {
+        const runs = new Map();
+        if (!_calPhoneClient()) return runs;
+        const dayLabel = iso => _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + parseInt(iso.slice(8, 10), 10);
+        let run = [];
+        const flush = () => {
+            if (!run.length) return;
+            const label = (run.length === 1 ? dayLabel(run[0]) : dayLabel(run[0]) + ' to ' + dayLabel(run[run.length - 1])) + ' · Nothing scheduled';
+            run.forEach((iso, i) => runs.set(iso, i === 0 ? { head: true, label } : { head: false }));
+            run = [];
+        };
+        isos.forEach(iso => { if (isEmpty(iso)) run.push(iso); else flush(); });
+        flush();
+        return runs;
+    }
+    function _calPhoneRunClass(run) { return run ? (run.head ? ' pocket-run-head' : ' pocket-run-rest') : ''; }
+    function _calPhoneRunLabel(run) { return run && run.head ? `<span class="pocket-run-label">${_calEsc(run.label)}</span>` : ''; }
     function _calMonthPillHtml(p) {
         const info = _calDeriveThumbInfo(p);
         const thumb = info.url
@@ -41934,6 +41785,7 @@
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
+        const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
         return `<div class="cal-month-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calMonthShift(-1)" title="Previous month">‹</button>
@@ -41949,7 +41801,9 @@
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = monthRuns.get(iso);
+                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-month-cellhead">
                             <span class="cal-month-dow">${dow}</span>
                             <span class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</span>
@@ -41998,6 +41852,7 @@
         const endDate = _calParseIso(_calAddDaysISO(start, 6));
         const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         const todayISO = _calIsoOf(new Date());
+        const weekRuns = _calPhoneEmptyRuns(days.slice(_CAL_WEEK_BUFFER, _CAL_WEEK_BUFFER + 7), iso => iso !== todayISO && !(byDate.get(iso) || []).length);
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
@@ -42015,7 +41870,9 @@
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-week-col${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = weekRuns.get(iso);
+                    return `<div class="cal-week-col${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-week-head">
                             <div class="cal-week-day">${dow}</div>
                             <div class="cal-week-num">${parseInt(iso.slice(8,10), 10)}</div>
@@ -46337,15 +46194,7 @@
         const savedGeneralDrive = saved.generalDrive || '';
 
         // Restore video count from saved data
-        // On a phone the form opens with one video block (Add Video adds more); trailing blank blocks saved earlier are not drawn.
-        const onPhone = !!(window.svIsStaffPhone && window.svIsStaffPhone());
-        const hasContent = v => !!(v && (v.main_cam || v.side_cam || v.audio || v.notes));
-        let savedVideoCount = saved.videos?.length || (onPhone ? 1 : LINEAR_DEFAULT_VIDEO_COUNT);
-        if (onPhone && saved.videos?.length) {
-            let last = 0;
-            saved.videos.forEach((v, i) => { if (hasContent(v)) last = i + 1; });
-            savedVideoCount = Math.max(last, 1);
-        }
+        const savedVideoCount = saved.videos?.length || LINEAR_DEFAULT_VIDEO_COUNT;
         _linearSetVideoCount(Math.max(savedVideoCount, 1));
 
         let videoCards = '';
@@ -46354,7 +46203,7 @@
             videoCards += renderVideoCard(i, v);
         }
 
-        let titleDisplay = onPhone ? 'Made from the client and today\'s date' : 'Select a client…';
+        let titleDisplay = 'Select a client…';
         if (heldSubmission && heldSubmission.client_name === String(savedClient).trim()
             && heldSubmission.client_slug === String(savedClientSlug).trim()) {
             titleDisplay = heldSubmission.computed_title;
@@ -46399,7 +46248,7 @@
                 </div>
                 <div class="linear-field" id="linearFilmingPlansField">
                     <label class="linear-label">Filming Plans</label>
-                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">${onPhone ? 'Found from the client you pick' : 'Select a client…'}</div>
+                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">Select a client…</div>
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">General Drive</label>
@@ -46917,8 +46766,6 @@
     function _linearSavedWhen(iso) {
         const d = new Date(iso);
         if (!iso || isNaN(d)) return 'earlier';
-        const phoneDay = (window.svPhoneDate ? window.svPhoneDate(d) : '');
-        if (phoneDay) return phoneDay + ', ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         return d.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     }
     function _linearSavedBoxHtml() {
@@ -85274,4 +85121,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-ae3dd00028ce.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-5640cbff7019.js");

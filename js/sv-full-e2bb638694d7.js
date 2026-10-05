@@ -4576,6 +4576,12 @@
             editBtn.onclick = _tplTogglePinsEdit;
             row.appendChild(editBtn);
         }
+        if (!pins.length && window.svIsStaffPhone && window.svIsStaffPhone()) {
+            const note = document.createElement('p');
+            note.className = 'tpl-pins-empty';
+            note.textContent = 'Pin up to 5 clients you work on';
+            row.appendChild(note);
+        }
         addRow.innerHTML = '';
         const showAddBtn = pins.length < TPL_MAX_PINS && (pins.length === 0 || _tplPinsEditMode || _tplPinSelectorOpen);
         if (showAddBtn) {
@@ -14656,7 +14662,7 @@
         const client = document.getElementById('linearClientSearch')?.value?.trim() || '';
         if (!client) {
             _linearResolvedPlanUrl = '';
-            el.textContent = 'Select a client…';
+            el.textContent = (window.svIsStaffPhone && window.svIsStaffPhone()) ? 'Found from the client you pick' : 'Select a client…';
             el.classList.add('empty'); el.classList.remove('warn');
             el.removeAttribute('title');
             saveLinearForm();
@@ -14712,7 +14718,7 @@
             && hold.client_name === String(input && input.value || '').trim()
             && hold.client_slug === String(input && input.dataset && input.dataset.clientSlug || '').trim();
         const t = holdMatches ? hold.computed_title : buildLinearTitle();
-        el.textContent = t || 'Select a client…';
+        el.textContent = t || ((window.svIsStaffPhone && window.svIsStaffPhone()) ? 'Made from the client and today\'s date' : 'Select a client…');
         el.classList.toggle('empty', !t);
         saveLinearForm();
     }
@@ -16613,6 +16619,13 @@
            than a phone (and on a bad date), so every caller keeps its own desktop
            wording by writing  window.svPhoneDate(d) || <its existing text>.
            Locale-independent on purpose: the same words on every phone. */
+        /* True on a phone-width staff page (never a client link, never the public intake or onboarding form).
+           Render code that words or sizes something differently on phones asks this; wider screens get false,
+           so their output stays exactly what it was. */
+        window.svIsStaffPhone = function () {
+            return !!(phone && phone.matches) && !document.documentElement.classList.contains('boot-client')
+                && !document.body.classList.contains('intake-mode') && !document.body.classList.contains('onboarding-mode');
+        };
         const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         window.svPhoneDate = function (value) {
@@ -35414,6 +35427,12 @@
         content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>Couldn’t load the comparison</strong><p>${_calEsc(message || 'Try again in a moment.')}</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareLoad()">Try again</button></div>`;
     }
     async function _thumbCompareLoad() {
+        // The retry button is replaced by the loading paint. On these phone
+        // surfaces, return its keyboard focus to the stable Close control.
+        const restorePhoneFocus = window.matchMedia('(max-width: 767px)').matches
+            && (document.documentElement.classList.contains('boot-client')
+                || !!document.querySelector('#calView[data-pocket-staff-phone], #sxrView[data-pocket-staff-samples]'))
+            && !!document.activeElement?.closest('.thumb-compare-retry');
         const state = _thumbCompareState;
         if (!state) return;
         if (!_isClientLink && !_syncviewStaffIdentityForHeaders()) { _thumbCompareRenderSignIn(); return; }
@@ -35422,6 +35441,7 @@
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         state.controller = controller;
         _thumbCompareLoading('Loading thumbnail history…');
+        if (restorePhoneFocus) document.querySelector('.thumb-compare-close')?.focus();
         try {
             const headers = _syncviewEfHeaders({
                 'Content-Type': 'application/json',
@@ -35455,7 +35475,12 @@
             if (_thumbCompareState !== state) return;
             _thumbCompareRenderError(error && error.message ? error.message : 'Try again in a moment.');
         } finally {
-            if (_thumbCompareState === state) state.controller = null;
+            if (_thumbCompareState === state) {
+                state.controller = null;
+                if (restorePhoneFocus && !document.getElementById('thumbCompareDialog')?.contains(document.activeElement)) {
+                    document.querySelector('.thumb-compare-close')?.focus();
+                }
+            }
         }
     }
     function _thumbCompareNormalize(json) {
@@ -41871,6 +41896,28 @@
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
         return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
     }
+    /* Phone client links: runs of consecutive empty days become one slim line
+       ("Thu 1 to Fri 2 · Nothing scheduled"). Every day keeps its own element and
+       data-iso, so a drag still has each day to land on; the first day of a run
+       carries the label and the rest are folded away until a drag starts.
+       isos: the days in order; isEmpty(iso): true for a day that may fold. */
+    function _calPhoneEmptyRuns(isos, isEmpty) {
+        const runs = new Map();
+        if (!_calPhoneClient()) return runs;
+        const dayLabel = iso => _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + parseInt(iso.slice(8, 10), 10);
+        let run = [];
+        const flush = () => {
+            if (!run.length) return;
+            const label = (run.length === 1 ? dayLabel(run[0]) : dayLabel(run[0]) + ' to ' + dayLabel(run[run.length - 1])) + ' · Nothing scheduled';
+            run.forEach((iso, i) => runs.set(iso, i === 0 ? { head: true, label } : { head: false }));
+            run = [];
+        };
+        isos.forEach(iso => { if (isEmpty(iso)) run.push(iso); else flush(); });
+        flush();
+        return runs;
+    }
+    function _calPhoneRunClass(run) { return run ? (run.head ? ' pocket-run-head' : ' pocket-run-rest') : ''; }
+    function _calPhoneRunLabel(run) { return run && run.head ? `<span class="pocket-run-label">${_calEsc(run.label)}</span>` : ''; }
     function _calMonthPillHtml(p) {
         const info = _calDeriveThumbInfo(p);
         const thumb = info.url
@@ -41921,6 +41968,7 @@
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
+        const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
         return `<div class="cal-month-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calMonthShift(-1)" title="Previous month">‹</button>
@@ -41936,7 +41984,9 @@
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = monthRuns.get(iso);
+                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-month-cellhead">
                             <span class="cal-month-dow">${dow}</span>
                             <span class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</span>
@@ -41985,6 +42035,7 @@
         const endDate = _calParseIso(_calAddDaysISO(start, 6));
         const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         const todayISO = _calIsoOf(new Date());
+        const weekRuns = _calPhoneEmptyRuns(days.slice(_CAL_WEEK_BUFFER, _CAL_WEEK_BUFFER + 7), iso => iso !== todayISO && !(byDate.get(iso) || []).length);
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
@@ -42002,7 +42053,9 @@
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-week-col${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = weekRuns.get(iso);
+                    return `<div class="cal-week-col${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-week-head">
                             <div class="cal-week-day">${dow}</div>
                             <div class="cal-week-num">${parseInt(iso.slice(8,10), 10)}</div>
@@ -46324,7 +46377,15 @@
         const savedGeneralDrive = saved.generalDrive || '';
 
         // Restore video count from saved data
-        const savedVideoCount = saved.videos?.length || LINEAR_DEFAULT_VIDEO_COUNT;
+        // On a phone the form opens with one video block (Add Video adds more); trailing blank blocks saved earlier are not drawn.
+        const onPhone = !!(window.svIsStaffPhone && window.svIsStaffPhone());
+        const hasContent = v => !!(v && (v.main_cam || v.side_cam || v.audio || v.notes));
+        let savedVideoCount = saved.videos?.length || (onPhone ? 1 : LINEAR_DEFAULT_VIDEO_COUNT);
+        if (onPhone && saved.videos?.length) {
+            let last = 0;
+            saved.videos.forEach((v, i) => { if (hasContent(v)) last = i + 1; });
+            savedVideoCount = Math.max(last, 1);
+        }
         _linearSetVideoCount(Math.max(savedVideoCount, 1));
 
         let videoCards = '';
@@ -46333,7 +46394,7 @@
             videoCards += renderVideoCard(i, v);
         }
 
-        let titleDisplay = 'Select a client…';
+        let titleDisplay = onPhone ? 'Made from the client and today\'s date' : 'Select a client…';
         if (heldSubmission && heldSubmission.client_name === String(savedClient).trim()
             && heldSubmission.client_slug === String(savedClientSlug).trim()) {
             titleDisplay = heldSubmission.computed_title;
@@ -46378,7 +46439,7 @@
                 </div>
                 <div class="linear-field" id="linearFilmingPlansField">
                     <label class="linear-label">Filming Plans</label>
-                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">Select a client…</div>
+                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">${onPhone ? 'Found from the client you pick' : 'Select a client…'}</div>
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">General Drive</label>
@@ -85253,4 +85314,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-8ea5155b849e.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-e2bb638694d7.js");

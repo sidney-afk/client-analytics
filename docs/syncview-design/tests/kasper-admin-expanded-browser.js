@@ -197,7 +197,7 @@ async function runMain() {
     for (const width of widths) for (const theme of themes) {
       const {ctx,page,errors} = await open(browser,origin,width,theme);
       try {
-        for (const t of tests.filter(t => (!only || t.label.includes(only)) && (!desktop || ['review-empty','review-open','review-single','messages','editors','filming','time-off','sales-intake','hiring-detail','onboarding','onboarding-detail','credentials','client-detail','quiz-detail','ads','save-problems','credential-add','account'].includes(t.label)))) {
+        for (const t of tests.filter(t => (!only || only.split(',').some(label=>t.label.includes(label))) && (!desktop || ['review-empty','review-open','review-single','messages','editors','filming','time-off','sales-intake','hiring-detail','onboarding','onboarding-detail','credentials','client-detail','quiz-detail','ads','save-problems','credential-add','account'].includes(t.label)))) {
           try {
             await page.evaluate(tab => {
               document.activeElement?.blur(); _syncviewCloseStaffAccount(); _kasperSetMoreOpen(false,false,false);
@@ -228,6 +228,10 @@ async function runMain() {
               await page.waitForTimeout(50);
               const dashboard = ['review','replies','filming'].includes(t.tab) && !t.label.startsWith('staff-');
               expect(await page.locator('.kasper-subtabs:visible').count() === (dashboard ? 1 : 0), t.label+': reviewer navigation belongs only to dashboard');
+              if (dashboard) {
+                const segments=await page.locator('.kasper-subtabs > .kasper-primary-tab:visible').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {top:r.top,width:r.width};}));
+                expect(segments.length===3 && Math.max(...segments.map(s=>s.width))-Math.min(...segments.map(s=>s.width))<1 && Math.max(...segments.map(s=>s.top))-Math.min(...segments.map(s=>s.top))<1,t.label+': reviewer segments fill three equal columns on every view');
+              }
               const header = await page.locator('.pocket-admin-heading').evaluate(el => ({ tabs:!!el.querySelector('button[aria-haspopup="dialog"] svg path[d="m5 7 5 5 5-5"]'),dots:[...el.querySelectorAll('.pocket-admin-more-icon circle,.pocket-admin-heading-actions > .pocket-admin-account circle')].map(n=>n.getAttribute('r')) }));
               expect(header.tabs && header.dots.length===3 && header.dots.every(r=>r==='1.7'), t.label+': approved Calendar header icons');
               if (t.label === 'review-open') {
@@ -265,6 +269,8 @@ async function runMain() {
                 }
               }
               if (t.label==='messages') {
+                const badge=await page.locator('.kasper-replies-newfrom').evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);return {text:n.textContent,nowrap:getComputedStyle(n).whiteSpace,lines:range.getClientRects().length};});
+                expect(badge.text==='New' && badge.nowrap==='nowrap' && badge.lines===1,'Messages badge stays short and on one line');
                 const text=await page.locator('.kasper-replies-title').evaluate(n=>({height:n.getBoundingClientRect().height,line:parseFloat(getComputedStyle(n).lineHeight),whiteSpace:getComputedStyle(n).whiteSpace}));
                 expect(text.whiteSpace==='normal' && text.height>text.line && text.height<=text.line*2+1,'Messages title wraps to two lines');
                 const toggle=page.getByRole('switch',{name:'Only new',exact:true});
@@ -286,6 +292,7 @@ async function runMain() {
               } else {
                 expect(await page.locator('.kasper-replies-showall').textContent()==='Show only new' && await page.locator('.kasper-replies-showall').getAttribute('role')===null,'Desktop restores the original message-filter text and semantics');
                 expect(await page.locator('.kasper-replies-thread .cal-review-comment').count()===3,'Desktop resize retains the selected message filter');
+                expect(await page.locator('.kasper-replies-newfrom').textContent()==='New from Team' && await page.locator('.kasper-replies-newfrom').getAttribute('aria-label')===null,'Desktop restores the original unread-source badge');
               }
               await page.setViewportSize({width,height:844}); await page.waitForTimeout(100);
             }

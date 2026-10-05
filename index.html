@@ -9070,7 +9070,7 @@
  html.pocket-admin-phone .pocket-admin-heading .kasper-more-trigger > .pocket-admin-more-icon { display:inline-flex !important; }
  html.pocket-admin-phone .pocket-admin-heading-actions > .pocket-admin-account { width:44px; padding:0; margin:0; }
  html.pocket-admin-phone .kasper-wrap:not([data-pocket-reviewer]) > .kasper-subtabs { display:none; }
- html.pocket-admin-phone .kasper-subtabs { display: flex; padding: 4px; margin: 0 0 20px; gap: 3px; width: 100%; border: 0; border-radius: 15px; background: var(--surface-subtle); overflow: visible; }
+ html.pocket-admin-phone #mainWrap .kasper-wrap[data-pocket-reviewer] > .kasper-subtabs { display: grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding: 4px; margin: 0 0 20px; gap: 3px; width: 100%; border: 0; border-radius: 15px; background: var(--surface-subtle); overflow: visible; }
  html.pocket-admin-phone .kasper-primary-tab { flex: 1; min-width: 44px; justify-content: center; padding: 0 5px; border-radius: 11px; color: var(--text-secondary); font-size: 12px; box-shadow: none; }
  html.pocket-admin-phone .kasper-primary-tab > svg { display: none; }
  html.pocket-admin-phone .kasper-primary-tab.active { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
@@ -9308,6 +9308,7 @@
  html.pocket-admin-phone #kasperContent .hp-filter { flex:none; white-space:nowrap; }
  html.pocket-admin-phone #kasperContent .hp-detail:has(.hp-detail-empty) { display:none; }
  html.pocket-admin-phone #kasperContent .kasper-replies-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; white-space:normal; text-overflow:clip; overflow-wrap:anywhere; }
+ html.pocket-admin-phone #kasperContent .kasper-replies-newfrom { display:inline-flex; white-space:nowrap; }
  html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle { position:relative; align-self:flex-start; display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:8px 0; color:var(--text-secondary); font-size:13px; }
  html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle::before { content:''; width:32px; height:20px; flex:none; border-radius:20px; background:var(--border); }
  html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle::after { content:''; position:absolute; left:3px; width:14px; height:14px; border-radius:50%; background:var(--white); }
@@ -9833,9 +9834,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-b6f4aee60413.js";
+        var FULL = "js/sv-full-ea8adf1e0d31.js";
         var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-c01b1ff59fd1.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-7c25e26b1bc6.js"};
+        var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-baedbf6dc851.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

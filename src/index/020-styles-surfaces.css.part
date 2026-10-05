@@ -4526,7 +4526,7 @@
  html.pocket-admin-phone .pocket-admin-heading .kasper-more-trigger > .pocket-admin-more-icon { display:inline-flex !important; }
  html.pocket-admin-phone .pocket-admin-heading-actions > .pocket-admin-account { width:44px; padding:0; margin:0; }
  html.pocket-admin-phone .kasper-wrap:not([data-pocket-reviewer]) > .kasper-subtabs { display:none; }
- html.pocket-admin-phone .kasper-subtabs { display: flex; padding: 4px; margin: 0 0 20px; gap: 3px; width: 100%; border: 0; border-radius: 15px; background: var(--surface-subtle); overflow: visible; }
+ html.pocket-admin-phone #mainWrap .kasper-wrap[data-pocket-reviewer] > .kasper-subtabs { display: grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding: 4px; margin: 0 0 20px; gap: 3px; width: 100%; border: 0; border-radius: 15px; background: var(--surface-subtle); overflow: visible; }
  html.pocket-admin-phone .kasper-primary-tab { flex: 1; min-width: 44px; justify-content: center; padding: 0 5px; border-radius: 11px; color: var(--text-secondary); font-size: 12px; box-shadow: none; }
  html.pocket-admin-phone .kasper-primary-tab > svg { display: none; }
  html.pocket-admin-phone .kasper-primary-tab.active { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
@@ -4764,6 +4764,7 @@
  html.pocket-admin-phone #kasperContent .hp-filter { flex:none; white-space:nowrap; }
  html.pocket-admin-phone #kasperContent .hp-detail:has(.hp-detail-empty) { display:none; }
  html.pocket-admin-phone #kasperContent .kasper-replies-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; white-space:normal; text-overflow:clip; overflow-wrap:anywhere; }
+ html.pocket-admin-phone #kasperContent .kasper-replies-newfrom { display:inline-flex; white-space:nowrap; }
  html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle { position:relative; align-self:flex-start; display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:8px 0; color:var(--text-secondary); font-size:13px; }
  html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle::before { content:''; width:32px; height:20px; flex:none; border-radius:20px; background:var(--border); }
  html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle::after { content:''; position:absolute; left:3px; width:14px; height:14px; border-radius:50%; background:var(--white); }

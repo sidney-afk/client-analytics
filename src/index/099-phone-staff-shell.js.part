@@ -75,7 +75,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const proxy = (label, sel, note) => {
                 const el = document.querySelector(sel);
                 if (!el || el.hidden || el.disabled) return;
-                rows.push({ label, note: note || '', sel });
+                rows.push({ label: label || el.textContent.replace(/\s+/g, ' ').trim(), note: note || '', sel });
             };
             if (currentNav === 'production') {
                 // The Linear sidebar is hidden on a phone: its views are reached from here.
@@ -92,9 +92,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (cfg && cfg.client) proxy('Change client', '#svClientBadge');
             proxy('Quick jump', '.sv-jump-touch');
             proxy(document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light appearance' : 'Dark appearance', '#themeToggle');
-            proxy('Time Off', '#headerTimeOffMenuItem');
-            proxy('Onboarding', '#headerOnboardingMenuItem');
-            proxy('Client Credentials', '#headerCredentialsMenuItem');
+            proxy('', '#headerTimeOffMenuItem');
+            proxy('', '#headerOnboardingMenuItem');
+            proxy('', '#headerCredentialsMenuItem');
             const signOut = document.getElementById('staffIdentitySignOut');
             if (signOut && !signOut.hidden) rows.push({ label: (document.getElementById('staffIdentityMenuLabel')?.textContent || 'Staff sign in').trim(), sel: '#staffIdentitySignOut' });
             dialog.innerHTML = _fphMenuHead('fphMore', 'More') + '<div class="fph-menu-body">' + rows.map((r, i) =>

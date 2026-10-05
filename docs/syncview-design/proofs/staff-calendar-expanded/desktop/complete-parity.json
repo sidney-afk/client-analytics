@@ -45,7 +45,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "d0b2181d39d3",
-    "attempts": 1
+    "attempts": 3
   },
   {
     "page": "staff-navHome",
@@ -84,7 +84,7 @@
     "width": 1024,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "82d304d2c0a7",
+    "sha": "1532cbf0b771",
     "attempts": 1
   },
   {
@@ -220,7 +220,7 @@
     "width": 1280,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "aa931fcb36b0",
+    "sha": "2fb7261f5408",
     "attempts": 1
   },
   {
@@ -356,7 +356,7 @@
     "width": 1440,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "37025276f83e",
+    "sha": "e4f76b7bf163",
     "attempts": 1
   },
   {
@@ -389,7 +389,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "a6924ac957c9",
-    "attempts": 1
+    "attempts": 3
   },
   {
     "page": "client-brief",
@@ -492,7 +492,7 @@
     "width": 1920,
     "pixels": "identical",
     "styles": "identical",
-    "sha": "86fce1bd5dc0",
+    "sha": "fe84c48457aa",
     "attempts": 1
   },
   {
@@ -517,7 +517,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "868e108c15a9",
-    "attempts": 2
+    "attempts": 4
   },
   {
     "page": "client-calendar-week",
@@ -525,7 +525,7 @@
     "pixels": "identical",
     "styles": "identical",
     "sha": "3890825420dc",
-    "attempts": 1
+    "attempts": 4
   },
   {
     "page": "client-brief",

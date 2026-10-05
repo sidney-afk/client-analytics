@@ -12,6 +12,7 @@ const beforeRoot = process.argv.find(arg => arg.startsWith('--before-root='))?.s
 const before = process.argv.includes('--capture-before');
 const headed = process.argv.includes('--headed');
 const shots = process.env.POCKET_PHONE_SHOTS;
+const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const widths = [360, 390, 430];
 const measurements = [];
 let checks = 0;
@@ -19,7 +20,7 @@ const ok = (value, message) => { assert(value, message); checks++; };
 async function measure(page, label) {
   const result = await page.evaluate(() => {
     const visible = node => node.checkVisibility({ checkVisibilityCSS: true });
-    const surfaces = '#calView, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-comments-overlay.open, .cal-lightbox.open, .dp-popup, .cal-fld-status-menu';
+    const surfaces = '#svJump:not([hidden]), #calView, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-comments-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, .dp-popup, .cal-fld-status-menu';
     const nodes = [...document.querySelectorAll(surfaces)].flatMap(root => [...root.querySelectorAll('button, a[href], [role=button], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea')]);
     return {
       width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
@@ -59,7 +60,7 @@ async function shot(page, label) {
     }
   });
   await page.evaluate(() => document.fonts.ready);
-  const overlay = await page.locator('dialog[open], .cal-lightbox.open, .cal-comments-overlay.open, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-fld-status-menu, .dp-popup, #confirmOverlay.active, #notifyOverlay.active').count();
+  const overlay = await page.locator('#svJump:not([hidden]), dialog[open], .cal-lightbox.open, .thumb-compare-overlay.open, .cal-comments-overlay.open, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-fld-status-menu, .dp-popup, #confirmOverlay.active, #notifyOverlay.active').count();
   await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay, animations: 'disabled' });
 }
 async function review(browser, origin, width, theme) {
@@ -154,6 +155,22 @@ async function review(browser, origin, width, theme) {
     await page.locator('.cal-import-overlay.open').waitFor();
     await measure(page, 'import-' + suffix);
     await shot(page, 'import-' + suffix);
+    await page.evaluate(() => {
+      _calSetImportHeaders(['Post name', 'Caption']);
+      _calSetImportRows([{ 'Post name': 'Phone fixture import', Caption: 'A fictional caption.' }]);
+      _calRenderImportMap();
+    });
+    await measure(page, 'import-map-' + suffix);
+    const importChecks = await page.locator('.cal-import-skip-chk').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { w: r.width, h: r.height }; }));
+    ok(importChecks.every(r => r.w >= 44 && r.h >= 44), 'import column toggles need 44px targets');
+    await shot(page, 'import-map-' + suffix);
+    await page.locator('#calImportGo').click();
+    await measure(page, 'import-select-' + suffix);
+    await shot(page, 'import-select-' + suffix);
+    await page.locator('.cal-import-pick-toggle').click();
+    ok(await page.locator('#calImportGo').isDisabled(), 'Import must stay disabled with no selected rows');
+    await measure(page, 'import-select-empty-' + suffix);
+    await shot(page, 'import-select-empty-' + suffix);
     await page.evaluate(() => closeCalImport());
     await page.locator('[data-staff-menu=more]').click();
     await page.evaluate(() => _syncviewOpenStaffAccount());
@@ -162,6 +179,14 @@ async function review(browser, origin, width, theme) {
     await shot(page, 'account-' + suffix);
     await page.evaluate(() => _syncviewCloseStaffAccount());
     await page.keyboard.press('Escape');
+      await page.locator('[data-staff-menu=more]').click();
+      await page.locator('dialog[open] .sv-jump-touch').click();
+      await page.locator('#svJump:not([hidden])').waitFor();
+      ok(await page.locator('dialog[open]').count() === 0, 'More trapped native Quick jump');
+      await page.locator('#svJumpInput').fill('phone fixture');
+      ok(await page.locator('#svJumpInput').evaluate(node => node === document.activeElement), 'Quick jump input lost focus');
+      await measure(page, 'quick-jump-' + suffix); await shot(page, 'quick-jump-' + suffix);
+      await page.keyboard.press('Escape');
     await page.evaluate(() => _calOpenCaptionPromptModal());
     await page.locator('#calPromptOverlay.open').waitFor();
     await measure(page, 'caption-prompt-' + suffix);
@@ -204,6 +229,7 @@ async function review(browser, origin, width, theme) {
     await measure(page, 'lightbox-' + suffix);
     await shot(page, 'lightbox-' + suffix);
     await page.locator('.cal-lightbox-close').click();
+    await phoneThumbnailComparison(page, ctx, { surface: 'calendar', id: row.id, measure, shot, suffix: suffix, prefix: '' });
     await page.evaluate(id => { _calReviewState.errors[id + '|caption'] = 'Synthetic save refusal'; _calReviewRepaintCard(id); }, row.id);
     ok((await card.innerText()).includes('Synthetic save refusal'), 'save refusal disappeared');
     await measure(page, 'save-error-' + suffix);
@@ -269,6 +295,17 @@ async function review(browser, origin, width, theme) {
         ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
         ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
         ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');
+        const dragDays = await page.evaluate(v => {
+          const wrap = document.querySelector(v === 'month' ? '.cal-month-wrap' : '.cal-week-wrap');
+          const source = wrap.querySelector('[data-cal-move]');
+          const folded = [...wrap.querySelectorAll('.pocket-run-rest')];
+          source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: new DataTransfer() }));
+          const revealed = folded.every(node => node.checkVisibility({ checkVisibilityCSS: true }));
+          source.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: new DataTransfer() }));
+          return { revealed, restored: folded.every(node => !node.checkVisibility({ checkVisibilityCSS: true })) };
+        }, view);
+        ok(dragDays.revealed, view + ': native drag must reveal every folded date target');
+        ok(dragDays.restored, view + ': native drag end must restore empty-day grouping');
         await page.locator(view === 'month' ? '.cal-month-cell:not(.out) .cal-month-pill' : '.cal-week-col:visible .cal-week-card').first().click();
         await measure(page, name + '-preview-' + suffix);
         await shot(page, name + '-preview-' + suffix);

@@ -2,16 +2,17 @@
 
 This builds the actual staff Calendar Review, Sheet, Month and Week in
 `src/index/`, in light and dark at 360, 390 and 430. It starts independently
-from main. Selection and staff Samples are the next batch; client links and
-admin layouts keep their existing paths.
+from main. Selection and staff Samples are covered separately in PR #1973. Client links
+and admin layouts keep their existing paths.
 
 The page title, Tabs and More share one row. Calendar Tools stays above the
 content. More contains the native Organize, card size, setup, workspace picker
 and account controls. Tabs delegates to the existing permitted navigation.
 Review keeps the full Video, Thumbnail and Caption sections, their decisions,
 notes and media. Sheet becomes comfortable individual cards. Month and Week
-become vertical days; every current-month date and all seven current-week days
-remain available. Opening a section never changes a decision. Pending decisions
+become vertical days. Consecutive empty days share a labelled Nothing scheduled
+line; starting a native drag reveals every retained date target, and ending it
+restores the grouping. Today and scheduled material remain visible. Opening a section never changes a decision. Pending decisions
 say Saving until the native acknowledgement; failures remain visible.
 
 All added styles are inside phone media queries capped at 767px and guarded by
@@ -33,9 +34,9 @@ generated product with fictional data and media, not a separate prototype.
 | Month | [Before](before/month-light-360.png) / [After](after/month-light-360.png) | [Before](before/month-light-390.png) / [After](after/month-light-390.png) | [Before](before/month-light-430.png) / [After](after/month-light-430.png) |
 | Week | [Before](before/week-light-360.png) / [After](after/week-light-360.png) | [Before](before/week-light-390.png) / [After](after/week-light-390.png) | [Before](before/week-light-430.png) / [After](after/week-light-430.png) |
 
-There are 30 before and 246 after screenshots across both themes and all three
-widths. They include Review queue and open post, Tabs, More, Organize, account,
-Platform, Import, caption prompt, Create Post and thumbnail-only creation,
+There are 30 before and 318 after screenshots across both themes and all three
+widths. They include Review queue and open post, Tabs, More, Organize, account, Quick jump,
+Platform, Import including column mapping and post selection, caption prompt, Create Post and thumbnail-only creation,
 Archived cards with rows/loading/empty/error, Notes, lightbox, status pickers,
 date picker, archive confirmation, previews, saving, refused saves, read errors,
 native skeletons and empty views. The phone acceptance receipt is
@@ -52,9 +53,12 @@ The real client Caption Approve and Request change buttons each returned HTTP
 the exact typed note and its timestamp. The owned disposable card was archived
 through the normal app and read back as Archived. No other client was mutated.
 The anonymous receipt is [live-saves.json](live-saves.json). Its source hash is
-the candidate used for that pass; subsequent changes only corrected the staff
-Create Post label and enlarged Create Post/Archived dialog controls. Decision
-handlers did not change afterward. This proves a local candidate, not deployment.
+the candidate used for that pass. Both real client decisions were repeated after
+the hosted-check fixes and the concurrent design update; fresh reads again
+confirmed the saved decisions and note,
+and the owned card was archived. The final import-only CSS adjustment enlarges
+column toggles and stacks mapping fields; it does not touch the decisions.
+This proves a local candidate, not deployment.
 
 ## Desktop and checks
 
@@ -69,8 +73,15 @@ browser gate still fails its existing `PWG_PHASE_INPLACE_PLACE` check on unchang
 main (697×68 read view versus 682×92 editor); this batch does not repair Production.
 
 Not claimed: native OS/iPhone hardware testing, deployment, credentials/admin
-dialogs owned by the other session, a full file-import mapping/process pass,
-or real staff approval writes. Staff action guards are exercised with fictional
+dialogs owned by the other session, a complete file-import write/readback pass,
+or real staff approval writes. Import mapping and selection are verified using
+fictional parsed rows. Staff action guards are exercised with fictional
 transport; the real save proof exercises the important client decisions.
-No backend, workflow or database installation was performed, and nothing was
+No backend, n8n workflow or database installation was performed, and nothing was
 merged or deployed by Pocket.
+
+### Thumbnail comparison dialog
+
+The native comparison remains a full, vertically stacked Previous and Current view on phones. Close and Retry have 44px targets. Retry returns keyboard focus to Close while its temporary button is replaced, so Escape continues to work. All eight reader/image states are captured at every phone width in both themes. Only the assigned phone surfaces receive the change; the desktop gate is repeated afterward. No approval writer or decision rule changes in this follow-up. The real decision receipts above predate this dialog-only adjustment.
+
+The shared-client check now opens the native client picker and card size through More on phones, with its original desktop assertions retained. Its local 1440px long-label failure also reproduces on unchanged main; no desktop navigation repair is included.

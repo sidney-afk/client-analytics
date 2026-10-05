@@ -206,5 +206,38 @@
     200
   ],
   "blockedClientWrites": 0,
-  "ownedFixtureArchived": true
+  "ownedFixtureArchived": true,
+  "repeatAfterHostedFix": {
+    "verifiedAt": "2026-10-05T00:52:08.798Z",
+    "candidateIndexSha": "cad54327785cb45dafa4b140796088a33898271a7ffb0a9da68cfed9db5364f5",
+    "approveRead": {
+      "approved": true,
+      "timestampPresent": true
+    },
+    "changeRead": {
+      "requested": true,
+      "notePresent": true,
+      "timestampPresent": true
+    },
+    "httpStatuses": [
+      200,
+      200
+    ],
+    "archiveHttp": 200,
+    "sourceArchived": true
+  },
+  "repeatAfterDesignUpdate": {
+    "verifiedAt": "2026-10-05T01:36:15.905Z",
+    "candidateIndexSha": "6707cc653d4a10fdb840d2d4fef5f12dcea4c3868772dde40413dab087777cef",
+    "viewport": 390,
+    "approvedSaved": true,
+    "changesSaved": true,
+    "exactNoteSaved": true,
+    "decisionHttpStatuses": [
+      200,
+      200
+    ],
+    "archiveHttp": 200,
+    "archiveReadback": true
+  }
 }

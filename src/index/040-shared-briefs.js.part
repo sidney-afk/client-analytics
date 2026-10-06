@@ -643,7 +643,9 @@ import {
     }
     function n(v){const x=Number(v);return isNaN(x)?0:x;}
     function fmt(v){const x=n(v);if(!x)return null;if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
-    function fmtDate(d){if(!d)return'';const p=d.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d;}
+    /* On a phone (staff, not a client link) dates read "Sat, 3 Oct 2026". Desktop keeps day/month/year. */
+    function _fphLongDate(p){const t=new Date(Date.UTC(Number(p[0]),Number(p[1])-1,Number(p[2])));if(isNaN(t.getTime()))return null;return t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).replace(/^(\w+) /,'$1, ');}
+    function fmtDate(d){if(!d)return'';const p=d.split('-');if(p.length===3&&(window.matchMedia('(max-width: 767px)').matches&&!document.documentElement.classList.contains('boot-client'))){const l=_fphLongDate(p);if(l)return l;}return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d;}
     function fmtCompact(v){const x=n(v);if(v===''||v===undefined||v===null)return'—';if(!x&&v!=='0'&&v!==0)return'—';if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
     const ANALYTICS_RECEIPT_SCHEMA='syncview.analytics.receipt.v1';
     const ANALYTICS_RECEIPT_STATES=new Set(['success','genuinely_empty','provider_failed','not_configured']);

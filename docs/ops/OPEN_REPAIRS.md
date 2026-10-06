@@ -30624,8 +30624,32 @@ Every folded day keeps its own element and date, so dragging a post onto a day s
 Not tested: the unfold during a real drag on a touch phone; it is covered by the markup test only (each folded day keeps its date), not by a real drag.
 
 Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 1,743 assertions) checks that no folded day shows, that every run line names its days, and that folded days keep their date. Before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check-runs/`.
+## 351. [2026-10-05, BUILT, NOT DEPLOYED] Staff phone layout: TikTok and Instagram Upload, Analytics, Workload, SyncLinear (session Finch)
+
+Draft pull request on top of the client Calendar branch (entries 336, 338 and 340). Numbered 351 because 342 to 350 are already claimed on other open pull requests. Phones and staff only. The four screens drop the logo header and nav row on a phone and show a title with Tabs and More beside it, then follow layout A (Expanded) of the approved mock-up. Nothing is created at desktop widths: the shell is built by `src/index/099-phone-staff-shell.js.part` only while the viewport is 767 px or narrower, and every new rule sits in one `FINCH-PHONE` block under `@media (max-width: 767px)` and `html.fph-on` (guard: `test/finch-phone-css-scope.js`).
+
+What a phone gets:
+- Tabs (every existing tab, same links) and More (change client, quick jump, dark or light appearance, and the existing Time Off, Onboarding, Client Credentials and sign-out entries; on SyncLinear also Search and the sidebar views My issues, Projects and each team's Issues and Projects, which the hidden sidebar used to hold). All of them click the existing control; none is new behaviour.
+- Upload: one platform at a time under the title, numbered steps become cards, the Post now bar is pinned to the bottom, queue tabs and row actions are 44 px, the warning glyph is drawn as an icon.
+- Analytics: Analytics, Content Calendar and Brief as one segmented row; the overview table scrolls inside its own frame; dates read "Sat, 3 Oct 2026"; chart date axes show short level labels ("3 Oct"); the TikTok and YouTube chart chips use the line colours.
+- Workload: Team overview rows stack; the week and month are a day-by-day list; Plan + Due Date keeps its board and scrolls inside its own frame.
+- SyncLinear: Active, Backlog and All issues as one segmented row, each issue is a card, filters and pickers are 44 px.
+
+Still different from the mock-up, on purpose:
+- The mock-up's Analytics shows only an empty client; the real screen also has the overview table and cards, kept.
+- The mock-up's number badges and rail on the Upload steps are left out (they overlapped the card edge).
+- Content Calendar inside Analytics only keeps its toolbar on screen here; the full staff Calendar phone layout is its own pull request.
+- Plan + Due Date is still an editors-by-days board; it scrolls sideways inside a frame.
+
+Not tested here: the real signed-in app (another session does that), real uploads (none were attempted; every Upload write is refused by the harness), and real data volumes.
+Proof: `node qa/finch-phone/shots.js` (offline, invented data) at 360, 390 and 430, light and dark; before and after pictures in `docs/syncview-design/proofs/finch-phone/`.
 Way back: revert the commit.
 
+Round 2 (Lighthouse review, same branch):
+- Workload: the team overview is one card per person, an empty status line is not drawn (a person with nothing gets one calm line), text is 13 to 16 px, the refresh button sits in the title row, the filters are a small grid, the legend is 14 px.
+- Analytics: "Views last 30D" of 0 next to a gain was a real arithmetic effect, not a display slip. The card shows today's count minus the count from 30 days ago; my invented data repeated the same total every 30 days, so the difference was exactly 0 while the day's gain was positive. On a phone a 0 next to a positive gain is now a dash with its reason on touch or hover; the invented data now grows like a real rolling total. Every client card and table row shows its rank (the page numbered only the first three), the "Pin client" button is a normal button, and the purple line under each card is gone on phones.
+- Upload: the Upcoming, Failed and Done counts are readable (the number was the same colour as its circle).
+- Linear: an issue with no date no longer draws an empty date pill (the date is still set from the issue page).
 ## 346. [2026-10-05, BUILT, NOT DEPLOYED] Client Calendar on phones: one Today marker, even spacing, Week thumbnails (session Polish)
 
 On the same branch as entries 336, 338 and 340. Phones and client links only: the one script change acts only when `_calPhoneClient()` is true (a client link at phone width), and every style sits inside `@media (max-width: 767px)` under `html.boot-client`. Desktop markup and styles are not touched.

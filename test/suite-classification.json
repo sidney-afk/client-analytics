@@ -680,7 +680,8 @@
     "write-ui-reroute-flag-heal.js",
     "write-ui-reroute-usable-roster.js",
     "write-ui-soak-pager.js",
-    "write-ui-writer-durability.js"
+    "write-ui-writer-durability.js",
+    "finch-phone-css-scope.js"
   ],
   "profiles": [
     {

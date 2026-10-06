@@ -1,5 +1,15 @@
 # App logic (`index.html`) — current truth
 
+**Pocket phone source, 2026-10-04, not deployed:** staff Samples Review and Sheet
+use full Expanded sections below 768px in light and dark, with title/Tabs/More,
+native Tools and setup controls. Calendar and Samples selection actions sit at
+the bottom on phones. Desktop controls restore their original positions.
+Pending staff decisions stay visibly Saving until acknowledged. Existing
+permissions and writers remain native. Fictional product screenshots, visible
+TEST decision saves and desktop receipts are in
+[the proof note](../syncview-design/proofs/staff-selection-samples-expanded/README.md).
+Client layouts, other staff tabs and admin pages are outside this batch.
+
 **Pocket phone source, 2026-10-05, not deployed:** standalone staff Calendar
 Review, Sheet, Month and Week use Expanded cards below 768px in light and dark.
 Tabs and More sit beside the title; native Organize, card size, setup, account

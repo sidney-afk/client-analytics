@@ -206,6 +206,9 @@ function renderPicker(options, countEntries, clientName = 'Client A', stateExtra
   const modal = { innerHTML: '' };
   const context = {
     console,
+    // The picker asks whether a staff phone layout is showing; this test is the desktop picker.
+    _calStaffPhoneActive: () => false,
+    _sxrStaffPhoneActive: () => false,
     document: {
       querySelector: selector => selector === '#calNativePostOverlay .cal-import-modal' ? modal : null,
     },
@@ -448,6 +451,8 @@ console.log('6) the post-count read is one bounded projection query that counts 
     const overlayStub = {};
     const context2 = {
       console,
+      _calStaffPhoneActive: () => false,
+      _sxrStaffPhoneActive: () => false,
       setTimeout, clearTimeout,
       CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS: 25,
       calState: { client: 'Client A' },

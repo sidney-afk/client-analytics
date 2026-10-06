@@ -5376,6 +5376,408 @@
             #calView[data-pocket-staff-phone] .cal-week-col.today .cal-week-head { background: transparent; border: 0; }
         }
         /* STAFF-CALENDAR-PHONE:END */
+
+        /* STAFF-SAMPLES-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            body:has(#sxrView[data-pocket-staff-samples]) > .header { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .main { padding-top: max(20px, env(safe-area-inset-top)); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] > .view-tab-toggle { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-heading h1 { margin: 0; flex: 1; min-width: 0; font-size: 28px; line-height: 1.2; font-weight: 800; letter-spacing: -1px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-heading-actions { display: flex; gap: 8px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-heading-actions button { min-width: 44px; min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 14px; font: inherit; font-size: 13px; font-weight: 700; color: var(--text-primary); background: var(--white); }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-heading-actions button:last-child { padding: 0; font-size: 16px; letter-spacing: 2px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu { box-sizing: border-box; position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 560px; max-height: 85dvh; border: 0; border-radius: 24px 24px 0 0; padding: 22px 20px calc(24px + env(safe-area-inset-bottom)); background: var(--white); color: var(--text-primary); overflow-y: auto; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu::backdrop { background: var(--overlay); }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-head h2 { flex: 1; margin: 0; font-size: 20px; font-weight: 800; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-head button { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); color: var(--text-primary); font: inherit; font-size: 24px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .view-tab-toggle { display: flex; flex-direction: column; width: 100%; border: 0; padding: 0; gap: 8px; background: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .view-tab-btn { flex: none; width: 100%; min-height: 52px; justify-content: flex-start; border-radius: 12px; padding: 0 16px; font-size: 16px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-body { display: flex; flex-direction: column; gap: 16px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-body .cal-zoom { display: flex; align-self: flex-start; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); height: auto; padding: 4px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-body .cal-zoom::before { content: 'Card size'; padding: 0 12px; font-size: 13px; font-weight: 700; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-body .cal-zoom-ico { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-body .cal-zoom button { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu-empty { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu:has(.cal-organize) .pocket-staff-samples-menu-empty { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .cal-organize { display: block; width: 100%; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .dropdown-trigger { min-height: 48px; width: 100%; justify-content: space-between; padding: 0 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .dropdown-menu { display: none; position: static; min-width: 0; width: 100%; max-height: 45dvh; box-sizing: border-box; margin-top: 8px; box-shadow: none; border: 1px solid var(--border); }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .dropdown-menu.open { display: block; opacity: 1; visibility: visible; transform: none; transition: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .view-tab-btn { color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu .dropdown-item { min-height: 44px; font-size: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-toolbar { padding: 0; margin: 0 0 16px; gap: 12px; border: 0; background: transparent; box-shadow: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-toolbar-left { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-toolbar-mid { flex-wrap: wrap; gap: 12px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-view-toggle { order: -1; flex: 1 1 100%; box-sizing: border-box; padding: 4px; gap: 2px; background: var(--border-light); border-radius: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-view-btn { min-width: 0; font-size: 13px; font-weight: 700; border-radius: 11px; color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-toolbar-right:has(> [hidden]):not(:has(> :not([hidden]))) { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-wrap { padding: 0 0 24px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-list { gap: 20px; background: transparent; overflow: visible; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-card { border: 1px solid var(--border); border-radius: 22px; margin: 0; box-shadow: none; overflow: hidden; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-strip { padding: 18px 16px; gap: 14px; grid-template-columns: 68px minmax(0, 1fr); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-thumb { width: 68px; height: 82px; border-radius: 12px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-title { font-size: 16px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-pending { font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-date { font-size: 12px; color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-sub-pill { font-size: 11px; text-transform: none; letter-spacing: 0; white-space: normal; padding: 5px 8px; border: 1px solid var(--border-light); border-radius: 8px; background: var(--field-bg) !important; color: var(--text-secondary) !important; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-sub-row { display: flex; flex-wrap: wrap; gap: 6px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-actions { justify-content: flex-start; gap: 8px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-open-sheet,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 44px; min-height: 44px; padding: 0 12px; gap: 7px; font: inherit; font-size: 12px; font-weight: 700; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .kcard-expand-btn { margin-left: auto; background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-body { padding: 0 16px 12px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-section { min-width: 0; border-top: 1px solid var(--border-light); padding: 18px 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; font-size: 15px; font-weight: 700; line-height: 1.5; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-section-status { margin-left: auto; max-width: 65%; font-size: 12px; font-weight: 500; color: var(--text-secondary); text-align: right; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-section-body { min-width: 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-section .cal-review-panel { padding: 0; border: 0; gap: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-section .cal-review-panel-head { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-video-tile { max-width: min(100%, 264px); border-radius: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-video-bg { filter: brightness(0.75); transform: none; object-fit: contain; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-preview-thumb-btn { width: 100%; max-width: 100%; background: var(--field-bg); border-radius: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-preview-thumb-btn img { height: 220px; max-height: 220px; object-fit: contain; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-preview-caption { font-size: 15px; line-height: 1.7; background: var(--field-bg); border: 1px solid var(--border-light); border-radius: 14px; padding: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-textarea { min-height: 88px; line-height: 1.5; background: var(--field-bg); border-color: var(--border-light); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-comment-btn:disabled,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-tweak-btn:disabled { opacity: 1; color: var(--text-secondary); background: var(--bg); border-color: var(--bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-tweak-btn:not(:disabled) { background: var(--text-primary); color: var(--white); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-thread { padding-top: 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-comment-empty,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-review-preview-empty { color: var(--text-secondary); font-style: normal; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-organizer-wrap { padding: 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-organizer-strip { flex-direction: column; gap: 20px; align-items: stretch; padding: 0; min-height: 0; background: transparent; overflow: visible; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-organizer-strip::after { flex-basis: 24px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-organizer-strip > .cal-card { width: 100%; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 22px; margin: 0; box-shadow: none; overflow: hidden; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-grip { display: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-add { align-self: stretch; width: auto; height: 52px; min-height: 52px; margin: 16px; border-radius: 14px; color: var(--text-primary); background: var(--bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-add:not(.cal-card-add-hero)::after { content: 'Create post'; font-size: 14px; font-weight: 700; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-add-hero { flex-direction: row; gap: 12px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-thumb { height: 220px; min-height: 0; aspect-ratio: auto; border-radius: 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-thumb:has(.cal-card-thumb-fallback) { height: 96px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-body { padding: 18px 16px; gap: 14px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-cap-toggle { position: static; align-self: flex-end; margin-top: 8px; box-shadow: none; border-radius: 12px; padding: 0 12px; font-size: 12px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-cap-fade { bottom: 52px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] input,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] textarea { font-size: 16px; max-width: 100%; box-sizing: border-box; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] button { min-height: 44px; min-width: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-fld-name { font-size: 17px; font-weight: 700; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-date-chip,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-link-pill-open,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-btn,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-approve-bar,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-more-btn,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-caption-copy,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-cap-tab,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-saving.is-error,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-card-saving.is-syncing { min-height: 44px; min-width: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-client-status { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-client-comp-pill { display: block; width: 100%; box-sizing: border-box; text-align: left; white-space: normal; text-transform: none; font-size: 12px; padding: 8px 10px; border-radius: 10px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-btn { color: var(--text-secondary); font-size: 13px; font-weight: 700; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-empty { border: 1px solid var(--border-light); border-radius: 18px; background: var(--white); color: var(--text-secondary); padding: 28px 20px; font-size: 14px; line-height: 1.65; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-empty .cal-link { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-unscheduled-list { flex-wrap: wrap; overflow-x: visible; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview-overlay,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-overlay { padding: 0; align-items: flex-end; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-modal { width: 100%; max-width: 100%; max-height: 100dvh; box-sizing: border-box; border-radius: 22px 22px 0 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview { overflow-y: auto; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview-body { padding: 18px 16px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview-title { font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview-label { color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview-val a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; overflow-wrap: anywhere; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview-foot { display: grid; grid-template-columns: 1fr 1fr; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-preview-foot .cal-btn-primary { grid-column: 1 / -1; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-close,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-send,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-hist,
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-lightbox-close { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-compose textarea { font-size: 16px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-comments-modal { --text-muted: var(--text-secondary); height: min(90dvh, 760px); }
+            body:has(#sxrView[data-pocket-staff-samples]) .dp-popup { width: min(360px, calc(100vw - 16px)); padding: 12px 10px; box-sizing: border-box; }
+            body:has(#sxrView[data-pocket-staff-samples]) .dp-day,
+            body:has(#sxrView[data-pocket-staff-samples]) .dp-nav-btn,
+            body:has(#sxrView[data-pocket-staff-samples]) .dp-foot-btn { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-staff-samples-menu button:focus-visible,
+            body:has(#sxrView[data-pocket-staff-samples]) .pocket-cal-heading-actions button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+        }
+
+        @media (max-width: 767px) {
+            body:has(#sxrView[data-pocket-staff-samples]) .header { display: none !important; }
+            #sxrView[data-pocket-staff-samples] { padding: 20px 16px 32px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading h1 { margin: 0 auto 0 0; font-size: 28px; line-height: 1.2; letter-spacing: -1px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading button { min-height: 44px; min-width: 44px; padding: 0 12px; border: 1px solid var(--border-light); border-radius: 16px; background: var(--surface-raised); color: var(--text-primary); font: inherit; font-size: 13px; font-weight: 600; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-tools { margin: 18px 0 10px; font-size: 12px; letter-spacing: 1px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu { box-sizing: border-box; width: calc(100% - 24px); max-width: 480px; max-height: calc(100dvh - 24px); margin: auto auto 12px; padding: 20px; border: 1px solid var(--border-light); border-radius: 24px; background: var(--surface-raised); color: var(--text-primary); overflow: auto; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu::backdrop { background: var(--overlay); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu h2 { margin: 0; font-size: 20px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu button { min-height: 44px; min-width: 44px; font: inherit; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-body { display: grid; gap: 12px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-body > button { padding: 10px 12px; border-radius: 12px; text-align: left; background: var(--field-bg); border: 1px solid var(--border-light); color: var(--text-primary); }
+            #sxrView[data-pocket-staff-samples] .cal-toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+            #sxrView[data-pocket-staff-samples] .cal-toolbar-mid { width: 100%; }
+            #sxrView[data-pocket-staff-samples] .cal-view-toggle { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
+            #sxrView[data-pocket-staff-samples] .cal-toolbar-right { display: flex; flex-wrap: wrap; gap: 10px; }
+            #sxrView[data-pocket-staff-samples] .cal-kebab-menu { position: static; max-width: 100%; }
+        }
+
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] button, #sxrView[data-pocket-staff-samples] a[href], #sxrView[data-pocket-staff-samples] [role=button] { min-width: 44px; min-height: 44px; }
+            #sxrView[data-pocket-staff-samples] input:not([type=hidden]):not([type=checkbox]):not([type=radio]), #sxrView[data-pocket-staff-samples] textarea, #sxrView[data-pocket-staff-samples] select { font-size: 16px; min-height: 44px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-body { grid-template-columns: minmax(0,1fr) !important; padding: 20px 16px; gap: 24px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-panel { min-width: 0; }
+            #sxrView[data-pocket-staff-samples] .cal-review-panel-head { flex-wrap: wrap; gap: 8px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-approve-btn { width: 100%; min-height: 52px; border-radius: 12px; font-size: 16px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-preview { min-width: 0; }
+            #sxrView[data-pocket-staff-samples] .cal-review-video-tile { min-height: 220px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-textarea { width: 100%; min-height: 88px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-tweak-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            #sxrView[data-pocket-staff-samples] .kcard { width: 100%; border-radius: 22px; box-shadow: none; }
+            #sxrView[data-pocket-staff-samples] .kcard-strip { display: grid; grid-template-columns: 68px minmax(0,1fr); gap: 14px; padding: 16px; }
+            #sxrView[data-pocket-staff-samples] .kcard-thumb { width: 68px; height: 82px; }
+            #sxrView[data-pocket-staff-samples] .kcard-main { min-width: 0; text-align: left; }
+            #sxrView[data-pocket-staff-samples] .kcard-title { text-align: left; font-size: 16px; line-height: 1.4; }
+            #sxrView[data-pocket-staff-samples] .kcard-actions { grid-column: 1/-1; justify-content: flex-end; gap: 10px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-list { gap: 20px; }
+            #sxrView[data-pocket-staff-samples] .staff-account-popover, #sxrView[data-pocket-staff-samples] .sv-client-pop, #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .dropdown-menu { position: static; width: 100%; max-width: 100%; margin-top: 10px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-kebab-item { white-space: normal; }
+        }
+
+        @media (max-width: 767px) {
+            body:has(#sxrView[data-pocket-staff-samples]) .main { padding: 0 0 40px; }
+            #sxrView[data-pocket-staff-samples] { padding: 20px 16px 32px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-wrap { padding: 12px 0 24px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-preview-thumb img { max-width: 100%; height: auto; max-height: 300px; object-fit: contain; }
+            #sxrView[data-pocket-staff-samples] .kcard-expand-btn, #sxrView[data-pocket-staff-samples] .kcard-open-sheet { min-width: 44px; width: auto; min-height: 44px; border-radius: 12px; }
+        }
+
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-kebab { display: none; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-kebab-wrap { width: 100%; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-kebab-menu { width: 100%; min-width: 0; box-shadow: none; border: 0; }
+            #sxrView[data-pocket-staff-samples] .cal-review-sub-pill { border: 1px solid var(--border-light); border-radius: 8px; padding: 4px 7px; background: var(--surface-subtle); color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+            #sxrView[data-pocket-staff-samples] .cal-review-comment-empty { font-size: 13px; color: var(--text-secondary); }
+            #sxrView[data-pocket-staff-samples] [contenteditable=true] { font-size: 16px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #notifyOverlay button, body:has(#sxrView[data-pocket-staff-samples]) #confirmOverlay button { min-width: 44px; min-height: 44px; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-saving { margin-top: 12px; padding: 16px; border-radius: 12px; background: var(--surface-subtle); color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+            #sxrView[data-pocket-staff-samples] .cal-kebab-info-wrap { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .cal-review-approve-btn { background: var(--sv-bg-166534); color: var(--sv-fg-fff); }
+            #sxrView[data-pocket-staff-samples] .cal-review-approve-btn:disabled { background: var(--field-bg); color: var(--text-secondary); opacity: 1; }
+            #sxrView[data-pocket-staff-samples] .cal-ap-route { background: var(--overlay); color: inherit; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-prompt-overlay { padding: 0; align-items: flex-end; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-prompt-modal { width: 100%; max-width: 100%; max-height: 96dvh; border-radius: 22px 22px 0 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-prompt-foot { flex-wrap: wrap; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-prompt-foot-right { margin-left: auto; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-prompt-overlay button, body:has(#sxrView[data-pocket-staff-samples]) .cal-preview-overlay button, body:has(#sxrView[data-pocket-staff-samples]) .cal-lightbox button, body:has(#sxrView[data-pocket-staff-samples]) .cal-comments-overlay button { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-prompt-overlay textarea, body:has(#sxrView[data-pocket-staff-samples]) .cal-prompt-overlay input, body:has(#sxrView[data-pocket-staff-samples]) .cal-comments-overlay textarea { font-size: 16px; }
+            #sxrView[data-pocket-staff-samples] .cal-platforms-grid { grid-template-columns: 1fr; }
+            #sxrView[data-pocket-staff-samples] .cal-platforms-row { min-height: 44px; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-zoom[style*="visibility: hidden"] { display: none; }
+            #sxrView[data-pocket-staff-samples] .cal-import-modal { width: 100%; max-width: 100%; max-height: 96dvh; border-radius: 22px 22px 0 0; }
+            #sxrView[data-pocket-staff-samples] .cal-import-overlay { padding: 0; align-items: flex-end; }
+            #sxrView[data-pocket-staff-samples] .cal-import-footer { flex-wrap: wrap; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-trigger { background: var(--field-bg); color: var(--text-primary); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; }
+            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-comp { font-size: 12px; text-transform: none; }
+            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-label { font-size: 12px; text-transform: none; white-space: normal; text-align: right; }
+            #sxrView[data-pocket-staff-samples] .cal-prompt-textarea { min-height: 240px; }
+            #sxrView[data-pocket-staff-samples] .cal-prompt-head p, #sxrView[data-pocket-staff-samples] .cal-prompt-hint { color: var(--text-secondary); }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-head { position: sticky; top: -20px; z-index: 2; padding: 20px 0 12px; margin-top: -20px; background: var(--surface-raised); }
+            body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] .cal-prompt-textarea { min-height: 240px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-menu { max-width: calc(100vw - 24px); max-height: 70dvh; overflow: auto; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-menu button { min-height: 44px; min-width: 44px; }
+        }
+        @media (max-width: 767px) {
+        }
+        @media (max-width: 767px) {
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-import-overlay { padding: 0; align-items: flex-end; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-import-modal { width: 100%; max-width: 100%; max-height: 96dvh; border-radius: 22px 22px 0 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-import-overlay button { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-import-overlay input,
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-import-overlay textarea,
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-import-overlay select { font-size: 16px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-import-foot { flex-wrap: wrap; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-mode-toggle,
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-batch-tabs { grid-template-columns: 1fr; gap: 8px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-mode-toggle span,
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-batch-tabs span { min-height: 44px; box-sizing: border-box; white-space: normal; }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .sv-stepper { width: 140px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .sv-stepper-input { min-width: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .arx-row { align-items: stretch; flex-direction: column; gap: 16px; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples]:has(.cal-select-bar) .cal-organizer-wrap { padding-bottom: 120px; }
+            #sxrView[data-pocket-staff-samples] .cal-select-bar { inset: auto 12px max(12px, env(safe-area-inset-bottom)); transform: none; padding: 16px; border: 1px solid var(--border-light); border-radius: 22px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; background: var(--surface-raised); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+            #sxrView[data-pocket-staff-samples] .cal-select-count { color: var(--text-primary); font-size: 14px; }
+            #sxrView[data-pocket-staff-samples] .cal-select-bar button { min-width: 44px; min-height: 44px; border-radius: 12px; }
+            #sxrView[data-pocket-staff-samples] .cal-select-cancel { background: var(--field-bg); color: var(--text-primary); }
+            #sxrView[data-pocket-staff-samples] .cal-card-select-check { top: 12px; right: 12px; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; margin: 0; padding: 0 14px; background: var(--field-bg); color: var(--text-primary); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch::after { content: 'Quick jump'; font-size: 14px; }
+        }
+        /* Design check against the approved mock-up (layout A): same scope as the block above. */
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading { gap: 9px; margin-bottom: 14px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading h1 { font-size: 26px; letter-spacing: -0.8px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 44px; padding: 0 12px; border-radius: 14px; font-weight: 600; line-height: 1; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading button:last-child { width: 44px; padding: 0; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-heading svg { flex: none; width: 17px; height: 17px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu { inset: auto 0 0; width: 100%; max-width: 560px; margin: 0 auto; padding: 10px 20px calc(24px + env(safe-area-inset-bottom)); border: 0; border-radius: 25px 25px 0 0; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 15px; border-radius: 4px; background: var(--border); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-head { margin-bottom: 8px; padding-top: 0; margin-top: 0; top: 0; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu h2 { font-size: 22px; letter-spacing: -0.7px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-head button { display: grid; place-items: center; padding: 0; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 14px; color: var(--text-primary); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-head button svg { width: 18px; height: 18px; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-body { gap: 0; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-body > button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 55px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; font-size: 14px; font-weight: 500; text-align: left; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-body > button::after { content: ''; flex: none; width: 7px; height: 7px; margin-right: 4px; border-top: 1.6px solid var(--text-secondary); border-right: 1.6px solid var(--text-secondary); transform: rotate(45deg); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-body > button[aria-current="page"] { font-weight: 800; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu-body > button[aria-current="page"]::after { width: 6px; height: 12px; margin-right: 6px; border-top: 0; border-right: 2px solid var(--text-primary); border-bottom: 2px solid var(--text-primary); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-kebab-item { min-height: 55px; padding: 10px 2px; border-bottom: 1px solid var(--border); border-radius: 0; text-align: left; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-zoom { align-self: stretch; align-items: center; gap: 7px; box-sizing: border-box; width: 100%; min-height: 55px; padding: 5px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-zoom::before { margin-right: auto; padding: 0; font-size: 14px; font-weight: 500; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .cal-zoom button { border: 1px solid var(--border); border-radius: 12px; background: var(--field-bg); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .dropdown-trigger { justify-content: flex-start; gap: 10px; min-height: 55px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; font-weight: 500; text-align: left; }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-tools { margin: 14px 0 8px; }
+            #sxrView[data-pocket-staff-samples] .cal-select-btn { width: auto; min-width: 44px; padding: 0 12px; gap: 7px; border-radius: 11px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+            #sxrView[data-pocket-staff-samples] .cal-select-btn[data-select-action="archive"]::after { content: 'Select cards'; }
+            #sxrView[data-pocket-staff-samples] .cal-select-btn[data-select-action="caption"]::after { content: 'Write captions'; }
+            #sxrView[data-pocket-staff-samples] .cal-select-btn svg { width: 15px; height: 15px; flex: none; }
+            #sxrView[data-pocket-staff-samples] .kcard-strip .cal-review-sub-row { display: none !important; }
+            #sxrView[data-pocket-staff-samples] .kcard-open-sheet::after { content: 'Open in Sheet'; font-size: 12px; font-weight: 700; }
+            #sxrView[data-pocket-staff-samples] .kcard-expand-btn { width: 44px !important; padding: 0 !important; background: var(--surface-raised) !important; color: var(--text-primary) !important; border: 1px solid var(--border) !important; }
+            #sxrView[data-pocket-staff-samples] .cal-review-approve-btn { min-height: 48px; border: 1px solid var(--text-primary); border-radius: 13px; background: var(--text-primary); color: var(--bg); box-shadow: none; font-size: 13px; font-weight: 700; }
+            #sxrView[data-pocket-staff-samples] .cal-review-approve-btn:disabled { background: var(--field-bg); color: var(--text-secondary); border-color: var(--border); }
+            #sxrView[data-pocket-staff-samples] .cal-ap-route { background: color-mix(in srgb, currentColor 16%, transparent); color: inherit; border-radius: 7px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-tweak-actions { display: flex; justify-content: flex-end; gap: 7px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-comment-btn,
+            #sxrView[data-pocket-staff-samples] .cal-review-tweak-btn { flex: 0 0 auto; padding: 0 12px; border-radius: 12px; font-size: 12px; }
+            #sxrView[data-pocket-staff-samples] .cal-review-comment-btn:disabled,
+            #sxrView[data-pocket-staff-samples] .cal-review-tweak-btn:disabled { background: var(--surface-raised); border-color: var(--border); }
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link { border: 1px solid var(--border); border-radius: 11px; background: var(--field-bg); }
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-pill-open { background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 600; }
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-pill-open svg { color: var(--text-secondary); }
+            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-comp,
+            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-label { font-size: 13px; }
+            #sxrView[data-pocket-staff-samples] .cal-client-status .cal-review-sub-pill,
+            #sxrView[data-pocket-staff-samples] .cal-client-status .cal-client-comp-pill { font-size: 13px; color: var(--text-primary) !important; }
+            #sxrView[data-pocket-staff-samples] .pocket-run-rest { display: none !important; }
+            #sxrView[data-pocket-staff-samples] .cal-month-cell.pocket-run-head,
+            #sxrView[data-pocket-staff-samples] .cal-week-col.pocket-run-head { display: flex !important; flex-direction: row !important; align-items: center; justify-content: flex-start; min-height: 44px !important; padding: 0 14px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
+            #sxrView[data-pocket-staff-samples] .pocket-run-head > :not(.pocket-run-label) { display: none !important; }
+            #sxrView[data-pocket-staff-samples] .pocket-run-head::after { content: none !important; }
+            #sxrView[data-pocket-staff-samples] .pocket-run-label { margin: 0 auto 0 0; text-align: left; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+            #sxrView[data-pocket-staff-samples] .cal-month-wrap:has(.cal-card-dragging) .pocket-run-rest,
+            #sxrView[data-pocket-staff-samples] .cal-week-wrap:has(.cal-card-dragging) .pocket-run-rest { display: flex !important; }
+            #sxrView[data-pocket-staff-samples] .cal-month-wrap:has(.cal-card-dragging) .pocket-run-label,
+            #sxrView[data-pocket-staff-samples] .cal-week-wrap:has(.cal-card-dragging) .pocket-run-label { display: none; }
+            #sxrView[data-pocket-staff-samples] .cal-month-wrap:has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label),
+            #sxrView[data-pocket-staff-samples] .cal-week-wrap:has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label) { display: revert !important; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-edit,
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-folder { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
+        }
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; margin: 0; padding: 0 14px; background: var(--field-bg); color: var(--text-primary); }
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-menu .sv-jump-touch::after { content: 'Quick jump'; font-size: 14px; }
+        }
+        /* Design check against the approved mock-up: same scope as the block above. */
+        @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .pocket-staff-samples-tools { display: none !important; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-slot { gap: 10px; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn { width: 44px; height: 44px; min-width: 44px; border-radius: 12px; border: 1px solid var(--border) !important; background: var(--surface-raised) !important; box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_14); display: inline-flex; align-items: center; justify-content: center; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn svg { width: 18px; height: 18px; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn-video { color: var(--cal-comp-video-dot) !important; }
+            #sxrView[data-pocket-staff-samples] .cal-linear-btn-graphic { color: var(--cal-comp-graphic-dot) !important; }
+            #sxrView[data-pocket-staff-samples] .cal-select-btn.active { color: var(--white) !important; }
+            #sxrView[data-pocket-staff-samples]:has(.cal-select-bar)::before { content: ''; position: fixed; inset: 0; z-index: 79; background: var(--overlay); pointer-events: none; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive { grid-column: auto; justify-self: start; width: auto; padding: 0 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--sv-fg-dc2626) 45%, var(--border)); background: transparent; color: var(--sv-fg-dc2626); font-weight: 700; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive:disabled { color: var(--text-secondary); border-color: var(--border); opacity: 0.6; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive[onclick*="_calBulkGenerateCaptions"] { border-color: var(--text-primary); background: var(--text-primary); color: var(--white); opacity: 1; }
+            #sxrView[data-pocket-staff-samples] .cal-select-archive[onclick*="_calBulkGenerateCaptions"]:disabled { border-color: var(--border); background: var(--field-bg); color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-mode-toggle { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-mode-toggle span { min-height: 44px; padding: 6px 4px; font-size: 12px; line-height: 1.2; text-align: center; white-space: normal; }
+            body:has(#sxrView[data-pocket-staff-samples]) #calNativePostOverlay .cal-native-batch-name { font-size: 16px; font-weight: 400; line-height: 1.4; letter-spacing: 0; padding: 10px; height: auto; min-height: 46px; resize: none; overflow: hidden; }
+        }
+                @media (max-width: 767px) {
+            body:has(#sxrView[data-pocket-staff-samples]) .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
+            body:has(#sxrView[data-pocket-staff-samples]) .thumb-compare-close svg { width: 18px; height: 18px; }
+        }
+        /* Status picker as a bottom sheet (same as the staff Calendar). */
+        @media (max-width: 767px) {
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-menu { inset: auto 0 0 0 !important; width: 100%; max-width: 560px; margin: 0 auto; min-width: 0 !important; box-sizing: border-box; max-height: 80dvh; transform: none; border-radius: 25px 25px 0 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); background: var(--surface-raised); box-shadow: 0 -8px 30px var(--sv-shadow-rgba-0-0-0-0_16); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 14px; border-radius: 4px; background: var(--border); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3; color: var(--text-primary); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-setall-menu-head { padding: 0 0 8px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 2px; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent !important; color: var(--text-primary) !important; font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; text-align: left; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.active { font-weight: 700; box-shadow: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item:hover { filter: none; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.active::after { content: ''; flex: none; width: 6px; height: 12px; margin: 0 6px 0 auto; border-right: 2px solid var(--text-primary); border-bottom: 2px solid var(--text-primary); transform: rotate(45deg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item:disabled { opacity: 0.45; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-note { padding: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-in-progress::before { background: var(--cal-status-in-progress-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-for-smm-approval::before { background: var(--cal-status-for-smm-approval-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-kasper-approval::before { background: var(--cal-status-kasper-approval-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-client-approval::before { background: var(--cal-status-client-approval-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-tweaks-needed::before { background: var(--cal-status-tweaks-needed-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-approved::before { background: var(--cal-status-approved-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-scheduled::before { background: var(--cal-status-scheduled-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.cal-fld-status-posted::before { background: var(--cal-status-posted-bg); }
+            body:has(#sxrView[data-pocket-staff-samples]):has(.cal-fld-status-menu) #sxrView[data-pocket-staff-samples]::after { content: ''; position: fixed; inset: 0; z-index: 990; background: var(--overlay); }
+        }
+        /* STAFF-SAMPLES-PHONE:END */
+        /* STAFF-SELECTION-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            #calView[data-pocket-staff-phone]:has(.cal-select-bar) .cal-organizer-wrap { padding-bottom: 250px; }
+            #calView[data-pocket-staff-phone] .cal-select-bar { inset: auto 12px max(12px, env(safe-area-inset-bottom)); transform: none; padding: 16px; border: 1px solid var(--border-light); border-radius: 22px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; background: var(--surface-raised); color: var(--text-primary); box-shadow: var(--shadow-lg); }
+            #calView[data-pocket-staff-phone] .cal-select-count { color: var(--text-primary); font-size: 14px; }
+            #calView[data-pocket-staff-phone] .cal-bulk-color-label { grid-column: 1; color: var(--text-secondary); font-size: 13px; }
+            #calView[data-pocket-staff-phone] .cal-bulk-color-swatches { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+            #calView[data-pocket-staff-phone] .cal-select-bar button { min-height: 44px; min-width: 44px; }
+            #calView[data-pocket-staff-phone] .cal-select-bar .cal-bulk-color-swatch { width: 44px; height: 44px; flex: 0 0 44px; }
+            #calView[data-pocket-staff-phone] .cal-select-divider { display: none; }
+            #calView[data-pocket-staff-phone] .cal-select-archive { grid-column: 1 / -1; padding: 12px; border-radius: 12px; }
+            #calView[data-pocket-staff-phone] .cal-select-cancel { grid-column: 2; grid-row: 1; color: var(--text-primary); background: var(--field-bg); border-radius: 12px; }
+            #calView[data-pocket-staff-phone] .cal-card-select-check { top: 12px; right: 12px; }
+        }
+        /* Design check against the approved mock-up: same scope as the block above. */
+        @media (max-width: 767px) {
+            #calView[data-pocket-staff-phone] .pocket-staff-cal-tools { display: none !important; }
+            #calView[data-pocket-staff-phone] .cal-linear-slot { gap: 10px; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn { width: 44px; height: 44px; min-width: 44px; border-radius: 12px; border: 1px solid var(--border) !important; background: var(--surface-raised) !important; box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_14); display: inline-flex; align-items: center; justify-content: center; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn svg { width: 18px; height: 18px; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn-video { color: var(--cal-comp-video-dot) !important; }
+            #calView[data-pocket-staff-phone] .cal-linear-btn-graphic { color: var(--cal-comp-graphic-dot) !important; }
+            #calView[data-pocket-staff-phone] .cal-select-btn.active { color: var(--white) !important; }
+            #calView[data-pocket-staff-phone]:has(.cal-select-bar)::before { content: ''; position: fixed; inset: 0; z-index: 79; background: var(--overlay); pointer-events: none; }
+            #calView[data-pocket-staff-phone] .cal-select-archive { grid-column: auto; justify-self: start; width: auto; padding: 0 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--sv-fg-dc2626) 45%, var(--border)); background: transparent; color: var(--sv-fg-dc2626); font-weight: 700; }
+            #calView[data-pocket-staff-phone] .cal-select-archive:disabled { color: var(--text-secondary); border-color: var(--border); opacity: 0.6; }
+            #calView[data-pocket-staff-phone] .cal-select-archive[onclick*="_calBulkGenerateCaptions"] { border-color: var(--text-primary); background: var(--text-primary); color: var(--white); opacity: 1; }
+            #calView[data-pocket-staff-phone] .cal-select-archive[onclick*="_calBulkGenerateCaptions"]:disabled { border-color: var(--border); background: var(--field-bg); color: var(--text-secondary); }
+            body:has(#calView[data-pocket-staff-phone]) #calNativePostOverlay .cal-native-mode-toggle { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+            body:has(#calView[data-pocket-staff-phone]) #calNativePostOverlay .cal-native-mode-toggle span { min-height: 44px; padding: 6px 4px; font-size: 12px; line-height: 1.2; text-align: center; white-space: normal; }
+            body:has(#calView[data-pocket-staff-phone]) #calNativePostOverlay .cal-native-batch-name { font-size: 16px; font-weight: 400; line-height: 1.4; letter-spacing: 0; padding: 10px; height: auto; min-height: 46px; resize: none; overflow: hidden; }
+            #calView[data-pocket-staff-phone] .cal-card-color-tag { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-raised); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_14); display: inline-flex; align-items: center; justify-content: center; }
+            #calView[data-pocket-staff-phone] .cal-card-color-tag-dot { width: 14px; height: 14px; }
+        }
+        /* STAFF-SELECTION-PHONE:END */
 /* POCKET-ADMIN-PHONE:BEGIN — Expanded; all selectors stay below desktop. */
 @media (max-width: 767px) {
  html.pocket-admin-phone { scroll-padding-top: 16px; }

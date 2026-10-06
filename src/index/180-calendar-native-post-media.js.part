@@ -58,7 +58,7 @@ import {
 } from './200-intake-data-startup.js';
 import { _prodRestRows } from './210-production-state-writes.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-import { sxrClientSlug, sxrState } from './270-samples-model.js';
+import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-model.js';
     async function _calFetchNativeBatchPostCounts(batches) {
         const rowsIn = Array.isArray(batches) ? batches : [];
         const wanted = [...new Set(rowsIn.map(batch => String(batch && batch.id || '').trim()).filter(Boolean))];
@@ -341,10 +341,16 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
            `_calNativeBatchNameFor` treats empty as untouched. */
         const newBatchHtml = `
                         <label class="cal-native-field-label cal-native-sublabel" for="calNativeBatchName">Batch name<span class="cal-native-name-optional">optional</span></label>
-                        <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
+                        ${(_calStaffPhoneActive() || _sxrStaffPhoneActive())
+                            /* Phones: a long default name wraps onto a second line instead of being cut off. Enter does not add a line break. */
+                            ? `<textarea class="cal-native-batch-name" id="calNativeBatchName" rows="2" maxlength="${CAL_NATIVE_NAME_MAX}"
+                            placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
+                            aria-label="Name for the new batch" autocomplete="off"
+                            oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();" onkeydown="if (event.key === 'Enter') event.preventDefault();">${_calEsc(_calNativeBatchNameFor(state))}</textarea>`
+                            : `<input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
                             value="${_calEscAttr(_calNativeBatchNameFor(state))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
                             aria-label="Name for the new batch" autocomplete="off"
-                            oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">`;
+                            oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">`}`;
         /* Shown only when this post actually makes video work. In Thumbnail-only
            mode there is no video sub-issue to assign, and offering a picker
            that changes nothing is worse than not offering one. */

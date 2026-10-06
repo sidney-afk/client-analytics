@@ -233,6 +233,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-link-split-key-browser.js
+      - name: Expanded staff Selection and Samples phone states
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/staff-selection-samples-browser.js
       - name: Expanded staff Calendar phone states in both themes
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

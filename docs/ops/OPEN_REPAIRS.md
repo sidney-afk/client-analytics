@@ -30430,6 +30430,40 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 **Not done, said plainly.** Nothing has run against Apify, OpenAI, Anthropic (including the Batches API), pg_net or pg_cron; the first real proof is the first shadow brief. The equivalence is against the n8n code, not a recorded run (n8n keeps none); the reel order in the prompt follows n8n's Merge default and is unconfirmed. The real table `analytics_market_research_briefs` is not written (the switch is a later PR). The page is unchanged. Decisions left to the owner, later: keep the Keywords brief at all (what it shows and what it costs are in section 7c.2), and whether the AI summaries move off n8n as a small separate step.
 
 
+## 343. [2026-10-04, BUILT, NOT DEPLOYED] Expanded staff Samples and Calendar Selection on phones
+
+Samples Review and Sheet use full sections and comfortable individual cards below 768px in light and dark. Calendar and Samples Selection keep native actions at the bottom, with counts and Done. Native status, decision, archive and comment writers remain; pending staff decisions keep Saving until acknowledged. Desktop rules and restored controls remain unchanged. The native Sheet Select action is retained when switching from Review on a phone.
+
+Fictional screenshots at 360/390/430, loading/empty/error/dialog states, real TEST client decision saves and cleanup, desktop comparisons and exact check tails are in [the proof note](../syncview-design/proofs/staff-selection-samples-expanded/README.md). No deployment, merge, workflow edit or database installation is claimed. Other staff tabs, client layouts and admin screens remain outside this batch.
+
+## 344. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: design check against the owner's list (session Polish)
+
+On the same branch as entry 343. Phones and the standalone staff Calendar and Samples only: the one script change acts only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]` or `#sxrView[data-pocket-staff-samples]` (Create Post under `body:has(...)` of the same markers). Desktop markup and styles are not touched.
+
+Fixed:
+- The "Samples Tools" and "Calendar Tools" labels above the tabs are gone.
+- The outlined pink and blue buttons on a card's image and the grey circle (colour tag) are one calm chip style: a solid surface, a hairline border, 44 px, and only the icon keeps its colour (video pink, thumbnail blue).
+- The active "Select cards" button has white text on the dark button (it was grey).
+- Selection tray: "Color" has no colon. Archive is a quiet outlined destructive button of normal width, not a full-width red one, and still opens the same confirmation. "Generate captions" (which shares that button's class) is a dark button, not red. The page behind the tray is dimmed so the tray no longer cuts through a row.
+- Create Post: the batch name uses 16 px regular text like the other fields and fits at 390 and 430 wide; the post type picker is one row of three, as in the mock-up.
+
+Not changed on purpose: at 360 wide the batch name still truncates for the test fixture's long client name (the field cannot wrap and stays at 16 px so a phone does not zoom); a typical client name fits.
+
+Not tested for real: Archive on the test client through the new button (the confirmation and click code are unchanged; the offline test opens the confirmation). Item 2 of the owner's list refers to "the same fix as #1971 item 5"; I read it as the chip style above and applied it here only.
+
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,204 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
+Way back: revert the commit.
+
+## 348. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: batch name on two lines, status picker as a bottom sheet (session Polish)
+
+On the same branch as entries 343 and 344. Phones and the standalone staff Calendar and Samples only: the markup changes act only when `_calStaffPhoneActive()` or `_sxrStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under the staff Calendar or Samples marker. Desktop markup and styles are not touched.
+
+- Create Post, "Batch name": on a phone the field is a two-line box instead of a one-line field, so the default name ("Client · Samples · 5 Oct 2026") is shown in full at 360, 390 and 430 instead of being cut off. Enter does not add a line break, the 16 px text and the saved value are the same as before, and the field is still a single value read the same way. On a desktop screen it is the same one-line field as ever.
+- The Samples status picker is the same bottom sheet as the staff Calendar one (entry 349): a grab handle, a title ("Video status", "Thumbnail status", "Set all to…"), sentence case, a colour dot per status, a tick on the current one, 52 px rows and the page dimmed behind it.
+- Already on this branch from entry 344 and re-checked: no "Samples Tools" label, white text on the active "Select cards", a quiet Archive that still asks first, a dimmed page behind the selection tray, and the post type picker on one row.
+
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (now 5,286 checks, including that the whole batch name shows at every width) and the three scope guards. Before and after pictures in the pull request.
+Way back: revert the commit.
 ## 342. [2026-10-05, BUILT, NOT DEPLOYED] Expanded staff Calendar on phones
 
 Standalone Review, Sheet, Month and Week now use phone cards and vertical days

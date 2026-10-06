@@ -12,6 +12,16 @@ name: Sheets mirror daily copy and parity
 #    day, and goes red on any difference. It prints counts only; a client is a
 #    short sha256 reference, never a name or slug (this log is public).
 #
+# METRICS AND TOP VIDEOS AFTER THE SWITCH (docs/plans/2026-10-01-n8n-off-analytics.md,
+# section 8b). When a daily job's switch (analytics_metrics_collect,
+# analytics_top_videos_collect) says "live", that job writes the database itself and its
+# Sheet tab stops being written once n8n is off (nobody reads those tabs; owner decision).
+#   - the COPY leaves that dataset out (--skip-database-owned), so an old Sheet copy never
+#     vouches for days only the job wrote; the job writes its own whole-dataset receipt;
+#   - the PARITY never counts rows whose source is "edge" (the job's rows), so it keeps
+#     comparing the rows that came from the Sheet side and stays green when the tab stops.
+# Nothing changes for the other datasets, or while both switches are off or "shadow".
+#
 # The copy step is a DRY RUN unless the repository variable
 # SHEETS_MIRROR_COPY_APPLY is 'true' (or a manual run ticks "apply").
 # Needs repository secrets SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (read, for
@@ -67,7 +77,7 @@ jobs:
 
       - name: Copy the Sheets into the mirror
         run: |
-          if [ "$APPLY" = "true" ]; then node scripts/sheets-mirror-backfill.js --apply; else node scripts/sheets-mirror-backfill.js; fi
+          if [ "$APPLY" = "true" ]; then node scripts/sheets-mirror-backfill.js --apply --skip-database-owned; else node scripts/sheets-mirror-backfill.js --skip-database-owned; fi
 
       - name: Compare the mirror with the Sheets
         run: node scripts/sheets-mirror-parity.js --strict --json="$RUNNER_TEMP/parity.json"

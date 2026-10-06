@@ -34,10 +34,42 @@ const arg = name => { const a = process.argv.find(x => x.startsWith(name + '='))
 const ref = slug => crypto.createHash('sha256').update(String(slug)).digest('hex').slice(0, 12);
 const digest = hashes => crypto.createHash('md5').update([...hashes].sort().join(',')).digest('hex');
 
+// Rows the daily analytics jobs write straight into the database in live mode
+// (docs/plans/2026-10-01-n8n-off-analytics.md, section 8b). They never reach a Sheet (the
+// owner decided nobody reads the Metrics and TopVideos tabs), so they are not compared:
+// the comparison stays a Sheet-versus-database proof for the rows that came FROM the Sheet
+// side (n8n's mirror and the copy). Once n8n is off those tabs stop growing and the
+// comparison keeps proving that the history copied from them is intact.
+const DATABASE_ONLY_SOURCE = 'edge';
+
+// The datasets a live job owns (its flag says "live"): the daily copy leaves them alone, so
+// an old Sheet copy can never vouch for days only the job wrote (whole-dataset receipts are
+// what the staff pages trust; in live mode the job writes its own).
+const COLLECT_FLAGS = Object.freeze({ analytics_metrics_collect: 'metrics', analytics_top_videos_collect: 'top_videos' });
+function databaseOwnedDatasets(flagRows) {
+  const owned = new Set();
+  for (const row of flagRows || []) {
+    const dataset = COLLECT_FLAGS[row && row.key];
+    if (dataset && row.value && typeof row.value === 'object' && row.value.mode === 'live') owned.add(dataset);
+  }
+  return owned;
+}
+
+// Read with the service-role key (the daily lane has it). A failed read is an error, never
+// "nothing owned": the caller decides whether to go on.
+async function readDatabaseOwned(env = process.env, fetchImpl = fetch) {
+  const url = env.SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to read the collect switches');
+  const r = await fetchImpl(`${url}/rest/v1/syncview_runtime_flags?select=key,value&key=in.(${Object.keys(COLLECT_FLAGS).join(',')})`,
+    { headers: { apikey: key, authorization: 'Bearer ' + key } });
+  if (!r.ok) throw new Error('runtime flags read failed: HTTP ' + r.status);
+  return databaseOwnedDatasets(await r.json());
+}
+
 // Which column groups a dataset, and which rows count.
 const GROUPING = {
-  metrics: { table: 'analytics_metrics', day: 'date' },
-  top_videos: { table: 'analytics_top_videos', day: 'scraped_date', recentDays: 90 },
+  metrics: { table: 'analytics_metrics', day: 'date', excludeSource: DATABASE_ONLY_SOURCE },
+  top_videos: { table: 'analytics_top_videos', day: 'scraped_date', recentDays: 90, excludeSource: DATABASE_ONLY_SOURCE },
   content_summaries: { table: 'analytics_content_summaries', day: 'date' },
   market_research_briefs: { table: 'analytics_market_research_briefs', day: 'id', order: 'id' },   // no seq column
   client_profiles: { table: 'client_profiles', day: null },
@@ -136,14 +168,15 @@ async function dbGroupsRest(dataset, cutoff) {
     for (const p of await r.json()) addTo(groups, p.slug, '', p.row_hash);
     return groups;
   }
-  const filter = g.recentDays ? `&${g.day}=gte.${cutoff}` : '';
+  const filter = (g.recentDays ? `&${g.day}=gte.${cutoff}` : '') + (g.excludeSource ? `&source=neq.${g.excludeSource}` : '');
   for (const row of await restRows(g.table, `client_slug,${g.day},row_hash`, filter, g.order)) {
     addTo(groups, row.client_slug, String(row[g.day] || ''), row.row_hash);
   }
   return groups;
 }
 
-// --db-digests: { "<dataset>": [{ slug, day, count, digest }] } from read-only SQL.
+// --db-digests: { "<dataset>": [{ slug, day, count, digest }] } from read-only SQL. That SQL
+// must leave out rows whose source is 'edge' for metrics and top_videos, as the REST read does.
 function dbGroupsFromDigests(all, dataset) {
   const groups = new Map();
   for (const x of all[dataset] || []) {
@@ -190,5 +223,5 @@ async function main() {
   if (differences && process.argv.includes('--strict')) process.exitCode = 1;
 }
 
-module.exports = { compareGroups, digest, ref, addTo };
+module.exports = { compareGroups, digest, ref, addTo, GROUPING, DATABASE_ONLY_SOURCE, databaseOwnedDatasets, readDatabaseOwned, dbGroupsRest };
 if (require.main === module) main().catch(e => { console.error('parity failed: ' + e.message); process.exit(1); });

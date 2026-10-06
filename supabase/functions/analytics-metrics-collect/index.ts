@@ -1,12 +1,18 @@
 // analytics-metrics-collect — the daily metrics job (n8n "CLIENTS METRICS") run
 // by our own Edge Function (docs/plans/2026-10-01-n8n-off-analytics.md).
 //
-// STEP 1 OF THE MOVE: SHADOW ONLY. It scrapes the same sources and applies the
-// same rules as n8n, but writes only to analytics_metrics_shadow and to its own
-// post-tracking state. It never touches analytics_metrics (what the pages read)
-// and never touches a Sheet. n8n keeps running untouched; the two are compared
-// daily with analytics_metrics_shadow_compare(). Writing the real table is a
-// separate, later PR, after the owner has seen them match.
+// Two modes besides off (switch row analytics_metrics_collect):
+//   shadow  scrapes the same sources and applies the same rules as n8n, but writes
+//           only to analytics_metrics_shadow and to its own post-tracking state. It
+//           never touches analytics_metrics (what the pages read) and never touches a
+//           Sheet. Compared with n8n daily by analytics_metrics_shadow_compare().
+//   live    (plan section 8b) does everything shadow does AND, in the same database
+//           transaction, writes the day's row into analytics_metrics with source "edge".
+//           The row is prepared exactly as analytics-write prepares one (slug rule, date
+//           check, fingerprint; _shared/analytics-collect-live.mjs). One row per client
+//           per day, FIRST WRITER WINS: if analytics_metrics already holds a row for that
+//           client and date (n8n's, on the switch-over day), nothing is added. A retry or
+//           a second tick never adds a second row. It never touches a Sheet.
 //
 // How a day runs: pg_cron calls this function every minute from 04:00 to 08:59
 // UTC (action "tick"). Each tick seeds today's queue (one row per active
@@ -21,7 +27,7 @@
 // (at least 32 characters), checked before anything else. Not browser callable.
 // Secrets it reads: APIFY_TOKEN, YOUTUBE_API_KEY (the same values n8n holds as
 // credentials). Switch: syncview_runtime_flags row analytics_metrics_collect,
-// {"mode": "off" | "shadow", "clients": [slug...], "batch": 1,
+// {"mode": "off" | "shadow" | "live", "clients": [slug...], "batch": 1,
 //  "yt_split_clients": [slug...]}. Default off.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
@@ -38,6 +44,7 @@ import {
   trackedPosts,
   youtubeChannel,
 } from "../_shared/analytics-metrics-collect.mjs";
+import { collectMode, coversEveryClient, liveRecords } from "../_shared/analytics-collect-live.mjs";
 
 type JsonMap = Record<string, unknown>;
 const APIFY = "https://api.apify.com/v2";
@@ -205,6 +212,17 @@ async function processClient(db: SupabaseClient, q: QueueRow, flags: JsonMap, de
   const out = computeDiffs(merged, gains, prev || [], now);
   const row = toStoredRow(out);
   const posts = gains.updatedRows.map((r: JsonMap) => ({ ...r, client_slug: prof.slug }));
+  if (collectMode(flags) === "live") {
+    // The real row, prepared as analytics-write prepares it; the commit adds it only if
+    // the client has no row for the day yet (first writer wins, see the header).
+    const [record] = await liveRecords("metrics", [row], { runId, clientSlug: prof.slug, runDate: q.run_date });
+    const { data: live, error: le } = await db.rpc("analytics_metrics_collect_commit_live", {
+      p_run_date: q.run_date, p_client_slug: prof.slug, p_row: row, p_posts: posts, p_run_id: runId,
+      p_record: record, p_full_snapshot: coversEveryClient(flags),
+    });
+    if (le) throw le;
+    return (live as JsonMap | null)?.skipped === "existing_rows" ? "done_live_kept_existing" : "done_live";
+  }
   const { error: ce } = await db.rpc("analytics_metrics_collect_commit_shadow", {
     p_run_date: q.run_date, p_client_slug: prof.slug, p_row: row, p_posts: posts, p_run_id: runId,
   });
@@ -241,8 +259,11 @@ async function tick(db: SupabaseClient, flags: JsonMap): Promise<JsonMap> {
       console.error("collect client failed", q.client_slug.length, e instanceof Error ? e.message : String(e));
       // An internal error (database, profile, commit) is not the providers' fault, so it must
       // not use up their 8-attempt budget: give the attempt back, or a failure on the last
-      // claim would leave the client unclaimable with no row.
-      await db.from("analytics_metrics_collect_queue").update({ attempts: Math.max(0, q.attempts - 1), last_error: (e instanceof Error ? e.message : String(e)).slice(0, 200), lease_until: null, updated_at: new Date().toISOString() })
+      // claim would leave the client unclaimable with no row. Exception: a live row the
+      // preparation refused (live_row_*) is refused the same way every time, so it keeps
+      // the attempt: at most 8 tries, then the daily check reports the missing result.
+      const permanent = e instanceof Error && e.message.startsWith("live_row_");
+      await db.from("analytics_metrics_collect_queue").update({ attempts: permanent ? q.attempts : Math.max(0, q.attempts - 1), last_error: (e instanceof Error ? e.message : String(e)).slice(0, 200), lease_until: null, updated_at: new Date().toISOString() })
         .eq("run_date", q.run_date).eq("client_slug", q.client_slug);
     }
   }));
@@ -284,7 +305,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const action = clean(body.action) || "tick";
     const db = createClient(url, serviceKey, { auth: { persistSession: false } });
     const flags = await flagValue(db, "analytics_metrics_collect");
-    if (flags.mode !== "shadow") return json({ ok: true, skipped: "off" });
+    if (collectMode(flags) === "off") return json({ ok: true, skipped: "off" });
     if (action === "tick") return json(await tick(db, flags));
     if (action === "seed_post_tracking") {
       if (!Array.isArray(body.rows)) return json({ ok: false, error: "missing_rows" }, 400);

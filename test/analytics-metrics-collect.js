@@ -249,9 +249,12 @@ async function main() {
   // The function file wires the same module and never touches the real table.
   const fnSrc = fs.readFileSync(path.join(ROOT, 'supabase/functions/analytics-metrics-collect/index.ts'), 'utf8');
   assert(fnSrc.includes('../_shared/analytics-metrics-collect.mjs'), 'function uses the shared rules');
-  assert(!/from\("analytics_metrics"\)\s*\.(insert|upsert|update|delete)/.test(fnSrc.replace(/\s+/g, ' ')), 'shadow step: never writes analytics_metrics');
+  assert(!/from\("analytics_metrics"\)\s*\.(insert|upsert|update|delete)/.test(fnSrc.replace(/\s+/g, ' ')), 'never writes analytics_metrics directly (live mode writes it only through the commit function)');
   assert(!/docs\.google|googleapis\.com\/(upload|auth)|spreadsheets/.test(fnSrc), 'never touches a Sheet');
-  assert(fnSrc.includes('flags.mode !== "shadow"'), 'does nothing unless the flag says shadow');
+  assert(fnSrc.includes('collectMode(flags) === "off") return json({ ok: true, skipped: "off" })'), 'does nothing unless the flag says shadow or live');
+  const liveAt = fnSrc.indexOf('if (collectMode(flags) === "live") {');
+  assert(liveAt > 0 && fnSrc.split('analytics_metrics_collect_commit_live').length === 2 && fnSrc.indexOf('analytics_metrics_collect_commit_live') > liveAt
+    && fnSrc.indexOf('analytics_metrics_collect_commit_live') < fnSrc.indexOf('analytics_metrics_collect_commit_shadow", {'), 'the real table is written only inside the live branch');
   console.log('ANALYTICS_METRICS_COLLECT_OK: ' + compared + ' random clients identical to the n8n nodes (' + degraded + ' degraded, ' + withGain + ' with Instagram gain), rules hand-checked');
 }
 main().catch(e => { console.error(e && e.stack || e); process.exit(1); });

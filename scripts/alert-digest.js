@@ -20,7 +20,10 @@
  *      checked in with ok:false (covers the Samples and Calendar nightlies);
  *   2. the latest completed run of a watched workflow is red, or its last
  *      success is too old (backup, dawn check, daily analytics copy, quota
- *      watchdog).
+ *      watchdog);
+ *   3. a daily analytics job (metrics, Top Videos) that is LIVE recorded a failed
+ *      safety check for the day (a client with no result, a platform failed at the
+ *      provider, frozen Instagram), or its check has stopped running.
  *
  * WHEN IT SPEAKS. Compared with the last state it saved: a new problem, a
  * higher severity, or changed evidence (a new failing run) posts the whole
@@ -165,6 +168,71 @@ function workflowProblems({ runsByFile, nowMs, sources = WORKFLOW_SOURCES }) {
   return problems;
 }
 
+/*
+ * The daily analytics jobs' own safety check (docs/plans/2026-10-01-n8n-off-analytics.md,
+ * section 8b; it replaces n8n's end-of-run checks once n8n is off). pg_cron records one row
+ * per dataset per day in analytics_collect_daily_checks; only a LIVE job's problems are
+ * named here. The evidence is the day plus the problem codes, so a problem speaks once per
+ * day: still open an hour later is quiet, open again the next day is new evidence.
+ * Counts only, never a client.
+ */
+const COLLECT_DATASETS = Object.freeze([
+  { dataset: 'metrics', flag: 'analytics_metrics_collect', label: 'Daily metrics job' },
+  { dataset: 'top_videos', flag: 'analytics_top_videos_collect', label: 'Daily Top Videos job' },
+]);
+const COLLECT_CHECK_MAX_AGE = 30 * HOUR;
+
+function plural(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+function collectProblemText(label, row) {
+  const r = row.result && typeof row.result === 'object' ? row.result : {};
+  const parts = [];
+  const problems = Array.isArray(row.problems) ? row.problems : [];
+  if (problems.includes('missing_terminal')) {
+    parts.push(`${Number(r.missing_terminal) || 0} of ${Number(r.active_clients) || 0} active clients have no result`);
+  }
+  if (problems.includes('provider_failed')) {
+    parts.push(`${plural(Number(r.provider_failed_clients) || 0, 'client', 'clients')} had a platform fail at the provider`);
+  }
+  if (problems.includes('instagram_frozen')) {
+    parts.push(`Instagram looks frozen (${Number(r.instagram_configured) || 0} clients healthy, none gained views)`);
+  }
+  return `${label} (${clean(row.run_date)}): ${parts.join('; ')}.`;
+}
+
+/** Problems of the live daily analytics jobs. collectChecks null = the table could not be read. */
+function collectProblems({ collectChecks, collectFlags, nowMs }) {
+  if (collectChecks === undefined && collectFlags === undefined) return [];
+  const flags = new Map((collectFlags || []).map(row => [row.key, row]));
+  const problems = [];
+  for (const spec of COLLECT_DATASETS) {
+    const flag = flags.get(spec.flag);
+    const mode = flag && flag.value && typeof flag.value === 'object' ? flag.value.mode : null;
+    if (mode !== 'live') continue;
+    if (collectChecks === null) {
+      problems.push({ key: `analytics_collect_unreadable:${spec.dataset}`, severity: 1, evidence: 'unreadable',
+        text: `${spec.label}: its daily safety check could not be read.` });
+      continue;
+    }
+    const latest = (collectChecks || []).filter(row => row && row.dataset === spec.dataset)
+      .sort((a, b) => clean(b.run_date).localeCompare(clean(a.run_date)))[0];
+    if (!latest || ageMinutes(latest.checked_at, nowMs) > COLLECT_CHECK_MAX_AGE) {
+      // Just switched on: the first check has not had its turn yet.
+      if (!latest && ageMinutes(flag.updated_at, nowMs) <= COLLECT_CHECK_MAX_AGE) continue;
+      problems.push({ key: `analytics_collect_stale:${spec.dataset}`, severity: 1, evidence: latest ? `since:${clean(latest.run_date)}` : 'never',
+        text: `${spec.label}: its daily safety check has not run in the last 30 hours.` });
+      continue;
+    }
+    const codes = (Array.isArray(latest.problems) ? latest.problems : []).map(clean).filter(Boolean).sort();
+    if (latest.mode !== 'live' || !codes.length) continue;
+    problems.push({ key: `analytics_collect:${spec.dataset}`, severity: 1, evidence: `${clean(latest.run_date)}:${codes.join('+')}`,
+      text: collectProblemText(spec.label, { ...latest, problems: codes }) });
+  }
+  return problems;
+}
+
 function sortProblems(problems) {
   return problems.slice().sort((a, b) => (b.severity - a.severity) || a.key.localeCompare(b.key));
 }
@@ -212,10 +280,11 @@ function renderMessage(problems, newCount) {
 }
 
 /** One pass over already-collected inputs. Pure: no network, no clock. */
-function evaluate({ heartbeatRows, runsByFile, previous, nowMs, lanes, sources }) {
+function evaluate({ heartbeatRows, runsByFile, previous, nowMs, lanes, sources, collectChecks, collectFlags }) {
   const problems = sortProblems([
     ...laneProblems({ heartbeatRows, nowMs, lanes }),
     ...workflowProblems({ runsByFile, nowMs, sources }),
+    ...collectProblems({ collectChecks, collectFlags, nowMs }),
   ]);
   const verdict = compare(problems, previous);
   return {
@@ -270,6 +339,21 @@ async function readRuns(sources = WORKFLOW_SOURCES) {
     }));
   }
   return out;
+}
+
+// The two analytics jobs' switches, and their recorded daily checks. Before the live
+// migration is applied the checks table does not exist: that reads as null, which only
+// matters (as a problem) once a job is live.
+async function readCollectFlags() {
+  return supaGet('syncview_runtime_flags?select=key,value,updated_at&key=in.(analytics_metrics_collect,analytics_top_videos_collect)');
+}
+
+async function readCollectChecks() {
+  try {
+    return await supaGet('analytics_collect_daily_checks?select=run_date,dataset,mode,problems,result,checked_at&order=run_date.desc&limit=6');
+  } catch (_error) {
+    return null;
+  }
 }
 
 async function readPrevious(action) {
@@ -343,6 +427,8 @@ async function run(argv = process.argv.slice(2), env = process.env) {
     inputs = {
       heartbeatRows: await readHeartbeats(),
       runsByFile: await readRuns(),
+      collectFlags: await readCollectFlags(),
+      collectChecks: await readCollectChecks(),
       previous: await readPrevious(stateAction),
     };
   }
@@ -392,5 +478,6 @@ if (require.main === module) {
 
 module.exports = {
   MAX_LISTED, NOT_COVERED, OWN_LANE, STATE_ACTION, SHADOW_STATE_ACTION, WORKFLOW_SOURCES,
+  COLLECT_DATASETS, collectProblems,
   compare, evaluate, fingerprint, isOn, laneProblems, postDigest, renderMessage, run, workflowProblems,
 };

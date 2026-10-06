@@ -9,6 +9,12 @@
  *   node scripts/sheets-mirror-backfill.js --apply      send every row through
  *                                                       the analytics-write function
  *   --datasets=metrics,top_videos                       only these datasets
+ *   --skip-database-owned                               leave out a dataset whose daily job
+ *        writes the database itself (its flag analytics_metrics_collect or
+ *        analytics_top_videos_collect says "live"; plan section 8b of
+ *        docs/plans/2026-10-01-n8n-off-analytics.md). The daily lane passes it. Needs
+ *        SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to read the two switches; a failed
+ *        read stops the copy rather than guess.
  *
  * --apply needs ANALYTICS_MIRROR_WRITE_KEY in the environment and the
  * analytics_mirror_write_enabled flag on. It goes through the same Edge
@@ -81,6 +87,16 @@ async function send(key, body) {
   const m = await import(pathToFileURL(path.join(__dirname, '..', 'supabase/functions/_shared/sheets-mirror.mjs')).href);
   const wanted = (arg('--datasets') || Object.keys(m.DATASETS).join(',')).split(',').map(s => s.trim()).filter(Boolean);
   for (const d of wanted) if (!m.DATASETS[d]) throw new Error('unknown dataset ' + d);
+  if (process.argv.includes('--skip-database-owned')) {
+    const owned = await require('./sheets-mirror-parity.js').readDatabaseOwned();
+    for (const d of owned) {
+      const at = wanted.indexOf(d);
+      if (at >= 0) {
+        wanted.splice(at, 1);
+        console.log(`  ${d.padEnd(24)} skipped: its daily job writes the database itself (switch "live"); the Sheet tab is no longer copied`);
+      }
+    }
+  }
   const key = process.env.ANALYTICS_MIRROR_WRITE_KEY || '';
   if (APPLY && key.length < 32) throw new Error('--apply needs ANALYTICS_MIRROR_WRITE_KEY in the environment');
   const runId = 'backfill-' + new Date().toISOString();

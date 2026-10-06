@@ -143,3 +143,118 @@ update public.syncview_runtime_flags set value = '{"mode":"off"}' where key = 'a
 ```
 
 The function does nothing from the next minute. To also stop the timer: `select cron.unschedule('analytics-metrics-collect-tick');`.
+
+---
+
+# Going live: our jobs write the real numbers, then n8n is turned off (Metrics and Top Videos)
+
+For the owner (Sidney). Why and how it works: section 8b of `docs/plans/2026-10-01-n8n-off-analytics.md`
+(ledger entry OPEN_REPAIRS 355). In one sentence: today our two jobs only practise next to n8n; after these steps
+they write the numbers the Analytics pages show, and then n8n's two analytics workflows are switched off. The
+Google Sheet tabs Metrics and TopVideos stop being updated at that point, as you decided (nobody reads them).
+
+You need nothing new: no new key, no new secret. Every statement below is copy and paste, with no client name in it.
+
+**When to start:** after the practice runs have matched for 3 days with all clients (Lighthouse tells you).
+
+## I1. Merge (Lighthouse)
+
+Lighthouse merges the pull request that added this part and sends you the 40-character commit to paste in I2.
+**Nothing else is merged between that message and your two runs in I2.**
+
+## I2. Deploy the two jobs (5 minutes, the same clicks twice)
+
+Deploying changes nothing anyone sees: the jobs keep practising until step I4.
+
+1. Open https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml
+2. On the right, click **Run workflow**. Branch: **main**. **function**: choose `analytics-metrics-collect`.
+   **commit_sha**: paste the 40 characters. Click the green **Run workflow** button.
+3. If it asks you to approve the `production` environment, approve it. Wait until the run has a green tick.
+4. Do 2 and 3 again, this time choosing `analytics-top-videos-collect`, with the same 40 characters.
+
+## I3. Database changes (Lighthouse, with your go)
+
+Tell Lighthouse "go for the analytics live migrations". Lighthouse applies, in this order, and runs the
+check written at the bottom of each file:
+
+1. `migrations/2026-10-06-analytics-collect-live.sql` (allows the new kind of row, adds the safety check).
+2. `migrations/2026-10-06-analytics-collect-daily-check-schedule.sql` (runs the safety check every day at
+   09:07 and 13:07 UTC).
+
+Still nothing changes for anyone: both jobs keep practising.
+
+## I4. Switch both jobs to live (2 minutes)
+
+Best done in the evening (any time after 13:30 UTC and before 04:00 UTC), so the next day starts cleanly.
+
+1. Open the Supabase dashboard, the **SyncView** project, left sidebar **SQL Editor**, **New query**.
+2. Paste this whole block and press **Run**:
+
+   ```sql
+   update public.syncview_runtime_flags set value = (value - 'clients') || '{"mode":"live"}'::jsonb
+   where key in ('analytics_metrics_collect', 'analytics_top_videos_collect');
+   ```
+
+   It should say `Success. 2 rows affected`. It keeps the YouTube setting of the metrics job exactly as it is.
+
+## I5. Watch one full day (n8n is still on)
+
+The next day, after about 13:30 UTC, Lighthouse (or a session) runs these and tells you the answer in plain words:
+
+```sql
+-- the safety check of the day (problems should be empty for both)
+select dataset, mode, problems, result->>'active_clients' active, result->>'terminal_clients' done
+from public.analytics_collect_daily_checks where run_date = (now() at time zone 'utc')::date;
+
+-- how many clients got their row from our job today, and how many from n8n
+select source, count(distinct client_slug) from public.analytics_metrics
+where date = (now() at time zone 'utc')::date group by source;
+select source, count(distinct client_slug) from public.analytics_top_videos
+where scraped_date = (now() at time zone 'utc')::date group by source;
+```
+
+A good day: both checks show no problems, and every active client has a row from one of the two. On this day n8n
+and our job both run; whichever writes a client first wins, so the split between them does not matter. Open the
+Analytics page as you normally do: the numbers look like yesterday's.
+
+## I6. Something wrong on the watch day?
+
+Go back to practice at once (n8n is still on, so the pages keep their numbers):
+
+```sql
+update public.syncview_runtime_flags set value = value || '{"mode":"shadow"}'::jsonb
+where key in ('analytics_metrics_collect', 'analytics_top_videos_collect');
+```
+
+## I7. Make sure problems reach Slack
+
+Once n8n is off, our daily safety check replaces n8n's error alerts, and it speaks through the combined Slack
+problem message. That message stays silent until you switch it on. If it is not on yet, follow the steps of
+OPEN_REPAIRS 328 (one small n8n alert edit with your go, then the repository variable `ALERT_DIGEST_ENABLED` set to
+`true` in GitHub: **Settings**, **Secrets and variables**, **Actions**, **Variables**). Do this before step I8.
+
+## I8. Turn n8n's two analytics workflows off (Lighthouse, with your explicit go)
+
+Tell Lighthouse, in so many words: "go: deactivate CLIENTS METRICS and TOP VIDEOS in n8n". Lighthouse switches the
+two workflows to inactive (it does not delete or edit them) and writes it in `docs/ops/N8N_EDIT_LOG.md`. Best between
+13:30 UTC and 04:00 UTC. From the next morning only our jobs write the numbers, Apify is no longer paid twice, and the
+Metrics and TopVideos Sheet tabs stop growing. The daily copy and comparison lane keeps running and stays green (it no
+longer copies those two tabs and never counts our jobs' own rows).
+
+## Rollback, at any time
+
+1. Back to practice (the jobs stop writing real rows from the next minute):
+
+   ```sql
+   update public.syncview_runtime_flags set value = value || '{"mode":"shadow"}'::jsonb
+   where key in ('analytics_metrics_collect', 'analytics_top_videos_collect');
+   ```
+
+2. If n8n was already off for one or more days: first, Lighthouse appends the days only our jobs wrote back to the
+   Metrics tab with `scripts/sheets-mirror-catchup.js` (it shows the count first and writes nothing without your
+   go). This matters: n8n continues its running "views this month" totals from the last row it finds in that tab.
+   Then tell Lighthouse "go: re-activate CLIENTS METRICS and TOP VIDEOS in n8n". They write the Sheet and the
+   database again from their next run. Expect n8n's first day back to show the views gained over the whole gap as
+   one day (its own post list was not updated while it was off).
+
+The rows our jobs already wrote can stay: they are normal rows, marked with the source `edge`.

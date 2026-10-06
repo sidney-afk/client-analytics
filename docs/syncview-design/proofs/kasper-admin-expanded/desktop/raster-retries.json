@@ -1,0 +1,22 @@
+{
+  "label": "onboarding",
+  "width": 1280,
+  "theme": "dark",
+  "differencePixels": 141,
+  "bounds": [
+    428,
+    326,
+    574,
+    334
+  ],
+  "explanation": "Two native input placeholder raster variants occurred on both unchanged main and this branch. A byte-identical pair from repeated captures is retained; computed styles were identical on every retry.",
+  "mainSha256": [
+    "b10e9d38942db147ddf8dcb72e4decd9d649bf4deb6be21b4b5de8140cb76c5d",
+    "be4754829eb79b5de44ae061cbee864d95f901147052458b9e7e67b1f39ddf90"
+  ],
+  "branchSha256": [
+    "be4754829eb79b5de44ae061cbee864d95f901147052458b9e7e67b1f39ddf90",
+    "b10e9d38942db147ddf8dcb72e4decd9d649bf4deb6be21b4b5de8140cb76c5d"
+  ],
+  "selectedSha256": "be4754829eb79b5de44ae061cbee864d95f901147052458b9e7e67b1f39ddf90"
+}

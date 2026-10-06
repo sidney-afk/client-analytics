@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3927 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4715 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 5196 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2071 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1796 | Market Research Brief Tab Renderers |
@@ -42,12 +42,12 @@
 | 34 | `134-calendar-prefs-mount.js.part` | 1081 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 35 | `140-calendar-legacy-outbox.js.part` | 3497 | Shed the retired legacy rows from storage, under the surface mutation |
 | 36 | `150-calendar-hydration-import.js.part` | 2175 | For a card linked to a real sub-issue (not a parent), return which of |
-| 37 | `160-calendar-organize-ui.js.part` | 2910 | Lighter path for the Order switch: update the chrome in place so the |
-| 38 | `170-calendar-links-status.js.part` | 3274 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 39 | `180-calendar-native-post-media.js.part` | 2903 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 37 | `160-calendar-organize-ui.js.part` | 2983 | Lighter path for the Order switch: update the chrome in place so the |
+| 38 | `170-calendar-links-status.js.part` | 3275 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 39 | `180-calendar-native-post-media.js.part` | 2936 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 40 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 41 | `186-archived-restore.js.part` | 462 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 42 | `190-calendar-approval-comments.js.part` | 3189 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 42 | `190-calendar-approval-comments.js.part` | 3204 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 43 | `200-intake-data-startup.js.part` | 1873 | Video-only and Thumbnail-only were already built, but sat |
 | 44 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 45 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
@@ -63,7 +63,7 @@
 | 55 | `305-core-kasper-shared.js.part` | 752 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 56 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 57 | `320-core-kasper-subtabs.js.part` | 20 | — |
-| 58 | `321-kasper-dashboard-replies.js.part` | 2717 | The Samples subtab was folded into Review (samples are listed in the |
+| 58 | `321-kasper-dashboard-replies.js.part` | 2955 | The Samples subtab was folded into Review (samples are listed in the |
 | 59 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 60 | `323-kasper-dashboard-tail.js.part` | 580 | Review Session |
 | 61 | `324-client-onboarding-panel.js.part` | 482 | talking to the functions (admin only; the server checks the key and the member again) |

@@ -30485,3 +30485,80 @@ On the same branch as entries 337, 339 and 341. Phones and client links only: ev
 
 Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (now 1,419 assertions: the 2+ days note appears once, no repeated note, a plain header, switches on one row and not cut off, a short note for a one-point chart, and "5 Oct" for chart dates). Before and after pictures in the pull request.
 Way back: revert the commit.
+## 336. [2026-10-03, BUILT, NOT DEPLOYED] Pocket Compact: first client Calendar phone checkpoint
+
+Owner request: build layout B from PR #1950 into the real app, beginning with the client review link (Review with a post open, Sheet, Month, Week), one PR, then stop for visual approval. Phone title/Tabs/More, continuous Sheet and Review feed, one review post and one component section open at a time, explicit unsent/pending/sending/failed labels, existing actions and permissions preserved. Organize and card size move into More. All new CSS is capped at 767px and scoped to client links; staff and desktop presentation stay on their existing paths. Fragments edited and index rebuilt. No n8n workflow, database/schema, backend function or deployment change.
+
+The desktop comparison repair is reused from parked PR #1951: both sides assemble their own fragments, fixing the loader-versus-single-file false mismatch. Local browser work uses visible Chrome. Proof, synthetic before/after screenshots at 360/390/430, the screenshot viewer and actual check tails: `docs/syncview-design/proofs/client-calendar-compact/README.md`. Native phone action and transport assertions are kept; gates open the relevant component disclosure before testing its original action.
+
+Real save proof is candidate-only on the designated test client: Approve stored its decision and sign-off timestamp; Request change stored Tweaks Needed and the exact note; the disposable card was archived and verified. Read-only checks of all four views at all three widths found no page overflow and remained light. Required Production browser gate is red on its desktop editor geometry assertion on unchanged main too; full unit baseline failures are reported without waiver. Nothing merged; Lighthouse owns merging. Next screen waits for the owner to approve this checkpoint.
+
+Desktop-proof follow-up: the live relay could give the two builds different thumbnail replies, falsely changing DOM/style counts on Month and Week. One in-memory read snapshot per pair now replays successful replies and failures identically. No response bodies or credentials are written to files. Original pixel/style assertions and timings remain; `docs/syncview-design/tests/desktop-parity-relay.js` verifies identical reads and that cached responses cannot bypass the existing write refusal.
+
+Final-proof status: a browser-tool restart interrupted a repeat TEST save check. Final decision-save and disposable-card cleanup readbacks, plus the full live-read desktop comparison after the transient-viewport repair, are pending owner sign-in. No push or PR is claimed. The offline Compact gate passes 1,533 assertions, including native blank suggestions and unchanged desktop Week after the browser's 1-pixel capture viewport.
+
+Final proof completed: visible Chrome passed all 68 desktop pixel/style pairs with the native analytics read included in the read-only relay. The final candidate's Approve and Request change each returned HTTP 200 and normal-reader checks confirmed the decision, approval timestamp and exact note. Cleanup returned HTTP 200 and read back as Archived. All four real client views passed at 360/390/430, with light mode, 44px visited controls, 16px editable fields and no page overflow. The prior sign-in-dependent proof hold is resolved; owner visual approval of this Calendar checkpoint is still required before another screen.
+
+Owner direction update: layout A (Expanded) replaces Compact. Keep the shared phone header, Tabs, More, Organize/card-size placement and harness repairs; use separate comfortable cards and full review sections. Batch Review/open post, Sheet, Month and Week in one PR, then prepare the next client batch from latest main while the owner reviews. The old stop-for-approval instruction is superseded. Kasper and admin pages belong to the separate session. Expanded source and fictional screenshots are prepared; its phone gate passes 1,725 assertions at 360/390/430. Real TEST Approve and Request change were repeated successfully with normal-reader status, timestamp and note confirmation. Final Expanded desktop comparison was interrupted when the owner reported game focus stealing; explicit browser foreground calls have been removed. Complete the remaining proof without interrupting the owner before pushing. Proof now lives at `docs/syncview-design/proofs/client-calendar-expanded/README.md`.
+
+Expanded desktop follow-up: the final Month-polished candidate passed all 68 native desktop pixel/style pairs at four widths. The phone gate passes 1,725 assertions. Public desktop pairs capture only the content below the header; full captures remain private and the original full-page assertions remain unchanged. Browser checks now reuse visible Chrome on a second monitor, refuse activation requests and use no-activate window placement. The foreground window stayed unchanged during setup and the phone gate. A further real decision-save repeat returned HTTP 200 for both actions and read back Approved with its timestamp and Tweaks Needed. Browser control then restarted before the fresh note readback and second disposable-card cleanup could be verified. Keep that cleanup pending; no PR or deployment is claimed. Offline work continues on the next client batch from main.
+
+Final Expanded cleanup completed after owner sign-in: the app's normal reader confirmed the exact request-change note on the disposable TEST card. The native Calendar writer archived only that card with HTTP 200, and the normal reader confirmed Archived. The final identity-free receipt is `docs/syncview-design/proofs/client-calendar-expanded/final-live-saves.json`. Current source and main hashes still match the completed 68/68 desktop proof; no browser or backend deployment is claimed.
+
+## 338. [2026-10-04, BUILT, NOT DEPLOYED] Client Calendar on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 336. Phones and client links only; every new style sits in the same `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`, and the two script edits are inside the phone-only shell and the phone-only date branch. Desktop markup and styles are not touched.
+
+What was compared: the real app at 360, 390 and 430 wide beside layout A (Expanded) of the mock-up gallery, for Review with a post open, Sheet, Month, Week, the Tabs sheet and the More sheet.
+
+Fixed:
+- Tabs button: a real chevron icon in place of the small text arrow, centred, same colour as the label. More button: a real three-dot icon at normal size, same height as Tabs. Sheets close with a real cross icon.
+- Tabs and More sheets: grab handle on top, title sizes from the mock-up, full-width rows with left-aligned labels and a line between them. The current tab is bold with a tick; the others show a chevron. Organize and Card size are the same full width. The More sheet is titled "More".
+- Review card: the three grey status pills under the title are gone (the sentence above and each section's own status already say it). When a post is open, its close control is the quiet chevron button from the mock-up, not a black "Close" button. Approve is the mock-up's dark button, 48 px tall. Comment and Request change sit right-aligned at their natural width. The video preview spans the card, 188 px tall.
+- Sheet card: the video link is a quiet field like the others and keeps its link icon. The three status pills are 13 px with full-contrast text and wrap side by side.
+- One date format on phones, "Sat, 3 Oct 2026", including the Sheet's date field (desktop keeps its month-first format).
+- Month and Week: a day with nothing on it is one slim line, not a card. When a client cannot schedule, Month already shows only days with posts.
+
+Still different from the mock-up, on purpose:
+- Month is a list of days, not the mock-up's small month grid. The grid has no design for a day that holds posts, and the list is where a post is opened or dropped.
+- Each Review section keeps its status on the right ("Awaiting your approval", "Note not sent", "Sending…"). The mock-up has none; removing it would hide whether a note was sent.
+- A closed Review card keeps a labelled "Review" button; the mock-up only draws the open card.
+- The video preview keeps its dark surround so the white "Open video" label stays readable when there is no thumbnail.
+
+Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (1,725 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check/`. Approve was clicked for real on the test client through this layout and read back after a reload. Request change was not re-tested for real in this pass; see the pull request comment.
+Way back: revert the commit.
+
+## 340. [2026-10-04, BUILT, NOT DEPLOYED] Client Calendar on phones: Month and Week fold runs of empty days (session Polish)
+
+On the same branch as entries 336 and 338. Phones and client links only: the markup is added only when `_calPhoneClient()` is true (a client link at phone width), and every style sits in the `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`. Desktop markup and styles are not touched.
+
+Month and Week used one line per empty day, so a quiet week was a long column of "Nothing scheduled". Each run of consecutive empty days is now one slim line, for example "Thu 1 to Fri 2 · Nothing scheduled" (one day: "Sat 3 · Nothing scheduled"). Today and any day with a post stay separate rows. In Month only the days of the shown month count; in Week only the seven days of the shown week.
+
+Every folded day keeps its own element and date, so dragging a post onto a day still works where a client may reschedule: while a post is being dragged the folded days unfold, and fold again when it is dropped.
+
+Not tested: the unfold during a real drag on a touch phone; it is covered by the markup test only (each folded day keeps its date), not by a real drag.
+
+Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 1,743 assertions) checks that no folded day shows, that every run line names its days, and that folded days keep their date. Before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check-runs/`.
+Way back: revert the commit.
+
+## 346. [2026-10-05, BUILT, NOT DEPLOYED] Client Calendar on phones: one Today marker, even spacing, Week thumbnails (session Polish)
+
+On the same branch as entries 336, 338 and 340. Phones and client links only: the one script change acts only when `_calPhoneClient()` is true (a client link at phone width), and every style sits inside `@media (max-width: 767px)` under `html.boot-client`. Desktop markup and styles are not touched.
+
+- Today is the same black circle in Month and Week: 36 px, white number, with the weekday above it. Before, Month had a circle and Week a black rounded rectangle, and the Month card for today was tinted blue. Both cards are plain white now, so only the circle marks today.
+- Even spacing: the nav row has the same space under it in both views (12 px), cards and "Nothing scheduled" lines are 12 px apart, and a folded line is 28 px high so the gap above and below its text matches. Before, Month left about 40 px between a folded line and the next card while Week left almost none under the header.
+- Week thumbnails load: the few Month and Week thumbnails on a phone client link are fetched at once instead of lazily. The earlier Week screenshots showed empty grey squares because the picture was taken before the images arrived; the test now waits for them, and checks that they are eager and loaded.
+
+Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 2,106 assertions: Today marker is the 36 px circle in both views; thumbnails are eager and loaded). Before and after pictures in the pull request.
+Way back: revert the commit.
+## 352. [2026-10-05, BUILT, NOT DEPLOYED] Expanded phone layout for the review dashboard and admin tools
+
+Owner-directed presentation change from main, independent of the parked phone PRs. Phone-only styles and navigation in the source fragments keep native permissions, destinations, decisions, forms, saved drafts and writers. Comfortable cards and full sections replace narrow desktop columns; Tabs and More share the heading, with native account controls and pending counts preserved. Branded dates retain the original form input and handlers. Desktop widths receive no phone DOM or styles.
+
+Proof and explicit limits: `docs/syncview-design/proofs/kasper-admin-expanded/README.md`. Screenshots use fictional people, workspaces and media. Offline transports intercept every write. No database, workflow or deployment change; no merge. Browser checks and the mandatory desktop parity comparison are recorded with their actual output.
+
+Review follow-up, 2026-10-05: the shared phone header, reviewer-only segmented control, aligned review/credential actions, explicit missing-password label, scrolling hiring filters and two-line message titles are corrected. The mocked Time Off journey now enters the original account menu through phone More; its reviewed public evidence was refreshed against the source fingerprint. Existing permissions and writers remain unchanged.
+
+Final phone follow-up, 2026-10-05: hidden hiring scrollbars preserve chip scrolling; Finish reviewing fits one line with a legible standard disabled state; the distinct queue-hide action is labelled; the existing message filter is a small switch at the top of its list. The visible-Chrome capture and resize checks are recorded in the proof packet.
+
+Reviewer follow-up, 2026-10-05: the Review-specific CSS no longer overrides the shared equal-width phone segments. The unread badge reads New without wrapping on phones and returns to its original wording on desktop. Fresh reviewer captures and strict desktop equality are recorded in the same proof packet.

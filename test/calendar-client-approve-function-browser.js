@@ -165,6 +165,9 @@ async function capture(browser, origin, action, flag) {
     loadModes.add(await page.evaluate(() => (self.__svLoad ? self.__svLoad.mode : 'single-file')));
     await page.locator(card + ' .kcard-expand-btn').click();
     await page.locator(card + ' .cal-review-body').waitFor();
+    const component = action === 'approve' ? 'video' : 'caption';
+    const fold = page.locator(card + ' .pocket-cal-fold:has(.cal-review-panel[data-comp="' + component + '"])');
+    if (await fold.count() && !await fold.evaluate(e => e.open)) await fold.locator(':scope > summary').click();
     let button;
     if (action === 'approve') {
       button = card + ' .cal-review-panel[data-comp="video"] .cal-review-approve-btn';

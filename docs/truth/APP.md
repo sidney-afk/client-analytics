@@ -268,6 +268,12 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
 
 ## Calendar
 
+- **Source checkpoint pending review, 2026-10-03:** client Calendar has a Pocket
+  Expanded phone presentation for Review, Sheet, Month and Week, scoped below
+  768px. Existing review writers and permission rules remain; desktop uses the
+  original presentation. This is not deployed proof. Screenshots, real test-client
+  save receipts, desktop equality results and known red checks:
+  [client Calendar phone checkpoint](../syncview-design/proofs/client-calendar-expanded/README.md).
 - End-to-end logic map: `docs/audits/2026-07-05-logic-calendar.md` (evidence);
   write path + contract: `docs/truth/SUPABASE.md`.
 - **Corrected 2026-09-23: status pushes to Linear no longer happen.** This line used to read
@@ -397,6 +403,13 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   Linear/mirror side effect; F2 `off`/outage pauses applicable comment debt rather than retiring it,
   and ordered dependencies preserve add/edit/delete handoff. Unlinked cards (the 6,032 deferred
   rows) remain on legacy card-JSON truth until the linkage brick lands.
+- **Expanded phone presentation (branch proof; not deployed):** below 768px, the review dashboard
+  and its admin tools use a page title with Tabs and More beside it, comfortable stacked cards, full
+  sections and the existing actions next to their content. Tabs moves the original permitted navigation
+  into a modal sheet; More keeps the original destinations, pending counts and account controls.
+  Staff light/dark tokens, branded date controls, loading skeletons and saved drafts are retained.
+  Desktop screenshots and computed styles must stay identical. Public fixtures and limits:
+  `docs/syncview-design/proofs/kasper-admin-expanded/README.md`.
 - Kasper keeps Review Session, Messages, and Filming Plans in a stable priority row. Samples waiting
   for Kasper are listed inside Review Session beside calendar cards (each still saved by the samples
   saver); there is no separate Samples tab, and old #kasper/samples or /kasper/samples links

@@ -249,6 +249,7 @@
     "intake-post-names.js",
     "intake-retry-mirror-convergence.js",
     "kasper-phone-css-scope.js",
+    "kasper-admin-expanded-scope.js",
     "kasper-ad-performance-auth.js",
     "kasper-approval-urgent-ping.js",
     "kasper-approve-after-tweaks.js",

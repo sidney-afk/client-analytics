@@ -44,6 +44,10 @@ async function verify(page, name, width, theme) {
     if (m.smallText.length) faults.push('fields below 16px: ' + m.smallText.join(', '));
     if (name === 'analytics-overview' && await page.locator('.overview-table').count()) faults.push('phone defaults to desktop table');
     if (/^(calendar|samples)-more$/.test(name) && await page.locator('dialog[open] #svClientBadgeWrap, dialog[open] #staffIdentityWrap, dialog[open] .sv-jump-touch').count()) faults.push('raw desktop controls in More');
+    if (name.endsWith('more')) {
+      if (!await page.locator('#staffIdentitySignOut').evaluate(button => typeof button.onclick === 'function')) faults.push('staff proxy has no native handler');
+      if (!await page.locator('#staffAccountPopover').isHidden()) faults.push('old staff popover remained open');
+    }
     if (/^(calendar|samples)-empty$/.test(name) && await page.getByRole('button', {name: 'Choose client', exact: true}).count() !== 1) faults.push('missing Choose client action');
     if (/^(calendar|samples)-sheet$/.test(name)) {
       const segments = await page.locator('.cal-view-toggle .cal-view-btn').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {width:r.width,badge:n.querySelector('.cal-view-badge')?.getBoundingClientRect().right,right:r.right};}));

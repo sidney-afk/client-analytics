@@ -17061,6 +17061,13 @@
             },
             more(body, dialog, cls) {
                 dialog.classList.add('sv-phone-sheet');
+                // The native opener prepares identity handlers and permission state.
+                // Keep its header popover closed; its actions are proxied below.
+                const account = control('headerMenuButton'), popover = document.getElementById('staffAccountPopover');
+                if (account && popover) {
+                    if (popover.hidden) account.click();
+                    if (!popover.hidden) account.click();
+                }
                 const group = document.createElement('div'); group.className = 'sv-phone-proxies';
                 const title = document.createElement('p'); title.className = 'sv-phone-tools'; title.textContent = 'Tools'; group.append(title);
                 const proxy = (label, el, picker) => {
@@ -86253,4 +86260,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-60e0d7b787a1.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-60423a06851b.js");

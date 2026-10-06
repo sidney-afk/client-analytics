@@ -173,11 +173,12 @@ async function review(browser, origin, width, theme) {
     await shot(page, 'import-select-empty-' + suffix);
     await page.evaluate(() => closeCalImport());
     await page.locator('[data-staff-menu=more]').click();
-    await page.evaluate(() => _syncviewOpenStaffAccount());
-    await page.locator('#staffAccountPopover').waitFor();
+    const staffLabel = await page.locator('#staffIdentityMenuLabel').textContent();
+    await page.getByRole('button', { name: staffLabel.trim(), exact: true }).waitFor();
+    ok(await page.locator('#staffIdentitySignOut').evaluate(button => typeof button.onclick === 'function'), 'More staff action was not initialized by its native menu');
+    ok(await page.locator('#staffAccountPopover').isHidden(), 'More left the old header popover open');
     await measure(page, 'account-' + suffix);
     await shot(page, 'account-' + suffix);
-    await page.evaluate(() => _syncviewCloseStaffAccount());
     await page.keyboard.press('Escape');
       await page.locator('[data-staff-menu=more]').click();
       await page.getByRole('button', { name: 'Quick jump', exact: true }).click();

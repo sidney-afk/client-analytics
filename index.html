@@ -8654,6 +8654,207 @@
             html.boot-client .cal-tab-view .cal-week-card { width: 100%; }
         }
         /* CLIENT-PHONE:END */
+        /* Pocket Expanded client Samples and Analytics. Desktop has no new
+           nodes or styles; business actions remain the native controls. */
+        /* CLIENT-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            html.boot-client body:has([data-pocket-client-phone]) > .header { display: none; }
+            html.boot-client body:has([data-pocket-client-phone]) .main { padding-top: max(20px, env(safe-area-inset-top)); }
+            html.boot-client [data-pocket-client-phone] { min-width: 0; }
+            html.boot-client .pocket-client-phone-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+            html.boot-client .pocket-client-phone-heading h1 { flex: 1; min-width: 0; margin: 0; font-size: 28px; line-height: 1.2; font-weight: 800; letter-spacing: -1px; }
+            html.boot-client .pocket-client-phone-heading > div { display: flex; gap: 8px; }
+            html.boot-client .pocket-client-phone-heading button { min-width: 44px; min-height: 44px; border: 1px solid var(--border); border-radius: 14px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; background: var(--white); color: var(--text-primary); }
+            html.boot-client .pocket-client-phone-heading button:last-child { padding: 0; letter-spacing: 2px; }
+            html.boot-client .pocket-client-phone-menu { position: fixed; inset: auto 0 0; box-sizing: border-box; margin: 0 auto; width: 100%; max-width: 560px; max-height: 85dvh; padding: 22px 20px calc(24px + env(safe-area-inset-bottom)); border: 0; border-radius: 24px 24px 0 0; background: var(--white); color: var(--text-primary); overflow-y: auto; }
+            html.boot-client .pocket-client-phone-menu::backdrop { background: var(--overlay); }
+            html.boot-client .pocket-client-phone-menu-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+            html.boot-client .pocket-client-phone-menu-head h2 { flex: 1; margin: 0; font-size: 20px; font-weight: 800; }
+            html.boot-client .pocket-client-phone-menu-head button { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); color: var(--text-primary); font: inherit; font-size: 24px; }
+            html.boot-client .pocket-client-phone-menu-body { display: flex; flex-direction: column; gap: 16px; }
+            html.boot-client .pocket-client-phone-menu .view-tab-toggle { display: flex; flex-direction: column; width: 100%; border: 0; padding: 0; gap: 8px; background: none; }
+            html.boot-client .pocket-client-phone-menu .view-tab-btn { flex: none; width: 100%; min-height: 52px; justify-content: flex-start; border-radius: 12px; padding: 0 16px; font-size: 16px; color: var(--text-secondary); }
+            html.boot-client .pocket-client-phone-menu .view-tab-btn.active { color: var(--text-primary); }
+            html.boot-client .pocket-client-phone-menu .cal-zoom { display: flex; align-self: flex-start; align-items: center; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); height: auto; padding: 4px; }
+            html.boot-client .pocket-client-phone-menu .cal-zoom[style*="visibility: hidden"] { display: none; }
+            html.boot-client .pocket-client-phone-menu .cal-zoom::before { content: 'Card size'; padding: 0 12px; font-size: 13px; font-weight: 700; }
+            html.boot-client .pocket-client-phone-menu .cal-zoom-ico { display: none; }
+            html.boot-client .pocket-client-phone-menu .cal-zoom button { min-width: 44px; min-height: 44px; }
+            html.boot-client .pocket-client-phone-menu-note { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+            html.boot-client .pocket-client-phone-menu .detail-info-btn { display: flex; align-items: center; justify-content: flex-start; width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+            html.boot-client:has([data-pocket-client-phone=analytics]) .detail-info-overlay { padding: 16px; box-sizing: border-box; align-items: flex-end; }
+            html.boot-client:has([data-pocket-client-phone=analytics]) .detail-info-modal { width: 100%; max-width: 100%; max-height: 85dvh; border-radius: 22px; }
+            html.boot-client:has([data-pocket-client-phone=analytics]) .detail-info-modal-head { gap: 12px; padding: 18px; }
+            html.boot-client:has([data-pocket-client-phone=analytics]) .detail-info-modal-title { min-width: 0; font-size: 18px; line-height: 1.4; font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--text-primary); overflow-wrap: anywhere; }
+            html.boot-client:has([data-pocket-client-phone=analytics]) .detail-info-modal-close { width: 44px; height: 44px; min-width: 44px; flex-shrink: 0; color: var(--text-secondary); }
+            html.boot-client:has([data-pocket-client-phone=analytics]) .detail-info-modal-body { padding: 0 18px 22px; }
+            html.boot-client .pocket-client-phone-heading button:focus-visible,
+            html.boot-client .pocket-client-phone-menu button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+            html.boot-client [data-pocket-client-phone] button,
+            html.boot-client [data-pocket-client-phone] a[href] { min-width: 44px; min-height: 44px; }
+            html.boot-client [data-pocket-client-phone] input:not([type=hidden]),
+            html.boot-client [data-pocket-client-phone] textarea { font-size: 16px; max-width: 100%; box-sizing: border-box; min-height: 44px; }
+            html.boot-client [data-client-entry-state],
+            html.boot-client [data-client-extras-state=error] { padding: 28px 20px !important; box-sizing: border-box; border: 1px solid var(--border-light); border-radius: 22px; background: var(--white); }
+            html.boot-client [data-client-entry-state] button,
+            html.boot-client [data-client-extras-state=error] button { min-width: 44px; min-height: 48px; padding: 0 18px; border-radius: 12px; font-size: 16px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-toolbar { margin: 0 0 16px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-toolbar-left { display: none; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-toolbar-mid { width: 100%; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-view-toggle { display: flex; flex: 1; box-sizing: border-box; width: 100%; padding: 4px; gap: 3px; background: var(--border-light); border-radius: 14px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-view-btn { flex: 1; min-width: 44px; padding: 0 12px; border-radius: 11px; font-size: 13px; font-weight: 700; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-view-btn.active { background: var(--white); color: var(--text-primary); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-wrap { padding: 0 0 24px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-skeleton-loader { align-items: stretch; justify-content: flex-start; padding: 0; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-skeleton-review { width: 100%; gap: 20px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-skeleton-review-card { grid-template-columns: 68px minmax(0, 1fr); width: 100%; box-sizing: border-box; border-radius: 22px; padding: 18px 16px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-skeleton-review-thumb { width: 68px; height: 82px; border-radius: 12px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-skeleton-review-card > .sv-skeleton-pill { grid-column: 2; min-height: 44px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-list { gap: 20px; background: transparent; overflow: visible; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-card { margin: 0; border: 1px solid var(--border); border-radius: 22px; overflow: hidden; box-shadow: none; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-strip { grid-template-columns: 68px minmax(0, 1fr); gap: 14px; padding: 18px 16px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-thumb { width: 68px; height: 82px; border-radius: 12px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-title { font-size: 16px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-pending { color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-sub-row { display: flex; flex-wrap: wrap; gap: 6px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-sub-pill { font-size: 11px; text-transform: none; letter-spacing: 0; white-space: normal; padding: 5px 8px; border: 1px solid var(--border-light); border-radius: 8px; background: var(--field-bg) !important; color: var(--text-secondary) !important; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-comp-pill { width: auto; border-radius: 8px; padding: 5px 8px; font-size: 11px; white-space: normal; text-transform: none; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-actions { justify-content: flex-start; gap: 8px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-open-sheet,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; padding: 0 12px; gap: 7px; font: inherit; font-size: 12px; font-weight: 700; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-expand-btn { margin-left: auto; background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-body { display: flex; flex-direction: column; gap: 0; padding: 0 16px 12px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-panel { padding: 18px 0; border: 0; border-top: 1px solid var(--border-light); border-radius: 0; gap: 14px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-video-tile { max-width: min(100%, 264px); border-radius: 14px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-preview-thumb-btn { width: 100%; max-width: 100%; background: var(--field-bg); border-radius: 14px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-preview-thumb-btn img { height: 220px; max-height: 220px; object-fit: contain; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-textarea { min-height: 88px; line-height: 1.5; background: var(--field-bg); border-color: var(--border-light); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-approve-btn { width: 100%; min-height: 52px; border-radius: 12px; font-size: 16px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .pocket-client-phone-saving { padding: 12px; border-radius: 12px; background: var(--field-bg); color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-panel-mini:has(.pocket-client-phone-saving) { background: var(--field-bg); color: var(--text-secondary); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-panel-mini:has(.pocket-client-phone-saving) .cal-review-mini-icon,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-panel-mini:has(.pocket-client-phone-saving) .cal-review-mini-label,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-panel-mini:has(.pocket-client-phone-saving) .cal-review-mini-sub { display: none; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-tweak-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-comment-btn,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-tweak-btn { align-self: stretch; justify-content: center; padding: 0 10px; white-space: nowrap; border-radius: 12px; font-size: 13px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-comment-btn:disabled,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-tweak-btn:disabled { opacity: 1; color: var(--text-secondary); background: var(--bg); border-color: var(--bg); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-tweak-btn:not(:disabled) { background: var(--text-primary); color: var(--white); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-comment-empty,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-preview-empty { color: var(--text-secondary); font-style: normal; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-organizer-wrap { padding: 0; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-organizer-strip { flex-direction: column; align-items: stretch; gap: 20px; padding: 0; min-height: 0; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-organizer-strip > .cal-card { flex: 0 0 auto; width: 100%; min-width: 0; margin: 0; border: 1px solid var(--border); border-radius: 22px; box-shadow: none; overflow: hidden; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-card-thumb { height: 220px; min-height: 0; aspect-ratio: auto; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-card-thumb:has(.cal-card-thumb-fallback) { height: 96px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-card-body { padding: 18px 16px; gap: 14px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-fld-name { font-size: 17px; font-weight: 700; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-comments-btn { display: inline-flex; align-items: center; color: var(--text-secondary); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-status { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-status .cal-client-comp-pill { display: block; width: 100%; box-sizing: border-box; text-align: left; border-radius: 10px; font-size: 12px; }
+            html.boot-client [data-pocket-client-phone] .cal-empty,
+            html.boot-client [data-pocket-client-phone] .error-state { padding: 28px 20px; border: 1px solid var(--border-light); border-radius: 22px; background: var(--white); color: var(--text-secondary); font-size: 14px; line-height: 1.65; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-comments-overlay { padding: 0; align-items: flex-end; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-comments-modal { width: 100%; max-width: 100%; height: min(90dvh, 760px); box-sizing: border-box; border-radius: 22px 22px 0 0; --text-muted: var(--text-secondary); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-comments-compose textarea { font-size: 16px; }
+            html.boot-client [data-pocket-client-phone=analytics] > .detail-hero { margin: 0 0 18px; }
+            html.boot-client [data-pocket-client-phone=analytics] .detail-name { display: none !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .detail-meta { font-size: 12px; line-height: 1.7; color: var(--text-secondary); overflow-wrap: anywhere; }
+            html.boot-client [data-pocket-client-phone=analytics] > div[style*="border:1px dashed"] { margin-bottom: 20px; border-radius: 22px !important; padding: 28px 20px !important; color: var(--text-secondary) !important; font-size: 16px !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-section { min-width: 0; margin: 0 0 20px; padding: 18px 16px; border: 1px solid var(--border); border-radius: 22px; background: var(--white); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section-header,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-top { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 0 16px; }
+            html.boot-client [data-pocket-client-phone=analytics] .metrics-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px; padding: 0; }
+            html.boot-client [data-pocket-client-phone=analytics] .metrics-row > * { min-width: 0; }
+            html.boot-client [data-pocket-client-phone=analytics] .metric-block { padding: 0; border: 0; }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-name,
+            html.boot-client [data-pocket-client-phone=analytics] .m-value { color: var(--text-primary); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-handle-link,
+            html.boot-client [data-pocket-client-phone=analytics] .m-label,
+            html.boot-client [data-pocket-client-phone=analytics] .m-value.empty,
+            html.boot-client [data-pocket-client-phone=analytics] .m-delta.none { color: var(--text-secondary); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-pill { background: var(--text-secondary); }
+            html.boot-client [data-pocket-client-phone=analytics] .m-delta.up { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
+            html.boot-client [data-pocket-client-phone=analytics] .m-delta.down { background: var(--cal-status-tweaks-needed-bg); color: var(--cal-status-tweaks-needed-fg); }
+            html.boot-client [data-pocket-client-phone=analytics] .m-delta.flat { background: var(--border-light); color: var(--text-secondary); }
+            html.boot-client [data-pocket-client-phone=analytics] .content-summary-section { border-radius: 22px; padding: 18px 16px; margin-bottom: 20px; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar { display: flex; flex-direction: column; margin: 0 0 20px; padding: 18px 16px; border-radius: 22px; gap: 10px; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar-label { padding: 0; margin: 0 0 4px; border: 0; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar-label br { display: none; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-platform-card { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: start; min-width: 0; padding: 14px 12px; gap: 10px; border-radius: 12px; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-platform-header { flex-wrap: wrap; }
+            html.boot-client [data-pocket-client-phone=analytics] .gain-chip-label { font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
+            html.boot-client [data-pocket-client-phone=analytics] .gain-chip-num.empty,
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar-label { white-space: nowrap; }
+            /* No earlier day to compare with: one calm line instead of three tinted rows of dashes. */
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar:has(.gains-no-data-note) .gains-platform-card { display: none; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-bar:has(.gains-no-data-note) { gap: 8px; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-no-data-note { display: block; margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--field-bg); font-size: 14px; font-style: normal; line-height: 1.5; color: var(--text-secondary); }
+            /* One colour per platform: the dots on the cards and on the chart switches match the chart lines. */
+            html.boot-client [data-pocket-client-phone=analytics] .gp-ig .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn[onclick*="'ig'"] .cpb-dot { background: var(--ig) !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .gp-tt .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn[onclick*="'tt'"] .cpb-dot { background: var(--tt) !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .gp-yt .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn[onclick*="'yt'"] .cpb-dot { background: var(--yt) !important; }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section.ig .platform-pill { background: var(--ig); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section.tt .platform-pill { background: var(--tt); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-section.yt .platform-pill { background: var(--yt); }
+            html.boot-client [data-pocket-client-phone=analytics] .platform-pill { width: 8px; height: 8px; }
+            html.boot-client [data-pocket-client-phone=analytics] .gains-platform-dot,
+            html.boot-client [data-pocket-client-phone=analytics] .cpb-dot { width: 8px; height: 8px; }
+            /* The tab that is not selected is a button, not a disabled one. */
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-view-btn:not(.active) { color: var(--text-primary); opacity: 1; font-weight: 600; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-mode-toggle,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-toggle { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-mode-btn,
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn { padding: 0 12px; border-radius: 12px; font-size: 13px; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-wrap { min-width: 0; width: 100%; }
+            html.boot-client [data-pocket-client-phone=analytics] a[href] { display: inline-flex; align-items: center; overflow-wrap: anywhere; }
+            /* Design check against the approved mock-up (layout A). Same scope: phones, client links. */
+            html.boot-client .pocket-client-phone-heading { gap: 9px; margin-bottom: 14px; }
+            html.boot-client .pocket-client-phone-heading h1 { font-size: 26px; letter-spacing: -0.8px; }
+            html.boot-client .pocket-client-phone-heading > div { flex: none; gap: 7px; }
+            html.boot-client .pocket-client-phone-heading button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 44px; padding: 0 12px; font-weight: 600; line-height: 1; }
+            html.boot-client .pocket-client-phone-heading button:last-child { width: 44px; padding: 0; letter-spacing: 0; }
+            html.boot-client .pocket-client-phone-heading svg { flex: none; width: 17px; height: 17px; }
+            html.boot-client .pocket-client-phone-menu { padding-top: 10px; border-radius: 25px 25px 0 0; }
+            html.boot-client .pocket-client-phone-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 15px; border-radius: 4px; background: var(--border); }
+            html.boot-client .pocket-client-phone-menu-head { margin-bottom: 8px; }
+            html.boot-client .pocket-client-phone-menu-head h2 { font-size: 22px; letter-spacing: -0.7px; }
+            html.boot-client .pocket-client-phone-menu-head button { display: grid; place-items: center; padding: 0; background: var(--white); }
+            html.boot-client .pocket-client-phone-menu-head button svg { width: 18px; height: 18px; }
+            html.boot-client .pocket-client-phone-menu-body { gap: 0; }
+            html.boot-client .pocket-client-phone-menu .view-tab-toggle { gap: 0; }
+            html.boot-client .pocket-client-phone-menu .view-tab-btn { justify-content: space-between; min-height: 55px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; font-size: 14px; font-weight: 500; color: var(--text-primary); }
+            html.boot-client .pocket-client-phone-menu .view-tab-btn::after { content: ''; flex: none; width: 7px; height: 7px; margin-right: 4px; border-top: 1.6px solid var(--text-secondary); border-right: 1.6px solid var(--text-secondary); transform: rotate(45deg); }
+            html.boot-client .pocket-client-phone-menu .view-tab-btn.active { font-weight: 800; }
+            html.boot-client .pocket-client-phone-menu .view-tab-btn.active::after { width: 6px; height: 12px; margin-right: 6px; border-top: 0; border-right: 2px solid var(--text-primary); border-bottom: 2px solid var(--text-primary); }
+            html.boot-client .pocket-client-phone-menu .cal-zoom { align-self: stretch; gap: 7px; box-sizing: border-box; width: 100%; min-height: 55px; padding: 5px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+            html.boot-client .pocket-client-phone-menu .cal-zoom::before { margin-right: auto; padding: 0; font-size: 14px; font-weight: 500; }
+            html.boot-client .pocket-client-phone-menu .cal-zoom button { border: 1px solid var(--border); border-radius: 12px; background: var(--field-bg); }
+            html.boot-client .pocket-client-phone-menu .detail-info-btn { justify-content: space-between; height: auto; min-height: 55px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; font-weight: 500; }
+            html.boot-client .pocket-client-phone-menu .detail-info-btn::after { content: ''; flex: none; width: 7px; height: 7px; margin-right: 4px; border-top: 1.6px solid var(--text-secondary); border-right: 1.6px solid var(--text-secondary); transform: rotate(45deg); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-strip .cal-review-sub-row { display: none; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-expand-btn[aria-expanded="true"] { width: 44px; padding: 0; background: var(--white); color: var(--text-primary); border-color: var(--border); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .kcard-expand-btn[aria-expanded="true"] .pocket-client-phone-action { display: none; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-approve-btn { min-height: 48px; border-color: var(--text-primary); border-radius: 13px; background: var(--text-primary); color: var(--white); box-shadow: none; font-size: 13px; font-weight: 700; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-tweak-actions { display: flex; justify-content: flex-end; gap: 7px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-comment-btn,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-tweak-btn { flex: 0 0 auto; padding: 0 12px; border-radius: 12px; font-size: 12px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-comment-btn:disabled,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-tweak-btn:disabled { background: var(--white); border-color: var(--border); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-review-video-tile { width: 100%; max-width: 100%; height: 188px; min-height: 188px; border-radius: 15px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-card .cal-link-field.has-link { border: 1px solid var(--border); border-radius: 11px; background: var(--field-bg); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-card .cal-link-pill-open { background: transparent; color: var(--text-primary); font-size: 13px; font-weight: 600; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-card .cal-link-pill-open svg { color: var(--text-secondary); }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-status { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-status .cal-review-sub-pill,
+            html.boot-client #sxrView[data-pocket-client-phone=samples] .cal-client-status .cal-client-comp-pill { display: inline-block; width: auto; padding: 6px 10px; border-color: var(--border); border-radius: 9px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text-primary) !important; }
+        }
+        /* CLIENT-PHONE:END */
         /* Pocket Expanded: client Calendar only. Native actions and statuses
            stay visible in full sections; every rule is phone-capped. */
         /* CLIENT-PHONE:BEGIN */
@@ -8858,6 +9059,13 @@
         @media (max-width: 767px) {
             html.boot-client .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
             html.boot-client .thumb-compare-close svg { width: 18px; height: 18px; }
+            /* Analytics: no contradictory header, no repeated note, one-row chips, no gap under an empty chart. */
+            html.boot-client [data-pocket-client-phone=analytics] .m-delta.none { display: none; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-toggle { display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn { flex: 0 0 auto; padding: 0 7px; gap: 4px; font-size: 0.72rem; white-space: nowrap; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-wrap.chart-wrap-empty { height: auto; min-height: 0; padding: 14px 0 6px; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-wrap.chart-wrap-empty > div { height: auto !important; min-height: 0; padding: 0; text-align: center; line-height: 1.5; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-empty-note { color: var(--text-secondary); font-size: 0.86rem; line-height: 1.5; text-align: center; }
             /* Even spacing in Month and Week, and one Today marker: the black circle. */
             html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num,
             html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 1.05rem; font-weight: 800; line-height: 1; }
@@ -10050,8 +10258,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-a2e217c4809b.js";
-        var PARTS = ["js/sv-01-core-745be1dcaff8.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-c6ef6cc28001.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-8fa5e3b97688.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2bba832835f6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-62880df1333c.js";
+        var PARTS = ["js/sv-01-core-3edb1529fb1a.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-97a1396a62dc.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-8fa5e3b97688.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-4bab1965948e.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-baedbf6dc851.js"};
         var FORCE = null;
         var CLIENTS = true;

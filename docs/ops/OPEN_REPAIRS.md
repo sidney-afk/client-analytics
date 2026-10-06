@@ -30430,6 +30430,61 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 **Not done, said plainly.** Nothing has run against Apify, OpenAI, Anthropic (including the Batches API), pg_net or pg_cron; the first real proof is the first shadow brief. The equivalence is against the n8n code, not a recorded run (n8n keeps none); the reel order in the prompt follows n8n's Merge default and is unconfirmed. The real table `analytics_market_research_briefs` is not written (the switch is a later PR). The page is unchanged. Decisions left to the owner, later: keep the Keywords brief at all (what it shows and what it costs are in section 7c.2), and whether the AI summaries move off n8n as a small separate step.
 
 
+## 337. [2026-10-03, SOURCE PREPARED, NOT DEPLOYED] Expanded client Samples and Analytics phone batch
+
+Prepare the actual client Samples Review, queue and Sheet plus Analytics from latest main, independently of the client Calendar batch. Comfortable separate cards and full component sections, phone title with Tabs and More, native card-size control in More, existing analytics tabs and About control in their phone menus. Keep the native decision/comment/media/Notes handlers, client field permissions, numbers, charts, saved copies, loaders and retries. Client links stay light. All new CSS is capped at 767px and scoped to client links; original controls and contents restore on desktop. Staff/reviewer/admin presentation is outside this batch.
+
+Source build, module and phone CSS scope checks pass. Visible-browser proof is paused at the owner's request to avoid interrupting a game. The prior signed-in browser closed during a control restart; owner sign-in has been requested once for later live verification. Final phone screenshots, real native test-sample decision saves and full desktop parity remain pending. The intercepted browser gate covers 360/390/430 and is wired into normal and both split-build CI lanes; no final browser pass or PR is claimed. Proof status: `docs/syncview-design/proofs/client-links-expanded/README.md`. No backend function, n8n workflow, database/schema change, merge or deployment.
+
+Final client Samples/Analytics proof: Expanded phone gate passes 831 assertions at 360/390/430; the existing Calendar/Samples phone gate passes all five sizes per surface including landscape. Full desktop comparison passes 68/68 at four widths. A normal TEST Create Post sample with native work items passed real client Approve and Request change, normal-reader timestamp and exact-note confirmation, verified archive and both work items read back in Backlog. An earlier unlinked fixture was correctly refused and archived. Fictional before/after screenshots, sanitized receipts and check tails live in `docs/syncview-design/proofs/client-links-expanded/README.md`. Source-only candidate proof; no merge or deployment.
+
+Final current-source follow-up, 2026-10-04: phone gate passes 897 assertions, including pending decisions across the desktop breakpoint; 72 fictional after screenshots. The full desktop run matches every screenshot and 66/68 style pairs; isolated unchanged-source repeats of both Month pairs match, completing all 68 comparisons. Real TEST Approve and Request change return HTTP 200, normal-reader approval timestamp and exact-note reads confirm saves, archive and both work items in Backlog are verified. Nine real read-only layouts pass at 360/390/430. The required Production editor-placement check remains red on unchanged main too. Complete receipts and actual check tails are in the batch proof folder. No merge or deployment.
+
+## 339. [2026-10-04, BUILT, NOT DEPLOYED] Client Samples and Analytics on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 337. Phones and client links only; every new style sits in the same `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`, and the script edit is inside the phone-only shell. Desktop markup and styles are not touched. Same fixes as entry 338 on the client Calendar, so the three client screens match.
+
+Fixed:
+- Tabs button: a real chevron icon. More button: a real three-dot icon at normal size. Sheets close with a real cross icon.
+- Tabs and More sheets: grab handle, mock-up title sizes, full-width rows with left-aligned labels and a line between them; the current tab is bold with a tick. "About this client" and Card size are full-width rows. The More sheet is titled "More".
+- Samples Review card: the grey status pills under the title are gone. An open sample closes with the quiet chevron button. Approve is the mock-up's dark 48 px button. Comment and Request change sit right-aligned. The video preview spans the card.
+- Samples Sheet card: the video link is a quiet field with its link icon; status pills are 13 px with full-contrast text and wrap side by side.
+- Analytics: the "Today's gains" label read "TODAY'SGAINS" because its line break was hidden with nothing in its place. It is two words again.
+
+Still different from the mock-up, on purpose: a closed Review card keeps a labelled "Review" button (the mock-up only draws the open card), and the Analytics page shows real numbers and charts where the mock-up only has the empty state.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check/`. Approve and Request change on a sample were not re-tested for real in this pass; see the pull request comment.
+Way back: revert the commit.
+
+## 341. [2026-10-04, BUILT, NOT DEPLOYED] Client Analytics and Samples tabs on phones: second design check (session Polish)
+
+On the same branch as entries 337 and 339. Phones and client links only. Styles sit in the `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`; the two script changes act only when `_svClientPhoneActive()` is true (a client link at phone width), so desktop output is unchanged.
+
+Fixed:
+- "Today's gains" is on one line. Its label had a line break that the phone styles hid, which glued the words together; a space is added for phone client links and the label no longer wraps.
+- When there is no earlier day to compare with, the three pink, grey and red boxes of dashes are replaced by one calm line, "Gains show after 2+ days".
+- The vertical axis on the follower and views charts has about five steps and no repeated labels (2.3K, 2.4K, 2.5K, 2.6K). If the steps are closer than 0.1K a second decimal is used, so two neighbours are never the same.
+- "Last scraped" and "comparing vs" show "Sat, 3 Oct 2026". The chart's own date labels are unchanged.
+- Each platform has one colour: the dot on its card, the dot on its chart switch and its chart line now match (Instagram pink, TikTok black, YouTube red). Before, TikTok was grey on the card and teal on the switch.
+- On the Samples page the tab that is not selected ("Sheet") reads as a button, not a disabled one: full-strength text instead of a faded grey.
+
+Not changed on purpose: desktop keeps its own date format, axis labels and dot colours.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check-analytics/`. A real Request change was sent on a test sample's thumbnail through this layout and read back as "Tweaks needed" with the exact note saved.
+Way back: revert the commit.
+
+## 347. [2026-10-05, BUILT, NOT DEPLOYED] Client Analytics on phones: third design check (session Polish)
+
+On the same branch as entries 337, 339 and 341. Phones and client links only: every script change acts only when `_svClientPhoneActive()` is true (a client link at phone width), and every style sits inside `@media (max-width: 767px)` under `html.boot-client [data-pocket-client-phone=analytics]`. Desktop output is unchanged.
+
+- A chart with one day of data is a short note, "The trend line appears once there are two days of data.", not an empty grid with a single date under it.
+- Chart dates on the bottom axis read "5 Oct" (desktop keeps its own format).
+- The header agrees with the page: with analytics it reads "Last scraped Mon, 5 Oct 2026 · 1 data point" (and "· comparing vs …" once there is an earlier day); with none, the line is left out, because the "No analytics yet" box already says so. Before, an empty page said "Last scraped · 1 data point · no analytics yet" above a box saying "No analytics yet".
+- The "needs a second day" message appears once, in Today's gains. The italic tail in the header and the "no previous day yet" under every number are gone.
+- The Daily views switches (All, Instagram, TikTok, YouTube) sit on one row at 360, 390 and 430 wide, and an empty chart is a short note instead of a tall empty box.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (now 1,419 assertions: the 2+ days note appears once, no repeated note, a plain header, switches on one row and not cut off, a short note for a one-point chart, and "5 Oct" for chart dates). Before and after pictures in the pull request.
+Way back: revert the commit.
 ## 336. [2026-10-03, BUILT, NOT DEPLOYED] Pocket Compact: first client Calendar phone checkpoint
 
 Owner request: build layout B from PR #1950 into the real app, beginning with the client review link (Review with a post open, Sheet, Month, Week), one PR, then stop for visual approval. Phone title/Tabs/More, continuous Sheet and Review feed, one review post and one component section open at a time, explicit unsent/pending/sending/failed labels, existing actions and permissions preserved. Organize and card size move into More. All new CSS is capped at 767px and scoped to client links; staff and desktop presentation stay on their existing paths. Fragments edited and index rebuilt. No n8n workflow, database/schema, backend function or deployment change.

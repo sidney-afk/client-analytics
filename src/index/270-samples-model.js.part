@@ -4,7 +4,7 @@ import {
 } from './040-shared-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlIsAllowedClient, wlNormalizeClient } from './070-core-client-names.js';
-import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
+import { _svClientPhoneMount, _svClientPhoneRestore, svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _svReadWithRetry, _syncviewRequireStaffIdentity, _syncviewStaffCan } from './100-onboarding-staff-controls.js';
 import {
   WRITE_UI_NO_WORK_ITEM_TEXT, _calAssertFlagAllows, _calRuntimeFlagClient, _calRuntimeFlagClients, _kasperUrgentPingOn,
@@ -518,6 +518,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
     function _sxrRenderShell() {
         const view = document.getElementById('sxrView');
         if (!view) return;
+        _svClientPhoneRestore(view);
         const embedded = !!sxrState.embedded;
         const leftHtml = embedded
             ? `<div class="cal-embed-title"><strong>${_sxrEsc(sxrState.client || '')}</strong><span>Sample reviews</span></div>`
@@ -582,6 +583,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             _sxrWireOutsideTabSearchClose();
         }
         _sxrApplyZoom();
+        if (_isClientLink) _svClientPhoneMount(view, 'Samples', 'samples', '.cal-zoom');
     }
 
     /* Zoom — three discrete card sizes (Sheet only), saved to localStorage. */

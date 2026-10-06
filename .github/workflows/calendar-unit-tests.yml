@@ -237,6 +237,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-phone-review-browser.js
+      - name: Expanded client Samples and Analytics phone states
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/client-links-expanded-browser.js
       - name: Client Calendar Expanded layout, sections and dialogs
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -328,6 +332,7 @@ jobs:
           node docs/syncview-design/tests/split-load-browser.js
           node docs/syncview-design/tests/entry-links-boot-browser.js
           node docs/syncview-design/tests/client-phone-review-browser.js
+          node docs/syncview-design/tests/client-links-expanded-browser.js
           node docs/syncview-design/tests/client-calendar-expanded-browser.js
           node docs/syncview-design/tests/inline-handlers-browser.js
           node docs/syncview-design/tests/tab-switch-boot-browser.js
@@ -342,6 +347,7 @@ jobs:
           node docs/syncview-design/tests/split-load-browser.js
           node docs/syncview-design/tests/entry-links-boot-browser.js
           node docs/syncview-design/tests/client-phone-review-browser.js
+          node docs/syncview-design/tests/client-links-expanded-browser.js
           node docs/syncview-design/tests/client-calendar-expanded-browser.js
           node docs/syncview-design/tests/inline-handlers-browser.js
   f27-team-rollback-proof:

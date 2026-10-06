@@ -1,0 +1,26 @@
+{
+  "verifiedAt": "2026-10-05T02:16:35.782Z",
+  "candidateIndexSha": "0bcf0412f59c8a99a1ad4f0afe8d86adb0960fcef1c41823bf0855998e1fd3b9",
+  "approvedSaved": true,
+  "changesSaved": true,
+  "exactNoteSaved": true,
+  "decisionHttpStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "phoneMeasurement": {
+    "width": 390,
+    "noSidewaysScroll": true,
+    "controls": 9,
+    "allTargets44": true,
+    "allFields16": true
+  },
+  "sourceArchived": true,
+  "nativeHttp": 200,
+  "nativeRows": 2,
+  "nativeBacklog": true,
+  "blockedWrites": 0
+}

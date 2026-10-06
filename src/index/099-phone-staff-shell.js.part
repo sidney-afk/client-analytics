@@ -200,6 +200,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const root = document.documentElement;
         if (on) {
             _fphBuild();
+            if (_fphBar) _fphBar.hidden = false;
             const title = document.getElementById('fphTitle');
             const text = cfg.title();
             if (title && title.textContent !== text) title.textContent = text;
@@ -217,7 +218,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         } else {
             root.classList.remove('fph-on');
             root.removeAttribute('data-fph');
-            if (_fphBar) { _fphBar.querySelectorAll('dialog[open]').forEach(d => d.close()); }
+            // The bar stays in the page once built; hide it so it never shows,
+            // unstyled, on a screen it does not belong to.
+            if (_fphBar) { _fphBar.querySelectorAll('dialog[open]').forEach(d => d.close()); _fphBar.hidden = true; }
         }
     }
     function _fphQueue() { if (!_fphRaf) _fphRaf = requestAnimationFrame(_fphSync); }

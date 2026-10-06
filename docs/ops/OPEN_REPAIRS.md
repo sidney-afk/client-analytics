@@ -30453,3 +30453,14 @@ Not tested for real: Archive on the test client through the new button (the conf
 
 Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,204 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
 Way back: revert the commit.
+
+## 348. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: batch name on two lines, status picker as a bottom sheet (session Polish)
+
+On the same branch as entries 343 and 344. Phones and the standalone staff Calendar and Samples only: the markup changes act only when `_calStaffPhoneActive()` or `_sxrStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under the staff Calendar or Samples marker. Desktop markup and styles are not touched.
+
+- Create Post, "Batch name": on a phone the field is a two-line box instead of a one-line field, so the default name ("Client · Samples · 5 Oct 2026") is shown in full at 360, 390 and 430 instead of being cut off. Enter does not add a line break, the 16 px text and the saved value are the same as before, and the field is still a single value read the same way. On a desktop screen it is the same one-line field as ever.
+- The Samples status picker is the same bottom sheet as the staff Calendar one (entry 349): a grab handle, a title ("Video status", "Thumbnail status", "Set all to…"), sentence case, a colour dot per status, a tick on the current one, 52 px rows and the page dimmed behind it.
+- Already on this branch from entry 344 and re-checked: no "Samples Tools" label, white text on the active "Select cards", a quiet Archive that still asks first, a dimmed page behind the selection tray, and the post type picker on one row.
+
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (now 5,286 checks, including that the whole batch name shows at every width) and the three scope guards. Before and after pictures in the pull request.
+Way back: revert the commit.

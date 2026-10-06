@@ -173,7 +173,7 @@ async function runPhone(browser, origin, width, theme) {
       await page.evaluate(() => _calOpenNativePost('Phone Fixture Client', null, 'sxr'));
       await page.locator('#calNativePostCreate').waitFor();
       ok(!await page.locator('.pocket-staff-samples-tools, .pocket-staff-cal-tools').first().isVisible().catch(() => false), 'Tools label must not show');
-      if (width >= 390) ok(await page.locator('#calNativeBatchName').evaluate(e => e.scrollWidth <= e.clientWidth + 1), 'Batch name must not truncate at 390 and wider');
+      ok(await page.locator('#calNativeBatchName').evaluate(e => e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight <= e.clientHeight + 1), 'Batch name must show in full, wrapping to a second line when long');
       ok(await page.locator('.cal-native-mode-toggle span').evaluateAll(n => new Set(n.map(e => Math.round(e.getBoundingClientRect().top))).size === 1), 'Post type picker must be one row');
       await measure(page, 'samples-create-' + suffix); await shot(page, 'samples-create-' + suffix);
       await page.evaluate(() => _calCloseNativePost());

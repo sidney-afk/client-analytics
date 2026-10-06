@@ -2344,6 +2344,10 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
 
     /* ── Status menu + Set-all (samples: 6 statuses, video+graphic, always settable) ── */
     let _sxrOpenStatusMenu = null;
+    /* Phone staff Samples: the picker is a bottom sheet with a title. Nothing is added elsewhere. */
+    function _sxrStatusMenuTitleHtml(text) {
+        return _sxrStaffPhoneActive() ? `<div class="cal-fld-status-title">${_sxrEsc(text)}</div>` : '';
+    }
     function _sxrCloseStatusMenu() {
         if (!_sxrOpenStatusMenu) return;
         const m = _sxrOpenStatusMenu.el;
@@ -2371,7 +2375,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                 if (reason) _sxrMenuBlocked[s] = reason;
             }
         }
-        menu.innerHTML = SXR_STATUSES.map(s => {
+        menu.innerHTML = _sxrStatusMenuTitleHtml((which === 'graphic' ? 'Thumbnail' : which === 'video' ? 'Video' : 'Sample') + ' status') + SXR_STATUSES.map(s => {
             const blocked = _sxrMenuBlocked[s];
             return `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_sxrEscAttr(blocked)}"` : ''} onclick="_sxrStatusPick('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}','${_sxrEscAttr(which)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`;
         }).join('')
@@ -2479,7 +2483,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             : sxrSkipped.length
                 ? `Apply to ${sxrSettable.map(c => COMP_LABELS[c]).join(', ')} — ${sxrSkipped.map(c => COMP_LABELS[c]).join(' & ')} ${sxrSkipped.length === 1 ? 'has' : 'have'} no work item`
                 : 'Apply to Video & Thumbnail';
-        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_sxrEsc(sxrHeadLabel)}</div>`
+        menu.innerHTML = _sxrStatusMenuTitleHtml('Set all to…') + `<div class="cal-fld-setall-menu-head">${_sxrEsc(sxrHeadLabel)}</div>`
             + SXR_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}" onclick="_sxrSetAllStatus('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`).join('');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();

@@ -43,6 +43,7 @@
 | Google Sheets tabs, roster truth | `docs/truth/SHEETS.md` |
 | Linear teams/states/what syncs | `docs/truth/LINEAR.md` |
 | Expanded phone layout and before/after proof for the review dashboard and admin pages | `docs/syncview-design/proofs/kasper-admin-expanded/README.md` |
+| Phone polish round 1: personal Time Off, sign-in controls, phone screenshots and desktop proof | `docs/audits/2026-10-06-phone-polish-round-1/README.md` |
 | How surface X behaves in `index.html` | `docs/truth/APP.md`, then `docs/independence/SYSTEM_MAP.md` §4 for the full surface catalog |
 | Feature X's contract/spec | `docs/features/<FEATURE>.md` (each carries a status header — believe it) |
 | Operational runbooks (new client, monitoring, flip, backups) | `docs/ops/` — new-client setup is `docs/ops/NEW_CLIENT_ONBOARDING.md` |

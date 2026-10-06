@@ -149,7 +149,7 @@ The function does nothing from the next minute. To also stop the timer: `select 
 # Going live: our jobs write the real numbers, then n8n is turned off (Metrics and Top Videos)
 
 For the owner (Sidney). Why and how it works: section 8b of `docs/plans/2026-10-01-n8n-off-analytics.md`
-(ledger entry OPEN_REPAIRS 355). In one sentence: today our two jobs only practise next to n8n; after these steps
+(ledger entry OPEN_REPAIRS 356). In one sentence: today our two jobs only practise next to n8n; after these steps
 they write the numbers the Analytics pages show, and then n8n's two analytics workflows are switched off. The
 Google Sheet tabs Metrics and TopVideos stop being updated at that point, as you decided (nobody reads them).
 

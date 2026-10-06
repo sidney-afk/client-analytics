@@ -1,18 +1,19 @@
     /* STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded").
      *
-     * On a phone, four staff screens (Today, Templates, Filming Plans, Submit)
+     * On a phone, supported staff screens (including personal Time Off)
      * drop the wide desktop header and show one title row instead: the screen
      * name on the left, Tabs and More on the right. Tabs lists every tab the
      * header shows today; More holds the header's account, appearance and
      * client controls. Nothing here is a new action: every row presses the
      * existing header control (same permissions, same handlers).
      *
-     * The bar is created only on a phone-width screen showing one of these four
+     * The bar is created only on a phone-width screen showing a supported
      * tabs, and removed again everywhere else, so desktop widths never get a
      * single new element. Its look is the STAFF-PHONE block in
      * 020-styles-surfaces, every rule of which is phone-capped and rooted at
      * `body:has(.pocket-staff-bar)`.
      *
+     * Menu-only Time Off is identified by its mounted root, not a new nav tab.
      * Other staff screens join by adding their nav id to POCKET_STAFF_PAGES. */
     (function () {
         const POCKET_STAFF_PAGES = { navToday: 'Today', navTemplates: 'Templates', navFilmingPlans: 'Filming Plans', navLinear: 'Submit' };
@@ -50,6 +51,7 @@
             if (!phone || !phone.matches) return '';
             if (document.documentElement.classList.contains('boot-client')) return '';
             if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return '';
+            if (document.querySelector('#content > .pto-wrap')) return 'Time Off';
             return POCKET_STAFF_PAGES[activeNavId()] || '';
         }
         function dialogHtml(kind, title) {
@@ -149,6 +151,10 @@
             const nav = document.getElementById('headerNav');
             if (!nav) return;
             new MutationObserver(sync).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
+            // Menu-only routes have no active header tab. Observe route mounts,
+            // including a delayed module load, without watching form repainting.
+            const content = document.getElementById('content');
+            if (content) new MutationObserver(sync).observe(content, { childList: true });
             if (phone && phone.addEventListener) phone.addEventListener('change', sync);
             sync();
         }

@@ -5736,6 +5736,8 @@
             html.fph-on .workload-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; white-space: normal; }
             html.fph-on .prod-detail-crumb > * { display: none; }
             html.fph-on .prod-detail-crumb > b { display: block; white-space: nowrap; font-size: 14px; }
+            html.fph-on .prod-detail-crumb[data-phone-issue-label] > b { display: none; }
+            html.fph-on .prod-detail-crumb[data-phone-issue-label]::after { content: attr(data-phone-issue-label); white-space: nowrap; font-size: 14px; }
             html.fph-on .prod-crumb > * { display: none; }
             html.fph-on .prod-crumb > [data-prod-crumb-root] { display: inline-flex; align-items: center; min-width: 64px; font-size: 0; }
             html.fph-on .prod-crumb > [data-prod-crumb-root]::after { content: "Back"; font-size: 13px; }

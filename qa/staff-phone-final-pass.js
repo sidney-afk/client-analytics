@@ -97,6 +97,19 @@ async function verify(page, name, width, theme) {
     assert.equal(await page.locator('.overview-table').count(),0,'phone card choice did not survive resize');
     assert.equal(await page.evaluate(()=>localStorage.getItem('syncview_viewMode')),saved,'desktop saved preference changed');
   }
+  if (!before && name === 'linear-detail' && width === 390) {
+    await page.evaluate(() => {const rows=_prodIssues();if(rows.length<2)throw new Error('Missing fictional hierarchy fixture');rows[1].parent=rows[0].id;_prodOpenDeliverable(rows[1].id);});
+    await settle(page);
+    const crumb=page.locator('.prod-detail-crumb');
+    const original=await crumb.innerHTML();
+    assert.equal(await crumb.locator(':scope > b').count(),0,'child breadcrumb changed the native desktop markup');
+    assert.notEqual(await crumb.evaluate(n=>getComputedStyle(n,'::after').content),'none','phone issue ID is missing');
+    await page.setViewportSize({width:1024,height:844});await settle(page);
+    assert.equal(await crumb.innerHTML(),original,'resize rebuilt the issue breadcrumb/editor');
+    assert.equal(await crumb.evaluate(n=>getComputedStyle(n,'::after').content),'none','phone abbreviation remained on desktop');
+    assert.ok(await crumb.locator('[data-prod-crumb-batch]').isVisible(),'desktop parent breadcrumb did not return');
+    await page.setViewportSize({width,height:844});await settle(page);
+  }
   if (!before && name === 'sheet-tabs') {
     await page.evaluate(() => {window.__phoneNavClicks=0;document.getElementById('navCalendar').addEventListener('click',()=>window.__phoneNavClicks++);});
     await page.locator('dialog[open] [data-nav="navCalendar"]').click();

@@ -64045,7 +64045,7 @@
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
             const currentKind = d ? (showParent ? 'Sub-issue' : 'Issue') : 'Batch';
-            const currentId = d && (!showParent || window.svIsStaffPhone?.()) ? '<b>' + _calEsc(_prodIssueDisplayLabel(d)) + '</b>' : !d ? '<b>Batch</b>' : '';
+            const currentId = d && !showParent ? '<b>' + _calEsc(_prodIssueDisplayLabel(d)) + '</b>' : !d ? '<b>Batch</b>' : '';
             // Sibling navigation (owner 2026-08-18): inside a sub-issue, step to
             // the previous/next sibling without going back to the parent. Order
             // matches the parent's sub-issue section (_prodChildrenOf).
@@ -64066,7 +64066,7 @@
                     + navBtn(prev, 'prev', 'Previous sub-issue')
                     + navBtn(next, 'next', 'Next sub-issue');
             }
-            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb" data-phone-issue-label="' + _calEscAttr(d ? _prodIssueDisplayLabel(d) : 'Batch') + '">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
                 + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodParentNameHTML(parent) + '</button>' : '')
                 + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + siblingNav + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
@@ -86260,4 +86260,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-c12d64319118.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-566a254b3544.js");

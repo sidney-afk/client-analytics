@@ -2397,7 +2397,7 @@ export {
   _ptoStateConflict, _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml,
   _svExplainLabel, _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
   _syncviewCloseStaffAccount, _syncviewCreativeMe, _syncviewOfferStaffSignIn,
-  _syncviewOpenStaffGate, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
+  _syncviewOpenStaffAccount, _syncviewOpenStaffGate, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
   _syncviewStaffCan, _syncviewStaffEligible, _syncviewStaffGateRequired,
   _syncviewStaffIdentityBoot, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid,

@@ -17054,9 +17054,9 @@
                     if (native.hidden || native.style.display === 'none') return;
                     const b = document.createElement('button'); b.type = 'button'; b.className = cls || '';
                     b.innerHTML = '<span>' + esc(this.label(native)) + '</span>' + (native.classList.contains('active') ? tick : next);
-                    b.disabled = native.disabled;
+                    b.disabled = native.disabled; b.dataset.nav = native.id;
                     if (native.classList.contains('active')) b.setAttribute('aria-current', 'page');
-                    b.addEventListener('click', () => { dialog.close(); native.click(); }); body.append(b);
+                    b.addEventListener('click', event => { event.stopPropagation(); dialog.close(); native.click(); }); body.append(b);
                 });
             },
             more(body, dialog, cls) {
@@ -86260,4 +86260,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-60423a06851b.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-c12d64319118.js");

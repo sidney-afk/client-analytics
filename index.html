@@ -10299,7 +10299,7 @@
             html.fph-on .prod-project-issue-title { align-items: flex-start; }
             html.fph-on .prod-subrow .prod-check::before { inset: 14px; border: 1.5px solid var(--prod-faint); border-radius: 4px; }
             html.fph-on .prod-subrow .prod-check.on::before { border-color: var(--prod-accent); background: var(--prod-accent); }
-            html.fph-on .prod-subrow .prod-check.on::after { position: absolute; left: 20px; top: 17px; border-color: var(--white); }
+            html.fph-on .prod-subrow .prod-check.on::after { position: absolute; left: 20px; top: 17px; border-color: var(--text-inverse); }
             html.fph-on .prod-subrow-file { order: 4; width: 44px; height: 44px; }
             html.fph-on .prod-subrow .prod-due, html.fph-on .prod-subrow .prod-assign-hot { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; flex-shrink: 0; }
         }
@@ -12063,8 +12063,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-60423a06851b.js";
-        var PARTS = ["js/sv-01-core-09cfc86be234.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-8a9ffe68ace6.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d6d005177be4.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-bb57dc2c71c3.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-c12d64319118.js";
+        var PARTS = ["js/sv-01-core-09cfc86be234.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e12e57e2579b.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d6d005177be4.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-bb57dc2c71c3.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-49299e374442.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-922f4985e782.js","kasper":"js/sv-16-kasper-baedbf6dc851.js"};
         var FORCE = null;
         var CLIENTS = true;

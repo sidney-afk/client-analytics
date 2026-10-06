@@ -97,6 +97,24 @@ async function verify(page, name, width, theme) {
     assert.equal(await page.locator('.overview-table').count(),0,'phone card choice did not survive resize');
     assert.equal(await page.evaluate(()=>localStorage.getItem('syncview_viewMode')),saved,'desktop saved preference changed');
   }
+  if (!before && name === 'sheet-tabs') {
+    await page.evaluate(() => {window.__phoneNavClicks=0;document.getElementById('navCalendar').addEventListener('click',()=>window.__phoneNavClicks++);});
+    await page.locator('dialog[open] [data-nav="navCalendar"]').click();
+    assert.equal(await page.evaluate(()=>window.__phoneNavClicks),1,'shared Tabs dispatched the native action more than once');
+    assert.equal(await page.evaluate(()=>currentNav),'calendar','shared Tabs did not reach Calendar');
+  }
+  if (!before && name === 'linear-project') {
+    const targets = await page.locator('[data-prod-project-issue] .prod-check, [data-prod-project-issue] .prod-due, [data-prod-project-issue] .prod-assign-hot').evaluateAll(nodes => nodes.map(n => {const r=n.getBoundingClientRect();return {w:r.width,h:r.height};}));
+    assert.ok(targets.length && targets.every(r => r.w >= 43.5 && r.h >= 43.5), 'project selection/date/assignee target below 44px');
+    const check = page.locator('[data-prod-project-issue] [data-prod-row-check]').first();
+    const id = await check.getAttribute('data-prod-row-check');
+    await check.click();
+    assert.ok(await page.evaluate(id => _prodState.selected.has(id), id), 'native row selection did not activate');
+    const selected = page.locator('[data-prod-project-issue] [data-prod-row-check].on').first();
+    assert.equal(await selected.getAttribute('data-prod-row-check'), id, 'selected row changed');
+    await selected.click();
+    assert.ok(!await page.evaluate(id => _prodState.selected.has(id), id), 'native row selection did not clear');
+  }
   receipts.push({name,width,theme,...m,problems:faults});
   failures.push(...faults.map(x => `${name} ${width} ${theme}: ${x}`));
   console.log((faults.length ? 'FAIL ' : 'ok ') + name + ' ' + width + ' ' + theme + (faults.length ? ': ' + faults.join('; ') : ''));

@@ -57,6 +57,18 @@ executes these files (see `README.md` › Repository layout).
   function every minute but only while a request is open, with the metrics job's Vault key.
   Nothing the pages read. `test/analytics-market-research-collect-postgres.js` measures it.
 
+- **`2026-10-06-production-comment-signal.sql`** (rollback beside it) is
+  source-only until Lighthouse applies it with the owner's go (OPEN_REPAIRS 357).
+  A Production comment insert or edit stamps a new column,
+  `deliverables.comments_changed_at`, on its work item, so other open screens
+  (already listening to `deliverables`) re-read that thread live. `updated_at`
+  (the CAS clock) is held still by a BEFORE trigger sorted last, the ledger
+  guard is suppressed for the stamp only, failures are warnings, and bulk
+  imports never stamp. `production_comments` stays closed; anon and
+  authenticated may read only the new timestamp column; both functions revoke
+  from all four roles. No Edge Function change. `test/production-comment-signal.js`
+  measures it on a real PostgreSQL 16.
+
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To
   rebuild from scratch, start here.

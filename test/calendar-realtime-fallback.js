@@ -10,7 +10,12 @@ const s = fs.readFileSync(path.join(__dirname, '..', 'src/index/150-calendar-hyd
 let failed = 0;
 const t = (ok, msg) => { console.log((ok ? '  ok  ' : '  ❌  ') + msg); if (!ok) failed++; };
 t(/_calV2SetRtState\(String\(status \|\| ''\)\)/.test(s), 'the subscribe callback records the real connection state');
-t(/_calV2SetRtState\('connecting'\);\s*_calV2StartFallback\(slug, lease\);/.test(s), 'a new channel starts as connecting with the fallback armed');
+// 2026-10-06: the channel is opened by _calV2OpenChannel (shared with the
+// re-subscribe after a drop), which marks it connecting; the fallback is armed
+// right after the first open.
+t(/function _calV2OpenChannel\([\s\S]{0,600}?_calV2SetRtState\('connecting'\);/.test(s)
+  && /_calV2OpenChannel\(client, slug, lease, 'cal-' \+ slug\);\s*_calV2StartFallback\(slug, lease\);/.test(s),
+  'a new channel starts as connecting with the fallback armed');
 t(/connected: _calV2RtState === 'SUBSCRIBED'/.test(s), 'calV2Status().connected is true only when the channel is SUBSCRIBED');
 t(/subscribed: !!_calV2Channel/.test(s), 'calV2Status().subscribed keeps its old meaning for existing probes');
 t(/_calV2StopFallback\(\);\s*_calV2SetRtState\('idle'\);/.test(s), 'dropping the channel stops the fallback');

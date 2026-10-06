@@ -1812,6 +1812,21 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     let _fpEditSlug = '';
     let _fpSavingSlug = '';
     let _fpStatusMsg = '';
+    /* LIVE: A LIGHT POLL WHILE THE PAGE IS OPEN (2026-10-06 findings, item 3).
+       The page loaded once and again only on Refresh, so two people editing
+       plans never saw each other. `filming_plans` is in the realtime
+       publication but closed to the browser key since F88, so a live listener
+       would receive nothing; the page already reads through the staff-keyed
+       filming-plans function, so it re-reads that every FP_LIVE_POLL_MS while
+       the page is open AND the tab is visible (paused when hidden, one read at
+       once when shown again). It never prompts for sign-in, and it never
+       overwrites a plan being edited: while an edit or the add form is open,
+       a changed list is held and a "Updated by someone else" notice offers
+       Reload; closing the edit applies it. */
+    const FP_LIVE_POLL_MS = 20000;
+    let _fpLiveTimer = null;
+    let _fpLiveBusy = false;
+    let _fpLivePending = null;
 
     function _fpSlug(v) {
         try { return calClientSlug(v); } catch (e) { return String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, ''); }
@@ -1845,7 +1860,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         try { if (typeof _linearInvalidatePlanMap === 'function') _linearInvalidatePlanMap(); } catch (e) {}
         return filmingPlansData;
     }
-    async function _fpLoadFromSupabase(retried) {
+    async function _fpLoadFromSupabase(retried, quiet) {
         if (!FILMING_PLANS_EF_URL) throw new Error('Filming plans are not configured');
         const ident = await _syncviewRequireStaffIdentity();
         const resp = await fetch(FILMING_PLANS_EF_URL + '?_t=' + Date.now(), {
@@ -1853,6 +1868,9 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             headers: { 'X-Syncview-Key': ident.key, Accept: 'application/json' },
         });
         if (resp.status === 401) {
+            // A background poll never clears the sign-in or opens the dialog;
+            // the next deliberate load handles an expired key as before.
+            if (quiet) throw new Error('Staff sign-in expired.');
             const active = _syncviewStaffIdentityForHeaders();
             if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
             _syncviewStaffIdentityClear();
@@ -1996,6 +2014,107 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         return _fpNormalizePlan(json.plan || {});
     }
+    /* What the page shows of a plan list, for "did anything change". */
+    function _fpLiveFingerprint(rows) {
+        return JSON.stringify((rows || []).map(_fpNormalizePlan).filter(Boolean)
+            .sort((a, b) => a.clientSlug.localeCompare(b.clientSlug))
+            .map(r => [r.clientSlug, r.clientName, r.docUrl, r.docId, r.notes, r.planMonths, r.updatedAt]));
+    }
+    // An edit or the add form is open, or a save is running: typed input
+    // lives only in the DOM, so a re-render would throw it away.
+    function _fpLiveDirty() {
+        return !!(_fpEditSlug || _fpAddOpen || _fpSavingSlug);
+    }
+    function _fpLiveNoticeHtml() {
+        if (!_fpLivePending) return '';
+        return `<div class="fp-live-notice" role="status" data-fp-live-notice="1"><span>Updated by someone else.</span><button class="fp-btn" type="button" onclick="_fpLiveReload()">Reload</button></div>`;
+    }
+    // Show or remove the notice WITHOUT re-rendering, so open inputs survive.
+    function _fpLiveSyncNotice() {
+        if (typeof document === 'undefined') return;
+        const view = document.querySelector('.fp-view');
+        if (!view) return;
+        const existing = view.querySelector('[data-fp-live-notice]');
+        if (!_fpLivePending) { if (existing) existing.remove(); return; }
+        if (existing) return;
+        const toolbar = view.querySelector('.fp-toolbar');
+        if (toolbar) toolbar.insertAdjacentHTML('afterend', _fpLiveNoticeHtml());
+    }
+    // Adopt a freshly read list: at once when nothing is being edited,
+    // otherwise held behind the notice. Returns what it did, for the tests.
+    function _fpLiveAdopt(rows) {
+        if (_fpLiveFingerprint(rows) === _fpLiveFingerprint(_fpRows())) {
+            if (_fpLivePending) { _fpLivePending = null; _fpLiveSyncNotice(); }
+            return 'same';
+        }
+        if (_fpLiveDirty()) {
+            _fpLivePending = rows;
+            _fpLiveSyncNotice();
+            return 'held';
+        }
+        _fpLivePending = null;
+        _fpSavedWrite(rows);
+        _fpSetData(rows, 'edge-function');
+        _fpLiveRepaint();
+        return 'applied';
+    }
+    // Re-render, keeping the search box's focus and caret if it had them.
+    function _fpLiveRepaint() {
+        if (currentNav !== 'filming-plans') return;
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        const searching = !!(active && active.id === 'fpSearchInput');
+        const caret = searching ? active.selectionStart : null;
+        _fpRenderPage();
+        if (searching) {
+            const input = document.getElementById('fpSearchInput');
+            if (input) { input.focus(); try { input.setSelectionRange(caret, caret); } catch (e) {} }
+        }
+    }
+    function _fpLiveReload() {
+        const rows = _fpLivePending;
+        _fpLivePending = null;
+        _fpEditSlug = '';
+        _fpAddOpen = false;
+        if (rows) { _fpSavedWrite(rows); _fpSetData(rows, 'edge-function'); }
+        _fpRenderPage();
+    }
+    // Closing an edit (Cancel / Close) applies a held update at once.
+    function _fpLiveApplyHeld() {
+        if (_fpLivePending && !_fpLiveDirty()) {
+            const rows = _fpLivePending;
+            _fpLivePending = null;
+            _fpSavedWrite(rows);
+            _fpSetData(rows, 'edge-function');
+        }
+    }
+    async function _fpLiveTick() {
+        if (currentNav !== 'filming-plans') { _fpLiveStop(); return; }
+        if (typeof document !== 'undefined' && document.hidden) return;
+        if (_fpLiveBusy || filmingPlansLoadPromise || _fpSavingSlug || !filmingPlansData) return;
+        if (!_syncviewStaffIdentityForHeaders()) return;   // never prompt from a poll
+        _fpLiveBusy = true;
+        try {
+            const rows = await _fpLoadFromSupabase(false, true);
+            if (currentNav !== 'filming-plans' || _fpSavingSlug) return;
+            _fpLiveAdopt(rows);
+        } catch (e) {
+            // Quiet: the next tick, Refresh or the next open tries again.
+        } finally {
+            _fpLiveBusy = false;
+        }
+    }
+    function _fpLiveStart() {
+        if (_fpLiveTimer) return;
+        _fpLiveTimer = setInterval(_fpLiveTick, FP_LIVE_POLL_MS);
+    }
+    function _fpLiveStop() {
+        if (_fpLiveTimer) { clearInterval(_fpLiveTimer); _fpLiveTimer = null; }
+    }
+    try {
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && _fpLiveTimer && currentNav === 'filming-plans') _fpLiveTick();
+        });
+    } catch (e) {}
     function _fpSetStatus(msg) {
         _fpStatusMsg = msg || '';
         if (currentNav === 'filming-plans') _fpRenderPage();
@@ -2016,19 +2135,23 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         if (!_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         _fpAddOpen = !_fpAddOpen;
         _fpEditSlug = '';
+        _fpLiveApplyHeld();
         _fpRenderPage();
     }
     function _fpEdit(slug) {
         if (!_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         _fpEditSlug = (_fpEditSlug === slug) ? '' : slug;
         _fpAddOpen = false;
+        _fpLiveApplyHeld();
         _fpRenderPage();
     }
     function _fpRefresh() {
+        _fpLivePending = null;
         _fpSetStatus('');
         _fpEnsureLoaded(true).then(() => { _fpSetStatus('Refreshed'); _fpRenderPage(); }, e => _fpSetStatus((e && e.message) || 'Refresh failed'));
     }
     function _fpUpsertLocal(row) {
+        _fpLivePending = null;   // read before this save; the next poll re-reads
         const rows = _fpRows().filter(r => r.clientSlug !== row.clientSlug);
         rows.push(row);
         _fpSetData(rows, 'supabase');
@@ -2158,11 +2281,13 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 </div>
                 ${status}
             </div>
+            ${_fpLiveNoticeHtml()}
             ${_fpAddCardHtml()}
             ${body}
         </div>`;
     }
     function mountFilmingPlansView() {
+        _fpLiveStart();
         if (!filmingPlansData) {
             const saved = _fpSavedRead();
             if (saved) {
@@ -2184,6 +2309,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     window._fpToggleAdd = _fpToggleAdd;
     window._fpEdit = _fpEdit;
     window._fpRefresh = _fpRefresh;
+    window._fpLiveReload = _fpLiveReload;
     window._fpSaveExisting = _fpSaveExisting;
     window._fpSaveNew = _fpSaveNew;
 
@@ -2226,10 +2352,10 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _fpEdit, _fpRefresh, _fpSaveExisting, _fpSaveNew, _fpSetQuery, _fpToggleAdd, _obvBack, _obvFilter,
-        _obvOpen, _obvOpenPreview, _obvOpenStandalone, _obvRefresh, _tplAddLink, _tplBrainDraft, _tplGoTo,
-        _tplOnSearchFocus, _tplOnSearchIconClick, _tplOnSearchInput, _tplOnSearchKey, _tplRemoveLink,
-        backToTemplatesIndex, setTemplatesEditMode, tplBrainAnother, tplBrainCopy, tplBrainOpen,
-        tplBrainRetry, tplBrainSend, tplBrainSetTab, tplBriefChange, tplBriefMenu, tplBriefToggleSource,
-        tplFoldersRetry, tplLinkRowToggle, tplSpecHexSync, tplSpecOpen, tplSpecSave
+        _fpEdit, _fpLiveReload, _fpRefresh, _fpSaveExisting, _fpSaveNew, _fpSetQuery, _fpToggleAdd, _obvBack,
+        _obvFilter, _obvOpen, _obvOpenPreview, _obvOpenStandalone, _obvRefresh, _tplAddLink, _tplBrainDraft,
+        _tplGoTo, _tplOnSearchFocus, _tplOnSearchIconClick, _tplOnSearchInput, _tplOnSearchKey,
+        _tplRemoveLink, backToTemplatesIndex, setTemplatesEditMode, tplBrainAnother, tplBrainCopy,
+        tplBrainOpen, tplBrainRetry, tplBrainSend, tplBrainSetTab, tplBriefChange, tplBriefMenu,
+        tplBriefToggleSource, tplFoldersRetry, tplLinkRowToggle, tplSpecHexSync, tplSpecOpen, tplSpecSave
     });

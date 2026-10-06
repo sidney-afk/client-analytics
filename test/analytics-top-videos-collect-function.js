@@ -124,7 +124,9 @@ const shadow = slug => (globalThis.__DB.top_shadow || []).find(r => r.slug === s
   assert(!/\s{2}|\n/.test(b.rows[0].caption), 'whitespace runs collapsed');
   t = await call({ action: 'tick' });
   assert.equal(queue('ccc').state, 'done');
-  assert.deepEqual(shadow('ccc').rows, [], 'no platform configured: no rows, as n8n writes nothing');
+  assert.deepEqual(shadow('ccc').rows.map(r => [r.platform, r.period, r.rank, r.caption, r.video_url, r.views]),
+    [['instagram', 'week', '0', 'No new posts in the last 7 days', null, '0']],
+    'no platform configured: only the Instagram "no new posts" row, as n8n writes (live table, 2026-10-06)');
   assert.deepEqual(shadow('ccc').states, { instagram: 'not_configured', tiktok: 'not_configured', youtube: 'not_configured' });
 
   // tick 4: the TikTok run finished meanwhile -> the first client completes from its saved run
@@ -160,7 +162,7 @@ const shadow = slug => (globalThis.__DB.top_shadow || []).find(r => r.slug === s
   resetDb({ client_profiles: [{ ...profiles[0], instagram_handle: '', tiktok_handle: '' }] });
   t = await call({ action: 'tick' });
   assert.deepEqual(shadow('aaa').states.youtube, 'provider_failed');
-  assert.deepEqual(shadow('aaa').rows, []);
+  assert.deepEqual(shadow('aaa').rows.map(r => [r.platform, r.rank]), [['instagram', '0']], 'only the Instagram "no new posts" row (no Instagram configured)');
   ytFails = false;
 
   // the final attempt: a TikTok that never finishes is recorded as a provider failure
@@ -170,7 +172,7 @@ const shadow = slug => (globalThis.__DB.top_shadow || []).find(r => r.slug === s
   for (let i = 0; i < 9; i++) results.push(Object.keys((await call({ action: 'tick' })).body.results || {})[0] || 'none');
   assert.deepEqual(results, ['waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'done', 'none'], 'seven waits, the eighth attempt gives up, then nothing');
   assert.deepEqual(shadow('aaa').states.tiktok, 'provider_failed');
-  assert.deepEqual(shadow('aaa').rows, []);
+  assert.deepEqual(shadow('aaa').rows.map(r => [r.platform, r.rank]), [['instagram', '0']], 'only the Instagram "no new posts" row (no Instagram configured)');
 
   // a refused commit leaves the client retryable and says why; on the LAST claim the attempt is given back
   resetDb({ client_profiles: [profiles[2]],
@@ -191,5 +193,63 @@ const shadow = slug => (globalThis.__DB.top_shadow || []).find(r => r.slug === s
   await call({ action: 'tick' });
   assert.deepEqual(globalThis.__DB.analytics_top_videos_collect_queue.map(r => r.client_slug), ['ccc'], 'the clients list limits the queue');
 
-  console.log('ANALYTICS_TOP_VIDEOS_COLLECT_FUNCTION_OK: auth, off switch, queue, resume from a saved run, failed providers write no rows, empty-week row, final-attempt timeout, refused commit, clients list, real table untouched');
+  // ---- shadow never writes the real table ----
+  assert.deepEqual(globalThis.__DB.analytics_top_videos.map(r => r.video_url), ['sentinel'], 'shadow: the real table holds only what it held');
+  assert.equal(globalThis.__DB.analytics_ingest_receipts, undefined, 'shadow wrote no receipt');
+
+  // ---- live (plan section 8b) ----
+  const { prepareRows } = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/sheets-mirror.mjs')).href);
+  const liveProfile = { slug: 'probelive', display_name: 'Probe Live', instagram_handle: 'ig_l', tiktok_handle: '', youtube_channel_id: 'UClive', archived_at: null };
+  const realRows = slug => globalThis.__DB.analytics_top_videos.filter(r => r.client_slug === slug && r.scraped_date === TODAY);
+  ytEmpty = false; ytFails = false; igFails = false;
+  resetDb({ client_profiles: [{ ...liveProfile }] });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'Live' };
+  assert.deepEqual((await call({ action: 'tick' })).body, { ok: true, skipped: 'off' }, 'a mode that is not exactly "live" or "shadow" is off');
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live' };
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done_live: 1 }, 'live: the client is written');
+  const live = realRows('probelive');
+  const sh = shadow('probelive');
+  assert(sh && sh.rows.length > 0, 'the shadow rows are written too');
+  assert.equal(live.length, sh.rows.length, 'one real row per shadow row');
+  assert(live.every(r => r.source === 'edge' && r.run_id === 'top-videos-collect-' + TODAY && r.client_name === 'Probe Live'), 'with the new source');
+  const { records } = await prepareRows('top_videos', sh.rows, { source: 'edge', runId: 'x' });
+  assert.deepEqual(live.map(r => r.row_hash + ':' + r.row_occurrence), records.map(r => r.row_hash + ':' + r.row_occurrence), 'the same fingerprints analytics-write gives the same rows, in order');
+  assert.deepEqual(new Set(live.map(r => r.platform)), new Set(['instagram', 'youtube']));
+
+  // a second run of the day adds nothing
+  queue('probelive').state = 'pending';
+  queue('probelive').attempts = 0;
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done_live_kept_existing: 1 }, 'a second run keeps the rows already there');
+  assert.equal(realRows('probelive').length, live.length, 'no row added twice');
+
+  // a refused commit, then the retry: written once
+  resetDb({ client_profiles: [{ ...liveProfile }] });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live' };
+  globalThis.__DB_FAIL.commit = true;
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { error: 1 });
+  assert.equal(realRows('probelive').length, 0, 'a refused commit writes nothing');
+  globalThis.__DB_FAIL.commit = false;
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { done_live: 1 });
+  assert.equal(realRows('probelive').length, live.length, 'the retry writes the rows once');
+
+  // the transition day: n8n already mirrored this client today -> its rows stay, nothing added
+  resetDb({ client_profiles: [{ ...liveProfile }],
+    analytics_top_videos: [{ client_slug: 'probelive', scraped_date: TODAY, video_url: 'https://n8n/1', source: 'n8n', run_id: 'n8n-topvideos-1' }] });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live' };
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { done_live_kept_existing: 1 }, 'n8n\'s rows of the day win');
+  assert.deepEqual(realRows('probelive').map(r => r.source), ['n8n'], 'only n8n\'s rows for the day');
+  assert(shadow('probelive').rows.length > 0, 'the shadow rows are still written for the comparison');
+
+  // failed providers write no real rows either (the client with nothing at all writes nothing)
+  igFails = true; ytFails = true;
+  resetDb({ client_profiles: [{ ...liveProfile }] });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live' };
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { done_live: 1 });
+  assert.equal(realRows('probelive').length, 0, 'no rows when every configured platform failed');
+  assert.deepEqual(queue('probelive').outcome, { instagram: 'provider_failed', tiktok: 'not_configured', youtube: 'provider_failed' }, 'the outcome the daily check reads');
+  igFails = false; ytFails = false;
+
+  console.log('ANALYTICS_TOP_VIDEOS_COLLECT_FUNCTION_OK: auth, off switch, queue, resume from a saved run, failed providers write no rows, empty-week row, final-attempt timeout, refused commit, clients list, real table untouched in shadow, live writes once with source edge, retries idempotent, transition-day rule');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });

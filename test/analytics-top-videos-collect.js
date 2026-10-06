@@ -98,6 +98,9 @@ async function main() {
     // --- n8n: each platform's node runs only when its provider call did not take the error output
     const nodes = { 'Loop Over Clients': { all: [{ client_name: name }], item: { client_name: name } } };
     if (src.ig && !src.ig.failed) nodes['Process Instagram Top Videos'] = { all: runNode('Process Instagram Top Videos', { input: src.ig.items, nodes }) };
+    // No Instagram configured: n8n's Instagram branch still runs, with nothing usable in it
+    // (live table, 2026-10-06: every client without Instagram has the "no new posts" row).
+    if (!src.ig) nodes['Process Instagram Top Videos'] = { all: runNode('Process Instagram Top Videos', { input: [{}], nodes }) };
     if (src.tt && !src.tt.failed) nodes['Process TikTok Top Videos'] = { all: runNode('Process TikTok Top Videos', { input: src.tt.items, nodes }) };
     let unpackInput = [{ skip: true }]; // "No YouTube"
     if (src.yt && !src.yt.failed) unpackInput = runNode('Process YouTube Top Videos', { input: [{ items: src.yt.items }], nodes });

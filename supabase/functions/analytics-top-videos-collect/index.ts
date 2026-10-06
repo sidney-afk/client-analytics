@@ -1,11 +1,18 @@
 // analytics-top-videos-collect: the daily Top Videos job (n8n "TOP VIDEOS") run by our
 // own Edge Function (docs/plans/2026-10-01-n8n-off-analytics.md, section 7).
 //
-// SHADOW ONLY, built the same way as analytics-metrics-collect. It scrapes the same
-// sources and applies the same rules as n8n, but writes only to
-// analytics_top_videos_shadow. It never touches analytics_top_videos (what the pages
-// read) and never touches a Sheet. n8n keeps running untouched; the two are compared
-// daily with analytics_top_videos_shadow_compare().
+// Built the same way as analytics-metrics-collect. Two modes besides off:
+//   shadow  scrapes the same sources and applies the same rules as n8n, but writes only
+//           to analytics_top_videos_shadow. It never touches analytics_top_videos (what
+//           the pages read) and never touches a Sheet. Compared with n8n daily by
+//           analytics_top_videos_shadow_compare().
+//   live    (plan section 8b) does everything shadow does AND, in the same database
+//           transaction, writes the client's rows of the day into analytics_top_videos
+//           with source "edge", prepared exactly as analytics-write prepares them
+//           (_shared/analytics-collect-live.mjs). FIRST WRITER WINS per client per day:
+//           if analytics_top_videos already holds rows for that client and scraped date
+//           (n8n's, on the switch-over day), nothing is added. A retry or a second tick
+//           never adds rows twice. It never touches a Sheet.
 //
 // How a day runs: pg_cron calls this function every minute from 08:00 to 12:59 UTC
 // (n8n's run starts at 08:00 UTC and takes about an hour). Each tick seeds today's queue
@@ -19,7 +26,7 @@
 // same key the metrics job uses; at least 32 characters), checked before anything else.
 // Not browser callable. Secrets it reads: APIFY_TOKEN, YOUTUBE_API_KEY (the same values
 // n8n holds as credentials). Switch: syncview_runtime_flags row
-// analytics_top_videos_collect, {"mode": "off" | "shadow", "clients": [slug...],
+// analytics_top_videos_collect, {"mode": "off" | "shadow" | "live", "clients": [slug...],
 // "batch": 1}. Default off.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
@@ -31,6 +38,7 @@ import {
   slimVideo,
   toShadowRecord,
 } from "../_shared/analytics-top-videos-collect.mjs";
+import { collectMode, coversEveryClient, liveRecords } from "../_shared/analytics-collect-live.mjs";
 
 type JsonMap = Record<string, unknown>;
 const APIFY = "https://api.apify.com/v2";
@@ -135,7 +143,7 @@ async function youtubeStage(channelId: string, st: Stage, now: Date): Promise<St
 type Profile = { slug: string; display_name: string; instagram_handle: string | null; tiktok_handle: string | null; youtube_channel_id: string | null };
 type QueueRow = { run_date: string; client_slug: string; attempts: number; stages: Record<string, Stage> | null };
 
-async function processClient(db: SupabaseClient, q: QueueRow, deadline: number, runId: string): Promise<string> {
+async function processClient(db: SupabaseClient, q: QueueRow, flags: JsonMap, deadline: number, runId: string): Promise<string> {
   const { data: p, error: pe } = await db.from("client_profiles").select("slug,display_name,instagram_handle,tiktok_handle,youtube_channel_id")
     .eq("slug", q.client_slug).maybeSingle();
   if (pe) throw pe;
@@ -163,6 +171,17 @@ async function processClient(db: SupabaseClient, q: QueueRow, deadline: number, 
   const src = (s: Stage, on: boolean) => (!on ? undefined : s.done ? { failed: Boolean(s.failed), items: (s.items || []) as JsonMap[] } : { failed: true, items: [] as JsonMap[] });
   const built = buildClientRows({ clientName: prof.display_name, ig: src(ig, hasIg), tt: src(tt, hasTt), yt: src(yt, hasYt) }, now);
   const rows = built.rows.map(toShadowRecord);
+  if (collectMode(flags) === "live") {
+    // The real rows, prepared as analytics-write prepares n8n's (the same n8n-shaped rows
+    // n8n posts); the commit adds them only if the client has no rows for the day yet.
+    const records = await liveRecords("top_videos", built.rows, { runId, clientSlug: prof.slug, runDate: q.run_date });
+    const { data: live, error: le } = await db.rpc("analytics_top_videos_collect_commit_live", {
+      p_run_date: q.run_date, p_client_slug: prof.slug, p_rows: rows, p_states: built.states, p_run_id: runId,
+      p_records: records, p_full_snapshot: coversEveryClient(flags),
+    });
+    if (le) throw le;
+    return (live as JsonMap | null)?.skipped === "existing_rows" ? "done_live_kept_existing" : "done_live";
+  }
   const { error: ce } = await db.rpc("analytics_top_videos_collect_commit_shadow", {
     p_run_date: q.run_date, p_client_slug: prof.slug, p_rows: rows, p_states: built.states, p_run_id: runId,
   });
@@ -192,14 +211,17 @@ async function tick(db: SupabaseClient, flags: JsonMap): Promise<JsonMap> {
   const results: Record<string, string> = {};
   await Promise.all(((claimed || []) as QueueRow[]).map(async (q) => {
     try {
-      results[q.client_slug] = await processClient(db, q, deadline, runId);
+      results[q.client_slug] = await processClient(db, q, flags, deadline, runId);
     } catch (e) {
       results[q.client_slug] = "error";
       // Never log handles or payloads: the error text only.
       console.error("top videos collect client failed", q.client_slug.length, e instanceof Error ? e.message : String(e));
       // An internal error (database, profile, commit) is not the providers' fault, so it must
-      // not use up their 8-attempt budget: give the attempt back.
-      await db.from("analytics_top_videos_collect_queue").update({ attempts: Math.max(0, q.attempts - 1), last_error: (e instanceof Error ? e.message : String(e)).slice(0, 200), lease_until: null, updated_at: new Date().toISOString() })
+      // not use up their 8-attempt budget: give the attempt back. Exception: a live row the
+      // preparation refused (live_row_*) is refused the same way every time, so it keeps
+      // the attempt: at most 8 tries, then the daily check reports the missing result.
+      const permanent = e instanceof Error && e.message.startsWith("live_row_");
+      await db.from("analytics_top_videos_collect_queue").update({ attempts: permanent ? q.attempts : Math.max(0, q.attempts - 1), last_error: (e instanceof Error ? e.message : String(e)).slice(0, 200), lease_until: null, updated_at: new Date().toISOString() })
         .eq("run_date", q.run_date).eq("client_slug", q.client_slug);
     }
   }));
@@ -221,7 +243,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const action = clean(body.action) || "tick";
     const db = createClient(url, serviceKey, { auth: { persistSession: false } });
     const flags = await flagValue(db, "analytics_top_videos_collect");
-    if (flags.mode !== "shadow") return json({ ok: true, skipped: "off" });
+    if (collectMode(flags) === "off") return json({ ok: true, skipped: "off" });
     if (action === "tick") return json(await tick(db, flags));
     return json({ ok: false, error: "unknown_action" }, 400);
   } catch (e) {

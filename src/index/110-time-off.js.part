@@ -589,6 +589,8 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         }, 'Cancel request');
     }
     function _ptoRenderCalendar(overview) {
+        const phone = !!(window.svIsStaffPhone && window.svIsStaffPhone());
+        const agenda = [];
         const month = _ptoState.month;
         const asOf = _ptoDate(overview && overview.as_of_date) || new Date();
         const minMonth = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
@@ -611,11 +613,24 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
             const events = holidayRows.map(row => ({ holiday: true, label: row.name || row.label || 'Company holiday' }))
                 .concat(away.map(row => ({ holiday: false, label: row.member_name || row.name || 'Team member' })));
             const visible = events.slice(0, 3).map(event => '<div class="pto-cal-event' + (event.holiday ? ' holiday' : '') + '" title="' + _ptoAttr(event.label) + '">' + _ptoEsc(event.label) + '</div>').join('');
-            cells.push('<div class="pto-cal-day' + (date.getMonth() !== month.getMonth() ? ' outside' : '') + ((date.getDay() === 0 || date.getDay() === 6) ? ' weekend' : '') + (iso === today ? ' today' : '') + '"><span class="sr-only">' + _ptoEsc(_ptoFmtDate(iso)) + '</span><div class="pto-cal-num" aria-hidden="true">' + date.getDate() + '</div>' + visible + (events.length > 3 ? '<div class="pto-cal-more">+' + (events.length - 3) + ' more</div>' : '') + '</div>');
+            const dayClass = 'pto-cal-day' + (date.getMonth() !== month.getMonth() ? ' outside' : '') + ((date.getDay() === 0 || date.getDay() === 6) ? ' weekend' : '') + (iso === today ? ' today' : '');
+            if (phone) {
+                cells.push('<div class="' + dayClass + '"><span class="sr-only">' + _ptoEsc(_ptoFmtDate(iso)) + (events.length ? ', ' + events.length + ' calendar events; details below.' : '') + '</span><div class="pto-cal-num" aria-hidden="true">' + date.getDate() + '</div>' + (events.length ? '<span class="pto-cal-count" aria-hidden="true">' + events.length + '</span>' : '') + '</div>');
+                if (events.length) agenda.push('<div class="pto-phone-agenda-day"><strong>' + _ptoEsc(_ptoFmtDate(iso, { weekday: 'short', month: 'short', day: 'numeric' })) + '</strong>' + events.map(event => '<div class="pto-cal-event' + (event.holiday ? ' holiday' : '') + '">' + _ptoEsc(event.label) + '</div>').join('') + '</div>');
+            } else {
+                cells.push('<div class="' + dayClass + '"><span class="sr-only">' + _ptoEsc(_ptoFmtDate(iso)) + '</span><div class="pto-cal-num" aria-hidden="true">' + date.getDate() + '</div>' + visible + (events.length > 3 ? '<div class="pto-cal-more">+' + (events.length - 3) + ' more</div>' : '') + '</div>');
+            }
         }
         const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => '<div class="pto-cal-weekday" aria-hidden="true">' + day + '</div>').join('');
-        return '<div class="pto-calendar-toolbar"><div><div class="pto-card-title">Team calendar</div><div class="pto-card-sub">Approved absences and observed paid holidays.</div></div><div class="pto-calendar-nav"><button type="button" onclick="_ptoShiftMonth(-1)" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>‹</button><span class="pto-calendar-title">' + _ptoEsc(monthLabel) + '</span><button type="button" onclick="_ptoShiftMonth(1)" aria-label="Next month"' + (canNext ? '' : ' disabled') + '>›</button></div></div><div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable team time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-calendar" role="group" aria-label="Team time off for ' + _ptoAttr(monthLabel) + '">' + weekdays + cells.join('') + '</div></div>';
+        return '<div class="pto-calendar-toolbar"><div><div class="pto-card-title">Team calendar</div><div class="pto-card-sub">Approved absences and observed paid holidays.</div></div><div class="pto-calendar-nav"><button type="button" onclick="_ptoShiftMonth(-1)" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>‹</button><span class="pto-calendar-title">' + _ptoEsc(monthLabel) + '</span><button type="button" onclick="_ptoShiftMonth(1)" aria-label="Next month"' + (canNext ? '' : ' disabled') + '>›</button></div></div><div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable team time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-calendar" role="group" aria-label="Team time off for ' + _ptoAttr(monthLabel) + '">' + weekdays + cells.join('') + '</div></div>' + (phone ? '<div class="pto-phone-agenda"><div class="pto-card-title">On the calendar</div>' + (agenda.length ? agenda.join('') : '<div class="pto-empty">No approved absences or holidays on this calendar.</div>') + '</div>' : '');
     }
+    // Re-render only the calendar at the phone boundary; an in-progress request
+    // keeps its dates, note and quote. Wider widths regain the original markup.
+    if (window.matchMedia) window.matchMedia('(max-width: 767px)').addEventListener('change', () => {
+        if (currentNav !== 'time-off' || !_ptoState.overview) return;
+        const card = document.querySelector('#ptoRoot .pto-calendar-card');
+        if (card) card.innerHTML = _ptoRenderCalendar(_ptoState.overview);
+    });
     function _ptoShiftMonth(delta) {
         const asOf = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date) || new Date();
         const minMonth = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);

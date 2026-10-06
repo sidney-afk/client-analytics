@@ -1,4 +1,7 @@
 'use strict';
+// Match the unit/CI fingerprint even when invoked directly with the split
+// loader enabled. The browser still serves the real loader and module files.
+require('../../test/helpers/single-file-index.js');
 
 const crypto = require('crypto');
 const fs = require('fs');

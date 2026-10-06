@@ -7,6 +7,8 @@
 const { chromium } = require('playwright');
 const { AxeBuilder } = require('@axe-core/playwright');
 const { serveStatic } = require('./prod-test-utils');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const AS_OF = '2030-04-10';
 const ADMIN = Object.freeze({
@@ -494,7 +496,107 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
   `${label} Escape dismisses the explanation without moving focus`);
 }
 
-(async () => {
+async function phoneExpandedChecks(browser, port) {
+  let renders = 0;
+  const out = process.env.POCKET_PHONE_SHOTS;
+  if (out) fs.mkdirSync(out, { recursive: true });
+  for (const width of [360, 390, 430]) for (const theme of ['light', 'dark']) {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const state = { overview: initialOverview(), runtimeFlagReads: 0, keyVerifyCalls: [], ptoCalls: [], unexpectedWrites: [], requestSequence: 0, failNextOverview: false, loseNextRequestResponse: false };
+    state.overview.absences.push(...[1, 2, 3, 4, 5].map(index => ({ member_name: 'TEST calendar person ' + index, start_date: '2030-04-18', end_date: '2030-04-18' })));
+    try {
+      await installFixture(page, state);
+      await page.route('**/rest/v1/team_members?*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify([ADMIN, MEMBER]) }));
+      // Optional offline copies of the production fonts for review artifacts.
+      // No remote font, image, roster or credential reaches this fixture.
+      const fonts = process.env.POCKET_FONT_DIR;
+      if (fonts) {
+        await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css', body: [400, 500, 600, 700, 800].map(weight => '@font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:' + weight + ';src:url(https://fonts.gstatic.com/pocket-' + weight + '.ttf)}').join('\n') }));
+        await page.route('https://fonts.gstatic.com/pocket-*.ttf', route => route.fulfill({ contentType: 'font/ttf', body: fs.readFileSync(path.join(fonts, 'plus-jakarta-' + /pocket-(\d+)\.ttf/.exec(route.request().url())[1] + '.ttf')) }));
+      }
+      await openStaffTimeOff(page, port);
+      await page.evaluate(theme => _syncviewApplyTheme(theme, false), theme);
+      async function check(label) {
+        await page.evaluate(() => document.fonts.ready);
+        await page.evaluate(() => Promise.all([...document.querySelectorAll('.cc-select.open .cc-select-menu')].flatMap(element => element.getAnimations()).map(animation => animation.finished.catch(() => {}))));
+        const metrics = await page.evaluate(() => {
+          const visible = element => { const style = getComputedStyle(element); return element.checkVisibility({ checkVisibilityCSS: true }) && Number(style.opacity) > 0 && !element.closest('[hidden],[aria-hidden="true"]'); };
+          const roots = [document.querySelector('.pto-wrap'), document.querySelector('.pocket-staff-bar'), document.querySelector('#svDatePickerPopup'), document.querySelector('#confirmOverlay.active'), document.querySelector('#staffIdentityOverlay')].filter(Boolean);
+          const targets = roots.flatMap(root => [...root.querySelectorAll('button,[role="button"],[role="option"],.sv-explain-label')]).filter(visible);
+          return { viewport: innerWidth, page: document.documentElement.scrollWidth, theme: document.documentElement.dataset.theme || 'light',
+            small: targets.filter(element => { const rect = element.getBoundingClientRect(); return rect.width < 43.5 || rect.height < 43.5; }).map(element => element.id || element.className),
+            text: [...document.querySelectorAll('.pto-wrap input:not([type=hidden]):not([type=date]),.pto-wrap textarea,#staffIdentityKey')].filter(visible).filter(element => !element.readOnly).every(element => parseFloat(getComputedStyle(element).fontSize) >= 16) };
+        });
+        assert(metrics.viewport === width && metrics.page <= width && metrics.theme === theme && !metrics.small.length && metrics.text,
+          `Time Off ${label}, ${theme}, ${width}: requested viewport fits, 44px targets, 16px fields (${JSON.stringify(metrics)})`);
+        if (out) {
+          // Public review images use synthetic people and generic product labels.
+          await page.evaluate(() => {
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            while (walker.nextNode()) if (!walker.currentNode.parentElement.closest('script,style')) walker.currentNode.textContent = walker.currentNode.textContent.replace(/\bKasper\b/g, 'Reviewer');
+            document.querySelectorAll('[placeholder]').forEach(element => element.placeholder = element.placeholder.replace(/\bKasper\b/g, 'Reviewer'));
+          });
+          // Visible Chrome briefly paints native touch feedback after a tap.
+          // Capture the settled screen, preserving the app's own feedback.
+          await page.waitForTimeout(800);
+          await page.screenshot({ path: path.join(out, label + '-' + theme + '-' + width + '.png'), fullPage: !/picker|tabs|more|explanation|dialog/.test(label), animations: 'disabled' });
+        }
+        renders++;
+      }
+      await check('overview');
+      assert(await page.locator('.pto-phone-agenda-day .pto-cal-event').count() >= 5
+        && [1, 2, 3, 4, 5].every(index => state.overview.absences.some(row => row.member_name === 'TEST calendar person ' + index)), 'Phone calendar fixture contains a crowded day');
+      const agendaText = await page.locator('.pto-phone-agenda').textContent();
+      assert([1, 2, 3, 4, 5].every(index => agendaText.includes('TEST calendar person ' + index)), 'Phone agenda retains every event, including entries beyond the desktop three-event preview');
+      assert(await page.locator('.pocket-staff-title').textContent() === 'Time Off' && !await page.locator('.header').isVisible(), 'Time Off uses the shared phone header');
+      await page.locator('.pocket-staff-tabs-btn').tap(); await check('tabs'); await page.keyboard.press('Escape');
+      await page.locator('.pocket-staff-more-btn').tap(); await check('more');
+      await page.locator('.pocket-staff-sheet[open] [data-proxy="themeToggle"]').tap();
+      await page.waitForFunction(theme => (document.documentElement.dataset.theme || 'light') !== theme, theme);
+      await page.evaluate(theme => { localStorage.setItem('syncview_theme', theme); _syncviewApplyTheme(theme, false); }, theme);
+      await page.locator('#ptoRequestTypeBtn').tap(); await check('type-picker'); await page.keyboard.press('Escape');
+      assert(await page.evaluate(() => document.activeElement.id) === 'ptoRequestTypeBtn', 'Type picker Escape restores focus');
+      await page.locator('#ptoStartDateBtn').tap(); await check('date-picker'); await page.keyboard.press('Escape');
+      await page.locator('.pto-balance-label .sv-explain-label').tap();
+      assert(await page.locator('.global-tip[data-label-explainer="true"]').isVisible(), 'Phone balance explanation remains reachable');
+      await check('explanation'); await page.keyboard.press('Escape');
+      await page.evaluate(() => _ptoState.overview.my_requests.push({ id: 'test-phone-pending', type: 'wellness', status: 'pending', days: 1, start_date: '2030-04-20', end_date: '2030-04-20', requested_at: '2030-04-10' }));
+      await page.evaluate(() => _ptoPaint()); await check('pending-request');
+      assert(await page.locator('.pto-request-history-card .pto-status').textContent() === 'pending' && await page.locator('.pto-request-history-card .pto-row-btn').isVisible(), 'Pending stays pending with its existing cancel action');
+      await page.locator('.pto-request-history-card .pto-row-btn').tap(); await check('cancel-dialog');
+      await page.locator('#confirmOverlay .brief-action-btn:not(.primary)').tap();
+      assert(await page.locator('.pto-request-history-card .pto-status').textContent() === 'pending', 'Dismissing cancellation makes no decision or request change');
+      await page.locator('#ptoRequestForm').evaluate(form => form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })));
+      await check('validation');
+      await page.locator('#ptoNote').fill('TEST unsent phone note');
+      await page.setViewportSize({ width: 1024, height: 900 });
+      await page.waitForFunction(() => !document.querySelector('.pocket-staff-bar') && !document.querySelector('.pto-phone-agenda'));
+      assert(await page.locator('#ptoNote').inputValue() === 'TEST unsent phone note', 'Desktop boundary restores the original calendar without losing the request draft');
+      await page.setViewportSize({ width, height: 844 });
+      await page.waitForFunction(() => !!document.querySelector('.pto-phone-agenda'));
+      await page.evaluate(() => { _ptoState.error = 'TEST refresh unavailable; saved data retained.'; _ptoPaint(); }); await check('saved-copy-error');
+      await page.evaluate(() => { _ptoState.error = ''; _ptoState.writeOutcomeUnknown = true; _ptoPaint(); }); await check('write-unknown');
+      assert(await page.locator('.pto-request-history-card .pto-row-btn').isDisabled(), 'Unconfirmed save keeps the native request write lock');
+      await page.evaluate(() => { _ptoState.writeOutcomeUnknown = false; _ptoState.overview.balance.pto_enabled = false; _ptoPaint(); }); await check('disabled-profile');
+      await page.evaluate(() => { _ptoState.overview = null; _ptoState.loading = true; _ptoState.error = ''; _ptoPaint(); }); await check('loading');
+      await page.evaluate(() => { _ptoState.loading = false; _ptoState.error = 'TEST connection interrupted. Try again.'; _ptoPaint(); }); await check('error');
+      await page.evaluate(() => { _syncviewStaffIdentityClear(); _ptoPaint(); }); await check('sign-in');
+      // Sign-out can immediately open the existing entry gate. Otherwise use
+      // the Time Off sign-in action; neither path enters a key or signs in.
+      if (!await page.locator('#staffIdentityForm').isVisible()) await page.locator('.pto-signin button').tap();
+      await page.locator('#staffIdentityForm').waitFor({ state: 'visible' }); await check('sign-in-dialog');
+      await page.locator('#staffIdentityMemberBtn').tap(); await check('sign-in-name-picker'); await page.keyboard.press('Escape');
+      if (await page.locator('#staffIdentityCancel').isVisible()) await page.locator('#staffIdentityCancel').tap();
+      assert(state.unexpectedWrites.length === 0 && errors.length === 0, 'Phone fixtures have no unexpected writes or page errors');
+    } finally { await context.close(); }
+  }
+  console.log(`PTO_EXPANDED_PHONE: ${renders} states passed at 360/390/430, light and dark; no live writes.`);
+}
+
+async function runMain() {
   const state = {
     overview: initialOverview(),
     runtimeFlagReads: 0,
@@ -1372,7 +1474,7 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     assert(reducedTooltipMotion.animationName === 'none'
       && /^0s(?:, 0s)*$/.test(reducedTooltipMotion.transitionDuration),
     'label explanations disable decorative tooltip motion for reduced-motion users');
-    await page.locator('.pto-title').hover();
+    await page.locator('.pocket-staff-title:visible, .pto-title:visible').first().hover();
     await page.waitForFunction(() => !document.querySelector('.global-tip'));
     await page.emulateMedia({ reducedMotion: 'no-preference' });
 
@@ -1420,8 +1522,10 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       navTo('time-off', false);
     }, { identity: MEMBER, key: MEMBER_KEY });
     await page.waitForFunction(() => !!document.getElementById('ptoRequestTypeBtn') && !_ptoState.loading);
-    await page.locator('#headerMenuButton').click();
-    assert(await page.locator('#headerTimeOffMenuItem').isVisible() && await page.locator('#ptoRequestForm').isVisible(),
+    const personalPhoneMore = page.locator('.pocket-staff-more-btn');
+    const usingPhoneMore = await personalPhoneMore.isVisible();
+    await (usingPhoneMore ? personalPhoneMore : page.locator('#headerMenuButton')).click();
+    assert(await page.locator(usingPhoneMore ? '.pocket-staff-sheet[open] [data-proxy="headerTimeOffMenuItem"]' : '#headerTimeOffMenuItem').isVisible() && await page.locator('#ptoRequestForm').isVisible(),
       'ordinary staff can open the Time Off menu and overview form');
     await page.keyboard.press('Escape');
     // Kasper is admin-only: ordinary staff are sent home instead of reaching
@@ -1511,7 +1615,7 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       'tapping the active staff label toggles its explanation closed');
     await touchStaffLabel.tap();
     await touchPage.waitForSelector('.global-tip');
-    await touchPage.locator('.pto-title').tap();
+    await touchPage.locator('.pocket-staff-title:visible, .pto-title:visible').first().tap();
     await touchPage.waitForFunction(() => !document.querySelector('.global-tip'));
     assert(await touchPage.locator('.global-tip').count() === 0,
       'tapping away dismisses the staff label explanation');
@@ -1538,6 +1642,7 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     await touchContext.close();
     touchContext = null;
 
+    await phoneExpandedChecks(browser, port);
     assert(state.unexpectedWrites.length === 0, 'test triggered no unrelated external writes');
     assert(pageErrors.length === 0, 'browser produced no page errors: ' + pageErrors.join(' | '));
     console.log(`PTO UI polish browser checks passed (${state.ptoCalls.length} mocked PTO calls)`);
@@ -1547,7 +1652,9 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
   }
-})().catch(error => {
+}
+module.exports = { runMain, phoneExpandedChecks, initialOverview, installFixture, openStaffTimeOff };
+if (require.main === module) runMain().catch(error => {
   console.error(error && error.stack ? error.stack : String(error));
   process.exitCode = 1;
 });

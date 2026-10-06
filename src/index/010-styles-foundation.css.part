@@ -1311,6 +1311,10 @@
             .staff-auth-card { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 18px; padding: 21px 18px calc(18px + env(safe-area-inset-bottom)); }
             .staff-auth-actions { display: grid; grid-template-columns: 1fr 1.25fr; }
             .staff-auth-actions button { width: 100%; }
+            .staff-auth-actions button:only-child { grid-column: 1 / -1; }
+            .staff-auth-card :is(input:not([type="hidden"]),.cc-select-trigger) { font-size: 16px; min-height: 48px; }
+            .staff-auth-card :is(button,.cc-select-option) { min-width: 44px; min-height: 44px; }
+            .staff-auth-card .cc-pass-toggle { width: 44px; height: 44px; }
         }
         @media (prefers-reduced-motion: reduce) {
             .staff-account-popover.is-open, .staff-auth-overlay, .staff-auth-card, .staff-auth-error:not(:empty), .staff-identity-btn.is-checking svg { animation: none; }

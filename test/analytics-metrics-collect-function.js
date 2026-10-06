@@ -212,5 +212,75 @@ const shadow = slug => (globalThis.__DB.shadow || []).find(r => r.slug === slug)
   await call({ action: 'tick' });
   assert.deepEqual(globalThis.__DB.analytics_metrics_collect_queue.map(r => r.client_slug), ['ccc'], 'the clients list limits the queue');
 
-  console.log('ANALYTICS_METRICS_COLLECT_FUNCTION_OK: auth, off switch, queue, resume from a saved run, final-attempt timeout, refused commit, seed guard, clients list');
+  // ---- shadow never writes the real table, whatever happens in a day ----
+  assert(!(globalThis.__DB.analytics_metrics || []).some(r => r.source === 'edge'), 'shadow wrote no real row');
+  assert.equal(globalThis.__DB.analytics_ingest_receipts, undefined, 'shadow wrote no receipt');
+
+  // ---- live (plan section 8b) ----
+  const { prepareRows } = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/sheets-mirror.mjs')).href);
+  const liveProfiles = [
+    { slug: 'probelive', display_name: 'Probe Live', instagram_handle: 'ig_l', tiktok_handle: '', youtube_channel_id: '', archived_at: null },
+    { slug: 'probequiet', display_name: 'Probe Quiet', instagram_handle: '', tiktok_handle: 'N/A', youtube_channel_id: '', archived_at: null },
+  ];
+  const liveRows = slug => (globalThis.__DB.analytics_metrics || []).filter(r => r.client_slug === slug && r.date === TODAY);
+  resetDb({ client_profiles: JSON.parse(JSON.stringify(liveProfiles)) });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'LIVE' };
+  assert.deepEqual((await call({ action: 'tick' })).body, { ok: true, skipped: 'off' }, 'a mode that is not exactly "live" or "shadow" is off');
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live' };
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done_live: 1 }, 'live: the first client is written');
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done_live: 1 });
+  for (const slug of ['probelive', 'probequiet']) {
+    const rows = liveRows(slug);
+    assert.equal(rows.length, 1, 'live writes exactly one real row per client per day: ' + slug);
+    assert.equal(rows[0].source, 'edge', 'with the new source');
+    assert.equal(rows[0].run_id, 'collect-' + TODAY);
+    assert.equal(rows[0].row_occurrence, 1);
+    assert(shadow(slug), 'and the shadow row too, for the comparison');
+    const sh = shadow(slug).row;
+    const { records } = await prepareRows('metrics', [sh], { source: 'edge', runId: 'x' });
+    assert.equal(rows[0].row_hash, records[0].row_hash, 'the fingerprint is the one analytics-write computes for the same row');
+    assert.equal(rows[0].ig_followers, sh.ig_followers === '' ? null : sh.ig_followers, 'stored as analytics-write stores it (empty as null)');
+  }
+  assert.equal(liveRows('probelive')[0].ig_avg_views, '100', 'the live row carries the day\'s numbers');
+  assert(globalThis.__DB.analytics_ingest_receipts.every(r => r.source === 'edge' && r.p_full_snapshot === true), 'no clients list: the run may vouch for the whole dataset');
+
+  // a second run of the day (a retry, a tick after a reset) adds nothing
+  for (const r of globalThis.__DB.analytics_metrics_collect_queue) Object.assign(r, { state: 'pending', attempts: 0 });
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done_live_kept_existing: 1 }, 'a second run keeps the row already there');
+  t = await call({ action: 'tick' });
+  assert.deepEqual(t.body.results, { done_live_kept_existing: 1 });
+  assert.equal(liveRows('probelive').length + liveRows('probequiet').length, 2, 'still one row per client');
+
+  // a refused commit, then the retry: still exactly one row
+  resetDb({ client_profiles: [JSON.parse(JSON.stringify(liveProfiles[1]))] });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live', clients: ['probequiet'] };
+  globalThis.__DB_FAIL.commit = true;
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { error: 1 });
+  assert.equal(liveRows('probequiet').length, 0, 'a refused commit writes nothing');
+  globalThis.__DB_FAIL.commit = false;
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { done_live: 1 });
+  assert.equal(liveRows('probequiet').length, 1, 'the retry writes it once');
+  assert.equal(globalThis.__DB.analytics_ingest_receipts[0].p_full_snapshot, false, 'a clients list never vouches for the whole dataset');
+
+  // the transition day: n8n already mirrored this client today -> its row stays, nothing added
+  resetDb({ client_profiles: [JSON.parse(JSON.stringify(liveProfiles[1]))],
+    analytics_metrics: [{ client_slug: 'probequiet', date: TODAY, seq: 7, source: 'n8n', run_id: 'n8n-1', ig_followers: '1' }] });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live' };
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { done_live_kept_existing: 1 }, 'n8n\'s row of the day wins');
+  assert.deepEqual(liveRows('probequiet').map(r => r.source), ['n8n'], 'only n8n\'s row for the day');
+  assert.equal(queue('probequiet').state, 'done', 'the client is done for the day');
+
+  // a row the shared preparation refuses (here: the profile name gives another slug) is never written,
+  // and it keeps its attempt so it cannot loop all morning
+  resetDb({ client_profiles: [profiles[2]] });
+  globalThis.__DB.syncview_runtime_flags[0].value = { mode: 'live' };
+  assert.deepEqual((await call({ action: 'tick' })).body.results, { error: 1 });
+  assert.equal(queue('ccc').last_error, 'live_row_slug_mismatch');
+  assert.equal(queue('ccc').attempts, 1, 'the attempt is kept');
+  assert.equal((globalThis.__DB.analytics_metrics || []).filter(r => r.date === TODAY).length, 0, 'nothing written');
+
+  console.log('ANALYTICS_METRICS_COLLECT_FUNCTION_OK: auth, off switch, queue, resume from a saved run, final-attempt timeout, refused commit, seed guard, clients list, shadow never writes the real table, live writes once with source edge, retries idempotent, transition-day rule');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });

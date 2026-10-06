@@ -180,7 +180,7 @@ Rollback at any point: set the flag to `{"mode":"off"}` (the function stops at o
 `select cron.unschedule('analytics-metrics-collect-tick');` if wanted. Shadow tables
 hold nothing the pages read.
 
-## 6. What this PR does NOT do (the switch is a separate PR, after the days match)
+## 6. What this PR does NOT do (the switch is a separate PR, after the days match; built 2026-10-06, see section 8b)
 
 - Write `analytics_metrics`. It needs one more value allowed in the table's
   `source` check, the write through the same fingerprint rules as `analytics-write`,
@@ -403,3 +403,104 @@ All three answered by the owner on 2026-10-01: (1) Apify spend accepted, day 1 i
 test client plus one real client with Instagram, TikTok and YouTube, then all clients
 for 3 days; (2) 3 clean days is the bar before proposing to switch n8n off;
 (3) Supabase is on the Pro plan.
+
+## 8b. The switch: Metrics and Top Videos write the real tables (built 2026-10-06, nothing deployed or applied)
+
+Status: **built, nothing deployed, nothing applied, no n8n edit.** Shadow comparison when this was built: 35 of 36
+clients match. Owner decision (2026-10-06): **nobody reads the Metrics and TopVideos Sheet tabs, so no Sheet copy is
+kept.** Market Research is not part of this switch.
+
+### What changes
+
+- **A third flag mode, `live`,** for `analytics_metrics_collect` and `analytics_top_videos_collect`. `off` and
+  `shadow` behave exactly as before. Any other text (a typo such as `LIVE`) is off.
+- **In `live` a job does everything `shadow` does** (its shadow rows, its post tracking, its queue) **and, in the same
+  database transaction, writes the real table the pages read** (`analytics_metrics`, `analytics_top_videos`) with the
+  new source **`edge`**. The rows are prepared by the same code `analytics-write` uses (`prepareRows` in
+  `_shared/sheets-mirror.mjs`, called from the new `_shared/analytics-collect-live.mjs`): the same slug rule, date
+  check, fingerprint (`row_hash`), occurrence number and `extra` column, so a row is stored exactly as the same row
+  posted by n8n is. `analytics-write` itself is unchanged and still refuses `edge` (only these two jobs write it).
+  A row whose slug or day does not match its queue row is refused, never written.
+- **Receipts.** Each live client commit leaves one receipt (it vouches for that client, as an `analytics-write` call
+  does). When the run covers every active client (no `clients` list in the flag) and the last queued client of the day
+  is done, the job writes one whole-dataset receipt. This matters: the staff pages trust the database copy only while
+  such a receipt is less than 3 days old, and the daily Sheet copy no longer writes it for a live dataset (below).
+
+### The transition-day rule (first writer wins, per client per day)
+
+A live commit adds a client's row(s) to the real table **only when the real table holds no row for that client and
+day yet, from any source.** So:
+
+- n8n already mirrored the client today (n8n is still on during the watch day): n8n's row stays, the job adds nothing
+  (its tick reports `done_live_kept_existing`) and still keeps its shadow row and post tracking.
+- A retry, a second tick, a re-run of the day: nothing is added twice (also guarded by the fingerprint key).
+- The job wrote first and n8n mirrors the same client later that day (n8n is not edited, so it cannot be stopped from
+  here): the day holds two rows. The pages read one Metrics row per client per day
+  (`test/analytics-same-day-rows-count-once.js`) and Top Videos of the latest day de-duplicated by link, so nothing is
+  counted twice. This only happens on days both are on; once n8n is off there is one writer.
+
+### n8n's safety checks, rebuilt
+
+n8n's "Validate Roster Coverage" node (read from the live workflow, read only) is rebuilt as
+`analytics_collect_daily_check(day, dataset)` over our own queues, with n8n's exact rules:
+
+| Problem | Rule |
+|---|---|
+| `missing_terminal` | an active client (not archived; only the flag's `clients` when it has a list) whose queue row for the day is not done |
+| `provider_failed` | a client with a configured platform that ended as a provider failure. Metrics: an Instagram "restricted profile" or "no items" answer does not count (n8n calls those non-fatal). Top Videos has no error class, so every failure counts |
+| `instagram_frozen` | metrics only: 5 or more clients with Instagram configured, all healthy, and not one with Instagram views gained today |
+
+A timer (`migrations/2026-10-06-analytics-collect-daily-check-schedule.sql`, plain SQL, no key) records the answer in
+`analytics_collect_daily_checks` at **09:07 UTC** (metrics window ends 08:59) and **13:07 UTC** (Top Videos window ends
+12:59). It records nothing while a job is off. **The combined Slack problem message** (`scripts/alert-digest.js`,
+hourly, OPEN_REPAIRS 328: the one-message alert the owner agreed) reads that table and names a **live** job's problem
+in one line, counts only, **once per day** (the same problem an hour later is quiet; the next day it is said again).
+It also names a live job whose check has not run for 30 hours. A shadow job never alerts (n8n still has its own
+checks then). **Important:** the combined message is itself still in shadow (repository variable
+`ALERT_DIGEST_ENABLED` unset), so it reaches Slack only once the owner switches it on. That switch is a condition
+before n8n is turned off (owner steps, part I4).
+
+### The daily Sheet copy and parity lane
+
+`sheets-mirror-daily.yml` copies the Sheet tabs into the database and compares the two. Once n8n is off, the Metrics
+and TopVideos tabs stop growing, so without a change the comparison would go red every day (the database has days the
+Sheet lacks) and the copy would keep writing whole-dataset receipts for tabs that no longer change. Changed:
+
+- **Parity:** never counts rows whose source is `edge` (metrics and top_videos only). It keeps comparing every row
+  that came from the Sheet side (n8n's mirror and the copy), so it stays green on the watch day, after n8n is off, and
+  after a rollback; after n8n is off it keeps proving that the copied history is intact. The other datasets are
+  compared exactly as before.
+- **Copy:** the lane now passes `--skip-database-owned`: a dataset whose job flag says `live` is not copied from the
+  Sheet (its receipt freshness then comes from the job itself). A failed read of the two flags stops the copy rather
+  than guess. Nothing changes while both flags are `off` or `shadow`.
+- Market Research Briefs, ContentSummaries and Clients Info are not touched.
+
+### Proof (offline)
+
+- `test/analytics-metrics-collect-function.js`, `test/analytics-top-videos-collect-function.js`: the real functions:
+  shadow never writes the real table or a receipt; live writes it once with source `edge` and the fingerprint
+  `analytics-write` computes; a second run and a refused commit followed by a retry still leave one copy; n8n's row of
+  the day wins; a row the preparation refuses is never written and keeps its attempt (no all-morning loop).
+- `test/analytics-collect-live-postgres.js`: the migration on a real PostgreSQL 16, applied twice; the four roles
+  measured on the new table and six new functions; `edge` accepted and nothing else new; live commits once per client
+  per day, the transition rule, a refused record leaves nothing behind (not even the shadow row); receipts; the daily
+  check fires on each of the three conditions and stays quiet otherwise; the schedule's text.
+- `test/alert-digest.js`: the message for each condition, once per day, quiet in shadow, the stale check.
+- `test/sheets-mirror-parity-catchup.js`: the parity read leaves out `edge` rows for the two datasets only; the copy
+  skip reads exactly `live`.
+
+**Not proven, and why:** nothing here ran against the live database, pg_cron, Apify, YouTube or Slack (no live access
+in the build environment). The first real proof is the first live day. The check's thresholds are n8n's, read from
+the live workflow, not re-measured.
+
+### Steps (click by click in `docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`, part "Going live")
+
+1. Lighthouse merges the PR. 2. The owner deploys `analytics-metrics-collect` and `analytics-top-videos-collect` from
+the single-function lane with the merged commit (nothing merged in between). 3. Lighthouse, with the owner's go,
+applies `migrations/2026-10-06-analytics-collect-live.sql` (VERIFY block) and then
+`migrations/2026-10-06-analytics-collect-daily-check-schedule.sql`. 4. Flags to `live` (no `clients` list). 5. Watch
+one full day (n8n still on). 6. Combined message switched on. 7. With the owner's explicit go, Lighthouse deactivates
+the two n8n workflows. Rollback: flags back to `shadow` (stops every real-table write at the next tick); if n8n was
+off for whole days, first append the job-only Metrics days back to the tab with `scripts/sheets-mirror-catchup.js`
+(n8n continues its cumulative counters from the last row it reads in the Sheet), then re-activate n8n. Its first day
+back counts the gains of the whole gap as one day (its PostTracking tab was not updated while it was off).

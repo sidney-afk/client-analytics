@@ -80,7 +80,7 @@ Review each frame on two axes: (1) does it look intentional and usable, and (2) 
 
 ## mobile-390-happy-path
 
-- [x] **01 · tap open the mobile staff menu** — expected: The staff menu opens beside its trigger and the Time Off item is visible inside the phone viewport.; verdict: `ok`; [screenshot](screenshots/mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg)
+- [x] **01 · tap open the mobile staff menu** — expected: The staff menu opens beside its trigger and the Time Off item is visible inside the phone viewport.; verdict: `warning`; note: Background Today uses an unavailable client-list fixture; the tested More sheet and Time Off action remain visible.; [screenshot](screenshots/mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg)
 - [x] **02 · tap Time Off in the mobile staff menu** — expected: The balance, request form, history, and scrollable calendar fit the mobile viewport without page overflow.; verdict: `ok`; [screenshot](screenshots/mobile-390-happy-path-02-tap-time-off-in-the-mobile-staff-menu.jpg)
 - [x] **03 · tap open the mobile request-type menu** — expected: The branded type menu opens inside the 390px viewport without a native picker or clipping.; verdict: `ok`; [screenshot](screenshots/mobile-390-happy-path-03-tap-open-the-mobile-request-type-menu.jpg)
 - [x] **04 · tap the mobile unpaid option** — expected: Unpaid is selected and the touch menu closes cleanly.; verdict: `ok`; [screenshot](screenshots/mobile-390-happy-path-04-tap-the-mobile-unpaid-option.jpg)

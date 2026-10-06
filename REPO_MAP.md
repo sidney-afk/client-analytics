@@ -62,6 +62,8 @@ the whole repository; a new runtime folder must be added to it.
 
 ## Documentation (`docs/`)
 
+`docs/audits/2026-10-06-phone-polish-round-1/` records personal Time Off and staff sign-in phone polish, with fictional before/after screenshots and an interactive comparison gallery. The browser contracts remain in `docs/syncview-design/tests/pto-ui-polish.js`; desktop parity now includes the loaded menu-only Time Off route.
+
 | Path | What it is |
 |---|---|
 | `docs/START_HERE.md` | Topic-grouped index of the core documentation, with one plain-English line for each listed document. Browse here; use `docs/FIND_ANYTHING.md` to route a specific question. |

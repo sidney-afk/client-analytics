@@ -104,8 +104,8 @@ async function verify(page, name, width, theme) {
     assert.equal(await page.evaluate(()=>currentNav),'calendar','shared Tabs did not reach Calendar');
   }
   if (!before && name === 'linear-project') {
-    const targets = await page.locator('[data-prod-project-issue] .prod-check, [data-prod-project-issue] .prod-due, [data-prod-project-issue] .prod-assign-hot').evaluateAll(nodes => nodes.map(n => {const r=n.getBoundingClientRect();return {w:r.width,h:r.height};}));
-    assert.ok(targets.length && targets.every(r => r.w >= 43.5 && r.h >= 43.5), 'project selection/date/assignee target below 44px');
+    const targets = await page.locator('[data-prod-project-issue] .prod-status, [data-prod-project-issue] .prod-check, [data-prod-project-issue] .prod-due, [data-prod-project-issue] .prod-assign-hot').evaluateAll(nodes => nodes.map(n => {const r=n.getBoundingClientRect();return {w:r.width,h:r.height};}));
+    assert.ok(targets.length && targets.every(r => r.w >= 43.5 && r.h >= 43.5), 'project status/selection/date/assignee target below 44px');
     const check = page.locator('[data-prod-project-issue] [data-prod-row-check]').first();
     const id = await check.getAttribute('data-prod-row-check');
     await check.click();

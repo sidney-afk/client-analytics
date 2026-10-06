@@ -215,7 +215,7 @@ async function processClient(db: SupabaseClient, q: QueueRow, flags: JsonMap, de
   if (collectMode(flags) === "live") {
     // The real row, prepared as analytics-write prepares it; the commit adds it only if
     // the client has no row for the day yet (first writer wins, see the header).
-    const [record] = await liveRecords("metrics", [row], { runId, clientSlug: prof.slug, runDate: q.run_date });
+    const [record] = await liveRecords("metrics", [row as JsonMap], { runId, clientSlug: prof.slug, runDate: q.run_date });
     const { data: live, error: le } = await db.rpc("analytics_metrics_collect_commit_live", {
       p_run_date: q.run_date, p_client_slug: prof.slug, p_row: row, p_posts: posts, p_run_id: runId,
       p_record: record, p_full_snapshot: coversEveryClient(flags),

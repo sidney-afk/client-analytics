@@ -56,56 +56,27 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _fphOpen(id) {
         const dialog = document.getElementById(id);
         if (!dialog || dialog.open) return;
-        if (id === 'fphTabs') {
-            const links = [...document.querySelectorAll('#headerNav > .header-nav-btn')].filter(a => _fphVisible(a));
-            dialog.innerHTML = _fphMenuHead('fphTabs', 'Tabs') + '<div class="fph-menu-body">' + links.map((a, i) => {
-                const label = (a.getAttribute('title') || a.textContent).replace(/\s+/g, ' ').trim().replace(/^SyncLinear$/, 'Linear');
-                return '<button type="button" class="fph-row' + (a.classList.contains('active') ? ' is-current' : '') + '" data-fph-nav="' + i + '"'
-                    + (a.classList.contains('active') ? ' aria-current="page"' : '') + '><span>' + _fphEsc(label) + '</span>'
-                    + (a.classList.contains('active') ? FPH_ICON.check : FPH_ICON.go) + '</button>';
-            }).join('') + '</div>';
-            dialog.querySelectorAll('[data-fph-nav]').forEach(b => b.addEventListener('click', () => {
-                const link = links[Number(b.getAttribute('data-fph-nav'))];
-                dialog.close();
-                if (link && !link.classList.contains('active')) link.click();
-            }));
-        } else {
-            const cfg = _fphScreen();
-            const rows = [];
-            const proxy = (label, sel, note) => {
-                const el = document.querySelector(sel);
-                if (!el || el.hidden || el.disabled) return;
-                rows.push({ label: label || el.textContent.replace(/\s+/g, ' ').trim(), note: note || '', sel });
-            };
+        dialog.innerHTML = _fphMenuHead(id, id === 'fphTabs' ? 'Tabs' : 'More') + '<div class="fph-menu-body"></div>';
+        const body = dialog.querySelector('.fph-menu-body');
+        const proxy = (label, el) => {
+            if (!el || el.hidden || el.disabled) return;
+            const b = document.createElement('button'); b.type = 'button'; b.className = 'fph-row';
+            b.innerHTML = '<span>' + _fphEsc(label) + '</span>' + FPH_ICON.go;
+            b.addEventListener('click', () => { dialog.close(); setTimeout(() => el.click(), 0); }); body.append(b);
+        };
+        if (id === 'fphTabs') window.svStaffPhoneMenus.tabs(body, dialog, 'fph-row');
+        else {
             if (currentNav === 'production') {
-                // The Linear sidebar is hidden on a phone: its views are reached from here.
-                const search = document.querySelector('.prod-search-btn');
-                if (search) rows.push({ label: 'Search', el: search });
+                proxy('Search', document.querySelector('.prod-search-btn'));
                 document.querySelectorAll('.prod-side .prod-nav').forEach(nav => {
                     const team = nav.querySelector('.prod-team-name');
                     nav.querySelectorAll('.prod-nav-btn').forEach(btn => {
                         const label = btn.textContent.replace(/\s+/g, ' ').trim();
-                        if (label) rows.push({ label: team ? team.textContent.trim() + ': ' + label : label, el: btn });
+                        if (label) proxy(team ? team.textContent.trim() + ': ' + label : label, btn);
                     });
                 });
             }
-            if (cfg && cfg.client) proxy('Change client', '#svClientBadge');
-            proxy('Quick jump', '.sv-jump-touch');
-            proxy(document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light appearance' : 'Dark appearance', '#themeToggle');
-            proxy('', '#headerTimeOffMenuItem');
-            proxy('', '#headerOnboardingMenuItem');
-            proxy('', '#headerCredentialsMenuItem');
-            const signOut = document.getElementById('staffIdentitySignOut');
-            if (signOut && !signOut.hidden) rows.push({ label: (document.getElementById('staffIdentityMenuLabel')?.textContent || 'Staff sign in').trim(), sel: '#staffIdentitySignOut' });
-            dialog.innerHTML = _fphMenuHead('fphMore', 'More') + '<div class="fph-menu-body">' + rows.map((r, i) =>
-                '<button type="button" class="fph-row" data-fph-act="' + i + '"><span>' + _fphEsc(r.label) + '</span>' + FPH_ICON.go + '</button>').join('') + '</div>';
-            dialog.querySelectorAll('[data-fph-act]').forEach(b => b.addEventListener('click', () => {
-                const r = rows[Number(b.getAttribute('data-fph-act'))];
-                dialog.close();
-                const el = r && (r.el || document.querySelector(r.sel));
-                // After this tap finishes bubbling, so an outside-click listener does not close what it opens.
-                if (el) setTimeout(() => el.click(), 0);
-            }));
+            window.svStaffPhoneMenus.more(body, dialog, 'fph-row');
         }
         dialog.showModal();
     }

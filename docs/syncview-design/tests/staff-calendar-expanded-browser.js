@@ -180,7 +180,7 @@ async function review(browser, origin, width, theme) {
     await page.evaluate(() => _syncviewCloseStaffAccount());
     await page.keyboard.press('Escape');
       await page.locator('[data-staff-menu=more]').click();
-      await page.locator('dialog[open] .sv-jump-touch').click();
+      await page.getByRole('button', { name: 'Quick jump', exact: true }).click();
       await page.locator('#svJump:not([hidden])').waitFor();
       ok(await page.locator('dialog[open]').count() === 0, 'More trapped native Quick jump');
       await page.locator('#svJumpInput').fill('phone fixture');

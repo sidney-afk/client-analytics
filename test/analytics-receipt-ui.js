@@ -28,6 +28,7 @@ if (receiptStart < 0 || receiptEnd < 0) throw new Error('analytics receipt helpe
 
 const sandbox = {
   _svClientPhoneActive: () => false,
+  window: { svIsStaffPhone: () => false },
   gainPeriod: 'day',
   sortCol: 'ig_followers',
   sortDir: 'desc',
@@ -236,6 +237,14 @@ const phoneFailedGains = api.gainsBar(failedWithoutLastGood, prior, null, null, 
 ok(phoneFailedGains.includes('Degraded · no fresh data') && !phoneFailedGains.includes('-30658'),
   'phone gains preserve the failed-provider receipt and suppress its false decline');
 sandbox._svClientPhoneActive = () => false;
+
+sandbox.window.svIsStaffPhone = () => true;
+const staffPhoneFailedGains = api.gainsBar(failedWithoutLastGood, prior, null, null, null, 'day', 'Receipt Test');
+ok(staffPhoneFailedGains.includes('Degraded · no fresh data') && !staffPhoneFailedGains.includes('-30658'),
+  'staff phone gains preserve the failed-provider receipt and suppress its false decline');
+ok(/gains-bar-label[^>]*>[^<]* <br>Gains/.test(staffPhoneFailedGains),
+  'staff phone gains keep a space when the line break is hidden by phone CSS');
+sandbox.window.svIsStaffPhone = () => false;
 
 const successfulZeroGains = api.gainsBar(successfulZero, prior, null, null, null, 'day', 'Receipt Test');
 ok(successfulZeroGains.includes('Instagram') && successfulZeroGains.includes('-30,658'),

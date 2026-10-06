@@ -341,7 +341,7 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         const bar = document.getElementById('svClientBar');
         if (!bar || bar.dataset.wired === '1') return;
         bar.dataset.wired = '1';
-        bar.addEventListener('click', e => {
+        const handleClientClick = e => {
             // Remove buttons sit inside a row: handle them first, never as a pick.
             const forget = e.target.closest('[data-sv-forget]');
             const forgetAll = e.target.closest('[data-sv-forget-all]');
@@ -357,6 +357,12 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
             }
             const pick = e.target.closest('[data-sv-client]');
             if (pick) { e.preventDefault(); svSharedClientPick(pick.getAttribute('data-sv-client')); }
+        };
+        bar.addEventListener('click', handleClientClick);
+        // The phone sheet portals this same popover, not a second picker model.
+        document.getElementById('svClientPop')?.addEventListener('click', e => {
+            if (!e.currentTarget.closest('.sv-phone-client-sheet')) return;
+            e.stopPropagation(); handleClientClick(e);
         });
         const input = document.getElementById('svClientSearch');
         if (input) {

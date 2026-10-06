@@ -60,50 +60,93 @@
                 + '<button type="button" class="pocket-staff-sheet-close" aria-label="Close ' + title.toLowerCase() + '">' + close + '</button></div>'
                 + '<div class="pocket-staff-sheet-body" id="pocketStaff' + kind + 'Body"></div></dialog>';
         }
-        function row(label, attrs, extra) {
-            return '<button type="button" class="pocket-staff-row"' + (attrs || '') + '><span>' + esc(label) + '</span>' + (extra || next) + '</button>';
-        }
         // The visible tab label, widened to the full name when the header only abbreviates it (Filming, TikTok).
         function tabLabel(el) {
             const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
             const full = (el.getAttribute('aria-label') || '').trim();
             return full && full.toLowerCase().indexOf(text.toLowerCase()) === 0 ? full : text;
         }
-        function tabsHtml() {
-            const cur = activeNavId();
-            return [...document.querySelectorAll('#headerNav > .header-nav-btn')]
-                .filter(el => el.style.display !== 'none')
-                .map(el => row(tabLabel(el), ' data-nav="' + esc(el.id) + '"' + (el.id === cur ? ' aria-current="page"' : ''), el.id === cur ? tick : next))
-                .join('');
-        }
+
+        // The same rows, labels and native destinations on every staff phone.
+        // Helpers create no DOM at desktop widths or on client links.
+        window.svStaffPhoneMenus = {
+            label(el) {
+                const labels = { navFilmingPlans: 'Filming Plans', navTiktokUpload: 'Upload', navProd: 'Linear' };
+                return labels[el.id] || tabLabel(el);
+            },
+            tabs(body, dialog, cls) {
+                dialog.classList.add('sv-phone-sheet');
+                body.replaceChildren();
+                document.querySelectorAll('#headerNav > .header-nav-btn').forEach(native => {
+                    if (native.hidden || native.style.display === 'none') return;
+                    const b = document.createElement('button'); b.type = 'button'; b.className = cls || '';
+                    b.innerHTML = '<span>' + esc(this.label(native)) + '</span>' + (native.classList.contains('active') ? tick : next);
+                    b.disabled = native.disabled;
+                    if (native.classList.contains('active')) b.setAttribute('aria-current', 'page');
+                    b.addEventListener('click', () => { dialog.close(); native.click(); }); body.append(b);
+                });
+            },
+            more(body, dialog, cls) {
+                dialog.classList.add('sv-phone-sheet');
+                const group = document.createElement('div'); group.className = 'sv-phone-proxies';
+                const title = document.createElement('p'); title.className = 'sv-phone-tools'; title.textContent = 'Tools'; group.append(title);
+                const proxy = (label, el, picker) => {
+                    if (!el || el.hidden || el.style.display === 'none') return;
+                    const b = document.createElement('button'); b.type = 'button'; b.className = cls || '';
+                    b.disabled = !!el.disabled;
+                    b.innerHTML = '<span>' + esc(label) + '</span>' + next;
+                    b.addEventListener('click', () => { dialog.close(); setTimeout(() => picker ? window.svPhoneOpenClientPicker() : el.click(), 0); }); group.append(b);
+                };
+                proxy('Change client', document.getElementById('svClientBadge'), true);
+                proxy('Quick jump', document.querySelector('.sv-jump-touch'));
+                proxy(document.documentElement.dataset.theme === 'dark' ? 'Light appearance' : 'Dark appearance', control('themeToggle'));
+                proxy(document.documentElement.dataset.statusPalette === 'classic' ? 'Current status colors' : 'Original status colors', control('statusPaletteToggle'));
+                [['headerTimeOffMenuItem', 'Time Off'], ['headerOnboardingMenuItem', 'Onboarding'], ['headerCredentialsMenuItem', 'Client Credentials']].forEach(p => proxy(p[1], control(p[0])));
+                proxy((document.getElementById('staffIdentityMenuLabel')?.textContent || '').trim() || 'Staff menu', control('staffIdentitySignOut'));
+                body.prepend(group);
+            }
+        };
+        window.svPhoneOpenClientPicker = function () {
+            if (!window.svIsStaffPhone()) return;
+            if (document.querySelector('.sv-phone-client-sheet[open]')) return;
+            const pop = document.getElementById('svClientPop'), badge = document.getElementById('svClientBadge');
+            if (!pop || !badge) return;
+            const parent = pop.parentNode, nextNode = pop.nextSibling;
+            const focus = document.activeElement;
+            const dialog = document.createElement('dialog'); dialog.className = 'sv-phone-client-sheet';
+            dialog.setAttribute('aria-labelledby', 'svPhoneClientTitle');
+            dialog.innerHTML = '<div class="sv-phone-client-head"><h2 id="svPhoneClientTitle">Choose client</h2><button type="button" aria-label="Close choose client">' + close + '</button></div>';
+            document.body.append(dialog);
+            if (pop.hidden) badge.click(); dialog.append(pop); dialog.showModal();
+            const finish = () => { if (dialog.open) dialog.close(); };
+            dialog.querySelector('button').addEventListener('click', finish);
+            dialog.addEventListener('click', e => {
+                if (e.target === dialog) { finish(); return; }
+                // Popover clicks keep their native handler; the header's outside-click
+                // listener must not dismiss this sheet when its close control is used.
+                e.stopPropagation();
+            });
+            const watch = new MutationObserver(() => { if (pop.hidden) finish(); }); watch.observe(pop, { attributes: true, attributeFilter: ['hidden'] });
+            const resize = () => { if (!phone.matches) finish(); }; phone.addEventListener('change', resize);
+            dialog.addEventListener('close', () => {
+                watch.disconnect(); phone.removeEventListener('change', resize);
+                pop.hidden = true; badge.setAttribute('aria-expanded', 'false'); badge.classList.remove('is-open');
+                parent.insertBefore(pop, nextNode?.parentNode === parent ? nextNode : null); dialog.remove();
+                if (focus?.isConnected && focus.checkVisibility()) focus.focus();
+            }, { once: true });
+            document.getElementById('svClientSearch')?.focus();
+        };
+
         function control(id) {
             const el = document.getElementById(id);
             return el && !el.hidden && el.style.display !== 'none' ? el : null;
         }
-        function moreHtml() {
-            const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-            const rows = [];
-            const bar = document.getElementById('svClientBar');
-            if (bar && !bar.hidden) rows.push(row('Change client', ' data-proxy="svClientBadge"'));
-            if (bar && !bar.hidden && document.querySelector('#svClientBar .sv-jump-touch')) rows.push(row('Quick jump to a client or tab', ' data-proxy-sel="#svClientBar .sv-jump-touch"'));
-            rows.push(row(dark ? 'Light appearance' : 'Dark appearance', ' data-proxy="themeToggle"'));
-            if (control('statusPaletteToggle')) {
-                const classic = document.documentElement.getAttribute('data-status-palette') === 'classic';
-                rows.push(row(classic ? 'Current status colors' : 'Original status colors', ' data-proxy="statusPaletteToggle"'));
-            }
-            [['headerTimeOffMenuItem', 'Time Off'], ['headerOnboardingMenuItem', 'Onboarding'], ['headerCredentialsMenuItem', 'Client Credentials']].forEach(p => {
-                if (control(p[0])) rows.push(row(p[1], ' data-proxy="' + p[0] + '"'));
-            });
-            const out = document.getElementById('staffIdentityMenuLabel');
-            if (document.getElementById('staffIdentitySignOut')) rows.push(row((out && out.textContent.trim()) || 'Staff menu', ' data-proxy="staffIdentitySignOut"'));
-            const who = document.getElementById('staffAccountSummary');
-            const caption = who && who.textContent.replace(/\s+/g, ' ').trim();
-            return (caption ? '<p class="pocket-staff-who">' + esc(caption) + '</p>' : '') + rows.join('');
-        }
         function open(kind) {
             const dialog = document.getElementById('pocketStaff' + kind);
             if (!dialog || dialog.open) return;
-            document.getElementById('pocketStaff' + kind + 'Body').innerHTML = kind === 'Tabs' ? tabsHtml() : moreHtml();
+            const body = document.getElementById('pocketStaff' + kind + 'Body');
+            if (kind === 'Tabs') window.svStaffPhoneMenus.tabs(body, dialog, 'pocket-staff-row');
+            else { body.replaceChildren(); window.svStaffPhoneMenus.more(body, dialog, 'pocket-staff-row'); }
             dialog.showModal();
         }
         function wireBar(bar) {
@@ -114,7 +157,7 @@
                 dialog.addEventListener('click', ev => {
                     if (ev.target === dialog) { dialog.close(); return; }
                     const r = ev.target.closest('.pocket-staff-row');
-                    if (!r) return;
+                    if (!r || r.closest('.sv-phone-proxies') || !r.dataset.nav && !r.dataset.proxy && !r.dataset.proxySel) return;
                     const target = r.dataset.nav ? document.getElementById(r.dataset.nav)
                         : r.dataset.proxy ? document.getElementById(r.dataset.proxy)
                         : r.dataset.proxySel ? document.querySelector(r.dataset.proxySel) : null;

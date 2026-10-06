@@ -355,6 +355,12 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
     }
 
     let viewMode=localStorage.getItem('syncview_viewMode')||'table';
+    // Phone view choice stays separate from the saved desktop preference.
+    let staffPhoneViewMode='cards';
+    function _staffOverviewViewMode(){return window.svIsStaffPhone?.()?staffPhoneViewMode:viewMode;}
+    window.matchMedia('(max-width: 767px)').addEventListener('change', () => {
+        if (!document.documentElement.classList.contains('boot-client') && document.querySelector('.overview-wrap')) render('all');
+    });
     let gainMode=localStorage.getItem('syncview_gainMode')||'day';
     let gainPeriod=localStorage.getItem('syncview_gainPeriod')||'day';
     function setGainPeriod(p){ gainPeriod=p; localStorage.setItem('syncview_gainPeriod',p); render('all'); }
@@ -366,7 +372,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         render('all');
     }
 
-    function setViewMode(mode){viewMode=mode;localStorage.setItem('syncview_viewMode',mode);render('all');}
+    function setViewMode(mode){if(window.svIsStaffPhone?.())staffPhoneViewMode=mode;else{viewMode=mode;localStorage.setItem('syncview_viewMode',mode);}render('all');}
     function setGainMode(mode){gainMode=mode;localStorage.setItem('syncview_gainMode',mode);render('all');}
     function controlsHTML(){
         const tableIcon=`<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="6" x2="15" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="10" x2="15" y2="10" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1="2" x2="6" y2="14" stroke="currentColor" stroke-width="1.3"/></svg>`;
@@ -375,7 +381,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='day'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('day')">Day</button>
             <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='week'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('week')">Week</button>
         </div>`;
-        return `<div class="overview-controls"><div class="controls-left">${periodToggle}</div><div class="view-toggle"><button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Show as table">${tableIcon}</button><button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Show as cards">${cardIcon}</button></div></div>`;
+        return `<div class="overview-controls"><div class="controls-left">${periodToggle}</div><div class="view-toggle"><button class="view-toggle-btn ${_staffOverviewViewMode()==='table'?'active':''}" onclick="setViewMode('table')" title="Show as table">${tableIcon}</button><button class="view-toggle-btn ${_staffOverviewViewMode()==='cards'?'active':''}" onclick="setViewMode('cards')" title="Show as cards">${cardIcon}</button></div></div>`;
     }
 
     function renderCardView(rows,deltaMap){
@@ -509,7 +515,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if(hasTT)cards+=`<div class="gains-platform-card gp-tt"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">TikTok</span></div><div class="gains-metrics-row">${chipDeltaOnly('Followers',ttFolDiff)}${chipDiff('Views',ttViewsGain)}</div></div>`;
         if(hasYT)cards+=`<div class="gains-platform-card gp-yt"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">YouTube</span></div><div class="gains-metrics-row">${chipDeltaOnly('Subscribers',ytSubDiff)}${chipDeltaOnly('Total Views',ytViewDiff)}</div></div>`;
         const note=dRow?'':`<span class="gains-no-data-note">Gains show after ${activePeriod==='week'?'7+':'2+'} days</span>`;
-        return`<div class="gains-bar"><span class="gains-bar-label">${periodLabel}${_svClientPhoneActive() ? ' ' : ''}<br>Gains</span>${cards}${note}</div>`;
+        return`<div class="gains-bar"><span class="gains-bar-label">${periodLabel}${_svClientPhoneActive() || window.svIsStaffPhone?.() ? ' ' : ''}<br>Gains</span>${cards}${note}</div>`;
     }
 
     // Returns top N monthly videos across all platforms, sorted by views desc, deduped by URL
@@ -853,7 +859,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
         const ncAnalytics=(row,platform,key,cls)=>{const f=_analyticsMetricFmt(row,platform,key);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}${key==='ig_followers'?_analyticsStateBadge(row,platform):''}</td>`;};
         const ncViewsDelta=(row,candidate,platform,key,cls)=>{const current=_analyticsMetricNumber(row,platform,key);if(current===null)return`<td class="${cls} num"><span class="g-none">—</span></td>`;const ref=_analyticsTrustedReference(row,candidate,platform,key);const value=ref?current-n(ref[key]):current;const f=fmt(value)||'0';return`<td class="${cls} num has">${f}</td>`;};
-        if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
+        if(_staffOverviewViewMode()==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
         return`<div class="overview-wrap">${controlsHTML()}<table class="overview-table"><colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>${(()=>{
         const sTh=(col,label,cls)=>{const active=sortCol===col;const arr=active?`<span style="margin-left:3px;font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span>`:'';return`<th class="${cls}" style="cursor:pointer;${active?'opacity:1;':''}" onclick="setSort('${col}')" title="Sort by ${label}">${label}${arr}</th>`;};
         const nameCol=sortCol==='client_name'?`<span style="display:inline-flex;align-items:center;gap:3px;">Client <span style="font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span></span>`:'Client';

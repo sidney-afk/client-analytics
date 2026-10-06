@@ -9481,7 +9481,7 @@
             html.fph-on[data-fph="workload"] .workload-overview-heading span { font-size: 13px; color: var(--text-secondary); }
             html.fph-on[data-fph="workload"] .workload-overview-capacity-head { display: none; }
             html.fph-on[data-fph="workload"] .workload-overview-status-head { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-            html.fph-on[data-fph="workload"] .workload-overview-head-total { min-width: 24px; height: 24px; font-size: 12px; }
+            html.fph-on[data-fph="workload"] .workload-overview-head-total { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 26px; height: 26px; min-width: 26px; padding: 0; font-size: 14px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
             html.fph-on[data-fph="workload"] .workload-overview-rows { gap: 12px; }
             html.fph-on[data-fph="workload"] .workload-overview-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; padding: 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--white); }
             html.fph-on[data-fph="workload"] .workload-overview-editor { min-height: 44px; gap: 10px; text-align: left; }
@@ -9552,7 +9552,8 @@
             html.fph-on[data-fph="workload"] .workload-day-card-total,
             html.fph-on[data-fph="workload"] summary.workload-day-card-chip,
             html.fph-on[data-fph="workload"] .wl-day-status-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; box-sizing: border-box; }
-            html.fph-on[data-fph="workload"] .workload-overview-status-total { justify-content: center; }
+            html.fph-on[data-fph="workload"] .workload-overview-status-total { justify-content: center; align-items: center; width: 44px; height: 44px; padding: 0; font-size: 17px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+            html.fph-on[data-fph="workload"] .workload-day-card-total { width: 44px; padding: 0; font-size: 15px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
             /* Legend: readable size, two tidy columns. */
             html.fph-on[data-fph="workload"] .workload-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin-top: 4px; font-size: 14px; color: var(--text-secondary); }
             html.fph-on[data-fph="workload"] .workload-legend-swatch { width: 14px; height: 14px; border-radius: 4px; }

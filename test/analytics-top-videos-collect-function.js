@@ -124,7 +124,9 @@ const shadow = slug => (globalThis.__DB.top_shadow || []).find(r => r.slug === s
   assert(!/\s{2}|\n/.test(b.rows[0].caption), 'whitespace runs collapsed');
   t = await call({ action: 'tick' });
   assert.equal(queue('ccc').state, 'done');
-  assert.deepEqual(shadow('ccc').rows, [], 'no platform configured: no rows, as n8n writes nothing');
+  assert.deepEqual(shadow('ccc').rows.map(r => [r.platform, r.period, r.rank, r.caption, r.video_url, r.views]),
+    [['instagram', 'week', '0', 'No new posts in the last 7 days', null, '0']],
+    'no platform configured: only the Instagram "no new posts" row, as n8n writes (live table, 2026-10-06)');
   assert.deepEqual(shadow('ccc').states, { instagram: 'not_configured', tiktok: 'not_configured', youtube: 'not_configured' });
 
   // tick 4: the TikTok run finished meanwhile -> the first client completes from its saved run
@@ -160,7 +162,7 @@ const shadow = slug => (globalThis.__DB.top_shadow || []).find(r => r.slug === s
   resetDb({ client_profiles: [{ ...profiles[0], instagram_handle: '', tiktok_handle: '' }] });
   t = await call({ action: 'tick' });
   assert.deepEqual(shadow('aaa').states.youtube, 'provider_failed');
-  assert.deepEqual(shadow('aaa').rows, []);
+  assert.deepEqual(shadow('aaa').rows.map(r => [r.platform, r.rank]), [['instagram', '0']], 'only the Instagram "no new posts" row (no Instagram configured)');
   ytFails = false;
 
   // the final attempt: a TikTok that never finishes is recorded as a provider failure
@@ -170,7 +172,7 @@ const shadow = slug => (globalThis.__DB.top_shadow || []).find(r => r.slug === s
   for (let i = 0; i < 9; i++) results.push(Object.keys((await call({ action: 'tick' })).body.results || {})[0] || 'none');
   assert.deepEqual(results, ['waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'done', 'none'], 'seven waits, the eighth attempt gives up, then nothing');
   assert.deepEqual(shadow('aaa').states.tiktok, 'provider_failed');
-  assert.deepEqual(shadow('aaa').rows, []);
+  assert.deepEqual(shadow('aaa').rows.map(r => [r.platform, r.rank]), [['instagram', '0']], 'only the Instagram "no new posts" row (no Instagram configured)');
 
   // a refused commit leaves the client retryable and says why; on the LAST claim the attempt is given back
   resetDb({ client_profiles: [profiles[2]],

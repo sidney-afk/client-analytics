@@ -539,6 +539,9 @@ async function phoneExpandedChecks(browser, port) {
             while (walker.nextNode()) if (!walker.currentNode.parentElement.closest('script,style')) walker.currentNode.textContent = walker.currentNode.textContent.replace(/\bKasper\b/g, 'Reviewer');
             document.querySelectorAll('[placeholder]').forEach(element => element.placeholder = element.placeholder.replace(/\bKasper\b/g, 'Reviewer'));
           });
+          // Visible Chrome briefly paints native touch feedback after a tap.
+          // Capture the settled screen, preserving the app's own feedback.
+          await page.waitForTimeout(800);
           await page.screenshot({ path: path.join(out, label + '-' + theme + '-' + width + '.png'), fullPage: !/picker|tabs|more|explanation|dialog/.test(label), animations: 'disabled' });
         }
         renders++;

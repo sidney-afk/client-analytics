@@ -7,6 +7,9 @@ permissions, balances or decisions.
 
 ## Changes
 
+The [first-round inventory](INVENTORY.md) separates the remaining desktop-style
+surfaces from already merged redesigns and unproven candidates.
+
 - The page title, Tabs and small More button replace the wide header on phones.
 - Full-width cards give balances, requests and history room to breathe.
 - Balance labels and pending-request status remain readable and explicit.
@@ -47,6 +50,10 @@ is bound to the current source fingerprint and visually reviewed image hashes.
 One frame records an unrelated Today background error caused by its unavailable
 client-list fixture; the tested More menu and Time Off action are visible.
 The other 100 frames were reviewed as correct. The integrity gate passed.
+
+The lifecycle runner now loads the existing single-file source helper itself,
+so direct invocations fingerprint the same assembled source as the unit/CI
+lane. Browser serving still uses the real split loader and generated modules.
 
 ## Desktop and limits
 

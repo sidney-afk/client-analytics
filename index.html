@@ -10294,7 +10294,9 @@
             html.fph-on #prodRoot { margin-inline: 12px; max-width: calc(100% - 24px); box-sizing: border-box; border-radius: 20px; overflow: hidden; }
             html.fph-on .prod-list { padding-inline: 12px; }
             html.fph-on .prod-subrow .prod-check { order: 2; width: 44px; height: 44px; opacity: 1; border: 0; background: transparent; margin: 0; }
-            html.fph-on .prod-subrow .prod-id { order: 3; margin-left: 0; }
+            html.fph-on[data-fph="production"] .prod-subrow .prod-id { order: 3; margin-left: 0; }
+            html.fph-on .prod-subrow .prod-spacer { display: none; }
+            html.fph-on .prod-project-issue-title { align-items: flex-start; }
             html.fph-on .prod-subrow .prod-check::before { inset: 14px; border: 1.5px solid var(--prod-faint); border-radius: 4px; }
             html.fph-on .prod-subrow .prod-check.on::before { border-color: var(--prod-accent); background: var(--prod-accent); }
             html.fph-on .prod-subrow .prod-check.on::after { position: absolute; left: 20px; top: 17px; border-color: var(--white); }

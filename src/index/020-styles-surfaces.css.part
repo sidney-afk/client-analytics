@@ -4810,9 +4810,6 @@
             body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-menu button { min-height: 44px; min-width: 44px; }
         }
         @media (max-width: 767px) {
-            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-menu { inset: auto 12px 12px !important; width: auto; min-width: 0 !important; box-sizing: border-box; max-width: none; max-height: 70dvh; transform: none; border-radius: 20px; padding: 12px; }
-            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item { background: var(--field-bg); color: var(--text-primary); font-size: 14px; border-radius: 12px; margin-bottom: 6px; }
-            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.active { background: var(--text-primary); color: var(--surface-raised); }
         }
         @media (max-width: 767px) {
             body:has(#calView[data-pocket-staff-phone]) .cal-import-overlay { padding: 0; align-items: flex-end; }
@@ -4923,5 +4920,35 @@
             #calView[data-pocket-staff-phone] .cal-card-color-tag { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-raised); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_14); display: inline-flex; align-items: center; justify-content: center; }
             #calView[data-pocket-staff-phone] .cal-card-color-tag-dot { width: 14px; height: 14px; }
             #calView[data-pocket-staff-phone] .cal-select-btn.active { color: var(--white) !important; }
+        }
+        /* Status picker as a bottom sheet, and one black Today marker in Month and Week. */
+        @media (max-width: 767px) {
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-menu { inset: auto 0 0 0 !important; width: 100%; max-width: 560px; margin: 0 auto; min-width: 0 !important; box-sizing: border-box; max-height: 80dvh; transform: none; border-radius: 25px 25px 0 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); background: var(--surface-raised); box-shadow: 0 -8px 30px var(--sv-shadow-rgba-0-0-0-0_16); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 14px; border-radius: 4px; background: var(--border); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3; color: var(--text-primary); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-setall-menu-head { padding: 0 0 8px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 2px; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent !important; color: var(--text-primary) !important; font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; text-align: left; }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--text-secondary); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.active { font-weight: 700; box-shadow: none; }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item:hover { filter: none; }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.active::after { content: ''; flex: none; width: 6px; height: 12px; margin: 0 6px 0 auto; border-right: 2px solid var(--text-primary); border-bottom: 2px solid var(--text-primary); transform: rotate(45deg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item:disabled { opacity: 0.45; }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-note { padding: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-n-a::before { background: var(--cal-status-n-a-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-in-progress::before { background: var(--cal-status-in-progress-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-for-smm-approval::before { background: var(--cal-status-for-smm-approval-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-kasper-approval::before { background: var(--cal-status-kasper-approval-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-client-approval::before { background: var(--cal-status-client-approval-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-tweaks-needed::before { background: var(--cal-status-tweaks-needed-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-approved::before { background: var(--cal-status-approved-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-scheduled::before { background: var(--cal-status-scheduled-bg); }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.cal-fld-status-posted::before { background: var(--cal-status-posted-bg); }
+            body:has(#calView[data-pocket-staff-phone]):has(.cal-fld-status-menu) #calView[data-pocket-staff-phone]::after { content: ''; position: fixed; inset: 0; z-index: 990; background: var(--overlay); }
+            #calView[data-pocket-staff-phone] .cal-month-cell.today .cal-month-num { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--text-primary); color: var(--bg); font-size: 1.05rem; font-weight: 800; line-height: 1; }
+            #calView[data-pocket-staff-phone] .cal-week-col.today .cal-week-num { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--text-primary); color: var(--bg); font-size: 1.05rem; font-weight: 800; line-height: 1; }
+            #calView[data-pocket-staff-phone] .cal-week-col.today .cal-week-day { color: var(--text-secondary); }
+            #calView[data-pocket-staff-phone] .cal-month-cell.today { background: var(--white); }
+            #calView[data-pocket-staff-phone] .cal-week-col.today { border-color: var(--border); }
+            #calView[data-pocket-staff-phone] .cal-week-col.today .cal-week-head { background: transparent; border: 0; }
         }
         /* STAFF-CALENDAR-PHONE:END */

@@ -266,6 +266,10 @@ async function review(browser, origin, width, theme) {
         await page.keyboard.press('Escape');
         await page.locator('.cal-fld-substatus-trigger').first().click();
         await page.locator('.cal-fld-status-menu').waitFor();
+        // The picker is a bottom sheet: a title, a colour dot on every row, sentence case, a dimmed page behind it.
+        ok(await page.locator('.cal-fld-status-menu .cal-fld-status-title').count() === 1, 'Status picker needs a title');
+        ok(await page.locator('.cal-fld-status-menu .cal-fld-status-item').evaluateAll(n => n.every(e => getComputedStyle(e).textTransform === 'none' && getComputedStyle(e, '::before').backgroundColor !== 'rgba(0, 0, 0, 0)')), 'Status rows need sentence case and a colour dot');
+        ok(await page.evaluate(() => { const o = getComputedStyle(document.getElementById('calView'), '::after'); return o.position === 'fixed' && o.backgroundColor !== 'rgba(0, 0, 0, 0)'; }), 'Page behind the status picker must be dimmed');
         await measure(page, 'status-menu-' + suffix);
         await shot(page, 'status-menu-' + suffix);
         await page.keyboard.press('Escape');
@@ -292,6 +296,9 @@ async function review(browser, origin, width, theme) {
         const dayRows = await page.evaluate(v => [...document.querySelectorAll(v === 'month' ? '.cal-month-cell[data-iso]' : '.cal-week-col[data-iso]')]
           .filter(e => !e.classList.contains('out') && e.checkVisibility({ checkVisibilityCSS: true }))
           .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
+        // Today is one black circle, the same in Month and Week.
+        const todayMark = await page.evaluate(v => { const e = document.querySelector(v === 'month' ? '.cal-month-cell.today .cal-month-num' : '.cal-week-col.today .cal-week-num'); if (!e) return null; const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), radius: cs.borderTopLeftRadius, bg: cs.backgroundColor, fg: cs.color }; }, view);
+        if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle');
         ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
         ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
         ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');

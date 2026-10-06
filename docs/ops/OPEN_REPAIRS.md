@@ -30471,3 +30471,13 @@ Not tested for real: Approve and Request change on the test client through these
 Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (6,852 checks) and the scope guard; before and after pictures in `docs/syncview-design/proofs/staff-calendar-expanded/design-check/`.
 Added on the same branch, after Codex's latest commits were merged in: the "Calendar Tools" label above the tabs is hidden, and the buttons and colour circle on a card's image use one calm chip style (solid surface, thin border, 44 px, only the icon keeps its colour), the same as the staff Samples batch. This entry was numbered 342 and clashed with Codex's own 342 on this branch, so it is renumbered 345.
 Way back: revert the commit.
+
+## 349. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: status picker as a bottom sheet, one Today marker (session Polish)
+
+On the same branch as entry 345. Phones and the standalone staff Calendar only: the one script change (a title in the picker) acts only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]`. Desktop markup and styles are not touched.
+
+- The status picker (Video, Thumbnail, Caption, and Set all) is a proper bottom sheet in light and dark: a grab handle, a title ("Video status", "Set all to…"), rows in sentence case with a colour dot for each status, a tick on the current one, 52 px rows, and the page behind it dimmed. Before it was a stack of all-caps chips with no dots, no title and no dimming.
+- Today is one black circle in Month and Week (36 px). Before, Month had dark text on a purple circle and Week a bare purple number.
+
+Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (now 9,462 checks: the picker has a title, a dot and sentence case on every row and a dimmed page; Today is the 36 px circle).
+Way back: revert the commit.

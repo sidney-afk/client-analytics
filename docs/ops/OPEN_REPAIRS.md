@@ -30645,7 +30645,7 @@ Not tested here: the real signed-in app (another session does that), real upload
 Proof: `node qa/finch-phone/shots.js` (offline, invented data) at 360, 390 and 430, light and dark; before and after pictures in `docs/syncview-design/proofs/finch-phone/`.
 Way back: revert the commit.
 
-## 341. [2026-10-05, BUILT, NOT DEPLOYED] Staff Today, Templates, Filming Plans and Submit on phones: Expanded layout (session Wren)
+## 353. [2026-10-05, BUILT, NOT DEPLOYED] Staff Today, Templates, Filming Plans and Submit on phones: Expanded layout (session Wren)
 
 Built from the approved mock-up, layout A (Expanded), on top of the client Calendar branch (entry 336, PR 1969). Phones and staff only. Desktop widths are unchanged: every new style sits in one `STAFF-PHONE` block inside `@media (max-width: 767px)` and every selector in it starts with `body:has(.pocket-staff-bar)`; that bar is created by script only on a phone-width screen showing one of the four tabs and removed everywhere else (guard: `test/staff-phone-css-scope.js`).
 
@@ -30688,3 +30688,14 @@ Review follow-up, 2026-10-05: the shared phone header, reviewer-only segmented c
 Final phone follow-up, 2026-10-05: hidden hiring scrollbars preserve chip scrolling; Finish reviewing fits one line with a legible standard disabled state; the distinct queue-hide action is labelled; the existing message filter is a small switch at the top of its list. The visible-Chrome capture and resize checks are recorded in the proof packet.
 
 Reviewer follow-up, 2026-10-05: the Review-specific CSS no longer overrides the shared equal-width phone segments. The unread badge reads New without wrapping on phones and returns to its original wording on desktop. Fresh reviewer captures and strict desktop equality are recorded in the same proof packet.
+
+## 354. [2026-10-06, BUILT, NOT DEPLOYED] The six phone pull requests merged together (session Lighthouse)
+
+Owner's go to merge #1969, #1970, #1971, #1973, #1972 and #1974. They were built in parallel, so each branch was brought up to date with the one before it and merged in that order. What the merge had to settle:
+- Client and staff Calendar each added the folding of empty days and the phone date format. Both now apply: on a staff phone Calendar and on a client link at phone width.
+- Staff Samples and Selection carried its own older copy of the staff Calendar phone styles. The newer staff Calendar block is kept once; Samples and Selection keep only their own blocks.
+- The staff phone title bar for Upload, Analytics, Workload and Linear stayed on the page, unstyled, after the phone left those screens, so the reviewer dashboard showed two Tabs buttons. It is now hidden whenever its screens are not showing (`099-phone-staff-shell`). The reviewer dashboard phone check is back to 0 failures.
+- The time-off test reaches Time Off through either phone More sheet. Its 101 screenshots were regenerated on the combined code and each was looked at; none is broken.
+- Ledger: Wren's entry, numbered 341 on its branch, is renumbered 353 because Polish's entry already holds 341.
+
+Not tested on a real phone. Way back: revert the merge commits in reverse order.

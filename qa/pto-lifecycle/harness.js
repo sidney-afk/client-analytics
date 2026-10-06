@@ -290,7 +290,22 @@ class LifecycleHarness {
       await injectSyntheticBanner(page);
       return;
     }
-    if (options.keyboard) {
+    // Returning from the reviewer dashboard on a phone restores its title row.
+    // Reach the original staff menu through the visible More/account controls.
+    const phoneMore = page.locator('.pocket-admin-heading [data-kasper-more-trigger]');
+    if (await phoneMore.isVisible()) {
+      if (options.keyboard) {
+        await tabToControl(page, '.pocket-admin-heading [data-kasper-more-trigger]');
+        await page.keyboard.press('Enter');
+        await page.keyboard.press('End');
+        assert(await page.locator('#kasperMoreMenu .pocket-admin-account').evaluate(
+          element => element === document.activeElement), 'keyboard reaches account inside phone More');
+        await page.keyboard.press('Enter');
+      } else {
+        await phoneMore.click();
+        await page.locator('#kasperMoreMenu .pocket-admin-account').click();
+      }
+    } else if (options.keyboard) {
       await tabToControl(page, '#headerMenuButton');
       await page.keyboard.press('Enter');
     } else {

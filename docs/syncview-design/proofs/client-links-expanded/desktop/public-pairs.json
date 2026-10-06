@@ -1,0 +1,29 @@
+{
+  "candidateIndexSha256": "43bb86de1d913a0b589340021bafd380f3e7064179807e2c0b4db2fbf66d32d5",
+  "pairs": [
+    {
+      "width": 1024,
+      "contentOnly": true,
+      "pngBytesIdentical": true,
+      "sha256": "4ba25b375c098a8992540d30330008d28ecec73eafaf395bf200988fd25c6ea8"
+    },
+    {
+      "width": 1280,
+      "contentOnly": true,
+      "pngBytesIdentical": true,
+      "sha256": "55187fd8899de32b834f2d8a967634a267daa98743a125b57a1a1df76275821b"
+    },
+    {
+      "width": 1440,
+      "contentOnly": true,
+      "pngBytesIdentical": true,
+      "sha256": "d1fa17891284145c074fd51f51ac4669bbe0680cae7f0be4c0943d913e4049c2"
+    },
+    {
+      "width": 1920,
+      "contentOnly": true,
+      "pngBytesIdentical": true,
+      "sha256": "05cc82e435de768fdfa1881ce0cce1f958d92d25ff3dc4c7006afb11a153c735"
+    }
+  ]
+}

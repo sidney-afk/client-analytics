@@ -1,0 +1,236 @@
+import { currentNav } from './065-core-nav-intake-state.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+    /* PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload,
+       Analytics, Workload, SyncLinear; approved mock-up, layout A).
+       On a phone these screens drop the logo header and nav row and show a
+       title with Tabs and More beside it. Nothing is built at desktop widths:
+       the bar is created only while the viewport is 767px or narrower, and
+       every action (nav links, client picker, theme, staff menu) is the
+       existing control, reached by clicking it. */
+    const FPH_SCREENS = {
+        'tiktok-upload': { title: () => (document.getElementById('tkPlatInstagram')?.classList.contains('on') ? 'Instagram Upload' : 'TikTok Upload'), client: true },
+        home: { title: () => 'Analytics', client: true },
+        workload: { title: () => 'Workload', client: false },
+        production: { title: () => 'Linear', client: false }
+    };
+    const FPH_MQ = window.matchMedia('(max-width: 767px)');
+    let _fphBar = null;
+    let _fphRaf = 0;
+    const FPH_ICON = {
+        chev: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>',
+        dots: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>',
+        close: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>',
+        go: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>',
+        check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 10.5 3.5 3.5 7.5-8"/></svg>'
+    };
+    function _fphScreen() {
+        if (_isClientLink || !document.body) return null;
+        if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return null;
+        return FPH_SCREENS[currentNav] || null;
+    }
+    function _fphEsc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+    function _fphBuild() {
+        if (_fphBar) return;
+        const main = document.getElementById('mainWrap');
+        if (!main || !main.parentNode) return;
+        const bar = document.createElement('div');
+        bar.className = 'fph-bar';
+        bar.id = 'fphBar';
+        bar.innerHTML = '<h1 class="fph-title" id="fphTitle"></h1><div class="fph-actions">'
+            + '<button type="button" class="fph-btn" id="fphTabsBtn" aria-haspopup="dialog" aria-controls="fphTabs">Tabs ' + FPH_ICON.chev + '</button>'
+            + '<button type="button" class="fph-btn fph-btn-icon" id="fphMoreBtn" aria-haspopup="dialog" aria-controls="fphMore" aria-label="More">' + FPH_ICON.dots + '</button></div>'
+            + '<dialog class="fph-menu" id="fphTabs" aria-labelledby="fphTabsTitle"></dialog>'
+            + '<dialog class="fph-menu" id="fphMore" aria-labelledby="fphMoreTitle"></dialog>';
+        main.parentNode.insertBefore(bar, main);
+        bar.querySelector('#fphTabsBtn').addEventListener('click', () => _fphOpen('fphTabs'));
+        bar.querySelector('#fphMoreBtn').addEventListener('click', () => _fphOpen('fphMore'));
+        bar.querySelectorAll('dialog').forEach(d => d.addEventListener('click', ev => {
+            if (ev.target === d || ev.target.closest('[data-fph-close]')) d.close();
+        }));
+        _fphBar = bar;
+    }
+    function _fphMenuHead(id, title) {
+        return '<div class="fph-menu-head"><h2 id="' + id + 'Title">' + _fphEsc(title) + '</h2><button type="button" data-fph-close aria-label="Close ' + _fphEsc(title.toLowerCase()) + '">' + FPH_ICON.close + '</button></div>';
+    }
+    function _fphVisible(el) { return !!el && el.style.display !== 'none' && !el.hidden; }
+    function _fphOpen(id) {
+        const dialog = document.getElementById(id);
+        if (!dialog || dialog.open) return;
+        if (id === 'fphTabs') {
+            const links = [...document.querySelectorAll('#headerNav > .header-nav-btn')].filter(a => _fphVisible(a));
+            dialog.innerHTML = _fphMenuHead('fphTabs', 'Tabs') + '<div class="fph-menu-body">' + links.map((a, i) => {
+                const label = (a.getAttribute('title') || a.textContent).replace(/\s+/g, ' ').trim().replace(/^SyncLinear$/, 'Linear');
+                return '<button type="button" class="fph-row' + (a.classList.contains('active') ? ' is-current' : '') + '" data-fph-nav="' + i + '"'
+                    + (a.classList.contains('active') ? ' aria-current="page"' : '') + '><span>' + _fphEsc(label) + '</span>'
+                    + (a.classList.contains('active') ? FPH_ICON.check : FPH_ICON.go) + '</button>';
+            }).join('') + '</div>';
+            dialog.querySelectorAll('[data-fph-nav]').forEach(b => b.addEventListener('click', () => {
+                const link = links[Number(b.getAttribute('data-fph-nav'))];
+                dialog.close();
+                if (link && !link.classList.contains('active')) link.click();
+            }));
+        } else {
+            const cfg = _fphScreen();
+            const rows = [];
+            const proxy = (label, sel, note) => {
+                const el = document.querySelector(sel);
+                if (!el || el.hidden || el.disabled) return;
+                rows.push({ label: label || el.textContent.replace(/\s+/g, ' ').trim(), note: note || '', sel });
+            };
+            if (currentNav === 'production') {
+                // The Linear sidebar is hidden on a phone: its views are reached from here.
+                const search = document.querySelector('.prod-search-btn');
+                if (search) rows.push({ label: 'Search', el: search });
+                document.querySelectorAll('.prod-side .prod-nav').forEach(nav => {
+                    const team = nav.querySelector('.prod-team-name');
+                    nav.querySelectorAll('.prod-nav-btn').forEach(btn => {
+                        const label = btn.textContent.replace(/\s+/g, ' ').trim();
+                        if (label) rows.push({ label: team ? team.textContent.trim() + ': ' + label : label, el: btn });
+                    });
+                });
+            }
+            if (cfg && cfg.client) proxy('Change client', '#svClientBadge');
+            proxy('Quick jump', '.sv-jump-touch');
+            proxy(document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light appearance' : 'Dark appearance', '#themeToggle');
+            proxy('', '#headerTimeOffMenuItem');
+            proxy('', '#headerOnboardingMenuItem');
+            proxy('', '#headerCredentialsMenuItem');
+            const signOut = document.getElementById('staffIdentitySignOut');
+            if (signOut && !signOut.hidden) rows.push({ label: (document.getElementById('staffIdentityMenuLabel')?.textContent || 'Staff sign in').trim(), sel: '#staffIdentitySignOut' });
+            dialog.innerHTML = _fphMenuHead('fphMore', 'More') + '<div class="fph-menu-body">' + rows.map((r, i) =>
+                '<button type="button" class="fph-row" data-fph-act="' + i + '"><span>' + _fphEsc(r.label) + '</span>' + FPH_ICON.go + '</button>').join('') + '</div>';
+            dialog.querySelectorAll('[data-fph-act]').forEach(b => b.addEventListener('click', () => {
+                const r = rows[Number(b.getAttribute('data-fph-act'))];
+                dialog.close();
+                const el = r && (r.el || document.querySelector(r.sel));
+                // After this tap finishes bubbling, so an outside-click listener does not close what it opens.
+                if (el) setTimeout(() => el.click(), 0);
+            }));
+        }
+        dialog.showModal();
+    }
+    // Workload days: each day cell is labelled "Sat, 3 Oct 2026" so the week and month can read as a day-by-day list.
+    function _fphLabelDays() {
+        document.querySelectorAll('.workload-day[data-wl-day]:not([data-fph-day])').forEach(cell => {
+            const p = String(cell.getAttribute('data-wl-day')).split('-');
+            const t = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+            if (isNaN(t.getTime())) return;
+            cell.setAttribute('data-fph-day', t.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).replace(/^(\w+) /, '$1, '));
+        });
+    }
+    /* Text arrows and crosses on these controls (never a post's own text) are drawn as icons on a phone. */
+    const FPH_GLYPHS = { '\u2190': 'left', '\u2192': 'right', '\u2191': 'up', '\u2193': 'down', '\u2197': 'upright', '\u2039': 'chev-left', '\u203A': 'chev-right', '\u25BE': 'chev-down', '\u21BB': 'refresh', '\u00D7': 'x' };
+    const FPH_GLYPH_RE = new RegExp('([' + Object.keys(FPH_GLYPHS).join('') + '])');
+    const FPH_GLYPH_SCOPE = '.tk-photo-btn, .tk-q-x, .back-btn, .m-delta, .platform-handle-link, .workload-overview-heading span, .workload-toolbar button, .dd-arrow, .wl-refresh-icon, .wl-client-search-clear, .overview-table thead th span';
+    function _fphIconify() {
+        document.querySelectorAll(FPH_GLYPH_SCOPE).forEach(el => {
+            [...el.childNodes].forEach(node => {
+                if (node.nodeType !== 3 || !FPH_GLYPH_RE.test(node.nodeValue)) return;
+                const frag = document.createDocumentFragment();
+                node.nodeValue.split(FPH_GLYPH_RE).forEach(part => {
+                    if (FPH_GLYPHS[part]) {
+                        const icon = document.createElement('span');
+                        icon.className = 'fph-gl fph-gl-' + FPH_GLYPHS[part];
+                        icon.setAttribute('aria-hidden', 'true');
+                        frag.appendChild(icon);
+                    } else if (part) frag.appendChild(document.createTextNode(part));
+                });
+                node.replaceWith(frag);
+            });
+        });
+    }
+    // Workload: the refresh button moves into the title row (same button, same click handler).
+    function _fphWorkloadChrome() {
+        const heading = document.querySelector('.workload-calendar-heading');
+        const refresh = document.querySelector('.workload-toolbar [data-wl-nav="refresh"]');
+        if (!heading || !refresh) return;
+        heading.querySelectorAll('.fph-wl-refresh').forEach(old => old.remove());
+        refresh.classList.add('fph-wl-refresh');
+        heading.insertBefore(refresh, heading.querySelector('.workload-weekend-notice'));
+    }
+    /* Analytics: every client gets its rank (the page numbers only the first three), and a 30 day views total of 0 beside a
+       positive gain is shown as a dash with its reason: the total is today's count minus the count from 30 days ago, so a
+       0 next to a gain cannot be a real total. */
+    const FPH_VIEWS_REASON = 'No 30 day total yet: today\u2019s count matches the count from 30 days ago, so the total cannot be told apart from missing data.';
+    function _fphAnalyticsRanks() {
+        document.querySelectorAll('.cards-grid .client-card').forEach((card, i) => {
+            const head = card.querySelector('.card-head > div');
+            if (!head || head.querySelector('.card-rank')) return;
+            const badge = document.createElement('span');
+            badge.className = 'card-rank card-rank-n';
+            badge.textContent = String(i + 1);
+            head.insertBefore(badge, head.firstChild);
+        });
+        document.querySelectorAll('.overview-table tbody tr').forEach((row, i) => {
+            const inner = row.querySelector('td .cell-inner');
+            if (!inner || inner.querySelector('.top-rank-badge')) return;
+            const badge = document.createElement('span');
+            badge.className = 'top-rank-badge fph-rank';
+            badge.textContent = String(i + 1);
+            inner.insertBefore(badge, inner.firstChild);
+        });
+    }
+    function _fphViewsDash() {
+        const dash = (valEl, label) => {
+            if (!valEl || valEl.getAttribute('data-fph-views')) return;
+            valEl.setAttribute('data-fph-views', '1');
+            valEl.textContent = '\u2014';
+            valEl.setAttribute('title', FPH_VIEWS_REASON);
+            valEl.setAttribute('aria-label', label + ': ' + FPH_VIEWS_REASON);
+        };
+        document.querySelectorAll('.card-metric').forEach(box => {
+            const label = box.querySelector('.card-metric-label');
+            const val = box.querySelector('.card-metric-val');
+            const gain = box.querySelector('.card-metric-gain.up');
+            if (label && val && gain && /views last 30d/i.test(label.textContent) && val.textContent.trim() === '0') dash(val, label.textContent.trim());
+        });
+        document.querySelectorAll('.metric-block').forEach(box => {
+            const label = box.querySelector('.m-label');
+            const val = box.querySelector('.m-value');
+            const gain = box.querySelector('.m-delta.up, .m-delta.gain, .m-delta.pos');
+            const delta = box.querySelector('.m-delta');
+            const positive = gain || (delta && /^\s*\u2191|\+/.test(delta.textContent));
+            if (label && val && positive && /views last 30d/i.test(label.textContent) && val.textContent.trim() === '0') dash(val, label.textContent.trim());
+        });
+    }
+    function _fphSync() {
+        _fphRaf = 0;
+        const cfg = _fphScreen();
+        const on = !!cfg && FPH_MQ.matches;
+        const root = document.documentElement;
+        if (on) {
+            _fphBuild();
+            const title = document.getElementById('fphTitle');
+            const text = cfg.title();
+            if (title && title.textContent !== text) title.textContent = text;
+            // The warning glyph is a text character; on a phone the icon is
+            // drawn by the layout instead, so the character is dropped.
+            document.querySelectorAll('.tk-warn-chip').forEach(chip => {
+                const t = chip.firstChild;
+                if (t && t.nodeType === 3 && /^\u26A0\uFE0F?\s*/.test(t.nodeValue)) t.nodeValue = t.nodeValue.replace(/^\u26A0\uFE0F?\s*/, '');
+            });
+            if (currentNav === 'workload') { _fphLabelDays(); _fphWorkloadChrome(); }
+            _fphIconify();
+            if (currentNav === 'home') { _fphAnalyticsRanks(); _fphViewsDash(); }
+            root.classList.add('fph-on');
+            root.setAttribute('data-fph', currentNav);
+        } else {
+            root.classList.remove('fph-on');
+            root.removeAttribute('data-fph');
+            if (_fphBar) { _fphBar.querySelectorAll('dialog[open]').forEach(d => d.close()); }
+        }
+    }
+    function _fphQueue() { if (!_fphRaf) _fphRaf = requestAnimationFrame(_fphSync); }
+    function _fphInit() {
+        const nav = document.getElementById('headerNav');
+        const main = document.getElementById('mainWrap');
+        if (!nav || !main) return;
+        const watch = new MutationObserver(_fphQueue);
+        watch.observe(nav, { attributes: true, attributeFilter: ['class'], subtree: true });
+        // The Upload page swaps its platform inside the same route.
+        watch.observe(main, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+        if (FPH_MQ.addEventListener) FPH_MQ.addEventListener('change', _fphQueue);
+        _fphQueue();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _fphInit);
+    else _fphInit();

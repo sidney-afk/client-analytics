@@ -30430,6 +30430,146 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 **Not done, said plainly.** Nothing has run against Apify, OpenAI, Anthropic (including the Batches API), pg_net or pg_cron; the first real proof is the first shadow brief. The equivalence is against the n8n code, not a recorded run (n8n keeps none); the reel order in the prompt follows n8n's Merge default and is unconfirmed. The real table `analytics_market_research_briefs` is not written (the switch is a later PR). The page is unchanged. Decisions left to the owner, later: keep the Keywords brief at all (what it shows and what it costs are in section 7c.2), and whether the AI summaries move off n8n as a small separate step.
 
 
+## 343. [2026-10-04, BUILT, NOT DEPLOYED] Expanded staff Samples and Calendar Selection on phones
+
+Samples Review and Sheet use full sections and comfortable individual cards below 768px in light and dark. Calendar and Samples Selection keep native actions at the bottom, with counts and Done. Native status, decision, archive and comment writers remain; pending staff decisions keep Saving until acknowledged. Desktop rules and restored controls remain unchanged. The native Sheet Select action is retained when switching from Review on a phone.
+
+Fictional screenshots at 360/390/430, loading/empty/error/dialog states, real TEST client decision saves and cleanup, desktop comparisons and exact check tails are in [the proof note](../syncview-design/proofs/staff-selection-samples-expanded/README.md). No deployment, merge, workflow edit or database installation is claimed. Other staff tabs, client layouts and admin screens remain outside this batch.
+
+## 344. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: design check against the owner's list (session Polish)
+
+On the same branch as entry 343. Phones and the standalone staff Calendar and Samples only: the one script change acts only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]` or `#sxrView[data-pocket-staff-samples]` (Create Post under `body:has(...)` of the same markers). Desktop markup and styles are not touched.
+
+Fixed:
+- The "Samples Tools" and "Calendar Tools" labels above the tabs are gone.
+- The outlined pink and blue buttons on a card's image and the grey circle (colour tag) are one calm chip style: a solid surface, a hairline border, 44 px, and only the icon keeps its colour (video pink, thumbnail blue).
+- The active "Select cards" button has white text on the dark button (it was grey).
+- Selection tray: "Color" has no colon. Archive is a quiet outlined destructive button of normal width, not a full-width red one, and still opens the same confirmation. "Generate captions" (which shares that button's class) is a dark button, not red. The page behind the tray is dimmed so the tray no longer cuts through a row.
+- Create Post: the batch name uses 16 px regular text like the other fields and fits at 390 and 430 wide; the post type picker is one row of three, as in the mock-up.
+
+Not changed on purpose: at 360 wide the batch name still truncates for the test fixture's long client name (the field cannot wrap and stays at 16 px so a phone does not zoom); a typical client name fits.
+
+Not tested for real: Archive on the test client through the new button (the confirmation and click code are unchanged; the offline test opens the confirmation). Item 2 of the owner's list refers to "the same fix as #1971 item 5"; I read it as the chip style above and applied it here only.
+
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,204 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
+Way back: revert the commit.
+
+## 348. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: batch name on two lines, status picker as a bottom sheet (session Polish)
+
+On the same branch as entries 343 and 344. Phones and the standalone staff Calendar and Samples only: the markup changes act only when `_calStaffPhoneActive()` or `_sxrStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under the staff Calendar or Samples marker. Desktop markup and styles are not touched.
+
+- Create Post, "Batch name": on a phone the field is a two-line box instead of a one-line field, so the default name ("Client · Samples · 5 Oct 2026") is shown in full at 360, 390 and 430 instead of being cut off. Enter does not add a line break, the 16 px text and the saved value are the same as before, and the field is still a single value read the same way. On a desktop screen it is the same one-line field as ever.
+- The Samples status picker is the same bottom sheet as the staff Calendar one (entry 349): a grab handle, a title ("Video status", "Thumbnail status", "Set all to…"), sentence case, a colour dot per status, a tick on the current one, 52 px rows and the page dimmed behind it.
+- Already on this branch from entry 344 and re-checked: no "Samples Tools" label, white text on the active "Select cards", a quiet Archive that still asks first, a dimmed page behind the selection tray, and the post type picker on one row.
+
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (now 5,286 checks, including that the whole batch name shows at every width) and the three scope guards. Before and after pictures in the pull request.
+Way back: revert the commit.
+## 342. [2026-10-05, BUILT, NOT DEPLOYED] Expanded staff Calendar on phones
+
+Standalone Review, Sheet, Month and Week now use phone cards and vertical days
+at 360/390/430, in light and dark. Tabs and More sit beside Calendar; native
+Organize, card size, setup, account and client selection move into More. Current
+month dates and all seven week days remain. Pending review decisions say Saving
+until acknowledged; drafts, errors, permission checks and native writers remain.
+All new styles are phone-width and standalone-Calendar scoped; returning to
+desktop restores the original controls and positions. Visible-browser fictional
+phone checks cover dialogs and recovery, and real TEST Caption Approve and
+Request change were read back with timestamps and the exact note. The owned
+disposable card was archived and read back. The desktop gate and public-safe
+screenshots are recorded in `docs/syncview-design/proofs/staff-calendar-expanded/README.md`.
+The Production editor-placement gate remains a reproduced unchanged-main failure.
+Selection, Samples and admin screens are outside this batch. No merge, deploy,
+backend installation, database change or n8n edit was performed.
+
+## 345. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 338 of this branch. Phones and the standalone staff Calendar only: the markup is added only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]`. Desktop markup and styles are not touched.
+
+What was compared: the real app at 360, 390 and 430 wide, light and dark, beside layout A of the mock-up gallery, for Review with a post open, Sheet, Month, Week, the Tabs sheet and the More sheet.
+
+Fixed:
+- Tabs button: a real chevron icon in place of the small text arrow. More button: a real three-dot icon at normal size, same height as Tabs. Sheets close with a real cross icon.
+- Tabs and More sheets: bottom sheets with a grab handle and the mock-up's title size; the More sheet is titled "More". Rows are full width with left-aligned labels and a line between them. The current tab is bold with a tick. Organize and Card size are the same full width.
+- Tools: "Select cards" and "Write captions" show their names next to their icons.
+- Review card: the three grey status pills under the title are gone (the sentence above and each section already say it). Open in Sheet is a labelled button; an open post closes with a quiet chevron button. Approve is the mock-up's dark button (green before), with its route chip kept.
+- Sheet card: one date format on phones, "Sun, 4 Oct 2026" (desktop keeps its own); the Thumbnail and Video link fields are calm neutral fields with their link icon, their edit pencils neutral too; the three status rows use 13 px text.
+- Month and Week: each run of consecutive empty days is one slim line, for example "Thu 1 to Sat 3 · Nothing scheduled". Today and days with a post stay separate rows. Every folded day keeps its own element and date, and unfolds while a post is being dragged.
+
+Still different from the mock-up, on purpose:
+- Month is a list of days, not the mock-up's small grid: staff can drag posts onto days, and the list is where they are dropped.
+- A closed Review card keeps its labelled "Open in Sheet" next to the chevron; the mock-up only draws the empty Review state.
+- Approve keeps the "Reviewer" route chip and the "Client" alternate button: they are real routing choices.
+
+Not tested for real: Approve and Request change on the test client through these restyled buttons. The click handlers were not touched and the offline test clicks them; the signed-in staff page cannot run this branch from here. The unfold during a real drag on a touch phone is covered by the markup test only.
+
+Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (6,852 checks) and the scope guard; before and after pictures in `docs/syncview-design/proofs/staff-calendar-expanded/design-check/`.
+Added on the same branch, after Codex's latest commits were merged in: the "Calendar Tools" label above the tabs is hidden, and the buttons and colour circle on a card's image use one calm chip style (solid surface, thin border, 44 px, only the icon keeps its colour), the same as the staff Samples batch. This entry was numbered 342 and clashed with Codex's own 342 on this branch, so it is renumbered 345.
+Way back: revert the commit.
+
+## 349. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: status picker as a bottom sheet, one Today marker (session Polish)
+
+On the same branch as entry 345. Phones and the standalone staff Calendar only: the one script change (a title in the picker) acts only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]`. Desktop markup and styles are not touched.
+
+- The status picker (Video, Thumbnail, Caption, and Set all) is a proper bottom sheet in light and dark: a grab handle, a title ("Video status", "Set all to…"), rows in sentence case with a colour dot for each status, a tick on the current one, 52 px rows, and the page behind it dimmed. Before it was a stack of all-caps chips with no dots, no title and no dimming.
+- Today is one black circle in Month and Week (36 px). Before, Month had dark text on a purple circle and Week a bare purple number.
+
+Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (now 9,462 checks: the picker has a title, a dot and sentence case on every row and a dimmed page; Today is the 36 px circle).
+Way back: revert the commit.
+## 337. [2026-10-03, SOURCE PREPARED, NOT DEPLOYED] Expanded client Samples and Analytics phone batch
+
+Prepare the actual client Samples Review, queue and Sheet plus Analytics from latest main, independently of the client Calendar batch. Comfortable separate cards and full component sections, phone title with Tabs and More, native card-size control in More, existing analytics tabs and About control in their phone menus. Keep the native decision/comment/media/Notes handlers, client field permissions, numbers, charts, saved copies, loaders and retries. Client links stay light. All new CSS is capped at 767px and scoped to client links; original controls and contents restore on desktop. Staff/reviewer/admin presentation is outside this batch.
+
+Source build, module and phone CSS scope checks pass. Visible-browser proof is paused at the owner's request to avoid interrupting a game. The prior signed-in browser closed during a control restart; owner sign-in has been requested once for later live verification. Final phone screenshots, real native test-sample decision saves and full desktop parity remain pending. The intercepted browser gate covers 360/390/430 and is wired into normal and both split-build CI lanes; no final browser pass or PR is claimed. Proof status: `docs/syncview-design/proofs/client-links-expanded/README.md`. No backend function, n8n workflow, database/schema change, merge or deployment.
+
+Final client Samples/Analytics proof: Expanded phone gate passes 831 assertions at 360/390/430; the existing Calendar/Samples phone gate passes all five sizes per surface including landscape. Full desktop comparison passes 68/68 at four widths. A normal TEST Create Post sample with native work items passed real client Approve and Request change, normal-reader timestamp and exact-note confirmation, verified archive and both work items read back in Backlog. An earlier unlinked fixture was correctly refused and archived. Fictional before/after screenshots, sanitized receipts and check tails live in `docs/syncview-design/proofs/client-links-expanded/README.md`. Source-only candidate proof; no merge or deployment.
+
+Final current-source follow-up, 2026-10-04: phone gate passes 897 assertions, including pending decisions across the desktop breakpoint; 72 fictional after screenshots. The full desktop run matches every screenshot and 66/68 style pairs; isolated unchanged-source repeats of both Month pairs match, completing all 68 comparisons. Real TEST Approve and Request change return HTTP 200, normal-reader approval timestamp and exact-note reads confirm saves, archive and both work items in Backlog are verified. Nine real read-only layouts pass at 360/390/430. The required Production editor-placement check remains red on unchanged main too. Complete receipts and actual check tails are in the batch proof folder. No merge or deployment.
+
+## 339. [2026-10-04, BUILT, NOT DEPLOYED] Client Samples and Analytics on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 337. Phones and client links only; every new style sits in the same `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`, and the script edit is inside the phone-only shell. Desktop markup and styles are not touched. Same fixes as entry 338 on the client Calendar, so the three client screens match.
+
+Fixed:
+- Tabs button: a real chevron icon. More button: a real three-dot icon at normal size. Sheets close with a real cross icon.
+- Tabs and More sheets: grab handle, mock-up title sizes, full-width rows with left-aligned labels and a line between them; the current tab is bold with a tick. "About this client" and Card size are full-width rows. The More sheet is titled "More".
+- Samples Review card: the grey status pills under the title are gone. An open sample closes with the quiet chevron button. Approve is the mock-up's dark 48 px button. Comment and Request change sit right-aligned. The video preview spans the card.
+- Samples Sheet card: the video link is a quiet field with its link icon; status pills are 13 px with full-contrast text and wrap side by side.
+- Analytics: the "Today's gains" label read "TODAY'SGAINS" because its line break was hidden with nothing in its place. It is two words again.
+
+Still different from the mock-up, on purpose: a closed Review card keeps a labelled "Review" button (the mock-up only draws the open card), and the Analytics page shows real numbers and charts where the mock-up only has the empty state.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) still passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check/`. Approve and Request change on a sample were not re-tested for real in this pass; see the pull request comment.
+Way back: revert the commit.
+
+## 341. [2026-10-04, BUILT, NOT DEPLOYED] Client Analytics and Samples tabs on phones: second design check (session Polish)
+
+On the same branch as entries 337 and 339. Phones and client links only. Styles sit in the `CLIENT-PHONE` block under `html.boot-client` inside `@media (max-width: 767px)`; the two script changes act only when `_svClientPhoneActive()` is true (a client link at phone width), so desktop output is unchanged.
+
+Fixed:
+- "Today's gains" is on one line. Its label had a line break that the phone styles hid, which glued the words together; a space is added for phone client links and the label no longer wraps.
+- When there is no earlier day to compare with, the three pink, grey and red boxes of dashes are replaced by one calm line, "Gains show after 2+ days".
+- The vertical axis on the follower and views charts has about five steps and no repeated labels (2.3K, 2.4K, 2.5K, 2.6K). If the steps are closer than 0.1K a second decimal is used, so two neighbours are never the same.
+- "Last scraped" and "comparing vs" show "Sat, 3 Oct 2026". The chart's own date labels are unchanged.
+- Each platform has one colour: the dot on its card, the dot on its chart switch and its chart line now match (Instagram pink, TikTok black, YouTube red). Before, TikTok was grey on the card and teal on the switch.
+- On the Samples page the tab that is not selected ("Sheet") reads as a button, not a disabled one: full-strength text instead of a faded grey.
+
+Not changed on purpose: desktop keeps its own date format, axis labels and dot colours.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check-analytics/`. A real Request change was sent on a test sample's thumbnail through this layout and read back as "Tweaks needed" with the exact note saved.
+Way back: revert the commit.
+
+## 347. [2026-10-05, BUILT, NOT DEPLOYED] Client Analytics on phones: third design check (session Polish)
+
+On the same branch as entries 337, 339 and 341. Phones and client links only: every script change acts only when `_svClientPhoneActive()` is true (a client link at phone width), and every style sits inside `@media (max-width: 767px)` under `html.boot-client [data-pocket-client-phone=analytics]`. Desktop output is unchanged.
+
+- A chart with one day of data is a short note, "The trend line appears once there are two days of data.", not an empty grid with a single date under it.
+- Chart dates on the bottom axis read "5 Oct" (desktop keeps its own format).
+- The header agrees with the page: with analytics it reads "Last scraped Mon, 5 Oct 2026 · 1 data point" (and "· comparing vs …" once there is an earlier day); with none, the line is left out, because the "No analytics yet" box already says so. Before, an empty page said "Last scraped · 1 data point · no analytics yet" above a box saying "No analytics yet".
+- The "needs a second day" message appears once, in Today's gains. The italic tail in the header and the "no previous day yet" under every number are gone.
+- The Daily views switches (All, Instagram, TikTok, YouTube) sit on one row at 360, 390 and 430 wide, and an empty chart is a short note instead of a tall empty box.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (now 1,419 assertions: the 2+ days note appears once, no repeated note, a plain header, switches on one row and not cut off, a short note for a one-point chart, and "5 Oct" for chart dates). Before and after pictures in the pull request.
+Way back: revert the commit.
 ## 336. [2026-10-03, BUILT, NOT DEPLOYED] Pocket Compact: first client Calendar phone checkpoint
 
 Owner request: build layout B from PR #1950 into the real app, beginning with the client review link (Review with a post open, Sheet, Month, Week), one PR, then stop for visual approval. Phone title/Tabs/More, continuous Sheet and Review feed, one review post and one component section open at a time, explicit unsent/pending/sending/failed labels, existing actions and permissions preserved. Organize and card size move into More. All new CSS is capped at 767px and scoped to client links; staff and desktop presentation stay on their existing paths. Fragments edited and index rebuilt. No n8n workflow, database/schema, backend function or deployment change.
@@ -30484,6 +30624,25 @@ Every folded day keeps its own element and date, so dragging a post onto a day s
 Not tested: the unfold during a real drag on a touch phone; it is covered by the markup test only (each folded day keeps its date), not by a real drag.
 
 Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 1,743 assertions) checks that no folded day shows, that every run line names its days, and that folded days keep their date. Before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check-runs/`.
+## 351. [2026-10-05, BUILT, NOT DEPLOYED] Staff phone layout: TikTok and Instagram Upload, Analytics, Workload, SyncLinear (session Finch)
+
+Draft pull request on top of the client Calendar branch (entries 336, 338 and 340). Numbered 351 because 342 to 350 are already claimed on other open pull requests. Phones and staff only. The four screens drop the logo header and nav row on a phone and show a title with Tabs and More beside it, then follow layout A (Expanded) of the approved mock-up. Nothing is created at desktop widths: the shell is built by `src/index/099-phone-staff-shell.js.part` only while the viewport is 767 px or narrower, and every new rule sits in one `FINCH-PHONE` block under `@media (max-width: 767px)` and `html.fph-on` (guard: `test/finch-phone-css-scope.js`).
+
+What a phone gets:
+- Tabs (every existing tab, same links) and More (change client, quick jump, dark or light appearance, and the existing Time Off, Onboarding, Client Credentials and sign-out entries; on SyncLinear also Search and the sidebar views My issues, Projects and each team's Issues and Projects, which the hidden sidebar used to hold). All of them click the existing control; none is new behaviour.
+- Upload: one platform at a time under the title, numbered steps become cards, the Post now bar is pinned to the bottom, queue tabs and row actions are 44 px, the warning glyph is drawn as an icon.
+- Analytics: Analytics, Content Calendar and Brief as one segmented row; the overview table scrolls inside its own frame; dates read "Sat, 3 Oct 2026"; chart date axes show short level labels ("3 Oct"); the TikTok and YouTube chart chips use the line colours.
+- Workload: Team overview rows stack; the week and month are a day-by-day list; Plan + Due Date keeps its board and scrolls inside its own frame.
+- SyncLinear: Active, Backlog and All issues as one segmented row, each issue is a card, filters and pickers are 44 px.
+
+Still different from the mock-up, on purpose:
+- The mock-up's Analytics shows only an empty client; the real screen also has the overview table and cards, kept.
+- The mock-up's number badges and rail on the Upload steps are left out (they overlapped the card edge).
+- Content Calendar inside Analytics only keeps its toolbar on screen here; the full staff Calendar phone layout is its own pull request.
+- Plan + Due Date is still an editors-by-days board; it scrolls sideways inside a frame.
+
+Not tested here: the real signed-in app (another session does that), real uploads (none were attempted; every Upload write is refused by the harness), and real data volumes.
+Proof: `node qa/finch-phone/shots.js` (offline, invented data) at 360, 390 and 430, light and dark; before and after pictures in `docs/syncview-design/proofs/finch-phone/`.
 Way back: revert the commit.
 
 ## 341. [2026-10-05, BUILT, NOT DEPLOYED] Staff Today, Templates, Filming Plans and Submit on phones: Expanded layout (session Wren)
@@ -30503,3 +30662,29 @@ Not tested here (needs a real signed-in staff session, done later by another ses
 
 Proof: `docs/syncview-design/tests/staff-phone-browser.js` (every state at 360, 390 and 430, light and dark, no writes) and the pictures under `docs/syncview-design/proofs/staff-phone-templates-filming-submit-today/`.
 Way back: revert the commit.
+Round 2 (Lighthouse review, same branch):
+- Workload: the team overview is one card per person, an empty status line is not drawn (a person with nothing gets one calm line), text is 13 to 16 px, the refresh button sits in the title row, the filters are a small grid, the legend is 14 px.
+- Analytics: "Views last 30D" of 0 next to a gain was a real arithmetic effect, not a display slip. The card shows today's count minus the count from 30 days ago; my invented data repeated the same total every 30 days, so the difference was exactly 0 while the day's gain was positive. On a phone a 0 next to a positive gain is now a dash with its reason on touch or hover; the invented data now grows like a real rolling total. Every client card and table row shows its rank (the page numbered only the first three), the "Pin client" button is a normal button, and the purple line under each card is gone on phones.
+- Upload: the Upcoming, Failed and Done counts are readable (the number was the same colour as its circle).
+- Linear: an issue with no date no longer draws an empty date pill (the date is still set from the issue page).
+## 346. [2026-10-05, BUILT, NOT DEPLOYED] Client Calendar on phones: one Today marker, even spacing, Week thumbnails (session Polish)
+
+On the same branch as entries 336, 338 and 340. Phones and client links only: the one script change acts only when `_calPhoneClient()` is true (a client link at phone width), and every style sits inside `@media (max-width: 767px)` under `html.boot-client`. Desktop markup and styles are not touched.
+
+- Today is the same black circle in Month and Week: 36 px, white number, with the weekday above it. Before, Month had a circle and Week a black rounded rectangle, and the Month card for today was tinted blue. Both cards are plain white now, so only the circle marks today.
+- Even spacing: the nav row has the same space under it in both views (12 px), cards and "Nothing scheduled" lines are 12 px apart, and a folded line is 28 px high so the gap above and below its text matches. Before, Month left about 40 px between a folded line and the next card while Week left almost none under the header.
+- Week thumbnails load: the few Month and Week thumbnails on a phone client link are fetched at once instead of lazily. The earlier Week screenshots showed empty grey squares because the picture was taken before the images arrived; the test now waits for them, and checks that they are eager and loaded.
+
+Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 2,106 assertions: Today marker is the 36 px circle in both views; thumbnails are eager and loaded). Before and after pictures in the pull request.
+Way back: revert the commit.
+## 352. [2026-10-05, BUILT, NOT DEPLOYED] Expanded phone layout for the review dashboard and admin tools
+
+Owner-directed presentation change from main, independent of the parked phone PRs. Phone-only styles and navigation in the source fragments keep native permissions, destinations, decisions, forms, saved drafts and writers. Comfortable cards and full sections replace narrow desktop columns; Tabs and More share the heading, with native account controls and pending counts preserved. Branded dates retain the original form input and handlers. Desktop widths receive no phone DOM or styles.
+
+Proof and explicit limits: `docs/syncview-design/proofs/kasper-admin-expanded/README.md`. Screenshots use fictional people, workspaces and media. Offline transports intercept every write. No database, workflow or deployment change; no merge. Browser checks and the mandatory desktop parity comparison are recorded with their actual output.
+
+Review follow-up, 2026-10-05: the shared phone header, reviewer-only segmented control, aligned review/credential actions, explicit missing-password label, scrolling hiring filters and two-line message titles are corrected. The mocked Time Off journey now enters the original account menu through phone More; its reviewed public evidence was refreshed against the source fingerprint. Existing permissions and writers remain unchanged.
+
+Final phone follow-up, 2026-10-05: hidden hiring scrollbars preserve chip scrolling; Finish reviewing fits one line with a legible standard disabled state; the distinct queue-hide action is labelled; the existing message filter is a small switch at the top of its list. The visible-Chrome capture and resize checks are recorded in the proof packet.
+
+Reviewer follow-up, 2026-10-05: the Review-specific CSS no longer overrides the shared equal-width phone segments. The unread badge reads New without wrapping on phones and returns to its original wording on desktop. Fresh reviewer captures and strict desktop equality are recorded in the same proof packet.

@@ -54,6 +54,7 @@
 324-client-onboarding-panel.js.part
 097-today.js.part
 098-smm-clients.js.part
+099-phone-staff-shell.js.part
 170-calendar-links-status.js.part
 190-calendar-approval-comments.js.part
 185-client-review-queue.js.part

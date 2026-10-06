@@ -23,7 +23,7 @@ import {
   WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
 } from './070-core-client-names.js';
 import { _syncviewApplyTabFavicon, navTo } from './092-core-submit-form-navigation.js';
-import { svClientBarSync, svSharedClientNote } from './095-shared-client.js';
+import { _svClientPhoneActive, svClientBarSync, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { _calRuntimeFlagClient, _settingsWriteHeaders, _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.js';
 import { _calAbandonLinkOnCalendarExit, _calSetFocusRequest, _calSetPendingDeepLink } from './130-calendar-model-cache.js';
@@ -509,7 +509,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if(hasTT)cards+=`<div class="gains-platform-card gp-tt"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">TikTok</span></div><div class="gains-metrics-row">${chipDeltaOnly('Followers',ttFolDiff)}${chipDiff('Views',ttViewsGain)}</div></div>`;
         if(hasYT)cards+=`<div class="gains-platform-card gp-yt"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">YouTube</span></div><div class="gains-metrics-row">${chipDeltaOnly('Subscribers',ytSubDiff)}${chipDeltaOnly('Total Views',ytViewDiff)}</div></div>`;
         const note=dRow?'':`<span class="gains-no-data-note">Gains show after ${activePeriod==='week'?'7+':'2+'} days</span>`;
-        return`<div class="gains-bar"><span class="gains-bar-label">${periodLabel}<br>Gains</span>${cards}${note}</div>`;
+        return`<div class="gains-bar"><span class="gains-bar-label">${periodLabel}${_svClientPhoneActive() ? ' ' : ''}<br>Gains</span>${cards}${note}</div>`;
     }
 
     // Returns top N monthly videos across all platforms, sorted by views desc, deduped by URL
@@ -735,7 +735,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         const igFailed=_analyticsProviderFailed(today,'instagram');
         const hasIG=_analyticsPlatformVisible(today,'instagram',n(today.ig_followers)||n(today.ig_avg_views)),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
         const hasAnyAnalytics=!!(hasIG||hasTT||hasYT);
-        const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:(hasAnyAnalytics?`<em>daily changes show after 2+ days</em>`:`<em>no analytics yet</em>`);
+        const compareNote=prev?`comparing vs ${_analyticsPhoneDate(prev.date)}`:(hasAnyAnalytics?`<em>daily changes show after 2+ days</em>`:`<em>no analytics yet</em>`);
         const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
         if(!availPlats.includes(followersPlat))_setFollowersPlat(availPlats[0]||'ig');
         if(viewsPlat!=='all'&&!availPlats.includes(viewsPlat))_setViewsPlat('all');
@@ -767,7 +767,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             <div class="detail-hero">
                 <div>
                     <div class="detail-name" style="display:flex;align-items:center;">${name}${_infoIcon}</div>
-                    <div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div>
+                    ${_svClientPhoneActive()&&!hasAnyAnalytics?'':`<div class="detail-meta">Last scraped ${_analyticsPhoneDate(today.date)} · ${history.length} data point${history.length!==1?'s':''}${_svClientPhoneActive()&&!prev?'':` · ${compareNote}`}</div>`}
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">${shareBtnHtml}${slackBtnHtml}</div>
             </div>
@@ -916,8 +916,14 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if (m) return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) };
         return { r: 0, g: 0, b: 0 };
     }
-    const _xAxis=()=>({grid:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},maxTicksLimit:8,padding:4}});
-    const _mkYAxis=(show)=>({type:'linear',display:show,position:'left',grid:show?{color:_svCss('--chart-grid'),drawTicks:false}:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},padding:10,callback:v=>fmt(v)||v}});
+    // On a phone (staff, not a client link) the date axis shows short labels ("3 Oct") that stay level and never repeat.
+    const _xAxis=()=>{if((window.matchMedia('(max-width: 767px)').matches&&!document.documentElement.classList.contains('boot-client'))){return{grid:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},maxTicksLimit:5,maxRotation:0,minRotation:0,autoSkip:true,padding:6,callback(v){const l=String(this.getLabelForValue(v)||'');return l.replace(/^\w+, /,'').replace(/ \d{4}$/,'');}}};}return{grid:{display:false},border:{display:false},ticks:{color:_svCss('--chart-axis'),font:{size:11},maxTicksLimit:8,padding:4}};};
+    // Phone client links: about five ticks, and every label is written with as many decimals as it takes to be different from its neighbour (2.3K, 2.4K, 2.5K, 2.6K).
+    const _analyticsPhoneDate=(d)=>{if(!d)return'';if(!_svClientPhoneActive())return fmtDate(d);const t=new Date(String(d).slice(0,10)+'T00:00:00');return isNaN(t)?fmtDate(d):t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});};
+    const _analyticsAxisDate=(d)=>{if(!_svClientPhoneActive())return fmtDate(d);const t=new Date(String(d).slice(0,10)+'T00:00:00');return isNaN(t)?fmtDate(d):t.toLocaleDateString('en-GB',{day:'numeric',month:'short'});};
+    const _axisShort=(v,dec)=>{const a=Math.abs(v);const tidy=x=>x.includes('.')?x.replace(/0+$/,'').replace(/\.$/,''):x;if(a>=1e6)return tidy((v/1e6).toFixed(dec))+'M';if(a>=1e3)return tidy((v/1e3).toFixed(dec))+'K';return String(Math.round(v));};
+    const _axisLabel=(v,ticks)=>{for(let dec=1;dec<=3;dec++){const labels=(ticks||[]).map(t=>_axisShort(t.value,dec));if(new Set(labels).size===labels.length)return _axisShort(v,dec);}return _axisShort(v,3);};
+    const _mkYAxis=(show)=>{const phone=_svClientPhoneActive();const ticks={color:_svCss('--chart-axis'),font:{size:11},padding:10,callback:phone?((v,i,all)=>_axisLabel(v,all)):(v=>fmt(v)||v)};if(phone)ticks.maxTicksLimit=5;return{type:'linear',display:show,position:'left',grid:show?{color:_svCss('--chart-grid'),drawTicks:false}:{display:false},border:{display:false},ticks};};
     function _mkGrad(c2d,h,cssVar){const rgb=_svRgb(cssVar);const gr=c2d.createLinearGradient(0,0,0,h);gr.addColorStop(0,`rgba(${rgb.r},${rgb.g},${rgb.b},0.2)`);gr.addColorStop(1,`rgba(${rgb.r},${rgb.g},${rgb.b},0)`);return gr;}
     const _platCfg={ig:{label:'Instagram',key:'ig_followers',css:'--ig'},tt:{label:'TikTok',key:'tiktok_followers',css:'--tt'},yt:{label:'YouTube',key:'yt_subscribers',css:'--yt'}};
     /* Chart.js loads with `defer` so it can't block first paint. In the rare
@@ -937,7 +943,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if(growthChart){growthChart.destroy();_setGrowthChart(null);}
         const pc=_platCfg[followersPlat]||_platCfg.ig;
         const receiptPlatform=followersPlat==='ig'?'instagram':followersPlat==='tt'?'tiktok':'youtube';
-        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date));
+        if(_svClientPhoneActive()&&history.length<2){ctx.parentElement.classList.add('chart-wrap-empty');ctx.parentElement.innerHTML=`<div class="chart-empty-note">The trend line appears once there are two days of data.</div>`;return;}
+        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>_analyticsAxisDate(r.date));
         let data,chartType,dataset;
         if(followersMode==='daily'){
             data=history.map((r,i)=>{
@@ -958,7 +965,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             dataset={label:pc.label,data,borderColor:_svCss(pc.css),backgroundColor:_mkGrad(c2d,h,pc.css),fill:true,tension:0.4,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:_svCss(pc.css),pointHoverBorderColor:_svCss('--chart-point-border'),pointHoverBorderWidth:2};
         }
         const hasTypedZero=history.some(r=>{const state=_analyticsPlatformReceipt(r,receiptPlatform)?.state;return(state==='success'||state==='genuinely_empty')&&r[pc.key]!==''&&r[pc.key]!==null&&r[pc.key]!==undefined&&Number.isFinite(Number(r[pc.key]));});
-        if(!hasTypedZero&&!data.some(v=>v!=null&&v!==0)){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">No ${pc.label} follower data available.</div>`;return;}
+        if(!hasTypedZero&&!data.some(v=>v!=null&&v!==0)){ctx.parentElement.classList.toggle('chart-wrap-empty',_svClientPhoneActive());ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">No ${pc.label} follower data available.</div>`;return;}
         _setGrowthChart(new Chart(ctx,{type:chartType,data:{labels,datasets:[dataset]},options:{..._baseOpts(v=>(v>0?'+':'')+v.toLocaleString()),scales:{x:_xAxis(),y:_mkYAxis(true)}}}));
     }
     function switchFollowersMode(mode,btn){
@@ -988,7 +995,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         let start=history.length;
         for(let i=0;i<history.length;i++){if(series.some(s=>!_analyticsProviderFailed(history[i],receiptPlatform(s))&&_analyticsMetricNumber(history[i],receiptPlatform(s),s.key)!==null)){start=i;break;}}
         const trimmed=history.slice(start);
-        const labels=trimmed.map(r=>fmtDate(r.date));
+        const labels=trimmed.map(r=>_analyticsAxisDate(r.date));
         const ds=[],sc={x:_xAxis()};let yi=0;
         series.forEach(s=>{
             const data=trimmed.map(row=>_analyticsProviderFailed(row,receiptPlatform(s))?null:_analyticsMetricNumber(row,receiptPlatform(s),s.key));
@@ -996,7 +1003,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             ds.push({label:s.label,data,borderColor:_svCss(s.css),backgroundColor:_mkGrad(c2d,h,s.css),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:_svCss(s.css),pointHoverBorderColor:_svCss('--chart-point-border'),pointHoverBorderWidth:2,yAxisID:yId});
             sc[yId]=_mkYAxis(yi===0);yi++;
         });
-        if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
+        if(!ds.length||(_svClientPhoneActive()&&trimmed.length<2)){ctx.parentElement.classList.toggle('chart-wrap-empty',_svClientPhoneActive());ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
         _setViewsChart(new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}}));
     }
     function switchViewsPlat(plat,btn){

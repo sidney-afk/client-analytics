@@ -1,5 +1,25 @@
 # App logic (`index.html`) — current truth
 
+**Pocket phone source, 2026-10-04, not deployed:** staff Samples Review and Sheet
+use full Expanded sections below 768px in light and dark, with title/Tabs/More,
+native Tools and setup controls. Calendar and Samples selection actions sit at
+the bottom on phones. Desktop controls restore their original positions.
+Pending staff decisions stay visibly Saving until acknowledged. Existing
+permissions and writers remain native. Fictional product screenshots, visible
+TEST decision saves and desktop receipts are in
+[the proof note](../syncview-design/proofs/staff-selection-samples-expanded/README.md).
+Client layouts, other staff tabs and admin pages are outside this batch.
+
+**Pocket phone source, 2026-10-05, not deployed:** standalone staff Calendar
+Review, Sheet, Month and Week use Expanded cards below 768px in light and dark.
+Tabs and More sit beside the title; native Organize, card size, setup, account
+and client selection move into More. Permissions and writers stay native.
+Pending decisions keep a Saving label until the acknowledgement. Desktop
+positions are restored when the width changes. Fictional product screenshots,
+visible-browser TEST saves and desktop comparison receipts are in
+[the proof note](../syncview-design/proofs/staff-calendar-expanded/README.md).
+This does not implement Selection, Samples, client links or admin layouts.
+
 **Digger source repair, 2026-10-02:** Analytics' Sheets fallback now requires
 successful Metrics and roster HTTP responses before consuming either body,
 marking data fresh, replacing good rows or saving a cache. A failed fallback
@@ -353,6 +373,17 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
 
 ## Samples (SXR + legacy)
 
+- Source-only Expanded client phone presentation: verified links below 768px
+  use a title with Tabs and More, comfortable separate Sheet/Review cards and
+  full component sections. Native decision/comment/media/Notes handlers and
+  client field permissions are kept; card size moves into More. Client Analytics
+  uses the same phone header, moves its existing tabs and About control into the
+  menus, and keeps native metrics, charts, saved copies, loading and retry.
+  Controls and their original contents are restored at desktop widths. All new
+  styles are capped at 767px and scoped to client links. Source checks pass;
+  final visible-browser, real test-save and desktop proof is pending. See the
+  [client phone batch note](../syncview-design/proofs/client-links-expanded/README.md).
+
 - Logic map: `docs/audits/2026-07-05-logic-samples.md`.
 - Source-only finding (2026-09-26): an existing-card Samples Retry with no
   retained edits copied the local whole row, including untouched statuses,
@@ -404,6 +435,13 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   Linear/mirror side effect; F2 `off`/outage pauses applicable comment debt rather than retiring it,
   and ordered dependencies preserve add/edit/delete handoff. Unlinked cards (the 6,032 deferred
   rows) remain on legacy card-JSON truth until the linkage brick lands.
+- **Expanded phone presentation (branch proof; not deployed):** below 768px, the review dashboard
+  and its admin tools use a page title with Tabs and More beside it, comfortable stacked cards, full
+  sections and the existing actions next to their content. Tabs moves the original permitted navigation
+  into a modal sheet; More keeps the original destinations, pending counts and account controls.
+  Staff light/dark tokens, branded date controls, loading skeletons and saved drafts are retained.
+  Desktop screenshots and computed styles must stay identical. Public fixtures and limits:
+  `docs/syncview-design/proofs/kasper-admin-expanded/README.md`.
 - Kasper keeps Review Session, Messages, and Filming Plans in a stable priority row. Samples waiting
   for Kasper are listed inside Review Session beside calendar cards (each still saved by the samples
   saver); there is no separate Samples tab, and old #kasper/samples or /kasper/samples links

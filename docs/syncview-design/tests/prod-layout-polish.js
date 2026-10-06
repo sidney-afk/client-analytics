@@ -113,7 +113,9 @@ async function collectLayoutFailures(page, label) {
     checkInside('plp_project_issue_metadata', '[data-prod-project-issue]', ROW_PARTS, 'project issue metadata');
     checkInside('plp_project_card_controls', '.prod-card', CARD_PARTS, 'project card controls');
     [...document.querySelectorAll('.prod-filter-pill')].filter(visible).forEach((pill, i) => {
-      if (pill.getBoundingClientRect().height > 30) failures.push(`[plp_filter_pill_height] ${label} filter pill ${i} wrapped taller than 30px`);
+      /* A phone's filter pills are 44px tap targets (staff phone layout, FINCH-PHONE block); a pill that wraps is still far taller than that. */
+      const pillLimit = innerWidth <= 767 ? 46 : 30;
+      if (pill.getBoundingClientRect().height > pillLimit) failures.push(`[plp_filter_pill_height] ${label} filter pill ${i} wrapped taller than ${pillLimit}px`);
       const holder = pill.closest('.prod-filter-pills');
       if (holder && !within(pill, holder, 2)) failures.push(`[plp_filter_pill_overflow] ${label} filter pill ${i} overflows its toolbar`);
     });

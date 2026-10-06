@@ -1,0 +1,87 @@
+{
+  "verifiedAt": "2026-10-04T18:36:59.975Z",
+  "candidateIndexSha256": "43bb86de1d913a0b589340021bafd380f3e7064179807e2c0b4db2fbf66d32d5",
+  "measurements": [
+    {
+      "label": "samples-review-queue",
+      "width": 360,
+      "scrollWidth": 360,
+      "controlCount": 4,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "samples-sheet",
+      "width": 360,
+      "scrollWidth": 360,
+      "controlCount": 16,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "analytics",
+      "width": 360,
+      "scrollWidth": 360,
+      "controlCount": 2,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "samples-review-queue",
+      "width": 390,
+      "scrollWidth": 390,
+      "controlCount": 4,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "samples-sheet",
+      "width": 390,
+      "scrollWidth": 390,
+      "controlCount": 16,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "analytics",
+      "width": 390,
+      "scrollWidth": 390,
+      "controlCount": 2,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "samples-review-queue",
+      "width": 430,
+      "scrollWidth": 430,
+      "controlCount": 4,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "samples-sheet",
+      "width": 430,
+      "scrollWidth": 430,
+      "controlCount": 16,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    },
+    {
+      "label": "analytics",
+      "width": 430,
+      "scrollWidth": 430,
+      "controlCount": 2,
+      "targetsPass": true,
+      "fieldsPass": true,
+      "light": true
+    }
+  ]
+}

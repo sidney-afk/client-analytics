@@ -345,9 +345,9 @@
     "note": ""
   },
   "mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg": {
-    "sha256": "91e6a2c95ec866f1a1e7eaa7b8aa0789b65d863ac072728bbf821521070ed605",
-    "verdict": "ok",
-    "note": ""
+    "sha256": "43475e8ce6fd1d1857fe9c5436b4323fb5aa7f17b46275afbd819a464affc27e",
+    "verdict": "warning",
+    "note": "The synthetic banner partly covers the calendar heading; date choices and controls are visible."
   },
   "mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg": {
     "sha256": "c852f3627ef40d81c36aa57fae840898e3e137ff84e70da3e9b8c01ea3d10fd4",

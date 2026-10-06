@@ -1,14 +1,14 @@
 {
   "generated_for": "PTO lifecycle simulation",
-  "source_commit": "cb413805923f2006e5f039c3e2a15ec81f296e1b",
-  "source_tree_sha256": "ed228bbe6902d4fa30dfe3dfddc36d12ccaa2f7e608dbb19f782a5ef747c64b3",
+  "source_commit": "5bdf2d472c30f2040105a46ac17e63a8d16ae6f3",
+  "source_tree_sha256": "cded20d4612ba8f67b83163b748ab21e17fe2a1387f7b2f3312c73b54f36dc60",
   "backend": "stateful synthetic mock using the production PTO policy module",
   "privacy": "synthetic TEST data only; no live identities, dates, balances, notes, keys, or responses",
   "screenshot_count": 101,
   "visual_review_complete": true,
   "visual_verdict_counts": {
-    "ok": 100,
-    "warning": 1
+    "ok": 99,
+    "warning": 2
   },
   "coverage": [
     "admin_cancel_future_approved",
@@ -1182,9 +1182,9 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg",
-          "sha256": "91e6a2c95ec866f1a1e7eaa7b8aa0789b65d863ac072728bbf821521070ed605",
-          "visual_verdict": "ok",
-          "visual_note": ""
+          "sha256": "43475e8ce6fd1d1857fe9c5436b4323fb5aa7f17b46275afbd819a464affc27e",
+          "visual_verdict": "warning",
+          "visual_note": "The synthetic banner partly covers the calendar heading; date choices and controls are visible."
         },
         {
           "scenario": "mobile-390-happy-path",

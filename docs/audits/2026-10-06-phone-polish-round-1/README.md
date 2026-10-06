@@ -49,7 +49,10 @@ The native PTO lifecycle suite passed **101 action/result screenshots and
 is bound to the current source fingerprint and visually reviewed image hashes.
 One frame records an unrelated Today background error caused by its unavailable
 client-list fixture; the tested More menu and Time Off action are visible.
-The other 100 frames were reviewed as correct. The integrity gate passed.
+A second frame has a synthetic banner partly covering the calendar heading;
+its choices and controls remain visible. The separate phone comparison images
+have no banner. The other 99 frames were reviewed as correct. The integrity
+gate passed.
 
 The lifecycle runner now loads the existing single-file source helper itself,
 so direct invocations fingerprint the same assembled source as the unit/CI
@@ -65,8 +68,8 @@ The full desktop parity run compares every existing staff and client journey
 at 1024, 1280, 1440 and 1920 pixels. It now also includes the previously omitted
 menu-only personal Time Off page with loaded fictional data. Its results and
 the final mandatory check output are in [CHECKS.md](CHECKS.md). Public desktop
-images contain only the fictional Time Off fixture; client-link raw images
-remain private.
+proof contains matching before/after hashes and zero-pixel screenshot diffs;
+all raw desktop screenshots remain private.
 
 The broad unit suite has existing failures on unchanged main in this Windows
 environment. The final comparison and exact failures are recorded in CHECKS.md.

@@ -36,7 +36,7 @@ import { _calPushStatusToLinear } from './140-calendar-legacy-outbox.js';
 import { _calCacheWrite, _calSetLastLocalWriteAt, loadCalendarPosts } from './150-calendar-hydration-import.js';
 import {
   _CAL_WEEK_BUFFER, _calDeriveThumbInfo, _calIsBlankId, _calIsClientReady, _calMiniLinkBadgeHtml,
-  _calRenderBody, _calStaffPhoneActive, _calThumbIconSvg, _calThumbImgTag
+  _calPhoneClient, _calRenderBody, _calStaffPhoneActive, _calThumbIconSvg, _calThumbImgTag
 } from './160-calendar-organize-ui.js';
 import {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
@@ -2412,10 +2412,37 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
         return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
     }
+    /* Phone Calendar (staff, and client links): runs of consecutive empty days become one slim line
+       ("Thu 1 to Fri 2 · Nothing scheduled"). Every day keeps its own element and
+       data-iso, so a drag still has each day to land on; the first day of a run
+       carries the label and the rest are folded away until a drag starts.
+       isos: the days in order; isEmpty(iso): true for a day that may fold. */
+    function _calPhoneEmptyRuns(isos, isEmpty) {
+        const runs = new Map();
+        if (!_calStaffPhoneActive() && !_calPhoneClient()) return runs;
+        const dayLabel = iso => _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + parseInt(iso.slice(8, 10), 10);
+        let run = [];
+        const flush = () => {
+            if (!run.length) return;
+            const label = (run.length === 1 ? dayLabel(run[0]) : dayLabel(run[0]) + ' to ' + dayLabel(run[run.length - 1])) + ' · Nothing scheduled';
+            run.forEach((iso, i) => runs.set(iso, i === 0 ? { head: true, label } : { head: false }));
+            run = [];
+        };
+        isos.forEach(iso => { if (isEmpty(iso)) run.push(iso); else flush(); });
+        flush();
+        return runs;
+    }
+    /* Phone client links: the few Month and Week thumbnails are fetched at once, so a Week opened from Month never shows empty grey squares while a lazy image waits for its turn. */
+    function _calMiniThumbTag(info) {
+        const tag = _calThumbImgTag(info, '_calOnMiniThumbError');
+        return _calPhoneClient() ? tag.replace('loading="lazy"', 'loading="eager"') : tag;
+    }
+    function _calPhoneRunClass(run) { return run ? (run.head ? ' pocket-run-head' : ' pocket-run-rest') : ''; }
+    function _calPhoneRunLabel(run) { return run && run.head ? `<span class="pocket-run-label">${_calEsc(run.label)}</span>` : ''; }
     function _calMonthPillHtml(p) {
         const info = _calDeriveThumbInfo(p);
         const thumb = info.url
-            ? `<span class="cal-month-pill-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+            ? `<span class="cal-month-pill-thumb">${_calMiniThumbTag(info)}</span>`
             : info.frame
                 ? _calMiniLinkBadgeHtml('cal-month-pill-thumb', info.frameKind)
                 : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
@@ -2462,6 +2489,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
+        const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
         return `<div class="cal-month-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calMonthShift(-1)" title="Previous month">‹</button>
@@ -2477,7 +2505,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = monthRuns.get(iso);
+                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-month-cellhead">
                             <span class="cal-month-dow">${dow}</span>
                             <span class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</span>
@@ -2526,6 +2556,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const endDate = _calParseIso(_calAddDaysISO(start, 6));
         const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         const todayISO = _calIsoOf(new Date());
+        const weekRuns = _calPhoneEmptyRuns(days.slice(_CAL_WEEK_BUFFER, _CAL_WEEK_BUFFER + 7), iso => iso !== todayISO && !(byDate.get(iso) || []).length);
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
@@ -2543,7 +2574,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
                     const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<div class="cal-week-col${today ? ' today' : ''}" data-iso="${iso}">
+                    const run = weekRuns.get(iso);
+                    return `<div class="cal-week-col${today ? ' today' : ''}${_calPhoneRunClass(run)}" data-iso="${iso}">
+                        ${_calPhoneRunLabel(run)}
                         <div class="cal-week-head">
                             <div class="cal-week-day">${dow}</div>
                             <div class="cal-week-num">${parseInt(iso.slice(8,10), 10)}</div>
@@ -2552,7 +2585,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                             ${list.map(p => {
                                 const info = _calDeriveThumbInfo(p);
                                 const th = info.url
-                                    ? `<span class="cal-week-card-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+                                    ? `<span class="cal-week-card-thumb">${_calMiniThumbTag(info)}</span>`
                                     : info.frame
                                         ? _calMiniLinkBadgeHtml('cal-week-card-thumb', info.frameKind)
                                         : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;

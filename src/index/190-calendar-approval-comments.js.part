@@ -27,8 +27,9 @@ import {
 import { _calMarkLocalStatus, _calV2Log } from './150-calendar-hydration-import.js';
 import {
   _calClientCompPillsHtml, _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo,
+  _calPhoneClient, _calPhoneSectionHtml,
   _calFolderOpenUrl, _calFrameOpenUrl, _calIsFolderLink, _calIsFrameLink, _calMiniLinkBadgeHtml,
-  _calRenderBody, _calReviewFrameHtml, _calStatusLabel, _calThumbIconSvg, _calThumbImgTag,
+  _calRenderBody, _calReviewFrameHtml, _calStaffPhoneActive, _calStatusLabel, _calThumbIconSvg, _calThumbImgTag,
   _kcardReuseThumbInto, _thumbCompareSlotHtml
 } from './160-calendar-organize-ui.js';
 import {
@@ -152,6 +153,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const mode = _calReviewMode();
         return (calState.posts || []).filter(p => {
             const s = _calNormStatus(p.status || '');
+            const phoneSaving = _calStaffPhoneActive() && mode === 'smm' && _calComponentsFor(p).some(c => _calReviewState.saving[p.id + '|' + c]);
             // The YouTube title is excluded from the overall status, so a card can
             // read Approved/Scheduled/Posted overall while its title is still
             // awaiting review on THIS surface. Don't hide those — otherwise a
@@ -159,14 +161,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             // already approved.
             const surf = (mode === 'smm') ? 'smm' : 'client';
             const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', surf);
-            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending && !phoneSaving) return false;
             // SMM Review tab: only posts with a component awaiting SMM
             // approval (or sent back for tweaks), AND that actually have
             // something to look at — a post with no video and no thumbnail
             // isn't ready for sign-off, so it stays hidden until media lands.
             if (mode === 'smm') {
                 if (!_calHasMedia(p)) return false;
-                return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
+                return phoneSaving || _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
             }
             // A real tokened client sees only components exactly at Client
             // Approval. Tweaks Needed is retained only by the internal
@@ -300,7 +302,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // finished states render here, so the pill row will usually be empty
         // for cards in the review queue. The pending label above carries
         // the same information in plain English regardless.
-        const compPills = _calClientCompPillsHtml(p);
+        const compPills = _calStaffPhoneActive()
+            ? _calClientCompPillsHtml(Object.assign({}, p, ..._calComponentsFor(p).filter(c => _calReviewState.saving[p.id + '|' + c]).map(c => ({ [c + '_status']: 'Saving…' }))))
+            : _calClientCompPillsHtml(p);
         const body = expanded ? _calReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_calReviewToggleCard('${escId}')">
@@ -313,8 +317,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
                     ${_thumbCompareSlotHtml('calendar', p, true, 'review')}
-                    <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
-                    <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                    <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg>${_calPhoneClient() ? '<span>Open in Sheet</span>' : ''}</button>
+                    <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"${_calPhoneClient() ? ` aria-expanded="${expanded}"` : ''}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>${_calPhoneClient() ? `<span>${expanded ? 'Close' : 'Review'}</span>` : ''}</button>
                 </div>
             </div>
             ${body}
@@ -328,14 +332,24 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // Tweaks Needed, as defined by _calReviewComponentActive.
         const _reviewMode = _calReviewMode();
         const activeComps = (_reviewMode === 'smm')
-            ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm'))
+            ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm') || (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + c]))
             : (_isClientLink
                 ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'client'))
                 : _calComponentsFor(p));
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
         }
-        const panels = activeComps.map(comp => _calReviewPanelHtml(p, comp)).join('');
+        const panels = activeComps.map((comp, i) => {
+            const html = _calReviewPanelHtml(p, comp);
+            if (!_calPhoneClient()) return html;
+            const key = p.id + '|' + comp;
+            const status = _calReviewState.saving[key] ? 'Sending…'
+                : _calReviewState.errors[key] ? 'Save failed · retry inside'
+                : _calReviewState.drafts[key] ? 'Note not sent'
+                : _calNormStatus(p[comp + '_status']) === 'Client Approval' ? 'Awaiting your approval'
+                : _calNormStatus(p[comp + '_status']);
+            return _calPhoneSectionHtml('review:' + p.id, comp, COMP_LABELS[comp], status, html, i === 0);
+        }).join('');
         const cols = activeComps.length;
         // 4 components (a YouTube card with title review on) lay out 2×2 instead
         // of a cramped 4-wide row; 1–3 keep their natural column count.
@@ -361,6 +375,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        false claim in the same spot this fix is removing one from. */
     const REVIEW_APPROVE_DRAFT_TITLE = 'You have an unsent note. Press Comment to send it, or clear it, then approve.';
     function _calReviewPanelHtml(p, comp) {
+        if (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + comp]) {
+            return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-cal-saving" role="status">Saving…</div></div>`;
+        }
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
         const subStatus = _calNormStatus(p[comp + '_status'] || '');
@@ -576,7 +593,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     function _calReviewToggleCard(pid) {
         if (_calReviewState.expanded.has(pid)) _calReviewState.expanded.delete(pid);
-        else _calReviewState.expanded.add(pid);
+        else {
+            _calReviewState.expanded.add(pid);
+        }
         _calReviewRepaintCard(pid);
     }
 
@@ -640,6 +659,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _calReviewState.drafts[key] = ta.value;
         delete _calReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
+        const phoneSummary = ta.closest('.pocket-cal-section')?.querySelector('.pocket-cal-section-status');
+        if (phoneSummary) phoneSummary.textContent = _calReviewState.saving[key] ? 'Sending…' : _calReviewState.errors[key] ? 'Save failed · retry inside' : nowHasDraft ? 'Note not sent' : 'Awaiting your approval';
         // Don't repaint on every keystroke — just toggle the two action
         // buttons in place. Approve is gated off while a draft is in
         // flight (it's visible but unclickable), Request tweaks lights
@@ -878,6 +899,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
         Promise.resolve(_calFlushCardSave(pid)).then(() => {
             _calReviewState.saving[key] = false;
+            if (_calStaffPhoneActive()) _calReviewRepaintCard(pid);
         }).catch(e => {
             _calReviewState.saving[key] = false;
             _calReviewState.errors[key] = _writeUiFailureSentence(e);

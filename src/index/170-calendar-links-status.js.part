@@ -28,6 +28,7 @@ import {
   _calBlankPost, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calCompStatusLabel,
   _calDeriveThumbInfo, _calFmtDateShort, _calIsBlankId, _calLinearPileHtml, _calLinkFieldHtml,
   _calPendingLinkMove, _calRenderBody, _calResolveThumbnailFolder, _calSetThumbMedia, _calStaffPhoneActive,
+  _calPhoneSectionHtml,
   _calStatusLabel, _calStripThumbnailFolderFields, _calThumbContent, _calThumbFrameHtml,
   _calThumbIconHtml, _calThumbImgTag, _calTitleRowHtml, onCalMonthFilterChange
 } from './160-calendar-organize-ui.js';
@@ -248,9 +249,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
                 ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank, p)}
-                <div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, capDraft ? Object.assign({}, p, { caption: capDraft.text }) : p, editableText, isBlank)}</div>
-                ${capDraft ? _svDraftNoteHtml(`onclick="_calCaptionDraftDiscard('${pid}')"`) : ''}
-                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
+                ${_calPhoneSectionHtml('sheet:' + p.id, 'caption', 'Caption', capDraft ? 'Saved copy · not sent' : '', `<div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, capDraft ? Object.assign({}, p, { caption: capDraft.text }) : p, editableText, isBlank)}</div>
+                ${capDraft ? _svDraftNoteHtml(`onclick="_calCaptionDraftDiscard('${pid}')"`) : ''}`, true)}
+                ${_calPhoneSectionHtml('sheet:' + p.id, 'cta', 'Call to action', '', `<input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>`, false)}
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 ${_calConflictHtml(pid)}
                 <div class="cal-card-foot">
@@ -277,6 +278,10 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        renders the chip unstyled. Existing statuses are unchanged -- they only
        ever contained letters and spaces. */
     function _calStatusSlug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+    /* Phone staff Calendar: the picker is a bottom sheet with a title. Nothing is added elsewhere. */
+    function _calStatusMenuTitleHtml(text) {
+        return _calStaffPhoneActive() ? `<div class="cal-fld-status-title">${_calEsc(text)}</div>` : '';
+    }
     function _calCloseStatusMenu() {
         if (!_calOpenStatusMenu) return;
         const m = _calOpenStatusMenu.el;
@@ -318,7 +323,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 if (reason) _menuBlocked[s] = reason;
             }
         }
-        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => {
+        menu.innerHTML = _calStatusMenuTitleHtml((COMP_LABELS[which] || 'Card') + ' status') + (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => {
             const blocked = _menuBlocked[s];
             return `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_calEscAttr(blocked)}"` : ''} onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`;
         }).join('')
@@ -470,7 +475,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const headLabel = skipped.length
             ? `Apply to ${settable.map(c => COMP_LABELS[c]).join(', ')} — ${skipped.map(c => COMP_LABELS[c]).join(' & ')} ${skipped.length === 1 ? 'is' : 'are'} not linked`
             : 'Apply to all three components';
-        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
+        menu.innerHTML = _calStatusMenuTitleHtml('Set all to…') + `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
             + CAL_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}" onclick="_calSetAllStatus('${_calEscAttr(pid)}','${_calEscAttr(s)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();

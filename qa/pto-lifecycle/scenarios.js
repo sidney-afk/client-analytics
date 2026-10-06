@@ -1814,6 +1814,17 @@ async function runMobileJourney(harness, sessions, coverage) {
     expected: 'The staff menu opens beside its trigger and the Time Off item is visible inside the phone viewport.',
     action: () => harness.openStaffMenu(staff),
     see: async p => {
+      if (await p.locator('.pocket-staff-sheet[open]').count()) {
+        // The phone title row's More sheet holds the staff menu on this screen.
+        const sheet = await p.locator('.pocket-staff-sheet[open]').evaluate(element => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, width: innerWidth };
+        });
+        assert(await p.locator('.pocket-staff-sheet[open] .pocket-staff-row', { hasText: 'Time Off' }).isVisible(),
+          'mobile staff menu visibly includes Time Off');
+        assert(sheet.left >= 0 && sheet.right <= sheet.width, 'mobile staff menu stays inside the visual viewport');
+        return;
+      }
       const metrics = await p.locator('.staff-account-popover').evaluate(element => {
         const rect = element.getBoundingClientRect();
         const left = visualViewport?.offsetLeft || 0;
@@ -1825,7 +1836,7 @@ async function runMobileJourney(harness, sessions, coverage) {
       assert(metrics.left >= metrics.viewportLeft && metrics.right <= metrics.viewportRight,
         'mobile staff menu stays inside the visual viewport');
     },
-    target: '.staff-account-popover',
+    target: ':is(.pocket-staff-sheet[open], .staff-account-popover:not([hidden]))',
   });
 
   await harness.step({

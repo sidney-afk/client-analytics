@@ -286,6 +286,18 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   prior browser first (the v1 verifier remains backward-compatible with non-strict callers), then
   roll back the verifier only if still required. No runtime flag changes in this release.
 
+## Staff phone layout (Today, Templates, Filming Plans, Submit)
+
+- **Source checkpoint pending review, 2026-10-05:** on phones (below 768px) these four staff
+  screens use the Pocket Expanded layout: one title row with Tabs and More, single-column cards,
+  44px targets, 16px fields, one date format ("Sat, 3 Oct 2026"). Tabs and More only press the
+  existing header controls, so tabs, permissions and handlers are unchanged. Desktop is
+  untouched: every style is in the `STAFF-PHONE` block under `body:has(.pocket-staff-bar)`
+  (guard: `test/staff-phone-css-scope.js`), and the bar (`src/index/099-staff-phone-bar.js.part`)
+  exists only on a phone-width screen showing one of the four tabs. This is not deployed proof.
+  Pictures, measurements and the list of differences from the mock-up:
+  [staff phone checkpoint](../syncview-design/proofs/staff-phone-templates-filming-submit-today/README.md).
+
 ## Calendar
 
 - **Source checkpoint pending review, 2026-10-03:** client Calendar has a Pocket

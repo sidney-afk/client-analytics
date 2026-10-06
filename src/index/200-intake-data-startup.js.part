@@ -44,7 +44,15 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         const savedGeneralDrive = saved.generalDrive || '';
 
         // Restore video count from saved data
-        const savedVideoCount = saved.videos?.length || LINEAR_DEFAULT_VIDEO_COUNT;
+        // On a phone the form opens with one video block (Add Video adds more); trailing blank blocks saved earlier are not drawn.
+        const onPhone = !!(window.svIsStaffPhone && window.svIsStaffPhone());
+        const hasContent = v => !!(v && (v.main_cam || v.side_cam || v.audio || v.notes));
+        let savedVideoCount = saved.videos?.length || (onPhone ? 1 : LINEAR_DEFAULT_VIDEO_COUNT);
+        if (onPhone && saved.videos?.length) {
+            let last = 0;
+            saved.videos.forEach((v, i) => { if (hasContent(v)) last = i + 1; });
+            savedVideoCount = Math.max(last, 1);
+        }
         _linearSetVideoCount(Math.max(savedVideoCount, 1));
 
         let videoCards = '';
@@ -53,7 +61,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             videoCards += renderVideoCard(i, v);
         }
 
-        let titleDisplay = 'Select a client…';
+        let titleDisplay = onPhone ? 'Made from the client and today\'s date' : 'Select a client…';
         if (heldSubmission && heldSubmission.client_name === String(savedClient).trim()
             && heldSubmission.client_slug === String(savedClientSlug).trim()) {
             titleDisplay = heldSubmission.computed_title;
@@ -98,7 +106,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                 </div>
                 <div class="linear-field" id="linearFilmingPlansField">
                     <label class="linear-label">Filming Plans</label>
-                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">Select a client…</div>
+                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">${onPhone ? 'Found from the client you pick' : 'Select a client…'}</div>
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">General Drive</label>
@@ -616,6 +624,8 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
     function _linearSavedWhen(iso) {
         const d = new Date(iso);
         if (!iso || isNaN(d)) return 'earlier';
+        const phoneDay = (window.svPhoneDate ? window.svPhoneDate(d) : '');
+        if (phoneDay) return phoneDay + ', ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         return d.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     }
     function _linearSavedBoxHtml() {

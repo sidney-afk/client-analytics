@@ -848,6 +848,12 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             editBtn.onclick = _tplTogglePinsEdit;
             row.appendChild(editBtn);
         }
+        if (!pins.length && window.svIsStaffPhone && window.svIsStaffPhone()) {
+            const note = document.createElement('p');
+            note.className = 'tpl-pins-empty';
+            note.textContent = 'Pin up to 5 clients you work on';
+            row.appendChild(note);
+        }
         addRow.innerHTML = '';
         const showAddBtn = pins.length < TPL_MAX_PINS && (pins.length === 0 || _tplPinsEditMode || _tplPinSelectorOpen);
         if (showAddBtn) {
@@ -1111,7 +1117,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         try { const h = new URL(u).hostname.replace(/^www\./, ''); return /dropbox/.test(h) ? 'Dropbox' : /frame\.io/.test(h) ? 'Frame.io' : /google/.test(h) ? 'Google Drive' : h; } catch (e) { return ''; }
     }
     function _tplFolderDate(at) {
-        const d = new Date(at); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        const d = new Date(at); return isNaN(d) ? '' : ((window.svPhoneDate ? window.svPhoneDate(d) : '') || d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }));
     }
     function _tplRecentFolders(name) {
         _tplFoldersEnsure(name);
@@ -1554,11 +1560,19 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         if (el) el.innerHTML = _tplSocialLinksHtml(_templatesSelected);
     }
 
+    // "← All templates". On a phone the arrow is a drawn icon, not a text character; wider screens keep the original text.
+    function _tplBackLabel() {
+        const phone = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+        return phone
+            ? '<svg class="tpl-back-svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg> All templates'
+            : '← All templates';
+    }
+
     function renderClientTemplate(name) {
         // Loading state — first paint while the GET is in flight.
         if (!_tplClientReady(name) && !templatesLoadError) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-skeleton tpl-skeleton-pill" style="width:160px;height:24px;margin-bottom:18px;"></div>
                 <div class="tpl-skeleton-card">
@@ -1575,7 +1589,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         }
         if (templatesLoadError && !_tplClientReady(name)) {
             return `<div class="tpl-view">
-                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
                 <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>
             </div>`;
@@ -1627,7 +1641,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             : '';
 
         return `<div class="tpl-view${isEdit?' editing':''}">
-            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">${_tplBackLabel()}</button>
             <div class="tpl-client-head">
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}<span class="tpl-social" data-tpl-social>${_tplSocialLinksHtml(name)}</span></div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>

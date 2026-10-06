@@ -30645,6 +30645,23 @@ Not tested here: the real signed-in app (another session does that), real upload
 Proof: `node qa/finch-phone/shots.js` (offline, invented data) at 360, 390 and 430, light and dark; before and after pictures in `docs/syncview-design/proofs/finch-phone/`.
 Way back: revert the commit.
 
+## 353. [2026-10-05, BUILT, NOT DEPLOYED] Staff Today, Templates, Filming Plans and Submit on phones: Expanded layout (session Wren)
+
+Built from the approved mock-up, layout A (Expanded), on top of the client Calendar branch (entry 336, PR 1969). Phones and staff only. Desktop widths are unchanged: every new style sits in one `STAFF-PHONE` block inside `@media (max-width: 767px)` and every selector in it starts with `body:has(.pocket-staff-bar)`; that bar is created by script only on a phone-width screen showing one of the four tabs and removed everywhere else (guard: `test/staff-phone-css-scope.js`).
+
+What changed:
+- New title row for Today, Templates, Filming Plans and Submit: the screen name on the left, Tabs and More on the right. The wide header gives way to it. Tabs lists every tab the header shows (same visible set, same routes: Linear is still SyncLinear, Submit is still Submit). More holds what the header's account menu held: change client, quick jump, light or dark appearance, original status colours, Time Off, Onboarding, Client Credentials and sign in or out. Every row presses the existing header control, so permissions and handlers are exactly the old ones.
+- Today, Templates, Filming Plans and Submit: single-column cards, 44 px targets, 16 px fields, labelled buttons where the old phone layout showed icon-only buttons, one date format "Sat, 3 Oct 2026" (Today's date and post dates, the Templates folder dates, Submit's "saved" time; desktop keeps its own wording).
+- Text characters used as icons were replaced on phones by drawn icons (back arrow, the Onboarding link arrow, the pin remove cross, the brief line menu dots, the filming-plan warning sign). On desktop the same characters still show.
+- Second round, after Lighthouse's review of the first pictures: Submit opens with one video block and the Add Video button (phones only; a saved form keeps the blocks that have anything in them; wider screens still open with twelve). Submit's Title and Filming Plans fields no longer say "Select a client..." on phones: they say what they are ("Made from the client and today's date", "Found from the client you pick"). Templates with no pinned clients shows "Pin up to 5 clients you work on" and a normal-looking Pin client button instead of a faded dashed one. Today's list rows keep SyncLinear and Open card as small icon buttons on the card's right, and the Urgent tag has its own line under the client name. Filming Plans' count sits inline to the right of the search box.
+- The global title tooltip is hidden on these four phone screens (a touch screen has no hover; it pinned itself after a tap). The keyboard-only hints "Enter to accept" in the search boxes and "Shift, paste last link" in Submit are hidden on phones.
+
+Still different from the mock-up, on purpose: see the PR text and `docs/syncview-design/proofs/staff-phone-templates-filming-submit-today/README.md`.
+
+Not tested here (needs a real signed-in staff session, done later by another session): real data volumes, the real brain and filming-plan answers, real Today queues for each role.
+
+Proof: `docs/syncview-design/tests/staff-phone-browser.js` (every state at 360, 390 and 430, light and dark, no writes) and the pictures under `docs/syncview-design/proofs/staff-phone-templates-filming-submit-today/`.
+Way back: revert the commit.
 Round 2 (Lighthouse review, same branch):
 - Workload: the team overview is one card per person, an empty status line is not drawn (a person with nothing gets one calm line), text is 13 to 16 px, the refresh button sits in the title row, the filters are a small grid, the legend is 14 px.
 - Analytics: "Views last 30D" of 0 next to a gain was a real arithmetic effect, not a display slip. The card shows today's count minus the count from 30 days ago; my invented data repeated the same total every 30 days, so the difference was exactly 0 while the day's gain was positive. On a phone a 0 next to a positive gain is now a dash with its reason on touch or hover; the invented data now grows like a real rolling total. Every client card and table row shows its rank (the page numbered only the first three), the "Pin client" button is a normal button, and the purple line under each card is gone on phones.
@@ -30671,3 +30688,14 @@ Review follow-up, 2026-10-05: the shared phone header, reviewer-only segmented c
 Final phone follow-up, 2026-10-05: hidden hiring scrollbars preserve chip scrolling; Finish reviewing fits one line with a legible standard disabled state; the distinct queue-hide action is labelled; the existing message filter is a small switch at the top of its list. The visible-Chrome capture and resize checks are recorded in the proof packet.
 
 Reviewer follow-up, 2026-10-05: the Review-specific CSS no longer overrides the shared equal-width phone segments. The unread badge reads New without wrapping on phones and returns to its original wording on desktop. Fresh reviewer captures and strict desktop equality are recorded in the same proof packet.
+
+## 354. [2026-10-06, BUILT, NOT DEPLOYED] The six phone pull requests merged together (session Lighthouse)
+
+Owner's go to merge #1969, #1970, #1971, #1973, #1972 and #1974. They were built in parallel, so each branch was brought up to date with the one before it and merged in that order. What the merge had to settle:
+- Client and staff Calendar each added the folding of empty days and the phone date format. Both now apply: on a staff phone Calendar and on a client link at phone width.
+- Staff Samples and Selection carried its own older copy of the staff Calendar phone styles. The newer staff Calendar block is kept once; Samples and Selection keep only their own blocks.
+- The staff phone title bar for Upload, Analytics, Workload and Linear stayed on the page, unstyled, after the phone left those screens, so the reviewer dashboard showed two Tabs buttons. It is now hidden whenever its screens are not showing (`099-phone-staff-shell`). The reviewer dashboard phone check is back to 0 failures.
+- The time-off test reaches Time Off through either phone More sheet. Its 101 screenshots were regenerated on the combined code and each was looked at; none is broken.
+- Ledger: Wren's entry, numbered 341 on its branch, is renumbered 353 because Polish's entry already holds 341.
+
+Not tested on a real phone. Way back: revert the merge commits in reverse order.

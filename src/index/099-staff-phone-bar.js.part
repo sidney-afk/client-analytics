@@ -1,0 +1,157 @@
+    /* STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded").
+     *
+     * On a phone, four staff screens (Today, Templates, Filming Plans, Submit)
+     * drop the wide desktop header and show one title row instead: the screen
+     * name on the left, Tabs and More on the right. Tabs lists every tab the
+     * header shows today; More holds the header's account, appearance and
+     * client controls. Nothing here is a new action: every row presses the
+     * existing header control (same permissions, same handlers).
+     *
+     * The bar is created only on a phone-width screen showing one of these four
+     * tabs, and removed again everywhere else, so desktop widths never get a
+     * single new element. Its look is the STAFF-PHONE block in
+     * 020-styles-surfaces, every rule of which is phone-capped and rooted at
+     * `body:has(.pocket-staff-bar)`.
+     *
+     * Other staff screens join by adding their nav id to POCKET_STAFF_PAGES. */
+    (function () {
+        const POCKET_STAFF_PAGES = { navToday: 'Today', navTemplates: 'Templates', navFilmingPlans: 'Filming Plans', navLinear: 'Submit' };
+        const phone = window.matchMedia ? window.matchMedia('(max-width: 767px)') : null;
+        const chevron = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>';
+        const dots = '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>';
+        const close = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>';
+        const next = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>';
+        const tick = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 10.5 3.6 3.6 7.4-8"/></svg>';
+        /* ONE PHONE DATE FORMAT: "Sat, 3 Oct 2026". Returns '' on anything wider
+           than a phone (and on a bad date), so every caller keeps its own desktop
+           wording by writing  window.svPhoneDate(d) || <its existing text>.
+           Locale-independent on purpose: the same words on every phone. */
+        /* True on a phone-width staff page (never a client link, never the public intake or onboarding form).
+           Render code that words or sizes something differently on phones asks this; wider screens get false,
+           so their output stays exactly what it was. */
+        window.svIsStaffPhone = function () {
+            return !!(phone && phone.matches) && !document.documentElement.classList.contains('boot-client')
+                && !document.body.classList.contains('intake-mode') && !document.body.classList.contains('onboarding-mode');
+        };
+        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        window.svPhoneDate = function (value) {
+            if (!phone || !phone.matches || document.documentElement.classList.contains('boot-client')) return '';
+            const d = value instanceof Date ? value : new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? value + 'T12:00:00' : value);
+            return isNaN(d) ? '' : DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+        };
+        const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        function activeNavId() {
+            const a = document.querySelector('#headerNav > .header-nav-btn.active');
+            return a ? a.id : '';
+        }
+        function wanted() {
+            if (!phone || !phone.matches) return '';
+            if (document.documentElement.classList.contains('boot-client')) return '';
+            if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return '';
+            return POCKET_STAFF_PAGES[activeNavId()] || '';
+        }
+        function dialogHtml(kind, title) {
+            return '<dialog class="pocket-staff-sheet" id="pocketStaff' + kind + '" aria-labelledby="pocketStaff' + kind + 'Title">'
+                + '<div class="pocket-staff-sheet-head"><h2 id="pocketStaff' + kind + 'Title">' + title + '</h2>'
+                + '<button type="button" class="pocket-staff-sheet-close" aria-label="Close ' + title.toLowerCase() + '">' + close + '</button></div>'
+                + '<div class="pocket-staff-sheet-body" id="pocketStaff' + kind + 'Body"></div></dialog>';
+        }
+        function row(label, attrs, extra) {
+            return '<button type="button" class="pocket-staff-row"' + (attrs || '') + '><span>' + esc(label) + '</span>' + (extra || next) + '</button>';
+        }
+        // The visible tab label, widened to the full name when the header only abbreviates it (Filming, TikTok).
+        function tabLabel(el) {
+            const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+            const full = (el.getAttribute('aria-label') || '').trim();
+            return full && full.toLowerCase().indexOf(text.toLowerCase()) === 0 ? full : text;
+        }
+        function tabsHtml() {
+            const cur = activeNavId();
+            return [...document.querySelectorAll('#headerNav > .header-nav-btn')]
+                .filter(el => el.style.display !== 'none')
+                .map(el => row(tabLabel(el), ' data-nav="' + esc(el.id) + '"' + (el.id === cur ? ' aria-current="page"' : ''), el.id === cur ? tick : next))
+                .join('');
+        }
+        function control(id) {
+            const el = document.getElementById(id);
+            return el && !el.hidden && el.style.display !== 'none' ? el : null;
+        }
+        function moreHtml() {
+            const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const rows = [];
+            const bar = document.getElementById('svClientBar');
+            if (bar && !bar.hidden) rows.push(row('Change client', ' data-proxy="svClientBadge"'));
+            if (bar && !bar.hidden && document.querySelector('#svClientBar .sv-jump-touch')) rows.push(row('Quick jump to a client or tab', ' data-proxy-sel="#svClientBar .sv-jump-touch"'));
+            rows.push(row(dark ? 'Light appearance' : 'Dark appearance', ' data-proxy="themeToggle"'));
+            if (control('statusPaletteToggle')) {
+                const classic = document.documentElement.getAttribute('data-status-palette') === 'classic';
+                rows.push(row(classic ? 'Current status colors' : 'Original status colors', ' data-proxy="statusPaletteToggle"'));
+            }
+            [['headerTimeOffMenuItem', 'Time Off'], ['headerOnboardingMenuItem', 'Onboarding'], ['headerCredentialsMenuItem', 'Client Credentials']].forEach(p => {
+                if (control(p[0])) rows.push(row(p[1], ' data-proxy="' + p[0] + '"'));
+            });
+            const out = document.getElementById('staffIdentityMenuLabel');
+            if (document.getElementById('staffIdentitySignOut')) rows.push(row((out && out.textContent.trim()) || 'Staff menu', ' data-proxy="staffIdentitySignOut"'));
+            const who = document.getElementById('staffAccountSummary');
+            const caption = who && who.textContent.replace(/\s+/g, ' ').trim();
+            return (caption ? '<p class="pocket-staff-who">' + esc(caption) + '</p>' : '') + rows.join('');
+        }
+        function open(kind) {
+            const dialog = document.getElementById('pocketStaff' + kind);
+            if (!dialog || dialog.open) return;
+            document.getElementById('pocketStaff' + kind + 'Body').innerHTML = kind === 'Tabs' ? tabsHtml() : moreHtml();
+            dialog.showModal();
+        }
+        function wireBar(bar) {
+            bar.querySelector('.pocket-staff-tabs-btn').addEventListener('click', () => open('Tabs'));
+            bar.querySelector('.pocket-staff-more-btn').addEventListener('click', () => open('More'));
+            bar.querySelectorAll('dialog').forEach(dialog => {
+                dialog.querySelector('.pocket-staff-sheet-close').addEventListener('click', () => dialog.close());
+                dialog.addEventListener('click', ev => {
+                    if (ev.target === dialog) { dialog.close(); return; }
+                    const r = ev.target.closest('.pocket-staff-row');
+                    if (!r) return;
+                    const target = r.dataset.nav ? document.getElementById(r.dataset.nav)
+                        : r.dataset.proxy ? document.getElementById(r.dataset.proxy)
+                        : r.dataset.proxySel ? document.querySelector(r.dataset.proxySel) : null;
+                    dialog.close();
+                    // After the sheet has closed, so focus and any popover it opens land on the page.
+                    if (target) setTimeout(() => target.click(), 0);
+                });
+            });
+        }
+        function sync() {
+            const title = wanted();
+            let bar = document.getElementById('pocketStaffBar');
+            if (!title) {
+                if (bar) bar.remove();
+                return;
+            }
+            if (!bar) {
+                const main = document.getElementById('mainWrap');
+                if (!main) return;
+                bar = document.createElement('div');
+                bar.id = 'pocketStaffBar';
+                bar.className = 'pocket-staff-bar';
+                bar.innerHTML = '<h1 class="pocket-staff-title"></h1><div class="pocket-staff-actions">'
+                    + '<button type="button" class="pocket-staff-tabs-btn" aria-haspopup="dialog" aria-controls="pocketStaffTabs">Tabs ' + chevron + '</button>'
+                    + '<button type="button" class="pocket-staff-more-btn" aria-label="More options" aria-haspopup="dialog" aria-controls="pocketStaffMore">' + dots + '</button></div>'
+                    + dialogHtml('Tabs', 'Tabs') + dialogHtml('More', 'More');
+                main.parentNode.insertBefore(bar, main);
+                wireBar(bar);
+            }
+            const h1 = bar.querySelector('.pocket-staff-title');
+            if (h1.textContent !== title) h1.textContent = title;
+        }
+        function start() {
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            new MutationObserver(sync).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
+            if (phone && phone.addEventListener) phone.addEventListener('change', sync);
+            sync();
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+        else start();
+    })();

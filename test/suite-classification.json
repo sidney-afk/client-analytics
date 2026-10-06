@@ -681,6 +681,7 @@
     "write-ui-reroute-usable-roster.js",
     "write-ui-soak-pager.js",
     "write-ui-writer-durability.js",
+    "staff-phone-css-scope.js",
     "finch-phone-css-scope.js"
   ],
   "profiles": [

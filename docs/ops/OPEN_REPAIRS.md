@@ -30430,6 +30430,57 @@ Owner request, 2026-10-02 (priority B, move off n8n; section 7c of `docs/plans/2
 **Not done, said plainly.** Nothing has run against Apify, OpenAI, Anthropic (including the Batches API), pg_net or pg_cron; the first real proof is the first shadow brief. The equivalence is against the n8n code, not a recorded run (n8n keeps none); the reel order in the prompt follows n8n's Merge default and is unconfirmed. The real table `analytics_market_research_briefs` is not written (the switch is a later PR). The page is unchanged. Decisions left to the owner, later: keep the Keywords brief at all (what it shows and what it costs are in section 7c.2), and whether the AI summaries move off n8n as a small separate step.
 
 
+## 342. [2026-10-05, BUILT, NOT DEPLOYED] Expanded staff Calendar on phones
+
+Standalone Review, Sheet, Month and Week now use phone cards and vertical days
+at 360/390/430, in light and dark. Tabs and More sit beside Calendar; native
+Organize, card size, setup, account and client selection move into More. Current
+month dates and all seven week days remain. Pending review decisions say Saving
+until acknowledged; drafts, errors, permission checks and native writers remain.
+All new styles are phone-width and standalone-Calendar scoped; returning to
+desktop restores the original controls and positions. Visible-browser fictional
+phone checks cover dialogs and recovery, and real TEST Caption Approve and
+Request change were read back with timestamps and the exact note. The owned
+disposable card was archived and read back. The desktop gate and public-safe
+screenshots are recorded in `docs/syncview-design/proofs/staff-calendar-expanded/README.md`.
+The Production editor-placement gate remains a reproduced unchanged-main failure.
+Selection, Samples and admin screens are outside this batch. No merge, deploy,
+backend installation, database change or n8n edit was performed.
+
+## 345. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: design check against the approved mock-up (session Polish)
+
+On the same branch as entry 338 of this branch. Phones and the standalone staff Calendar only: the markup is added only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]`. Desktop markup and styles are not touched.
+
+What was compared: the real app at 360, 390 and 430 wide, light and dark, beside layout A of the mock-up gallery, for Review with a post open, Sheet, Month, Week, the Tabs sheet and the More sheet.
+
+Fixed:
+- Tabs button: a real chevron icon in place of the small text arrow. More button: a real three-dot icon at normal size, same height as Tabs. Sheets close with a real cross icon.
+- Tabs and More sheets: bottom sheets with a grab handle and the mock-up's title size; the More sheet is titled "More". Rows are full width with left-aligned labels and a line between them. The current tab is bold with a tick. Organize and Card size are the same full width.
+- Tools: "Select cards" and "Write captions" show their names next to their icons.
+- Review card: the three grey status pills under the title are gone (the sentence above and each section already say it). Open in Sheet is a labelled button; an open post closes with a quiet chevron button. Approve is the mock-up's dark button (green before), with its route chip kept.
+- Sheet card: one date format on phones, "Sun, 4 Oct 2026" (desktop keeps its own); the Thumbnail and Video link fields are calm neutral fields with their link icon, their edit pencils neutral too; the three status rows use 13 px text.
+- Month and Week: each run of consecutive empty days is one slim line, for example "Thu 1 to Sat 3 · Nothing scheduled". Today and days with a post stay separate rows. Every folded day keeps its own element and date, and unfolds while a post is being dragged.
+
+Still different from the mock-up, on purpose:
+- Month is a list of days, not the mock-up's small grid: staff can drag posts onto days, and the list is where they are dropped.
+- A closed Review card keeps its labelled "Open in Sheet" next to the chevron; the mock-up only draws the empty Review state.
+- Approve keeps the "Reviewer" route chip and the "Client" alternate button: they are real routing choices.
+
+Not tested for real: Approve and Request change on the test client through these restyled buttons. The click handlers were not touched and the offline test clicks them; the signed-in staff page cannot run this branch from here. The unfold during a real drag on a touch phone is covered by the markup test only.
+
+Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (6,852 checks) and the scope guard; before and after pictures in `docs/syncview-design/proofs/staff-calendar-expanded/design-check/`.
+Added on the same branch, after Codex's latest commits were merged in: the "Calendar Tools" label above the tabs is hidden, and the buttons and colour circle on a card's image use one calm chip style (solid surface, thin border, 44 px, only the icon keeps its colour), the same as the staff Samples batch. This entry was numbered 342 and clashed with Codex's own 342 on this branch, so it is renumbered 345.
+Way back: revert the commit.
+
+## 349. [2026-10-05, BUILT, NOT DEPLOYED] Staff Calendar on phones: status picker as a bottom sheet, one Today marker (session Polish)
+
+On the same branch as entry 345. Phones and the standalone staff Calendar only: the one script change (a title in the picker) acts only when `_calStaffPhoneActive()` is true, and every style sits inside `@media (max-width: 767px)` under `#calView[data-pocket-staff-phone]`. Desktop markup and styles are not touched.
+
+- The status picker (Video, Thumbnail, Caption, and Set all) is a proper bottom sheet in light and dark: a grab handle, a title ("Video status", "Set all to…"), rows in sentence case with a colour dot for each status, a tick on the current one, 52 px rows, and the page behind it dimmed. Before it was a stack of all-caps chips with no dots, no title and no dimming.
+- Today is one black circle in Month and Week (36 px). Before, Month had dark text on a purple circle and Week a bare purple number.
+
+Proof: `docs/syncview-design/tests/staff-calendar-expanded-browser.js` (now 9,462 checks: the picker has a title, a dot and sentence case on every row and a dimmed page; Today is the 36 px circle).
+Way back: revert the commit.
 ## 337. [2026-10-03, SOURCE PREPARED, NOT DEPLOYED] Expanded client Samples and Analytics phone batch
 
 Prepare the actual client Samples Review, queue and Sheet plus Analytics from latest main, independently of the client Calendar batch. Comfortable separate cards and full component sections, phone title with Tabs and More, native card-size control in More, existing analytics tabs and About control in their phone menus. Keep the native decision/comment/media/Notes handlers, client field permissions, numbers, charts, saved copies, loaders and retries. Client links stay light. All new CSS is capped at 767px and scoped to client links; original controls and contents restore on desktop. Staff/reviewer/admin presentation is outside this batch.

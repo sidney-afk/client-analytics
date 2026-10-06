@@ -58,6 +58,7 @@ function _calComponentsFor(){ return ['caption']; }
 function _calReviewComponentActive(){ return true; }   // keep card → repaint path (no remove)
 function _calReviewRemoveCard(){}
 function _calReviewRepaintCard(){}
+function _calStaffPhoneActive(){ return false; } // This extracted-handler test covers the existing audience contract.
 function _calClearStaleApprovals(){}
 const _calNoLinearPush = new Set();
 function _calFlushCardSave(){ return Promise.resolve(); }

@@ -670,4 +670,9 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 | `docs/plans/2026-10-03-sheets-remaining-map.md` | Cartographer's measured 84-tab Google Sheets exit map, remaining dependencies and owner decisions. |
 | `test/atlas-sync.js` | Unit check for missing or stale edge folders, table-creating migrations, Actions files and n8n truth IDs. |
 
+| `docs/syncview-design/tests/staff-calendar-expanded-browser.js` | Native staff Calendar Expanded phone layout: Review, Sheet, Month, Week at 360/390/430 in both themes, menus, loading, empty and refused-save states, drafts and desktop restoration. Fictional transport only. | Browser lanes, including split and parts. |
+| `test/staff-calendar-phone-css-scope.js` | Phone-width and standalone staff Calendar selector lock, including adversarial parser controls. | Unit guard. |
+| `docs/syncview-design/tests/desktop-parity-relay.js` | Desktop comparison relay mutation/cache isolation controls. | Browser support guard. |
+| `docs/syncview-design/proofs/staff-calendar-expanded/README.md` | Staff Calendar Expanded before/after screenshots and local verification receipts. | Public fictional evidence. |
+
 - `docs/syncview-design/tests/phone-thumbnail-comparison.js` — native phone thumbnail comparison fixture: loading, pending, empty, denied, error, retry, stacked images, image failure and dismissal.

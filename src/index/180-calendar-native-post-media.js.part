@@ -36,7 +36,7 @@ import { _calPushStatusToLinear } from './140-calendar-legacy-outbox.js';
 import { _calCacheWrite, _calSetLastLocalWriteAt, loadCalendarPosts } from './150-calendar-hydration-import.js';
 import {
   _CAL_WEEK_BUFFER, _calDeriveThumbInfo, _calIsBlankId, _calIsClientReady, _calMiniLinkBadgeHtml,
-  _calPhoneClient, _calRenderBody, _calThumbIconSvg, _calThumbImgTag
+  _calPhoneClient, _calRenderBody, _calStaffPhoneActive, _calThumbIconSvg, _calThumbImgTag
 } from './160-calendar-organize-ui.js';
 import {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
@@ -2406,14 +2406,14 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
         return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
     }
-    /* Phone client links: runs of consecutive empty days become one slim line
+    /* Phone Calendar (staff, and client links): runs of consecutive empty days become one slim line
        ("Thu 1 to Fri 2 · Nothing scheduled"). Every day keeps its own element and
        data-iso, so a drag still has each day to land on; the first day of a run
        carries the label and the rest are folded away until a drag starts.
        isos: the days in order; isEmpty(iso): true for a day that may fold. */
     function _calPhoneEmptyRuns(isos, isEmpty) {
         const runs = new Map();
-        if (!_calPhoneClient()) return runs;
+        if (!_calStaffPhoneActive() && !_calPhoneClient()) return runs;
         const dayLabel = iso => _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + parseInt(iso.slice(8, 10), 10);
         let run = [];
         const flush = () => {

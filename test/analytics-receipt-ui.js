@@ -27,6 +27,7 @@ const receiptEnd = INDEX.indexOf('    function fmtIsoDate(', receiptStart);
 if (receiptStart < 0 || receiptEnd < 0) throw new Error('analytics receipt helpers not found');
 
 const sandbox = {
+  _svClientPhoneActive: () => false,
   gainPeriod: 'day',
   sortCol: 'ig_followers',
   sortDir: 'desc',
@@ -229,6 +230,12 @@ ok(failedGains.includes('Instagram') && failedGains.includes('Degraded · no fre
   'failed-provider gains card stays present and labeled');
 ok(!failedGains.includes('-30.7K') && !failedGains.includes('-30658'),
   'failed-provider gains never render the false 30k follower loss');
+
+sandbox._svClientPhoneActive = () => true;
+const phoneFailedGains = api.gainsBar(failedWithoutLastGood, prior, null, null, null, 'day', 'Receipt Test');
+ok(phoneFailedGains.includes('Degraded · no fresh data') && !phoneFailedGains.includes('-30658'),
+  'phone gains preserve the failed-provider receipt and suppress its false decline');
+sandbox._svClientPhoneActive = () => false;
 
 const successfulZeroGains = api.gainsBar(successfulZero, prior, null, null, null, 'day', 'Receipt Test');
 ok(successfulZeroGains.includes('Instagram') && successfulZeroGains.includes('-30,658'),

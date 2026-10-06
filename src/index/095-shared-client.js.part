@@ -1,4 +1,4 @@
-import { svArea, svAreaApi } from './040-shared-briefs.js';
+import { setClientViewTab, svArea, svAreaApi } from './040-shared-briefs.js';
 import { _templatesSetSelected, selectClient } from './050-market-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-core-client-names.js';
@@ -9,7 +9,7 @@ import { calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calGetPins, _calOpenClientTab, _calSavePins } from './134-calendar-prefs-mount.js';
 import { onCalTabClick } from './160-calendar-organize-ui.js';
-import { _isClientLink } from './260-production-refresh-boot.js';
+import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
 import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-samples-model.js';
     /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
      *
@@ -398,11 +398,162 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
     window.svClientPopToggle = svClientPopToggle;
     window.svOpenAnalytics = svOpenAnalytics;
 
+    // Client phone presentation only. Move the existing controls, preserving
+    // their handlers, values and permissions; restore their places on desktop.
+    const _svClientPhoneRoots = new Map();
+    let _svClientPhoneSamplesRefresh = null;
+    function _svClientPhoneRegisterSamplesRefresh(refresh) { _svClientPhoneSamplesRefresh = refresh; }
+    let _svClientPhoneWidth = window.matchMedia('(max-width: 767px)').matches;
+    function _svClientPhoneActive() {
+        return !!_isClientLink && _svClientPhoneWidth && !!_syncviewClientEntryCapability?.verified;
+    }
+    function _svClientPhoneOpenMenu(button) {
+        if (!_svClientPhoneActive()) return;
+        const root = button.closest('[data-pocket-client-phone]');
+        const dialog = root?.querySelector('[data-pocket-menu="' + button.dataset.pocketOpen + '"]');
+        if (dialog && !dialog.open) dialog.showModal();
+    }
+    function _svClientPhoneCloseMenu(button) { button.closest('dialog')?.close(); }
+    function _svClientPhoneNavigate(tab) {
+        if (!_svClientPhoneActive()) return;
+        setClientViewTab(encodeURIComponent(_syncviewClientEntryCapability.client), tab);
+    }
+    function _svClientPhoneRestore(root) {
+        const state = _svClientPhoneRoots.get(root);
+        if (!state) return;
+        for (const item of state.moved) {
+            if (item.originalHtml != null) item.node.innerHTML = item.originalHtml;
+            if (item.next?.parentNode === item.parent) item.parent.insertBefore(item.node, item.next);
+            else item.parent.append(item.node);
+        }
+        root.querySelectorAll(':scope > .pocket-client-phone-heading, :scope > .pocket-client-phone-menu').forEach(node => node.remove());
+        root.querySelectorAll('.pocket-client-phone-action').forEach(node => node.remove());
+        root.querySelectorAll('.pocket-client-phone-saving').forEach(node => node.remove());
+        root.querySelectorAll('[data-pocket-review-toggle]').forEach(node => {
+            node.removeAttribute('aria-expanded');
+            node.removeAttribute('data-pocket-review-toggle');
+        });
+        root.removeAttribute('data-pocket-client-phone');
+        _svClientPhoneRoots.delete(root);
+        if (state.kind === 'samples' && _svClientPhoneSamplesRefresh) _svClientPhoneSamplesRefresh(root);
+        if (state.wrapper && root.parentNode) root.replaceWith(...root.childNodes);
+    }
+    function _svClientPhoneMount(root, title, kind, moreSelector, wrapper) {
+        if (!_svClientPhoneActive() || !root || _svClientPhoneRoots.has(root)) return;
+        const state = { moved: [], wrapper: !!wrapper, kind };
+        _svClientPhoneRoots.set(root, state);
+        root.setAttribute('data-pocket-client-phone', kind);
+        if (kind === 'samples' && _svClientPhoneSamplesRefresh) _svClientPhoneSamplesRefresh(root);
+        if (kind === 'samples') root.querySelectorAll('.kcard-open-sheet, .kcard-expand-btn').forEach(button => {
+            if (button.querySelector('.pocket-client-phone-action')) return;
+            const label = document.createElement('span');
+            label.className = 'pocket-client-phone-action';
+            const toggle = button.classList.contains('kcard-expand-btn');
+            const expanded = !!button.closest('.cal-review-card.expanded');
+            label.textContent = toggle ? (expanded ? 'Close' : 'Review') : 'Open in Sheet';
+            button.append(label);
+            if (toggle) {
+                button.setAttribute('aria-expanded', String(expanded));
+                button.setAttribute('data-pocket-review-toggle', '');
+            }
+        });
+        const heading = document.createElement('div');
+        heading.className = 'pocket-client-phone-heading';
+        heading.innerHTML = `<h1>${_calEsc(title)}</h1><div><button type="button" data-pocket-open="tabs" onclick="_svClientPhoneOpenMenu(this)" aria-haspopup="dialog">Tabs <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button><button type="button" data-pocket-open="more" onclick="_svClientPhoneOpenMenu(this)" aria-haspopup="dialog" aria-label="More options"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></button></div>`;
+        root.prepend(heading);
+        for (const key of ['tabs', 'more']) {
+            const dialog = document.createElement('dialog');
+            dialog.className = 'pocket-client-phone-menu';
+            dialog.dataset.pocketMenu = key;
+            dialog.setAttribute('aria-label', key === 'tabs' ? 'Tabs' : 'More options');
+            dialog.innerHTML = `<div class="pocket-client-phone-menu-head"><h2>${key === 'tabs' ? 'Tabs' : 'More'}</h2><button type="button" onclick="_svClientPhoneCloseMenu(this)" aria-label="Close"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div><div class="pocket-client-phone-menu-body"></div>`;
+            // The existing About overlay lives outside this dialog. Retire
+            // the phone menu before its native handler opens that overlay.
+            dialog.addEventListener('click', event => {
+                if (event.target.closest('.detail-info-btn')) dialog.close();
+            }, true);
+            dialog.addEventListener('click', event => {
+                if (event.target === dialog || event.target.closest('.view-tab-btn')) dialog.close();
+            });
+            root.append(dialog);
+        }
+        const move = (node, destination) => {
+            const originalHtml = node.matches('.detail-info-btn') ? node.innerHTML : null;
+            state.moved.push({ node, parent: node.parentNode, next: node.nextSibling, originalHtml });
+            if (originalHtml != null) node.textContent = 'About this client';
+            destination.append(node);
+        };
+        const tabsBody = root.querySelector('[data-pocket-menu=tabs] .pocket-client-phone-menu-body');
+        const tabs = root.querySelector('.view-tab-toggle');
+        if (tabs) move(tabs, tabsBody);
+        else {
+            const list = document.createElement('div');
+            list.className = 'view-tab-toggle';
+            // Samples is its own client surface. Keep its native Sheet/Review
+            // controls and do not add routes from the Analytics/Calendar link.
+            list.innerHTML = kind === 'samples'
+                ? '<button type="button" class="view-tab-btn active" aria-current="page" onclick="_svClientPhoneCloseMenu(this)">Samples</button>'
+                : `<button type="button" class="view-tab-btn active" onclick="_svClientPhoneNavigate('analytics')">Analytics</button><button type="button" class="view-tab-btn" onclick="_svClientPhoneNavigate('calendar')">Content Calendar</button>`;
+            tabsBody.append(list);
+        }
+        const moreBody = root.querySelector('[data-pocket-menu=more] .pocket-client-phone-menu-body');
+        root.querySelectorAll(moreSelector).forEach(node => move(node, moreBody));
+        if (!moreBody.children.length || Array.from(moreBody.children).every(node => {
+            const style = getComputedStyle(node);
+            return style.display === 'none' || style.visibility === 'hidden';
+        })) {
+            const note = document.createElement('p');
+            note.className = 'pocket-client-phone-menu-note';
+            note.textContent = 'All available actions are shown on this page.';
+            moreBody.append(note);
+        }
+    }
+    function _svClientPhoneMountAnalytics() {
+        if (!_svClientPhoneActive() || _syncviewClientEntryCapability.view !== 'analytics') return;
+        const content = document.getElementById('content');
+        if (!content || content.querySelector('#calView, #sxrView, .client-link-invalid')) return;
+        let root = content.querySelector(':scope > .client-view');
+        let wrapper = false;
+        if (!root) {
+            if (!content.children.length) return;
+            root = document.createElement('div');
+            root.className = 'client-view';
+            root.append(...content.childNodes);
+            content.append(root);
+            wrapper = true;
+        }
+        _svClientPhoneMount(root, 'Analytics', 'analytics', '.detail-info-btn', wrapper);
+    }
+    function _svClientPhoneWatch() {
+        const content = document.getElementById('content');
+        if (!content) return;
+        new MutationObserver(() => {
+            for (const root of _svClientPhoneRoots.keys()) if (!root.isConnected) _svClientPhoneRoots.delete(root);
+            _svClientPhoneMountAnalytics();
+        }).observe(content, { childList: true });
+        _svClientPhoneMountAnalytics();
+        window.addEventListener('resize', () => {
+            if (innerWidth < 5 || innerHeight < 5 || visualViewport && (visualViewport.width < 5 || visualViewport.height < 5)) return;
+            const next = window.matchMedia('(max-width: 767px)').matches;
+            if (next === _svClientPhoneWidth) return;
+            _svClientPhoneWidth = next;
+            if (!next) for (const root of Array.from(_svClientPhoneRoots.keys())) _svClientPhoneRestore(root);
+            else {
+                _svClientPhoneMountAnalytics();
+                const samples = document.getElementById('sxrView');
+                if (samples) _svClientPhoneMount(samples, 'Samples', 'samples', '.cal-zoom');
+            }
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svClientPhoneWatch);
+    else queueMicrotask(_svClientPhoneWatch);
+
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        svClientPopToggle, svOpenAnalytics
+        _svClientPhoneCloseMenu, _svClientPhoneNavigate, _svClientPhoneOpenMenu, svClientPopToggle,
+        svOpenAnalytics
     });
 export {
-  SV_CLIENT_FOLLOW_TABS, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
+  SV_CLIENT_FOLLOW_TABS, _svClientPhoneActive, _svClientPhoneMount, _svClientPhoneRestore, _svClientPhoneRegisterSamplesRefresh, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
   svSharedClientGet, svSharedClientNote
 };

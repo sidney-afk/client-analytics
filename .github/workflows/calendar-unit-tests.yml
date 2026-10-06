@@ -237,12 +237,20 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/staff-calendar-expanded-browser.js
-      - name: Desktop comparison relay refuses cached writes
-        run: node docs/syncview-design/tests/desktop-parity-relay.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-phone-review-browser.js
+      - name: Expanded client Samples and Analytics phone states
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/client-links-expanded-browser.js
+      - name: Client Calendar Expanded layout, sections and dialogs
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/client-calendar-expanded-browser.js
+      - name: Desktop parity read snapshots retain the write refusal
+        run: node docs/syncview-design/tests/desktop-parity-relay.js
       - name: Client link Analytics reads the database behind its flag, Sheets as fallback
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -329,6 +337,8 @@ jobs:
           node docs/syncview-design/tests/entry-links-boot-browser.js
           node docs/syncview-design/tests/client-phone-review-browser.js
           node docs/syncview-design/tests/staff-calendar-expanded-browser.js
+          node docs/syncview-design/tests/client-links-expanded-browser.js
+          node docs/syncview-design/tests/client-calendar-expanded-browser.js
           node docs/syncview-design/tests/inline-handlers-browser.js
           node docs/syncview-design/tests/tab-switch-boot-browser.js
           node docs/syncview-design/tests/prod-write-gateway-browser.js
@@ -343,6 +353,8 @@ jobs:
           node docs/syncview-design/tests/entry-links-boot-browser.js
           node docs/syncview-design/tests/client-phone-review-browser.js
           node docs/syncview-design/tests/staff-calendar-expanded-browser.js
+          node docs/syncview-design/tests/client-links-expanded-browser.js
+          node docs/syncview-design/tests/client-calendar-expanded-browser.js
           node docs/syncview-design/tests/inline-handlers-browser.js
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'

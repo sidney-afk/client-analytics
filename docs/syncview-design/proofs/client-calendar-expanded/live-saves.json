@@ -1,0 +1,29 @@
+{
+  "verifiedAt": "2026-10-04T04:33:20.641Z",
+  "layout": "Expanded",
+  "candidateIndexSha": "33c8839305420ef2010dfc64ed493d74c07a564fdefd6285a23aa13789eecd8e",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "approveReceipt": {
+    "approved": true,
+    "timestampPresent": true,
+    "status": 200
+  },
+  "changeReceipt": {
+    "requested": true,
+    "notePresent": true,
+    "status": 200
+  },
+  "archiveReply": {
+    "ok": true,
+    "http": 200
+  },
+  "archiveRead": true,
+  "clientWriteHttpStatuses": [
+    200,
+    200
+  ],
+  "guardedTestFixture": true
+}

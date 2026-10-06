@@ -36,7 +36,7 @@ import { _calPushStatusToLinear } from './140-calendar-legacy-outbox.js';
 import { _calCacheWrite, _calSetLastLocalWriteAt, loadCalendarPosts } from './150-calendar-hydration-import.js';
 import {
   _CAL_WEEK_BUFFER, _calDeriveThumbInfo, _calIsBlankId, _calIsClientReady, _calMiniLinkBadgeHtml,
-  _calRenderBody, _calStaffPhoneActive, _calThumbIconSvg, _calThumbImgTag
+  _calPhoneClient, _calRenderBody, _calStaffPhoneActive, _calThumbIconSvg, _calThumbImgTag
 } from './160-calendar-organize-ui.js';
 import {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
@@ -2406,14 +2406,14 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
         return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
     }
-    /* Phone staff Calendar: runs of consecutive empty days become one slim line
+    /* Phone Calendar (staff, and client links): runs of consecutive empty days become one slim line
        ("Thu 1 to Fri 2 · Nothing scheduled"). Every day keeps its own element and
        data-iso, so a drag still has each day to land on; the first day of a run
        carries the label and the rest are folded away until a drag starts.
        isos: the days in order; isEmpty(iso): true for a day that may fold. */
     function _calPhoneEmptyRuns(isos, isEmpty) {
         const runs = new Map();
-        if (!_calStaffPhoneActive()) return runs;
+        if (!_calStaffPhoneActive() && !_calPhoneClient()) return runs;
         const dayLabel = iso => _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + parseInt(iso.slice(8, 10), 10);
         let run = [];
         const flush = () => {
@@ -2426,12 +2426,17 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         flush();
         return runs;
     }
+    /* Phone client links: the few Month and Week thumbnails are fetched at once, so a Week opened from Month never shows empty grey squares while a lazy image waits for its turn. */
+    function _calMiniThumbTag(info) {
+        const tag = _calThumbImgTag(info, '_calOnMiniThumbError');
+        return _calPhoneClient() ? tag.replace('loading="lazy"', 'loading="eager"') : tag;
+    }
     function _calPhoneRunClass(run) { return run ? (run.head ? ' pocket-run-head' : ' pocket-run-rest') : ''; }
     function _calPhoneRunLabel(run) { return run && run.head ? `<span class="pocket-run-label">${_calEsc(run.label)}</span>` : ''; }
     function _calMonthPillHtml(p) {
         const info = _calDeriveThumbInfo(p);
         const thumb = info.url
-            ? `<span class="cal-month-pill-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+            ? `<span class="cal-month-pill-thumb">${_calMiniThumbTag(info)}</span>`
             : info.frame
                 ? _calMiniLinkBadgeHtml('cal-month-pill-thumb', info.frameKind)
                 : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
@@ -2574,7 +2579,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                             ${list.map(p => {
                                 const info = _calDeriveThumbInfo(p);
                                 const th = info.url
-                                    ? `<span class="cal-week-card-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+                                    ? `<span class="cal-week-card-thumb">${_calMiniThumbTag(info)}</span>`
                                     : info.frame
                                         ? _calMiniLinkBadgeHtml('cal-week-card-thumb', info.frameKind)
                                         : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;

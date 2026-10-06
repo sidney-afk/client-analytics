@@ -15,7 +15,7 @@ const widths = arg('widths', '360,390,430').split(',').map(Number);
 const only = new RegExp(arg('only', '.*'));
 const shots = arg('shots', ''), receipts = [], failures = [];
 const settle = p => p.waitForTimeout(850);
-const core = SCENARIOS.filter(s => ['analytics-overview','analytics-detail','workload-week','linear-list','linear-detail','tiktok-client-ready','menu-tabs','menu-more','menu-client'].includes(s.id)).map(s => ({ ...s, name: s.id }));
+const core = SCENARIOS.filter(s => ['analytics-overview','analytics-detail','workload-week','linear-list','linear-detail','tiktok-client-ready','instagram-client-ready','menu-tabs','menu-more','menu-client'].includes(s.id)).map(s => ({ ...s, name: s.id }));
 for (const [name, base] of [['analytics-client-picker','analytics-overview'],['workload-client-picker','workload-week'],['linear-client-picker','linear-list']]) {
   core.push({...SCENARIOS.find(s=>s.id===base),name,steps:async p=>{
     if(before) await p.evaluate(()=>document.getElementById('svClientBadge').click());

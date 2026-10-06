@@ -1,22 +1,8 @@
 [
   {
-    "label": "samples-review-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 18,
-    "fields": 2
-  },
-  {
     "label": "samples-review-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 18,
-    "fields": 2
-  },
-  {
-    "label": "samples-review-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
     "controls": 18,
     "fields": 2
   },
@@ -28,9 +14,23 @@
     "fields": 2
   },
   {
+    "label": "samples-review-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 18,
+    "fields": 2
+  },
+  {
     "label": "samples-review-dark-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 18,
+    "fields": 2
+  },
+  {
+    "label": "samples-review-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 18,
     "fields": 2
   },
@@ -42,6 +42,13 @@
     "fields": 2
   },
   {
+    "label": "samples-tabs-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 30,
+    "fields": 2
+  },
+  {
     "label": "samples-tabs-dark-390",
     "width": 390,
     "scrollWidth": 390,
@@ -49,9 +56,9 @@
     "fields": 2
   },
   {
-    "label": "samples-tabs-light-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "samples-tabs-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 30,
     "fields": 2
   },
@@ -64,13 +71,6 @@
   },
   {
     "label": "samples-tabs-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 30,
-    "fields": 2
-  },
-  {
-    "label": "samples-tabs-dark-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 30,
@@ -91,9 +91,9 @@
     "fields": 2
   },
   {
-    "label": "samples-more-light-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-more-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 24,
     "fields": 2
   },
@@ -105,14 +105,14 @@
     "fields": 2
   },
   {
-    "label": "samples-more-light-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "samples-more-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 24,
     "fields": 2
   },
   {
-    "label": "samples-more-dark-360",
+    "label": "samples-more-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 24,
@@ -140,9 +140,9 @@
     "fields": 3
   },
   {
-    "label": "samples-quick-jump-light-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "samples-quick-jump-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 19,
     "fields": 3
   },
@@ -154,9 +154,9 @@
     "fields": 3
   },
   {
-    "label": "samples-quick-jump-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "samples-quick-jump-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 19,
     "fields": 3
   },
@@ -168,23 +168,16 @@
     "fields": 3
   },
   {
-    "label": "samples-archived-empty-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-archived-empty-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 20,
-    "fields": 2
-  },
-  {
     "label": "samples-archived-empty-light-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-archived-empty-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 20,
     "fields": 2
   },
@@ -203,7 +196,28 @@
     "fields": 2
   },
   {
+    "label": "samples-archived-empty-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 20,
+    "fields": 2
+  },
+  {
     "label": "samples-archived-empty-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-archived-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-archived-loading-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 20,
@@ -217,16 +231,9 @@
     "fields": 2
   },
   {
-    "label": "samples-archived-loading-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-archived-loading-light-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-archived-loading-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 20,
     "fields": 2
   },
@@ -238,23 +245,16 @@
     "fields": 2
   },
   {
-    "label": "samples-archived-loading-light-390",
+    "label": "samples-archived-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-archived-error-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-archived-loading-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-archived-error-light-360",
-    "width": 360,
-    "scrollWidth": 360,
     "controls": 21,
     "fields": 2
   },
@@ -266,9 +266,9 @@
     "fields": 2
   },
   {
-    "label": "samples-archived-error-light-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "samples-archived-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 21,
     "fields": 2
   },
@@ -280,14 +280,28 @@
     "fields": 2
   },
   {
-    "label": "samples-archived-error-dark-360",
+    "label": "samples-archived-error-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 21,
     "fields": 2
   },
   {
+    "label": "samples-archived-rows-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 21,
+    "fields": 2
+  },
+  {
     "label": "samples-archived-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 21,
+    "fields": 2
+  },
+  {
+    "label": "samples-archived-rows-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 21,
@@ -301,6 +315,13 @@
     "fields": 2
   },
   {
+    "label": "samples-archived-rows-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 21,
+    "fields": 2
+  },
+  {
     "label": "samples-archived-rows-dark-360",
     "width": 360,
     "scrollWidth": 360,
@@ -308,30 +329,16 @@
     "fields": 2
   },
   {
-    "label": "samples-archived-rows-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 21,
-    "fields": 2
-  },
-  {
-    "label": "samples-archived-rows-light-390",
+    "label": "samples-notes-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 21,
-    "fields": 2
+    "controls": 28,
+    "fields": 4
   },
   {
     "label": "samples-archived-rows-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 21,
-    "fields": 2
-  },
-  {
-    "label": "samples-archived-rows-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 21,
     "fields": 2
   },
@@ -350,7 +357,7 @@
     "fields": 4
   },
   {
-    "label": "samples-notes-light-390",
+    "label": "samples-notes-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 28,
@@ -360,13 +367,6 @@
     "label": "samples-notes-dark-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 28,
-    "fields": 4
-  },
-  {
-    "label": "samples-notes-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 28,
     "fields": 4
   },
@@ -381,13 +381,6 @@
     "label": "samples-lightbox-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-lightbox-light-430",
-    "width": 430,
-    "scrollWidth": 430,
     "controls": 20,
     "fields": 2
   },
@@ -413,10 +406,24 @@
     "fields": 2
   },
   {
+    "label": "samples-lightbox-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 20,
+    "fields": 2
+  },
+  {
     "label": "samples-lightbox-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 19,
     "fields": 2
   },
   {
@@ -427,30 +434,23 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-loading-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 19,
+    "label": "samples-comparison-pending-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-pending-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 20,
     "fields": 2
   },
   {
     "label": "samples-comparison-loading-dark-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 19,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-loading-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 19,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-loading-light-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 19,
     "fields": 2
   },
@@ -462,10 +462,17 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-pending-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 20,
+    "label": "samples-comparison-loading-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 19,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-loading-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 19,
     "fields": 2
   },
   {
@@ -483,20 +490,6 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-pending-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-pending-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 20,
-    "fields": 2
-  },
-  {
     "label": "samples-comparison-pending-dark-430",
     "width": 430,
     "scrollWidth": 430,
@@ -504,7 +497,28 @@
     "fields": 2
   },
   {
+    "label": "samples-comparison-pending-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-retry-loading-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 19,
+    "fields": 2
+  },
+  {
     "label": "samples-comparison-retry-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 19,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-retry-loading-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 19,
@@ -518,9 +532,9 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-retry-loading-light-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "samples-comparison-retry-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 19,
     "fields": 2
   },
@@ -532,44 +546,9 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-retry-loading-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 19,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-retry-loading-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 19,
-    "fields": 2
-  },
-  {
     "label": "samples-comparison-empty-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-empty-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-empty-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-empty-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
     "controls": 20,
     "fields": 2
   },
@@ -581,6 +560,13 @@
     "fields": 2
   },
   {
+    "label": "samples-comparison-empty-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 20,
+    "fields": 2
+  },
+  {
     "label": "samples-comparison-empty-dark-360",
     "width": 360,
     "scrollWidth": 360,
@@ -588,7 +574,14 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-error-light-430",
+    "label": "samples-comparison-empty-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-empty-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 20,
@@ -602,16 +595,16 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-error-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "samples-comparison-error-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 20,
     "fields": 2
   },
   {
-    "label": "samples-comparison-error-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-comparison-error-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 20,
     "fields": 2
   },
@@ -623,30 +616,16 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-error-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-denied-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 20,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-denied-light-430",
+    "label": "samples-comparison-error-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 20,
     "fields": 2
   },
   {
-    "label": "samples-comparison-denied-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "samples-comparison-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 20,
     "fields": 2
   },
@@ -665,6 +644,20 @@
     "fields": 2
   },
   {
+    "label": "samples-comparison-denied-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 20,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-denied-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 20,
+    "fields": 2
+  },
+  {
     "label": "samples-comparison-denied-dark-430",
     "width": 430,
     "scrollWidth": 430,
@@ -672,24 +665,10 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-ready-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 19,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-ready-light-430",
+    "label": "samples-comparison-denied-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 19,
-    "fields": 2
-  },
-  {
-    "label": "samples-comparison-ready-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 19,
+    "controls": 20,
     "fields": 2
   },
   {
@@ -714,21 +693,21 @@
     "fields": 2
   },
   {
-    "label": "samples-comparison-image-error-dark-360",
+    "label": "samples-comparison-ready-dark-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 19,
     "fields": 2
   },
   {
-    "label": "samples-comparison-image-error-light-390",
+    "label": "samples-comparison-ready-light-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 19,
     "fields": 2
   },
   {
-    "label": "samples-comparison-image-error-light-430",
+    "label": "samples-comparison-ready-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 19,
@@ -749,6 +728,13 @@
     "fields": 2
   },
   {
+    "label": "samples-comparison-image-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 19,
+    "fields": 2
+  },
+  {
     "label": "samples-comparison-image-error-dark-430",
     "width": 430,
     "scrollWidth": 430,
@@ -756,35 +742,21 @@
     "fields": 2
   },
   {
-    "label": "samples-save-error-dark-430",
+    "label": "samples-comparison-image-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 19,
+    "fields": 2
+  },
+  {
+    "label": "samples-comparison-image-error-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 18,
+    "controls": 19,
     "fields": 2
   },
   {
     "label": "samples-save-error-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 18,
-    "fields": 2
-  },
-  {
-    "label": "samples-save-error-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 18,
-    "fields": 2
-  },
-  {
-    "label": "samples-save-error-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 18,
-    "fields": 2
-  },
-  {
-    "label": "samples-save-error-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 18,
@@ -798,28 +770,21 @@
     "fields": 2
   },
   {
-    "label": "samples-sending-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 12,
-    "fields": 1
-  },
-  {
-    "label": "samples-sending-dark-390",
+    "label": "samples-save-error-dark-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 12,
-    "fields": 1
+    "controls": 18,
+    "fields": 2
+  },
+  {
+    "label": "samples-save-error-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 18,
+    "fields": 2
   },
   {
     "label": "samples-sending-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 12,
-    "fields": 1
-  },
-  {
-    "label": "samples-sending-dark-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 12,
@@ -833,18 +798,46 @@
     "fields": 1
   },
   {
-    "label": "samples-sending-light-430",
+    "label": "samples-save-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 18,
+    "fields": 2
+  },
+  {
+    "label": "samples-sending-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 12,
+    "fields": 1
+  },
+  {
+    "label": "samples-sending-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 12,
+    "fields": 1
+  },
+  {
+    "label": "samples-save-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 18,
+    "fields": 2
+  },
+  {
+    "label": "samples-sending-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 12,
     "fields": 1
   },
   {
-    "label": "samples-sheet-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 21,
-    "fields": 2
+    "label": "samples-sending-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 12,
+    "fields": 1
   },
   {
     "label": "samples-sheet-light-390",
@@ -854,9 +847,9 @@
     "fields": 2
   },
   {
-    "label": "samples-sheet-light-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-sheet-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 21,
     "fields": 2
   },
@@ -871,6 +864,13 @@
     "label": "samples-sheet-dark-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 21,
+    "fields": 2
+  },
+  {
+    "label": "samples-sheet-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 21,
     "fields": 2
   },
@@ -896,9 +896,30 @@
     "fields": 2
   },
   {
+    "label": "samples-sheet-more-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 29,
+    "fields": 2
+  },
+  {
     "label": "samples-sheet-more-dark-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 29,
+    "fields": 2
+  },
+  {
+    "label": "samples-status-menu-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 27,
+    "fields": 2
+  },
+  {
+    "label": "samples-sheet-more-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 29,
     "fields": 2
   },
@@ -910,44 +931,9 @@
     "fields": 2
   },
   {
-    "label": "samples-sheet-more-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 29,
-    "fields": 2
-  },
-  {
-    "label": "samples-sheet-more-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 29,
-    "fields": 2
-  },
-  {
     "label": "samples-status-menu-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 27,
-    "fields": 2
-  },
-  {
-    "label": "samples-status-menu-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 27,
-    "fields": 2
-  },
-  {
-    "label": "samples-status-menu-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 27,
-    "fields": 2
-  },
-  {
-    "label": "samples-status-menu-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 27,
     "fields": 2
   },
@@ -959,16 +945,9 @@
     "fields": 2
   },
   {
-    "label": "samples-status-menu-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 27,
-    "fields": 2
-  },
-  {
-    "label": "samples-setall-light-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-status-menu-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 27,
     "fields": 2
   },
@@ -980,14 +959,28 @@
     "fields": 2
   },
   {
-    "label": "samples-setall-light-360",
-    "width": 360,
-    "scrollWidth": 360,
+    "label": "samples-status-menu-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 27,
     "fields": 2
   },
   {
-    "label": "samples-setall-dark-360",
+    "label": "samples-status-menu-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 2
+  },
+  {
+    "label": "samples-select-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 23,
+    "fields": 2
+  },
+  {
+    "label": "samples-setall-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 27,
@@ -1001,6 +994,20 @@
     "fields": 2
   },
   {
+    "label": "samples-setall-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 27,
+    "fields": 2
+  },
+  {
+    "label": "samples-setall-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 27,
+    "fields": 2
+  },
+  {
     "label": "samples-setall-dark-430",
     "width": 430,
     "scrollWidth": 430,
@@ -1008,9 +1015,9 @@
     "fields": 2
   },
   {
-    "label": "samples-select-light-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-selected-light-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 23,
     "fields": 2
   },
@@ -1018,20 +1025,6 @@
     "label": "samples-select-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 23,
-    "fields": 2
-  },
-  {
-    "label": "samples-select-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 23,
-    "fields": 2
-  },
-  {
-    "label": "samples-select-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
     "controls": 23,
     "fields": 2
   },
@@ -1050,21 +1043,14 @@
     "fields": 2
   },
   {
-    "label": "samples-selected-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 23,
-    "fields": 2
-  },
-  {
-    "label": "samples-selected-light-430",
+    "label": "samples-select-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 23,
     "fields": 2
   },
   {
-    "label": "samples-selected-dark-430",
+    "label": "samples-select-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 23,
@@ -1092,37 +1078,37 @@
     "fields": 2
   },
   {
-    "label": "samples-create-dark-430",
+    "label": "samples-selected-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 30,
-    "fields": 5
+    "controls": 23,
+    "fields": 2
   },
   {
-    "label": "samples-create-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 30,
-    "fields": 5
-  },
-  {
-    "label": "samples-create-dark-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 30,
-    "fields": 5
-  },
-  {
-    "label": "samples-create-light-430",
+    "label": "samples-selected-dark-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 30,
-    "fields": 5
+    "controls": 23,
+    "fields": 2
   },
   {
     "label": "samples-create-light-390",
     "width": 390,
     "scrollWidth": 390,
+    "controls": 30,
+    "fields": 5
+  },
+  {
+    "label": "samples-review-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 4,
+    "fields": 0
+  },
+  {
+    "label": "samples-create-light-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 30,
     "fields": 5
   },
@@ -1134,30 +1120,44 @@
     "fields": 5
   },
   {
-    "label": "samples-review-loading-light-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-create-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 30,
+    "fields": 5
+  },
+  {
+    "label": "samples-review-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 5,
+    "fields": 0
+  },
+  {
+    "label": "samples-review-empty-light-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 4,
     "fields": 0
+  },
+  {
+    "label": "samples-create-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 30,
+    "fields": 5
+  },
+  {
+    "label": "samples-create-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 30,
+    "fields": 5
   },
   {
     "label": "samples-review-loading-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 4,
-    "fields": 0
-  },
-  {
-    "label": "samples-review-loading-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 4,
-    "fields": 0
-  },
-  {
-    "label": "samples-review-loading-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
     "controls": 4,
     "fields": 0
   },
@@ -1169,10 +1169,17 @@
     "fields": 0
   },
   {
-    "label": "samples-review-loading-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
+    "label": "samples-review-loading-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 4,
+    "fields": 0
+  },
+  {
+    "label": "samples-sheet-loading-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 5,
     "fields": 0
   },
   {
@@ -1190,20 +1197,6 @@
     "fields": 0
   },
   {
-    "label": "samples-review-error-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 5,
-    "fields": 0
-  },
-  {
-    "label": "samples-review-error-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 5,
-    "fields": 0
-  },
-  {
     "label": "samples-review-error-dark-360",
     "width": 360,
     "scrollWidth": 360,
@@ -1211,28 +1204,21 @@
     "fields": 0
   },
   {
-    "label": "samples-review-error-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 5,
-    "fields": 0
-  },
-  {
-    "label": "samples-review-empty-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 4,
-    "fields": 0
-  },
-  {
-    "label": "samples-review-empty-light-430",
+    "label": "samples-review-loading-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 4,
     "fields": 0
   },
   {
-    "label": "samples-review-empty-dark-360",
+    "label": "samples-review-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 4,
+    "fields": 0
+  },
+  {
+    "label": "samples-review-empty-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 4,
@@ -1246,9 +1232,44 @@
     "fields": 0
   },
   {
-    "label": "samples-review-empty-light-360",
+    "label": "samples-review-empty-dark-360",
     "width": 360,
     "scrollWidth": 360,
+    "controls": 4,
+    "fields": 0
+  },
+  {
+    "label": "samples-sheet-error-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "samples-review-error-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 5,
+    "fields": 0
+  },
+  {
+    "label": "samples-review-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 5,
+    "fields": 0
+  },
+  {
+    "label": "samples-sheet-empty-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "samples-review-empty-light-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 4,
     "fields": 0
   },
@@ -1260,23 +1281,9 @@
     "fields": 0
   },
   {
-    "label": "samples-sheet-loading-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 5,
-    "fields": 0
-  },
-  {
     "label": "samples-sheet-loading-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 5,
-    "fields": 0
-  },
-  {
-    "label": "samples-sheet-loading-light-430",
-    "width": 430,
-    "scrollWidth": 430,
     "controls": 5,
     "fields": 0
   },
@@ -1288,13 +1295,6 @@
     "fields": 0
   },
   {
-    "label": "samples-sheet-loading-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 5,
-    "fields": 0
-  },
-  {
     "label": "samples-sheet-loading-dark-390",
     "width": 390,
     "scrollWidth": 390,
@@ -1302,17 +1302,17 @@
     "fields": 0
   },
   {
-    "label": "samples-sheet-error-light-430",
+    "label": "samples-sheet-loading-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 6,
+    "controls": 5,
     "fields": 0
   },
   {
-    "label": "samples-sheet-error-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 6,
+    "label": "samples-sheet-loading-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 5,
     "fields": 0
   },
   {
@@ -1323,7 +1323,7 @@
     "fields": 0
   },
   {
-    "label": "samples-sheet-error-light-390",
+    "label": "samples-sheet-error-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 6,
@@ -1337,28 +1337,14 @@
     "fields": 0
   },
   {
-    "label": "samples-sheet-error-dark-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "samples-sheet-empty-light-360",
-    "width": 360,
-    "scrollWidth": 360,
-    "controls": 6,
-    "fields": 0
-  },
-  {
-    "label": "samples-sheet-empty-dark-390",
+    "label": "calendar-selection-light-390",
     "width": 390,
     "scrollWidth": 390,
-    "controls": 6,
-    "fields": 0
+    "controls": 37,
+    "fields": 4
   },
   {
-    "label": "samples-sheet-empty-light-430",
+    "label": "samples-sheet-error-dark-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 6,
@@ -1372,14 +1358,42 @@
     "fields": 0
   },
   {
-    "label": "samples-sheet-empty-light-390",
+    "label": "samples-sheet-empty-dark-390",
     "width": 390,
     "scrollWidth": 390,
     "controls": 6,
     "fields": 0
   },
   {
+    "label": "samples-sheet-empty-light-360",
+    "width": 360,
+    "scrollWidth": 360,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "samples-sheet-error-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "calendar-selected-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 37,
+    "fields": 4
+  },
+  {
     "label": "samples-sheet-empty-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 6,
+    "fields": 0
+  },
+  {
+    "label": "samples-sheet-empty-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 6,
@@ -1393,6 +1407,13 @@
     "fields": 4
   },
   {
+    "label": "calendar-caption-selection-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 32,
+    "fields": 4
+  },
+  {
     "label": "calendar-selection-light-430",
     "width": 430,
     "scrollWidth": 430,
@@ -1400,9 +1421,9 @@
     "fields": 4
   },
   {
-    "label": "calendar-selection-light-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "calendar-selection-dark-360",
+    "width": 360,
+    "scrollWidth": 360,
     "controls": 37,
     "fields": 4
   },
@@ -1421,30 +1442,23 @@
     "fields": 4
   },
   {
-    "label": "calendar-selection-dark-360",
+    "label": "calendar-selected-light-360",
     "width": 360,
     "scrollWidth": 360,
     "controls": 37,
+    "fields": 4
+  },
+  {
+    "label": "calendar-caption-selected-light-390",
+    "width": 390,
+    "scrollWidth": 390,
+    "controls": 32,
     "fields": 4
   },
   {
     "label": "calendar-selected-light-430",
     "width": 430,
     "scrollWidth": 430,
-    "controls": 37,
-    "fields": 4
-  },
-  {
-    "label": "calendar-selected-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 37,
-    "fields": 4
-  },
-  {
-    "label": "calendar-selected-light-360",
-    "width": 360,
-    "scrollWidth": 360,
     "controls": 37,
     "fields": 4
   },
@@ -1470,30 +1484,9 @@
     "fields": 4
   },
   {
-    "label": "calendar-caption-selection-light-430",
-    "width": 430,
-    "scrollWidth": 430,
-    "controls": 32,
-    "fields": 4
-  },
-  {
     "label": "calendar-caption-selection-light-360",
     "width": 360,
     "scrollWidth": 360,
-    "controls": 32,
-    "fields": 4
-  },
-  {
-    "label": "calendar-caption-selection-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 32,
-    "fields": 4
-  },
-  {
-    "label": "calendar-caption-selected-light-430",
-    "width": 430,
-    "scrollWidth": 430,
     "controls": 32,
     "fields": 4
   },
@@ -1512,7 +1505,7 @@
     "fields": 4
   },
   {
-    "label": "calendar-caption-selection-dark-430",
+    "label": "calendar-caption-selection-light-430",
     "width": 430,
     "scrollWidth": 430,
     "controls": 32,
@@ -1526,16 +1519,9 @@
     "fields": 4
   },
   {
-    "label": "calendar-caption-selected-light-390",
-    "width": 390,
-    "scrollWidth": 390,
-    "controls": 32,
-    "fields": 4
-  },
-  {
-    "label": "calendar-caption-selected-dark-390",
-    "width": 390,
-    "scrollWidth": 390,
+    "label": "calendar-caption-selection-dark-430",
+    "width": 430,
+    "scrollWidth": 430,
     "controls": 32,
     "fields": 4
   },
@@ -1543,6 +1529,20 @@
     "label": "calendar-caption-selected-dark-360",
     "width": 360,
     "scrollWidth": 360,
+    "controls": 32,
+    "fields": 4
+  },
+  {
+    "label": "calendar-caption-selected-light-430",
+    "width": 430,
+    "scrollWidth": 430,
+    "controls": 32,
+    "fields": 4
+  },
+  {
+    "label": "calendar-caption-selected-dark-390",
+    "width": 390,
+    "scrollWidth": 390,
     "controls": 32,
     "fields": 4
   },

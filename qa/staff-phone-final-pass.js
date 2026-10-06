@@ -16,6 +16,10 @@ const only = new RegExp(arg('only', '.*'));
 const shots = arg('shots', ''), receipts = [], failures = [];
 const settle = p => p.waitForTimeout(850);
 const core = SCENARIOS.filter(s => ['analytics-overview','analytics-detail','workload-week','linear-list','linear-detail','tiktok-client-ready','instagram-client-ready','menu-tabs','menu-more','menu-client'].includes(s.id)).map(s => ({ ...s, name: s.id }));
+core.push({...SCENARIOS.find(s=>s.id==='linear-list'),name:'linear-project',steps:async p=>{
+  await p.evaluate(()=>{const id=Object.keys(_prodProjects()).find(k=>_prodIssues().some(i=>i.project===k));if(!id)throw new Error('Missing fictional project fixture');_prodOpenProject(id);});
+  await p.waitForSelector('[data-prod-project-detail]');await settle(p);
+}});
 for (const [name, base] of [['analytics-client-picker','analytics-overview'],['workload-client-picker','workload-week'],['linear-client-picker','linear-list']]) {
   core.push({...SCENARIOS.find(s=>s.id===base),name,steps:async p=>{
     if(before) await p.evaluate(()=>document.getElementById('svClientBadge').click());

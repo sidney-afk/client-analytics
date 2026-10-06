@@ -5654,19 +5654,19 @@
             html.fph-on[data-fph="production"] .prod-group { height: 48px; padding: 0 14px; }
             html.fph-on[data-fph="production"] .prod-group-title,
             html.fph-on[data-fph="production"] .prod-group-count { font-size: 14px; }
-            html.fph-on[data-fph="production"] .prod-row { box-sizing: border-box; height: auto; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 12px 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--white); content-visibility: visible; }
+            html.fph-on[data-fph="production"] .prod-row, html.fph-on[data-fph="production"] .prod-subrow { box-sizing: border-box; height: auto; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 12px 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--white); content-visibility: visible; }
             html.fph-on[data-fph="production"] .prod-row .prod-check { display: none; }
-            html.fph-on[data-fph="production"] .prod-row .prod-status { order: 0; }
-            html.fph-on[data-fph="production"] .prod-row .prod-title { order: 1; flex: 1 1 calc(100% - 32px); min-width: 0; white-space: normal; font-size: 15px; font-weight: 600; line-height: 1.4; }
-            html.fph-on[data-fph="production"] .prod-row .prod-title b { overflow: visible; white-space: normal; overflow-wrap: anywhere; font-weight: 650; }
-            html.fph-on[data-fph="production"] .prod-row .prod-id { order: 2; width: auto; margin-left: 24px; font-size: 12px; }
-            html.fph-on[data-fph="production"] .prod-row .prod-subchip { order: 3; }
-            html.fph-on[data-fph="production"] .prod-row .prod-chip { order: 3; }
-            html.fph-on[data-fph="production"] .prod-row .prod-chip.optional { display: inline-flex; }
-            html.fph-on[data-fph="production"] .prod-row .prod-spacer { order: 4; flex: 1 1 0; }
-            html.fph-on[data-fph="production"] .prod-row .prod-due { order: 5; min-height: 44px; min-width: 44px; }
-            html.fph-on[data-fph="production"] .prod-row .prod-assign-hot { order: 6; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
-            html.fph-on[data-fph="production"] .prod-row .prod-created { display: none; }
+            html.fph-on[data-fph="production"] .prod-row .prod-status, html.fph-on[data-fph="production"] .prod-subrow .prod-status { order: 0; }
+            html.fph-on[data-fph="production"] .prod-row .prod-title, html.fph-on[data-fph="production"] .prod-subrow .prod-title { order: 1; flex: 1 1 calc(100% - 32px); min-width: 0; white-space: normal; font-size: 15px; font-weight: 600; line-height: 1.4; }
+            html.fph-on[data-fph="production"] .prod-row .prod-title b, html.fph-on[data-fph="production"] .prod-subrow .prod-title b { overflow: visible; white-space: normal; overflow-wrap: anywhere; font-weight: 650; }
+            html.fph-on[data-fph="production"] .prod-row .prod-id, html.fph-on[data-fph="production"] .prod-subrow .prod-id { order: 2; width: auto; margin-left: 24px; font-size: 12px; }
+            html.fph-on[data-fph="production"] .prod-row .prod-subchip, html.fph-on[data-fph="production"] .prod-subrow .prod-subchip { order: 3; }
+            html.fph-on[data-fph="production"] .prod-row .prod-chip, html.fph-on[data-fph="production"] .prod-subrow .prod-chip { order: 3; }
+            html.fph-on[data-fph="production"] .prod-row .prod-chip.optional, html.fph-on[data-fph="production"] .prod-subrow .prod-chip.optional { display: inline-flex; }
+            html.fph-on[data-fph="production"] .prod-row .prod-spacer, html.fph-on[data-fph="production"] .prod-subrow .prod-spacer { order: 4; flex: 1 1 0; }
+            html.fph-on[data-fph="production"] .prod-row .prod-due, html.fph-on[data-fph="production"] .prod-subrow .prod-due { order: 5; min-height: 44px; min-width: 44px; }
+            html.fph-on[data-fph="production"] .prod-row .prod-assign-hot, html.fph-on[data-fph="production"] .prod-subrow .prod-assign-hot { order: 6; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+            html.fph-on[data-fph="production"] .prod-row .prod-created, html.fph-on[data-fph="production"] .prod-subrow .prod-created { display: none; }
             /* No date: no empty pill. The date is still set from the issue page. */
             html.fph-on[data-fph="production"] .prod-row .prod-due.optional { display: none; }
             html.fph-on[data-fph="production"] .prod-cmd-input { font-size: 16px; min-height: 44px; box-sizing: border-box; }
@@ -5745,6 +5745,13 @@
             html.fph-on .prod-topbar.prod-detail-top > .prod-icon-btn:first-child svg { flex-shrink: 0; }
             html.fph-on #prodRoot { margin-inline: 12px; max-width: calc(100% - 24px); box-sizing: border-box; border-radius: 20px; overflow: hidden; }
             html.fph-on .prod-list { padding-inline: 12px; }
+            html.fph-on .prod-subrow .prod-check { order: 2; width: 44px; height: 44px; opacity: 1; border: 0; background: transparent; margin: 0; }
+            html.fph-on .prod-subrow .prod-id { order: 3; margin-left: 0; }
+            html.fph-on .prod-subrow .prod-check::before { inset: 14px; border: 1.5px solid var(--prod-faint); border-radius: 4px; }
+            html.fph-on .prod-subrow .prod-check.on::before { border-color: var(--prod-accent); background: var(--prod-accent); }
+            html.fph-on .prod-subrow .prod-check.on::after { position: absolute; left: 20px; top: 17px; border-color: var(--white); }
+            html.fph-on .prod-subrow-file { order: 4; width: 44px; height: 44px; }
+            html.fph-on .prod-subrow .prod-due, html.fph-on .prod-subrow .prod-assign-hot { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; flex-shrink: 0; }
         }
 
         @media (max-width: 767px) {

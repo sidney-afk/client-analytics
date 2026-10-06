@@ -4045,7 +4045,7 @@
         /* CLIENT-PHONE:BEGIN */
         @media (max-width: 767px) {
             /* Shared: header, unscheduled tray. */
-            html.boot-client .cal-tab-view .cal-month-header { gap: 8px; padding: 2px 0 14px; }
+            html.boot-client .cal-tab-view .cal-month-header { gap: 8px; padding: 0; margin: 0 0 12px; }
             html.boot-client .cal-tab-view .cal-month-label { font-size: 1.08rem; font-weight: 800; letter-spacing: -0.01em; }
             html.boot-client .cal-tab-view .cal-nav-btn { width: 44px; height: 44px; font-size: 1.25rem; flex-shrink: 0; }
             html.boot-client .cal-tab-view .cal-today-btn { min-height: 44px; padding: 0 16px; font-size: 0.84rem; flex-shrink: 0; }
@@ -4105,7 +4105,6 @@
             html.boot-client .cal-tab-view .cal-week-head { padding: 2px 0 0; border: 0; background: transparent; text-align: center; }
             html.boot-client .cal-tab-view .cal-week-day { font-size: 0.66rem; }
             html.boot-client .cal-tab-view .cal-week-num { font-size: 1.35rem; line-height: 1; }
-            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { color: var(--sv-fg-4f46e5); }
             html.boot-client .cal-tab-view .cal-week-stack { padding: 0; gap: 8px; min-width: 0; justify-content: center; }
             html.boot-client .cal-tab-view .cal-week-stack:not(:has(*))::after { content: "Nothing scheduled"; font-size: 0.84rem; color: var(--text-muted); padding: 12px 0; }
             html.boot-client .cal-tab-view .cal-week-card { width: 100%; }
@@ -4309,14 +4308,23 @@
             html.boot-client .cal-tab-view .cal-week-wrap:has(.cal-card-dragging) .pocket-run-head > :not(.pocket-run-label) { display: revert; }
             html.boot-client .cal-tab-view .cal-month-wrap .cal-month-grid .cal-month-cell:not(.out):not(.pocket-run-head):not(.pocket-run-rest):not(:has(.cal-month-pill)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
             html.boot-client .cal-tab-view .cal-month-cell.today:not(:has(.cal-month-pill)) .cal-month-cellhead { position: static; flex-direction: row; width: 64px; }
-            html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); }
             html.boot-client .cal-tab-view .cal-week-grid { gap: 10px; }
             html.boot-client .cal-tab-view .cal-week-col:nth-child(n+8):nth-child(-n+14):not(.pocket-run-head):not(.pocket-run-rest):not(:has(.cal-week-card)) { display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0; background: transparent; }
-            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { padding: 2px 8px; border-radius: 9px; background: var(--text-primary); color: var(--white); }
         }
         @media (max-width: 767px) {
             html.boot-client .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
             html.boot-client .thumb-compare-close svg { width: 18px; height: 18px; }
+            /* Even spacing in Month and Week, and one Today marker: the black circle. */
+            html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num,
+            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 1.05rem; font-weight: 800; line-height: 1; }
+            html.boot-client .cal-tab-view .cal-month-cell.today,
+            html.boot-client .cal-tab-view .cal-month-cell.today:hover { background: var(--white); }
+            html.boot-client .cal-tab-view .cal-week-col.today { border-color: var(--border); }
+            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-day { color: var(--text-secondary); }
+            html.boot-client .cal-tab-view .cal-month-grid,
+            html.boot-client .cal-tab-view .cal-week-grid { gap: 12px; }
+            html.boot-client .cal-tab-view .cal-month-cell.pocket-run-head,
+            html.boot-client .cal-tab-view .cal-week-col.pocket-run-head { min-height: 28px !important; }
         }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).

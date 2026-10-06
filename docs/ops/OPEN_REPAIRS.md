@@ -30485,3 +30485,14 @@ Not tested: the unfold during a real drag on a touch phone; it is covered by the
 
 Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 1,743 assertions) checks that no folded day shows, that every run line names its days, and that folded days keep their date. Before and after pictures in `docs/syncview-design/proofs/client-calendar-expanded/design-check-runs/`.
 Way back: revert the commit.
+
+## 346. [2026-10-05, BUILT, NOT DEPLOYED] Client Calendar on phones: one Today marker, even spacing, Week thumbnails (session Polish)
+
+On the same branch as entries 336, 338 and 340. Phones and client links only: the one script change acts only when `_calPhoneClient()` is true (a client link at phone width), and every style sits inside `@media (max-width: 767px)` under `html.boot-client`. Desktop markup and styles are not touched.
+
+- Today is the same black circle in Month and Week: 36 px, white number, with the weekday above it. Before, Month had a circle and Week a black rounded rectangle, and the Month card for today was tinted blue. Both cards are plain white now, so only the circle marks today.
+- Even spacing: the nav row has the same space under it in both views (12 px), cards and "Nothing scheduled" lines are 12 px apart, and a folded line is 28 px high so the gap above and below its text matches. Before, Month left about 40 px between a folded line and the next card while Week left almost none under the header.
+- Week thumbnails load: the few Month and Week thumbnails on a phone client link are fetched at once instead of lazily. The earlier Week screenshots showed empty grey squares because the picture was taken before the images arrived; the test now waits for them, and checks that they are eager and loaded.
+
+Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 2,106 assertions: Today marker is the 36 px circle in both views; thumbnails are eager and loaded). Before and after pictures in the pull request.
+Way back: revert the commit.

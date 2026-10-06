@@ -42,6 +42,7 @@ async function shot(page, label) {
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => [...document.images].every(i => i.complete), null, { timeout: 4000 }).catch(() => {});
   const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-preview-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, .dp-popup').count();
   await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay });
 }
@@ -148,6 +149,11 @@ async function run(browser, origin, width) {
       const dayRows = await page.evaluate(v => [...document.querySelectorAll(v === 'month' ? '.cal-month-cell[data-iso]' : '.cal-week-col[data-iso]')]
         .filter(e => !e.classList.contains('out') && e.checkVisibility({ checkVisibilityCSS: true }))
         .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', posts: e.querySelectorAll('.cal-month-pill, .cal-week-card').length, run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
+      // Today is one black circle, the same in Month and Week; the few thumbnails are fetched at once and have loaded.
+      const todayMark = await page.evaluate(v => { const e = document.querySelector(v === 'month' ? '.cal-month-cell.today .cal-month-num' : '.cal-week-col.today .cal-week-num'); if (!e) return null; const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), radius: cs.borderTopLeftRadius, bg: cs.backgroundColor, fg: cs.color }; }, view);
+      if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle');
+      await page.waitForFunction(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.complete), null, { timeout: 4000 });
+      ok(await page.evaluate(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.loading === 'eager')), view + ': thumbnails must be fetched at once on a phone');
       ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
       ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
       ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');

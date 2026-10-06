@@ -30496,3 +30496,14 @@ On the same branch as entries 336, 338 and 340. Phones and client links only: th
 
 Proof: `docs/syncview-design/tests/client-calendar-expanded-browser.js` (now 2,106 assertions: Today marker is the 36 px circle in both views; thumbnails are eager and loaded). Before and after pictures in the pull request.
 Way back: revert the commit.
+## 352. [2026-10-05, BUILT, NOT DEPLOYED] Expanded phone layout for the review dashboard and admin tools
+
+Owner-directed presentation change from main, independent of the parked phone PRs. Phone-only styles and navigation in the source fragments keep native permissions, destinations, decisions, forms, saved drafts and writers. Comfortable cards and full sections replace narrow desktop columns; Tabs and More share the heading, with native account controls and pending counts preserved. Branded dates retain the original form input and handlers. Desktop widths receive no phone DOM or styles.
+
+Proof and explicit limits: `docs/syncview-design/proofs/kasper-admin-expanded/README.md`. Screenshots use fictional people, workspaces and media. Offline transports intercept every write. No database, workflow or deployment change; no merge. Browser checks and the mandatory desktop parity comparison are recorded with their actual output.
+
+Review follow-up, 2026-10-05: the shared phone header, reviewer-only segmented control, aligned review/credential actions, explicit missing-password label, scrolling hiring filters and two-line message titles are corrected. The mocked Time Off journey now enters the original account menu through phone More; its reviewed public evidence was refreshed against the source fingerprint. Existing permissions and writers remain unchanged.
+
+Final phone follow-up, 2026-10-05: hidden hiring scrollbars preserve chip scrolling; Finish reviewing fits one line with a legible standard disabled state; the distinct queue-hide action is labelled; the existing message filter is a small switch at the top of its list. The visible-Chrome capture and resize checks are recorded in the proof packet.
+
+Reviewer follow-up, 2026-10-05: the Review-specific CSS no longer overrides the shared equal-width phone segments. The unread badge reads New without wrapping on phones and returns to its original wording on desktop. Fresh reviewer captures and strict desktop equality are recorded in the same proof packet.

@@ -1,0 +1,368 @@
+Final focused checks. All browser runs used visible Chrome. All fixture writes were intercepted.
+
+[build-final.log]
+build-index: js/sv-16-kasper-cec0fab10939.js (294678 bytes)
+build-index: wrote index.html (973501 bytes) from 65 fragment(s)
+build-index: wrote src/index/INDEX.md
+
+[scope-final.log]
+KASPER_ADMIN_SCOPE: 210 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+
+[kasper-phone-css-scope.log]
+kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)
+
+[kasper-priority-more-nav.log]
+  ok  narrow screens, visible focus, and popover viewport containment are styled
+
+Kasper priority + More navigation checks passed
+
+[kasper-click-during-rerender.log]
+✓  teardown removes the pointerdown guard listener  (got true, want true)
+
+All kasper-click-during-rerender checks passed.
+
+[kasper-never-lose-decision.log]
+ok - alerts are saved when set and when acknowledged
+
+All kasper-never-lose-decision assertions passed.
+
+[kasper-review-state-global.log]
+✓  inv6: and if Finish is blocked, the card is not already reading as finished  (got true, want true)
+
+All kasper-review-state-global checks passed.
+
+[kasper-filming-tab-source.log]
+KASPER_FILMING_TAB_SOURCE_OK
+
+[credentials-mark-reviewed.log]
+  ok  the action strip gained no nested <div> wrapper
+
+all green
+
+[credentials-identity-persist.log]
+  ok  onboarding write controls carry an admin capability gate
+
+Staff identity consolidation checks passed
+
+[clients-admin-browser-final.log]
+ok   creative is kept out
+
+clients-admin-browser: OK (admin desktop + two phones, edit + sheet conflict, smm and creative kept out)
+
+[staff-onboarding-page-browser.log]
+PASS a failed read shows its message
+PASS an empty list shows its message
+staff-onboarding-page: PASS
+
+[test-suite-routing.log]
+{"marker":"TEST_SUITE_ROUTING_OK","checks":17,"unit_count":676,"required_not_run_by_unit":92,"coverage_implicit_skips":0}
+
+[truth-sync-final.log]
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+
+truth-sync: 511 passed, 0 failed
+
+[repo-map-sync-final.log]
+OK  REPO_MAP.md path `test/atlas-sync.js` exists
+
+repo-map-sync: 1076 passed, 0 failed
+
+[before-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 366 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+[phone-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 366 native states; 6096 checks; 0 failures; fictional data; no live writes.
+
+[onboarding-final.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 30 native states; 252 checks; 0 failures; fictional data; no live writes.
+
+[desktop-before-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 144 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+[desktop-after-shipped.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 144 native states; 8 checks; 0 failures; fictional data; no live writes.
+
+[populated-desktop-final.log]
+KASPER_ADMIN_DESKTOP: 144/144 populated native desktop screenshots and computed styles identical to main.
+
+[Production gateway browser: FAIL on branch and unchanged main]
+Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
+Error: PWG_PHASE_INPLACE_PLACE the editor does not sit exactly where the read view sat, at the same size and type: {"readBox":{"left":271,"top":301,"width":697,"height":68,"font":"15px/24px","clickEdit":true},"editBox":{"left":271,"top":301,"width":682,"height":92,"font":"15px/24px","focused":true,"overflow":"visible","maxHeight":"none","caret":{"block":0,"offset":9},"blocks":["prod-md-heading:22:block","prod-md-p prod-md-gap:0:none","prod-md-p:24:block","prod-md-p:24:block"]}}
+
+Earlier overlapping dialog runs were inconclusive Chrome protocol failures; admin checks were rerun sequentially. A missing local acorn dependency path was corrected before the successful module check. Neither is claimed as a passing run.
+
+[npm run -s check:index]
+check-index: assembled bytes — sha256=2ad8b285c816eb962ba9f2ae20327405f8f98311fe96a922c25126f20071c459 bytes=973501
+check-index: working-tree index.html — sha256=2ad8b285c816eb962ba9f2ae20327405f8f98311fe96a922c25126f20071c459 bytes=973501
+check-index: committed index.html (HEAD) — sha256=2ad8b285c816eb962ba9f2ae20327405f8f98311fe96a922c25126f20071c459 bytes=973501
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+[node scripts/check-modules.js]
+window exports: 537 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2551 KB, 5046 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+[node scripts/repo-identity-exposure-check.js --diff=origin/main]
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+[qa/client-phone/desktop-parity.js: all four widths]
+Desktop width 1440: exit 0
+Desktop width 1024: exit 0
+Desktop width 1920: exit 0
+Desktop width 1280: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+
+REVIEW CORRECTIONS — product commit 1fe3a8f547aaf94f85ed9d9c84bec01fc20f2366
+The full Windows unit failures reproduced on unchanged main. Earlier Linux setup attempts failed (runtime data, shell utilities, historical Git objects or device access); only the final complete run is passing acceptance proof. No assertions were relaxed.
+
+[build-review.log]
+build-index: js/sv-04-workload-395f2adabc06.js (188387 bytes)
+build-index: js/sv-14-tiktok-24bb7e66f434.js (121878 bytes)
+build-index: js/sv-16-kasper-987242dc2d26.js (297211 bytes)
+build-index: wrote index.html (976845 bytes) from 65 fragment(s)
+build-index: wrote src/index/INDEX.md
+
+[review-pass1.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 61 native states; 896 checks; 1 failures; fictional data; no live writes.
+FAIL Tabs Escape returns focus
+
+[review-pass2.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 63 native states; 1065 checks; 2 failures; fictional data; no live writes.
+FAIL Credentials: Refresh, Import and Add fit one row
+FAIL Credentials: Refresh, Import and Add fit one row
+
+[review-final-after.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 378 native states; 6396 checks; 0 failures; fictional data; no live writes.
+
+[review-before-review-finish-ready.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 6 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+[review-before-credentials-masked.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 6 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+[review-before-messages.log]
+VISIBLE_CHROME_FOREGROUND: existing gate assertions and timing unchanged; visible Chrome reused; owner sign-in retained.
+KASPER_ADMIN_EXPANDED: 18 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+[phone-scope-review.log]
+KASPER_ADMIN_SCOPE: 235 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+
+[pto-harness-review.log]
+OK  live screenshots are pinned to an untracked private output root
+OK  PTO lifecycle harness never references either frozen writer
+OK  PTO lifecycle harness has no n8n, Linear, or frozen-writer network route
+
+pto-lifecycle-harness: 60 passed, 0 failed
+
+[pto-lifecycle-review.log]
+VISIBLE_CHROME_FOREGROUND: existing browser reused; owner sign-in retained.
+PTO lifecycle mocked lane passed: 101 action/result screenshots; 35 coverage gates.
+Artifacts: .codex-tmp/pto-lifecycle/latest
+
+[pto-ui-polish-review.log]
+PASS tapping away dismisses the Kasper label explanation
+PASS touch browser produced no page errors: 
+PASS test triggered no unrelated external writes
+PASS browser produced no page errors: 
+PTO UI polish browser checks passed (31 mocked PTO calls)
+
+[pto-public-validate-review.log]
+PTO public evidence passed without a browser: 101 reviewed screenshots; current source fingerprint and hashes match.
+
+[pto-coupling-review.log]
+  ok  the published evidence packet matches the current source fingerprint
+  ok  the runner still fingerprints index.html through the same slice this test reproduces
+  ok  and over the same file set, so the copy above has not drifted from it
+
+leave-evidence fingerprint coupling checks passed
+
+[unit-review.log]
+>>> FAILED: test/key-verify-behavior.js
+
+
+17 of 676 unit suite(s) failed ❌
+failed suites: test/client-onboarding-handler.js, test/clean-urls-routes.js, test/b2-brief-link-rewrite.mjs, test/client-reconcile-after-posted.js, test/alert-digest.js, test/overnight-runner-output-path.js, test/overnight-runner-singleton-lock.js, test/production-write-card-link.js, test/brain-parse.js, test/urgent-ping-fresh-round.js, test/write-refusal-browser-codes.js, test/analytics-metrics-collect-function.js, test/analytics-top-videos-collect-function.js, test/analytics-market-research-collect-function.js, test/client-profile-edit.js, test/filming-plan-tabs-source.js, test/key-verify-behavior.js
+
+[unit-review-linux.log]
+
+key-verify-behavior: 14 checks passed
+
+5 of 676 unit suite(s) failed ❌
+failed suites: test/f27-apply-migration.js, test/f27-final-verification.js, test/f27-reconciler-closure.js, test/native-intake-completion-cli.js, test/native-intake-reconcile-cli.js
+
+[unit-review-linux-chroot.log]
+
+key-verify-behavior: 14 checks passed
+
+23 of 676 unit suite(s) failed ❌
+failed suites: test/comment-strip-is-honest.js, test/ef-pin-drift-report.js, test/f200-attribution.js, test/f27-edge-source-rollback.js, test/f27-final-verification.js, test/f27-private-artifact-round-trip.js, test/f27-private-snapshot-fetch.js, test/f27-private-snapshot-store.js, test/f27-reconciler-closure.js, test/f27-section4-deploy-lane.js, test/linear-exit-credential-triple-storage.js, test/linear-exit-main-catchup.js, test/linear-exit-priority-pair-storage.js, test/native-intake-editor-browser.js, test/native-label-catalog-foundation.js, test/overnight-runner-output-path.js, test/overnight-runner-singleton-lock.js, test/repo-identity-exposure-moved-lines.js, test/track-b-recovery-deferred-defaults.js, test/truth-sync.js, test/workload-native-capture.js, test/workload-native-membership.js, test/write-ui-soak-pager.js
+
+[unit-review-linux-final.log]
+
+key-verify-behavior: 14 checks passed
+
+7 of 676 unit suite(s) failed ❌
+failed suites: test/native-intake-editor-browser.js, test/native-label-catalog-foundation.js, test/overnight-runner-output-path.js, test/overnight-runner-singleton-lock.js, test/track-b-recovery-deferred-defaults.js, test/truth-sync.js, test/workload-native-membership.js
+
+[unit-review-linux-acceptance.log]
+  ok  the key is still accepted from the header, as older pages send it
+
+key-verify-behavior: 14 checks passed
+
+All 676 classified unit suites passed; 92 required profiles NOT_RUN in this lane ✅
+
+[check-index-review.log]
+check-index: assembled bytes — sha256=3080cee0bb4b8057e02eaeb39e50e96e13af24953e22455431336304616db622 bytes=976845
+check-index: working-tree index.html — sha256=3080cee0bb4b8057e02eaeb39e50e96e13af24953e22455431336304616db622 bytes=976845
+check-index: committed index.html (HEAD) — sha256=3080cee0bb4b8057e02eaeb39e50e96e13af24953e22455431336304616db622 bytes=976845
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+[check-modules-review.log]
+window exports: 537 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2554 KB, 5046 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+[identity-review.log]
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+[qa/client-phone/desktop-parity.js: fresh full run]
+Desktop width 1920: exit 0
+Desktop width 1440: exit 0
+Desktop width 1024: exit 0
+Desktop width 1280: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+
+FINAL THREE PHONE CORRECTIONS — 2026-10-05
+Product source: 15bb394b46dd11d3fcdac5fdf0ce76c2513058c6
+Baseline: 6273485e25dabe3aaca61459500c6707d91234e3
+No live decisions or admin data saved; no merge or deployment.
+
+npm run -s check:index
+check-index: assembled bytes — sha256=ccab39a52c6da8b56ac4529c31ee68699eefbe03318996a4d4fc68fac3021559 bytes=978240
+check-index: working-tree index.html — sha256=ccab39a52c6da8b56ac4529c31ee68699eefbe03318996a4d4fc68fac3021559 bytes=978240
+check-index: committed index.html (HEAD) — sha256=ccab39a52c6da8b56ac4529c31ee68699eefbe03318996a4d4fc68fac3021559 bytes=978240
+
+check-index: OK — assembled == working tree == committed (HEAD)
+
+node scripts/check-modules.js
+window exports: 537 handler-called names in 38 modules
+typeof guards in modules: 507; unresolvable: 0
+minified parts: 19 files, 2555 KB, 5046 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+
+node scripts/repo-identity-exposure-check.js --diff=origin/main
+  roster terms checked             53   (client slugs + staff full names)
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+
+qa/client-phone/desktop-parity.js, four widths in existing visible Chrome
+PARITY_SHARED_ENTRY: one current test entry resolved in memory for all four workers; gate assertions unchanged.
+Desktop width 1024: exit 0
+Desktop width 1440: exit 0
+Desktop width 1280: exit 0
+Desktop width 1920: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Final phone sweep: 360/390/430, light/dark
+KASPER_ADMIN_EXPANDED: 378 native states; 6480 checks; 0 failures; fictional data; no live writes.
+
+Matching main Messages before captures
+KASPER_ADMIN_EXPANDED: 18 native states; 0 checks; 0 failures; fictional data; no live writes.
+
+Quick desktop scope guard
+KASPER_ADMIN_SCOPE: 243 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+
+Existing reviewer scope guard
+kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)
+
+leave-evidence fingerprint coupling
+leave-evidence fingerprint coupling checks passed
+
+PTO public evidence validation
+PTO public evidence passed without a browser: 101 reviewed screenshots; current source fingerprint and hashes match.
+
+node test/run-all.js in private standard Linux filesystem; exact committed product source
+All 676 classified unit suites passed; 92 required profiles NOT_RUN in this lane ✅
+
+Earlier incomplete desktop attempt; not passing proof
+Desktop width 1920: exit 2
+Desktop width 1280: exit 2
+Desktop width 1024: exit 2
+Desktop width 1440: exit 2
+0/0 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Focused client Calendar diagnostic; gate assertions unchanged
+1/1 desktop shots identical to origin/main
+
+Module dependency setup attempt; rerun above uses the documented parser dependency
+check-modules: the acorn parser is not installed. See the DEPENDENCY note at the top of this file.
+
+Linux runner setup ordering attempt; stopped before unit tests; corrected before the passing run
+fatal: update_ref failed for ref 'refs/remotes/origin/main': cannot update ref 'refs/remotes/origin/main': trying to write ref 'refs/remotes/origin/main' with nonexistent object 6273485e25dabe3aaca61459500c6707d91234e3
+
+Final reviewer segments and badge follow-up, 2026-10-05
+Product: 9bb9962f025fd155c60f731de8f04cdced158dc1
+Desktop baseline: 6273485e25dabe3aaca61459500c6707d91234e3
+
+npm run -s check:index
+check-index: OK — assembled == working tree == committed (HEAD)
+
+node scripts/check-modules.js
+check-modules: all checks passed
+
+node scripts/repo-identity-exposure-check.js --diff=origin/main
+This change adds no client slug and no colleague's name ✅
+
+qa/client-phone/desktop-parity.js, all four widths in visible Chrome
+PARITY_SHARED_ENTRY: one current test entry resolved in memory for all four workers; gate assertions unchanged.
+Desktop width 1024: exit 0
+Desktop width 1280: exit 0
+Desktop width 1440: exit 0
+Desktop width 1920: exit 0
+68/68 desktop shots identical to origin/main (all four desktop widths, visible Chrome).
+
+Reviewer phone views: 360/390/430, light/dark
+KASPER_ADMIN_EXPANDED: 96 native states; 1866 checks; 0 failures; fictional data; no live writes.
+
+Reviewer menus: 360/390/430, light/dark
+KASPER_ADMIN_EXPANDED: 24 native states; 582 checks; 0 failures; fictional data; no live writes.
+
+Quick desktop scope guard
+KASPER_ADMIN_SCOPE: 244 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+
+PTO evidence fingerprint coupling
+leave-evidence fingerprint coupling checks passed
+
+node test/run-all.js; exact product commit, private Linux filesystem
+All 676 classified unit suites passed; 92 required profiles NOT_RUN in this lane ✅

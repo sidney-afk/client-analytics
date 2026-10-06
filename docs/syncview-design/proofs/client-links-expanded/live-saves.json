@@ -1,0 +1,46 @@
+{
+  "verifiedAt": "2026-10-04T18:36:59.974Z",
+  "candidateIndexSha256": "43bb86de1d913a0b589340021bafd380f3e7064179807e2c0b4db2fbf66d32d5",
+  "layout": "Expanded",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "approveReceipt": {
+    "approved": true,
+    "timestampPresent": true
+  },
+  "changeReceipt": {
+    "requested": true,
+    "notePresent": true
+  },
+  "nativeWriteHttpStatuses": [
+    {
+      "endpoint": "/functions/v1/production-write",
+      "status": 200
+    },
+    {
+      "endpoint": "/functions/v1/sample-review-upsert",
+      "status": 200
+    },
+    {
+      "endpoint": "/functions/v1/production-write",
+      "status": 200
+    },
+    {
+      "endpoint": "/functions/v1/production-write",
+      "status": 200
+    },
+    {
+      "endpoint": "/functions/v1/sample-review-upsert",
+      "status": 200
+    }
+  ],
+  "archiveRead": true,
+  "nativeWorkItemsParked": 2,
+  "rejectedUnlinkedFixtureArchived": true,
+  "guardedTestFixture": true,
+  "refusedOtherWrites": 0,
+  "candidateNotDeployment": true,
+  "commentUiRefreshVerifiedOnPriorCandidate": true
+}

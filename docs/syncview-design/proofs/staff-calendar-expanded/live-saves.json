@@ -1,0 +1,243 @@
+{
+  "verifiedAt": "2026-10-04T23:56:43.199Z",
+  "candidateIndexSha": "ce704d5164f3c56c6e311d87aeee5a588da76d2795a3cfd2a2229e3eedbea167",
+  "viewports": [
+    360,
+    390,
+    430
+  ],
+  "staffNativeViews": [
+    {
+      "view": "smmreview",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "organizer",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "month",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "week",
+      "width": 360,
+      "scroll": 360,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "smmreview",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "organizer",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "month",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "week",
+      "width": 390,
+      "scroll": 390,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "smmreview",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "organizer",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "month",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "week",
+      "width": 430,
+      "scroll": 430,
+      "bad": [],
+      "fields16": true,
+      "theme": "light"
+    },
+    {
+      "view": "smmreview",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "organizer",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "month",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "week",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "smmreview",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "organizer",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "month",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "week",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "smmreview",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "organizer",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "month",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    },
+    {
+      "view": "week",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "theme": "dark"
+    }
+  ],
+  "clientDecisionViewport": {
+    "width": 390,
+    "height": 844
+  },
+  "approveRead": {
+    "approved": true,
+    "timestampPresent": true
+  },
+  "changeRead": {
+    "requested": true,
+    "notePresent": true,
+    "timestampPresent": true
+  },
+  "clientWriteHttpStatuses": [
+    200,
+    200
+  ],
+  "blockedClientWrites": 0,
+  "ownedFixtureArchived": true,
+  "repeatAfterHostedFix": {
+    "verifiedAt": "2026-10-05T00:52:08.798Z",
+    "candidateIndexSha": "cad54327785cb45dafa4b140796088a33898271a7ffb0a9da68cfed9db5364f5",
+    "approveRead": {
+      "approved": true,
+      "timestampPresent": true
+    },
+    "changeRead": {
+      "requested": true,
+      "notePresent": true,
+      "timestampPresent": true
+    },
+    "httpStatuses": [
+      200,
+      200
+    ],
+    "archiveHttp": 200,
+    "sourceArchived": true
+  },
+  "repeatAfterDesignUpdate": {
+    "verifiedAt": "2026-10-05T01:36:15.905Z",
+    "candidateIndexSha": "6707cc653d4a10fdb840d2d4fef5f12dcea4c3868772dde40413dab087777cef",
+    "viewport": 390,
+    "approvedSaved": true,
+    "changesSaved": true,
+    "exactNoteSaved": true,
+    "decisionHttpStatuses": [
+      200,
+      200
+    ],
+    "archiveHttp": 200,
+    "archiveReadback": true
+  }
+}

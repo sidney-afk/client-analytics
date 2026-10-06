@@ -111,6 +111,8 @@ function blank(context) {
       await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svJump'));
       await page.waitForTimeout(1500);
+      const phoneMore = page.locator('[data-staff-menu=more]');
+      if (await phoneMore.count() && !(await page.isVisible('.sv-jump-touch'))) await phoneMore.click();
       expect(await page.isVisible('.sv-jump-touch'), 'touch: the quick jump button is not showing');
       await page.tap('.sv-jump-touch');
       await page.waitForTimeout(200);

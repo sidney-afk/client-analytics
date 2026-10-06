@@ -27,7 +27,7 @@ import {
 import {
   _calBlankPost, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calCompStatusLabel,
   _calDeriveThumbInfo, _calFmtDateShort, _calIsBlankId, _calLinearPileHtml, _calLinkFieldHtml,
-  _calPendingLinkMove, _calRenderBody, _calResolveThumbnailFolder, _calSetThumbMedia,
+  _calPendingLinkMove, _calRenderBody, _calResolveThumbnailFolder, _calSetThumbMedia, _calStaffPhoneActive,
   _calPhoneSectionHtml,
   _calStatusLabel, _calStripThumbnailFolderFields, _calThumbContent, _calThumbFrameHtml,
   _calThumbIconHtml, _calThumbImgTag, _calTitleRowHtml, onCalMonthFilterChange
@@ -278,6 +278,10 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        renders the chip unstyled. Existing statuses are unchanged -- they only
        ever contained letters and spaces. */
     function _calStatusSlug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+    /* Phone staff Calendar: the picker is a bottom sheet with a title. Nothing is added elsewhere. */
+    function _calStatusMenuTitleHtml(text) {
+        return _calStaffPhoneActive() ? `<div class="cal-fld-status-title">${_calEsc(text)}</div>` : '';
+    }
     function _calCloseStatusMenu() {
         if (!_calOpenStatusMenu) return;
         const m = _calOpenStatusMenu.el;
@@ -319,7 +323,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 if (reason) _menuBlocked[s] = reason;
             }
         }
-        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => {
+        menu.innerHTML = _calStatusMenuTitleHtml((COMP_LABELS[which] || 'Card') + ' status') + (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => {
             const blocked = _menuBlocked[s];
             return `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_calEscAttr(blocked)}"` : ''} onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`;
         }).join('')
@@ -471,7 +475,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const headLabel = skipped.length
             ? `Apply to ${settable.map(c => COMP_LABELS[c]).join(', ')} — ${skipped.map(c => COMP_LABELS[c]).join(' & ')} ${skipped.length === 1 ? 'is' : 'are'} not linked`
             : 'Apply to all three components';
-        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
+        menu.innerHTML = _calStatusMenuTitleHtml('Set all to…') + `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
             + CAL_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}" onclick="_calSetAllStatus('${_calEscAttr(pid)}','${_calEscAttr(s)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
@@ -691,7 +695,19 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         _calCloseStatusMenu();
     }, true);
     window.addEventListener('resize', _calCloseStatusMenu);
-    window.addEventListener('scroll', _calCloseStatusMenu, true);
+    window.addEventListener('scroll', () => {
+        // The phone picker stays at the bottom of the screen. Scrolling its
+        // choices or finishing the page scroll that brought the trigger into
+        // view must not dismiss it before the person can choose.
+        if (!_calStaffPhoneActive()) _calCloseStatusMenu();
+    }, true);
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !_calStaffPhoneActive() || !_calOpenStatusMenu) return;
+        const trigger = _calOpenStatusMenu.triggerEl;
+        _calCloseStatusMenu();
+        if (trigger && trigger.isConnected) trigger.focus();
+        event.preventDefault();
+    });
     /* Client-link view — the only status action a client can take is to
        approve a post. Flips the status to "Approved" and saves it. */
     function _calClientApprove(pid) {

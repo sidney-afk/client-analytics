@@ -1,0 +1,191 @@
+{
+  "verifiedAt": "2026-10-05T00:46:28.965Z",
+  "candidateIndexSha": "2682e638d1f4141678b00ba5fcb6a61db9e50de9981840942f54fe08144ecffc",
+  "staffNativeViews": [
+    {
+      "theme": "light",
+      "view": "smmreview",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "light",
+      "view": "smmreview",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "light",
+      "view": "smmreview",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "dark",
+      "view": "smmreview",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "dark",
+      "view": "smmreview",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "dark",
+      "view": "smmreview",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "light",
+      "view": "organizer",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "light",
+      "view": "organizer",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "light",
+      "view": "organizer",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "dark",
+      "view": "organizer",
+      "width": 360,
+      "scroll": 360,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "dark",
+      "view": "organizer",
+      "width": 390,
+      "scroll": 390,
+      "controls44": true,
+      "fields16": true
+    },
+    {
+      "theme": "dark",
+      "view": "organizer",
+      "width": 430,
+      "scroll": 430,
+      "controls44": true,
+      "fields16": true
+    }
+  ],
+  "clientDecisionViewport": {
+    "width": 390,
+    "height": 844
+  },
+  "approveRead": {
+    "approved": true,
+    "timestampPresent": true
+  },
+  "changeRead": {
+    "requested": true,
+    "notePresent": true,
+    "timestampPresent": true
+  },
+  "clientDecisionHttpStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "sourceArchived": true,
+  "nativeWorkItems": {
+    "http": 200,
+    "rows": 2,
+    "backlog": true,
+    "canonicalStatuses": [
+      "backlog",
+      "backlog"
+    ]
+  },
+  "archiveHttpStatuses": [
+    200,
+    200,
+    200
+  ],
+  "blockedWrites": 0,
+  "limitations": [
+    "Client decision receipts were observed before the browser controller timed out; reconnect retained the signed-in owner window. Native reads confirmed cleanup.",
+    "The staff pass opened the component still pending SMM approval; it did not approve staff work."
+  ],
+  "repeatAfterHostedFix": {
+    "verifiedAt": "2026-10-05T01:26:04.304Z",
+    "candidateIndexSha": "fda565a7db6b2d41626fa73fbc1e4b2ad9f75e5a8674796f6ca02d1ea6d3d544",
+    "viewport": 390,
+    "approveSaved": true,
+    "approvedTimestamp": "2026-10-05T01:22:49.004Z",
+    "requestChangesSaved": true,
+    "exactNoteSaved": true,
+    "decisionHttpStatuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "sourceArchived": true,
+    "nativeWorkItems": {
+      "http": 200,
+      "rows": 2,
+      "backlog": true,
+      "canonicalStatuses": [
+        "backlog",
+        "backlog"
+      ]
+    },
+    "blockedWrites": 0
+  },
+  "repeatAfterDesignUpdate": {
+    "verifiedAt": "2026-10-05T01:42:18.864Z",
+    "candidateIndexSha": "a9e46806b6cbc40e749975046a1fa8997fc9245f6ec9edb5a9d61040163da3a9",
+    "viewport": 390,
+    "approveSaved": true,
+    "approvedTimestamp": "2026-10-05T01:40:43.103Z",
+    "requestChangesSaved": true,
+    "exactNoteSaved": true,
+    "decisionHttpStatuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "sourceArchived": true,
+    "nativeHttp": 200,
+    "nativeRows": 2,
+    "nativeBacklog": true,
+    "blockedWrites": 0
+  }
+}

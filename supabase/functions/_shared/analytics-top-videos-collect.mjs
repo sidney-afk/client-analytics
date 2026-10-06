@@ -14,6 +14,10 @@
 //   - a platform whose provider call failed writes NO rows (n8n takes its error
 //     output), while a provider answer that carries no usable post writes the
 //     "no new posts" row;
+//   - a client with NO Instagram configured still gets the Instagram "no new posts"
+//     row (n8n's Instagram branch runs with nothing in it; measured on the live
+//     table 2026-10-06: every active client without Instagram has that row from
+//     n8n). TikTok and YouTube write nothing when not configured;
 //   - captions are cut at 200 characters, then runs of whitespace become one space.
 
 export const EMPTY_CAPTION = 'No new posts in the last 7 days';
@@ -170,7 +174,11 @@ export function buildClientRows({ clientName, ig, tt, yt }, now) {
   const rows = [];
   const states = {};
   const run = (name, src, fn) => {
-    if (!src) { states[name] = 'not_configured'; return; }
+    if (!src) {
+      states[name] = 'not_configured';
+      if (name === 'instagram') rows.push(...fn([], clientName, now));
+      return;
+    }
     if (src.failed) { states[name] = 'provider_failed'; return; }
     states[name] = 'success';
     rows.push(...fn(src.items, clientName, now));

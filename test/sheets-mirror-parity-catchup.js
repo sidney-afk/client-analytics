@@ -69,5 +69,40 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; console.log('  ok  ' + ms
   ok(!/console\.log\([^)]*client_name/.test(src) && !/console\.log\([^)]*client_name/.test(fs.readFileSync(path.join(__dirname, '..', 'scripts/sheets-mirror-parity.js'), 'utf8')),
     'neither script prints client names');
 
+  // ---- after the switch (plan section 8b): the job's own rows are not compared, a live job's tab is not copied ----
+  ok(parity.GROUPING.metrics.excludeSource === 'edge' && parity.GROUPING.top_videos.excludeSource === 'edge',
+    'metrics and top_videos leave out the rows the daily jobs write themselves (source edge)');
+  ok(!parity.GROUPING.content_summaries.excludeSource && !parity.GROUPING.market_research_briefs.excludeSource, 'the other datasets compare every row as before');
+  const owned = parity.databaseOwnedDatasets([
+    { key: 'analytics_metrics_collect', value: { mode: 'live' } },
+    { key: 'analytics_top_videos_collect', value: { mode: 'shadow' } },
+    { key: 'something_else', value: { mode: 'live' } }]);
+  ok(owned.size === 1 && owned.has('metrics'), 'only a job whose switch is exactly "live" owns its dataset');
+  ok(parity.databaseOwnedDatasets([{ key: 'analytics_top_videos_collect', value: { mode: 'Live' } }]).size === 0, 'anything but "live" owns nothing');
+  {
+    const urls = [];
+    const realFetch = global.fetch, env = { ...process.env };
+    process.env.SUPABASE_URL = 'https://example.invalid'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic';
+    global.fetch = async url => { urls.push(String(url)); return { ok: true, json: async () => [] }; };
+    await parity.dbGroupsRest('metrics', '2026-07-01');
+    await parity.dbGroupsRest('top_videos', '2026-07-01');
+    await parity.dbGroupsRest('content_summaries', '2026-07-01');
+    const flagsSeen = [];
+    await parity.readDatabaseOwned(process.env, async url => { flagsSeen.push(String(url)); return { ok: true, json: async () => [{ key: 'analytics_top_videos_collect', value: { mode: 'live' } }] }; })
+      .then(s => flagsSeen.push([...s].join(',')));
+    let refused = false;
+    await parity.readDatabaseOwned(process.env, async () => ({ ok: false, status: 503 })).catch(() => { refused = true; });
+    global.fetch = realFetch; process.env.SUPABASE_URL = env.SUPABASE_URL; process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+    if (env.SUPABASE_URL === undefined) delete process.env.SUPABASE_URL;
+    if (env.SUPABASE_SERVICE_ROLE_KEY === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    ok(urls[0].includes('/analytics_metrics?') && urls[0].includes('&source=neq.edge'), 'the metrics read asks the database to leave out source edge');
+    ok(urls[1].includes('/analytics_top_videos?') && urls[1].includes('scraped_date=gte.2026-07-01&source=neq.edge'), 'so does the top videos read, inside its 90 days');
+    ok(!urls[2].includes('source='), 'the content summaries read is unchanged');
+    ok(flagsSeen[0].includes('key=in.(analytics_metrics_collect,analytics_top_videos_collect)') && flagsSeen[1] === 'top_videos', 'the two switches are read and a live one is owned');
+    ok(refused, 'a failed switch read is an error, never "nothing owned"');
+  }
+  const wf = fs.readFileSync(path.join(__dirname, '..', '.github/workflows/sheets-mirror-daily.yml'), 'utf8');
+  ok((wf.match(/sheets-mirror-backfill\.js[^;\n]*--skip-database-owned/g) || []).length === 2, 'the daily lane copies with --skip-database-owned, in both its apply and dry-run forms');
+
   console.log(`sheets-mirror-parity-catchup: ${n} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

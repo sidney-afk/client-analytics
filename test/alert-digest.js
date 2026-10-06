@@ -36,6 +36,59 @@ const healthy = evalFx({
 });
 ok(healthy.problems.length === 0 && healthy.message === '' && !healthy.should_post, 'everything fine: no message at all');
 
+// --- the daily analytics jobs' safety check (plan section 8b): names a LIVE job's problems once a day
+{
+  const fineInputs = {
+    heartbeatRows: fixture.heartbeatRows.map(row => ({ ...row, ts: '2026-10-02T16:55:00Z', payload: { ...row.payload, ok: true, at: '2026-10-02T16:55:00Z' } })),
+    runsByFile: Object.fromEntries(Object.entries(fixture.runsByFile).map(([file, runs]) => [file, [{ ...runs[0], updated_at: '2026-10-02T16:00:00Z' }]])),
+    previous: [],
+  };
+  const flags = (metrics, top = 'shadow', updated = '2026-09-30T00:00:00Z') => [
+    { key: 'analytics_metrics_collect', value: { mode: metrics }, updated_at: updated },
+    { key: 'analytics_top_videos_collect', value: { mode: top }, updated_at: updated }];
+  const checkRow = (dataset, problems, result = {}, mode = 'live', day = '2026-10-02', at = '2026-10-02T09:07:00Z') =>
+    ({ run_date: day, dataset, mode, problems, checked_at: at,
+      result: { active_clients: 36, terminal_clients: 36, missing_terminal: 0, provider_failed_clients: 0, instagram_configured: 30, ...result } });
+  const quietTop = checkRow('top_videos', [], {}, 'shadow', '2026-10-02', '2026-10-02T13:07:00Z');
+  const run = (collectChecks, collectFlags, previous = []) => digest.evaluate({ ...clone(fineInputs), previous, nowMs: NOW, collectChecks, collectFlags });
+
+  let r = run([checkRow('metrics', []), quietTop], flags('live'));
+  ok(r.problems.length === 0 && !r.should_post, 'live job, clean check: quiet');
+  r = run([checkRow('metrics', ['missing_terminal'], { missing_terminal: 2, terminal_clients: 34 }), quietTop], flags('live'));
+  ok(r.problems.length === 1 && r.should_post && r.message.includes('Daily metrics job (2026-10-02): 2 of 36 active clients have no result.'), 'a client with no result is named, as a count');
+  r = run([checkRow('metrics', ['provider_failed'], { provider_failed_clients: 1 }), quietTop], flags('live'));
+  ok(r.message.includes('1 client had a platform fail at the provider'), 'a provider failure is named, as a count');
+  r = run([checkRow('metrics', ['instagram_frozen'], { instagram_configured: 30 }), quietTop], flags('live'));
+  ok(r.message.includes('Instagram looks frozen (30 clients healthy, none gained views)'), 'frozen Instagram is named');
+  const all3 = run([checkRow('metrics', ['provider_failed', 'missing_terminal', 'instagram_frozen'], { missing_terminal: 1, provider_failed_clients: 3 }), quietTop], flags('live'));
+  ok(all3.problems.length === 1 && all3.problems[0].text.split(';').length === 3, 'three conditions on one day are one line of the one message');
+  ok(!/[a-z]+[0-9]*\s*\(slug\)|client_slug/.test(all3.message), 'counts only in the message');
+
+  const again = run([checkRow('metrics', ['instagram_frozen'], { instagram_configured: 30 }), quietTop], flags('live'),
+    [{ key: 'analytics_collect:metrics', severity: 1, evidence: '2026-10-02:instagram_frozen' }]);
+  ok(again.problems.length === 1 && !again.should_post, 'the same problem an hour later: quiet (it was said once)');
+  const nextDay = digest.evaluate({ ...clone(fineInputs), nowMs: NOW + 24 * 3600000,
+    heartbeatRows: fineInputs.heartbeatRows.map(row => ({ ...row, ts: '2026-10-03T16:55:00Z', payload: { ...row.payload, at: '2026-10-03T16:55:00Z' } })),
+    runsByFile: Object.fromEntries(Object.entries(fineInputs.runsByFile).map(([file, runs]) => [file, [{ ...runs[0], updated_at: '2026-10-03T16:00:00Z' }]])),
+    collectChecks: [checkRow('metrics', ['instagram_frozen'], {}, 'live', '2026-10-03', '2026-10-03T09:07:00Z')], collectFlags: flags('live'),
+    previous: [{ key: 'analytics_collect:metrics', severity: 1, evidence: '2026-10-02:instagram_frozen' }] });
+  ok(nextDay.should_post && nextDay.problems.find(p => p.key === 'analytics_collect:metrics').change === 'changed', 'the same problem the next day is said again, once');
+
+  r = run([checkRow('metrics', ['missing_terminal'], { missing_terminal: 5 }, 'shadow')], flags('shadow'));
+  ok(r.problems.length === 0, 'a job in shadow never alerts (n8n still has its own checks)');
+  r = run([checkRow('top_videos', ['provider_failed'], { provider_failed_clients: 2 }, 'live', '2026-10-02', '2026-10-02T13:07:00Z')], flags('shadow', 'live'));
+  ok(r.problems.length === 1 && r.message.includes('Daily Top Videos job (2026-10-02): 2 clients had a platform fail at the provider.'), 'Top Videos problems are named too');
+  r = run([checkRow('metrics', [], {}, 'live', '2026-09-30', '2026-09-30T09:07:00Z')], flags('live'));
+  ok(r.problems.length === 1 && r.problems[0].key === 'analytics_collect_stale:metrics', 'a live job whose check stopped running is named');
+  r = run([], flags('live', 'shadow', '2026-10-02T12:00:00Z'));
+  ok(r.problems.length === 0, 'switched to live a few hours ago, before its first check: quiet');
+  r = run(null, flags('live'));
+  ok(r.problems.length === 1 && r.problems[0].key === 'analytics_collect_unreadable:metrics', 'a live job whose check table cannot be read is named');
+  r = run(null, flags('shadow'));
+  ok(r.problems.length === 0, 'before the migration (no table) and nothing live: quiet');
+  ok(evalFx().problems.length === 3, 'inputs without the analytics checks behave exactly as before');
+}
+
 // --- dedupe, severity, evidence, recovery
 const known = clone(demo.problems).map(({ key, severity, evidence }) => ({ key, severity, evidence }));
 const same = evalFx({ previous: known });

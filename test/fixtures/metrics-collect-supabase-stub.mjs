@@ -66,6 +66,26 @@ export function createClient() {
         Object.assign(row, { state: 'done', lease_until: null });
         return { data: null, error: null };
       }
+      // The live commits: the shadow commit, then the real rows only if the client has none
+      // for the day (first writer wins), as migrations/2026-10-06-analytics-collect-live.sql does.
+      if (name === 'analytics_metrics_collect_commit_live' || name === 'analytics_top_videos_collect_commit_live') {
+        if (globalThis.__DB_FAIL && globalThis.__DB_FAIL.commit) return { data: null, error: new Error('commit refused') };
+        const metrics = name.startsWith('analytics_metrics');
+        const recs = metrics ? [a.p_record] : a.p_records;
+        const day = metrics ? 'date' : 'scraped_date';
+        if (recs.some(r => r.client_slug !== a.p_client_slug || r[day] !== a.p_run_date || r.source !== 'edge')) return { data: null, error: new Error('live_record_refused') };
+        const shadowName = metrics ? 'analytics_metrics_collect_commit_shadow' : 'analytics_top_videos_collect_commit_shadow';
+        const sh = await this.rpc(shadowName, metrics ? { p_run_date: a.p_run_date, p_client_slug: a.p_client_slug, p_row: a.p_row, p_posts: a.p_posts, p_run_id: a.p_run_id }
+          : { p_run_date: a.p_run_date, p_client_slug: a.p_client_slug, p_rows: a.p_rows, p_states: a.p_states, p_run_id: a.p_run_id });
+        if (sh.error) return sh;
+        const table = metrics ? 'analytics_metrics' : 'analytics_top_videos';
+        const real = (db[table] = db[table] || []);
+        let written = 0, skipped = null;
+        if (real.some(r => r.client_slug === a.p_client_slug && r[day] === a.p_run_date)) skipped = 'existing_rows';
+        else for (const r of recs) { real.push({ ...clone(r), seq: real.length + 1000 }); written++; }
+        (db.analytics_ingest_receipts = db.analytics_ingest_receipts || []).push({ dataset: metrics ? 'metrics' : 'top_videos', source: 'edge', client_slugs: [a.p_client_slug], full_snapshot: false, p_full_snapshot: a.p_full_snapshot });
+        return { data: { written, skipped }, error: null };
+      }
       if (name === 'analytics_top_videos_collect_claim') {
         const now = Date.now();
         const q = (db.analytics_top_videos_collect_queue = db.analytics_top_videos_collect_queue || []);

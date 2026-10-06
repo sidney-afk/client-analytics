@@ -4314,6 +4314,13 @@
         @media (max-width: 767px) {
             html.boot-client .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
             html.boot-client .thumb-compare-close svg { width: 18px; height: 18px; }
+            /* Analytics: no contradictory header, no repeated note, one-row chips, no gap under an empty chart. */
+            html.boot-client [data-pocket-client-phone=analytics] .m-delta.none { display: none; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-toggle { display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn { flex: 0 0 auto; padding: 0 7px; gap: 4px; font-size: 0.72rem; white-space: nowrap; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-wrap.chart-wrap-empty { height: auto; min-height: 0; padding: 14px 0 6px; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-wrap.chart-wrap-empty > div { height: auto !important; min-height: 0; padding: 0; text-align: center; line-height: 1.5; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-empty-note { color: var(--text-secondary); font-size: 0.86rem; line-height: 1.5; text-align: center; }
         }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).

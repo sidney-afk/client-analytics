@@ -8858,6 +8858,13 @@
         @media (max-width: 767px) {
             html.boot-client .thumb-compare-overlay button { min-width: 44px; min-height: 44px; }
             html.boot-client .thumb-compare-close svg { width: 18px; height: 18px; }
+            /* Analytics: no contradictory header, no repeated note, one-row chips, no gap under an empty chart. */
+            html.boot-client [data-pocket-client-phone=analytics] .m-delta.none { display: none; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-toggle { display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-plat-btn { flex: 0 0 auto; padding: 0 7px; gap: 4px; font-size: 0.72rem; white-space: nowrap; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-wrap.chart-wrap-empty { height: auto; min-height: 0; padding: 14px 0 6px; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-wrap.chart-wrap-empty > div { height: auto !important; min-height: 0; padding: 0; text-align: center; line-height: 1.5; }
+            html.boot-client [data-pocket-client-phone=analytics] .chart-empty-note { color: var(--text-secondary); font-size: 0.86rem; line-height: 1.5; text-align: center; }
         }
         /* CLIENT-PHONE:END */
         /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).
@@ -9768,8 +9775,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-ecb478907006.js";
-        var PARTS = ["js/sv-01-core-3f5e2d17713a.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-97a1396a62dc.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-907e75bf1a34.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-4bab1965948e.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-47af2b0fd0cc.js";
+        var PARTS = ["js/sv-01-core-3edb1529fb1a.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-97a1396a62dc.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-b27520226974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-907e75bf1a34.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-4bab1965948e.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-59304a3ba2a3.js","workload":"js/sv-04-workload-395f2adabc06.js","tiktok":"js/sv-14-tiktok-24bb7e66f434.js","kasper":"js/sv-16-kasper-29255d239193.js"};
         var FORCE = null;
         var CLIENTS = true;

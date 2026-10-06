@@ -30472,3 +30472,16 @@ Not changed on purpose: desktop keeps its own date format, axis labels and dot c
 
 Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (897 assertions) passes; before and after pictures in `docs/syncview-design/proofs/client-links-expanded/design-check-analytics/`. A real Request change was sent on a test sample's thumbnail through this layout and read back as "Tweaks needed" with the exact note saved.
 Way back: revert the commit.
+
+## 347. [2026-10-05, BUILT, NOT DEPLOYED] Client Analytics on phones: third design check (session Polish)
+
+On the same branch as entries 337, 339 and 341. Phones and client links only: every script change acts only when `_svClientPhoneActive()` is true (a client link at phone width), and every style sits inside `@media (max-width: 767px)` under `html.boot-client [data-pocket-client-phone=analytics]`. Desktop output is unchanged.
+
+- A chart with one day of data is a short note, "The trend line appears once there are two days of data.", not an empty grid with a single date under it.
+- Chart dates on the bottom axis read "5 Oct" (desktop keeps its own format).
+- The header agrees with the page: with analytics it reads "Last scraped Mon, 5 Oct 2026 · 1 data point" (and "· comparing vs …" once there is an earlier day); with none, the line is left out, because the "No analytics yet" box already says so. Before, an empty page said "Last scraped · 1 data point · no analytics yet" above a box saying "No analytics yet".
+- The "needs a second day" message appears once, in Today's gains. The italic tail in the header and the "no previous day yet" under every number are gone.
+- The Daily views switches (All, Instagram, TikTok, YouTube) sit on one row at 360, 390 and 430 wide, and an empty chart is a short note instead of a tall empty box.
+
+Proof: `docs/syncview-design/tests/client-links-expanded-browser.js` (now 1,419 assertions: the 2+ days note appears once, no repeated note, a plain header, switches on one row and not cut off, a short note for a one-point chart, and "5 Oct" for chart dates). Before and after pictures in the pull request.
+Way back: revert the commit.

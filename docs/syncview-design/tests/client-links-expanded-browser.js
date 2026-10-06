@@ -235,6 +235,14 @@ async function analytics(browser, origin, width, emptyCase = false) {
     await measure(page, 'analytics-' + width);
     ok(await page.locator('html[data-theme=dark]').count() === 0, 'client Analytics became dark');
     ok(await page.evaluate(() => document.querySelector('.m-value').textContent.trim() === fmt('2450')), 'phone layout changed native analytics formatting');
+    // One note about the missing earlier day, a header that agrees with the page, one-row chips and a short empty chart.
+    ok(await page.evaluate(() => (document.body.innerText.match(/2\+ days/g) || []).length === 1), 'The 2+ days note must appear once');
+    ok(await page.evaluate(() => !/no previous day yet/i.test(document.body.innerText)), 'No repeated no-previous-day note');
+    ok(await page.evaluate(() => { const m = document.querySelector('.detail-meta'); return !!m && !/no analytics yet/i.test(m.textContent) && /1 data point$/.test(m.textContent.trim()); }), 'Header must read plainly with one data point');
+    ok(await page.evaluate(() => [...document.querySelectorAll('.chart-plat-toggle')].every(t => new Set([...t.children].map(b => Math.round(b.getBoundingClientRect().top))).size === 1)), 'Chart switches must stay on one row');
+    ok(await page.evaluate(() => [...document.querySelectorAll('.chart-plat-toggle')].every(t => t.scrollWidth <= t.clientWidth + 1)), 'Chart switches must fit without being cut off');
+    ok(await page.evaluate(() => _analyticsAxisDate('2026-10-05') === '5 Oct'), 'Chart dates must read 5 Oct on a phone');
+    ok(await page.evaluate(() => [...document.querySelectorAll('.chart-wrap.chart-wrap-empty')].length === 2 && [...document.querySelectorAll('.chart-wrap.chart-wrap-empty')].every(w => w.getBoundingClientRect().height < 120)), 'A one-point chart is a short note, not an empty grid');
     await page.locator('[data-pocket-open=tabs]').click();
     await measure(page, 'analytics-tabs-' + width);
     await shot(page, 'analytics-tabs-' + width);

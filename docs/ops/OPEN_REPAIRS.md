@@ -30699,3 +30699,22 @@ Owner's go to merge #1969, #1970, #1971, #1973, #1972 and #1974. They were built
 - Ledger: Wren's entry, numbered 341 on its branch, is renumbered 353 because Polish's entry already holds 341.
 
 Not tested on a real phone. Way back: revert the merge commits in reverse order.
+
+## 355. [2026-10-06, BUILT, NOT DEPLOYED] Phone polish round 1: personal Time Off
+
+Personal Time Off now uses the shared phone title, Tabs and small More button;
+full-width cards, readable fields and 44px actions replace the wide header and
+small controls. The seven-day calendar fits and a complete agenda retains every
+event. Pending decisions, saved copies, uncertainty locks and native writers
+stay intact. Staff sign-in also has readable fields and usable controls.
+
+Phone styles stay inside existing media blocks and use existing color tokens.
+The calendar uses its original desktop markup at wider widths. The desktop
+gate now includes the menu-only personal Time Off route as well as all existing
+staff/client journeys. Proof, exact check output and limits:
+`docs/audits/2026-10-06-phone-polish-round-1/README.md`.
+
+The native phone suite covers 102 fictional states at 360/390/430 in both themes;
+the lifecycle suite covers 101 reviewed action/result screenshots and 35 gates.
+No live PTO writes, database changes, workflow edits or deployment. Physical
+phones were not tested. Way back: revert this PR and rebuild the fragments.

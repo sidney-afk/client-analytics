@@ -133,7 +133,15 @@ async function shoot(browser, build, width, url, mode, clickId, view, token, sna
   }
   await ctx.addInitScript(css => { document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s); }); }, FREEZE);
   const page = await ctx.newPage();
-  if (view) {
+  if (mode === 'time-off') {
+    // Menu-only Time Off is absent from the visible tab inventory. Compare its
+    // loaded form, balance, history and calendar with identical synthetic data.
+    const fixture = require('../../docs/syncview-design/tests/pto-ui-polish');
+    const state = { overview: fixture.initialOverview(), runtimeFlagReads: 0, keyVerifyCalls: [], ptoCalls: [], unexpectedWrites: [], requestSequence: 0, failNextOverview: false, loseNextRequestResponse: false };
+    await fixture.installFixture(page, state);
+    await page.route(u => u.toString().startsWith(ORIGIN), r => serveLocal(r, build));
+    await fixture.openStaffTimeOff(page, 8765);
+  } else if (view) {
     // Client pages go through the redacting helper: its errors never carry the token.
     await require('../test-client-entry.js').gotoTestClientEntry(page, { view, origin: ORIGIN, token, gotoOptions: { waitUntil: 'domcontentloaded' } });
   } else {
@@ -187,6 +195,7 @@ async function staffTabs(browser) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   let pages = await staffTabs(browser);
+  pages.push({ name: 'staff-time-off', url: '/', mode: 'time-off' });
   if (!STAFF_ONLY) {
     const T = require('../test-client-entry.js');
     const token = await T.currentTestClientToken();

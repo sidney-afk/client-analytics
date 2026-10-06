@@ -369,7 +369,18 @@ class LifecycleHarness {
       && window._ptoEnabled()
       && typeof _kasperState !== 'undefined'
       && document.getElementById('navKasper')?.style.display !== 'none');
-    if (options.keyboard) {
+    const phoneTabs = page.locator('.pocket-staff-tabs-btn');
+    if (await phoneTabs.isVisible()) {
+      if (options.keyboard) {
+        await tabToControl(page, '.pocket-staff-tabs-btn');
+        await page.keyboard.press('Enter');
+        await tabToControl(page, '.pocket-staff-sheet[open] [data-nav="navKasper"]');
+        await page.keyboard.press('Enter');
+      } else {
+        await phoneTabs.click();
+        await page.locator('.pocket-staff-sheet[open] [data-nav="navKasper"]').click();
+      }
+    } else if (options.keyboard) {
       await tabToControl(page, '#navKasper');
       await page.keyboard.press('Enter');
     } else {

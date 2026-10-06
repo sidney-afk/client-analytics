@@ -28,6 +28,7 @@ import {
   _calBlankPost, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calCompStatusLabel,
   _calDeriveThumbInfo, _calFmtDateShort, _calIsBlankId, _calLinearPileHtml, _calLinkFieldHtml,
   _calPendingLinkMove, _calRenderBody, _calResolveThumbnailFolder, _calSetThumbMedia,
+  _calPhoneSectionHtml,
   _calStatusLabel, _calStripThumbnailFolderFields, _calThumbContent, _calThumbFrameHtml,
   _calThumbIconHtml, _calThumbImgTag, _calTitleRowHtml, onCalMonthFilterChange
 } from './160-calendar-organize-ui.js';
@@ -248,9 +249,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
                 ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank, p)}
-                <div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, capDraft ? Object.assign({}, p, { caption: capDraft.text }) : p, editableText, isBlank)}</div>
-                ${capDraft ? _svDraftNoteHtml(`onclick="_calCaptionDraftDiscard('${pid}')"`) : ''}
-                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
+                ${_calPhoneSectionHtml('sheet:' + p.id, 'caption', 'Caption', capDraft ? 'Saved copy · not sent' : '', `<div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, capDraft ? Object.assign({}, p, { caption: capDraft.text }) : p, editableText, isBlank)}</div>
+                ${capDraft ? _svDraftNoteHtml(`onclick="_calCaptionDraftDiscard('${pid}')"`) : ''}`, true)}
+                ${_calPhoneSectionHtml('sheet:' + p.id, 'cta', 'Call to action', '', `<input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>`, false)}
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 ${_calConflictHtml(pid)}
                 <div class="cal-card-foot">

@@ -45,10 +45,65 @@ import { _calApprovalBadgeCount, _calUpdateReviewBadge, _calWireReviewExpand, re
 import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
+    // Pocket Expanded presents the existing client Calendar on phones.
+    // No phone nodes are mounted on desktop; sections never write a post.
+    const _calPhoneShells = new WeakSet();
+    let _calPhoneWidth = window.matchMedia('(max-width: 767px)').matches;
+    function _calPhoneClient() {
+        return !!_isClientLink && _calPhoneWidth;
+    }
+    function _calPhoneSectionHtml(pid, part, title, status, html) {
+        if (!_calPhoneClient()) return html;
+        return `<section class="pocket-cal-section" data-phone-part="${_calEscAttr(part)}">
+            <div class="pocket-cal-section-head"><span>${_calEsc(title)}</span>${status ? `<span class="pocket-cal-section-status" aria-live="polite">${_calEsc(status)}</span>` : ''}</div>
+            <div class="pocket-cal-section-body">${html}</div></section>`;
+    }
+    function _calPhoneOpenMenu(kind) {
+        if (!_calPhoneClient()) return;
+        const dialog = document.getElementById('pocketCal' + (kind === 'tabs' ? 'Tabs' : 'More'));
+        if (dialog && !dialog.open) dialog.showModal();
+    }
+    function _calPhoneCloseMenu(el) {
+        const dialog = el && el.closest('dialog');
+        if (dialog) dialog.close();
+    }
+    function _calPhoneArrangeShell() {
+        if (!_calPhoneClient()) return;
+        const view = document.getElementById('calView');
+        const tabs = view.closest('.client-view').querySelector('.view-tab-toggle');
+        if (tabs) document.getElementById('pocketCalTabsBody').append(tabs);
+        const more = document.getElementById('pocketCalMoreBody');
+        view.querySelectorAll('.cal-organize,.cal-zoom').forEach(el => more.append(el));
+        view.querySelectorAll('.pocket-cal-menu').forEach(dialog => {
+            dialog.addEventListener('click', ev => {
+                if (ev.target === dialog || ev.target.closest('.view-tab-btn')) dialog.close();
+            });
+        });
+    }
+    function _calPhoneShellHtml() {
+        if (!_calPhoneClient()) return '';
+        const menu = (kind, title) => `<dialog class="pocket-cal-menu" id="pocketCal${kind}" aria-labelledby="pocketCal${kind}Title"><div class="pocket-cal-menu-head"><h2 id="pocketCal${kind}Title">${title}</h2><button type="button" onclick="_calPhoneCloseMenu(this)" aria-label="Close ${title.toLowerCase()}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div><div id="pocketCal${kind}Body" class="pocket-cal-menu-body"></div></dialog>`;
+        return `<div class="pocket-client-calendar"><h1>Calendar</h1><div class="pocket-cal-heading-actions"><button type="button" onclick="_calPhoneOpenMenu('tabs')" aria-haspopup="dialog" aria-controls="pocketCalTabs">Tabs <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button><button type="button" onclick="_calPhoneOpenMenu('more')" aria-label="More options" aria-haspopup="dialog" aria-controls="pocketCalMore"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></button></div></div>${menu('Tabs', 'Tabs')}${menu('More', 'More').replace('</dialog>', '<p class="pocket-cal-menu-empty">Organize and card size are available in Sheet.</p></dialog>')}`;
+    }
+    // Cross the breakpoint using the same renderers and their existing draft
+    // storage. Restore the native client tabs before replacing a phone shell.
+    function _calPhoneResize() {
+        // Browser captures can briefly use a 1px measurement viewport (4 CSS
+        // pixels at minimum mobile zoom). Keep the last visible layout intact.
+        const visibleViewport = window.visualViewport;
+        if (window.innerWidth < 5 || window.innerHeight < 5
+            || (visibleViewport && (visibleViewport.width < 5 || visibleViewport.height < 5))) return;
+        const next = window.matchMedia('(max-width: 767px)').matches;
+        if (next === _calPhoneWidth) return;
+        _calPhoneWidth = next;
+        if (!_isClientLink || !document.getElementById('calView')) return;
+        _calRenderShell();
+        _calRenderBody({ preserveScroll: true });
+    }
     function _calRefreshOrganize() {
         const mid = document.querySelector('.cal-toolbar-mid');
         if (!mid) return;
-        const existing = mid.querySelector('.cal-organize');
+        const existing = _calPhoneClient() ? document.querySelector('#calView .cal-organize') : mid.querySelector('.cal-organize');
         const html = _calOrganizeHtml();
         if (!html) { if (existing) existing.remove(); return; }
         const tmp = document.createElement('div');
@@ -65,7 +120,9 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             // In the staff picker shell the view toggle leads the row (DOM order
             // = visual order), so the anchor is the zoom control instead.
             const picker = !!mid.closest('.cal-toolbar.is-picker-shell');
-            mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle'));
+            const phoneMore = _calPhoneClient() && document.getElementById('pocketCalMoreBody');
+            if (phoneMore) phoneMore.prepend(node);
+            else mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle'));
         }
     }
     /* Lighter path for the Order switch: update the chrome in place so the
@@ -326,6 +383,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     function _calRenderShell() {
         const view = document.getElementById('calView');
         if (!view) return;
+        if (_calPhoneShells.has(view)) {
+            const nativeTabs = view.querySelector('.view-tab-toggle');
+            if (nativeTabs) view.before(nativeTabs);
+            _calPhoneShells.delete(view);
+        }
         const embedded = !!calState.embedded;
         const leftHtml = embedded
             ? `<div class="cal-embed-title"><strong>${_calEsc(calState.client || '')}</strong><span>Content calendar</span></div>`
@@ -422,6 +484,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             _calWireOutsideTabSearchClose();
         }
         _calApplyZoom();
+        if (_calPhoneClient()) {
+            view.insertAdjacentHTML('afterbegin', _calPhoneShellHtml());
+            _calPhoneArrangeShell();
+            _calPhoneShells.add(view);
+        }
     }
 
     /* Zoom — three discrete card sizes (Organizer only), saved to localStorage. */
@@ -569,7 +636,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (!strip) return;
         strip.scrollBy({ left: dir * Math.max(160, Math.round(strip.clientWidth * 0.7)), behavior: 'smooth' });
     }
-    window.addEventListener('resize', () => { _calUpdateTabScroll('calTabsScroll'); _calUpdateTabScroll('smTabsScroll'); });
+    window.addEventListener('resize', () => {
+        _calUpdateTabScroll('calTabsScroll'); _calUpdateTabScroll('smTabsScroll');
+        if (_isClientLink) _calPhoneResize();
+    });
 
     function onCalTabClick(name) {
         if (!name || name === calState.client) return;
@@ -1983,6 +2053,12 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>Couldn’t load the comparison</strong><p>${_calEsc(message || 'Try again in a moment.')}</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareLoad()">Try again</button></div>`;
     }
     async function _thumbCompareLoad() {
+        // The retry button is replaced by the loading paint. On these phone
+        // surfaces, return its keyboard focus to the stable Close control.
+        const restorePhoneFocus = window.matchMedia('(max-width: 767px)').matches
+            && (document.documentElement.classList.contains('boot-client')
+                || !!document.querySelector('#calView[data-pocket-staff-phone], #sxrView[data-pocket-staff-samples]'))
+            && !!document.activeElement?.closest('.thumb-compare-retry');
         const state = _thumbCompareState;
         if (!state) return;
         if (!_isClientLink && !_syncviewStaffIdentityForHeaders()) { _thumbCompareRenderSignIn(); return; }
@@ -1991,6 +2067,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         state.controller = controller;
         _thumbCompareLoading('Loading thumbnail history…');
+        if (restorePhoneFocus) document.querySelector('.thumb-compare-close')?.focus();
         try {
             const headers = _syncviewEfHeaders({
                 'Content-Type': 'application/json',
@@ -2024,7 +2101,12 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             if (_thumbCompareState !== state) return;
             _thumbCompareRenderError(error && error.message ? error.message : 'Try again in a moment.');
         } finally {
-            if (_thumbCompareState === state) state.controller = null;
+            if (_thumbCompareState === state) {
+                state.controller = null;
+                if (restorePhoneFocus && !document.getElementById('thumbCompareDialog')?.contains(document.activeElement)) {
+                    document.querySelector('.thumb-compare-close')?.focus();
+                }
+            }
         }
     }
     function _thumbCompareNormalize(json) {
@@ -2083,6 +2165,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const day = String(d.getDate()).padStart(2, '0');
         const mon = String(d.getMonth() + 1).padStart(2, '0');
         const yr = String(d.getFullYear()).slice(2);
+        // Phones use one date format on every client Calendar view.
+        if (_calPhoneClient()) return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
         // US order (owner 2026-08-18): clients are American, so month first.
         return `${dayName} ${mon}/${day}/${yr}`;
     }
@@ -2872,13 +2956,14 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         _calCloseClientLinks, _calCloseKebab, _calEditLink, _calFillComponent, _calLinearClear,
         _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel, _calOnLinkBlur,
         _calOnLinkInput, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError, _calOpenLink,
-        _calOpenThumbnailFolder, _calTabScrollBy, _calToggleClientLinks, _calToggleImportActions,
-        _calToggleKebab, _calToggleMonthWarnPop, _calUpdateTabScroll, _thumbCompareClose,
-        _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn, calZoom,
-        onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle, onCalStatusFilterChange,
-        onCalTabAddClick, onCalTabClick, onCalTabRemove, onCalViewChange
+        _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
+        _calToggleClientLinks, _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop,
+        _calUpdateTabScroll, _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen,
+        _thumbCompareSignIn, calZoom, onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle,
+        onCalStatusFilterChange, onCalTabAddClick, onCalTabClick, onCalTabRemove, onCalViewChange
     });
 export {
+  _calPhoneClient, _calPhoneSectionHtml,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,
   _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo, _calDriveWarnHtml,

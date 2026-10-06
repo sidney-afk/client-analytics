@@ -1,0 +1,109 @@
+{
+  "layout": "Expanded",
+  "candidateIndexSha": "33c8839305420ef2010dfc64ed493d74c07a564fdefd6285a23aa13789eecd8e",
+  "cases": [
+    {
+      "view": "review",
+      "width": 360,
+      "scrollWidth": 360,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "organizer",
+      "width": 360,
+      "scrollWidth": 360,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "month",
+      "width": 360,
+      "scrollWidth": 360,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "week",
+      "width": 360,
+      "scrollWidth": 360,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "review",
+      "width": 390,
+      "scrollWidth": 390,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "organizer",
+      "width": 390,
+      "scrollWidth": 390,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "month",
+      "width": 390,
+      "scrollWidth": 390,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "week",
+      "width": 390,
+      "scrollWidth": 390,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "review",
+      "width": 430,
+      "scrollWidth": 430,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "organizer",
+      "width": 430,
+      "scrollWidth": 430,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "month",
+      "width": 430,
+      "scrollWidth": 430,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    },
+    {
+      "view": "week",
+      "width": 430,
+      "scrollWidth": 430,
+      "light": true,
+      "small": 0,
+      "smallFields": 0
+    }
+  ],
+  "realMore": {
+    "open": true,
+    "organizeVisible": true,
+    "overflow": false
+  },
+  "realTabs": 2,
+  "navigationWrites": 0
+}

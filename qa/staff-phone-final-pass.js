@@ -97,6 +97,16 @@ async function verify(page, name, width, theme) {
     assert.equal(await page.locator('.overview-table').count(),0,'phone card choice did not survive resize');
     assert.equal(await page.evaluate(()=>localStorage.getItem('syncview_viewMode')),saved,'desktop saved preference changed');
   }
+  if (!before && /^(tiktok|instagram)-client-ready$/.test(name) && width === 390) {
+    const label=page.locator('.tk-drop-title').first();
+    await page.evaluate(()=>window.__phoneDropTitle=document.querySelector('.tk-drop-title'));
+    assert.match(await label.textContent(),/tap to (browse|add)/,'phone browse copy is missing');
+    await page.setViewportSize({width:1024,height:844});await settle(page);
+    assert.match(await label.textContent(),/click to (browse|add)/,'phone browse copy remained on desktop');
+    assert.ok(await page.evaluate(()=>window.__phoneDropTitle===document.querySelector('.tk-drop-title')),'resize rebuilt the file chooser');
+    await page.setViewportSize({width,height:844});await settle(page);
+    assert.match(await label.textContent(),/tap to (browse|add)/,'phone browse copy did not return');
+  }
   if (!before && name === 'linear-detail' && width === 390) {
     await page.evaluate(() => {const rows=_prodIssues();if(rows.length<2)throw new Error('Missing fictional hierarchy fixture');rows[1].parent=rows[0].id;_prodOpenDeliverable(rows[1].id);});
     await settle(page);

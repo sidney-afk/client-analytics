@@ -50,6 +50,16 @@ build-index: wrote index.html (1287574 bytes) from 67 fragment(s)
 build-index: wrote src/index/INDEX.md
 ```
 
+## build-current-main.log
+
+COMPLETED
+
+```text
+build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
+build-index: wrote index.html (1287574 bytes) from 67 fragment(s)
+build-index: wrote src/index/INDEX.md
+```
+
 ## build-cycle1.log
 
 COMPLETED
@@ -270,6 +280,24 @@ ok workload-week 430 light
 ok workload-week 430 dark
 ```
 
+## commit-current-merge.log
+
+COMPLETED
+
+```text
+[codex/pocket-staff-phone 5948ca2e] Merge current origin/main into Pocket staff phone branch
+```
+
+## commit-design.log
+
+COMPLETED
+
+```text
+ create mode 100644 js/sv-full-56f72d9f515a.js
+ create mode 100644 qa/staff-phone-design-browser.js
+ create mode 100644 scripts/staff-phone-changed.js
+```
+
 ## commit-merge.log
 
 COMPLETED
@@ -286,6 +314,16 @@ FAILED / retained
 ok   client-sample-reviews @1440: pixels identical, computed styles identical (29e7eb2d8015)
 ok   client-sample-reviews @1920: pixels identical, computed styles identical (f87764b62642)
 71/72 desktop shots identical to origin/main
+```
+
+## desktop-current-main.log
+
+RUNNING
+
+```text
+FAIL staff-navFilmingPlans @1440: pixels DIFFERENT, computed styles identical (5d63f4d43ad2, attempts 4)
+ok   staff-navHome @1280: pixels identical, computed styles identical (ff11f590fec4)
+ok   staff-navHome @1440: pixels identical, computed styles identical (439194562bc0)
 ```
 
 ## desktop-final.log
@@ -307,6 +345,12 @@ ok   client-analytics @1920: pixels identical, computed styles identical (aa6926
 ok   client-calendar @1024: pixels identical, computed styles identical (69fabd5010fe)
 ```
 
+## diff-review.log
+
+COMPLETED
+
+No output was emitted.
+
 ## fetch-review.log
 
 COMPLETED
@@ -317,6 +361,16 @@ From https://github.com/sidney-afk/client-analytics
    cbd443a3..c8375c92  main       -> origin/main
 ```
 
+## identity-current-main.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
 ## index-candidate.log
 
 FAILED / retained
@@ -325,6 +379,16 @@ FAILED / retained
 check-index: FAIL — assembled bytes do not equal committed index.html (HEAD)
 check-index: FAIL — working-tree index.html does not equal committed index.html (HEAD)
 check-index: FAILED
+```
+
+## index-current-main.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=01276417888eb2b6bd3f79afdf8e2e2eb9de482d87c46b77b7fa0a6054bd7165 bytes=1287574
+check-index: committed index.html (HEAD) — sha256=01276417888eb2b6bd3f79afdf8e2e2eb9de482d87c46b77b7fa0a6054bd7165 bytes=1287574
+check-index: OK — assembled == working tree == committed (HEAD)
 ```
 
 ## index-final.log
@@ -345,6 +409,16 @@ FAILED / retained
 check-index: FAIL — assembled bytes do not equal committed index.html (HEAD)
 check-index: FAIL — working-tree index.html does not equal committed index.html (HEAD)
 check-index: FAILED
+```
+
+## lazy-current-main.log
+
+COMPLETED
+
+```text
+approve path reaching into on-demand areas: 2 hazards, 26 import ties
+  synclinear: PROD_WRITE_EF_URL, _prodCanWrite, _prodCanonicalCommentGate, _prodCardCommentsPending, _prodClientCommentGatewayContext, _prodComments, _prodCommentsSkeletonHtml, _prodGatewayWrite, _prodIssue, _prodProjectCanonicalCardComments, _prodRestRows, _prodToast, _prodVerifiedClientCommentMutationContext, _prodWriteErrorText
+check-lazy-safety: all checks passed (38 recorded hazards)
 ```
 
 ## lazy-review.log
@@ -375,6 +449,16 @@ FAILED / retained
 check-lazy-safety: the acorn parser is not installed. See the DEPENDENCY note in scripts/check-modules.js.
 ```
 
+## map-current-main.log
+
+COMPLETED
+
+```text
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+repo-map-sync: 1116 passed, 0 failed
+```
+
 ## map-review.log
 
 COMPLETED
@@ -384,6 +468,22 @@ OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README
 OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
 repo-map-sync: 1103 passed, 0 failed
 ```
+
+## merge-current.log
+
+FAILED / retained
+
+```text
+Auto-merging src/index/INDEX.md
+Auto-merging test/suite-classification.json
+Automatic merge failed; fix conflicts and then commit the result.
+```
+
+## merge-diff-check.log
+
+COMPLETED
+
+No output was emitted.
 
 ## merge.log
 
@@ -402,6 +502,16 @@ COMPLETED
 ```text
 typeof guards in modules: 512; unresolvable: 0
 minified parts: 19 files, 2621 KB, 5153 top-level names, 0 lost, 0 changed kind
+check-modules: all checks passed
+```
+
+## modules-current-main.log
+
+COMPLETED
+
+```text
+typeof guards in modules: 514; unresolvable: 0
+minified parts: 19 files, 2628 KB, 5162 top-level names, 0 lost, 0 changed kind
 check-modules: all checks passed
 ```
 
@@ -469,6 +579,14 @@ COMPLETED
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 58 rules phone-capped and staff-scoped
 ```
 
+## source-current-main.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 58 rules phone-capped and staff-scoped
+```
+
 ## source-cycle2.log
 
 COMPLETED
@@ -507,6 +625,24 @@ COMPLETED
 
 ```text
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 58 rules phone-capped and staff-scoped
+```
+
+## staged-diff-review.log
+
+FAILED / retained
+
+```text
+docs/audits/2026-10-07-staff-phone-design-checks.md:567: new blank line at EOF.
+```
+
+## truth-current-main.log
+
+COMPLETED
+
+```text
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+truth-sync: 515 passed, 0 failed
 ```
 
 ## truth-review.log
@@ -564,4 +700,3 @@ COMPLETED
 ```text
 STAFF_PHONE_FILES: changed; run phone matrix
 ```
-

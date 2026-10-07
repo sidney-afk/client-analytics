@@ -67,11 +67,11 @@ head, so a docs-only update skips the matrix; opening a PR compares its base.
 Source assertions and a historical docs-only diff verify both outcomes.
 
 `origin/main` was merged, without rebase, into the existing branch in merge
-commit `47ecd481`. Repair 361 on main and 362 in open PR reservations were
+commit `47ecd481`, then merged newly advanced main (`c8375c92`) in `5948ca2e`. Repair 361 on main and 362 in open PR reservations were
 occupied. A later reservation check found 363 occupied in other open PRs, so
 this work uses **364**. The inherited main changes are preserved.
 
-The complete local unit suite remains red: 17 of 685 suites fail. Every failing
+Before the second main merge, the complete local unit suite remains red: 17 of 685 suites fail. Every failing
 suite also fails in a fresh detached main worktree, where 19 of 684 fail. Main's
 two additional failures are not hidden; different checkout/environment effects
 make this comparison evidence, not a claim of identical test environments.

@@ -69,3 +69,65 @@ Linear is gone; it is only the name, not a dependency.
 work items). Left behind by design, one item: a test note field on the test
 client's template row (`rt_probe_note`, a short test string). Delete it in the
 Templates editor if wanted. Nothing else was written.
+
+## Re-test after PR 1981 (2026-10-07)
+
+Session Relay. Same method as above: two real headless browsers side by side
+(plus a third on the client link where one exists), the test client only,
+timings from the change to the other screen showing it, no refresh. The page
+under test is the live build: the live site's page matched the merged main
+build byte for byte (compared by hash), and the new comment-signal column is
+readable on the live database. Phone size was re-run for the Calendar only.
+No code changed, nothing deployed, no migration applied, no n8n workflow
+touched. Counts and timings only.
+
+Rule applied again: slower than about 5 seconds, or needing a refresh, is a bug.
+
+### Result table
+
+| Item | Before | Now | Verdict |
+|---|---|---|---|
+| Calendar, second change right after another (7 trials, gaps of 0.3, 2, 4, 6, 9 s) | 5.2 to 6.6 s when the gap was under 4 s | 1.7 to 2.2 s in every trial | **Fixed** |
+| Calendar, run of caption status changes (9 steps) | 5.4 to 6.9 s | 1.9 to 2.4 s | **Fixed** |
+| Calendar, run of status changes on video and thumbnail work items (17 steps desktop, 8 phone) | 5.4 to 6.9 s | Desktop: 8 of 17 took 6.3 to 8.4 s, the other 9 took 2.0 to 2.9 s. Phone: 2 of 8 took 6.6 s, the rest 2.2 to 3.1 s | **Still fails in part** (finding A) |
+| Calendar, thumbnail link edit | 5.4 to 5.5 s | 2.1 s desktop, 2.1 s phone | **Fixed** |
+| Calendar, caption edit right after creating the card | 2.4 s desktop, 10.1 s phone | 4.1 s desktop, 4.1 s phone | Pass (desktop 1.7 s slower, phone 6 s faster) |
+| Calendar, two caption changes 1.5 s apart | 13.7 s | 6.1 s desktop, 6.8 s phone (timed from the first click) | Better, still over 5 s |
+| Production, comment added | not seen within 30 s (4 s, 38 s or never in other runs) | 1.9 s and 2.3 s | **Fixed** |
+| Production, status (9 steps) | 2.1 to 4.3 s | 2.3 to 6.0 s, 8 of 9 under 4 s | Pass (one 6.0 s step had a 3.2 s server save) |
+| Filming plans, edit on one screen | never, only after a refresh | 12.5 s, 12.9 s and 8.9 s with no refresh (a 20 s poll) | Works, but over 5 s by design (finding B) |
+| Workload, one status change | board told in 1.2 to 3.4 s, refetch done about 3.8 to 4.0 s | told in 1.2 to 1.4 s, one 2 MB download, finished 5.1 to 5.2 s after the change (4 runs) | Works, about 1.2 s slower, just over 5 s (finding C) |
+| Workload, three changes about 1 s apart | one 2 MB download per event | 2 downloads | Cheaper |
+| Network cut 30 s, catch-up after reconnect (3 runs) | 4.3 to 4.6 s, live link left in error | 8.9, 8.9 and 9.2 s; the live link is back to SUBSCRIBED at about 8.5 s | Fixed the stuck link, slower catch-up (finding D) |
+| Network cut, delete made while offline | 4.3 s | 8.8 s in all 3 runs | Same as above |
+
+### Isolated change per area (nothing got slower except where noted)
+
+| Area | Before | Now |
+|---|---|---|
+| Calendar: date, name, video link, delete | 1.7, 2.2, 2.3, 2.3 s | 1.9, 2.3, 2.1, 2.7 s |
+| Calendar: create a card | 4.1 s | 3.7 s |
+| Production: status | 2.1 to 4.3 s | 2.3 to 3.9 s (one outlier above) |
+| Samples: add, status, delete | 3.2 to 4.4, 2.1 to 3.5, 2.3 to 2.5 s | 3.5, 1.9 to 2.2, 2.2 s |
+| Samples: client approves from the link | 2.8 s | 3.1 s |
+| Templates, both directions | 0.7 s and 0.5 s | 0.6 s and 0.5 s |
+| Workload | see above | slower by about 1.2 s |
+
+### What is left
+
+A. **Calendar status changes on video and thumbnail work items can still show 6 to 8 seconds late.** The new fast path (about 1.8 s between reloads) works for caption changes and for any two changes. A run of status changes on a card with a video or thumbnail work item makes two to three row writes per change, so a quick run reaches the "5 or more foreign events in 15 s" limit, which keeps the old 8 s floor (`CAL_V2_RT_STORM_EVENTS` and `CAL_V2_RT_STORM_RELOAD_MS` in `115-core-calendar-flags.js.part`). That match is from reading the code and the pattern of the numbers (the same steps were 2 s when taken alone); I did not instrument the counter. To reproduce: change one video status three or four times within about 15 s on two open screens. Fix idea: count events per card change instead of per row write, or raise the limit to about 10.
+B. **Filming plans catch up in 9 to 13 s, not 5.** The new poll runs every 20 s, so the wait is anywhere from 0 to 20 s. No refresh is needed, which was the bug. If 5 s matters, shorten the poll (a cheap read) or add a small change signal like the comments one.
+C. **Workload is about 1.2 s slower for a single change** because the board now waits 3 s to gather changes before one download. A busy board downloads less. If the extra second matters, collect for 1 s instead of 3 s. As before, the visible counts could not be shown to move: the test work item is unassigned and I do not assign real editors.
+D. **After a network cut the screen re-connects, but later.** The live link now recovers by itself (it stayed in error before), yet the first update arrives about 9 s after the network returns, against about 4.5 s before (when a backup poll happened to fire). The new link re-subscribed at about 8.5 s in the run that timed it. Likely the reconnect backoff; the `online` signal in the test browser may not behave like a real phone regaining signal, so a real network may differ. Worth one check on a real phone.
+
+### Not re-tested
+
+Assign and unassign (same reason as before), the other areas on phone size (Production, Samples, Templates, Filming plans, Workload, network cut), and the Samples "client asks for changes" step (the test script lost the client card in this run, so there is no new number; it was 3.5 to 3.8 s on 2026-10-06).
+
+### Write-refusal log (01:20 to 02:07 UTC, whole system)
+
+14 rows. Four are from this run and expected (a thumbnail asked for "For SMM Approval" with no link). Eight are the same automated fixture rows as last time (write conflict and a team refusal on fixture work items). Two are upload errors (500) that are not from this run. Nothing shows a lost save.
+
+### Clean-up
+
+One test card archived and every test work item cancelled (0 left open, 0 live test cards). The Filming plan note for the test client was put back to its original text. One test note field from the first run is still on the test client's template row.

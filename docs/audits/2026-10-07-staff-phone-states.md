@@ -4,7 +4,7 @@ All rows use the generated native app and intercepted fictional transports. Ever
 
 The catalogue result is a composite: 460 passing rows from the full run plus four passing client-picker rows after correcting its retired selector. The full run remains recorded as exit 1 with four setup timeouts. This is not a claim that that standalone run was green.
 
-## Rule matrix: 160 passing states
+## Rule matrix: 160 passing states on final source
 
 | State | Controls checked | Active surface |
 | --- | ---: | --- |
@@ -894,3 +894,82 @@ The catalogue result is a composite: 460 passing rows from the full run plus fou
 | onboarding-error | 430 | dark |
 | standalone-credentials | 430 | dark |
 | standalone-onboarding | 430 | dark |
+
+## Final desktop parity: 72 passing pair receipts
+
+The unmodified repository gate compared the final generated source with main `7f83b323`. The four-worker full invocation exits 1 at 70/72: Filming at 1280 and reviewer at 1024 have pixel differences with identical computed styles. Both pairs pass the same gate when repeated separately with one worker (1/1 each). The table combines those final-source receipts; it does not relabel the full invocation as a pass. The earlier source passed a standalone serial 72/72 gate against `672b5a4d`; that base and `7f83b323` have identical UI files. No parity assertion or threshold was changed.
+
+| Page | Width | PNG SHA-256 (before = after) | Computed styles | Invocation |
+| --- | ---: | --- | --- | --- |
+| staff-navToday | 1024 | `6798827bd769866294371212f40c2ef82ea4c6937705ac7580976e0501e98b5b` | identical | full parallel |
+| staff-navToday | 1280 | `dda661e0c800cd14df6f223e88464afd38e483717cd2429eb4ede3173d6e9c1e` | identical | full parallel |
+| staff-navToday | 1440 | `c286e1d82635756ce123931b7075848c97aa2fac8260d36a99875f6ee782b2b7` | identical | full parallel |
+| staff-navToday | 1920 | `7bc9e7d7723749d1bc955eff12ef52b81be1837dec233f49a004c34f4aa168cb` | identical | full parallel |
+| staff-navCalendar | 1024 | `b292d80e30d85ab1c021d6765cbe34ab9a2d5106b6e249039a55d2fc3d51f331` | identical | full parallel |
+| staff-navCalendar | 1280 | `35f1c6e299e87c759d882791c9217b1be2585e0f749120a7f9bb325269b07394` | identical | full parallel |
+| staff-navCalendar | 1440 | `7e8a04160f7ddf8faf4ee4534d03c9198d17160a9650351d058929ff051c986a` | identical | full parallel |
+| staff-navCalendar | 1920 | `3515bba69a1b29b5bf18b269a010a0b494724c54ec03cb1009a4aa32da1e2229` | identical | full parallel |
+| staff-navSxr | 1024 | `8e209974f2298cececb3111612d3f263f1bcdaa994855d5160b7f7be979b7304` | identical | full parallel |
+| staff-navSxr | 1280 | `ed0eb621f6305645fb6a94ac20304c5a3a6ba63c3037c7ffb4948cc30f3541ad` | identical | full parallel |
+| staff-navSxr | 1440 | `ce5f7c0387a5842f289c1923079bd55a1fbd21aa9465de3337cdb3e74841fbdd` | identical | full parallel |
+| staff-navSxr | 1920 | `d64380c21ad5bf16e8e53a5be6646d6d40f0cdcf8e452a542f3142033faa3094` | identical | full parallel |
+| staff-navTemplates | 1024 | `f26a5c2834115a03065750fc40b0c941c605e4d31af261bde6979052acb200a1` | identical | full parallel |
+| staff-navTemplates | 1280 | `624f286675a03d9be84815aa8b37c8e7a8bd13a5d8c96e16a248f33634b47c4b` | identical | full parallel |
+| staff-navTemplates | 1440 | `76af22a3b7a755d67d7229281f9ab49113d9c7fecbe6e4e3f86b3bca47a6f94e` | identical | full parallel |
+| staff-navTemplates | 1920 | `abc65e5e79f2f6da142327ebca746700896dad0a2d839d893780f05166d38486` | identical | full parallel |
+| staff-navFilmingPlans | 1024 | `ddcc0a67d0fc598924b34171933d1d6a6c28371c28ec4b951d068f234df79eb1` | identical | full parallel |
+| staff-navFilmingPlans | 1280 | `e0cc11df7541eece79b1159236c50f62f1a4b3a0f292e23af90354add22c7348` | identical | isolated serial repetition |
+| staff-navFilmingPlans | 1440 | `5d63f4d43ad2db300f8a645716e5c46d79b439db853910ebcc45e8cc9c00c1e0` | identical | full parallel |
+| staff-navFilmingPlans | 1920 | `f69f63fed9148ce1f7a71e1db5134f268bdc17490d6ec0946df8a210f5e81fa9` | identical | full parallel |
+| staff-navTiktokUpload | 1024 | `bd3b874ff2852f01794c3ec66f69678bd3977205665896148a88d6f9df722769` | identical | full parallel |
+| staff-navTiktokUpload | 1280 | `106666273fb6689d843422bcf5020d65cba1b27c73049a1c2f77883a3880f25e` | identical | full parallel |
+| staff-navTiktokUpload | 1440 | `d33a554a295f23efdb85aa387556e504097f8a30455332418cba6ad854445e1a` | identical | full parallel |
+| staff-navTiktokUpload | 1920 | `d87f441ae10ea93079f7968c82dbfe2d02f9b12ac90d2902db87702ca44a54f4` | identical | full parallel |
+| staff-navHome | 1024 | `8c26e67ac6ddcf3264c565d0f313678d30b32309614f10fe8a006566a8aa5822` | identical | full parallel |
+| staff-navHome | 1280 | `58547f7cb09f55bb090fc3074de0a1adbad6dafcc1ce7e7a43215fd8b95f975d` | identical | full parallel |
+| staff-navHome | 1440 | `896e8593ad28ae1431b5b7e3285e2c97cd238c6891d4c771257b3e307c56fa7f` | identical | full parallel |
+| staff-navHome | 1920 | `eda76107992198e2ab8f0c4e8cac2fdb7a3ec1afe5516c78d84f5a9741108eba` | identical | full parallel |
+| staff-navWorkload | 1024 | `260caa24dd62cc28757234f545c34abaf6a8f6e91f8194982a0175c28b3f89de` | identical | full parallel |
+| staff-navWorkload | 1280 | `e96202fa342e173bcf6da920e9442d09a96b8e0ac4f47646964cc7fbea505033` | identical | full parallel |
+| staff-navWorkload | 1440 | `c06567030d36ac3f6919e77d565e3f1ee35498a3cd63de8cc556287ce8c9494e` | identical | full parallel |
+| staff-navWorkload | 1920 | `b964434c8695dcfde91d5fd016e857889bf41bcc753da7641b847d38e96566c0` | identical | full parallel |
+| staff-navProd | 1024 | `7cf17c287f067a5174af1272d47de3d3933da7756a1d3c549090e0b29e87be94` | identical | full parallel |
+| staff-navProd | 1280 | `1b1b954bde6af40a2232b3c177f3ccaad8e098b991e1dcf19b0447ab1beb7c6b` | identical | full parallel |
+| staff-navProd | 1440 | `9a7e4fa29e6a44cbe5d4325d87ac636ec01659e66c0ff243f8a2b2fb4ec47e88` | identical | full parallel |
+| staff-navProd | 1920 | `21a6bcb772195b96a4404272f51557a42deac53c30c2613f7198c4670d8c35fd` | identical | full parallel |
+| staff-navLinear | 1024 | `cf22bf546a1dd24f178e1d8a3e94dae110edf5824acaf2b193eaa7ab17759a98` | identical | full parallel |
+| staff-navLinear | 1280 | `4235249bad936bf6f0e96b47a1ef69ac665609627ed7303f090cb2e88c9fb3a2` | identical | full parallel |
+| staff-navLinear | 1440 | `03875f8041941dc46773ee9881d039381e5194a056f6336f0ef3b3923dad84f2` | identical | full parallel |
+| staff-navLinear | 1920 | `53b291175396a9b6496a3b5b93e472eeded5e90a9aeb67eb319735dcbbf6e189` | identical | full parallel |
+| staff-navKasper | 1024 | `c705b6157f769b38f375211c37dc4ab1a21e91ae738abdf6a831d52369bc56a2` | identical | isolated serial repetition |
+| staff-navKasper | 1280 | `eec50bcbf43cafa835f4938b3d4b17690f63da69e282e5889f1b5635acfac8b5` | identical | full parallel |
+| staff-navKasper | 1440 | `72fcdd8c9f61c0468f146849924227759ad903f752e0da647cbfda22df14b59f` | identical | full parallel |
+| staff-navKasper | 1920 | `84c76badfb730bc6f7f5d9f53022ad1aceccdad887f1f9103f1b7a2efdb5cfdf` | identical | full parallel |
+| staff-time-off | 1024 | `a82019276a641fae1add24d473b05ad2b7b96549be4ae8e5d6def29681bd58de` | identical | full parallel |
+| staff-time-off | 1280 | `990302c517a9fb8571adfb0cffa2e982c3d93889f9949f376dbfc4d357bd0da0` | identical | full parallel |
+| staff-time-off | 1440 | `28c1b9d25607d36f9e602d9c146e707683c8e3da4a1db8e2569b3f302410c8c8` | identical | full parallel |
+| staff-time-off | 1920 | `d4bf0f603e7501acec654973e41d185b7cf0e449dd0c27635a9cb75bb0e7c601` | identical | full parallel |
+| client-analytics | 1024 | `e3092a62a1fb52e64b4a42476297a6839e1c1abd8a0a0d911fd052f5a234f73d` | identical | full parallel |
+| client-analytics | 1280 | `f2f3e2fab43acb6ccf8910351e837b821dd8dd59e93a2144c2a04aac41dc6f4f` | identical | full parallel |
+| client-analytics | 1440 | `d11ef7ceab99bc7bf12dfb535f8d7bc978a171f7e8269f81b07fe63358fe4b6c` | identical | full parallel |
+| client-analytics | 1920 | `aa6926766e3a88732c2676bca9a0a7429ce5ede45c923aaa0f8f0bba9b8367ba` | identical | full parallel |
+| client-calendar | 1024 | `69fabd5010feb7c5ce0033014bf0390431e8d934f133d156de3f6420f22a5215` | identical | full parallel |
+| client-calendar | 1280 | `fc7b056f7e75edcb055b97ed048191eadbd929e1d381a93ee0a946c45b944c3d` | identical | full parallel |
+| client-calendar | 1440 | `6f0161af69d34a024491eb5650f4d45a22f36e81460a06343eabfbafe165d8e3` | identical | full parallel |
+| client-calendar | 1920 | `de140d5698bd5bcbc6179cb6119c058ffd15a0e7c1ea0543b5a6a70dd2aaf5d8` | identical | full parallel |
+| client-calendar-month | 1024 | `fd87a7eb83171f0feb2ec628adde4d8d422ddf5f21223a69b15977ded4b694f5` | identical | full parallel |
+| client-calendar-month | 1280 | `1d6efccee1e9f24cdf273939be291ed412b8170ab3e27a89511cf2e377e65925` | identical | full parallel |
+| client-calendar-month | 1440 | `bf3a4160985da8df790efef7f3d6079e48a29b605aa2e38e6dadd748bc06abda` | identical | full parallel |
+| client-calendar-month | 1920 | `1c017ad49fb2b6baf4fe1773a3819718e9d8ed0d9cb2d57d62e955842218f35e` | identical | full parallel |
+| client-calendar-week | 1024 | `73e9c10944b871c555411d7268a5482bdc1f2818abebfc2d064f4a281ef94d3e` | identical | full parallel |
+| client-calendar-week | 1280 | `cc17e24f61191aa0c5a4b6742333c6c0a6bf47fc9d830726d888f388b0108fe4` | identical | full parallel |
+| client-calendar-week | 1440 | `8b93b4376dc9d6c107f5d39727cca0cda8f133d8861d8d0032a9d33437f5e958` | identical | full parallel |
+| client-calendar-week | 1920 | `16738aa687a3abab8a37f1092c89fcaa06c89c25ca3316c98a52651aac5212d3` | identical | full parallel |
+| client-brief | 1024 | `69fabd5010feb7c5ce0033014bf0390431e8d934f133d156de3f6420f22a5215` | identical | full parallel |
+| client-brief | 1280 | `fc7b056f7e75edcb055b97ed048191eadbd929e1d381a93ee0a946c45b944c3d` | identical | full parallel |
+| client-brief | 1440 | `6f0161af69d34a024491eb5650f4d45a22f36e81460a06343eabfbafe165d8e3` | identical | full parallel |
+| client-brief | 1920 | `de140d5698bd5bcbc6179cb6119c058ffd15a0e7c1ea0543b5a6a70dd2aaf5d8` | identical | full parallel |
+| client-sample-reviews | 1024 | `7b698a748e3460af0ad5ddc5edd0353667f788d8a3702b1462e1eaadddda2f5e` | identical | full parallel |
+| client-sample-reviews | 1280 | `d869de825d13001b395dea50c5b6fef102850c131cc5a597c103f6f974aad87d` | identical | full parallel |
+| client-sample-reviews | 1440 | `29e7eb2d8015fe7b8a4e5b2fef1bf4edc665bc638c46a23b8e6257754851ebb0` | identical | full parallel |
+| client-sample-reviews | 1920 | `f87764b626426a1b1a6f8c6c6194eff6820f990cb8955a139b057244524b062e` | identical | full parallel |

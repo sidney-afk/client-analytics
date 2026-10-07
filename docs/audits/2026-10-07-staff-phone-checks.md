@@ -1,6 +1,6 @@
 # Staff phone check endings
 
-These are the actual last six lines of each local check log, with trailing empty lines omitted. Failed iterations remain visible. Paths and captures remain local; no backend rows or images are included. Master-test and Production polish are failed gates. A baseline failure never counts as a pass.
+These are the actual last six lines of every local check log, with trailing empty lines omitted and terminal trailing spaces normalized for Markdown. Failed iterations remain visible. No backend rows or images are included. Master-test and Production polish are failed gates. A baseline failure never counts as a pass. The final full desktop run is 70/72; two isolated gate repetitions supply the remaining passing pair receipts, not a green full invocation.
 
 ## action-row-diagnostic.log
 
@@ -93,6 +93,12 @@ ok today-cleared 390 dark
 ok today-cleared 430 light
 ok today-cleared 430 dark
 staff-phone-final-pass: 460 renders, 20 problems
+```
+
+## artifact-source-alignment.log
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 38 rules phone-capped and staff-scoped
 ```
 
 ## artifact-source-committed.log
@@ -379,6 +385,12 @@ build-index: wrote index.html (1283772 bytes) from 67 fragment(s)
 build-index: wrote src/index/INDEX.md
 ```
 
+## cancel-production-ci.log
+
+```text
+✓ Request to cancel workflow 37650693647 submitted.
+```
+
 ## caption-hidden-verified.log
 
 ```text
@@ -427,6 +439,17 @@ staff-phone-final-pass: 230 renders, 2 problems
 check-index: assembled bytes — sha256=397bcb3f38ac4494950db140877ceadcda2973433bf910e813f9e914dbe1dd0e bytes=1283857
 check-index: working-tree index.html — sha256=397bcb3f38ac4494950db140877ceadcda2973433bf910e813f9e914dbe1dd0e bytes=1283857
 check-index: committed index.html (HEAD) — sha256=397bcb3f38ac4494950db140877ceadcda2973433bf910e813f9e914dbe1dd0e bytes=1283857
+
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
+## check-index-final-source.log
+
+```text
+
+check-index: assembled bytes — sha256=8e7a75277f07fe8c9b31077fe5a0bce7f6b6ceed42874744e52a733c1b461066 bytes=1283896
+check-index: working-tree index.html — sha256=8e7a75277f07fe8c9b31077fe5a0bce7f6b6ceed42874744e52a733c1b461066 bytes=1283896
+check-index: committed index.html (HEAD) — sha256=8e7a75277f07fe8c9b31077fe5a0bce7f6b6ceed42874744e52a733c1b461066 bytes=1283896
 
 check-index: OK — assembled == working tree == committed (HEAD)
 ```
@@ -490,15 +513,31 @@ staff-phone-final-pass: 0 renders, 4 problems
 staff-phone-css-scope: OK (1 block(s), 360 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))
 ```
 
+## desktop-admin-final.log
+
+```text
+ok   staff-navKasper @1024: pixels identical, computed styles identical (c705b6157f76)
+
+1/1 desktop shots identical to origin/main
+```
+
 ## desktop-alignment-final.log
 
 ```text
-ok   staff-navTiktokUpload @1280: pixels identical, computed styles identical (106666273fb6)
-ok   staff-navTiktokUpload @1440: pixels identical, computed styles identical (d33a554a295f)
-ok   staff-navTiktokUpload @1920: pixels identical, computed styles identical (d87f441ae10e)
-ok   staff-navFilmingPlans @1440: pixels identical, computed styles identical (5d63f4d43ad2, attempts 2)
-FAIL staff-navFilmingPlans @1280: pixels DIFFERENT, computed styles identical (a9913d89eb53, attempts 4)
-ok   staff-navHome @1280: pixels identical, computed styles identical (58547f7cb09f)
+ok   client-sample-reviews @1024: pixels identical, computed styles identical (7b698a748e34)
+ok   client-sample-reviews @1280: pixels identical, computed styles identical (d869de825d13)
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (29e7eb2d8015)
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (f87764b62642)
+
+70/72 desktop shots identical to origin/main
+```
+
+## desktop-filming-final.log
+
+```text
+ok   staff-navFilmingPlans @1280: pixels identical, computed styles identical (e0cc11df7541)
+
+1/1 desktop shots identical to origin/main
 ```
 
 ## desktop-final.log
@@ -523,6 +562,20 @@ ok   client-sample-reviews @1920: pixels identical, computed styles identical (f
 71/72 desktop shots identical to 672b5a4d
 ```
 
+## desktop-pixel-diagnostic.log
+
+```text
+<stdin>:7: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+staff-navFilmingPlans@1280: 12 different pixels; bounds (416, 19, 1261, 39)
+staff-navKasper@1024: 6 different pixels; bounds (32, 167, 35, 172)
+```
+
+## desktop-receipt-check.log
+
+```text
+DESKTOP_RECEIPTS: 72 unique final-source pairs; before/after PNG bytes equal; gate computed styles identical; full run 70/72 plus 2 serial repetitions
+```
+
 ## desktop-serial.log
 
 ```text
@@ -545,6 +598,10 @@ ok   staff-time-off @1920: pixels identical, computed styles identical (d4bf0f60
 48/48 desktop shots identical to 672b5a4d
 ```
 
+## diff-alignment.log
+
+No terminal output; exit 0.
+
 ## diff-check-followup.log
 
 No terminal output; exit 0.
@@ -553,6 +610,36 @@ No terminal output; exit 0.
 
 ```text
 warning: in the working copy of 'test/suite-classification.json', LF will be replaced by CRLF the next time Git touches it
+```
+
+## diff-final-source.log
+
+No terminal output; exit 0.
+
+## diff-receipts-final.log
+
+No terminal output; exit 0.
+
+## identity-audit.log
+
+```text
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+```
+
+## identity-final-source.log
+
+```text
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
 ```
 
 ## identity-initial.log
@@ -578,6 +665,17 @@ This change adds no client slug and no colleague's name ✅
 ```
 
 ## identity-rebased.log
+
+```text
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+```
+
+## identity-receipts-final.log
 
 ```text
   terms this change adds           0   (0 client slugs, 0 staff names)
@@ -636,6 +734,17 @@ OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` 
 repo-map-sync: 1095 passed, 0 failed
 ```
 
+## repo-map-final.log
+
+```text
+OK  REPO_MAP.md path `test/staff-calendar-phone-css-scope.js` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/staff-calendar-expanded-browser.js` exists
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+
+repo-map-sync: 1097 passed, 0 failed
+```
+
 ## repo-map-rebased.log
 
 ```text
@@ -672,12 +781,12 @@ STAFF_PHONE_RULES: 156 states; 0 failures; 390/430 touch; synthetic transports; 
 ## rules-final-source.log
 
 ```text
-ok sample-reviews-dark-430 screen, menus, layout and scroll lock
-ok templates-light-390 screen, menus, layout and scroll lock
-ok templates-dark-390 screen, menus, layout and scroll lock
-ok templates-light-430 screen, menus, layout and scroll lock
-ok templates-dark-430 screen, menus, layout and scroll lock
-ok filming-plans-light-390 screen, menus, layout and scroll lock
+ok kasper-dark-430 screen, menus, layout and scroll lock
+ok time-off-light-390 screen, menus, layout and scroll lock
+ok time-off-dark-390 screen, menus, layout and scroll lock
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
 ```
 
 ## rules-final.log
@@ -770,7 +879,7 @@ failed suites: test/client-onboarding-handler.js, test/clean-urls-routes.js, tes
 
 ## Production polish child-suite endings
 
-The aggregate-read scope deviation applies to the wired behavior/pixel lanes. These are preserved framework summaries, not TEST-only live evidence.
+The aggregate-read scope deviation applies to these legacy live lanes. These are preserved framework summaries, not TEST-only live evidence.
 
 ### Production boot budget
 

@@ -24,7 +24,7 @@ const sandbox = {
   _srpState: {}, console,
 };
 vm.createContext(sandbox);
-vm.runInContext(body + '\nthis.api = { _tdyJobs, _tdyEditorHtml, _tdySmmHtml, _tdySkeletonHtml, _tdyCacheRead, _tdyCacheWrite, _tdyLoad, _tdyIso, _tdyDays, tdyState, _tdyDropOldDay, _tdyTakeEarly };', sandbox);
+vm.runInContext(body + '\nthis.api = { _tdyClientsHtml, _tdyJobs, _tdyEditorHtml, _tdySmmHtml, _tdySkeletonHtml, _tdyCacheRead, _tdyCacheWrite, _tdyLoad, _tdyIso, _tdyDays, tdyState, _tdyDropOldDay, _tdyTakeEarly };', sandbox);
 const api = sandbox.api;
 
 let failed = 0;
@@ -66,6 +66,19 @@ store.syncview_today_cache_v1 = JSON.stringify({ who: 'u|smm', at: Date.now(), d
 ok(api._tdyCacheRead('u|smm') === null, 'a saved copy with no day stamp (written by the old code) is not painted');
 api._tdyCacheWrite('u|smm', { open: [], done: [], posts: [], names: {} });
 ok(api._tdyCacheRead('u|smm') !== null, "today's saved copy is painted");
+store.syncview_today_cache_v1 = JSON.stringify({ who: 'u|smm', at: Date.now(), day: dayKey(new Date()), data: { open: [], done: [], posts: [], names: {} } });
+ok(api._tdyCacheRead('u|smm') === null, 'a saved copy in the shape before the client chips is not painted (it would be reshaped by the fresh read)');
+
+// My clients under the greeting: own clients, then the ones only also seen, apart.
+const fx = (slug, name) => ({ slug, name });
+const chips = api._tdyClientsHtml({ notListed: false, mine: { mode: 'mine', own: [fx('fixture-a', 'Alpha Fixture'), fx('fixture-b', 'Beta Fixture')], also: [fx('fixture-c', 'Gamma Fixture')] } });
+ok(/Your clients/.test(chips) && (chips.match(/class="tdy-cl"/g) || []).length === 2, 'own clients show as two solid chips under "Your clients"');
+ok(/Also seeing/.test(chips) && (chips.match(/class="tdy-cl also"/g) || []).length === 1 && chips.indexOf('Also seeing') > chips.indexOf('Your clients'), 'also-seen clients follow in their own quieter group');
+ok(/_tdyOpenClient\(/.test(chips) && /Open Alpha Fixture in Calendar/.test(chips), 'a chip opens that client in Calendar and says so');
+const alsoOnly = api._tdyClientsHtml({ notListed: false, mine: { mode: 'mine', own: [], also: [fx('fixture-c', 'Gamma Fixture')] } });
+ok(!/Your clients/.test(alsoOnly) && /Also seeing/.test(alsoOnly), 'someone with no roster clients sees only the "Also seeing" group');
+ok(/Every current client/.test(api._tdyClientsHtml({ notListed: false, mine: { mode: 'all', own: [], also: [] } })), 'an admin who sees everyone gets one quiet line, not every client');
+ok(api._tdyClientsHtml({ notListed: true, mine: { mode: 'mine', own: [], also: [] } }) === '' && api._tdyClientsHtml({}) === '', 'no chips when nothing is listed (the note shows instead) or for an older saved day');
 api.tdyState.data = { open: [] }; api.tdyState.who = 'u|smm'; api.tdyState.day = dayKey(yesterday);
 api._tdyDropOldDay();
 ok(api.tdyState.data === null, 'an answer held in memory past midnight is dropped, not shown as today');

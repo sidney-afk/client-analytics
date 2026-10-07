@@ -1669,7 +1669,7 @@
         .boot-skeleton-row { display: grid; grid-template-columns: 1fr 0.85fr 0.7fr; gap: 12px; }
         @media (max-width: 700px) { .boot-skeleton-row { grid-template-columns: 1fr; } }
         .boot-skeleton-variant { display: none; }
-        html[data-tdy-editor] .boot-skeleton-today .tdy-rings { display: none; }
+        html[data-tdy-editor] .boot-skeleton-today .tdy-rings, html[data-tdy-editor] .boot-skeleton-today .tdy-clients { display: none; }
         /* Phone: the grey shape for Today already has the phone layout of the
            real list (two columns of rings, card rows), so the swap to the list
            moves nothing. Mirrors the Today rules in the STAFF-PHONE block. */

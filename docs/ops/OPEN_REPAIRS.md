@@ -30834,6 +30834,17 @@ Proof (offline): `qa/today/today-no-flicker.js` (every animation frame of a relo
 Follow-up, same day: Lighthouse saw a blank frame between the loading screen and the grey shape in 2 of 9 phone runs. Cause: a phone draws while it is still reading the page, and Today's grey shape sat behind about 30 KB of other tabs' shapes in the content area, so a frame could show the content area empty. The shape is now the first thing in the content area; afterwards 25 of 25 phone runs and 25 of 25 full runs (desktop and phone) passed.
 Still open: the first ~90 ms of a phone load show only the page background, before the browser reaches the page's own markup (about 1.2 MB of styles come first). That is every tab, the same on main, and needs its own change.
 
+## 364. [2026-10-07, BUILT, NOT DEPLOYED, NOT PROVEN LIVE] Clients tab redesign (direction A "Dossier") with a manager picker
+
+Source: owner, 2026-10-07, picking direction A of the three mockups in `docs/syncview-design/mockups/clients-redesign/`.
+Page (`src/index/323`, `324`, `020` CSS): the header is the "Clients" title, the Filming Plans search pill and a small "All clients" button (no subtitle, no Refresh, no permanent list). Search filters as you type on name, handle and email, with ↑ ↓ Enter Esc (the shared client dropdown's keys); recently opened clients come first. The profile uses the full width: a coloured header with the name, the manager and one row of jump buttons; three colour-coded cards (contact and team, social accounts, publishing); HubSpot as a band below; Content research, extra Sheet columns and Onboarding folded. Every value with a stable address is a link: email (mailto), Instagram, TikTok, YouTube, and both Slack channels (Slack's `app_redirect?channel=`, which needs no workspace id). Post for Me and Upload-Post have no stable per-account page, so they show as text with Copy. Edit keeps the version check; "See history" reads the history.
+Function (`client-profile-write`, admin key AND active admin member, as before): new `list_managers`, `assign_manager` (through the same `smm_assign_client` transaction roster-write uses, role `admin`, the member as editor, so the move lands in `smm_assignment_edits` and the Sheet copy is queued; refuses an unknown manager, an archived client, and a manager that changed since the page loaded it) and `history` (reads only). `roster-write` itself stays server-to-server.
+Needs before the picker and history work live: deploy `client-profile-write` through `deploy-single-function.yml` after merge. Until then the manager chip says "Manager not loaded. Try again" (a failed load is retried by that button and on the next visit), and everything else works.
+Proof (offline): `docs/syncview-design/tests/clients-admin-browser.js` (search, list, links, picker, edit and conflicts, history; desktop and two phones; smm and creative kept out), `docs/syncview-design/tests/clients-onboarding-browser.js`, `test/client-profile-edit.js`. Screenshots: `docs/syncview-design/screenshots/clients-dossier/`.
+Phone pass (Lighthouse review of the 390 and 375 screenshots, 2026-10-07; phone widths only, desktop unchanged): one "Clients" heading (the pocket phone bar's), the placeholder shortened to "Search clients" so it fits, "All clients" shown with its label on the same row as the search, denser All clients rows (the pocket shell's 78px rows were for the old full-page list), card rows without extra air, Copy as a light button, HubSpot as one row per fact, and the edit bar reduced to Cancel and Save. Checked in `clients-admin-browser.js` (heading count, placeholder fits, label, one row).
+Owner decision on the manager race (review thread on PR 1988): no database change for now; the later of two near-simultaneous picks wins, one manager per client still holds, both moves are recorded.
+Way back: revert this PR and rebuild the fragments.
+
 ## 366. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
 
 Phone-only artifact and native transplant repair background scrolling under overlays,
@@ -30870,3 +30881,4 @@ modal roots, includes both real lightboxes, hides persistent hover hints on touc
 and allocates full touch widths in the Create post stepper. The expanded Calendar
 flow applies painted-overlap and scroll-lock assertions at every measured state.
 Main first-paint repair 363 is retained from merge `787c693d`; this entry is now 366 after the final reservation check.
+

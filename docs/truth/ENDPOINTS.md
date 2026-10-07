@@ -188,6 +188,12 @@ Other:
 - `functions/v1/client-profile-write` — Kasper > More > Clients edits (admin role key plus an active
   admin member id). While `client_profiles_authority` is `sheet`: writes the changed cells to the Clients Info Sheet first, then Supabase
   (`source='syncview'`, one `client_profile_edits` row per field); `refresh_from_sheet` after a conflict. Since 2026-10-02 the authority is `syncview`: it saves to the database only (same version check and history) and the read-only Sheet copy follows.
+  Since 2026-10-07 it also serves the Clients tab's manager picker and history (same admin key and member):
+  `list_managers` (active managers and which one owns each client; read), `assign_manager` (moves one
+  client to another existing active manager through `smm_assign_client` with role `admin` and the member as
+  editor, so the move is recorded in `smm_assignment_edits` and the Sheet copy is queued; refuses an
+  unknown manager, an archived client, and `manager_changed` when the manager differs from the one the page
+  showed) and `history` (the newest `client_profile_edits` and `smm_assignment_edits` rows; read).
   Two more n8n-only doors exist: `roster-read` and `roster-write` (key `ROSTER_SERVICE_KEY`).
 - `functions/v1/client-onboarding` — Kasper > More > Clients, under a client's details (admin role key plus an
   active admin member id, for reads AND writes). `action: get` returns the 27-step onboarding checklist, the

@@ -2,7 +2,7 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-09-07 @ 4e57e744 — live re-read of the claims below that can be
+> Last verified: 2026-10-07 @ bce14f17 (retirement state re-confirmed in the repository: no Linear deploy lane, linear-inbound/linear-outbound deleted 2026-09-24; everything below the cutoff note is historical and was not re-read). Prior stamp: 2026-09-07 @ 4e57e744 — live re-read of the claims below that can be
 > checked against Linear directly: team list, the 14-user count and the house identity, the
 > exact `2× Workload` / `3× Workload` label names (unchanged by the owner's 2026-08-25 rename;
 > the `×` is still U+00D7), and both teams' full state-name sets. ONE DRIFT FOUND and corrected

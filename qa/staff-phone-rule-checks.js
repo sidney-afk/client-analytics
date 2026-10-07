@@ -84,6 +84,10 @@ async function assertLayout(page, label, root='body') {
   return result;
 }
 async function activeSurface(page) {
+  // Measure after the native opening class and ownership sync have painted.
+  // Both are queued with requestAnimationFrame; measuring between them sees
+  // a closed prior sheet and a not-yet-open picker as a false phantom lock.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const surface = await page.evaluate(() => {
     const selector=".cal-lightbox.open, .kasper-lightbox.open, dialog[open], [aria-modal=\"true\"], [role=\"dialog\"], [role=\"alertdialog\"], [role=\"menu\"], [role=\"listbox\"], [class*=\"-overlay\"], [class*=\"-popup\"], [class*=\"-popover\"], [class*=\"-menu\"], [class*=\"-dropdown\"], .prod-pop, .prod-cmd-bd, .cal-card-color-picker, .sv-client-pop, #svJump:not([hidden])";
     // Video paint and card selection layers are inline content, not popups.

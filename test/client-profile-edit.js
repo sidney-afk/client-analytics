@@ -63,7 +63,10 @@ function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit
   ok(w > 0 && r > w && serve.indexOf('planSheetEdit(values, slug, current, changes') < w, 'order: check the Sheet row, write the Sheet, then Supabase');
   ok(/valueInputOption: "RAW"/.test(fn), 'cells are written as plain text, never as formulas');
   ok(/saved_to_sheet_only/.test(serve), 'a Supabase failure after the Sheet write is reported, not hidden');
-  ok(!/\.delete\(|\.insert\(|\.upsert\(/.test(fn) && !/"client_profile_edits"/.test(fn), 'history is written only by the SQL function, never directly');
+  // The history is READ by the Clients tab's "See history" (action history), never written here.
+  const histOnly = fn.slice(fn.indexOf('async function history'), fn.indexOf('Deno.serve('));
+  ok(!/\.delete\(|\.insert\(|\.upsert\(/.test(fn) && fn.split('"client_profile_edits"').length === 2 && /"client_profile_edits"\)\.select\(/.test(histOnly),
+    'history is written only by the SQL function, never directly (it is only read, by the history action)');
   ok(!/client_profiles_authority[^\n]*update|\.update\(\{[^}]*authority/.test(fn), 'the authority flag is never changed');
   ok(!/\/\*[\s\S]*?\d{1,3}[A-Za-z0-9_-]{40,}/.test(fn) && /Deno\.env\.get\(SHEET_ID_SECRET\)/.test(fn), 'the Sheet id comes from a secret, not the source');
 
@@ -74,6 +77,22 @@ function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit
     && /grant execute on function public\.client_profile_admin_edit\([^)]*\)\s*to service_role;/.test(mig), 'edit function: all four roles revoked, service_role execute only');
   ok(/enable row level security/.test(mig) && !/create policy/i.test(mig), 'RLS on, no policies');
   ok(/source = 'syncview'/.test(mig) && /client_profile_version_conflict/.test(mig), 'the function sets source syncview and checks the version');
+
+  // The Clients tab's manager picker and history (owner's pick, 2026-10-07).
+  const memberAt = serve.indexOf('const member = await adminMember(');
+  ok(['list_managers', 'assign_manager', 'history'].every(a => serve.indexOf(`action === "${a}"`) > memberAt && memberAt > 0),
+    'the picker and history actions run only after the active admin member is checked');
+  const asg = fn.slice(fn.indexOf('async function assignManager'), fn.indexOf('async function history'));
+  ok(/supabase\.rpc\("smm_assign_client"/.test(asg) && /p_role: "admin"/.test(asg) && /p_actor: member\.name/.test(asg),
+    'a manager move goes through smm_assign_client as the admin, with the member recorded as the editor');
+  ok(/roster\.managers\.find\(m => m\.slug === managerSlug\)/.test(asg) && /if \(!target\) return json\(\{ ok: false, error: "bad_manager" \}, 400\)/.test(asg),
+    'the picker can only choose an existing active manager, never create one');
+  ok(/"expected_manager_slug" in body/.test(asg) && /manager_changed/.test(asg), 'a move refuses if the manager changed since the page loaded it');
+  ok(/archived_at\) return json\(\{ ok: false, error: "client_profile_archived" \}, 409\)/.test(asg), 'an archived client cannot be moved');
+  ok(asg.indexOf('copyToSheet(') > asg.indexOf('smm_assign_client'), 'the Sheet copy follows the move, best effort');
+  const hist = fn.slice(fn.indexOf('async function history'), fn.indexOf('Deno.serve('));
+  ok(!/\.(insert|update|upsert|delete)\(/.test(hist) && !/\.(insert|update|upsert|delete)\(/.test(fn.slice(fn.indexOf('async function listManagers'), fn.indexOf('async function assignManager'))),
+    'list_managers and history only read');
 
   const cfg = read('supabase/config.toml');
   ok(/\[functions\.client-profile-write\]\s*\nverify_jwt = false/.test(cfg), 'client-profile-write has an explicit transport posture in config.toml');

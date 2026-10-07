@@ -67,8 +67,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     function _cbPurge() {
         _cbGeneration++;
         Object.assign(_cbState, { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
-        const mount = document.getElementById('caOnboarding');
-        if (mount) mount.innerHTML = '';
+        for (const id of ['caOnboarding', 'caHubspot', 'caOnbSummary']) { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
     }
 
     function _cbWhen(iso) {
@@ -173,7 +172,9 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         _cbState.row = row;
         if (row.archived_at) {
             if (_cbState.slug !== row.slug) { _cbPurge(); _cbState.slug = row.slug; _cbState.row = row; }
-            mount.innerHTML = `<section class="cb-section"><h4>Onboarding</h4><p class="cb-lead">Archived clients have no onboarding checklist.</p></section>`;
+            mount.innerHTML = `<section class="cb-section"><p class="cb-lead">Archived clients have no onboarding checklist.</p></section>`;
+            const summary = document.getElementById('caOnbSummary');
+            if (summary) summary.textContent = 'Archived';
             return;
         }
         if (_cbState.slug !== row.slug) {
@@ -228,7 +229,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
             ? `<p class="cb-lead">This customer was added to HubSpot by hand, which has no contract or payment record, so both stay Unknown.</p>` : '';
         const synced = sales && sales.synced_at ? `Last saved from HubSpot ${_calEsc(_cbWhen(sales.synced_at))}.` : 'Not saved from HubSpot yet.';
         const note = _cbHubspotNote();
-        return `<section class="cb-section" id="cbHubspot"><h4>HubSpot</h4>
+        return `<section class="cb-section ca-hs-band" id="cbHubspot"><h4>HubSpot</h4>
             <dl class="cb-facts">
                 <div class="ca-field"><dt>Deal</dt><dd>${deal}</dd></div>
                 <div class="ca-field"><dt>Contract</dt><dd>${_calEsc(contract)}</dd></div>
@@ -378,6 +379,14 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
             <ol class="cb-steps">${steps.map(_cbStepHtml).join('')}</ol></section>`;
     }
 
+    // One line for the folded Onboarding header: "19 of 24 required steps done".
+    function _cbSummaryText() {
+        const steps = (_cbState.data && _cbState.data.steps) || [];
+        if (!steps.length) return _cbState.loading ? 'Loading…' : '';
+        const required = steps.filter(s => s.required);
+        const done = required.filter(s => s.status === 'done').length;
+        return required.length && required.every(s => s.status !== 'todo') ? 'Onboarded' : `${done} of ${required.length} required steps done`;
+    }
     function _cbPaint() {
         const mount = document.getElementById('caOnboarding');
         if (!mount || !_cbState.slug || (_cbState.row && _cbState.row.archived_at)) return;
@@ -385,7 +394,13 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         const active = document.activeElement;
         const focusId = active && mount.contains(active) && active.id ? active.id : '';
         const caret = focusId && typeof active.selectionStart === 'number' ? active.selectionStart : null;
-        mount.innerHTML = _cbHubspotHtml() + _cbResourcesHtml() + _cbChecklistHtml();
+        // HubSpot is its own band under the core details; Resources and the
+        // checklist live in the folded Onboarding section (owner, 2026-10-07).
+        const hub = document.getElementById('caHubspot');
+        if (hub) hub.innerHTML = _cbHubspotHtml();
+        mount.innerHTML = _cbResourcesHtml() + _cbChecklistHtml();
+        const summary = document.getElementById('caOnbSummary');
+        if (summary) summary.textContent = _cbSummaryText();
         if (focusId) {
             const el = document.getElementById(focusId);
             if (el) { try { el.focus(); if (caret != null) el.setSelectionRange(caret, caret); } catch (e) {} }

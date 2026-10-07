@@ -162,6 +162,6 @@ async function screen(browser,origin,width,theme,route) {
   try {await detectorControls(browser);for(const route of routes.filter(x=>only.test(x)))for(const width of widths)for(const theme of ['light','dark']){staff.resetScenario();await screen(browser,origin,width,theme,route);}}
   finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
   if(out)fs.writeFileSync(path.join(out,'receipts.json'),JSON.stringify({receipts,failures},null,2));
-  console.log('STAFF_PHONE_RULES: '+receipts.length+' states; '+failures.length+' failures; 390/430 touch; synthetic transports; no live writes');
+  console.log('STAFF_PHONE_RULES: '+receipts.length+' states; '+failures.length+' failures; '+widths.join('/')+' touch; synthetic transports; no live writes');
   if(failures.length)process.exitCode=1;
 })().catch(error=>{console.error(error.message);process.exitCode=1;});

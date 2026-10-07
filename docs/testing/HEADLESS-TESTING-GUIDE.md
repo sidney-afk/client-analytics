@@ -235,18 +235,22 @@ non-zero exit on failure so the runner gives a clean signal.
 
 ### Backend constants (browser-safe public keys, already in `index.html`)
 ```js
-const UPSERT = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+const UPSERT = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
 const SUPA   = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts';
 const KEY    = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';  // read-only via RLS
 ```
-- **Seed / mutate** through the upsert webhook (the same path the app uses), so
-  the test exercises the true write flow:
+- **Seed / mutate** through the `calendar-upsert` Edge Function (the same path
+  the app uses), so the test exercises the true write flow. Do **not** use the
+  old n8n `calendar-upsert-post` webhook: the page no longer writes there, and
+  test tooling was its only remaining caller (moved 2026-10-07 so the workflow
+  can be switched off). `qa/golden_lib.js` `up()` already does this, including
+  the optional staff key from `SYNCVIEW_STAFF_KEY`:
   ```js
   const up = (post) => fetch(UPSERT, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client: 'sidneylaruel', post, comments_base_at: '' }) }).then(r => r.json());
   ```
-- **Read back** from Supabase REST and **poll** — writes are not instant (n8n +
-  Supabase mirror lag). Never assert immediately after a write:
+- **Read back** from Supabase REST and **poll** — writes are not instant (function +
+  Supabase read lag). Never assert immediately after a write:
   ```js
   const supa = async (id, sel) => (await (await fetch(`${SUPA}?id=eq.${id}&select=${sel}`,
     { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY } })).json())[0] || {};
@@ -258,7 +262,7 @@ const KEY    = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';  // read-only v
 ```js
 // my_probe.js — Scoped to Sidney ONLY. Always cleans up what it creates.
 const Q = require('./qalib.js');
-const UPSERT = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+const UPSERT = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
 const up = (post) => fetch(UPSERT, { method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ client: 'sidneylaruel', post, comments_base_at: '' }) }).then(r => r.json());
 

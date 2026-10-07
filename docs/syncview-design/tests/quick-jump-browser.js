@@ -111,11 +111,18 @@ function blank(context) {
       await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svJump'));
       await page.waitForTimeout(1500);
+      // On a staff phone the header collapses into the More sheet, which
+      // lists quick jump as a labelled row that opens the same dialog.
       const phoneMore = page.locator('[data-staff-menu=more]');
-      if (await phoneMore.count() && !(await page.isVisible('.sv-jump-touch'))) await phoneMore.click();
-      expect(await page.isVisible('.sv-jump-touch'), 'touch: the quick jump button is not showing');
-      await page.tap('.sv-jump-touch');
-      await page.waitForTimeout(200);
+      let jumpTarget = '.sv-jump-touch';
+      if (await phoneMore.count() && !(await page.isVisible('.sv-jump-touch'))) {
+        await phoneMore.tap();
+        await page.waitForTimeout(200);
+        jumpTarget = 'dialog[open] .sv-phone-proxies button:has-text("Quick jump")';
+      }
+      expect(await page.isVisible(jumpTarget), 'touch: the quick jump control is not showing');
+      await page.tap(jumpTarget);
+      await page.waitForTimeout(300);
       expect(await page.isVisible('#svJump'), 'touch: tapping the button did not open quick jump');
       await context.close();
     }

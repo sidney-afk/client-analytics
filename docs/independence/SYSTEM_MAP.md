@@ -1281,7 +1281,7 @@ separate hidden first-party Direct-Post surface.*
   always use this same direct lane regardless of size — one mint+PUT per image, then a single
   `tiktok-upload-direct` call with `mediaUrls` (a JSON array) instead of the singular `mediaUrl`,
   which the workflow maps to a multi-item Post For Me `media[]` array. Cancel is NOT n8n since
-  2026-10-07 (OPEN_REPAIRS 360): the `tiktok-upload-cancel` Edge Function deletes the post in Post For
+  2026-10-07 (OPEN_REPAIRS 361): the `tiktok-upload-cancel` Edge Function deletes the post in Post For
   Me, proves it is gone, then marks the TikTokUpload row cancelled (the n8n `tiktok-upload-cancel`
   webhook only marked the row, so the post still went out). Also
   `tiktok-upload-status` (**used only for the failed-row Retry** — `?id&retry=1`, not polling). Pilot:

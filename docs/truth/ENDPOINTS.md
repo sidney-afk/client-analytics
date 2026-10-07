@@ -2,7 +2,7 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-10-07 @ c46d4281 (TikTok Cancel moved to `functions/v1/tiktok-upload-cancel`, OPEN_REPAIRS 360). Earlier on 2026-10-07 @ bce14f17 (endpoint inventory re-checked against index.html by test/truth-sync.js set equality; prose below not re-read in this pass). Prior stamp: 2026-09-07 @ 4e57e744 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
+> Last verified: 2026-10-07 @ c46d4281 (TikTok Cancel moved to `functions/v1/tiktok-upload-cancel`, OPEN_REPAIRS 361). Earlier on 2026-10-07 @ bce14f17 (endpoint inventory re-checked against index.html by test/truth-sync.js set equality; prose below not re-read in this pass). Prior stamp: 2026-09-07 @ 4e57e744 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
@@ -94,7 +94,7 @@ here, because this inventory is compared for SET EQUALITY against index.html.
 
 TikTok upload (Post For Me; the TikTok pilot and its TTP auth were removed 2026-09-24, see below):
 - `webhook/tiktok-upload`, `webhook/tiktok-upload-status`, `webhook/tiktok-uploads-list`
-- `functions/v1/tiktok-upload-cancel` — Cancel (2026-10-07, OPEN_REPAIRS 360). Replaces
+- `functions/v1/tiktok-upload-cancel` — Cancel (2026-10-07, OPEN_REPAIRS 361). Replaces
   `webhook/tiktok-upload-cancel`, which only marked the TikTokUpload row cancelled and never told
   Post For Me. The function deletes the post in Post For Me, reads it back to prove it is gone,
   and only then marks the row cancelled; already posted or any failure leaves the row as it was.

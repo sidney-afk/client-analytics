@@ -12,7 +12,7 @@ const {
 // container's global path for ad-hoc local runs.
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 const ORIGIN = 'http://localhost:8000';
-const UPSERT = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+const UPSERT = G.UPSERT;  // calendar-upsert Edge Function (golden_lib.js)
 const SUPA   = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts';
 const KEY    = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
 

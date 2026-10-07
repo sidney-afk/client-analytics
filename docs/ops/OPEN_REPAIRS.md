@@ -30884,3 +30884,5 @@ Main first-paint repair 363 is retained from merge `787c693d`; this entry is now
 
 
 Latest-main follow-up: main `8f66c36b` was merged in `6a9bd7b6`, preserving its Clients redesign and repair 364. Final phone admin guards pass 2,474 checks per width. Strict desktop proof is 71 original exact matches plus one passing unchanged-gate replay (72/72 comparisons); the original 1920 reviewer PNG failure remains recorded. Hosted classified unit and split-preview lanes pass on `c6734775`; the historical failures are retained.
+
+Final hosted UI proof: Calendar workflow `37680056732` passes all nine jobs on `c6734775`; each width has 232 catalogue renders/zero problems and 126 admin states/2,478 checks on Linux. Its unit lane passes 686 suites and explicitly leaves 96 required profiles NOT_RUN. A subsequent docs-only head skips the staff-phone-rules job in GitHub. No deployment or physical-device claim.

@@ -648,6 +648,14 @@ ok today-cleared 430 dark
 staff-phone-final-pass: 80 renders, 0 problems
 ```
 
+## ci-docs-only-final.log
+
+COMPLETED
+
+```text
+STAFF_PHONE_FILES: unchanged; skip phone matrix
+```
+
 ## comment-census-before.log
 
 FAILED / retained
@@ -937,6 +945,12 @@ COMPLETED
 
 No output was emitted.
 
+## diff-hosted-evidence.log
+
+COMPLETED
+
+No output was emitted.
+
 ## diff-receipts-final.log
 
 COMPLETED
@@ -979,6 +993,54 @@ FAILED / retained
 
 ```text
 detector missed a fixed popup collision outside a clipped ancestor
+```
+
+## hosted-docs-only-files.log
+
+COMPLETED
+
+```text
+2026-10-07T20:30:15.6106007Z Set output 'changed'
+2026-10-07T20:30:15.6107494Z Cleaning up orphan processes
+2026-10-07T20:30:15.6414535Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## hosted-docs-only-skip.log
+
+COMPLETED
+
+```text
+[{"conclusion":"success","name":"staff-phone-files","status":"completed"},{"conclusion":"skipped","name":"staff-phone-rules","status":"completed"}]
+```
+
+## hosted-latest-entry-complete.log
+
+COMPLETED
+
+```text
+2026-10-07T20:28:48.9994067Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T20:28:49.0423794Z Cleaning up orphan processes
+2026-10-07T20:28:49.0751981Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## hosted-latest-phone390-complete.log
+
+COMPLETED
+
+```text
+2026-10-07T20:35:56.3762511Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T20:35:56.4185773Z Cleaning up orphan processes
+2026-10-07T20:35:56.4517764Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## hosted-latest-phone430-complete.log
+
+COMPLETED
+
+```text
+2026-10-07T20:35:46.8517721Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T20:35:46.8910075Z Cleaning up orphan processes
+2026-10-07T20:35:46.9139181Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
 ```
 
 ## hosted-latest-split-complete.log
@@ -1127,6 +1189,16 @@ COMPLETED
 This change adds no client slug and no colleague's name ✅
 ```
 
+## identity-hosted-evidence.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
 ## identity-latest-main.log
 
 COMPLETED
@@ -1200,6 +1272,16 @@ COMPLETED
 ```text
 check-index: working-tree index.html — sha256=01276417888eb2b6bd3f79afdf8e2e2eb9de482d87c46b77b7fa0a6054bd7165 bytes=1287574
 check-index: committed index.html (HEAD) — sha256=01276417888eb2b6bd3f79afdf8e2e2eb9de482d87c46b77b7fa0a6054bd7165 bytes=1287574
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
+## index-final-docs.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=34abdeeb12d094016ad6534933d7da3e95b83fd5dd9e1272277ac6e9aad3de09 bytes=1305214
+check-index: committed index.html (HEAD) — sha256=34abdeeb12d094016ad6534933d7da3e95b83fd5dd9e1272277ac6e9aad3de09 bytes=1305214
 check-index: OK — assembled == working tree == committed (HEAD)
 ```
 

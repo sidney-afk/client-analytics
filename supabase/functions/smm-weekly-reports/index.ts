@@ -139,19 +139,45 @@ function db() {
   return createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+// The staff-only "also sees" grants (smm_also_sees): which extra clients a
+// staff member also sees on Today and in "My clients", by roster manager or by
+// one client name. Read beside the roster for the same keys that receive the
+// whole roster. Best effort: a failed read (or the table not created yet)
+// answers an empty list, so the roster itself never fails because of it.
+async function loadAlsoSees(supabase: ReturnType<typeof db>): Promise<JsonMap[]> {
+  try {
+    const { data, error } = await supabase
+      .from("smm_also_sees")
+      .select("viewer_member_id,manager_slug,client_name")
+      .limit(1000);
+    if (error) return [];
+    return ((data || []) as JsonMap[]).map(r => ({
+      viewer_member_id: clean(r.viewer_member_id),
+      manager_slug: clean(r.manager_slug) || null,
+      client_name: clean(r.client_name) || null,
+    })).filter(r => r.viewer_member_id && (r.manager_slug || r.client_name));
+  } catch (_e) {
+    return [];
+  }
+}
+
 async function loadOptions(): Promise<Response> {
   const supabase = db();
-  const { data, error } = await supabase
-    .from("social_media_managers")
-    .select("slug,name,email,active,source_clients,synced_at")
-    .eq("active", true)
-    .order("name", { ascending: true })
-    .limit(500);
+  const [{ data, error }, alsoSees] = await Promise.all([
+    supabase
+      .from("social_media_managers")
+      .select("slug,name,email,active,source_clients,synced_at")
+      .eq("active", true)
+      .order("name", { ascending: true })
+      .limit(500),
+    loadAlsoSees(supabase),
+  ]);
   if (error) return json({ ok: false, error: error.message }, 500);
   return json({
     ok: true,
     current_week_start: weekStartISO(null),
     managers: (data || []).map(serializeManager),
+    also_sees: alsoSees,
   });
 }
 

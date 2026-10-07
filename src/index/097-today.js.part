@@ -2,7 +2,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
 import { navTo, wlOpenInContentCalendar } from './092-core-submit-form-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
 import {
-  svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients
+  svAlsoSeesNames, svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients
 } from './098-smm-clients.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _srpState } from './112-smm-weekly-reports.js';
@@ -42,6 +42,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
      * the shared client, but opening a card makes that card's client current. */
     const TDY_VIEW_KEY = 'syncview_today_view';
     const TDY_CACHE_KEY = 'syncview_today_cache_v1';   // { who, at, data } for the last signed-in person
+    const TDY_PAINT_KEY = 'syncview_today_paint_v1';   // { who, at, day, html }: the page itself, painted by the boot shell on a reload (030-body-shell)
     const TDY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
     const TDY_RT_DEBOUNCE_MS = 1500;
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
@@ -51,7 +52,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     // no-hardcoded-colors: allow-start (client avatar dots, same hues as the design mockups)
     const TDY_PALETTE = ['#7c5cff', '#e1306c', '#0e9f8e', '#2f7de1', '#d98a12', '#5b6b82', '#c2410c', '#16a34a', '#9333ea', '#0891b2'];
     // no-hardcoded-colors: allow-end
-    const tdyState = { gen: 0, data: null, day: '', error: '', view: '', walk: 0, skipped: [], who: '', loading: null };
+    const tdyState = { gen: 0, data: null, day: '', error: '', view: '', walk: 0, skipped: [], who: '', loading: null, freshAt: 0, purges: 0, seq: 0, applied: 0, fromSaved: false };
     let _tdyClientsInfo = null;   // Promise that settles once Clients Info has loaded (set at boot)
 
     function _tdyIdentity() {
@@ -136,8 +137,12 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         return new Set((await Promise.all(reads)).flat().map(r => r.raw_issue_parent_id));
     }
     let _tdyRosterReading = null;   // one roster read in flight, shared
+    /* The "also sees" grants that came with Today's own roster read (rule 6
+       in 098-smm-clients); null until Today has read them. Other tabs load the
+       roster without them, so their copy alone is not enough here. */
+    let _tdyAlsoSees = null;
     function _tdyRoster() {
-        if (_srpState.managersLoaded) return Promise.resolve(_srpState.managers);
+        if (_srpState.managersLoaded && _tdyAlsoSees) return Promise.resolve(_srpState.managers);
         if (!_tdyRosterReading) _tdyRosterReading = _tdyRosterRead().finally(() => { _tdyRosterReading = null; });
         return _tdyRosterReading;
     }
@@ -155,6 +160,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             if (!resp.ok || !data || !Array.isArray(data.managers)) return null;
             _srpState.managers = data.managers;
             _srpState.managersLoaded = true;
+            _tdyAlsoSees = Array.isArray(data.also_sees) ? data.also_sees : [];
             return data.managers;
         } catch (e) { return null; }
     }
@@ -170,9 +176,26 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     /* Boot hands over the Clients Info load so Today, which mounts before
        it, can wait for it instead of reporting "could not read". */
-    function tdySetClientsInfoReady(p) { _tdyClientsInfo = p; }
-    async function _tdyCurrent(rows) {
+    function tdySetClientsInfoReady(p) {
+        _tdyClientsInfo = p;
+        // Boot on another tab: once that tab has its data, read Today in the
+        // background so the first switch to it shows a fresh day.
+        if (p && typeof p.then === 'function') p.then(() => {
+            setTimeout(() => { if (currentNav !== 'today') tdyPrefetch(); }, TDY_BOOT_PREFETCH_MS);
+        }, () => {});
+    }
+    const TDY_BOOT_PREFETCH_MS = 1500;
+    async function _tdyCurrent(rows, fast) {
         let cur = svCurrentClients(undefined, rows);
+        // Today only (fast): Clients Info arrives with the big Analytics read,
+        // seconds after Today's own reads. Until then the clients table's
+        // active, non-test rows stand in (the same list today: 35 of 35,
+        // measured 2026-10-07); _tdyFetch checks again when Clients Info lands
+        // and reads again if the two differ. The dropdown never takes this.
+        if (!cur.size && fast) {
+            const stand = svCurrentClients((Array.isArray(rows) ? rows : []).filter(c => c && c.active !== false).map(c => c.display_name || c.slug), rows);
+            if (stand.size) { stand.provisional = true; return stand; }
+        }
         if (!cur.size && _tdyClientsInfo) { try { await _tdyClientsInfo; } catch (e) {} cur = svCurrentClients(undefined, rows); }
         if (!cur.size) throw new Error('clients');
         return cur;
@@ -199,20 +222,21 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const [rows, managers] = await Promise.all([_tdyClients(), _tdyRoster()]);
         const current = await _tdyCurrent(rows);
         if (!managers) throw new Error('roster');
-        return svSmmCurrentClients(await _tdyRosterEntry(me, managers), current);
+        return svSmmCurrentClients(await _tdyRosterEntry(me, managers), current, svAlsoSeesNames(_tdyAlsoSees, managers, me.id));
     }
     /* The current Clients Info clients this person may see: their own roster
        clients, or every one for an admin who is not on the roster (see
        098-smm-clients). */
     async function _tdyVisibleClients(me, rows) {
         const isAdmin = me.role === 'admin';
-        const [current, managers] = await Promise.all([_tdyCurrent(rows), _tdyRoster()]);
+        const [current, managers] = await Promise.all([_tdyCurrent(rows, true), _tdyRoster()]);
+        const provisional = current.provisional ? [...current.keys()] : null;
         // An admin can always fall back to every client; an SMM cannot guess.
         if (!managers && !isAdmin) throw new Error('roster');
         const entry = managers ? await _tdyRosterEntry(me, managers) : null;
-        if (svScopeMode(isAdmin, !!entry) === 'all') return { keys: new Set(current.keys()), notListed: false };
-        const mine = svSmmCurrentClients(entry, current);
-        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
+        if (svScopeMode(isAdmin, !!entry) === 'all') return { keys: new Set(current.keys()), notListed: false, provisional };
+        const mine = svSmmCurrentClients(entry, current, managers ? svAlsoSeesNames(_tdyAlsoSees, managers, me.id) : []);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, provisional };
     }
     /* The signed-in member's own roster clients for the dropdown: { id, names }.
        Anyone on the SMM roster gets their clients, admins included (an admin
@@ -250,7 +274,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 && (visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug)))).map(c => c.slug));
             const inScope = r => scope.has(r.client_slug || r.client);
             const [open, done, posts] = await reads;
-            return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+            return { names, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
         }
         // Editors: their own queue, read alongside the clients and parents.
         const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
@@ -309,12 +333,16 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyTrail(list, names) {
         if (!list.length) return '';
-        const chips = list.slice(0, 12).map(r => `<span class="tdy-chip"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
+        const chips = list.slice(0, 12).map(r => `<span class="tdy-chip" data-k="c:${_calEscAttr(r.id)}"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
         return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
     }
     function _tdyTop(views, on) {
         const d = (window.svPhoneDate ? window.svPhoneDate(new Date()) : '') || new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-        return `<div class="tdy-top"><h1 class="tdy-date">${_calEsc(d)}</h1><div class="tdy-vw" role="group" aria-label="View">${views.map(v => `<button type="button" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
+        // The saved copy is on screen until the fresh read lands, then this goes.
+        // Always in the markup, hidden when fresh, so the swap from the saved
+        // copy changes one attribute instead of moving the view switch.
+        const upd = `<span class="tdy-upd" role="status"${tdyState.fromSaved ? '' : ' hidden'}>Updating</span>`;
+        return `<div class="tdy-top"><h1 class="tdy-date">${_calEsc(d)}</h1>${upd}<div class="tdy-vw" role="group" aria-label="View">${views.map(v => `<button type="button" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
     }
     const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
 
@@ -328,7 +356,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyEditorRow(r, d) {
         const name = d.names[r.client_slug] || r.client_slug || '';
-        return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
+        return `<div class="tdy-rw" data-k="e:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
     }
     function _tdyEditorHtml(me, d, view) {
         const q = _tdyEditorQueue(d);
@@ -368,10 +396,10 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (x.kind === 'del') {
             const r = x.r, name = d.names[r.client_slug] || r.client_slug || '';
             const card = r.origin === 'calendar' ? _tdyBtnCard('del', r.id) : '';
-            return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
+            return `<div class="tdy-rw" data-k="d:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
         }
         const p = x.p, name = d.names[p.client] || p.client || '';
-        return `<div class="tdy-rw">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
+        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
     }
     function _tdyShortDate(iso) {
         const d = new Date(String(iso || '') + 'T12:00:00');
@@ -417,14 +445,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
        (_svSkel), laid out like the page it stands in for. The boot shell
        paints the same markup before the app script runs
        (030-body-shell, boot-skeleton-today). */
-    function _tdySkeletonHtml() {
+    function _tdySkeletonHtml(editor) {
         const row = w => `<div class="tdy-rw">${_svSkel('sv-skeleton-dot', 'width:24px;height:24px;')}<div class="tdy-who">${_svSkel('sv-skeleton-line', 'width:' + w + ';height:12px;')}${_svSkel('sv-skeleton-line', 'width:90px;height:10px;margin-top:6px;')}</div>${_svSkel('sv-skeleton-pill', 'width:92px;height:30px;')}</div>`;
         return `<div class="tdy-skel" role="status" aria-label="Loading Today">
             <div class="tdy-top">${_svSkel('sv-skeleton-line', 'width:190px;height:16px;')}${_svSkel('sv-skeleton-pill', 'width:170px;height:34px;')}</div>
             ${_svSkel('sv-skeleton-pill', 'width:100%;height:10px;')}
             <div class="tdy-mrow">${_svSkel('sv-skeleton-line', 'width:130px;height:12px;')}${_svSkel('sv-skeleton-line', 'width:80px;height:12px;')}</div>
             ${_svSkel('sv-skeleton-line', 'width:min(300px,70%);height:36px;margin:4px 0 18px;')}
-            <div class="tdy-rings">${[0, 1, 2, 3, 4].map(() => `<div class="tdy-rg">${_svSkel('sv-skeleton-dot', 'width:56px;height:56px;')}${_svSkel('sv-skeleton-line', 'width:70%;height:10px;')}</div>`).join('')}</div>
+            ${editor ? '' : `<div class="tdy-rings">${[0, 1, 2, 3, 4].map(() => `<div class="tdy-rg">${_svSkel('sv-skeleton-dot', 'width:56px;height:56px;')}${_svSkel('sv-skeleton-line', 'width:70%;height:10px;')}</div>`).join('')}</div>`}
             <div class="tdy-ls">${['62%', '48%', '70%', '54%'].map(row).join('')}</div>
         </div>`;
     }
@@ -443,9 +471,18 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         return null;
     }
     function _tdyCacheWrite(who, data) {
-        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ who, at: Date.now(), day: _tdyIso(_tdyDays(0)), data })); } catch (e) {}
+        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ who, at: Date.now(), day: _tdyIso(_tdyDays(0)), data: { ...data, clientRows: null } })); } catch (e) {}
     }
-    function _tdyCacheClear() { try { localStorage.removeItem(TDY_CACHE_KEY); } catch (e) {} }
+    /* The painted page, for the boot shell's instant paint on a reload. The
+       "Updating" mark is left out; the boot shell adds it back, since what it
+       paints is always a saved copy. */
+    function _tdyPaintWrite(who, html) {
+        try { localStorage.setItem(TDY_PAINT_KEY, JSON.stringify({ who, at: Date.now(), day: _tdyIso(_tdyDays(0)), html: html.replace(/<span class="tdy-upd"[^>]*>[^<]*<\/span>/, '') })); } catch (e) {}
+    }
+    function _tdyCacheClear() {
+        try { localStorage.removeItem(TDY_CACHE_KEY); } catch (e) {}
+        try { localStorage.removeItem(TDY_PAINT_KEY); } catch (e) {}
+    }
     /* What to paint the moment the tab opens: the last answer for this
        person if there is one, the skeleton otherwise. */
     /* A tab left open past midnight still holds yesterday's answer in memory;
@@ -458,27 +495,89 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const who = _tdyWho(_tdyIdentity());
         if (who && tdyState.who !== who) {
             const cached = _tdyCacheRead(who);
-            tdyState.data = cached; tdyState.who = cached ? who : ''; tdyState.day = cached ? _tdyIso(_tdyDays(0)) : '';
+            tdyState.data = cached; tdyState.who = cached ? who : ''; tdyState.day = cached ? _tdyIso(_tdyDays(0)) : ''; tdyState.fromSaved = !!cached; tdyState.freshAt = 0;
         }
-        return `<div class="tdy" id="tdyRoot">${who && tdyState.data && tdyState.who === who ? '' : _tdySkeletonHtml()}</div>`;
+        // The boot shell's grey shape or saved page is about to be replaced
+        // by this root: keep its nodes and move them in (_tdyPaint), so the
+        // first paint patches what is already on screen instead of redrawing it.
+        _tdyBootNodes = null;
+        try {
+            const boot = document.querySelector('#content [data-tdy-early]') || document.querySelector('#content .boot-skeleton-today > .tdy');
+            if (boot && boot.getClientRects().length) _tdyBootNodes = boot;
+        } catch (e) {}
+        if (_tdyBootNodes) return '<div class="tdy" id="tdyRoot"></div>';
+        const me = _tdyIdentity();
+        return `<div class="tdy" id="tdyRoot">${who && tdyState.data && tdyState.who === who ? '' : _tdySkeletonHtml(me && me.editor)}</div>`;
+    }
+    let _tdyBootNodes = null;
+    /* IN-PLACE UPDATE (owner, 2026-10-07: no flash between the grey shape,
+       the saved copy and the fresh list; rows that did not change must not
+       redraw). The new markup is compared with what is on screen and only
+       the differences are written: a row is matched by its key (data-k, or
+       data-tdy-key on controls), other nodes by tag in order. An unchanged
+       row keeps its node and is never touched. */
+    function _tdyKey(n) {
+        return n.nodeType === 1 ? (n.getAttribute('data-k') || n.getAttribute('data-tdy-key') || '') : '';
+    }
+    function _tdySameKind(a, b) {
+        return a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && _tdyKey(a) === _tdyKey(b)));
+    }
+    function _tdyMorphNode(a, b) {
+        if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+        for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+        for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+        _tdyMorphChildren(a, b);
+    }
+    function _tdyMorphChildren(from, to) {
+        const old = [...from.childNodes];
+        const keyed = new Map();
+        const plain = [];
+        old.forEach(n => { const k = _tdyKey(n); if (k) keyed.set(k, n); else plain.push(n); });
+        let pi = 0;
+        let ref = from.firstChild;
+        for (const nn of [...to.childNodes]) {
+            const k = _tdyKey(nn);
+            let match = null;
+            if (k) { const o = keyed.get(k); if (o && _tdySameKind(o, nn)) { match = o; keyed.delete(k); } }
+            else {
+                for (let j = pi; j < plain.length; j++) if (_tdySameKind(plain[j], nn)) { match = plain[j]; pi = j + 1; break; }
+            }
+            if (match) _tdyMorphNode(match, nn); else match = nn;
+            if (match === ref) ref = ref.nextSibling;
+            else from.insertBefore(match, ref);
+        }
+        while (ref) { const next = ref.nextSibling; from.removeChild(ref); ref = next; }
+    }
+    function _tdyPatch(root, html) {
+        if (_tdyBootNodes) {
+            // Same task as the boot shell's removal: no frame shows the gap.
+            const boot = _tdyBootNodes;
+            _tdyBootNodes = null;
+            if (!root.firstChild) root.append(...boot.childNodes);
+        }
+        const t = document.createElement('template');
+        t.innerHTML = html;
+        _tdyMorphChildren(root, t.content);
     }
     function _tdyPaint() {
         _tdyDropOldDay();
         const root = document.getElementById('tdyRoot');
         if (!root) return;
         const me = _tdyIdentity();
-        if (!me) { root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
+        if (!me) { _tdyBootNodes = null; root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
         // A failed quiet refresh keeps the day on screen; only a first load
         // with nothing to show turns into the error card.
-        if (tdyState.error && !tdyState.data) { root.innerHTML = `<div class="tdy-win" role="alert"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`; return; }
-        if (!tdyState.data) { if (!root.querySelector('.tdy-skel')) root.innerHTML = _tdySkeletonHtml(); return; }
+        if (tdyState.error && !tdyState.data) { _tdyPatch(root, `<div class="tdy-win" role="alert"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`); return; }
+        if (!tdyState.data) { _tdyPatch(root, _tdySkeletonHtml(me.editor)); return; }
         const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-tdy-key') : '';
         const views = me.editor ? ['List', 'Deck'] : ['Rings', 'Walk-through'];
         const view = views.includes(tdyState.view) ? tdyState.view : views[0];
-        root.innerHTML = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
-        // Repainting replaces the controls; put keyboard focus back on the one
-        // that was just used so a keyboard user keeps their place.
-        if (focused) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
+        const html = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
+        _tdyPatch(root, html);
+        if (tdyState.who === _tdyWho(me)) _tdyPaintWrite(tdyState.who, html);
+        // Controls are patched in place, so focus normally stays put; if the
+        // one just used was replaced, put keyboard focus back on its twin.
+        if (focused && !root.contains(document.activeElement)) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
     }
     /* Coming back to the browser tab reads again, quietly, keeping what is
        on screen until the answer lands. A different person signing in on
@@ -486,7 +585,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
        clears it (_tdyPurgeSensitiveState), and the cache is keyed by person. */
     function _tdyOnVisible() {
         if (document.visibilityState !== 'visible' || !document.getElementById('tdyRoot')) return;
-        mountTodayView();
+        mountTodayView(true);
     }
     /* LIVE: the same realtime client Calendar uses. Any change to a
        deliverable or a calendar post schedules one quiet re-read (bursts
@@ -496,7 +595,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdyOnRealtime() {
         if (!document.getElementById('tdyRoot')) return;
         clearTimeout(_tdyRtTimer);
-        _tdyRtTimer = setTimeout(() => { _tdyRtTimer = 0; if (document.getElementById('tdyRoot') && !document.hidden) mountTodayView(); }, TDY_RT_DEBOUNCE_MS);
+        _tdyRtTimer = setTimeout(() => { _tdyRtTimer = 0; if (document.getElementById('tdyRoot') && !document.hidden) mountTodayView(true); }, TDY_RT_DEBOUNCE_MS);
     }
     async function _tdyEnsureLive() {
         if (_tdyChannel) return;
@@ -527,14 +626,77 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (ch && typeof ch === 'object') { _calV2Client().then(c => { try { c && c.removeChannel(ch); } catch (e) {} }, () => {}); }
     }
     function _tdyPurgeSensitiveState() {
-        tdyState.gen++;
+        tdyState.gen++; tdyState.purges++; tdyState.freshAt = 0; tdyState.fromSaved = false; _tdyInflight = null;
         tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0;
         _tdyClientRows = null;
+        _tdyAlsoSees = null;
         _tdyCacheClear();
         const root = document.getElementById('tdyRoot');
         if (root) { root.innerHTML = _tdySkeletonHtml(); mountTodayView(); }
     }
-    async function mountTodayView() {
+    /* ONE READ AT A TIME, STARTED EARLY (owner, 2026-10-07: Today should feel
+       instant). A read can start before the tab is open: at boot once the
+       landing tab has its data, and when a hand reaches for the Today tab
+       (pointer over it, a touch, keyboard focus, or its row in the phone Tabs
+       sheet). The tab then takes that same read instead of starting another,
+       and an answer younger than TDY_REUSE_MS is shown as fresh without
+       reading again. The answer is kept only for the person it was read for:
+       a sign-out or a different person in between drops it. */
+    const TDY_REUSE_MS = 20000;
+    let _tdyInflight = null;   // { who, day, p }
+    function _tdyFetch(me) {
+        const who = _tdyWho(me), day = _tdyIso(_tdyDays(0));
+        if (_tdyInflight && _tdyInflight.who === who && _tdyInflight.day === day) return _tdyInflight.p;
+        const purges = tdyState.purges, seq = ++tdyState.seq;
+        const p = _tdyLoad(me).then(data => {
+            // Same person still signed in, same day, no sign-out since: keep it.
+            if (purges !== tdyState.purges || _tdyWho(_tdyIdentity()) !== who || _tdyIso(_tdyDays(0)) !== day) throw new Error('stale');
+            // A newer read already landed (a live change restarted it): keep that one.
+            if (seq < tdyState.applied) return tdyState.data;
+            tdyState.applied = seq; tdyState.fromSaved = false;
+            tdyState.data = data; tdyState.who = who; tdyState.day = day; tdyState.error = ''; tdyState.freshAt = Date.now();
+            _tdyCacheWrite(who, data);
+            if (data.provisional) _tdyRecheckClients(who, data);
+            // Started on hover while Today is already open: show it now.
+            if (document.getElementById('tdyRoot')) _tdyPaint();
+            return data;
+        });
+        const entry = { who, day, p };
+        _tdyInflight = entry;
+        p.then(() => { if (_tdyInflight === entry) _tdyInflight = null; }, () => { if (_tdyInflight === entry) _tdyInflight = null; });
+        return p;
+    }
+    /* An answer built on the clients-table stand-in (see _tdyCurrent): once
+       Clients Info lands, compare. Same current clients: nothing to do.
+       Different: read again (on screen now) or let the next opening read. */
+    function _tdyRecheckClients(who, data) {
+        if (!_tdyClientsInfo) return;
+        _tdyClientsInfo.then(() => {
+            if (tdyState.data !== data || tdyState.who !== who) return;
+            const real = [...svCurrentClients(undefined, data.clientRows).keys()].sort().join('|');
+            if (!real || real === [...data.provisional].sort().join('|')) return;
+            tdyState.freshAt = 0;
+            if (document.getElementById('tdyRoot')) mountTodayView(true);
+        }, () => {});
+    }
+    function _tdyRecent(who) {
+        return tdyState.who === who && !!tdyState.data && tdyState.day === _tdyIso(_tdyDays(0)) && Date.now() - tdyState.freshAt < TDY_REUSE_MS;
+    }
+    /* Start Today's reads now, quietly, if nothing recent is held. Never
+       paints and never reports an error: the tab does that when it opens. */
+    function tdyPrefetch() {
+        const me = _tdyIdentity();
+        if (!me || _tdyRecent(_tdyWho(me))) return;
+        _tdyFetch(me).catch(() => {});
+    }
+    function _tdyOnReach(e) {
+        const t = e && e.target && e.target.closest ? e.target.closest('#navToday, [data-nav="navToday"]') : null;
+        if (t) tdyPrefetch();
+    }
+    try {
+        ['pointerover', 'touchstart', 'focusin'].forEach(ev => document.addEventListener(ev, _tdyOnReach, { capture: true, passive: true }));
+    } catch (e) {}
+    async function mountTodayView(opts) {
         if (!tdyState.listening) { tdyState.listening = true; document.addEventListener('visibilitychange', _tdyOnVisible); }
         const gen = ++tdyState.gen;
         _tdyDropOldDay();
@@ -542,21 +704,28 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const me = _tdyIdentity();
         const who = _tdyWho(me);
         if (!me) { tdyState.data = null; tdyState.who = ''; tdyState.error = ''; _tdyPaint(); return; }
-        if (who !== tdyState.who) { tdyState.data = _tdyCacheRead(who); tdyState.who = tdyState.data ? who : ''; tdyState.day = tdyState.data ? _tdyIso(_tdyDays(0)) : ''; tdyState.error = ''; }
+        if (who !== tdyState.who) { tdyState.data = _tdyCacheRead(who); tdyState.who = tdyState.data ? who : ''; tdyState.day = tdyState.data ? _tdyIso(_tdyDays(0)) : ''; tdyState.error = ''; tdyState.fromSaved = !!tdyState.data; tdyState.freshAt = 0; }
+        // A read that finished moments ago (started on hover or at boot) is
+        // already fresh: no second read. Live updates keep it current.
+        const recent = opts !== true && _tdyRecent(who);
+        // Older data held in memory (read on an earlier visit or at boot) is
+        // on screen while this read runs: mark it, the same as a saved copy.
+        if (opts !== true && !recent && tdyState.data) tdyState.fromSaved = true;
         // Paint what we have now (the cached day, or the skeleton), then read.
         _tdyPaint();
         _tdyEnsureLive();
+        if (recent) return;
+        if (opts === true) _tdyInflight = null;   // a live change: read again, do not join an older read
         const startDay = _tdyIso(_tdyDays(0));
         try {
-            const data = await _tdyLoad(me);
+            await _tdyFetch(me);
             if (gen !== tdyState.gen) return;
             // Its date filters were built for the day it started; across
             // midnight the answer is for the wrong day, so read again.
             if (_tdyIso(_tdyDays(0)) !== startDay) { mountTodayView(); return; }
-            tdyState.data = data; tdyState.who = who; tdyState.day = _tdyIso(_tdyDays(0)); tdyState.error = '';
-            _tdyCacheWrite(who, data);
         } catch (e) {
             if (gen !== tdyState.gen) return;
+            if (e && e.message === 'stale') { if (_tdyIdentity()) mountTodayView(); return; }
             tdyState.error = e && (e.message === 'roster' || e.message === 'clients') ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
         }
         _tdyPaint();

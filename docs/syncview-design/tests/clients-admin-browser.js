@@ -165,6 +165,28 @@ const measure = page => page.evaluate(() => {
         pill: !!document.querySelector('.ca-head .search-bar-pill #caSearch'),
       }));
       if (head.title !== 'Clients' || head.sub || head.refresh || head.listShown || !head.pill) failures.push(`${label}: header is not title + search + All clients (${JSON.stringify(head)})`);
+      if (phone) {
+        // Lighthouse review 2026-10-07: one "Clients" heading, a placeholder that fits,
+        // a labelled "All clients", and search + button on one row.
+        const ph = await p.evaluate(() => {
+          const vis = e => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+          const titles = [...document.querySelectorAll('h1, h2, .cc-title, [class*="title"]')]
+            .filter(e => vis(e) && e.children.length === 0 && e.innerText.trim() === 'Clients');
+          const input = document.getElementById('caSearch');
+          const cs = getComputedStyle(input);
+          const ctx = document.createElement('canvas').getContext('2d');
+          ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+          const room = input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const btn = document.getElementById('caAllBtn').getBoundingClientRect();
+          const pill = document.querySelector('.ca-search .search-bar-pill').getBoundingClientRect();
+          return { titles: titles.length, placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room,
+            label: document.getElementById('caAllBtn').innerText.trim(), sameRow: Math.abs((btn.top + btn.bottom) / 2 - (pill.top + pill.bottom) / 2) < 6 };
+        });
+        if (ph.titles !== 1) failures.push(`${label}: "Clients" heading shown ${ph.titles} times`);
+        if (!ph.fits) failures.push(`${label}: the search placeholder "${ph.placeholder}" is cut off`);
+        if (ph.label !== 'All clients') failures.push(`${label}: the list button reads "${ph.label}"`);
+        if (!ph.sameRow) failures.push(`${label}: search and All clients are not on one row`);
+      }
       if (shots) await p.screenshot({ path: path.join(shots, `start-${vp.width}${sfx}.png`) });
 
       // Search: name, handle and email; arrows and Enter; Esc closes.
@@ -176,7 +198,7 @@ const measure = page => page.evaluate(() => {
       await p.fill('#caSearch', 'fixture');
       const both = await opts();
       if (both.join() !== 'fixture1,fixture2') failures.push(`${label}: searching a name part found ${both.join()} (archived must stay out)`);
-      if (shots && !phone) await p.screenshot({ path: path.join(shots, `search-${vp.width}${sfx}.png`) });
+      if (shots) await p.screenshot({ path: path.join(shots, `search-${vp.width}${sfx}.png`) });
       await p.press('#caSearch', 'ArrowDown');
       const act1 = await p.$eval('#caSearchPop .ca-opt.is-active', o => o.getAttribute('data-ca-slug')).catch(() => '');
       await p.press('#caSearch', 'ArrowDown');
@@ -199,7 +221,7 @@ const measure = page => page.evaluate(() => {
       await p.click('#caDrop .ca-link');
       const withArchived = await p.$$eval('#caDrop .ca-row', x => x.length);
       if (withArchived !== 3) failures.push(`${label}: "Show archived" did not reveal the archived client`);
-      if (shots && !phone) await p.screenshot({ path: path.join(shots, `all-clients-${vp.width}${sfx}.png`) });
+      if (shots) await p.screenshot({ path: path.join(shots, `all-clients-${vp.width}${sfx}.png`) });
       await p.click('#caDrop .ca-row[data-ca-slug="fixture1"]');
       if (!(await p.$eval('#caDrop', d => d.hidden))) failures.push(`${label}: picking from All clients did not close the list`);
       await p.click('#caAllBtn');
@@ -270,7 +292,7 @@ const measure = page => page.evaluate(() => {
       await p.waitForSelector('#caIn_email', { timeout: 3000 }).catch(() => failures.push(`${label}: Edit never opened the form`));
       const em = await p.evaluate(() => ({ n: document.querySelectorAll('.ca-detail .ca-input').length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'), research: document.querySelector('[data-ca-fold="research"]').open }));
       if (em.n !== 12 || em.roam || !em.research) failures.push(`${label}: expected 12 editable fields with research open (${JSON.stringify(em)})`);
-      if (shots) await p.screenshot({ path: path.join(shots, `edit-${vp.width}${sfx}.png`), fullPage: phone });
+      if (shots) { await p.waitForTimeout(3500); await p.screenshot({ path: path.join(shots, `edit-${vp.width}${sfx}.png`) }); }
       if (phone) {
         const m = await measure(p);
         if (m.sw > m.W) failures.push(`${label}: the edit form scrolls sideways`);

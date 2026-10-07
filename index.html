@@ -9316,16 +9316,21 @@
             .cb-facts { grid-template-columns: 1fr; }
         }
         @media (max-width: 767px) {
-            .ca-head { gap: 10px; }
+            .ca-head { gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
             .ca-head .cc-title { width: 100%; font-size: 1.3rem; }
-            .ca-search { flex: 1 1 auto; }
+            /* The pocket admin phone bar already says "Clients": no second heading. */
+            html.pocket-admin-phone #kasperContent .ca-head .cc-title { display: none; }
+            /* Search and "All clients" share one row at every phone width. */
+            .ca-search { flex: 1 1 0; min-width: 0; }
             .ca-search .search-bar-input { font-size: 16px; min-height: 44px; }
             /* The pocket admin shell tints every Kasper input; the pill is the field here. */
             html.pocket-admin-phone #kasperContent .ca-search .search-bar-input { background: transparent; border-radius: 0; }
-            .ca-allbtn { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 12px; }
-            .ca-allbtn span { display: none; }
+            .ca-allbtn { flex: none; min-height: 44px; justify-content: center; padding: 0 14px; color: var(--text-primary); background: var(--white); }
             .ca-drop { width: 100%; }
             .ca-list { grid-template-columns: 1fr; max-height: 60vh; }
+            /* The pocket shell sizes .ca-row for the old full-page list (78px); the dropdown list is denser. */
+            html.pocket-admin-phone #kasperContent .ca-drop .ca-row { min-height: 52px; padding: 6px 10px; }
+            .ca-row.is-active { box-shadow: none; }
             .ca-row, .ca-opt, .ca-chip, .ca-mgr, .ca-reach-btn, .ca-link, .ca-copy, .ca-iconbtn { min-height: 44px; }
             .ca-iconbtn { min-width: 44px; }
             .ca-hero { padding: 18px 16px; border-radius: 16px; }
@@ -9339,12 +9344,24 @@
             .ca-mgr-pop { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: auto; border-radius: 18px 18px 0 0; padding: 10px 12px calc(18px + env(safe-area-inset-bottom, 0px)); max-height: 80vh; overflow-y: auto; }
             .ca-mgr-opt { min-height: 48px; }
             .ca-cards { grid-template-columns: 1fr; }
-            .ca-hs-band .cb-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+            /* Card rows: the whole value is the tap target, without extra air around it. */
+            .ca-card .ca-field { padding: 6px 0; }
+            .ca-card .ca-field dt { margin-bottom: 0; }
+            .ca-card .ca-field dd { min-height: 44px; }
+            .ca-val-link { display: flex; align-items: center; flex: 1; min-height: 44px; }
+            .ca-copy { margin-left: auto; padding: 0 14px; border: 0; border-radius: 10px; background: var(--surface-subtle); font-size: 0.78rem; }
+            /* HubSpot: one row per fact, label left and value right, so nothing wraps. */
+            .ca-hs-band .cb-facts { grid-template-columns: 1fr; gap: 0; }
+            .ca-hs-band .cb-facts .ca-field { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border-light); }
+            .ca-hs-band .cb-facts .ca-field:first-child { border-top: 0; padding-top: 0; }
+            .ca-hs-band .cb-facts .ca-field dt { margin: 0; }
+            .ca-hs-band .cb-facts .ca-field dd { text-align: right; }
             .ca-fold > dl { grid-template-columns: 1fr; padding-left: 4px; }
             .ca-onb .cb-mount { padding-left: 0; }
             .ca-input { font-size: 16px; min-height: 44px; }
             .ca-editbar { flex-wrap: wrap; bottom: 8px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
-            .ca-editnote { flex-basis: 100%; }
+            /* On a phone the bar is just Cancel and Save; a refused save still explains itself above. */
+            .ca-editnote { display: none; }
             .ca-editbar .cc-btn { flex: 1; min-height: 44px; }
             .ca-hist-row { flex-direction: column; gap: 2px; }
         }
@@ -12154,9 +12171,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-6c10864c6dde.js";
+        var FULL = "js/sv-full-2fa2c945c6ba.js";
         var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e6d180213730.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-263b1a3c6743.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2e77fa95aa36.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-120e08ae3620.js","kasper":"js/sv-16-kasper-0622f47b1872.js"};
+        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-120e08ae3620.js","kasper":"js/sv-16-kasper-7f446f6f9a66.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

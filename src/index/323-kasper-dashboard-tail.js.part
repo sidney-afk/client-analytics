@@ -356,7 +356,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 <div class="search-bar-wrap ca-search" id="caSearchWrap">
                     <div class="search-bar-pill">
                         <input class="search-bar-input" id="caSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
-                            placeholder="Search name, handle or email" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
+                            placeholder="${_caPhone() ? 'Search clients' : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
                             oninput="_caSetSearch(this.value)" onfocus="_caSearchFocus()" onkeydown="_caSearchKey(event)">
                         <button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById('caSearch')?.focus()">${CA_ICONS.search}</button>
                     </div>

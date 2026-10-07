@@ -364,8 +364,14 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svClientBar'));
       await page.waitForTimeout(1500);
       await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND]);
-      if (await page.locator('[data-pocket-staff-phone]').count()) await page.locator('[data-staff-menu=more]').click();
-      await page.evaluate(() => svClientPopToggle());
+      // Staff phones choose a client from More, which opens the picker in its own sheet.
+      if (await page.locator('[data-pocket-staff-phone]').count()) {
+        await page.locator('[data-staff-menu=more]').click();
+        await page.locator('dialog[open] .sv-phone-proxies button:has-text("Change client")').tap();
+        await page.locator('.sv-phone-client-sheet[open] #svClientResults').waitFor({ state: 'visible' });
+      } else {
+        await page.evaluate(() => svClientPopToggle());
+      }
       await page.waitForTimeout(200);
       const box = await page.evaluate(() => {
         const b = document.querySelector('#svClientResults .sv-client-forget');

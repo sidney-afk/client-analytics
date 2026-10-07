@@ -621,6 +621,7 @@
     "thumbnail-revision-scheduler.js",
     "tiktok-carousel-transport.js",
     "tiktok-size-label.js",
+    "tiktok-upload-cancel-source.js",
     "title-name-rule-drift.js",
     "title-review-lifecycle.js",
     "today-render.js",
@@ -1333,6 +1334,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/dialog-backdrop-press-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "tiktok-cancel-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Runs the tiktok-upload-cancel function's own logic against a fake Post For Me: success, already posted and failure.",
+      "reproduce": "node test/tiktok-cancel-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

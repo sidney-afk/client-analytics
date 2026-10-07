@@ -308,3 +308,14 @@ The 53 additional state groups below cover 212 native captures at both requested
 ## Latest main integration review
 
 The final merged Clients detail and edit states were inspected at 390/430 in both themes: the labelled search/list controls align; profile identity and contact actions are grouped; edit actions remain together. The inherited low-emphasis metadata is consistent across sections. Latest Calendar/Samples captures keep the quiet utility group and safe More sheet. The new captures yielded no additional ratified design change.
+
+## Latest main merge review (`3176d927`)
+
+| State | Fresh native captures | Designer judgement |
+| --- | --- | --- |
+| Calendar and Samples, linked/missing media, both themes/widths | 16 cards plus 16 More sheets | Compact utility group; warning belongs to its media field; Archive remains behind deliberate More access; caption actions aligned with caption. |
+| Clients overview/detail/edit, both themes/widths | All 252 admin captures reviewed; detail/edit deliberately reopened | Search/filter align, contact/actions group coherently, Cancel/Save stay together; inherited subdued metadata accepted. |
+| Today account filters, both themes/widths | Four phone captures | Own and additional accounts are separate groups; trailing chip peek communicates horizontal scroll; primary actions retain hierarchy. |
+| Calendar native overlays, loading/error/empty/edit/review/selection, both themes/widths | 212 native-viewport captures | Date picker and Archive confirmation have natural phone proportions and usable controls; no new layout defect survives review. |
+
+Exact duplicate PNG hashes refer to previously inspected images. All distinct images were personally viewed. The failed full-page Calendar instrumentation attempt is retained separately and is not accepted as viewport proof.

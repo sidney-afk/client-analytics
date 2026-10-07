@@ -1951,3 +1951,372 @@ COMPLETED
 ```text
 STAFF_PHONE_FILES: changed; run phone matrix
 ```
+
+## Latest main integration — actual check tails
+
+UI merge head `3176d927`, main `8c4f3168`. Final nonblank lines are copied verbatim. Failed invocations and superseded captures remain visible; completed results are never inferred from exit alone.
+
+### admin390.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2474 checks; 0 failures; fictional data; no live writes.
+```
+
+### admin430.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2474 checks; 0 failures; fictional data; no live writes.
+```
+
+### build-merged.log
+
+COMPLETED
+
+```text
+build-index: js/sv-16-kasper-7f446f6f9a66.js (316991 bytes)
+build-index: wrote index.html (1308270 bytes) from 67 fragment(s)
+build-index: wrote src/index/INDEX.md
+```
+
+### calendar-capture-viewport.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (6300 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
+### calendar-capture.log
+
+FAILED / full-page capture distorted fixed overlays; native viewport replacement passes
+
+```text
+    }
+  ]
+}
+```
+
+### calendar.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
+### cards-merged.log
+
+COMPLETED
+
+```text
+ok sample-reviews-430-dark-missing-media
+ok sample-reviews-430-dark-linked
+STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
+```
+
+### desktop1024.log
+
+COMPLETED
+
+```text
+ok   client-brief @1024: pixels identical, computed styles identical (69fabd5010fe)
+ok   client-sample-reviews @1024: pixels identical, computed styles identical (7b698a748e34)
+18/18 desktop shots identical to 8c4f3168e697cde19243b2dec8167971e39a96cc
+```
+
+### desktop1280.log
+
+COMPLETED
+
+```text
+ok   client-brief @1280: pixels identical, computed styles identical (fc7b056f7e75)
+ok   client-sample-reviews @1280: pixels identical, computed styles identical (d869de825d13)
+18/18 desktop shots identical to 8c4f3168e697cde19243b2dec8167971e39a96cc
+```
+
+### desktop1440.log
+
+COMPLETED
+
+```text
+ok   client-brief @1440: pixels identical, computed styles identical (6f0161af69d3)
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (29e7eb2d8015)
+18/18 desktop shots identical to 8c4f3168e697cde19243b2dec8167971e39a96cc
+```
+
+### desktop1920-replay.log
+
+COMPLETED
+
+```text
+ok   staff-navKasper @1920: pixels identical, computed styles identical (c337c815ba39)
+1/1 desktop shots identical to 8c4f3168e697cde19243b2dec8167971e39a96cc
+```
+
+### desktop1920.log
+
+FAILED / 17 of 18 exact; strict focused replay passes
+
+```text
+ok   client-brief @1920: pixels identical, computed styles identical (7688fece9a2e)
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (f87764b62642)
+17/18 desktop shots identical to 8c4f3168e697cde19243b2dec8167971e39a96cc
+```
+
+### diff-docs.log
+
+COMPLETED
+
+No output was emitted.
+
+### diff-merge.log
+
+COMPLETED
+
+No output was emitted.
+
+### hosted-split-preview.log
+
+COMPLETED
+
+```text
+2026-10-07T20:54:46.5794096Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T20:54:46.6103410Z Cleaning up orphan processes
+2026-10-07T20:54:46.6358725Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+### hosted-unit.log
+
+COMPLETED
+
+```text
+2026-10-07T20:53:44.8615355Z github_network_d8e1ab3396584bb8a719e68ea91a7dab
+2026-10-07T20:53:44.8672040Z Cleaning up orphan processes
+2026-10-07T20:53:44.9001668Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+### identity-docs.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
+### identity-merged.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
+### index-merged.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=32a2b49c5659b49bb2bab12ace2cd14624b37e318eb2f6b60b474ec4ada71df7 bytes=1308270
+check-index: committed index.html (HEAD) — sha256=32a2b49c5659b49bb2bab12ace2cd14624b37e318eb2f6b60b474ec4ada71df7 bytes=1308270
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
+### lazy-correct-command.log
+
+FAILED / parser unavailable; installed pinned dependencies privately
+
+```text
+check-lazy-safety: the acorn parser is not installed. See the DEPENDENCY note in scripts/check-modules.js.
+```
+
+### lazy-final.log
+
+COMPLETED
+
+```text
+approve path reaching into on-demand areas: 2 hazards, 26 import ties
+  synclinear: PROD_WRITE_EF_URL, _prodCanWrite, _prodCanonicalCommentGate, _prodCardCommentsPending, _prodClientCommentGatewayContext, _prodComments, _prodCommentsSkeletonHtml, _prodGatewayWrite, _prodIssue, _prodProjectCanonicalCardComments, _prodRestRows, _prodToast, _prodVerifiedClientCommentMutationContext, _prodWriteErrorText
+check-lazy-safety: all checks passed (38 recorded hazards)
+```
+
+### lazy-merged.log
+
+FAILED / nonexistent npm script; corrected invocation passes
+
+```text
+npm error To see a list of scripts, run:
+npm error   npm run
+npm error A complete log of this run can be found in: D:\Sidney\CACHE\npm-cache\_logs\2026-10-07T20_42_51_131Z-debug-0.log
+```
+
+### map-merged.log
+
+COMPLETED
+
+```text
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+repo-map-sync: 1116 passed, 0 failed
+```
+
+### merge-conflicts.log
+
+FAILED / expected merge conflict; source assembly rebuild resolves
+
+```text
+Auto-merging src/index/INDEX.md
+CONFLICT (content): Merge conflict in src/index/INDEX.md
+Automatic merge failed; fix conflicts and then commit the result.
+```
+
+### modules-correct-command.log
+
+FAILED / parser unavailable; installed pinned dependencies privately
+
+```text
+check-modules: the acorn parser is not installed. See the DEPENDENCY note at the top of this file.
+```
+
+### modules-final.log
+
+COMPLETED
+
+```text
+typeof guards in modules: 517; unresolvable: 0
+minified parts: 19 files, 2653 KB, 5215 top-level names, 0 lost, 0 changed kind
+check-modules: all checks passed
+```
+
+### modules-merged.log
+
+FAILED / nonexistent npm script; corrected invocation passes
+
+```text
+npm error To see a list of scripts, run:
+npm error   npm run
+npm error A complete log of this run can be found in: D:\Sidney\CACHE\npm-cache\_logs\2026-10-07T20_42_50_792Z-debug-0.log
+```
+
+### parser-install.log
+
+COMPLETED
+
+```text
+npm warn EBADENGINE   current: { node: 'v22.12.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+added 6 packages in 1s
+```
+
+### register-header-check.log
+
+COMPLETED
+
+```text
+{"headers":372,"duplicates":[13,14,22,23,175,176,177,180],"ownRepair":366,"predecessor":365}
+```
+
+### register-independent.log
+
+COMPLETED
+
+```text
+{"method":"line prefix and numeric token, independent from full-file header regex","headers":372,"duplicates":[13,14,22,23,175,176,177,180],"newDuplicates":[],"tail":[361,362,363,364,365,366]}
+```
+
+### rules-merged.log
+
+COMPLETED
+
+```text
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+```
+
+### scope-invocation.log
+
+FAILED / nonexistent check path; existing source guard passes
+
+```text
+  requireStack: []
+}
+Node.js v22.12.0
+```
+
+### source-merged.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped
+```
+
+### today-render.log
+
+COMPLETED
+
+```text
+  ok  SMM and admin: every early read is the exact URL the tab asks for (6 early, 0 unmatched)
+  ok  editor: every early read is the exact URL the tab asks for (3 early, 0 unmatched)
+today-render: all checks passed
+```
+
+### today390.log
+
+COMPLETED
+
+```text
+  ok  phone-dark: theme is dark
+  ok  phone-dark: every chip is a 44 px touch target (smallest 44 px)
+today-clients-shots: all checks passed, screenshots in C:/Users/Sidney/.syncview/pocket-main-integration-20261007/today390
+```
+
+### today430.log
+
+COMPLETED
+
+```text
+  ok  phone-dark: theme is dark
+  ok  phone-dark: every chip is a 44 px touch target (smallest 44 px)
+today-clients-shots: all checks passed, screenshots in C:/Users/Sidney/.syncview/pocket-main-integration-20261007/today430
+```
+
+### truth-merged.log
+
+COMPLETED
+
+```text
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+truth-sync: 515 passed, 0 failed
+```
+
+### Final staged documentation checks
+
+map-staged.log
+
+```text
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+repo-map-sync: 1116 passed, 0 failed
+```
+
+identity-final-docs.log
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
+staged-diff.log
+
+No output was emitted.

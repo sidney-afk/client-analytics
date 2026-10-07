@@ -10,3 +10,5 @@ in the same PR. The two comparison PNGs compose those unmodified captures for
 quick review. Every source capture was personally inspected.
 
 Final after captures were refreshed from the merged native build (main `8f66c36b`, merge `6a9bd7b6`). All 32 final card/action captures were inspected; exact duplicate PNGs reuse their prior visual review. The two comparison canvases contain the full original native card screenshots, with Before/After labels; the canvas is fitted to those images without altering their pixels.
+
+Latest requested main merge: `3176d927` has parents `0ec74dd0` and `8c4f3168`. All 32 after card/action captures were retaken and personally inspected. The gallery also includes Today and Clients at both requested widths/themes from this merged build. Before captures remain the original PR build.

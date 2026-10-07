@@ -74,7 +74,10 @@ async function fixture(browser, origin, width) {
   // Use the production chart implementation, never a chart-shaped test stub.
   await ctx.route('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js', async route => {
     if (process.env.POCKET_CHART_JS) return route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(process.env.POCKET_CHART_JS) });
-    await route.fulfill({ response: await route.fetch() });
+    // The page can close while this fetch is still in flight; that must end the
+    // route quietly rather than crash the run (a missing chart still fails the checks).
+    try { await route.fulfill({ response: await route.fetch() }); }
+    catch (e) { await route.abort().catch(() => {}); }
   });
   if (process.env.POCKET_FONT_DIR) {
     const css = [400, 500, 600, 700, 800].map(weight => `@font-face{font-family:'Plus Jakarta Sans';font-weight:${weight};src:url(data:font/ttf;base64,${fs.readFileSync(path.join(process.env.POCKET_FONT_DIR, 'plus-jakarta-' + weight + '.ttf')).toString('base64')}) format('truetype');font-display:block}`).join('\n');

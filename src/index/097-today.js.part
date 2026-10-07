@@ -44,6 +44,11 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     const TDY_CACHE_KEY = 'syncview_today_cache_v1';   // { who, at, data } for the last signed-in person
     const TDY_PAINT_KEY = 'syncview_today_paint_v1';   // { who, at, day, html }: the page itself, painted by the boot shell on a reload (030-body-shell)
     const TDY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    // Shape of the saved day and saved page. Bumped when what Today shows
+    // changes (2: the client chips), so a copy saved by older code is never
+    // painted and then visibly reshaped by the fresh read; the boot shell
+    // (030-body-shell) checks the same number.
+    const TDY_SAVED_V = 2;
     const TDY_RT_DEBOUNCE_MS = 1500;
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
     const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
@@ -234,9 +239,15 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         // An admin can always fall back to every client; an SMM cannot guess.
         if (!managers && !isAdmin) throw new Error('roster');
         const entry = managers ? await _tdyRosterEntry(me, managers) : null;
-        if (svScopeMode(isAdmin, !!entry) === 'all') return { keys: new Set(current.keys()), notListed: false, provisional };
-        const mine = svSmmCurrentClients(entry, current, managers ? svAlsoSeesNames(_tdyAlsoSees, managers, me.id) : []);
-        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, provisional };
+        if (svScopeMode(isAdmin, !!entry) === 'all') return { keys: new Set(current.keys()), notListed: false, provisional, mode: 'all', own: [], also: [] };
+        const also = managers ? svAlsoSeesNames(_tdyAlsoSees, managers, me.id) : [];
+        const mine = svSmmCurrentClients(entry, current, also);
+        // Which of them are the person's own (the roster) and which they only
+        // also see (smm_also_sees): the chips under the greeting show both,
+        // apart. Same rule, same data; nothing more is read.
+        const own = svSmmCurrentClients(entry, current);
+        const ownKeys = new Set(own.map(svClientKey));
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, provisional, mode: 'mine', own, also: mine.filter(n => !ownKeys.has(svClientKey(n))) };
     }
     /* The signed-in member's own roster clients for the dropdown: { id, names }.
        Anyone on the SMM roster gets their clients, admins included (an admin
@@ -274,7 +285,16 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 && (visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug)))).map(c => c.slug));
             const inScope = r => scope.has(r.client_slug || r.client);
             const [open, done, posts] = await reads;
-            return { names, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+            // Clients Info names to { slug, name } for the chips (slug: the
+            // avatar colour and the Calendar to open).
+            const bySlug = name => {
+                const k = svClientKey(name);
+                const c = clients.find(x => svClientKey(x.display_name) === k || svClientKey(x.slug) === k);
+                return c ? { slug: c.slug, name: c.display_name || name } : null;
+            };
+            const chips = list => list.map(bySlug).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+            const mineClients = { mode: visible.mode, own: chips(visible.own), also: chips(visible.also) };
+            return { names, mine: mineClients, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
         }
         // Editors: their own queue, read alongside the clients and parents.
         const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
@@ -411,6 +431,24 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             && (approving(p) || _calSmmMediaGap(p) || !String(p.caption || '').trim()))
             .sort((a, b) => String(a.scheduled_date).localeCompare(String(b.scheduled_date)));
     }
+    /* MY CLIENTS (owner, 2026-10-07): under the greeting, the clients this
+       person runs, as chips with the client's avatar; the ones they only
+       also see (smm_also_sees) follow, set apart and quieter. A chip opens
+       that client's Calendar. An admin who sees everyone gets one quiet line
+       instead. Built from the day Today already read: no extra wait. */
+    function _tdyClientChip(c, also) {
+        const label = 'Open ' + c.name + ' in Calendar';
+        return `<button type="button" class="tdy-cl${also ? ' also' : ''}" data-k="cl:${_calEscAttr(c.slug)}" title="${_calEscAttr(label)}" aria-label="${_calEscAttr(label)}" onclick="_tdyOpenClient(${_calEscAttr(JSON.stringify(c.slug))})">${_tdyAvatar(c.slug, c.name)}<span class="tdy-cl-n">${_calEsc(c.name)}</span></button>`;
+    }
+    function _tdyClientsHtml(d) {
+        const m = d && d.mine;
+        if (!m || d.notListed) return '';
+        if (m.mode === 'all') return `<div class="tdy-clients" data-k="clients"><div class="tdy-cl-g"><span class="tdy-cl-lab">Your clients</span><span class="tdy-cl-all">Every current client</span></div></div>`;
+        const group = (key, label, list, also) => list.length
+            ? `<div class="tdy-cl-g${also ? ' also' : ''}" data-k="${key}" role="group" aria-label="${_calEscAttr(label)}"><span class="tdy-cl-lab">${_calEsc(label)}</span><div class="tdy-cl-row">${list.map(c => _tdyClientChip(c, also)).join('')}</div></div>`
+            : '';
+        return `<div class="tdy-clients" data-k="clients">${group('own', 'Your clients', m.own, false)}${group('also', 'Also seeing', m.also, true)}</div>`;
+    }
     function _tdySmmHtml(me, d, view) {
         const jobs = _tdyJobs(d);
         const left = jobs.reduce((s, j) => s + j.rows.length, 0);
@@ -419,13 +457,13 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const scope = d.notListed ? '<p class="tdy-note" role="note">No clients are listed for you yet. Ask an admin to add yours to the SMM list.</p>' : '';
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
-            if (!list.length) return head + scope + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>`;
+            if (!list.length) return head + scope + _tdyClientsHtml(d) + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>`;
             const i = ((tdyState.walk % list.length) + list.length) % list.length;
             const p = list[i], name = d.names[p.client] || p.client || '';
             const gap = _calSmmMediaGap(p) || {};
             const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
             const step = (ok, text, bad) => `<div class="${ok ? 'ok' : bad ? 'bad' : ''}"><span class="tdy-ck"></span>${_calEsc(text)}</div>`;
-            return head + scope + `<div class="tdy-focus"><div class="tdy-n">Post ${i + 1} of ${list.length} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div>${_tdyAvatar(p.client, name)}<h2>${_calEsc(p.name || 'Untitled post')}</h2><div class="tdy-cn">${_calEsc(name)}</div>
+            return head + scope + _tdyClientsHtml(d) + `<div class="tdy-focus"><div class="tdy-n">Post ${i + 1} of ${list.length} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div>${_tdyAvatar(p.client, name)}<h2>${_calEsc(p.name || 'Untitled post')}</h2><div class="tdy-cn">${_calEsc(name)}</div>
                 <div class="tdy-steps">${step(!gap.video, gap.video ? 'Video link missing' : 'Video link in place', gap.video)}${step(!gap.thumb, gap.thumb ? 'Thumbnail link missing' : 'Thumbnail link in place', gap.thumb)}${step(!!String(p.caption || '').trim(), String(p.caption || '').trim() ? 'Caption written' : 'Caption to write', !String(p.caption || '').trim())}${step(!approving && !gap.video && !gap.thumb, approving ? 'Approve and send to Kasper' : 'Nothing waiting on your approval', false)}</div>
                 <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenCard('post',${_calEscAttr(JSON.stringify(p.id))})">${_tdyIco('calendar')}Open card</button>${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}${list.length > 1 ? '<button type="button" class="tdy-b" onclick="_tdyWalkNext()">Skip</button>' : ''}</div></div>` + _tdyTrail(today, d.names);
         }
@@ -437,7 +475,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const body = on.rows.length
             ? `<div class="tdy-ls">${on.rows.slice(0, 12).map(x => _tdySmmRow(x, d)).join('')}${on.rows.length > 12 ? `<div class="tdy-more">${on.rows.length - 12} more in SyncLinear and Calendar</div>` : ''}</div>`
             : `<div class="tdy-win"><span class="tdy-ok"></span><h2>All clear${me.first ? ', ' + _calEsc(me.first) : ''}.</h2><p>Nothing is waiting on you.</p></div>`;
-        return head + scope + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${left} to clear.</p><div class="tdy-rings" role="group" aria-label="What is waiting">${rings}</div>` + body + _tdyTrail(today, d.names);
+        return head + scope + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${left} to clear.</p>` + _tdyClientsHtml(d) + `<div class="tdy-rings" role="group" aria-label="What is waiting">${rings}</div>` + body + _tdyTrail(today, d.names);
     }
 
     /* ---------- page ---------- */
@@ -452,6 +490,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             ${_svSkel('sv-skeleton-pill', 'width:100%;height:10px;')}
             <div class="tdy-mrow">${_svSkel('sv-skeleton-line', 'width:130px;height:12px;')}${_svSkel('sv-skeleton-line', 'width:80px;height:12px;')}</div>
             ${_svSkel('sv-skeleton-line', 'width:min(300px,70%);height:36px;margin:4px 0 18px;')}
+            ${editor ? '' : `<div class="tdy-clients"><div class="tdy-cl-g">${_svSkel('sv-skeleton-line', 'width:78px;height:10px;')}<div class="tdy-cl-row">${_svSkel('sv-skeleton-pill', 'width:148px;height:34px;')}${_svSkel('sv-skeleton-pill', 'width:124px;height:34px;')}</div></div></div>`}
             ${editor ? '' : `<div class="tdy-rings">${[0, 1, 2, 3, 4].map(() => `<div class="tdy-rg">${_svSkel('sv-skeleton-dot', 'width:56px;height:56px;')}${_svSkel('sv-skeleton-line', 'width:70%;height:10px;')}</div>`).join('')}</div>`}
             <div class="tdy-ls">${['62%', '48%', '70%', '54%'].map(row).join('')}</div>
         </div>`;
@@ -466,18 +505,18 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             // A saved day is only good on the day it was written: yesterday's
             // list (its "cleared today", its overdue dates) must never stand in
             // for today's, so anything from an earlier calendar day is dropped.
-            if (c && c.who === who && c.data && c.day === _tdyIso(_tdyDays(0)) && Date.now() - Number(c.at || 0) < TDY_CACHE_TTL_MS) return c.data;
+            if (c && c.v === TDY_SAVED_V && c.who === who && c.data && c.day === _tdyIso(_tdyDays(0)) && Date.now() - Number(c.at || 0) < TDY_CACHE_TTL_MS) return c.data;
         } catch (e) {}
         return null;
     }
     function _tdyCacheWrite(who, data) {
-        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ who, at: Date.now(), day: _tdyIso(_tdyDays(0)), data: { ...data, clientRows: null } })); } catch (e) {}
+        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ v: TDY_SAVED_V, who, at: Date.now(), day: _tdyIso(_tdyDays(0)), data: { ...data, clientRows: null } })); } catch (e) {}
     }
     /* The painted page, for the boot shell's instant paint on a reload. The
        "Updating" mark is left out; the boot shell adds it back, since what it
        paints is always a saved copy. */
     function _tdyPaintWrite(who, html) {
-        try { localStorage.setItem(TDY_PAINT_KEY, JSON.stringify({ who, at: Date.now(), day: _tdyIso(_tdyDays(0)), html: html.replace(/<span class="tdy-upd"[^>]*>[^<]*<\/span>/, '') })); } catch (e) {}
+        try { localStorage.setItem(TDY_PAINT_KEY, JSON.stringify({ v: TDY_SAVED_V, who, at: Date.now(), day: _tdyIso(_tdyDays(0)), html: html.replace(/<span class="tdy-upd"[^>]*>[^<]*<\/span>/, '') })); } catch (e) {}
     }
     function _tdyCacheClear() {
         try { localStorage.removeItem(TDY_CACHE_KEY); } catch (e) {}
@@ -753,6 +792,13 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 base + '#calendar/' + slug + '/' + encodeURIComponent(cardId));
         } catch (e) {}
     }
+    function _tdyOpenClient(slug) {
+        const d = tdyState.data;
+        const name = d && d.names && d.names[slug];
+        if (!name) return;
+        try { svSharedClientNote(name); } catch (e) {}
+        navTo('calendar');
+    }
     function _tdyOpenCard(kind, id) {
         const d = tdyState.data;
         if (!d) return;
@@ -780,12 +826,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     window._tdySkip = _tdySkip;
     window._tdyOpenSync = _tdyOpenSync;
     window._tdyOpenCard = _tdyOpenCard;
+    window._tdyOpenClient = _tdyOpenClient;
     window._tdyCardInAddress = _tdyCardInAddress;
     window.mountTodayView = mountTodayView;
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _tdyOpenCard, _tdyOpenSync, _tdySetJob, _tdySetView, _tdySkip, _tdyWalkNext, mountTodayView
+        _tdyOpenCard, _tdyOpenClient, _tdyOpenSync, _tdySetJob, _tdySetView, _tdySkip, _tdyWalkNext,
+        mountTodayView
     });
 export {
   _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, tdyMyClientNames,

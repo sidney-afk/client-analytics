@@ -30845,6 +30845,15 @@ Phone pass (Lighthouse review of the 390 and 375 screenshots, 2026-10-07; phone 
 Owner decision on the manager race (review thread on PR 1988): no database change for now; the later of two near-simultaneous picks wins, one manager per client still holds, both moves are recorded.
 Way back: revert this PR and rebuild the fragments.
 
+## 365. [2026-10-07, BUILT, NOT DEPLOYED, NOT PROVEN LIVE] Today shows each SMM their own clients, and the ones they also see, under the greeting
+
+Source: owner, 2026-10-07 (session Compass). "When I open my Today I should see my clients, really present, not hidden."
+- Under the greeting ("Name, N to clear."), Today shows "Your clients": the person's roster clients as chips with the client's avatar. The clients they only also see (smm_also_sees, OPEN_REPAIRS 363) follow under "Also seeing" as quieter dashed chips. A person with no roster entry sees only that group. An admin who sees every client gets one quiet line ("Every current client") instead of a chip per client. Editors get no chips (their view is their own queue). The same block shows in Walk-through.
+- A chip opens that client's Calendar (the same way a card's "Open card" does: it becomes the current client); its label says so.
+- Built from the same read Today already makes (the roster, the grants, Clients Info), so there is no extra wait; the grey shape has chip placeholders in the same place, so nothing moves when the list lands. Saved copies are versioned (TDY_SAVED_V = 2, also checked by the boot shell), so a copy saved before the chips existed is never painted and then reshaped.
+- Phone: the groups stack, chips are 44 px tall (the touch-target rule in AGENTS.md) and each row scrolls sideways instead of wrapping into a tall block.
+Proof (offline, fixture data): `qa/today/today-clients-shots.js` (desktop and phone, light and dark: own chips, also-seen chips apart, right under the greeting, a chip opens that client's Calendar), `test/today-render.js` (groups, also-only, admin line, older saved copy not painted), `qa/today/today-no-flicker.js` 20 of 20 in a row.
+
 ## 366. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
 
 Phone-only artifact and native transplant repair background scrolling under overlays,

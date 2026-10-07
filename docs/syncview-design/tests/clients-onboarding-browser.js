@@ -146,12 +146,26 @@ async function open(browser, origin, role, viewport, opts) {
   return { ctx, page, ob, hs, others, errors, failures, ctl, dialogs };
 }
 
+// The Clients tab has no permanent list (owner, 2026-10-07): a client is
+// opened from "All clients", and Onboarding is a folded section.
 async function openClients(s, label) {
   await s.page.evaluate(() => _kasperGotoTab('clients'));
-  await s.page.waitForSelector('.ca-row', { timeout: 10000 }).catch(() => s.failures.push(`${label}: the client list never drew`));
+  await s.page.waitForFunction(() => document.querySelector('#caSearch') && _caState.loaded, null, { timeout: 10000 }).catch(() => s.failures.push(`${label}: the Clients tab never loaded`));
+}
+async function openList(s) {
+  if (await s.page.$eval('#caDrop', d => d.hidden).catch(() => true)) await s.page.click('#caAllBtn');
+}
+async function openRow(s, n) {
+  await openList(s);
+  await s.page.click(`#caDrop .ca-row >> nth=${n}`);
+}
+async function openOnboarding(s) {
+  await s.page.waitForSelector('[data-ca-fold="onboarding"]', { timeout: 6000 }).catch(() => {});
+  if (!(await s.page.$eval('[data-ca-fold="onboarding"]', d => d.open).catch(() => true))) await s.page.click('[data-ca-fold="onboarding"] > summary');
 }
 async function pick(s, label, n) {
-  await s.page.click(`.ca-row >> nth=${n}`);
+  await openRow(s, n);
+  await openOnboarding(s);
   await s.page.waitForSelector('.cb-step', { timeout: 6000 }).catch(() => s.failures.push(`${label}: the checklist never drew`));
 }
 const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
@@ -330,15 +344,17 @@ const text = (s, sel) => s.page.$eval(sel, e => e.innerText).catch(() => '');
       const s = await open(browser, origin, 'admin', { width: 1440, height: 900 });
       failures.push(...s.failures);
       await openClients(s, label);
-      await s.page.click('.ca-link');
-      await s.page.click('.ca-row >> nth=2');
+      await openList(s);
+      await s.page.click('#caDrop .ca-link');
+      await s.page.click('#caDrop .ca-row >> nth=2');
+      await openOnboarding(s);
       await s.page.waitForSelector('.cb-section', { timeout: 3000 }).catch(() => failures.push(`${label}: an archived client showed nothing`));
       await s.page.waitForTimeout(300);
       if (s.ob.length || s.hs.length) failures.push(`${label}: an archived client made onboarding calls`);
       if (!/Archived clients have no onboarding checklist/.test(await text(s, '#caOnboarding'))) failures.push(`${label}: an archived client did not say it has no checklist`);
       // quick switch: client 1 answers slowly, client 2 is opened meanwhile
       s.ctl.delayFirst = 900;
-      await s.page.click('.ca-row >> nth=0');
+      await openRow(s, 0);
       await s.page.waitForTimeout(100);
       await s.page.evaluate(() => _caSelect('fixture2'));
       await s.page.waitForSelector('[data-step]', { timeout: 6000 }).catch(() => failures.push(`${label}: the second client's checklist never drew`));

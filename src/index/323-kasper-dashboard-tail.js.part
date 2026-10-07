@@ -19,6 +19,7 @@ import { _sxrKasperLoadQueue, _sxrKasperState } from './290-samples-writes-revie
 import { CA_RECENT_KEY, _kasperPersistPost, _kasperSamplesEnabled, _kasperState } from './305-core-kasper-shared.js';
 import { _ccEnsureIdentity, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
 import { _cbPurge, _cbSync } from './324-client-onboarding-panel.js';
+import { _svClientHue } from './095-shared-client.js';
 import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-history.js';
     function _kasperEnsureAllTabCounts() {
         // The active tab's render path already kicked its own load and set a loading
@@ -231,49 +232,138 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     /* ── Review Session ─────────────────────────────────────────── */
 
     // ── Clients (Kasper › More › Pipeline & Admin) ──────────────────────────
-    // Read-only list of every client's profile row, step 1 of the plan's
-    // "Later: a Clients admin tab" (docs/plans/2026-09-24-sheets-to-supabase.md).
-    // client_profiles grants the browser nothing; the rows come from
-    // analytics-read's admin-only `list_client_profiles` action, which checks
-    // the ADMIN role key. Editing (with an edit history, source='syncview')
-    // goes through client-profile-write (admin only, Sheet first).
+    // One client's profile at a time, full width (owner's pick, 2026-10-07:
+    // direction A "Dossier" of docs/syncview-design/mockups/clients-redesign).
+    // The default is a search box (the Filming Plans pill, with the shared
+    // client dropdown's arrow keys); "All clients" opens the whole list.
+    // client_profiles grants the browser nothing: the rows come from
+    // analytics-read's admin-only `list_client_profiles`. Edits, the manager
+    // picker and the history go through client-profile-write (admin key AND
+    // an active admin member; the server checks both again).
     const CA_READ_URL = CAL_SUPABASE_URL + '/functions/v1/analytics-read';
-    const CA_GROUPS = [
-        { title: 'Contact', fields: [['email', 'Email']] },
-        { title: 'Social accounts', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube channel']] },
-        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel']] },
-        { title: 'Publishing', fields: [['upload_post_profile', 'Upload-Post profile'], ['postforme_account_id', 'Post for Me account']] },
-    ];
-    // Shown last, folded until opened (owner, 2026-09-25): long text nobody
-    // needs at a glance.
-    const CA_RESEARCH = { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] };
     const CA_WRITE_URL = CAL_SUPABASE_URL + '/functions/v1/client-profile-write';
+    // The core details, top of the profile, in three colour-coded cards.
+    const CA_GROUPS = [
+        { key: 'team', title: 'Contact and team', tone: 'edit', fields: [['email', 'Email'], ['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel']] },
+        { key: 'social', title: 'Social accounts', tone: 'asks', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube']] },
+        { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['upload_post_profile', 'Upload-Post']] },
+    ];
+    // Rarely used (owner, 2026-10-07): folded, low emphasis.
+    const CA_RESEARCH = { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] };
     // Long free text gets a textarea; everything else is one line.
     const CA_LONG_FIELDS = ['content_description', 'keywords', 'specific_keywords', 'competitors'];
-    const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null };
+    const CA_FIELD_LABELS = Object.fromEntries(CA_GROUPS.concat([CA_RESEARCH]).flatMap(g => g.fields));
+    const CA_SEARCH_SHOWN = 8;
+    const _caFresh = () => ({
+        rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null,
+        searchOpen: false, active: 0, listOpen: false, folds: {},
+        managers: null, assignments: {}, managersError: null, picker: false, pickerBusy: false,
+        history: null, historyOpen: false,
+    });
+    const _caState = _caFresh();
     // Bumped by every purge, so a request started under one staff identity
     // can never repopulate the list after a sign-out or role change.
     let _caGeneration = 0;
     function _caPurgeSensitiveState() {
         _caGeneration++;
-        Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null });
+        Object.assign(_caState, _caFresh());
         _cbPurge();
         const body = document.getElementById('caBody');
         if (body) body.innerHTML = '';
+        const pop = document.getElementById('caSearchPop');
+        if (pop) { pop.innerHTML = ''; pop.hidden = true; }
+        const drop = document.getElementById('caDrop');
+        if (drop) { drop.innerHTML = ''; drop.hidden = true; }
         // The recently opened clients are this staff member's; drop them on sign-out.
         try { localStorage.removeItem(CA_RECENT_KEY); } catch (e) {}
     }
 
+    const CA_ICONS = {
+        search: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+        list: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5 4h9M5 8h9M5 12h9"/><circle cx="2" cy="4" r=".6" fill="currentColor"/><circle cx="2" cy="8" r=".6" fill="currentColor"/><circle cx="2" cy="12" r=".6" fill="currentColor"/></svg>',
+        mail: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="m2 4 6 5 6-5"/></svg>',
+        slack: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6 2v8M10 6v8M2 10h8M6 6h8"/></svg>',
+        brush: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 2.5 13.5 5.5 7 12H4V9z"/><path d="M9 4l3 3"/></svg>',
+        ig: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3.5"/><circle cx="8" cy="8" r="2.8"/><circle cx="11.6" cy="4.4" r=".7" fill="currentColor" stroke="none"/></svg>',
+        tt: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M9 2v8.2a2.4 2.4 0 1 1-2.4-2.4"/><path d="M9 2c.4 1.8 1.7 3 3.5 3.1"/></svg>',
+        yt: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M7 6.2v3.6L10 8z" fill="currentColor" stroke="none"/></svg>',
+        pen: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/></svg>',
+        chev: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>',
+        x: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
+    };
+
+    // ---- Links: every value that has a stable address opens it ----
+    // Slack's app_redirect opens a channel by its id in whichever workspace the
+    // person is signed in to, so no workspace id is needed. Post for Me and
+    // Upload-Post have no stable per-account page, so those stay text with a
+    // Copy button.
+    function _caLinkFor(k, raw) {
+        const v = String(raw == null ? '' : raw).trim();
+        if (!v) return null;
+        const url = /^https?:\/\//i.test(v) ? v : '';
+        const handle = v.replace(/^@/, '');
+        switch (k) {
+            case 'email': return /^[^\s@]+@[^\s@]+$/.test(v) ? { href: 'mailto:' + v, text: v, verb: 'Write' } : null;
+            case 'instagram_handle': return { href: url || 'https://www.instagram.com/' + encodeURIComponent(handle) + '/', text: url ? v : '@' + handle };
+            case 'tiktok_handle': return { href: url || 'https://www.tiktok.com/@' + encodeURIComponent(handle), text: url ? v : '@' + handle };
+            case 'youtube_channel_id':
+                if (url) return { href: v, text: v };
+                if (/^@/.test(v)) return { href: 'https://www.youtube.com/' + encodeURIComponent(v).replace('%40', '@'), text: v };
+                return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(v), text: v };
+            case 'slack_channel_id': case 'creative_channel_id':
+                if (url) return { href: v, text: v };
+                return /^[CG][A-Z0-9]{6,}$/.test(v) ? { href: 'https://slack.com/app_redirect?channel=' + encodeURIComponent(v), text: v } : null;
+            default: return url ? { href: v, text: v } : null;
+        }
+    }
+    function _caValueHtml(k, raw) {
+        const v = String(raw == null ? '' : raw).trim();
+        if (!v) return '<span class="ca-empty">Not set</span>';
+        const l = _caLinkFor(k, v);
+        if (l) return `<a class="ca-val-link" href="${_calEscAttr(l.href)}" target="_blank" rel="noopener" data-ca-link="${_calEscAttr(k)}">${_calEsc(l.text)}</a>`;
+        return `<span class="ca-val-text">${_calEsc(v)}</span><button type="button" class="ca-copy" data-ca-copy="${_calEscAttr(v)}" onclick="_caCopy(this)" aria-label="Copy ${_calEscAttr(CA_FIELD_LABELS[k] || 'value')}">Copy</button>`;
+    }
+    function _caCopy(btn) {
+        const v = btn && btn.getAttribute('data-ca-copy');
+        if (!v) return;
+        const done = () => { btn.textContent = 'Copied'; setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy'; }, 1400); };
+        try { navigator.clipboard.writeText(v).then(done, () => {}); } catch (e) {}
+    }
+
+    function _caInitials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+    }
+    // Same colour the top-bar client picker gives this client.
+    const _caAvatar = (name, cls) => `<span class="ca-avatar${cls ? ' ' + cls : ''}" style="--ca-h:${_svClientHue(name)}" aria-hidden="true">${_calEsc(_caInitials(name))}</span>`;
+    function _caWhen(iso, withTime) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        return withTime
+            ? d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    const _caPhone = () => !!(window.matchMedia && window.matchMedia('(max-width: 767px)').matches);
+
+    // ---- Page frame ----
     function _caRender() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
         el.innerHTML = `<div class="cc-wrap ca-wrap">
-            <div class="cc-topbar">
-                <div><h2 class="cc-title">Clients</h2><p class="cc-sub">Every client's details in one place. The Clients Info sheet is still the main copy: edits here are written to the sheet first, and the sheet is copied here daily.</p></div>
-                <div class="cc-actions">
-                    <input class="cc-search" id="caSearch" type="search" placeholder="Search name, handle, email…" value="${_calEscAttr(_caState.search)}" oninput="_caSetSearch(this.value)" aria-label="Search clients">
-                    <button class="cc-btn" type="button" onclick="_caLoad(false)">Refresh</button>
+            <div class="ca-head" id="caHead">
+                <h2 class="cc-title">Clients</h2>
+                <div class="search-bar-wrap ca-search" id="caSearchWrap">
+                    <div class="search-bar-pill">
+                        <input class="search-bar-input" id="caSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
+                            placeholder="Search name, handle or email" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
+                            oninput="_caSetSearch(this.value)" onfocus="_caSearchFocus()" onkeydown="_caSearchKey(event)">
+                        <button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById('caSearch')?.focus()">${CA_ICONS.search}</button>
+                    </div>
+                    <div class="ca-pop" id="caSearchPop" role="listbox" aria-label="Matching clients" hidden></div>
                 </div>
+                <button type="button" class="ca-allbtn" id="caAllBtn" aria-expanded="${_caState.listOpen}" aria-controls="caDrop" onclick="_caToggleList()" title="All clients">${CA_ICONS.list}<span>All clients</span></button>
+                <div class="ca-drop" id="caDrop" role="dialog" aria-label="All clients" hidden></div>
             </div>
             <div class="ca-body" id="caBody"></div>
         </div>`;
@@ -309,9 +399,279 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         } finally {
             if (generation === _caGeneration) { _caState.loading = false; _caPaint(); }
         }
+        if (_caState.loaded && generation === _caGeneration && !_caState.managers) _caLoadManagers();
     }
 
-    function _caSetSearch(v) { _caState.search = v || ''; _caPaint(); }
+    // ---- Talking to client-profile-write (admin key + admin member) ----
+    async function _caEditPost(action, extra, track) {
+        const ident = await _ccEnsureIdentity();
+        const send = () => fetch(CA_WRITE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
+            body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
+        });
+        const resp = track === false ? await send() : await _writeUiTrackSave('client_profile', ('client_profile_' + action).slice(0, 40), {}, send, { requireOk: true });
+        let json = null;
+        try { json = await resp.json(); } catch (e) { json = null; }
+        return { resp, json: json || {}, ident };
+    }
+
+    // ---- Search (typing filters at once; ↑ ↓ Enter Esc) ----
+    function _caRecentMap() {
+        try { const m = JSON.parse(localStorage.getItem(CA_RECENT_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; } catch (e) { return {}; }
+    }
+    function _caRememberOpened(slug) {
+        const m = _caRecentMap();
+        m[slug] = Date.now();
+        const keep = Object.keys(m).sort((a, b) => m[b] - m[a]).slice(0, 100);
+        const out = {}; for (const k of keep) out[k] = m[k];
+        try { localStorage.setItem(CA_RECENT_KEY, JSON.stringify(out)); } catch (e) {}
+    }
+    const _caName = r => String(r.display_name || r.slug || '');
+    const _caByName = (a, b) => _caName(a).localeCompare(_caName(b), undefined, { sensitivity: 'base' });
+    // Matches on name, handle and email. The clients this person opened most
+    // recently come first; the rest follow alphabetically.
+    function _caFiltered(q) {
+        q = String(q == null ? _caState.search : q).trim().toLowerCase();
+        const rows = (_caState.rows || []).filter(r => {
+            if (r.archived_at && !_caState.showArchived) return false;
+            if (!q) return true;
+            return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().includes(q));
+        });
+        const recent = _caRecentMap();
+        return rows.slice().sort((a, b) => {
+            const ta = Number(recent[a.slug]) || 0, tb = Number(recent[b.slug]) || 0;
+            if (ta !== tb) return tb - ta;
+            return _caByName(a, b);
+        });
+    }
+    function _caMark(text, q) {
+        const s = String(text || ''); q = String(q || '').trim();
+        const i = q ? s.toLowerCase().indexOf(q.toLowerCase()) : -1;
+        if (i < 0) return _calEsc(s);
+        return _calEsc(s.slice(0, i)) + '<mark>' + _calEsc(s.slice(i, i + q.length)) + '</mark>' + _calEsc(s.slice(i + q.length));
+    }
+    function _caSearchResults() {
+        const q = String(_caState.search || '').trim();
+        if (!q) {
+            const recent = _caRecentMap();
+            const opened = (_caState.rows || []).filter(r => !r.archived_at && recent[r.slug]);
+            return { rows: _caFiltered('').filter(r => opened.includes(r)).slice(0, CA_SEARCH_SHOWN), recent: true };
+        }
+        return { rows: _caFiltered(q).slice(0, CA_SEARCH_SHOWN), recent: false };
+    }
+    function _caPaintSearch() {
+        const pop = document.getElementById('caSearchPop');
+        const input = document.getElementById('caSearch');
+        if (!pop || !input) return;
+        const { rows, recent } = _caSearchResults();
+        const q = String(_caState.search || '').trim();
+        const open = _caState.searchOpen && _caState.loaded && (rows.length > 0 || !!q);
+        pop.hidden = !open;
+        input.setAttribute('aria-expanded', String(open));
+        if (!open) { pop.innerHTML = ''; input.removeAttribute('aria-activedescendant'); pop._caRows = []; return; }
+        _caState.active = Math.max(0, Math.min(_caState.active, rows.length - 1));
+        pop._caRows = rows;
+        const opts = rows.map((r, i) => `<button type="button" role="option" id="caOpt${i}" class="ca-opt${i === _caState.active ? ' is-active' : ''}" aria-selected="${i === _caState.active}" data-ca-slug="${_calEscAttr(r.slug)}" onmousedown="event.preventDefault()" onclick="_caSelect('${_calEscAttr(r.slug)}')">
+                ${_caAvatar(_caName(r))}<span class="ca-opt-text"><span class="ca-opt-name">${_caMark(_caName(r), q)}</span><span class="ca-opt-sub">${[r.instagram_handle ? _caMark(r.instagram_handle, q) : '', r.email ? _caMark(r.email, q) : ''].filter(Boolean).join(' · ') || 'No handle or email yet'}</span></span>
+            </button>`).join('');
+        pop.innerHTML = (recent ? '<div class="ca-pop-label">Recently opened</div>' : '')
+            + (opts || `<div class="ca-none">No client matches “${_calEsc(q)}”.</div>`)
+            + (rows.length && !_caPhone() ? '<div class="ca-pop-keys"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div>' : '');
+        if (rows.length) input.setAttribute('aria-activedescendant', 'caOpt' + _caState.active);
+        else input.removeAttribute('aria-activedescendant');
+    }
+    function _caSetSearch(v) {
+        _caState.search = v || '';
+        _caState.active = 0;
+        _caState.searchOpen = true;
+        if (_caState.listOpen) _caCloseList();
+        _caPaintSearch();
+    }
+    function _caSearchFocus() { _caState.searchOpen = true; _caPaintSearch(); }
+    function _caSearchKey(e) {
+        const pop = document.getElementById('caSearchPop');
+        const rows = (pop && pop._caRows) || [];
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            _caState.searchOpen = true;
+            if (rows.length) _caState.active = (_caState.active + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
+            _caPaintSearch();
+            document.getElementById('caOpt' + _caState.active)?.scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (rows[_caState.active]) _caSelect(rows[_caState.active].slug);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            _caState.searchOpen = false;
+            _caPaintSearch();
+        }
+    }
+
+    // ---- "All clients" (closed by default; opens under the search) ----
+    function _caToggleList() {
+        _caState.listOpen = !_caState.listOpen;
+        _caState.searchOpen = false;
+        _caPaintSearch();
+        _caPaintList();
+        if (_caState.listOpen) document.querySelector('#caDrop .ca-row')?.focus({ preventScroll: true });
+    }
+    function _caCloseList() { _caState.listOpen = false; _caPaintList(); }
+    function _caToggleArchived() { _caState.showArchived = !_caState.showArchived; _caPaintList(); }
+    function _caPaintList() {
+        const drop = document.getElementById('caDrop');
+        const btn = document.getElementById('caAllBtn');
+        if (btn) btn.setAttribute('aria-expanded', String(_caState.listOpen));
+        if (!drop) return;
+        drop.hidden = !_caState.listOpen;
+        if (!_caState.listOpen) { drop.innerHTML = ''; return; }
+        const all = _caState.rows || [];
+        const archived = all.filter(r => r.archived_at).length;
+        const rows = all.filter(r => _caState.showArchived || !r.archived_at).slice().sort(_caByName);
+        const mgrName = r => { const m = _caManager(r.slug); return m ? m.name : ''; };
+        drop.innerHTML = `<div class="ca-drop-head"><span>${rows.length} client${rows.length === 1 ? '' : 's'}</span>
+                ${archived ? `<button type="button" class="ca-link" onclick="_caToggleArchived()">${_caState.showArchived ? 'Hide' : 'Show'} ${archived} archived</button>` : ''}
+                <button type="button" class="ca-iconbtn" onclick="_caCloseList()" aria-label="Close the list">${CA_ICONS.x}</button></div>
+            <ul class="ca-list">${rows.map(r => `<li><button type="button" class="ca-row${r.slug === _caState.selected ? ' is-active' : ''}${r.archived_at ? ' is-archived' : ''}" data-ca-slug="${_calEscAttr(r.slug)}" onclick="_caSelect('${_calEscAttr(r.slug)}')">
+                ${_caAvatar(_caName(r))}<span class="ca-row-text"><span class="ca-row-name">${_calEsc(_caName(r))}</span><span class="ca-row-sub">${_calEsc(mgrName(r) || r.instagram_handle || r.email || 'No handle or email yet')}</span></span>
+            </button></li>`).join('') || '<li class="ca-none">No clients yet.</li>'}</ul>`;
+    }
+    // One listener for the whole tab: a click outside closes the search and the list.
+    let _caOutsideBound = false;
+    function _caBindOutside() {
+        if (_caOutsideBound) return;
+        _caOutsideBound = true;
+        document.addEventListener('click', e => {
+            const t = e.target;
+            // A click that redrew its own panel (Show archived, a manager) has
+            // a detached target: it was inside, so nothing closes.
+            if (!t || !t.closest || !t.isConnected) return;
+            if (_caState.searchOpen && !t.closest('#caSearchWrap')) { _caState.searchOpen = false; _caPaintSearch(); }
+            if (_caState.listOpen && !t.closest('#caDrop') && !t.closest('#caAllBtn')) _caCloseList();
+            if (_caState.picker && !t.closest('#caMgrPop') && !t.closest('#caMgrBtn')) _caMgrClose();
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape') return;
+            if (_caState.picker) { _caMgrClose(); document.getElementById('caMgrBtn')?.focus(); }
+            else if (_caState.listOpen) { _caCloseList(); document.getElementById('caAllBtn')?.focus(); }
+        });
+    }
+
+    function _caSelect(slug) {
+        if (_caState.edit && _caState.edit.slug !== slug && _caEditDirty() && !confirm('Discard your unsaved changes to this client?')) return;
+        if (_caState.edit && _caState.edit.slug !== slug) _caState.edit = null;
+        if (slug !== _caState.selected) { _caState.history = null; _caState.historyOpen = false; _caState.picker = false; }
+        _caState.selected = slug || '';
+        if (slug) _caRememberOpened(slug);
+        _caState.search = '';
+        _caState.searchOpen = false;
+        _caState.listOpen = false;
+        const input = document.getElementById('caSearch');
+        if (input) { input.value = ''; input.blur(); }
+        _caPaintSearch();
+        _caPaintList();
+        _caPaint();
+        if (slug) { try { document.getElementById('caHead')?.scrollIntoView({ block: 'start' }); } catch (e) {} }
+    }
+
+    // ---- Social media manager (one per client; changed through the picker) ----
+    async function _caLoadManagers() {
+        const generation = _caGeneration;
+        let out;
+        try { out = await _caEditPost('list_managers', {}, false); } catch (e) { out = { resp: { status: 0 }, json: {} }; }
+        if (generation !== _caGeneration) return;
+        if (out.resp.status === 200 && out.json.ok) {
+            _caState.managers = (Array.isArray(out.json.managers) ? out.json.managers : []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            _caState.assignments = out.json.assignments && typeof out.json.assignments === 'object' ? out.json.assignments : {};
+            _caState.managersError = null;
+        } else {
+            _caState.managersError = out.json.error || ('HTTP ' + out.resp.status);
+        }
+        _caPaint();
+    }
+    function _caManager(slug) {
+        const m = _caState.assignments && _caState.assignments[slug];
+        return m ? ((_caState.managers || []).find(x => x.slug === m) || { slug: m, name: m }) : null;
+    }
+    function _caMgrToggle() {
+        if (!_caState.managers || _caState.pickerBusy) return;
+        _caState.picker = !_caState.picker;
+        _caPaint();
+        if (_caState.picker) document.querySelector('#caMgrPop .ca-mgr-opt.is-current, #caMgrPop .ca-mgr-opt')?.focus({ preventScroll: true });
+    }
+    function _caMgrClose() { if (!_caState.picker) return; _caState.picker = false; _caPaint(); }
+    function _caMgrPickerHtml(r) {
+        if (!_caState.picker) return '';
+        const cur = (_caState.assignments || {})[r.slug] || '';
+        const counts = {};
+        for (const m of Object.values(_caState.assignments || {})) counts[m] = (counts[m] || 0) + 1;
+        const opts = (_caState.managers || []).map(m => `<button type="button" role="menuitemradio" aria-checked="${m.slug === cur}" class="ca-mgr-opt${m.slug === cur ? ' is-current' : ''}" data-ca-mgr="${_calEscAttr(m.slug)}" onclick="_caMgrPick('${_calEscAttr(m.slug)}')" ${_caState.pickerBusy ? 'disabled' : ''}>
+                <span class="ca-mgr-check" aria-hidden="true">${m.slug === cur ? '✓' : ''}</span>${_caAvatar(m.name, 'is-sm')}<span class="ca-mgr-name">${_calEsc(m.name)}</span><span class="ca-mgr-count">${counts[m.slug] || 0} client${counts[m.slug] === 1 ? '' : 's'}</span>
+            </button>`).join('');
+        return `${_caPhone() ? '<div class="ca-scrim" onclick="_caMgrClose()"></div>' : ''}<div class="ca-mgr-pop" id="caMgrPop" role="menu" aria-label="Social media manager for ${_calEscAttr(_caName(r))}">
+                <div class="ca-mgr-title">Social media manager${_caPhone() ? ' for ' + _calEsc(_caName(r)) : ''}</div>
+                ${opts || '<div class="ca-none">No managers yet.</div>'}
+                <div class="ca-mgr-foot">One manager per client. The change is kept in the history, and the Sheet copy follows.</div>
+            </div>`;
+    }
+    async function _caMgrPick(managerSlug) {
+        const r = (_caState.rows || []).find(x => x.slug === _caState.selected);
+        if (!r || _caState.pickerBusy) return;
+        const cur = (_caState.assignments || {})[r.slug] || '';
+        if (managerSlug === cur) { _caMgrClose(); return; }
+        const generation = _caGeneration;
+        _caState.pickerBusy = true; _caPaint();
+        let out;
+        try { out = await _caEditPost('assign_manager', { slug: r.slug, manager_slug: managerSlug, expected_manager_slug: cur }); }
+        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
+        if (generation !== _caGeneration) return;
+        _caState.pickerBusy = false;
+        const j = out.json;
+        if (out.resp.status === 200 && j.ok) {
+            _caState.assignments = Object.assign({}, _caState.assignments, { [r.slug]: j.manager_slug || managerSlug });
+            _caState.picker = false;
+            _caState.history = null;
+            const m = _caManager(r.slug);
+            if (typeof showToast === 'function') showToast(`${m ? m.name : 'The new manager'} now manages ${_caName(r)}`);
+        } else if (j.error === 'manager_changed') {
+            _caState.assignments = Object.assign({}, _caState.assignments, { [r.slug]: j.manager_slug || '' });
+            if (!j.manager_slug) delete _caState.assignments[r.slug];
+            if (typeof showToast === 'function') showToast('Someone changed this manager a moment ago. Check it and pick again.');
+        } else {
+            const why = j.error === 'authority_not_syncview' ? 'SyncView is not the main copy of the client list yet.'
+                : out.resp.status === 401 || out.resp.status === 403 ? 'Changing the manager needs an Admin sign-in.'
+                : 'Could not change the manager (' + (j.error || ('HTTP ' + out.resp.status)) + '). Nothing was changed.';
+            if (typeof showToast === 'function') showToast(why);
+        }
+        _caPaint();
+    }
+
+    // ---- History (newest first; details and manager moves) ----
+    async function _caToggleHistory() {
+        _caState.historyOpen = !_caState.historyOpen;
+        _caPaint();
+        if (!_caState.historyOpen || _caState.history) return;
+        const slug = _caState.selected, generation = _caGeneration;
+        let out;
+        try { out = await _caEditPost('history', { slug }, false); } catch (e) { out = { resp: { status: 0 }, json: {} }; }
+        if (generation !== _caGeneration || _caState.selected !== slug) return;
+        _caState.history = out.resp.status === 200 && out.json.ok ? { edits: out.json.edits || [], moves: out.json.manager_moves || [] } : { error: out.json.error || ('HTTP ' + out.resp.status) };
+        _caPaint();
+    }
+    function _caHistoryHtml() {
+        if (!_caState.historyOpen) return '';
+        const h = _caState.history;
+        if (!h) return '<div class="ca-hist"><div class="ca-hist-row">Loading the history…</div></div>';
+        if (h.error) return `<div class="ca-hist"><div class="ca-hist-row is-error">Could not load the history (${_calEsc(h.error)}).</div></div>`;
+        const mgr = s => { if (!s) return 'nobody'; const m = (_caState.managers || []).find(x => x.slug === s); return m ? m.name : s; };
+        const val = v => (String(v == null ? '' : v).trim() ? `“${_calEsc(String(v).trim().slice(0, 80))}”` : '<i>empty</i>');
+        const items = [
+            ...h.edits.map(e => ({ at: e.edited_at, text: `${_calEsc(e.edited_by)} changed ${_calEsc(CA_FIELD_LABELS[e.field] || e.field)} from ${val(e.old_value)} to ${val(e.new_value)}` })),
+            ...h.moves.map(e => ({ at: e.edited_at, text: `${_calEsc(e.edited_by)} moved the client from ${_calEsc(mgr(e.old_manager_slug))} to ${_calEsc(mgr(e.new_manager_slug))}` })),
+        ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+        return `<div class="ca-hist">${items.length ? items.map(i => `<div class="ca-hist-row"><span class="ca-hist-when">${_calEsc(_caWhen(i.at, true))}</span><span>${i.text}</span></div>`).join('') : '<div class="ca-hist-row">No edits recorded yet.</div>'}</div>`;
+    }
 
     // ---- Editing (admin only; the server re-checks the admin key and member) ----
     function _caEditRow() {
@@ -331,9 +691,10 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     function _caEditStart(slug) {
         if (!_syncviewStaffCan('clients-admin')) return;
         _caState.edit = { slug, draft: {}, saving: false, message: '', messageKind: '', conflictFields: null };
+        _caState.picker = false;
         _caPaint();
         const first = document.querySelector('#caDetail .ca-input');
-        if (first && !(window.matchMedia && window.matchMedia('(max-width: 767px)').matches)) { try { first.focus(); } catch (e) {} }
+        if (first && !_caPhone()) { try { first.focus(); } catch (e) {} }
     }
     function _caEditInput(el) {
         const ed = _caState.edit;
@@ -355,18 +716,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const i = (_caState.rows || []).findIndex(r => r.slug === row.slug);
         if (i >= 0) _caState.rows[i] = Object.assign({}, _caState.rows[i], row);
     }
-    const CA_FIELD_LABELS = Object.fromEntries(CA_GROUPS.concat([CA_RESEARCH]).flatMap(g => g.fields));
-    async function _caEditPost(action, extra) {
-        const ident = await _ccEnsureIdentity();
-        const resp = await _writeUiTrackSave('client_profile', ('client_profile_' + action).slice(0, 40), {}, () => fetch(CA_WRITE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
-            body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
-        }), { requireOk: true });
-        let json = null;
-        try { json = await resp.json(); } catch (e) { json = null; }
-        return { resp, json: json || {}, ident };
-    }
+    const _caNative = () => !!(_caState.authority && _caState.authority.source === 'syncview');
     async function _caEditSave() {
         const ed = _caState.edit, r = _caEditRow();
         if (!ed || !r || ed.saving) return;
@@ -387,8 +737,9 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         if (resp.status === 200 && json.ok) {
             _caReplaceRow(json.row);
             _caState.edit = null;
+            _caState.history = null;
             _caPaint();
-            if (typeof showToast === 'function') showToast('Saved to the sheet and SyncView');
+            if (typeof showToast === 'function') showToast(json.native ? 'Saved' : 'Saved to the sheet and SyncView');
             return;
         }
         const err = json.error || ('HTTP ' + resp.status);
@@ -410,7 +761,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 _caPaint();
             }).catch(() => {});
         } else if (err === 'saved_to_sheet_only') {
-            _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; refresh the list later.', 'error');
+            _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; open the tab again later.', 'error');
         } else if (resp.status === 401 || resp.status === 403) {
             _caEditSay('Saving needs an Admin sign-in.', 'error');
         } else {
@@ -438,69 +789,11 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         }
         _caPaint();
     }
-    function _caToggleArchived() { _caState.showArchived = !_caState.showArchived; _caPaint(); }
-    function _caSelect(slug) {
-        if (_caState.edit && _caState.edit.slug !== slug && _caEditDirty() && !confirm('Discard your unsaved changes to this client?')) return;
-        if (_caState.edit && _caState.edit.slug !== slug) _caState.edit = null;
-        _caState.selected = slug || '';
-        if (slug) _caRememberOpened(slug);
-        _caPaint();
-        const d = document.getElementById('caDetail');
-        if (d && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) { try { d.scrollIntoView({ block: 'start' }); } catch (e) {} }
-    }
 
-    /* When Kasper searches, the clients he opened most recently come first;
-       clients he never opened follow in alphabetical order. Kept in this
-       browser only (a convenience, not shared state). */
-    function _caRecentMap() {
-        try { const m = JSON.parse(localStorage.getItem(CA_RECENT_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; } catch (e) { return {}; }
-    }
-    function _caRememberOpened(slug) {
-        const m = _caRecentMap();
-        m[slug] = Date.now();
-        const keep = Object.keys(m).sort((a, b) => m[b] - m[a]).slice(0, 100);
-        const out = {}; for (const k of keep) out[k] = m[k];
-        try { localStorage.setItem(CA_RECENT_KEY, JSON.stringify(out)); } catch (e) {}
-    }
-    function _caFiltered() {
-        const q = String(_caState.search || '').trim().toLowerCase();
-        const rows = (_caState.rows || []).filter(r => {
-            if (r.archived_at && !_caState.showArchived) return false;
-            if (!q) return true;
-            return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
-                .some(v => String(v || '').toLowerCase().includes(q));
-        });
-        if (!q) return rows;
-        const recent = _caRecentMap();
-        const name = r => String(r.display_name || r.slug || '');
-        return rows.slice().sort((a, b) => {
-            const ta = Number(recent[a.slug]) || 0, tb = Number(recent[b.slug]) || 0;
-            if (ta !== tb) return tb - ta;
-            return name(a).localeCompare(name(b), undefined, { sensitivity: 'base' });
-        });
-    }
-
-    function _caWhen(iso) {
-        if (!iso) return '';
-        const d = new Date(iso);
-        if (isNaN(d)) return '';
-        return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-    }
-
-    function _caInitials(name) {
-        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-        return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
-    }
-
-    function _caValue(v) {
-        const s = String(v == null ? '' : v).trim();
-        if (!s) return '<span class="ca-empty">Not set</span>';
-        if (/^https?:\/\//i.test(s)) return `<a href="${_calEscAttr(s)}" target="_blank" rel="noopener">${_calEsc(s)}</a>`;
-        return _calEsc(s);
-    }
-
+    // ---- The profile ----
+    // Remember which folded sections are open across repaints (not while editing, which opens them all).
+    function _caFold(key, open) { if (!_caState.edit) _caState.folds[key] = !!open; }
     function _caDetailHtml(r) {
-        if (!r) return `<div class="ca-detail-empty">Choose a client to see their details.</div>`;
         const ed = _caState.edit && _caState.edit.slug === r.slug ? _caState.edit : null;
         const input = (k, label) => {
             const v = k in ed.draft ? ed.draft[k] : (r[k] == null ? '' : String(r[k]));
@@ -510,69 +803,82 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 ? `<textarea class="ca-input${flag}" rows="3" ${attrs}>${_calEsc(v)}</textarea>`
                 : `<input class="ca-input${flag}" type="text" autocomplete="off" spellcheck="false" value="${_calEscAttr(v)}" ${attrs}>`;
         };
-        const fieldsHtml = g => `<dl>${g.fields.map(([k, label]) => ed
+        const field = ([k, label]) => ed
             ? `<div class="ca-field${CA_LONG_FIELDS.includes(k) ? ' is-wide' : ''}"><dt><label for="caIn_${k}">${_calEsc(label)}</label></dt><dd>${input(k, label)}</dd></div>`
-            : `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>`;
-        const groups = CA_GROUPS.map(g => `<section class="ca-group">
-                <h4>${_calEsc(g.title)}</h4>
-                ${fieldsHtml(g)}
-            </section>`).join('');
-        const research = `<details class="ca-group ca-fold"${ed ? ' open' : ''}><summary><h4>${_calEsc(CA_RESEARCH.title)}</h4></summary>${fieldsHtml(CA_RESEARCH)}</details>`;
+            : `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValueHtml(k, r[k])}</dd></div>`;
+        const cards = CA_GROUPS.map(g => `<section class="ca-card ca-group is-${g.tone}" data-ca-group="${g.key}"><h4>${_calEsc(g.title)}</h4><dl>${g.fields.map(field).join('')}</dl></section>`).join('');
+        // One row of the most-used jumps, under the name.
+        const reach = [['email', 'Email', CA_ICONS.mail], ['slack_channel_id', 'Slack', CA_ICONS.slack], ['creative_channel_id', 'Creative', CA_ICONS.brush],
+            ['instagram_handle', 'Instagram', CA_ICONS.ig], ['tiktok_handle', 'TikTok', CA_ICONS.tt], ['youtube_channel_id', 'YouTube', CA_ICONS.yt]]
+            .map(([k, label, icon]) => { const l = _caLinkFor(k, r[k]); return l ? `<a class="ca-reach-btn" href="${_calEscAttr(l.href)}" target="_blank" rel="noopener" data-ca-reach="${k}">${icon}<span>${label}</span></a>` : ''; }).join('');
+        const m = _caManager(r.slug);
+        const canEdit = !r.archived_at && _syncviewStaffCan('clients-admin');
+        const mgrLabel = _caState.managers ? (m ? _calEsc(m.name) : 'Nobody yet') : _caState.managersError ? 'Not available' : 'Loading…';
+        const mgrBtn = `<div class="ca-mgr-wrap"><button type="button" class="ca-mgr" id="caMgrBtn" aria-haspopup="menu" aria-expanded="${_caState.picker}" onclick="_caMgrToggle()" ${!_caState.managers || !canEdit || ed || _caState.pickerBusy ? 'disabled' : ''}>
+                ${m ? _caAvatar(m.name, 'is-sm') : ''}<span class="ca-mgr-lbl">Managed by</span><span class="ca-mgr-cur">${_caState.pickerBusy ? 'Saving…' : mgrLabel}</span>${_caState.managers && canEdit && !ed ? CA_ICONS.chev : ''}
+            </button>${_caMgrPickerHtml(r)}</div>`;
+        const research = `<details class="ca-fold ca-group" data-ca-fold="research"${ed || _caState.folds.research ? ' open' : ''} ontoggle="_caFold('research', this.open)"><summary><h4>${_calEsc(CA_RESEARCH.title)}</h4><span class="ca-fold-tag">Rarely needed</span></summary><dl>${CA_RESEARCH.fields.map(field).join('')}</dl></details>`;
         const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([, v]) => String(v == null ? '' : v).trim()) : [];
-        const extraHtml = extra.length ? `<section class="ca-group"><h4>Other sheet columns</h4><dl>${extra.map(([k, v]) => `<div class="ca-field"><dt>${_calEsc(k)}</dt><dd>${_caValue(v)}</dd></div>`).join('')}</dl></section>` : '';
-        const source = r.source === 'syncview' ? 'Edited in SyncView' : 'From the Clients Info sheet';
-        return `<button type="button" class="ca-back" onclick="_caSelect('')">‹ All clients</button>
-            <header class="ca-detail-head">
-                <span class="ca-avatar" aria-hidden="true">${_calEsc(_caInitials(r.display_name))}</span>
-                <div>
-                    <h3>${_calEsc(r.display_name || r.slug)}</h3>
-                    <div class="ca-meta">${r.archived_at ? `<span class="ca-pill is-archived">Archived ${_calEsc(_caWhen(r.archived_at))}</span>` : ''}<span class="ca-pill">${_calEsc(source)}</span></div>
+        const extraHtml = extra.length && !ed ? `<details class="ca-fold ca-group" data-ca-fold="extra"${_caState.folds.extra ? ' open' : ''} ontoggle="_caFold('extra', this.open)"><summary><h4>Other sheet columns</h4></summary><dl>${extra.map(([k, v]) => `<div class="ca-field"><dt>${_calEsc(k)}</dt><dd>${_calEsc(String(v))}</dd></div>`).join('')}</dl></details>` : '';
+        const onboarding = `<details class="ca-fold ca-group ca-onb" data-ca-fold="onboarding"${_caState.folds.onboarding ? ' open' : ''} ontoggle="_caFold('onboarding', this.open)"><summary><h4>Onboarding</h4><span class="ca-admin-pill">Admin</span><span class="ca-fold-tag" id="caOnbSummary"></span></summary><div class="cb-mount" id="caOnboarding"></div></details>`;
+        return `<header class="ca-hero ca-detail-head" style="--ca-h:${_svClientHue(_caName(r))}">
+                <div class="ca-hero-top">
+                    ${_caAvatar(_caName(r), 'is-lg')}
+                    <div class="ca-hero-id">
+                        <h3>${_calEsc(_caName(r))}</h3>
+                        <div class="ca-meta"><span class="ca-slug">${_calEsc(r.slug)}</span>${r.archived_at ? `<span class="ca-pill is-archived">Archived ${_calEsc(_caWhen(r.archived_at))}</span>` : ''}</div>
+                        ${mgrBtn}
+                    </div>
+                    ${!ed && canEdit ? `<button type="button" class="cc-btn ca-edit-btn" onclick="_caEditStart('${_calEscAttr(r.slug)}')">${CA_ICONS.pen}Edit</button>` : ''}
                 </div>
-                ${!ed && !r.archived_at && _syncviewStaffCan('clients-admin') ? `<button type="button" class="cc-btn ca-edit-btn" onclick="_caEditStart('${_calEscAttr(r.slug)}')">Edit</button>` : ''}
+                ${!ed && reach ? `<div class="ca-reach">${reach}</div>` : ''}
             </header>
             ${ed && ed.message ? `<div class="ca-msg${ed.messageKind ? ' is-' + ed.messageKind : ''}" role="${ed.messageKind === 'error' ? 'alert' : 'status'}">${ed.message}</div>` : ''}
-            ${groups}${ed ? '' : extraHtml}${research}
-            <div class="cb-mount" id="caOnboarding"></div>
+            <div class="ca-cards">${cards}</div>
+            <div class="cb-mount ca-hs" id="caHubspot"></div>
+            <div class="ca-lower">${research}${extraHtml}${onboarding}</div>
             ${ed ? `<div class="ca-editbar">
-                <span class="ca-editnote">Saves to the Clients Info sheet first, then SyncView.</span>
+                <span class="ca-editnote">${_caNative() ? 'Saves only if nobody changed this client since you opened it. Every change is kept in the history.' : 'Saves to the Clients Info sheet first, then SyncView.'}</span>
                 <button type="button" class="cc-btn" onclick="_caEditCancel()" ${ed.saving ? 'disabled' : ''}>Cancel</button>
-                <button type="button" class="cc-btn primary ca-save" onclick="_caEditSave()" ${ed.saving ? 'disabled' : ''}>${ed.saving ? 'Saving…' : 'Save'}</button>
+                <button type="button" class="cc-btn primary ca-save" onclick="_caEditSave()" ${ed.saving ? 'disabled' : ''}>${ed.saving ? 'Saving…' : 'Save changes'}</button>
             </div>` : ''}
-            <footer class="ca-prov">Last updated ${_calEsc(_caWhen(r.updated_at) || 'unknown')} by ${_calEsc(r.updated_by || 'unknown')}${r.sheet_synced_at ? ` · copied from the sheet ${_calEsc(_caWhen(r.sheet_synced_at))}` : ''}</footer>`;
+            <footer class="ca-prov">Last saved ${_calEsc(_caWhen(r.updated_at) || 'unknown')} by ${_calEsc(r.updated_by || 'unknown')} · <button type="button" class="ca-link" id="caHistBtn" aria-expanded="${_caState.historyOpen}" onclick="_caToggleHistory()">${_caState.historyOpen ? 'Hide history' : 'See history'}</button>${_caHistoryHtml()}</footer>`;
+    }
+
+    function _caLandingHtml() {
+        const recent = _caRecentMap();
+        const opened = (_caState.rows || []).filter(r => !r.archived_at && recent[r.slug]).sort((a, b) => recent[b.slug] - recent[a.slug]).slice(0, 6);
+        const active = (_caState.rows || []).filter(r => !r.archived_at).length;
+        return `<div class="ca-land">
+                <p class="ca-land-lead">${active} client${active === 1 ? '' : 's'}. Search above, or open All clients.</p>
+                ${opened.length ? `<div class="ca-land-label">Recently opened</div><div class="ca-recent">${opened.map(r => `<button type="button" class="ca-chip" data-ca-slug="${_calEscAttr(r.slug)}" onclick="_caSelect('${_calEscAttr(r.slug)}')">${_caAvatar(_caName(r), 'is-sm')}${_calEsc(_caName(r))}</button>`).join('')}</div>` : ''}
+            </div>`;
     }
 
     function _caPaint() {
+        _caBindOutside();
         const body = document.getElementById('caBody');
         if (!body) return;
         if (_caState.loading && !_caState.loaded) { body.innerHTML = `<div class="ca-status">Loading clients…</div>`; return; }
         if (_caState.error && !_caState.loaded) { body.innerHTML = `<div class="ca-status is-error">${_calEsc(_caState.error)} <button class="cc-btn" type="button" onclick="_caLoad(false)">Try again</button></div>`; return; }
-        const rows = _caFiltered();
-        const all = _caState.rows || [];
-        const archivedCount = all.filter(r => r.archived_at).length;
-        const selected = all.find(r => r.slug === _caState.selected) || null;
-        const list = rows.length ? rows.map(r => `<li><button type="button" class="ca-row${selected && selected.slug === r.slug ? ' is-active' : ''}${r.archived_at ? ' is-archived' : ''}" onclick="_caSelect('${_calEscAttr(r.slug)}')">
-                <span class="ca-avatar" aria-hidden="true">${_calEsc(_caInitials(r.display_name))}</span>
-                <span class="ca-row-text"><span class="ca-row-name">${_calEsc(r.display_name || r.slug)}</span><span class="ca-row-sub">${_calEsc([r.instagram_handle, r.email].filter(Boolean).join(' · ') || 'No handle or email yet')}</span></span>
-                ${r.source === 'syncview' ? '<span class="ca-dot" title="Edited in SyncView"></span>' : ''}
-            </button></li>`).join('') : `<li class="ca-none">No clients match “${_calEsc(_caState.search)}”.</li>`;
-        const authority = _caState.authority && _caState.authority.source === 'syncview' ? 'SyncView is the main copy.' : 'The sheet is the main copy.';
-        const staleNote = _caState.error ? `<div class="ca-stale" role="alert">Refresh failed: ${_calEsc(_caState.error)} Showing the last list loaded. <button class="cc-btn" type="button" onclick="_caLoad(false)">Try again</button></div>` : '';
-        body.innerHTML = staleNote + `<div class="ca-split${selected ? ' has-selection' : ''}">
-                <div class="ca-list-pane">
-                    <div class="ca-list-head"><span>${rows.length} of ${all.length - (_caState.showArchived ? 0 : archivedCount)} clients</span>${archivedCount ? `<button type="button" class="ca-link" onclick="_caToggleArchived()">${_caState.showArchived ? 'Hide' : 'Show'} ${archivedCount} archived</button>` : ''}</div>
-                    <ul class="ca-list">${list}</ul>
-                    <div class="ca-authority">${_calEsc(authority)}</div>
-                </div>
-                <div class="ca-detail" id="caDetail">${_caDetailHtml(selected)}</div>
-            </div>`;
+        const selected = (_caState.rows || []).find(r => r.slug === _caState.selected) || null;
+        const staleNote = _caState.error ? `<div class="ca-stale" role="alert">Loading failed: ${_calEsc(_caState.error)} Showing the last list loaded. <button class="cc-btn" type="button" onclick="_caLoad(false)">Try again</button></div>` : '';
+        // Keep the typed text and focus if a repaint lands while someone is editing.
+        const activeEl = document.activeElement;
+        const focusId = activeEl && body.contains(activeEl) && activeEl.id ? activeEl.id : '';
+        body.innerHTML = staleNote + (selected ? `<div class="ca-detail" id="caDetail">${_caDetailHtml(selected)}</div>` : _caLandingHtml());
+        if (focusId) { const el = document.getElementById(focusId); if (el) { try { el.focus({ preventScroll: true }); } catch (e) {} } }
         _cbSync(selected);
+        _caPaintSearch();
+        _caPaintList();
     }
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _caEditCancel, _caEditInput, _caEditRefresh, _caEditSave, _caEditStart, _caLoad, _caSelect,
-        _caSetSearch, _caToggleArchived, _kasperMarkRepliesRead, _kasperRepliesDraftInput,
-        _kasperRepliesReply, _kasperRepliesToggleAll
+        _caCloseList, _caCopy, _caEditCancel, _caEditInput, _caEditRefresh, _caEditSave, _caEditStart,
+        _caFold, _caLoad, _caMgrClose, _caMgrPick, _caMgrToggle, _caSearchFocus, _caSearchKey, _caSelect,
+        _caSetSearch, _caToggleArchived, _caToggleHistory, _caToggleList, _kasperMarkRepliesRead,
+        _kasperRepliesDraftInput, _kasperRepliesReply, _kasperRepliesToggleAll
     });
 export {
   _caPurgeSensitiveState, _caRender, _kasperEnsureAllTabCounts, _kasperMarkRepliesRead,

@@ -319,7 +319,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             const debounceMs = Number(d.debounceMs || 300);
             const retryMs = Number(d.retryMs || 2000);
             const reconnectBaseMs = Number(d.reconnectBaseMs || 1000);
-            const reconnectMaxMs = Number(d.reconnectMaxMs || 30000);
+            // Capped at 5 s, not 30 (2026-10-07 re-test, finding D).
+            const reconnectMaxMs = Number(d.reconnectMaxMs || 5000);
             const st = {
                 status: 'idle', subscribedOnce: false, events: 0, echoes: 0,
                 refreshes: 0, retries: 0, catchups: 0, lastEventAt: 0,

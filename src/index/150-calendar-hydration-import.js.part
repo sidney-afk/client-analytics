@@ -1096,13 +1096,25 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     function _calSetLastLocalWriteAt(value) { _calLastLocalWriteAt = value; }
     let _calV2RtLastReloadAt = 0;      // when realtime last triggered a reload — the floor a foreign burst re-arms against
     const CAL_RT_SELF_ECHO_MS = 4000;  // a realtime event within this window of a local save is treated as our own echo and deferred
-    let _calV2RtRecent = [];           // arrival times of recent FOREIGN events — decides normal floor vs storm floor
+    let _calV2RtRecent = [];           // recent FOREIGN events as { at, key } — decides normal floor vs storm floor
     /* Which floor applies right now: the short one for a person's edits, the
        old 8 s one only while a storm of foreign row writes is landing
-       (CAL_V2_RT_STORM_EVENTS inside CAL_V2_RT_STORM_WINDOW_MS). */
+       (CAL_V2_RT_STORM_EVENTS inside CAL_V2_RT_STORM_WINDOW_MS).
+       A STORM IS MANY CARDS, NOT MANY WRITES (2026-10-07 re-test, finding A).
+       One status change on a card with video or thumbnail work makes two or
+       three writes to the SAME card, so a person stepping one card through
+       three statuses reached the limit and got the 8 s floor. Events are now
+       counted once per card in the window; an event that names no card (a
+       fallback pull or a catch-up) still counts on its own. */
+    let _calV2RtAnonSerial = 0;
     function _calV2RtFloorMs(now) {
-        while (_calV2RtRecent.length && now - _calV2RtRecent[0] > CAL_V2_RT_STORM_WINDOW_MS) _calV2RtRecent.shift();
-        return _calV2RtRecent.length >= CAL_V2_RT_STORM_EVENTS ? CAL_V2_RT_STORM_RELOAD_MS : CAL_V2_RT_MIN_RELOAD_MS;
+        while (_calV2RtRecent.length && now - _calV2RtRecent[0].at > CAL_V2_RT_STORM_WINDOW_MS) _calV2RtRecent.shift();
+        const cards = new Set(_calV2RtRecent.map(e => e.key)).size;
+        return cards >= CAL_V2_RT_STORM_EVENTS ? CAL_V2_RT_STORM_RELOAD_MS : CAL_V2_RT_MIN_RELOAD_MS;
+    }
+    function _calV2RtEventKey(payload) {
+        const row = payload && ((payload.new && payload.new.id != null) ? payload.new : payload.old);
+        return row && row.id != null ? 'card:' + row.id : 'anon:' + (++_calV2RtAnonSerial);
     }
     /* RE-SUBSCRIBE AFTER A DROP (2026-10-06 findings, item 5). After a network
        cut the channel reported CHANNEL_ERROR and stayed there; only the 30 s
@@ -1112,9 +1124,12 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
        30 s), and at once when the browser reports it is back online. The
        replacement's SUBSCRIBED runs the usual one catch-up reload, because
        realtime does not replay what it missed. The fallback pull keeps running
-       underneath until the new channel reports SUBSCRIBED. */
+       underneath until the new channel reports SUBSCRIBED.
+       The cap is 5 s, not 30 (2026-10-07 re-test, finding D): with the longer
+       waits a 30 s cut came back about 9 s after the network did whenever the
+       browser's online signal was missed. */
     const CAL_V2_RT_RETRY_BASE_MS = 1000;
-    const CAL_V2_RT_RETRY_MAX_MS = 30000;
+    const CAL_V2_RT_RETRY_MAX_MS = 5000;
     let _calV2RetryTimer = null;
     let _calV2RetryAttempt = 0;
     let _calV2RetrySerial = 0;
@@ -1189,7 +1204,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     function _calV2OpenChannel(client, slug, lease, topic) {
         const channel = client
             .channel(topic)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug, lease));
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, payload => _calV2OnRealtimeChange(slug, lease, payload));
         _calV2Channel = channel;
         _calV2SetRtState('connecting');
         channel.subscribe((status) => {
@@ -1260,14 +1275,14 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         }
     }
     try { window.addEventListener('online', _calV2OnBrowserOnline); } catch (e) {}
-    function _calV2OnRealtimeChange(slug, lease) {
+    function _calV2OnRealtimeChange(slug, lease, payload) {
         if (!_calV2LeaseCurrent(lease)) return;
         _calV2Log('realtime event received for slug:', slug, '| currently viewing:', calClientSlug(calState.client));
         if (calClientSlug(calState.client) !== slug) return;
         // Only foreign events count towards a storm; the echo of our own
         // save is coalesced by the self-echo window below.
         const arrivedAt = Date.now();
-        if (arrivedAt - _calLastLocalWriteAt >= CAL_RT_SELF_ECHO_MS) _calV2RtRecent.push(arrivedAt);
+        if (arrivedAt - _calLastLocalWriteAt >= CAL_RT_SELF_ECHO_MS) _calV2RtRecent.push({ at: arrivedAt, key: _calV2RtEventKey(payload) });
         if (_calV2RtTimer) clearTimeout(_calV2RtTimer);
         _calV2RtTimer = setTimeout(function tick() {
             _calV2RtTimer = null;

@@ -14,7 +14,7 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'index', '098-smm-
 const body = src.split('\n').filter(l => !/^import /.test(l)).join('\n').split('\nexport {')[0];
 const sandbox = { clientMap: {} };
 vm.createContext(sandbox);
-vm.runInContext(body + '\nthis.api = { svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients, svUnownedCurrentClients };', sandbox);
+vm.runInContext(body + '\nthis.api = { svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients, svUnownedCurrentClients, svAlsoSeesNames };', sandbox);
 const api = sandbox.api;
 
 let failed = 0;
@@ -61,6 +61,35 @@ ok(api.svScopeMode(true, true) === 'mine', 'an admin on the roster sees their ow
 ok(api.svScopeMode(true, false) === 'all', 'an admin not on the roster sees all clients');
 ok(api.svScopeMode(false, true) === 'mine', 'an SMM sees their own clients');
 ok(api.svScopeMode(false, false) === 'mine', 'a non-admin not on the roster still never sees all');
+
+// ALSO SEES (rule 6): extra clients for one staff member, never a roster change.
+const cur3 = api.svCurrentClients(['Ann Fixture', 'Bob Fixture', 'Cat Fixture', 'Dan Fixture', 'Eve Fixture']);
+const roster6 = [
+  { slug: 'mgr-a', name: 'Manager A', active: true, source_clients: ['Ann Fixture', 'Bob Fixture'] },
+  { slug: 'mgr-b', name: 'Manager B', active: true, source_clients: ['Cat Fixture', 'Former Fixture'] },
+  { slug: 'mgr-gone', name: 'Manager Gone', active: false, source_clients: ['Dan Fixture'] },
+];
+const grants = [
+  { viewer_member_id: 'viewer-1', manager_slug: 'mgr-a', client_name: null },
+  { viewer_member_id: 'viewer-1', manager_slug: 'mgr-b', client_name: null },
+  { viewer_member_id: 'viewer-1', manager_slug: null, client_name: 'eve  fixture' },
+  { viewer_member_id: 'viewer-1', manager_slug: 'mgr-gone', client_name: null },
+  { viewer_member_id: 'viewer-2', manager_slug: null, client_name: 'Dan Fixture' },
+];
+const v1 = api.svAlsoSeesNames(grants, roster6, 'viewer-1');
+ok(api.svSmmCurrentClients(null, cur3, v1).join() === 'Ann Fixture,Bob Fixture,Cat Fixture,Eve Fixture',
+  'a staff member with no roster entry sees every current client of the managers granted, plus a granted client');
+ok(!api.svSmmCurrentClients(null, cur3, v1).includes('Dan Fixture'), 'an inactive manager grants nothing, and another viewer\'s grant does not count');
+ok(!api.svSmmCurrentClients(null, cur3, v1).includes('Former Fixture'), 'a granted manager\'s former client (not in Clients Info) is not shown');
+ok(api.svSmmCurrentClients(null, cur3, api.svAlsoSeesNames(grants, roster6, '')).length === 0, 'no member id: no grants');
+ok(api.svSmmCurrentClients({ source_clients: ['Dan Fixture'] }, cur3, api.svAlsoSeesNames(grants, roster6, 'viewer-2')).join() === 'Dan Fixture',
+  'grants add to a roster entry; duplicates are shown once');
+ok(api.svSmmCurrentClients({ source_clients: ['Ann Fixture'] }, cur3).join() === 'Ann Fixture', 'without grants the rule is unchanged');
+// It follows the roster: move a client onto a granted manager and it appears.
+roster6[0].source_clients.push('Dan Fixture');
+ok(api.svSmmCurrentClients(null, cur3, api.svAlsoSeesNames(grants, roster6, 'viewer-1')).includes('Dan Fixture'),
+  'a client moved onto a granted manager appears with no change to the grants');
+ok(JSON.stringify(roster6[1].source_clients) === JSON.stringify(['Cat Fixture', 'Former Fixture']), 'the roster itself is never changed');
 
 if (failed) { console.log(`smm-client-match: ${failed} failed`); process.exit(1); }
 console.log('smm-client-match: all checks passed');

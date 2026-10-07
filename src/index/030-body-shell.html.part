@@ -353,6 +353,42 @@
                 <div class="tdy-ls"><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:62%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:48%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:54%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div></div>
             </div></div>
         </div>
+        <script>
+        /* TODAY, PAINTED FROM THE FIRST BYTES (owner, 2026-10-07: Today should
+           feel instant on a reload). When the page opens on Today, paint the
+           last Today this same person saw in this browser today (saved by
+           097-today, _tdyPaintWrite), marked "Updating", instead of the grey
+           shape above. The app replaces it in place once its own read lands.
+           Shown only when the saved page belongs to the stored staff member
+           (same member id and role) and was written today; nothing new is
+           revealed, since the copy already sits in this browser's storage.
+           If the staff check (the early key-verify) does not pass, the grey
+           shape comes back and the saved page is deleted. */
+        (function () {
+            try {
+                if (document.documentElement.getAttribute('data-boot-nav') !== 'today') return;
+                var host = document.currentScript && document.currentScript.previousElementSibling;
+                if (!host || !host.classList.contains('boot-skeleton-today')) return;
+                var id = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+                var s = JSON.parse(localStorage.getItem('syncview_today_paint_v1') || 'null');
+                if (!id || !id.key || !id.member || !id.member.id || !s || typeof s.html !== 'string') return;
+                var d = new Date();
+                var day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                var who = String(id.member.id) + '|' + String(id.role || id.member.role || '').toLowerCase();
+                if (s.who !== who || s.day !== day || !(Date.now() - Number(s.at || 0) < 864e5)) return;
+                var kv = window.__svEarlyKeyVerify;
+                if (!kv || !kv.response || kv.memberId !== String(id.member.id) || kv.key !== String(id.key)) return;
+                var keep = host.innerHTML;
+                host.innerHTML = '<div class="tdy" data-tdy-early="1">' + s.html.replace('</h1>', '</h1><span class="tdy-upd" role="status">Updating</span>') + '</div>';
+                var undo = function () {
+                    host.innerHTML = keep;
+                    try { localStorage.removeItem('syncview_today_paint_v1'); } catch (e) {}
+                };
+                kv.response.then(function (r) { return r.ok ? r.clone().json() : null; })
+                    .then(function (j) { if (!(j && j.ok === true)) undo(); }, undo);
+            } catch (e) {}
+        })();
+        </script>
         <div class="boot-skeleton-variant boot-skeleton-workload">
             <div class="boot-page-skeleton" role="status" aria-label="Loading">
                 <div class="boot-shell-head">

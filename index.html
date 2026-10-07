@@ -9469,6 +9469,7 @@
             /* ---- Today ---- */
             body:has(.pocket-staff-bar) .tdy { max-width: none; margin: 0; padding: 0 0 24px; }
             body:has(.pocket-staff-bar) .tdy-top { flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+            body:has(.pocket-staff-bar) .tdy-upd { margin: -6px 0 0; }
             body:has(.pocket-staff-bar) .tdy-date { font-size: 16px; font-weight: 600; color: var(--text-secondary); }
             body:has(.pocket-staff-bar) .tdy-vw { display: flex; padding: 4px; border-radius: 14px; background: var(--surface-subtle); }
             body:has(.pocket-staff-bar) .tdy-vw button { flex: 1; min-height: 44px; border-radius: 10px; font-size: 13px; padding: 0 12px; }
@@ -9746,6 +9747,11 @@
         /* STAFF-PHONE:END */
         /* TODAY: what is waiting on you (097-today). Reads only; no checkboxes. */
         .tdy { max-width: 880px; margin: 0 auto; padding: 36px 24px 80px; font-family: 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); }
+        /* Today's saved copy is on screen; the fresh read replaces it in place. */
+        .tdy-upd { display: inline-flex; align-items: center; gap: 6px; margin: 0 auto 0 12px; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-upd::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: tdy-upd-pulse 1.2s ease-in-out infinite; }
+        @keyframes tdy-upd-pulse { 50% { opacity: 0.25; } }
+        @media (prefers-reduced-motion: reduce) { .tdy-upd::before { animation: none; } }
         .tdy-note { color: var(--text-secondary); font-size: 0.85rem; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px 16px; margin: 0 0 18px; }
         .tdy-skel .tdy-mrow { margin-top: 8px; }
         .tdy-skel .tdy-rg { cursor: default; }
@@ -11903,6 +11909,42 @@
                 <div class="tdy-ls"><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:62%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:48%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:54%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div></div>
             </div></div>
         </div>
+        <script>
+        /* TODAY, PAINTED FROM THE FIRST BYTES (owner, 2026-10-07: Today should
+           feel instant on a reload). When the page opens on Today, paint the
+           last Today this same person saw in this browser today (saved by
+           097-today, _tdyPaintWrite), marked "Updating", instead of the grey
+           shape above. The app replaces it in place once its own read lands.
+           Shown only when the saved page belongs to the stored staff member
+           (same member id and role) and was written today; nothing new is
+           revealed, since the copy already sits in this browser's storage.
+           If the staff check (the early key-verify) does not pass, the grey
+           shape comes back and the saved page is deleted. */
+        (function () {
+            try {
+                if (document.documentElement.getAttribute('data-boot-nav') !== 'today') return;
+                var host = document.currentScript && document.currentScript.previousElementSibling;
+                if (!host || !host.classList.contains('boot-skeleton-today')) return;
+                var id = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+                var s = JSON.parse(localStorage.getItem('syncview_today_paint_v1') || 'null');
+                if (!id || !id.key || !id.member || !id.member.id || !s || typeof s.html !== 'string') return;
+                var d = new Date();
+                var day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                var who = String(id.member.id) + '|' + String(id.role || id.member.role || '').toLowerCase();
+                if (s.who !== who || s.day !== day || !(Date.now() - Number(s.at || 0) < 864e5)) return;
+                var kv = window.__svEarlyKeyVerify;
+                if (!kv || !kv.response || kv.memberId !== String(id.member.id) || kv.key !== String(id.key)) return;
+                var keep = host.innerHTML;
+                host.innerHTML = '<div class="tdy" data-tdy-early="1">' + s.html.replace('</h1>', '</h1><span class="tdy-upd" role="status">Updating</span>') + '</div>';
+                var undo = function () {
+                    host.innerHTML = keep;
+                    try { localStorage.removeItem('syncview_today_paint_v1'); } catch (e) {}
+                };
+                kv.response.then(function (r) { return r.ok ? r.clone().json() : null; })
+                    .then(function (j) { if (!(j && j.ok === true)) undo(); }, undo);
+            } catch (e) {}
+        })();
+        </script>
         <div class="boot-skeleton-variant boot-skeleton-workload">
             <div class="boot-page-skeleton" role="status" aria-label="Loading">
                 <div class="boot-shell-head">
@@ -12066,8 +12108,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-2b943566ceee.js";
-        var PARTS = ["js/sv-01-core-09cfc86be234.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e6d180213730.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-263b1a3c6743.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2e77fa95aa36.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-bce9dc568019.js";
+        var PARTS = ["js/sv-01-core-09cfc86be234.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-47fbb10c0b4f.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-263b1a3c6743.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-382e40c04792.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-922f4985e782.js","kasper":"js/sv-16-kasper-baedbf6dc851.js"};
         var FORCE = null;
         var CLIENTS = true;

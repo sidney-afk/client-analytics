@@ -2501,6 +2501,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         try { localStorage.removeItem('syncview_contentSummaryState_v1'); } catch (e) {}
         try { localStorage.removeItem('syncview_generalBriefState_v5'); } catch (e) {}
         try { localStorage.removeItem('syncview_today_cache_v1'); } catch (e) {}
+        try { localStorage.removeItem('syncview_today_paint_v1'); } catch (e) {}
         if (!slug) return;
         try { localStorage.removeItem(CAL_CACHE_KEY_PREFIX + slug); } catch (e) {}
         try { localStorage.removeItem(SXR_CACHE_PREFIX + slug); } catch (e) {}

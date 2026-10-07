@@ -14,8 +14,16 @@
  * SYNCVIEW_ACTOR), read only: Today never writes. Nothing secret is printed and
  * request query values are stripped, so the report carries table names only.
  *
- * scenario=cold    no saved copy (a first visit)
- * scenario=stale   a saved copy written late yesterday, the morning case
+ * scenario=cold         no saved copy (a first visit)
+ * scenario=stale        a saved copy written late yesterday, the morning case
+ * scenario=warm         a saved copy from earlier today (a reload)
+ * scenario=switch-cold  land on Calendar with no saved copy, then click Today
+ * scenario=switch-warm  land on Calendar with today's saved copy, then click Today
+ * scenario=switch-back  open Today, go to Calendar, come back to Today
+ *
+ * For the switch scenarios the marks are counted from the click, not from
+ * navigation start; the pointer rests on the Today tab for 150 ms first, the
+ * way a hand reaches for it.
  *
  * Marks (ms from navigation start, same clock as the request times):
  *   skeleton   grey loading shape painted
@@ -76,20 +84,29 @@ async function staffIdentity() {
 
 // Page-side recorder, runs before any app script.
 function recorder(cacheKey) {
-  const m = window.__tm = { skeleton: null, saved: null, fresh: null, savedIsOld: null };
-  const now = () => performance.now();
+  window.__tm = { skeleton: null, saved: null, fresh: null, savedIsOld: null, t0: 0 };
+  const now = () => performance.now() - (window.__tm.t0 || 0);
   try {
     const orig = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, v) {
-      if (k === cacheKey && m.fresh == null) m.fresh = now();
+      const m = window.__tm;
+      if (k === cacheKey && m.fresh == null && (!m.t0 || m.armed)) m.fresh = now();
       return orig.call(this, k, v);
     };
   } catch (e) {}
   const scan = () => {
-    const root = document.getElementById('tdyRoot');
+    const m = window.__tm;
+    if (m.t0 && !m.armed) return;
+    // The app's root, or the boot shell's saved paint (data-tdy-early).
+    const root = document.getElementById('tdyRoot') || document.querySelector('[data-tdy-early]');
     if (!root) return;
     if (m.skeleton == null && root.querySelector('.tdy-skel')) m.skeleton = now();
     const has = root.querySelector('.tdy-big, .tdy-win, .tdy-deck, .tdy-rings');
+    // Pages that mark a saved copy "Updating" (.tdy-upd): a list without the
+    // mark, in the app's own root, is the fresh answer (it may be painted from
+    // a read that finished before the click, so no save follows it).
+    if (window.__tdyMarks == null && document.readyState !== 'loading') window.__tdyMarks = [...document.querySelectorAll('style')].some(x => x.textContent.indexOf('.tdy-upd') >= 0);
+    if (has && root.id === 'tdyRoot' && m.fresh == null && !root.querySelector('.tdy-upd') && window.__tdyMarks) m.fresh = now();
     if (has && !root.querySelector('.tdy-skel')) {
       if (m.fresh == null && m.saved == null) {
         m.saved = now();
@@ -151,7 +168,9 @@ async function courier(ctx, net) {
 async function run(browser, base, profile, scenario, identity, seededCache) {
   const def = PROFILE_DEF[profile];
   const ctx = await browser.newContext(def.ctx);
-  const cache = scenario === 'stale' && seededCache ? seededCache : null;
+  const seedFor = { stale: seededCache && seededCache.stale, warm: seededCache && seededCache.warm, 'switch-warm': seededCache && seededCache.warm };
+  const cache = seedFor[scenario] || null;
+  const isSwitch = /^switch-/.test(scenario);
   await ctx.addInitScript(([id, ck, seed]) => {
     try {
       localStorage.setItem('syncview_staff_identity_v1', JSON.stringify(id));
@@ -164,13 +183,35 @@ async function run(browser, base, profile, scenario, identity, seededCache) {
   const cdp = await ctx.newCDPSession(page);
   if (def.cpu > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: def.cpu });
   await courier(ctx, def.net);
-  await page.goto(base + '/#today', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const click = async (id) => {
+    await page.hover('#' + id, { timeout: 1000 }).catch(() => page.evaluate(id => document.getElementById(id).dispatchEvent(new PointerEvent('pointerover', { bubbles: true })), id));
+    await page.waitForTimeout(150);
+    await page.evaluate(id => {
+      if (id === 'navToday') { window.__tm = { skeleton: null, saved: null, fresh: null, savedIsOld: null, t0: performance.now(), armed: true }; }
+      document.getElementById(id).click();
+    }, id);
+  };
+  if (!isSwitch) {
+    await page.goto(base + '/#today', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  } else {
+    await page.goto(base + (scenario === 'switch-back' ? '/#today' : '/#calendar'), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    if (scenario === 'switch-back') {
+      await page.waitForFunction(() => window.__tm && window.__tm.fresh != null, null, { timeout: 60000 }).catch(() => {});
+      await page.waitForSelector('#navCalendar', { state: 'attached', timeout: 30000 });
+      await page.evaluate(() => { window.__tm.t0 = 1; window.__tm.armed = false; document.getElementById('navCalendar').click(); });
+    }
+    await page.waitForSelector('#navToday', { state: 'attached', timeout: 60000 });
+    await page.waitForTimeout(5000);   // the other tab settles, as a person reads it
+    await click('navToday');
+  }
   await page.waitForFunction(() => window.__tm && window.__tm.fresh != null, null, { timeout: 60000 }).catch(() => {});
   await page.waitForTimeout(400);
   const out = await page.evaluate(() => {
     const reqs = performance.getEntriesByType('resource')
       .filter(e => /supabase\.co/.test(e.name))
       .map(e => ({ url: e.name, start: e.startTime, end: e.responseEnd }));
+    const nav = performance.getEntriesByType('navigation')[0];
+    window.__tm.html = nav ? nav.responseEnd : null;   // the page's own bytes have arrived
     return { marks: window.__tm, reqs, dcl: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart, cache: localStorage.getItem('syncview_today_cache_v1') };
   });
   const rows = out.reqs.map(r => ({ what: label(r.url), start: Math.round(r.start), ms: Math.round(r.end - r.start), end: Math.round(r.end) }))
@@ -192,7 +233,12 @@ const med = a => { const s = a.filter(x => x != null).sort((x, y) => x - y); ret
   try {
     const c = JSON.parse(seedRun.cache);
     const y = new Date(); y.setHours(0, 0, 0, 0);
-    seed = { who: c.who, at: y.getTime() - 60 * 60 * 1000, data: c.data };   // 23:00 yesterday, inside the old 24 h limit
+    const yd = new Date(y.getTime() - 60 * 60 * 1000);
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    seed = {
+      stale: { ...c, at: yd.getTime(), day: iso(yd) },   // 23:00 yesterday, inside the old 24 h limit
+      warm: { ...c, at: Date.now() - 10 * 60 * 1000 }    // ten minutes ago, today
+    };
   } catch (e) { console.error('could not capture a saved copy'); }
   const results = [];
   for (const profile of PROFILES) for (const scenario of SCENARIOS) {
@@ -205,7 +251,10 @@ const med = a => { const s = a.filter(x => x != null).sort((x, y) => x - y); ret
   for (const r of results) {
     const m = k => med(r.runs.map(x => x.marks[k]));
     console.log(`\n== ${r.target} | ${r.profile} | ${r.scenario} | median of ${RUNS} ==`);
-    console.log(`skeleton ${Math.round(m('skeleton') ?? -1)} ms | saved items painted ${m('saved') == null ? 'never' : Math.round(m('saved')) + ' ms'} | fresh on screen ${Math.round(m('fresh') ?? -1)} ms | saved copy was from an earlier day in ${r.runs.filter(x => x.marks.savedIsOld).length}/${RUNS} runs`);
+    const vis = r.runs.map(x => [x.marks.saved, x.marks.fresh].filter(v => v != null).sort((a, b) => a - b)[0]);
+    console.log(`skeleton ${Math.round(m('skeleton') ?? -1)} ms | list visible ${med(vis) == null ? 'never' : Math.round(med(vis)) + ' ms'} | saved items painted ${m('saved') == null ? 'never' : Math.round(m('saved')) + ' ms'} | fresh on screen ${Math.round(m('fresh') ?? -1)} ms | saved copy was from an earlier day in ${r.runs.filter(x => x.marks.savedIsOld).length}/${RUNS} runs`);
+    if (!/^switch-/.test(r.scenario)) console.log(`  page bytes arrived ${Math.round(m('html') ?? -1)} ms; list visible ${med(vis.map((v, i) => v == null ? null : v - r.runs[i].marks.html)) == null ? 'never' : Math.round(med(vis.map((v, i) => v == null ? null : v - r.runs[i].marks.html))) + ' ms'} after that`);
+    console.log('  per run (visible / fresh ms): ' + r.runs.map((x, i) => Math.round(vis[i] ?? -1) + '/' + Math.round(x.marks.fresh ?? -1)).join('  '));
     const first = r.runs[Math.floor(RUNS / 2)];
     console.log('request order (one run): start ms, duration ms');
     first.rows.sort((a, b) => a.start - b.start).forEach(q => console.log(`  ${String(q.start).padStart(5)} +${String(q.ms).padStart(5)}  ${q.what}`));

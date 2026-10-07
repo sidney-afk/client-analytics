@@ -238,8 +238,10 @@
         let lastTrigger = null, locked = null, queued = false, touch = null;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
-        const candidates = 'dialog[open], [aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [class*="-overlay"], [class*="-popup"], [class*="-popover"], [class*="-menu"], [class*="-dropdown"], .prod-pop, .prod-cmd-bd, .cal-card-color-picker, .sv-client-pop, #svJump:not([hidden])';
+        const candidates = '.cal-lightbox.open, .kasper-lightbox.open, dialog[open], [aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [class*="-overlay"], [class*="-popup"], [class*="-popover"], [class*="-menu"], [class*="-dropdown"], .prod-pop, .prod-cmd-bd, .cal-card-color-picker, .sv-client-pop, #svJump:not([hidden])';
         function shown(el) {
+            // These are inline card affordances, not an open menu or modal.
+            if (el.matches('.cal-review-video-overlay, .cal-card-select-overlay, .kasper-hero-poster-overlay')) return false;
             if (!el.isConnected || !el.checkVisibility({ checkVisibilityCSS: true })
                 || el.closest('dialog:not([open]), [hidden]')) return false;
             const css = getComputedStyle(el), rect = el.getBoundingClientRect();

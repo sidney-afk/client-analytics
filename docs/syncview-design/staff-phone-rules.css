@@ -13,6 +13,9 @@
     html.sv-staff-phone .sv-phone-sheet > [class$="-head"] { position: static !important; flex-shrink: 0; }
     html.sv-staff-phone .sv-phone-sheet > [class$="-body"] { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
     html.sv-staff-phone .cal-fld-status-menu, html.sv-staff-phone .dp-popup, html.sv-staff-phone .sv-select-popup, html.sv-staff-phone .cal-card-color-picker { max-width: calc(100vw - 24px); max-height: calc(var(--sv-phone-vh, 100dvh) - 32px); box-sizing: border-box; overflow: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone .sv-stepper { grid-template-columns: 44px minmax(44px, 1fr) 44px; min-width: 134px; }
+    html.sv-staff-phone .sv-stepper .sv-stepper-input { min-height: 44px; }
+    html.sv-staff-phone .global-tip:not([data-label-explainer="true"]) { display: none; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) { display: flex; flex-direction: column; height: auto !important; aspect-ratio: auto; padding: 0 !important; overflow: visible; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > * { flex-shrink: 0; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > img { position: static; width: 100%; height: 160px !important; object-fit: cover; }

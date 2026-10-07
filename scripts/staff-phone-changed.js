@@ -3,7 +3,7 @@
 function isStaffPhoneFile(file) {
  return /^(src\/index\/|js\/sv-|qa\/staff-phone|qa\/finch-phone\/)/.test(file)
   || /^(index\.html|\.gitattributes|qa\/staff-gate-seed\.js|scripts\/staff-phone-changed\.js|test\/staff-phone-rules-source\.js|\.github\/workflows\/calendar-unit-tests\.yml)$/.test(file)
-  || /^docs\/syncview-design\/(staff-phone-rules\.(css|js|html)|tests\/(staff-phone-browser|kasper-admin-expanded-browser)\.js)$/.test(file);
+  || /^docs\/syncview-design\/(staff-phone-rules\.(css|js|html)|tests\/(staff-phone-browser|staff-calendar-expanded-browser|staff-samples-expanded-browser|kasper-admin-expanded-browser)\.js)$/.test(file);
 }
 module.exports={isStaffPhoneFile};
 if(require.main===module){

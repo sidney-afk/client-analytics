@@ -56,7 +56,7 @@ unproven. This is not live populated-data or physical-phone proof.
 
 The final native card suite covers 16 card states and 32 screenshots. Existing
 rule, full catalogue and admin runs retain all assertions: 160 rule states,
-232 catalogue renders per width, and 126 admin renders/2,452 checks per width,
+232 catalogue renders per width, and 126 admin renders/2,456 checks per width,
 with no failures. These use fictional intercepted transports. The original
 five interaction fixes and overlap/scroll-lock negative controls remain.
 
@@ -81,3 +81,9 @@ Desktop proof and exact results are recorded in the
 runs remain visible. A pixel mismatch is never accepted because styles match.
 The repository's desktop parity gate is unchanged, and no tolerance, masking or
 control-mode pass is substituted for its exact byte/style assertion.
+
+## Native-flow follow-through
+
+The expanded Calendar flow exposed three further defects: inline video/selection/poster layers incorrectly acquired modal scroll ownership; true Calendar/reviewer lightboxes were omitted; and touch previews retained a hover tooltip over their title. Artifact-first classification and phone CSS fixes preserve ordinary scrolling and lock actual lightboxes. A shared normal-screen assertion rejects phantom locks. The Create post stepper also had a 2 px painted collision because 44 px targets occupied 42 px grid columns; phone columns now reserve their full target size.
+
+The expanded native Calendar runner now applies the shared overlap and touch/wheel scroll checks at every measured state. It passes all 9,450 existing checks across 360/390/430, light/dark. The detector clips DOM rectangles to their actual scrollport before comparing painted regions; adversarial controls verify both clipped-away non-collisions and real visible collisions. The original unlocked-background control first scrolls the viewport, so its geometry fixture explicitly resets the viewport before testing.

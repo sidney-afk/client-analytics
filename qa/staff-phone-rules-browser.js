@@ -32,6 +32,17 @@ async function detectorControls(browser) {
   await page.setContent('<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{height:3000px}button{position:absolute;left:10px;top:10px;width:60px;height:60px}.test-overlay{position:fixed;top:300px;left:10px;width:300px;height:200px;background:white}</style><button>A</button><button>B</button><div class="test-overlay">Popup</div>');
   assert((await checks.inspect(page)).overlaps.length,'overlap detector missed injected collision');
   await assert.rejects(()=>checks.scrollLock(page,'.test-overlay'),/background moved/,'scroll checker accepted unlocked background');
+  await page.evaluate(()=>{
+    window.scrollTo(0,0);
+    document.querySelectorAll('button').forEach(el=>el.remove());
+    const scroller=document.createElement('div');scroller.id='clip-control';scroller.style.cssText='position:absolute;left:10px;top:160px;width:120px;height:50px;overflow:hidden';
+    scroller.innerHTML='<button style="left:0;top:40px">Clipped row</button>';document.body.append(scroller);
+    const footer=document.createElement('button');footer.id='clip-footer';footer.textContent='Footer';footer.style.top='220px';document.body.append(footer);
+  });
+  assert.deepEqual((await checks.inspect(page)).overlaps,[],'detector treated clipped scroller content as painted over its footer');
+  await page.locator('#clip-footer').evaluate(el=>el.style.top='200px');
+  assert((await checks.inspect(page)).overlaps.length,'detector missed a real collision in the visible part of a clipped row');
+  await page.evaluate(()=>{document.querySelector('#clip-control').remove();document.querySelector('#clip-footer').remove();});
   await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'docs/syncview-design/staff-phone-rules.js'),'utf8')});
   await page.addStyleTag({content:fs.readFileSync(path.join(ROOT,'docs/syncview-design/staff-phone-rules.css'),'utf8')});
   await settle(page);await checks.scrollLock(page,'.test-overlay');
@@ -46,6 +57,24 @@ async function detectorControls(browser) {
   assert(await page.locator('html').evaluate(el=>el.classList.contains('sv-phone-locked')),'closing nested popup unlocked its parent');
   await page.locator('.test-overlay').evaluate(el=>el.remove());await settle(page);
   assert.equal(await page.locator('body').evaluate(el=>el.style.position),'','closing final overlay did not restore body');
+  // A class named "overlay" also paints normal card content. It must never
+  // acquire modal ownership or prevent reaching fields farther down the page.
+  await page.evaluate(()=>{
+    const card=document.createElement('div');card.style.cssText='position:relative;height:300px';
+    card.innerHTML='<div class="cal-review-video-overlay" style="position:absolute;inset:0">Video play layer</div><div class="cal-card-select-overlay" style="position:absolute;inset:0">Card selection layer</div><div class="kasper-hero-poster-overlay" style="position:absolute;inset:0">Poster layer</div>';
+    document.body.append(card);
+  });
+  await settle(page);assert.equal(await checks.activeSurface(page),'body','inline card layers became a popup');
+  const normalY=await page.evaluate(()=>scrollY);await page.mouse.move(3,300);await page.mouse.wheel(0,300);await settle(page);
+  assert((await page.evaluate(()=>scrollY))>normalY,'normal card content cannot scroll');
+  for(const name of ['cal-lightbox','kasper-lightbox']){
+    await page.evaluate(name=>{const box=document.createElement('div');box.className=name+' open';box.style.cssText='position:fixed;inset:0;background:white;z-index:500';document.body.append(box);},name);
+    await settle(page);assert.notEqual(await checks.activeSurface(page),'body',name+' was not recognized as a dialog');
+    await checks.scrollLock(page,'.'+name+'.open');
+    await page.locator('.'+name+'.open').evaluate(el=>el.remove());await settle(page);
+    assert.equal(await checks.activeSurface(page),'body',name+' retained its lock after close');
+  }
+  console.log('ok normal scrolling: video, selection and poster layers do not lock the page');
   console.log('ok detector controls: injected overlap and absent scroll lock fail; artifact lock passes');
   await context.close();
 }

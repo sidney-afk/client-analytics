@@ -10,23 +10,34 @@ async function inspect(page, root = 'body') {
       && getComputedStyle(el).opacity !== '0' && getComputedStyle(el).pointerEvents !== 'none';
     const nodes = [...scope.querySelectorAll('button, a[href], [role=button], [data-prod-cmd], input:not([type=hidden]):not([type=file]), textarea, select')].filter(visible);
     const name = el => el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + String(el.className).trim().replace(/\s+/g,'.');
-    const boxes = nodes.map(el => ({el, name:name(el), r:el.getBoundingClientRect()}));
+    // A scroller clips offscreen rows before painting. Their un-clipped DOM
+    // boxes can extend through a sheet header/footer without covering it.
+    const painted = (el, r) => {
+      let left=Math.max(0,r.left),right=Math.min(innerWidth,r.right),top=Math.max(0,r.top),bottom=Math.min(innerHeight,r.bottom);
+      for(let p=el.parentElement;p;p=p.parentElement){
+        const css=getComputedStyle(p),b=p.getBoundingClientRect();
+        if(/auto|scroll|hidden|clip/.test(css.overflowX)){left=Math.max(left,b.left+p.clientLeft);right=Math.min(right,b.left+p.clientLeft+p.clientWidth);}
+        if(/auto|scroll|hidden|clip/.test(css.overflowY)){top=Math.max(top,b.top+p.clientTop);bottom=Math.min(bottom,b.top+p.clientTop+p.clientHeight);}
+      }
+      return {left,right,top,bottom};
+    };
+    const boxes = nodes.map(el => {const r=el.getBoundingClientRect();return {el,name:name(el),r,paint:painted(el,r)};});
     const small = boxes.filter(({el,r}) => !el.matches('input[type=checkbox],input[type=radio]') && (r.width < 43.5 || r.height < 43.5)).map(({name,r})=>({name,w:r.width,h:r.height}));
     const overlaps = [];
     const inView = r => r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
     for (let i=0;i<boxes.length;i++) for(let j=i+1;j<boxes.length;j++) {
       const a=boxes[i], b=boxes[j];
       if(a.el.contains(b.el)||b.el.contains(a.el)||!inView(a.r)||!inView(b.r))continue;
-      const w=Math.min(a.r.right,b.r.right)-Math.max(a.r.left,b.r.left), h=Math.min(a.r.bottom,b.r.bottom)-Math.max(a.r.top,b.r.top);
+      const w=Math.min(a.paint.right,b.paint.right)-Math.max(a.paint.left,b.paint.left), h=Math.min(a.paint.bottom,b.paint.bottom)-Math.max(a.paint.top,b.paint.top);
       if(w>1 && h>1)overlaps.push({a:a.name,b:b.name,w,h});
     }
     // Text warnings on image cards count too; parent/child containment is
     // intentional, while independent controls covering a warning are a defect.
     for(const warning of scope.querySelectorAll('.cal-smm-warn-overlay, .cal-thumb-drive-warn')) {
-      if(!visible(warning))continue;const r=warning.getBoundingClientRect();
+      if(!visible(warning))continue;const r=painted(warning,warning.getBoundingClientRect());
       for(const b of boxes) {
         if(warning.contains(b.el)||b.el.contains(warning)||!inView(r)||!inView(b.r))continue;
-        const w=Math.min(r.right,b.r.right)-Math.max(r.left,b.r.left), h=Math.min(r.bottom,b.r.bottom)-Math.max(r.top,b.r.top);
+        const w=Math.min(r.right,b.paint.right)-Math.max(r.left,b.paint.left), h=Math.min(r.bottom,b.paint.bottom)-Math.max(r.top,b.paint.top);
         if(w>1&&h>1)overlaps.push({a:name(warning),b:b.name,w,h});
       }
     }
@@ -73,9 +84,10 @@ async function assertLayout(page, label, root='body') {
   return result;
 }
 async function activeSurface(page) {
-  return page.evaluate(() => {
-    const selector='dialog[open], [role=menu], [role=listbox], [class*="-popup"], [class*="-menu"], [class*="-dropdown"], .prod-pop, .prod-cmd-bd, .cal-card-color-picker, #staffAccountPopover:not([hidden]), #svJump:not([hidden]), [class*="-overlay"]';
-    let visible=[...document.querySelectorAll(selector)].filter(el=>el.checkVisibility({checkVisibilityCSS:true})&&getComputedStyle(el).opacity!=='0'&&getComputedStyle(el).pointerEvents!=='none'&&el.getBoundingClientRect().width>0&&(el.matches('dialog[open]')||/fixed|absolute/.test(getComputedStyle(el).position)));
+  const surface = await page.evaluate(() => {
+    const selector=".cal-lightbox.open, .kasper-lightbox.open, dialog[open], [aria-modal=\"true\"], [role=\"dialog\"], [role=\"alertdialog\"], [role=\"menu\"], [role=\"listbox\"], [class*=\"-overlay\"], [class*=\"-popup\"], [class*=\"-popover\"], [class*=\"-menu\"], [class*=\"-dropdown\"], .prod-pop, .prod-cmd-bd, .cal-card-color-picker, .sv-client-pop, #svJump:not([hidden])";
+    // Video paint and card selection layers are inline content, not popups.
+    let visible=[...document.querySelectorAll(selector)].filter(el=>!el.matches('.cal-review-video-overlay, .cal-card-select-overlay, .kasper-hero-poster-overlay')&&el.checkVisibility({checkVisibilityCSS:true})&&(getComputedStyle(el).opacity!=='0'||el.matches('.open, .active, .is-open, dialog[open]'))&&getComputedStyle(el).pointerEvents!=='none'&&el.getBoundingClientRect().width>0&&(el.matches('dialog[open]')||/fixed|absolute/.test(getComputedStyle(el).position)));
     const modal=visible.filter(el=>el.matches('dialog[open]')).at(-1);
     if(modal)visible=visible.filter(el=>el===modal||modal.contains(el));
     const leaves=visible.filter(el=>!visible.some(other=>el!==other&&el.contains(other)));
@@ -83,5 +95,7 @@ async function activeSurface(page) {
     if(el?.matches('dialog[open]'))return 'dialog[open]';
     return el ? (el.id ? '#'+CSS.escape(el.id) : el.tagName.toLowerCase()+[...el.classList].map(c=>'.'+CSS.escape(c)).join('')) : 'body';
   });
+  if (surface === 'body') assert.equal(await page.locator('html').evaluate(el=>el.classList.contains('sv-phone-locked')), false, 'normal screen retained a phantom popup scroll lock');
+  return surface;
 }
 module.exports={inspect,scrollLock,assertLayout,activeSurface};

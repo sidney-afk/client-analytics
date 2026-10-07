@@ -10,6 +10,24 @@ COMPLETED
 KASPER_ADMIN_EXPANDED: 126 native states; 2452 checks; 0 failures; fictional data; no live writes.
 ```
 
+## admin-390-inline-overlay.log
+
+FAILED / retained
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 2 failures; fictional data; no live writes.
+FAIL review-lightbox: controls overlap [{"a":"button.kasper-subtab.kasper-more-trigger","b":"button.kasper-lightbox-close","w":40,"h":42}]
+FAIL review-lightbox: controls overlap [{"a":"button.kasper-subtab.kasper-more-trigger","b":"button.kasper-lightbox-close","w":40,"h":42}]
+```
+
+## admin-390-shipping.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 0 failures; fictional data; no live writes.
+```
+
 ## admin-390.log
 
 CANCELLED / superseded
@@ -22,6 +40,24 @@ COMPLETED
 
 ```text
 KASPER_ADMIN_EXPANDED: 126 native states; 2452 checks; 0 failures; fictional data; no live writes.
+```
+
+## admin-430-inline-overlay.log
+
+FAILED / retained
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 2 failures; fictional data; no live writes.
+FAIL review-lightbox: controls overlap [{"a":"button.kasper-subtab.kasper-more-trigger","b":"button.kasper-lightbox-close","w":40,"h":42}]
+FAIL review-lightbox: controls overlap [{"a":"button.kasper-subtab.kasper-more-trigger","b":"button.kasper-lightbox-close","w":40,"h":42}]
+```
+
+## admin-430-shipping.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 0 failures; fictional data; no live writes.
 ```
 
 ## admin-430.log
@@ -100,6 +136,26 @@ build-index: wrote index.html (1287574 bytes) from 67 fragment(s)
 build-index: wrote src/index/INDEX.md
 ```
 
+## build-inline-overlay.log
+
+COMPLETED
+
+```text
+build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
+build-index: wrote index.html (1287574 bytes) from 67 fragment(s)
+build-index: wrote src/index/INDEX.md
+```
+
+## build-lightbox.log
+
+COMPLETED
+
+```text
+build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
+build-index: wrote index.html (1287664 bytes) from 67 fragment(s)
+build-index: wrote src/index/INDEX.md
+```
+
 ## build-merge.log
 
 COMPLETED
@@ -128,6 +184,98 @@ COMPLETED
 build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
 build-index: wrote index.html (1287574 bytes) from 67 fragment(s)
 build-index: wrote src/index/INDEX.md
+```
+
+## build-stepper.log
+
+COMPLETED
+
+```text
+build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
+build-index: wrote index.html (1287850 bytes) from 67 fragment(s)
+build-index: wrote src/index/INDEX.md
+```
+
+## calendar-account-diagnostic.log
+
+FAILED / retained
+
+```text
+    }
+  ]
+}
+```
+
+## calendar-diagnostic.log
+
+FAILED / retained
+
+```text
+    }
+  ]
+}
+```
+
+## calendar-expanded-complete.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
+## calendar-expanded-fixed.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
+## calendar-expanded-painted.log
+
+FAILED / retained
+
+```text
+    }
+  ]
+}
+```
+
+## calendar-expanded-shipping.log
+
+FAILED / retained
+
+```text
+    }
+  ]
+}
+```
+
+## calendar-expanded-stepper.log
+
+FAILED / retained
+
+```text
+    }
+  ]
+}
+```
+
+## calendar-expanded-visual.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (6300 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
+## calendar-final-visual.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (6300 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
 ```
 
 ## cards-before-complete.log
@@ -161,6 +309,16 @@ FAILED / retained
 ```
 
 ## cards-candidate.log
+
+COMPLETED
+
+```text
+ok sample-reviews-430-dark-missing-media
+ok sample-reviews-430-dark-linked
+STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
+```
+
+## cards-current-main.log
 
 COMPLETED
 
@@ -240,6 +398,16 @@ ok sample-reviews-430-dark-linked
 STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
 ```
 
+## cards-shipping.log
+
+COMPLETED
+
+```text
+ok sample-reviews-430-dark-missing-media
+ok sample-reviews-430-dark-linked
+STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
+```
+
 ## catalogue-390-complete.log
 
 COMPLETED
@@ -248,6 +416,26 @@ COMPLETED
 ok today-cleared 390 light
 ok today-cleared 390 dark
 staff-phone-final-pass: 232 renders, 0 problems
+```
+
+## catalogue-390-inline-overlay.log
+
+CANCELLED / superseded
+
+```text
+ok tiktok-cancel-confirm 390 dark
+ok instagram-empty 390 light
+ok instagram-empty 390 dark
+```
+
+## catalogue-390-shipping.log
+
+RUNNING
+
+```text
+ok linear-error 390 light
+ok linear-error 390 dark
+ok templates-client 390 light
 ```
 
 ## catalogue-390.log
@@ -268,6 +456,26 @@ COMPLETED
 ok today-cleared 430 light
 ok today-cleared 430 dark
 staff-phone-final-pass: 232 renders, 0 problems
+```
+
+## catalogue-430-inline-overlay.log
+
+CANCELLED / superseded
+
+```text
+ok instagram-frame-cover 430 dark
+ok instagram-queue 430 light
+ok instagram-queue 430 dark
+```
+
+## catalogue-430-shipping.log
+
+RUNNING
+
+```text
+ok templates-client-edit 430 light
+ok templates-client-edit 430 dark
+ok templates-client-spec-form 430 light
 ```
 
 ## catalogue-430.log
@@ -306,6 +514,15 @@ COMPLETED
 [codex/pocket-staff-phone 47ecd481] Merge origin/main into Pocket staff phone branch
 ```
 
+## commit-review.log
+
+COMPLETED
+
+```text
+[codex/pocket-staff-phone b579a1cc] Record phone design review and current main proof
+ 2 files changed, 138 insertions(+), 3 deletions(-)
+```
+
 ## desktop-complete.log
 
 FAILED / retained
@@ -318,12 +535,12 @@ ok   client-sample-reviews @1920: pixels identical, computed styles identical (f
 
 ## desktop-current-main.log
 
-RUNNING
+FAILED / retained
 
 ```text
-FAIL staff-navFilmingPlans @1440: pixels DIFFERENT, computed styles identical (5d63f4d43ad2, attempts 4)
-ok   staff-navHome @1280: pixels identical, computed styles identical (ff11f590fec4)
-ok   staff-navHome @1440: pixels identical, computed styles identical (439194562bc0)
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (29e7eb2d8015)
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (f87764b62642)
+69/72 desktop shots identical to origin/main
 ```
 
 ## desktop-final.log
@@ -345,11 +562,81 @@ ok   client-analytics @1920: pixels identical, computed styles identical (aa6926
 ok   client-calendar @1024: pixels identical, computed styles identical (69fabd5010fe)
 ```
 
+## desktop-software-focused.log
+
+COMPLETED
+
+```text
+ok   staff-navFilmingPlans @1024: pixels identical, computed styles identical (ddcc0a67d0fc, attempts 2)
+ok   staff-navFilmingPlans @1440: pixels identical, computed styles identical (5d63f4d43ad2, attempts 2)
+2/2 desktop shots identical to origin/main
+```
+
+## desktop-width1024.log
+
+RUNNING
+
+```text
+ok   staff-navHome @1024: pixels identical, computed styles identical (8c26e67ac6dd, attempts 2)
+ok   staff-navWorkload @1024: pixels identical, computed styles identical (260caa24dd62)
+ok   staff-navProd @1024: pixels identical, computed styles identical (7cf17c287f06)
+```
+
+## desktop-width1280.log
+
+RUNNING
+
+```text
+ok   staff-navWorkload @1280: pixels identical, computed styles identical (e96202fa342e)
+ok   staff-navProd @1280: pixels identical, computed styles identical (1b1b954bde6a)
+ok   staff-navLinear @1280: pixels identical, computed styles identical (4235249bad93)
+```
+
+## desktop-width1440.log
+
+RUNNING
+
+```text
+ok   staff-navWorkload @1440: pixels identical, computed styles identical (c06567030d36)
+ok   staff-navProd @1440: pixels identical, computed styles identical (9a7e4fa29e6a)
+ok   staff-navLinear @1440: pixels identical, computed styles identical (03875f804194)
+```
+
+## desktop-width1920.log
+
+RUNNING
+
+```text
+ok   staff-navHome @1920: pixels identical, computed styles identical (eda761079921)
+ok   staff-navWorkload @1920: pixels identical, computed styles identical (b964434c8695)
+ok   staff-navProd @1920: pixels identical, computed styles identical (21a6bcb77219)
+```
+
+## diff-complete.log
+
+COMPLETED
+
+No output was emitted.
+
+## diff-current-main.log
+
+COMPLETED
+
+No output was emitted.
+
 ## diff-review.log
 
 COMPLETED
 
 No output was emitted.
+
+## docs-only-complete.log
+
+COMPLETED
+
+```text
+STAFF_PHONE_FILES: unchanged; skip phone matrix
+```
 
 ## fetch-review.log
 
@@ -360,6 +647,32 @@ From https://github.com/sidney-afk/client-analytics
  * branch              main       -> FETCH_HEAD
    cbd443a3..c8375c92  main       -> origin/main
 ```
+
+## hosted-production-superseded.log
+
+CANCELLED / superseded
+
+```text
+production-polish	Complete job	2026-10-07T19:07:54.9761773Z Terminate orphan process: pid (2681) (node)
+production-polish	Complete job	2026-10-07T19:07:54.9789802Z Terminate orphan process: pid (2693) (headless_shell)
+production-polish	Complete job	2026-10-07T19:07:54.9849098Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## hosted-split-preview.log
+
+FAILED / retained
+
+```text
+2026-10-07T19:09:32.8985621Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T19:09:32.9304935Z Cleaning up orphan processes
+2026-10-07T19:09:32.9527990Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## identity-complete.log
+
+COMPLETED
+
+No output was emitted.
 
 ## identity-current-main.log
 
@@ -409,6 +722,16 @@ FAILED / retained
 check-index: FAIL — assembled bytes do not equal committed index.html (HEAD)
 check-index: FAIL — working-tree index.html does not equal committed index.html (HEAD)
 check-index: FAILED
+```
+
+## lazy-complete.log
+
+COMPLETED
+
+```text
+approve path reaching into on-demand areas: 2 hazards, 26 import ties
+  synclinear: PROD_WRITE_EF_URL, _prodCanWrite, _prodCanonicalCommentGate, _prodCardCommentsPending, _prodClientCommentGatewayContext, _prodComments, _prodCommentsSkeletonHtml, _prodGatewayWrite, _prodIssue, _prodProjectCanonicalCardComments, _prodRestRows, _prodToast, _prodVerifiedClientCommentMutationContext, _prodWriteErrorText
+check-lazy-safety: all checks passed (38 recorded hazards)
 ```
 
 ## lazy-current-main.log
@@ -500,8 +823,8 @@ Automatic merge failed; fix conflicts and then commit the result.
 COMPLETED
 
 ```text
-typeof guards in modules: 512; unresolvable: 0
-minified parts: 19 files, 2621 KB, 5153 top-level names, 0 lost, 0 changed kind
+typeof guards in modules: 514; unresolvable: 0
+minified parts: 19 files, 2628 KB, 5162 top-level names, 0 lost, 0 changed kind
 check-modules: all checks passed
 ```
 
@@ -543,14 +866,21 @@ added 6 packages in 2s
   run `npm fund` for details
 ```
 
-## rules-complete.log
+## push-review.log
 
 COMPLETED
 
 ```text
-ok time-off-light-430 screen, menus, layout and scroll lock
-ok time-off-dark-430 screen, menus, layout and scroll lock
-STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+To https://github.com/sidney-afk/client-analytics.git
+   06d84e8c..b579a1cc  codex/pocket-staff-phone -> codex/pocket-staff-phone
+```
+
+## rules-complete.log
+
+FAILED / retained
+
+```text
+detector missed a real collision in the visible part of a clipped row
 ```
 
 ## rules-final.log
@@ -561,6 +891,44 @@ CANCELLED / superseded
 ok sample-reviews-dark-390 screen, menus, layout and scroll lock
 ok sample-reviews-light-430 screen, menus, layout and scroll lock
 ok sample-reviews-dark-430 screen, menus, layout and scroll lock
+```
+
+## rules-inline-overlay.log
+
+COMPLETED
+
+```text
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+```
+
+## rules-painted-complete.log
+
+RUNNING
+
+```text
+ok workload-dark-390 screen, menus, layout and scroll lock
+ok workload-light-430 screen, menus, layout and scroll lock
+ok workload-dark-430 screen, menus, layout and scroll lock
+```
+
+## rules-shipping.log
+
+COMPLETED
+
+```text
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+```
+
+## scope-complete.log
+
+COMPLETED
+
+```text
+staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
 ```
 
 ## scope-review.log
@@ -577,6 +945,14 @@ COMPLETED
 
 ```text
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 58 rules phone-capped and staff-scoped
+```
+
+## source-complete.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped
 ```
 
 ## source-current-main.log
@@ -611,6 +987,14 @@ COMPLETED
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 58 rules phone-capped and staff-scoped
 ```
 
+## source-lightbox.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 59 rules phone-capped and staff-scoped
+```
+
 ## source-review.log
 
 COMPLETED
@@ -633,6 +1017,16 @@ FAILED / retained
 
 ```text
 docs/audits/2026-10-07-staff-phone-design-checks.md:567: new blank line at EOF.
+```
+
+## tiktok-current-main.log
+
+COMPLETED
+
+```text
+ok tiktok-posting 430 light
+ok tiktok-posting 430 dark
+staff-phone-final-pass: 64 renders, 0 problems
 ```
 
 ## truth-current-main.log

@@ -13,11 +13,15 @@ const before = process.argv.includes('--capture-before');
 const headed = process.argv.includes('--headed');
 const shots = process.env.POCKET_PHONE_SHOTS;
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
+const phoneRules = require('../../../qa/staff-phone-rule-checks');
 const widths = [360, 390, 430];
 const measurements = [];
 let checks = 0;
 const ok = (value, message) => { assert(value, message); checks++; };
 async function measure(page, label) {
+  const surface = await phoneRules.activeSurface(page);
+  await phoneRules.assertLayout(page, label, surface);
+  if (surface !== 'body') await phoneRules.scrollLock(page, surface);
   const result = await page.evaluate(() => {
     const visible = node => node.checkVisibility({ checkVisibilityCSS: true });
     const surfaces = '#svJump:not([hidden]), #calView, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-comments-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, .dp-popup, .cal-fld-status-menu';

@@ -1,5 +1,9 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Staff Expanded phone final pass: [before/after and verification](audits/2026-10-07-phone-final-pass/README.md),
+[interactive comparison](audits/2026-10-07-phone-final-pass/gallery.html), and
+the native fictional-data runner `qa/staff-phone-final-pass.js`.
+
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The Linear and migration links below route to retained history and cutoff context; current production work is native. Read the cutoff record before applying an older flip or sync procedure. See [cutoff record](ops/LINEAR_CUTOFF_RUNBOOK.md).
 
 > **The rule this doc keeps: any documented fact in ≤2 opens from here.**

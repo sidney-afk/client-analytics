@@ -1,0 +1,1867 @@
+{
+  "source_commit": "55e198c01e495312bfff37de6f1dc1b34e257945",
+  "pictures": 310,
+  "privacy": "Fictional fixture data and abstract graphics only",
+  "files": [
+    {
+      "file": "before/analytics-client-picker-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "b036c52c2b4212e1c9054c735adf37d2a12749a8aecb4b7e46e810f5d116adf7"
+    },
+    {
+      "file": "before/analytics-client-picker-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4d2442cca6f59d2a18cd25db0d62ca3b40f74ad462d569f427ad178d45dda2a6"
+    },
+    {
+      "file": "before/analytics-client-picker-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "41e1702f48d8becf17cc339e0b9f41b8125bc8461e75d653b3a1877c61d0f0fa"
+    },
+    {
+      "file": "before/analytics-client-picker-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a2f4c401a49eebb87d39731422704e233989cbb8540492f2d25962b034223424"
+    },
+    {
+      "file": "before/analytics-detail-dark-360.png",
+      "width": 360,
+      "height": 2677,
+      "sha256": "af81576ad7b75975fbf2893d38e770dafe362ef87caa2802437bb4840ba784e1"
+    },
+    {
+      "file": "before/analytics-detail-dark-390.png",
+      "width": 390,
+      "height": 2625,
+      "sha256": "be1a107c7b17d5db8239ada57c5e40c2d73eb8bd3e3d9f3a95ebb4760e8efb00"
+    },
+    {
+      "file": "before/analytics-detail-light-360.png",
+      "width": 360,
+      "height": 2677,
+      "sha256": "41edb7d27d86e31a3292224bad154e5dcac0af895a4cd7c517acaed6ba3a9796"
+    },
+    {
+      "file": "before/analytics-detail-light-390.png",
+      "width": 390,
+      "height": 2625,
+      "sha256": "9e79bf0be8063a72f9e8ba8ff2ca7843699a35a23e20d42b074daa0017698e75"
+    },
+    {
+      "file": "before/analytics-overview-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "3b5a0a810c28cc0b12b80fdda92ea00a8a5e80864a9e51099e51a2c72eedf55c"
+    },
+    {
+      "file": "before/analytics-overview-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "56cc58cc053ca6e2556c63228bd6113ee89968d03655af96b5212722c0879094"
+    },
+    {
+      "file": "before/analytics-overview-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "dcab64517560ae74bb14b7afb12006d6f48524131621d9dd0ed80d9e0b6a2fdf"
+    },
+    {
+      "file": "before/analytics-overview-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "b10791a7f257e028e6420764fc7ef7458502fb596e898e50baffdfd17392f120"
+    },
+    {
+      "file": "before/calendar-empty-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "1c3c69d03684b16df5dbeb33d61add3f8ff7a9bcf062aa2cef6b3fcb941bc177"
+    },
+    {
+      "file": "before/calendar-empty-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "9889f44f4d4495187163571e9ebda9aabaff1d7f0c3251113950408ebf464f3e"
+    },
+    {
+      "file": "before/calendar-empty-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "af270bc3a9c98fe347674a14038ce0e7a0baafac9c86b8481d338357a27f4a3d"
+    },
+    {
+      "file": "before/calendar-empty-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "99c829e2ec60a43ef2f8cae77cf9155e3557d44186b70e2a1ed3b3bb24387c35"
+    },
+    {
+      "file": "before/calendar-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "0934088ba306e922491108dd91fc6615405ef3a5bbf85159c3bbf4bf7b90638f"
+    },
+    {
+      "file": "before/calendar-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4ad4ec3ddf4946b81cd959ed862c8c0050114c82aaafd50577c35f2787dcdee6"
+    },
+    {
+      "file": "before/calendar-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "6d31e37fc26417571896b17ab395320891e1c9e46eb5034ccc283afe63387493"
+    },
+    {
+      "file": "before/calendar-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "8b85e250904fefd012a1c4066f33d6f9c585ba7d465512b7585750a45c962850"
+    },
+    {
+      "file": "before/calendar-sheet-dark-360.png",
+      "width": 360,
+      "height": 1422,
+      "sha256": "970267d79ef84e02ceebfe2b5512b787cf5414b7027f228b501cfe9986ee286f"
+    },
+    {
+      "file": "before/calendar-sheet-dark-390.png",
+      "width": 390,
+      "height": 1422,
+      "sha256": "86c56c684219625e8cd6aebc9482660042f57656b2ccb0a4fdd15d06f3a9f475"
+    },
+    {
+      "file": "before/calendar-sheet-light-360.png",
+      "width": 360,
+      "height": 1422,
+      "sha256": "5923effc0bd531b362fb6718457decb9e7ab4e7c6b86a75d1c22118023f5e475"
+    },
+    {
+      "file": "before/calendar-sheet-light-390.png",
+      "width": 390,
+      "height": 1422,
+      "sha256": "865802c1cacd2366bda83e3fdfb0f9349d07093ebaa93d2dba0c7a8777678b59"
+    },
+    {
+      "file": "before/calendar-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "7d204a008c253de11a719bb2fddc47bf810907cd46489afb0dabc5bd04bba980"
+    },
+    {
+      "file": "before/calendar-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "68260efb26fbb0f7acbfbb7680c35e3e992588cd20b69e328d0d0dd4a844815f"
+    },
+    {
+      "file": "before/calendar-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "7fc457f96d1da6c2fb4de7c74919d44b66fb9980a3a034b79f165a80872d6f92"
+    },
+    {
+      "file": "before/calendar-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7d405a750d04c662d40b224cdf8b49f636f0c297621b6dc3f714847d36699523"
+    },
+    {
+      "file": "before/instagram-client-ready-dark-360.png",
+      "width": 360,
+      "height": 2041,
+      "sha256": "d003cb0fa61fee5a425291e1645b8bb5326b59835722d4b43fb39cde558a9a06"
+    },
+    {
+      "file": "before/instagram-client-ready-dark-390.png",
+      "width": 390,
+      "height": 1974,
+      "sha256": "91ab86fdcf6bfc47472f3227cd3ce963f6490f6f33ffd89b2d6d3788d9022673"
+    },
+    {
+      "file": "before/instagram-client-ready-light-360.png",
+      "width": 360,
+      "height": 2041,
+      "sha256": "e7184994cf5ce903a9ee4da39a0a4d167f6bf416ade79ef50be9182cdd550b6a"
+    },
+    {
+      "file": "before/instagram-client-ready-light-390.png",
+      "width": 390,
+      "height": 1974,
+      "sha256": "808a824e428ec0304fade78ce9a8f3d9e4aa85ccb87fbbd812e60429211e0c89"
+    },
+    {
+      "file": "before/linear-client-picker-dark-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "74b029bf616ee79c32d0b2d971e89a6aa3a6051c086b89e796fde0cd8a3bae02"
+    },
+    {
+      "file": "before/linear-client-picker-dark-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "1becd97faf02d1e1b976e5bdb18f725bc3735e7f63265baa87473e6c2bd11383"
+    },
+    {
+      "file": "before/linear-client-picker-light-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "960e8039d293e6472720b766d77032a9857f10cf3ec564831b15f0939c89e29f"
+    },
+    {
+      "file": "before/linear-client-picker-light-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "555a212d6c2ce673b74984796a05a5a9f6d7f4dba9fa76accbcb9c0aac60f8f2"
+    },
+    {
+      "file": "before/linear-detail-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "d39e91ba908a7a0f51d760f59e30128732e27602e67f31ca0c91ff1df4eb02c1"
+    },
+    {
+      "file": "before/linear-detail-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "34052357f794440bb51d7ae46251c81b1832e0e934d398f8c680c342273ad892"
+    },
+    {
+      "file": "before/linear-detail-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "76b988da7313bc746a04f186ad8629f3b8d10606d0b601ba9aadcdce5cef4904"
+    },
+    {
+      "file": "before/linear-detail-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d8836dd98c77b0725db67194a5784455b6bd1182bba9ab98b1bed65fb66ef58d"
+    },
+    {
+      "file": "before/linear-list-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "707f73e79f1b2a4bf47f9fd4f4d6aab0bb1252f63dace0b2f839ada36dfb5c69"
+    },
+    {
+      "file": "before/linear-list-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "715b9b7dd74ff5d847e595f6f436dd79a050f382aa137e76108b1d3453924328"
+    },
+    {
+      "file": "before/linear-list-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "89996b59910c0f073d058e645b813c42bc560e9f074c2e749f78d8713b0b0b3b"
+    },
+    {
+      "file": "before/linear-list-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c77b6cf2007a13bd693ddeb5981a0f8a8ad755bba8f61e3573c4fd561d9220f9"
+    },
+    {
+      "file": "before/linear-project-dark-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "072b31479193010b0a049936cdb2041f754859cf71da38f6101e7cc113caa1b7"
+    },
+    {
+      "file": "before/linear-project-dark-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "de3042613001e7b85c729ad4ca16dae1f7d090d9ce2aaad264713222849901c2"
+    },
+    {
+      "file": "before/linear-project-light-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "4d7f488f2a25ca5d48a038b2b6c26f7d6871a81c2d79c2ebfa09c812cc348cb5"
+    },
+    {
+      "file": "before/linear-project-light-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "40efbd27a6d4047f15c2a2f6cbcab7224d37b5eea4cf1455d248aae1594b9599"
+    },
+    {
+      "file": "before/menu-client-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "0ec8d054b81a011a3755df2219b8ec83d9e7a57313405300c3b4491da042fce4"
+    },
+    {
+      "file": "before/menu-client-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "06f076639c68a55471912d44c0212ec6fd77c717e39409d58b02cc9b709db18b"
+    },
+    {
+      "file": "before/menu-client-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "2d888739b638b5dd7a9d890f1f236eb377abf5213f7096b985e04d53acf8c8bb"
+    },
+    {
+      "file": "before/menu-client-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "5fa86f594fb12cd1d2feaef9f1cd65a07991c2379962124330f4ed3d76b68b30"
+    },
+    {
+      "file": "before/menu-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "4978aa37ca9538690c54cfdb4eac26744088a07faf79969d57071da2d28239d7"
+    },
+    {
+      "file": "before/menu-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7b8d2315cef1ac5d08c7d06cb2deb1e9aae7e8a870d80597e475e6d05581d94d"
+    },
+    {
+      "file": "before/menu-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "db310604d3edc05f342e1e91bcd5d5c49dd0420d77083539219d333e4f19d5a4"
+    },
+    {
+      "file": "before/menu-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "974918f0e06297ee24dc81c162773f5c45c508e4a1112ec7a114082a03882972"
+    },
+    {
+      "file": "before/menu-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "d9b76ff73d76620b362d6f554f7e31f6ad5182ba0146498a9028455ea16a30dc"
+    },
+    {
+      "file": "before/menu-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "f49db1d9b72e2c132d41e152a5c40f05e550bdaf60ccee2f5431db424042a6a6"
+    },
+    {
+      "file": "before/menu-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "fce79118006cd3ced1905e5edd530a25519c2d4b39d699b7d0cbd507f663e5eb"
+    },
+    {
+      "file": "before/menu-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2d522da14b2f9ae3fa2f6b191107426a9cdfda564065931bbcdc18265f2ce270"
+    },
+    {
+      "file": "before/samples-empty-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "303c98a20d1fca2ba72adca0963afb39893ea709b7fc7b0fd82b419e9ca50021"
+    },
+    {
+      "file": "before/samples-empty-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "71aab79f226f257fe8da4b86e8604c61b415192b71218e789a06f7349113f25e"
+    },
+    {
+      "file": "before/samples-empty-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "45a95cdc515d164472d453b7a6d30d28419ca29b9d1d54c2bc0ba2860970421f"
+    },
+    {
+      "file": "before/samples-empty-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "786ba6dbcd1a5af2c1e8ef233ebcad5b4969fcda43d0136a55550e0dda507f4a"
+    },
+    {
+      "file": "before/samples-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "9f0d57f26f00df1c13a9e9f697bd20eba1e61dbe30827bce58c6690ce59e19f6"
+    },
+    {
+      "file": "before/samples-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7602fc8644ce38cab925774808c25f9fb0486789b929175d14c422ded11065a0"
+    },
+    {
+      "file": "before/samples-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "338734e4712a0e52835370ff0d079c8b983a9f3a9991bf1506d4f1df492bc0f6"
+    },
+    {
+      "file": "before/samples-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7fd493cd065ad235d75886c64f967960221f656085a3a328ef157cf2e90b077c"
+    },
+    {
+      "file": "before/samples-sheet-dark-360.png",
+      "width": 360,
+      "height": 1036,
+      "sha256": "b0043a7760454f0d8912471613a69bf93b2069f244cdf187225a2eea5584a9b9"
+    },
+    {
+      "file": "before/samples-sheet-dark-390.png",
+      "width": 390,
+      "height": 1036,
+      "sha256": "b0abd200f7ba1a9d158d4493e5fe3d54fd6a013fe6a1e99d9bb051752d38b270"
+    },
+    {
+      "file": "before/samples-sheet-light-360.png",
+      "width": 360,
+      "height": 1036,
+      "sha256": "427976196b35516e03569ea4dcfb5f0aaf129b2b93a9022e97bf85cf2fc70f57"
+    },
+    {
+      "file": "before/samples-sheet-light-390.png",
+      "width": 390,
+      "height": 1036,
+      "sha256": "b32338c679ce36dbbae2f95570c8bb02a7b1f3d8ed3a2982a47038b4b5d5484e"
+    },
+    {
+      "file": "before/samples-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "e67899cd63bf2740e585e743d6c5b10137b7cb0503a88088d837af476468b292"
+    },
+    {
+      "file": "before/samples-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "ed48b44a2cd29f9d50042c45cb0dcac9fc1712b6d80a88be4d571eaa9d3ff467"
+    },
+    {
+      "file": "before/samples-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "15ea79070cc0e0693a635d21b0c74b17dc43189abd41a8f3a35dff5a75262705"
+    },
+    {
+      "file": "before/samples-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a790b703677b74b35778b5f0437ff110e5d29ccb7f7ce5432b5406214cc0beb2"
+    },
+    {
+      "file": "before/sheet-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "83dcc8aa7d471897070c9798873941aeb7298bc74cfd2bcc185a3bb9256d5a1f"
+    },
+    {
+      "file": "before/sheet-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "85f97f2b6dd74004eb97f864bf6467e41066ad4d48f6e7032a03e4c336207f6d"
+    },
+    {
+      "file": "before/sheet-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "3c7853d76e84ccd3dde9c11c1c8b03a92007313cab722ce96ea719a483a380a6"
+    },
+    {
+      "file": "before/sheet-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "e54e59096a1023ed5641e2e6a1a1a79ef141a9e272c0a7623f18ffb8df3cf190"
+    },
+    {
+      "file": "before/sheet-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "36e73483428be1b122994777cbd9d8a22a1e7871bbe7f71882607da5e3653141"
+    },
+    {
+      "file": "before/sheet-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7d0024c6411fbf4bbbc56680c39cd60096a63f3180d55c3c82e2838c3cf550f8"
+    },
+    {
+      "file": "before/sheet-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "882dc33712956e5441780e40e90d6347972c0704311adf9721e11ba817d4b5ee"
+    },
+    {
+      "file": "before/sheet-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d5328653345c2e5da4800bbe4a44f5c9a87d5b6056eb677d3550e4d787a8c29d"
+    },
+    {
+      "file": "before/submit-dark-360.png",
+      "width": 360,
+      "height": 1406,
+      "sha256": "1224433a0c34dc1574c6b80cebdcb1f2443acc5013ce4a76b7adce91fb1d7383"
+    },
+    {
+      "file": "before/submit-dark-390.png",
+      "width": 390,
+      "height": 1406,
+      "sha256": "c41b7bba70c63eae437ef30056252a82ccd490d0ec3cadabad1dd265b7b752ed"
+    },
+    {
+      "file": "before/submit-light-360.png",
+      "width": 360,
+      "height": 1406,
+      "sha256": "183c35aba0062e46dd6be192cdcefbbec9d0c8fcde328ffb5c5be6ca4ccb5227"
+    },
+    {
+      "file": "before/submit-light-390.png",
+      "width": 390,
+      "height": 1406,
+      "sha256": "e8a2966feca36f8eafad066d10efcafa2d878f3a6a1a83a8c26d299430547f7f"
+    },
+    {
+      "file": "before/templates-client-dark-360.png",
+      "width": 360,
+      "height": 2995,
+      "sha256": "8428f6de90fe96c33d6ff2e5ee8a152d835efd46710084d9431d3cf4972a606d"
+    },
+    {
+      "file": "before/templates-client-dark-390.png",
+      "width": 390,
+      "height": 2952,
+      "sha256": "3629dd688abfa33786089c2247ad0ef152dc8b0a03039d7a9d2ff2e435f96369"
+    },
+    {
+      "file": "before/templates-client-edit-dark-360.png",
+      "width": 360,
+      "height": 2071,
+      "sha256": "493a1a3cbf2924c0c52651592088afda82b22d116d0a49b0443e68a8d807b6ea"
+    },
+    {
+      "file": "before/templates-client-edit-dark-390.png",
+      "width": 390,
+      "height": 2047,
+      "sha256": "6deb4ff2e753bbe0dca00c6e334f6c4a919b90ab9dae097c9b0edc2717f5ec07"
+    },
+    {
+      "file": "before/templates-client-edit-light-360.png",
+      "width": 360,
+      "height": 2071,
+      "sha256": "933290e5c73f8f35ca714747aed12a2326b5c9c2a92180a84dee9051b097e86a"
+    },
+    {
+      "file": "before/templates-client-edit-light-390.png",
+      "width": 390,
+      "height": 2047,
+      "sha256": "6c705b784f5e392652a39875d8856ca6109417b3b18e40c7667413dd8d743e2c"
+    },
+    {
+      "file": "before/templates-client-light-360.png",
+      "width": 360,
+      "height": 2995,
+      "sha256": "ffbf5cc6e8b453fcb091ee988450eddeeabb5839ebe7c415b64fed3b7d452c8f"
+    },
+    {
+      "file": "before/templates-client-light-390.png",
+      "width": 390,
+      "height": 2952,
+      "sha256": "daa3875c0adf4908a0d3d3d3b0cfc92bf4a9aa4118df31a4862c7b7754842432"
+    },
+    {
+      "file": "before/templates-client-spec-form-dark-360.png",
+      "width": 360,
+      "height": 3550,
+      "sha256": "46b1a628aef94063c2b86f6c556c565bcb7a0470f79c543f4c300908866eea38"
+    },
+    {
+      "file": "before/templates-client-spec-form-dark-390.png",
+      "width": 390,
+      "height": 3507,
+      "sha256": "4df0f4f2296e59227928cd7f782a4a7de6ded3b9f670e4bd88c7bf0e682890e8"
+    },
+    {
+      "file": "before/templates-client-spec-form-light-360.png",
+      "width": 360,
+      "height": 3550,
+      "sha256": "46f333397878dd17bd16d8b8dc084c9e891910aeab07994ea3ac7fabb6225fe1"
+    },
+    {
+      "file": "before/templates-client-spec-form-light-390.png",
+      "width": 390,
+      "height": 3507,
+      "sha256": "cc8fc97e33b0d6d4130189dabcce841d670f347f4ecccbedeb8b03f197f5cf66"
+    },
+    {
+      "file": "before/tiktok-client-ready-dark-360.png",
+      "width": 360,
+      "height": 2257,
+      "sha256": "129b171ad021f2a2d796aa2f6b33ba373b783734289af9d74be8a527c079bb65"
+    },
+    {
+      "file": "before/tiktok-client-ready-dark-390.png",
+      "width": 390,
+      "height": 2172,
+      "sha256": "111b7b1dbe511ff3ab62a34379cd989d23c0d4b049df7e9c472f443f72ec9969"
+    },
+    {
+      "file": "before/tiktok-client-ready-light-360.png",
+      "width": 360,
+      "height": 2257,
+      "sha256": "c00441bb2bd58c0af56f0f6b5ee89f7a3e3924c3accd49a4bd8b61bd7adb571e"
+    },
+    {
+      "file": "before/tiktok-client-ready-light-390.png",
+      "width": 390,
+      "height": 2172,
+      "sha256": "92e2cd69ae9b61d340531f3f384b783eee996756add3c31345f9f90add1d1318"
+    },
+    {
+      "file": "before/today-cleared-dark-360.png",
+      "width": 360,
+      "height": 1075,
+      "sha256": "bcec19240040f7de66fd91a3d44abd623812c2c1bfddebab41b7735d7c68533d"
+    },
+    {
+      "file": "before/today-cleared-dark-390.png",
+      "width": 390,
+      "height": 1057,
+      "sha256": "bc2e33d664b703e9f92647f61ec211fdbe7334ee6f7ae876370a9760072e77f4"
+    },
+    {
+      "file": "before/today-cleared-light-360.png",
+      "width": 360,
+      "height": 1075,
+      "sha256": "68f5e3f85292b085440fca5e760d821417fb1ce24aad7d9af2a06c405b4c630a"
+    },
+    {
+      "file": "before/today-cleared-light-390.png",
+      "width": 390,
+      "height": 1057,
+      "sha256": "32a6fa406a2faf8fcd1ac0a2e3fd752fbdec074b5bf2d525eea4b296646467b2"
+    },
+    {
+      "file": "before/today-rings-dark-360.png",
+      "width": 360,
+      "height": 959,
+      "sha256": "78d8830a3c88ef41b990337673e5abf7e4a4b22ec56e36148dc1e1e7e91b0ef7"
+    },
+    {
+      "file": "before/today-rings-dark-390.png",
+      "width": 390,
+      "height": 959,
+      "sha256": "14a4b8311567ded38081315c07841794b12e99467323c6948b3cc5cb9572f7ce"
+    },
+    {
+      "file": "before/today-rings-light-360.png",
+      "width": 360,
+      "height": 959,
+      "sha256": "9ee99db72ad5321eac4af02e96981d52b74539bd9bb2bc2a7b10ae909ae6b11c"
+    },
+    {
+      "file": "before/today-rings-light-390.png",
+      "width": 390,
+      "height": 959,
+      "sha256": "2d9601b9e0fe32657f49e512bdf92eb719910cf082b5eda5826ca4cffa6debfc"
+    },
+    {
+      "file": "before/today-walk-dark-360.png",
+      "width": 360,
+      "height": 902,
+      "sha256": "ca78f537855a1d8e7351fc57b25969d3c18860138175255c035ea51a59f87729"
+    },
+    {
+      "file": "before/today-walk-dark-390.png",
+      "width": 390,
+      "height": 902,
+      "sha256": "cff79df3e71ed324ac02672f84f0b980a280f14959fb4cc3404e88a9887a2c70"
+    },
+    {
+      "file": "before/today-walk-light-360.png",
+      "width": 360,
+      "height": 902,
+      "sha256": "434db5c314fbda5f16216be830eacb0278f4a8597ba4f8dbd5020e9766e31db9"
+    },
+    {
+      "file": "before/today-walk-light-390.png",
+      "width": 390,
+      "height": 902,
+      "sha256": "9eea527b97fd508cb42a10f4b544637de06de645dfef1c38ea29a5b93af993b7"
+    },
+    {
+      "file": "before/workload-client-picker-dark-360.png",
+      "width": 360,
+      "height": 3243,
+      "sha256": "32c73a98ead961b5ac912425bfa26567c9ee8cc26be072d4fa227fc206a64387"
+    },
+    {
+      "file": "before/workload-client-picker-dark-390.png",
+      "width": 390,
+      "height": 3180,
+      "sha256": "9242feebd14e5f5b253c5584b040251e5f8f9567e303839cd9cdcb1f5d1f2569"
+    },
+    {
+      "file": "before/workload-client-picker-light-360.png",
+      "width": 360,
+      "height": 3243,
+      "sha256": "54aaead9b4150570de8aa5054887eeaa5070f6866fd6d8a677782a0538853979"
+    },
+    {
+      "file": "before/workload-client-picker-light-390.png",
+      "width": 390,
+      "height": 3180,
+      "sha256": "ad8357b45120436222e792392a4800a1d28c28613ca48c272bebb876841f2fe4"
+    },
+    {
+      "file": "before/workload-week-dark-360.png",
+      "width": 360,
+      "height": 3243,
+      "sha256": "7c6b48c154415b9c8c6f1169f2c12dd959f7386a2400438cde827bdd1bb5c625"
+    },
+    {
+      "file": "before/workload-week-dark-390.png",
+      "width": 390,
+      "height": 3180,
+      "sha256": "aac28ff913284bda5bc52f583683ff3357af3e640c3473efac17a909831b51ad"
+    },
+    {
+      "file": "before/workload-week-light-360.png",
+      "width": 360,
+      "height": 3243,
+      "sha256": "b9f61665466dfe8e5c48e55146aad84c621b059fc3e262a307ab0b7e64cb0b3e"
+    },
+    {
+      "file": "before/workload-week-light-390.png",
+      "width": 390,
+      "height": 3180,
+      "sha256": "c785a4d4701227f723e449a6c536b9103d82770dcb22f7d11f3c1e0b975c02f9"
+    },
+    {
+      "file": "after/analytics-client-picker-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "33ba77959b2c2ca1655359ff4364264aa8934c2d76142b405df84981142fd466"
+    },
+    {
+      "file": "after/analytics-client-picker-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "027a3eee9d410568be6444b230874f8233fadd6f61c3d07346c650fa0a690114"
+    },
+    {
+      "file": "after/analytics-client-picker-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "c6148bbb6ffef357399d6603a69f6ef0a92b346fb9b2803d8be19cc9118845b4"
+    },
+    {
+      "file": "after/analytics-client-picker-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "56ea305f696c39c4d2c48603d59f32068a93b3d0feb0f56e5908dd00bfe242a2"
+    },
+    {
+      "file": "after/analytics-client-picker-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "56278fd16b5975dd548f721751156fd4e12402986108df7e7abd59256911b3b0"
+    },
+    {
+      "file": "after/analytics-client-picker-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "ace2e195867a6ea3dd9d123ed3dac4bc9305825c6cb20680e85f2cc320e125d4"
+    },
+    {
+      "file": "after/analytics-detail-dark-360.png",
+      "width": 360,
+      "height": 2725,
+      "sha256": "dfdeb27167cf3da4f3a361f643a3be1743d86c5fb74dd8eca917ff1a3650b080"
+    },
+    {
+      "file": "after/analytics-detail-dark-390.png",
+      "width": 390,
+      "height": 2673,
+      "sha256": "f0e3b842b65966b1822fe02bd7c50ad0488748537965b623f5b05cbc09e6ac14"
+    },
+    {
+      "file": "after/analytics-detail-dark-430.png",
+      "width": 430,
+      "height": 2648,
+      "sha256": "ebdd55ace09b5b7e26f815ad47bc770f8fb85dd43ca1a0071a0db4ae0efd89d1"
+    },
+    {
+      "file": "after/analytics-detail-light-360.png",
+      "width": 360,
+      "height": 2725,
+      "sha256": "961ea6bb229366259fc1b2604e3a9968cbeb4853ea4ba5453020ae4f265df6ff"
+    },
+    {
+      "file": "after/analytics-detail-light-390.png",
+      "width": 390,
+      "height": 2673,
+      "sha256": "b30efc39de65c2d390acef30af63b79897db6169278649c559b8500b59d31079"
+    },
+    {
+      "file": "after/analytics-detail-light-430.png",
+      "width": 430,
+      "height": 2648,
+      "sha256": "891194119f33b865ed1c7dcbc0c043e7e72a3ba940d00fce671b65980be68b05"
+    },
+    {
+      "file": "after/analytics-overview-dark-360.png",
+      "width": 360,
+      "height": 2106,
+      "sha256": "3b288bf3565475fccfec3075602000a1c80867bb0d1f83c892a801d8916fdd1a"
+    },
+    {
+      "file": "after/analytics-overview-dark-390.png",
+      "width": 390,
+      "height": 2106,
+      "sha256": "33b2a9b4a60c61e1f8965645dc3c7214d1ec0ca5abb6327d833f166c9672e304"
+    },
+    {
+      "file": "after/analytics-overview-dark-430.png",
+      "width": 430,
+      "height": 2106,
+      "sha256": "19192030db6540eabb0f36845913fa023860107a75852d09dbdac0d6d5271aa7"
+    },
+    {
+      "file": "after/analytics-overview-light-360.png",
+      "width": 360,
+      "height": 2106,
+      "sha256": "6c4e43e02e2d49aa9e586565eff1f0c5173c4de22c08b5588bf143816aedb094"
+    },
+    {
+      "file": "after/analytics-overview-light-390.png",
+      "width": 390,
+      "height": 2106,
+      "sha256": "30b3d7f974625fa017312fb0ba9fbf1eed635b6e7315545cede264aae3fcc52a"
+    },
+    {
+      "file": "after/analytics-overview-light-430.png",
+      "width": 430,
+      "height": 2106,
+      "sha256": "ded3bd03840c9398ef2a735d4181844e8ce33027a637ca959cad7336b1f9f055"
+    },
+    {
+      "file": "after/calendar-empty-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "3824d217ba45ad567da408add7cbe75fe8a64ddb3c0c508766dbfa2b5651137a"
+    },
+    {
+      "file": "after/calendar-empty-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "91b7c1185827597dd65bba2c8dbd3d64539fb90d0845b51c2ebe5058c58de3eb"
+    },
+    {
+      "file": "after/calendar-empty-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "1095d3f67e1b4dc490aa9b6cd66a59bc4632a85f2b109323fd4aeefc7ada99e6"
+    },
+    {
+      "file": "after/calendar-empty-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "bea28e865b85bfc9c799c9438edbb1453a939f38c432ca86ac5818844169d6c7"
+    },
+    {
+      "file": "after/calendar-empty-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "e65c1d015b2f4771805fd97d35083994a396df18c149dcbf55795f5a7a4ae980"
+    },
+    {
+      "file": "after/calendar-empty-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "9e20d8965751c7af361012c152e083ffefadd0312eb10dacc2ea2fe11c8361e2"
+    },
+    {
+      "file": "after/calendar-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "8a1b1452d99df995ed70aad325cf350b443d5ba4d377a0111ced72d727f1bcd8"
+    },
+    {
+      "file": "after/calendar-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "60c27b47edc9954bb8975ad8bf611addccb2322de7e09083afd011a914a4700b"
+    },
+    {
+      "file": "after/calendar-more-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "86879975a0a057620043717488eda6a1e0224ac853505ce422830087ca82d757"
+    },
+    {
+      "file": "after/calendar-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "08b7df679d9a96b22e92f22f3b72491cb2096458d5e9f6bd32f93b01740e8e22"
+    },
+    {
+      "file": "after/calendar-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "308c9a69f55b1ebf0254894f8740297684ced3b3d8d62e4335caaaa1e4a8ad2c"
+    },
+    {
+      "file": "after/calendar-more-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "94b8aca1ffde731e518d04e486aea3d3940378d336b058e7dd813f707cbf1ffc"
+    },
+    {
+      "file": "after/calendar-sheet-dark-360.png",
+      "width": 360,
+      "height": 1422,
+      "sha256": "e21ca3874d5cea9ea0e1d79b4cc72818d557870405271822ffbc774c026f5599"
+    },
+    {
+      "file": "after/calendar-sheet-dark-390.png",
+      "width": 390,
+      "height": 1422,
+      "sha256": "37fd2559fc383f5d101ac4626dc23746a4862f8ba5547b901ddf2ae2dc56dfca"
+    },
+    {
+      "file": "after/calendar-sheet-dark-430.png",
+      "width": 430,
+      "height": 1422,
+      "sha256": "59ee87da65d29937bce57307f551499511241de30cff173205d17058b2080ee9"
+    },
+    {
+      "file": "after/calendar-sheet-light-360.png",
+      "width": 360,
+      "height": 1422,
+      "sha256": "48daf95894dfd13eac1bf934f5455d6d8be1a622187f617fc446c91ad55529b7"
+    },
+    {
+      "file": "after/calendar-sheet-light-390.png",
+      "width": 390,
+      "height": 1422,
+      "sha256": "8d89255d574dfdf7f0836be0555c368b7597c95f84276f3c5a3a51a796ee0370"
+    },
+    {
+      "file": "after/calendar-sheet-light-430.png",
+      "width": 430,
+      "height": 1422,
+      "sha256": "7771922e0236a61eebb7184b24d2df97961f03fab10869c030c6f6a8d0ee2172"
+    },
+    {
+      "file": "after/calendar-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "8c54d7282ef72364cee2ea6432182b49e62ab3dd5f95233aee8ff7df024c8827"
+    },
+    {
+      "file": "after/calendar-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "fda11ca0f1061da65f2e536319b39692e0b0fbd832b15666e72e95fe4d508864"
+    },
+    {
+      "file": "after/calendar-tabs-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "9a461d627d8c96ba7695cae343d82f35ba6877e019370ecd99674dc3bf6d04bd"
+    },
+    {
+      "file": "after/calendar-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "6447a359340615f2f3a1632700d155e4cfc07bef74a702e2fdf8719a4e44a3be"
+    },
+    {
+      "file": "after/calendar-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "65a93eb22ffad2e03c4c8593f91b45df0353ce2eae155c8a7364b7dd83dd7145"
+    },
+    {
+      "file": "after/calendar-tabs-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "6e731aead56db1f6b1ab0cb349401a19ab33472f819a2d92afbf9668788b6694"
+    },
+    {
+      "file": "after/instagram-client-ready-dark-360.png",
+      "width": 360,
+      "height": 1992,
+      "sha256": "548bb9bca90efcb1231e11aed71dc85a7efa462dca7d1583ca96aafbc4f8bdc1"
+    },
+    {
+      "file": "after/instagram-client-ready-dark-390.png",
+      "width": 390,
+      "height": 1974,
+      "sha256": "83ef5c02e31738a0cb7cb1f73e08c6026aaf8e2c49e94c2059daed877390fbe4"
+    },
+    {
+      "file": "after/instagram-client-ready-dark-430.png",
+      "width": 430,
+      "height": 1974,
+      "sha256": "7b0da6ac4df53f52ff5cb3089ad190016681244ca418bf6933c0083ae93a056d"
+    },
+    {
+      "file": "after/instagram-client-ready-light-360.png",
+      "width": 360,
+      "height": 1992,
+      "sha256": "461ef0e82533104bf3286cb7bd83f3bc37ef5ddff7ef18c951b9066157f3f8bf"
+    },
+    {
+      "file": "after/instagram-client-ready-light-390.png",
+      "width": 390,
+      "height": 1974,
+      "sha256": "20e40c0f879e92ae7cc9b76d4785b7234ba2b8cb1ec91a2ca702f71db97a3f49"
+    },
+    {
+      "file": "after/instagram-client-ready-light-430.png",
+      "width": 430,
+      "height": 1974,
+      "sha256": "bc798bf57d3b37eaeedb763d42241cca57feb9beb309a42312ba5893c69976c9"
+    },
+    {
+      "file": "after/linear-client-picker-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "8e59a691fbf5ffd2ea799f3a2709c16b2c03866eb82e96ec39bc4db1e38194fa"
+    },
+    {
+      "file": "after/linear-client-picker-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "fbc34684d07a3af54e410951570f3ecdf2ca213358e4fa2eb0ea034ba9adc2ba"
+    },
+    {
+      "file": "after/linear-client-picker-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "284aa091b5d7a2940611d07051c79ae2b16e3dc0c595d773085080ed98c9969e"
+    },
+    {
+      "file": "after/linear-client-picker-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "482ec2493e7bd28c833fcff0285e36a450ad943478f9f6083a4a04b32aca0588"
+    },
+    {
+      "file": "after/linear-client-picker-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "705463b161df2468d5aafbac985d28c62edec8d6c47f96feee4c9da0f1e2ad5d"
+    },
+    {
+      "file": "after/linear-client-picker-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "8fbe897840563d5feb8d867ed1b36f51c61a68e2d33eeea8de6de418ff389d86"
+    },
+    {
+      "file": "after/linear-detail-dark-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "5d40c37bdd465795aba6622c8ab014671cc434b2495d4262a11b360d5d10e829"
+    },
+    {
+      "file": "after/linear-detail-dark-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "bec4e57e90ef6eb4d9443289d0a1fa06592ab832b12501271fb3e856ee2d8b15"
+    },
+    {
+      "file": "after/linear-detail-dark-430.png",
+      "width": 430,
+      "height": 858,
+      "sha256": "4c5386fc1f27135cd889d73e72fd87c6c1174b2455e7036dcfe1444ed983ca94"
+    },
+    {
+      "file": "after/linear-detail-light-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "827c2c510c1a6a72bffca3093d61be71f5fc85cea526189f1132acf174e3dd05"
+    },
+    {
+      "file": "after/linear-detail-light-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "ec0a88d091b8b6663629b42caf8f57bc3db446f7561549944e7b5fdda815ea2d"
+    },
+    {
+      "file": "after/linear-detail-light-430.png",
+      "width": 430,
+      "height": 858,
+      "sha256": "ad139900bf52576dd002e162f571535e03b191936ba85b0dc64c6ef8e896c22b"
+    },
+    {
+      "file": "after/linear-list-dark-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "3568ee2c9ec3f122e74d2dc2b293c96ddd58b04b5f0cb16dd56577f37afad411"
+    },
+    {
+      "file": "after/linear-list-dark-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "6809a1c419a9a65a15cad18ee602273b5c6e306d96054bb2089f94f12f17d7ea"
+    },
+    {
+      "file": "after/linear-list-dark-430.png",
+      "width": 430,
+      "height": 858,
+      "sha256": "bfdc0bb9341d727e435305f8c49f2743b23b8095737a939a91ffa8a5737e6296"
+    },
+    {
+      "file": "after/linear-list-light-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "420baed927ecc2d6c0de79a0bb85441046e7ebde8a420363ace54386fbe9067b"
+    },
+    {
+      "file": "after/linear-list-light-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "f648d8a43a0f05fbba6ae893245e91d98e009e9deef1697dacbe25ef1a0bccd0"
+    },
+    {
+      "file": "after/linear-list-light-430.png",
+      "width": 430,
+      "height": 858,
+      "sha256": "d0095bd445f6243812555c1c1296614c82b8683ad102faaff8c0d003016fe7ec"
+    },
+    {
+      "file": "after/linear-project-dark-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "b9adad9a2f8533efa9cc19688c132e0a5b80cd650fec45a847ddc555c8b1ced4"
+    },
+    {
+      "file": "after/linear-project-dark-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "c38aec9816b9a414e2a682ee08fc9b0b135c6b86111a3875cf943c2dba070b25"
+    },
+    {
+      "file": "after/linear-project-dark-430.png",
+      "width": 430,
+      "height": 858,
+      "sha256": "0b2a68e6c2e97a6193a7c909294ff68c10acadcb7a2f3ce14392d9a424a1c8ca"
+    },
+    {
+      "file": "after/linear-project-light-360.png",
+      "width": 360,
+      "height": 858,
+      "sha256": "1fbae78f9a9ff532b412db13ed2f8a04e63af3e31b030ddbf5f60385687bd82a"
+    },
+    {
+      "file": "after/linear-project-light-390.png",
+      "width": 390,
+      "height": 858,
+      "sha256": "92db52a2ea6b339928b1647128b9b7a85297aac8d3d580c62b788709074f64e3"
+    },
+    {
+      "file": "after/linear-project-light-430.png",
+      "width": 430,
+      "height": 858,
+      "sha256": "b73f2469b3df432f1e5b0beafd79d35d1471293635f9492eb82a3caaef7a0b5c"
+    },
+    {
+      "file": "after/menu-client-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "93a3c6b2bb2986805f5786bf7d741c475d6414417a79610efada7314b91dd411"
+    },
+    {
+      "file": "after/menu-client-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c40fd60ac62908232c5178c9c9dc7a8f78f0a15f419eebf745c6596aeea7ee73"
+    },
+    {
+      "file": "after/menu-client-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "016d953b93d7234551fdc08dd586030fa928b26fd863fe58158c5be6f3193eb7"
+    },
+    {
+      "file": "after/menu-client-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "d40ac7519fe4afbc5d6e565421946863bf8027590d3df29e231d1fbe3e5bb5d5"
+    },
+    {
+      "file": "after/menu-client-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "1abd9dfaeea61bf06ffdc52282f8d113bb13de88b7bc2e1d3844bdbe6271007f"
+    },
+    {
+      "file": "after/menu-client-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "c0e4f506d873f084d761720c91234b9633bb658817217ab3d39c2da38805981b"
+    },
+    {
+      "file": "after/menu-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "72e3f4ca78bf3dbedc29b9d5b1653f53a0ce205e434b310a95db6f04d00f6d24"
+    },
+    {
+      "file": "after/menu-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6fca49b050dcb1d34820b2e6fafb57fea7703f81b01caf906d2999e83c5d6100"
+    },
+    {
+      "file": "after/menu-more-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "101837128d6fc78575b6d59951d16cbec6b9595e6e4a73a795bee8f933f2717d"
+    },
+    {
+      "file": "after/menu-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "1284e8b6bd1f642f8e86fc10cc6a7aa75ce0425f5360f4c190b81d1877659ff5"
+    },
+    {
+      "file": "after/menu-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "20297c5a74986fa7360dbe92dcc8b077eae4bd61876723d6639e8b5055e08bc5"
+    },
+    {
+      "file": "after/menu-more-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "4e6a37fa7fa2290e315682651249066e4611ffc0e7fa118282d714772c638299"
+    },
+    {
+      "file": "after/menu-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "2e99d525a268c3d458fb667eef011b49387d39da43062bdd33950ebf45f46176"
+    },
+    {
+      "file": "after/menu-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7db782d61bae357210a3aaf10efa726744de4112c13630b20c9d3c6c4310b697"
+    },
+    {
+      "file": "after/menu-tabs-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "96786c965b1715de6748c1e9a9dca78d55e0143564b35d2feddebe2b5bc8b04b"
+    },
+    {
+      "file": "after/menu-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "43c04c71a8c4746e6eb9e54d58a7371988dc4755eaf2b542840fed0042f40567"
+    },
+    {
+      "file": "after/menu-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2d64751136c45543660764cfa29ceb510d584c113ce36d9bdfb6c09a13030d95"
+    },
+    {
+      "file": "after/menu-tabs-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "878b21254c878b3dd533aacbe19d64173783f382497105b809ed9fb6fc21ca9c"
+    },
+    {
+      "file": "after/samples-empty-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "0ec8d24b156105ef1ab21dee5b42357d70032c71b4f63c67166c373bc3dcba1b"
+    },
+    {
+      "file": "after/samples-empty-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "764969121e3c615a9648e261e747e434f829286f4311fe04c6f5690c80efc573"
+    },
+    {
+      "file": "after/samples-empty-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "6b3a5eb358763982f9ec15c607a1fdb0f8e2af5363bc08509b923e149046b787"
+    },
+    {
+      "file": "after/samples-empty-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "d91ab27423e86c78ab2cf0c8b2fc11456508cf9d92cf322d0dce849b5dc640a1"
+    },
+    {
+      "file": "after/samples-empty-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "3a840c7aa6a8e0b8ef71a65d0ae08e71af6de71815d0b5342ce65101d612a319"
+    },
+    {
+      "file": "after/samples-empty-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "3c59aa430ba8df4767384b5afce5174c549af9389fcbf6e44c5bdd8177a759b9"
+    },
+    {
+      "file": "after/samples-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "ca6fd572e0d5152cc9b52e07a688448cd1e55cdd3ea2a4aa8d70681b280344f5"
+    },
+    {
+      "file": "after/samples-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "5ded8ac471f1b9777a1a0201dcb23a7afe70aa1f5bf9de792dc94df596964885"
+    },
+    {
+      "file": "after/samples-more-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "0a8ec50b082dc9e13960caec374c466755e50b2a8dd8d7f5d027dce5543b69cb"
+    },
+    {
+      "file": "after/samples-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "67098c95269b521cad3f83a535b5f51cfd8e939cc57955837d0b177add079d8d"
+    },
+    {
+      "file": "after/samples-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a79ff49b8108d8d12b243ebc7f454b428e1b2361d3921a5c6bf565128f601c13"
+    },
+    {
+      "file": "after/samples-more-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "156152448aa32ac94f609934db271e116b0c4c5a49e02b45c06bd0ea7519e3cf"
+    },
+    {
+      "file": "after/samples-sheet-dark-360.png",
+      "width": 360,
+      "height": 1036,
+      "sha256": "6536ff7f48bb58bd0c3c51cbbc96e331f997253368f6d7eb8e6a4421a69c4de7"
+    },
+    {
+      "file": "after/samples-sheet-dark-390.png",
+      "width": 390,
+      "height": 1036,
+      "sha256": "fb7fede8e719e4466d5e4aac50f7ce9361ff91db2c630188a9e2680d7f49c8b6"
+    },
+    {
+      "file": "after/samples-sheet-dark-430.png",
+      "width": 430,
+      "height": 1036,
+      "sha256": "1e0db45a4d16a5f82c9f5b0e730b8f4f3eb6181853baf03bb3b4cb31c11e069a"
+    },
+    {
+      "file": "after/samples-sheet-light-360.png",
+      "width": 360,
+      "height": 1036,
+      "sha256": "4b166eb429885a040bbd6bdcf4ba9a8f8107c2d35c360d80fde08b65394e0331"
+    },
+    {
+      "file": "after/samples-sheet-light-390.png",
+      "width": 390,
+      "height": 1036,
+      "sha256": "b2d4831fa31192ad5097393fcb89e137f1a9db64807498adb7a646479b0bc2a6"
+    },
+    {
+      "file": "after/samples-sheet-light-430.png",
+      "width": 430,
+      "height": 1036,
+      "sha256": "cc9f500f674375578f1d16c46603f083e896b0afebedffd7282899e315c821a5"
+    },
+    {
+      "file": "after/samples-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "9eda1808ed17be3129130d42eababf1109fa7a59e5ef1dee50ab683f3afb1f4f"
+    },
+    {
+      "file": "after/samples-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "bce03548392194cd78ffc7aabc7537966187cefb9aa22444946f9ecde8dc1ec4"
+    },
+    {
+      "file": "after/samples-tabs-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "801a904f7622eeac50f562b40af6a83cc4d0454e5afa0ddbfbe27d1d8f80b381"
+    },
+    {
+      "file": "after/samples-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "2fe5e1ee2dc91db349151f2dc3fe9f36fa913721578dc9c754c25c7879fa1e0b"
+    },
+    {
+      "file": "after/samples-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6b72ea0f25fe52e383f784f7c4f55d38df56eff598b041f97f73c4b0a4abdd8a"
+    },
+    {
+      "file": "after/samples-tabs-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "74a75e9ce88e1890c477ee19873f56e339227f8beee7cf19cf7c1c36e72a1b80"
+    },
+    {
+      "file": "after/sheet-more-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "78f6bdb05d43ca7b723e8e5db4478c9d6e382ca7bdff9beab26a94f5f6c4acb4"
+    },
+    {
+      "file": "after/sheet-more-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "be426144b31d07695f5f42bacd5c0682922ab01d153f43c2d324ed7cd9b0bfeb"
+    },
+    {
+      "file": "after/sheet-more-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "f5251228c87a93c01114e832267290999990468f62a4443dcab350400627a8a5"
+    },
+    {
+      "file": "after/sheet-more-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "0f81d8df753296f244ac5d0f45ca4ce57ba46822a9425b61e6248a2f84baddf5"
+    },
+    {
+      "file": "after/sheet-more-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "628c9a8f6c6deed6d85d24e5054b12a00648c2370400e1d6219e9a8644abe0f5"
+    },
+    {
+      "file": "after/sheet-more-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "46c3536dac8aa5c0fc2e7af64a25dd469df6e9a69f5956799d28e672579a9d4f"
+    },
+    {
+      "file": "after/sheet-tabs-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "2814bb5f44d61489f949185d1d20f80dece19682292878bca44e944fe02b667e"
+    },
+    {
+      "file": "after/sheet-tabs-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "0c1d92e5f8d49d2527508d7c48c29a9284daaf4d3b74af3eb9e852cfeef2db5a"
+    },
+    {
+      "file": "after/sheet-tabs-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "f52313d64bc702306eb6189d19bb50ec543d9534849731cf4d787dc6f89e43a2"
+    },
+    {
+      "file": "after/sheet-tabs-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "ad4c256383520578eda70d963f528bdafa21fe859d8601e511baec1c8568e7d8"
+    },
+    {
+      "file": "after/sheet-tabs-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "1298d6a5a21e0a51c89e599527c72324ac0aa0d265080a32eae0a422b99cb0e0"
+    },
+    {
+      "file": "after/sheet-tabs-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "8c06aa0f4837017081676c38cb47bb70f013e86bfa899fabffc53cbc376a2432"
+    },
+    {
+      "file": "after/submit-dark-360.png",
+      "width": 360,
+      "height": 1396,
+      "sha256": "3e340e7149e59d2894c9edcb58e34ead22dc7b3d4e723f96bcf9d904c11bb673"
+    },
+    {
+      "file": "after/submit-dark-390.png",
+      "width": 390,
+      "height": 1396,
+      "sha256": "cc714c044b061d6dcee3bdec2b54ee0d21d4d423524ec2351af4787dd0ebc327"
+    },
+    {
+      "file": "after/submit-dark-430.png",
+      "width": 430,
+      "height": 1396,
+      "sha256": "667332280cad06fefc59c4a68fd944239c7d06b64136c7a3a97d026ad1ce6e3e"
+    },
+    {
+      "file": "after/submit-light-360.png",
+      "width": 360,
+      "height": 1396,
+      "sha256": "180084c94f321632350dbddd9a79b25b09b52023b5cd264fed5638730e1ccabf"
+    },
+    {
+      "file": "after/submit-light-390.png",
+      "width": 390,
+      "height": 1396,
+      "sha256": "88ec7249d4f4ec37d7b81578cfaea1901aef61e6a302de4d6fb64fc3b93f123b"
+    },
+    {
+      "file": "after/submit-light-430.png",
+      "width": 430,
+      "height": 1396,
+      "sha256": "e674a6d272aa6b418a9f81820a6f53c49de337981aaa4e3b90e1242ecc7201ac"
+    },
+    {
+      "file": "after/templates-client-dark-360.png",
+      "width": 360,
+      "height": 2719,
+      "sha256": "23649a7234ee91ae8bff2fe74fb3787f8e586e6ca0d3c3854cd0853f4ddc3cb8"
+    },
+    {
+      "file": "after/templates-client-dark-390.png",
+      "width": 390,
+      "height": 2652,
+      "sha256": "e576e8740cd89d9651176dd00ad154e94477916f986743588b9db1733f11d549"
+    },
+    {
+      "file": "after/templates-client-dark-430.png",
+      "width": 430,
+      "height": 2652,
+      "sha256": "d539935d2b614bfe1725a57376ca897655ce6ae8260fbe340d2833105870565a"
+    },
+    {
+      "file": "after/templates-client-edit-dark-360.png",
+      "width": 360,
+      "height": 1796,
+      "sha256": "e1739a8df80c6df0b6587d75ed00bca9f43818568a52c877e8416f34e84c455b"
+    },
+    {
+      "file": "after/templates-client-edit-dark-390.png",
+      "width": 390,
+      "height": 1747,
+      "sha256": "87d62058ed0e9c624ec9232c2381bdeb608a360546b6c6fe98cfc5a6213de9b8"
+    },
+    {
+      "file": "after/templates-client-edit-dark-430.png",
+      "width": 430,
+      "height": 1747,
+      "sha256": "78674684751dbb5f8a1549d6c89cd55a7a1441464581e5bab3e17e0858c9a76b"
+    },
+    {
+      "file": "after/templates-client-edit-light-360.png",
+      "width": 360,
+      "height": 1796,
+      "sha256": "7e8f167ce5790034b91aecd92e1a119c5e80041d11b1cc7355090f946c9ab604"
+    },
+    {
+      "file": "after/templates-client-edit-light-390.png",
+      "width": 390,
+      "height": 1747,
+      "sha256": "51512b634b7220d7516272fb3f788e13aff34a8bb5426fccf8eaae9d31fa6d3a"
+    },
+    {
+      "file": "after/templates-client-edit-light-430.png",
+      "width": 430,
+      "height": 1747,
+      "sha256": "423baedda84ab9969d250c37e75c77f436998c03e4e7763d2be6687d33f06e15"
+    },
+    {
+      "file": "after/templates-client-light-360.png",
+      "width": 360,
+      "height": 2719,
+      "sha256": "22b83c83bfd3cddcc622cb39f02d7ca182b771f2e2cdee1aac79039218bfaec8"
+    },
+    {
+      "file": "after/templates-client-light-390.png",
+      "width": 390,
+      "height": 2652,
+      "sha256": "dd5cd7f3b691d60ef60a9e341a40cf00fa3c24e84a59b4726179fa23d8af92ce"
+    },
+    {
+      "file": "after/templates-client-light-430.png",
+      "width": 430,
+      "height": 2652,
+      "sha256": "dd3629ba995367258f714de21d128820bf15b67385946d64e8a93e0b292ab040"
+    },
+    {
+      "file": "after/templates-client-spec-form-dark-360.png",
+      "width": 360,
+      "height": 3274,
+      "sha256": "f0df6a8a718ba08fb81aa0dd6e71342ad9c92c555288e57798d72a3e79f10f08"
+    },
+    {
+      "file": "after/templates-client-spec-form-dark-390.png",
+      "width": 390,
+      "height": 3207,
+      "sha256": "af7cdd80fa53c770291e360c0e4164cf6f7db63d7ea4fa666b4c5eb159defd7d"
+    },
+    {
+      "file": "after/templates-client-spec-form-dark-430.png",
+      "width": 430,
+      "height": 3207,
+      "sha256": "8ee16f19c351fa699be76dafe079b35127b022a944c642b5f22d8cdc35e8261b"
+    },
+    {
+      "file": "after/templates-client-spec-form-light-360.png",
+      "width": 360,
+      "height": 3274,
+      "sha256": "3d3e1e94c8945b3fa43a4c562ed6fe3fcd3e44b50d9b11829c60ea421b5d1399"
+    },
+    {
+      "file": "after/templates-client-spec-form-light-390.png",
+      "width": 390,
+      "height": 3207,
+      "sha256": "831248df503918fe34f5af1aa70aba3637388f69edf2c5d248e8164f1d11ebff"
+    },
+    {
+      "file": "after/templates-client-spec-form-light-430.png",
+      "width": 430,
+      "height": 3207,
+      "sha256": "b006a32b49a7988b5cab6077152b70f77f0714b170a7094f713b2acaa337c9b7"
+    },
+    {
+      "file": "after/tiktok-client-ready-dark-360.png",
+      "width": 360,
+      "height": 2226,
+      "sha256": "9cc4e8817dae8f88c12cc285cc3c45e861239b43671568ce22a7e0fb3901723f"
+    },
+    {
+      "file": "after/tiktok-client-ready-dark-390.png",
+      "width": 390,
+      "height": 2206,
+      "sha256": "3048c0e92848648090920e35809a633101f14642dc80407488d5932da211fcc4"
+    },
+    {
+      "file": "after/tiktok-client-ready-dark-430.png",
+      "width": 430,
+      "height": 2187,
+      "sha256": "4d473eb45ecc61e3098cc2ba7eba712911aa6d5f8e91f686cce6dba2c8359190"
+    },
+    {
+      "file": "after/tiktok-client-ready-light-360.png",
+      "width": 360,
+      "height": 2226,
+      "sha256": "f77bf3d97f9220efdd7be0ed60e3b92591041fc91390d25a18e2c8a9fa0e7689"
+    },
+    {
+      "file": "after/tiktok-client-ready-light-390.png",
+      "width": 390,
+      "height": 2206,
+      "sha256": "8db692af8c2d403fd4da8163d5091824b66fbe4cd16f5575ae3de40502c0dfeb"
+    },
+    {
+      "file": "after/tiktok-client-ready-light-430.png",
+      "width": 430,
+      "height": 2187,
+      "sha256": "a8aabf3fa98a5924d8c3d347f18e2eb8baa2a749320c8f115edc0d23765a415e"
+    },
+    {
+      "file": "after/today-cleared-dark-360.png",
+      "width": 360,
+      "height": 1075,
+      "sha256": "30786b60179ee32288608e3182f9233af0bde15949f49b880e52ba180e69a94e"
+    },
+    {
+      "file": "after/today-cleared-dark-390.png",
+      "width": 390,
+      "height": 1075,
+      "sha256": "6d1d552ee365df99f09892b29fd21b87a1ae417877dfe9fa497711161f6c3e46"
+    },
+    {
+      "file": "after/today-cleared-dark-430.png",
+      "width": 430,
+      "height": 1075,
+      "sha256": "668200862d1f1d93b250a312ee267f1786eadc4782a29cc3fb5c3556b3dd6dbb"
+    },
+    {
+      "file": "after/today-cleared-light-360.png",
+      "width": 360,
+      "height": 1075,
+      "sha256": "dd78e22e04cc9439faacaa114bab7f4145ca4672656ed8d7365ee133d558ecf7"
+    },
+    {
+      "file": "after/today-cleared-light-390.png",
+      "width": 390,
+      "height": 1075,
+      "sha256": "44919ed53053831d58736bb64201c92a7f5b432268f1ea4ff2f2404ba6dd83c4"
+    },
+    {
+      "file": "after/today-cleared-light-430.png",
+      "width": 430,
+      "height": 1075,
+      "sha256": "e400c6e05305d78a0712c272294e2d7d36e68492ef74c44e479009d3ba242b4e"
+    },
+    {
+      "file": "after/today-rings-dark-360.png",
+      "width": 360,
+      "height": 1059,
+      "sha256": "361418dc9a0dd9e84abcd651ebb8b7f87dd58efefc5aac22cb18d1fac5f6fb49"
+    },
+    {
+      "file": "after/today-rings-dark-390.png",
+      "width": 390,
+      "height": 1059,
+      "sha256": "d5f17d2e3a5dd96780a34abed2f25f3424add4669670ac7e7508b503798f3c1e"
+    },
+    {
+      "file": "after/today-rings-dark-430.png",
+      "width": 430,
+      "height": 1059,
+      "sha256": "4ff6ecf6519841c67e950393a9a19d0613d043d7990faacda40bd6b4aaeffbc8"
+    },
+    {
+      "file": "after/today-rings-light-360.png",
+      "width": 360,
+      "height": 1059,
+      "sha256": "9cc0f9b5740dc2f24f46a3f429c2f2245061b59ae290f6a86a2c7207f84d97ee"
+    },
+    {
+      "file": "after/today-rings-light-390.png",
+      "width": 390,
+      "height": 1059,
+      "sha256": "6d145e7b311d97ed53e1a09a3fddb425ac2d879122fa10c19f128dc95f18d3f3"
+    },
+    {
+      "file": "after/today-rings-light-430.png",
+      "width": 430,
+      "height": 1059,
+      "sha256": "fabc96e6f09dc0a60d6de910fd4dc139455a355fd4363574c128357d71102c1f"
+    },
+    {
+      "file": "after/today-walk-dark-360.png",
+      "width": 360,
+      "height": 904,
+      "sha256": "9c57350fe83ac0aa431a0d6584981ed9df9b743273212e07ee5a23d0feda2141"
+    },
+    {
+      "file": "after/today-walk-dark-390.png",
+      "width": 390,
+      "height": 904,
+      "sha256": "df018d744477ab2f2ce794509a62b48e67adfcdc75dc8416a06361466420b610"
+    },
+    {
+      "file": "after/today-walk-dark-430.png",
+      "width": 430,
+      "height": 904,
+      "sha256": "109115be9dc6725a16d517f52f2c2215c8667c910604422ffe46302595e4af9a"
+    },
+    {
+      "file": "after/today-walk-light-360.png",
+      "width": 360,
+      "height": 904,
+      "sha256": "fb7df42fe5f2269fc42350a47e8016470a87d40ddcdf9d3acafaaf94f22622f3"
+    },
+    {
+      "file": "after/today-walk-light-390.png",
+      "width": 390,
+      "height": 904,
+      "sha256": "0ed2efd4df0ca626b5229152cd30b2eb6e328251175a8d84a9890815c27af381"
+    },
+    {
+      "file": "after/today-walk-light-430.png",
+      "width": 430,
+      "height": 904,
+      "sha256": "e02f903b243c806b4ccc73c831afc7e963698118da8e35d0946d9f477115e0f1"
+    },
+    {
+      "file": "after/workload-client-picker-dark-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "4a71b129475da3992c687cc578561cfdc62bc4547c99928ff4c76770cae686ec"
+    },
+    {
+      "file": "after/workload-client-picker-dark-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d54531c8b327b0228723a3f7d11beb42012d29add1a38ce766b51b52248103c8"
+    },
+    {
+      "file": "after/workload-client-picker-dark-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "c6c314c9ece9869882445694085467a4f437143884cc2076464d06ca04ab0836"
+    },
+    {
+      "file": "after/workload-client-picker-light-360.png",
+      "width": 360,
+      "height": 844,
+      "sha256": "e4c8c6c43622af41ccb668ee71cf8b28db97d81ba8b0f3e063efc6b395b259bf"
+    },
+    {
+      "file": "after/workload-client-picker-light-390.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4642fe300050918aeadabf87246efb6c5acb8f7a32653df1c6568d8b3a765c6b"
+    },
+    {
+      "file": "after/workload-client-picker-light-430.png",
+      "width": 430,
+      "height": 844,
+      "sha256": "99f19a11ab2e238d2484d646a6fb0488f90502758cc88ca6894f54692b431d61"
+    },
+    {
+      "file": "after/workload-week-dark-360.png",
+      "width": 360,
+      "height": 3410,
+      "sha256": "7347f179e4d95204157c9e3af87e20ca446bc68815729008139635d2698a6f10"
+    },
+    {
+      "file": "after/workload-week-dark-390.png",
+      "width": 390,
+      "height": 3347,
+      "sha256": "128b94f4e4166c276ac740af79485caa301257eefc40dd13c503a8d74fc49dae"
+    },
+    {
+      "file": "after/workload-week-dark-430.png",
+      "width": 430,
+      "height": 3269,
+      "sha256": "359a7e5dac5068276c002f44d12ef94e99b19a3d4262a7c11c680ae2f703ff90"
+    },
+    {
+      "file": "after/workload-week-light-360.png",
+      "width": 360,
+      "height": 3410,
+      "sha256": "0ced3f78fbe9ad4b52b272bd35cac39ed5469895165f96169de013d6343ed173"
+    },
+    {
+      "file": "after/workload-week-light-390.png",
+      "width": 390,
+      "height": 3347,
+      "sha256": "c17610b6039dce0b7b67a6ab7e259af9ee707cbeed9c56b4f00473a7ca03326e"
+    },
+    {
+      "file": "after/workload-week-light-430.png",
+      "width": 430,
+      "height": 3269,
+      "sha256": "70050c3241691da412ffcc6a75f230a412ec04c00071cb45b7657623fe1aa77c"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "generated_for": "PTO lifecycle simulation",
-  "source_commit": "5bdf2d472c30f2040105a46ac17e63a8d16ae6f3",
-  "source_tree_sha256": "cded20d4612ba8f67b83163b748ab21e17fe2a1387f7b2f3312c73b54f36dc60",
+  "source_commit": "55e198c01e495312bfff37de6f1dc1b34e257945",
+  "source_tree_sha256": "cc3e37180699f9b247a596d52bbae4971a5057a76f2857f8f665a903acd5b984",
   "backend": "stateful synthetic mock using the production PTO policy module",
   "privacy": "synthetic TEST data only; no live identities, dates, balances, notes, keys, or responses",
   "screenshot_count": 101,
@@ -1118,9 +1118,9 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg",
-          "sha256": "f051ff87c46c3b398680720c9d431c3cb25aeb35adf099e9417ea4462f405b95",
+          "sha256": "08fff8924771bb43e513065bced4503c0ee932f66589dac96881a54415cfba2d",
           "visual_verdict": "warning",
-          "visual_note": "Background Today uses an unavailable client-list fixture; the tested More sheet and Time Off action remain visible."
+          "visual_note": "Background Today uses an unavailable client-list fixture; the shared More sheet, Tools label and Time Off action remain visible and usable."
         },
         {
           "scenario": "mobile-390-happy-path",
@@ -1182,7 +1182,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg",
-          "sha256": "43475e8ce6fd1d1857fe9c5436b4323fb5aa7f17b46275afbd819a464affc27e",
+          "sha256": "91e6a2c95ec866f1a1e7eaa7b8aa0789b65d863ac072728bbf821521070ed605",
           "visual_verdict": "warning",
           "visual_note": "The synthetic banner partly covers the calendar heading; date choices and controls are visible."
         },
@@ -1230,7 +1230,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-08-tap-open-the-mobile-end-date-calendar.jpg",
-          "sha256": "e0ad18d3ee84a9eb4ab70f3e1ffb053d9ca5ba0dff49dbd996eeb20fc350ad6b",
+          "sha256": "bd4e7902e7c7a12cf425f6ad1c28480d77f2dc1cfbca2bb4cc1eb461a9a94f27",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1246,7 +1246,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg",
-          "sha256": "aeed688b3a8bd3b7eebfe7b590d3ad33d86228ef248e3406dfad3bd78ba98f27",
+          "sha256": "a9c54fa3913bd13281c181fea6c6686abafa26c8f70ee63805dbe73aa36e33d8",
           "visual_verdict": "ok",
           "visual_note": ""
         },

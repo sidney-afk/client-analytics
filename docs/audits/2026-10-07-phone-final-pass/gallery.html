@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Staff phone final pass — before and after</title>
+<style>
+:root{color-scheme:light dark;font-family:system-ui,sans-serif}body{max-width:1100px;margin:32px auto;padding:0 20px}h1{font-size:28px}p{line-height:1.6}select,button{font:inherit;min-height:44px;padding:8px 12px;margin:4px;border-radius:8px}label{display:inline-block;margin-right:16px}.comparison{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}figure{margin:16px 0;max-width:100%}figcaption{font-weight:700;margin:0 0 12px}img{display:block;max-width:100%;height:auto;border-radius:16px;border:1px solid currentColor}.note{font-size:14px}a{color:inherit}
+</style>
+<h1>Staff phone final pass</h1>
+<p>Real product screenshots with invented data. Before uses unchanged main; after uses this branch. Choose a screen, width and appearance to compare them.</p>
+<label>Screen <select id="screen"></select></label>
+<label>Width <select id="width"><option>360</option><option selected>390</option></select></label>
+<label>Appearance <select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
+<p id="description"></p>
+<div class="comparison"><figure><figcaption>Before</figcaption><a id="beforeLink"><img id="before" alt="Before phone screenshot"></a></figure><figure><figcaption>After</figcaption><a id="afterLink"><img id="after" alt="After phone screenshot"></a></figure></div>
+<p class="note">Open an image for its full size. The after folder also contains 430 px checks. All pictures use intercepted, fictional data; no live decisions were changed.</p>
+<script>
+const screens=[
+['calendar-more','Calendar · More','Labelled proxy rows replace raw desktop controls.'],
+['samples-more','Samples · More','The same tools and sheet structure as Calendar.'],
+['analytics-overview','Analytics · Overview','Cards are the phone default; the saved desktop choice is preserved.'],
+['calendar-empty','Calendar · Choose client','A direct Choose client action replaces instructions about a hidden top bar.'],
+['samples-empty','Samples · Choose client','The same clear empty-state action.'],
+['menu-client','Upload · Choose client','Native picker in a modal sheet with title, backdrop and close action.'],
+['analytics-client-picker','Analytics · Choose client','The shared modal picker.'],
+['workload-client-picker','Workload · Choose client','The shared modal picker.'],
+['linear-client-picker','Linear · Choose client','The shared modal picker.'],
+['calendar-sheet','Calendar · Segments','Equal, centred segments, contained review count and clear dark selection.'],
+['samples-sheet','Samples · Segments','The same segment spacing and selection.'],
+['today-rings','Today · Rings','Clear selected segment in both appearances.'],
+['today-walk','Today · Walk-through','The same selected surface.'],
+['workload-week','Workload · Week','Separated legend counts and a comfortable undated section.'],
+['analytics-detail','Analytics · Client detail','Readable gains, visible platform dots and stronger date contrast.'],
+['linear-list','Linear · List','Short phone breadcrumb and inset panel.'],
+['linear-detail','Linear · Detail','Back and the issue ID, with an unclipped icon.'],
+['linear-project','Linear · Project','Metadata wraps inside the inset panel and date/assignee controls keep 44 px targets.'],
+['tiktok-client-ready','Upload · Ready','One-row queue tabs, readable options and phone browse wording.'],
+['instagram-client-ready','Instagram · Ready','The same clear selected segment and phone browse wording.'],
+['menu-tabs','Upload · Tabs','Shared labels, row heights, close button and sheet sizing.'],
+['menu-more','Upload · More','The same tools and destinations.'],
+['sheet-tabs','Today · Tabs','The same shared navigation builder.'],
+['sheet-more','Today · More','The same shared tools builder.'],
+['calendar-tabs','Calendar · Tabs','All destinations fit, including the reviewer dashboard.'],
+['samples-tabs','Samples · Tabs','The same navigation structure.'],
+['templates-client','Templates · Brief','Comfortable sections without nested outer cards.'],
+['templates-client-edit','Templates · Brief editor','Visible 44 px controls and colour chips that keep their line together.'],
+['templates-client-spec-form','Templates · Specification','Aligned fields and actions.'],
+['submit','Submit · Form','Thumbnail issue only stays together at narrow widths.'],
+['today-cleared','Today · Cleared row','The time keeps its own column beside the task.']
+];
+const screen=document.getElementById('screen'),width=document.getElementById('width'),theme=document.getElementById('theme');
+for(const [id,label] of screens){const option=document.createElement('option');option.value=id;option.textContent=label;screen.append(option)}
+function update(){const entry=screens.find(s=>s[0]===screen.value);document.getElementById('description').textContent=entry[2];for(const side of ['before','after']){const src=side+'/'+screen.value+'-'+theme.value+'-'+width.value+'.png';document.getElementById(side).src=src;document.getElementById(side).width=Number(width.value);document.getElementById(side+'Link').href=src}}
+for(const control of [screen,width,theme])control.addEventListener('change',update);update();
+</script>
+</html>

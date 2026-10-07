@@ -325,9 +325,9 @@
     "note": ""
   },
   "mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg": {
-    "sha256": "f051ff87c46c3b398680720c9d431c3cb25aeb35adf099e9417ea4462f405b95",
+    "sha256": "08fff8924771bb43e513065bced4503c0ee932f66589dac96881a54415cfba2d",
     "verdict": "warning",
-    "note": "Background Today uses an unavailable client-list fixture; the tested More sheet and Time Off action remain visible."
+    "note": "Background Today uses an unavailable client-list fixture; the shared More sheet, Tools label and Time Off action remain visible and usable."
   },
   "mobile-390-happy-path-02-tap-time-off-in-the-mobile-staff-menu.jpg": {
     "sha256": "5ac7b88c732bf30ea2e41a3d703da45a7707933151c57391a5a0e9c75a8781c9",
@@ -345,7 +345,7 @@
     "note": ""
   },
   "mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg": {
-    "sha256": "43475e8ce6fd1d1857fe9c5436b4323fb5aa7f17b46275afbd819a464affc27e",
+    "sha256": "91e6a2c95ec866f1a1e7eaa7b8aa0789b65d863ac072728bbf821521070ed605",
     "verdict": "warning",
     "note": "The synthetic banner partly covers the calendar heading; date choices and controls are visible."
   },
@@ -360,12 +360,12 @@
     "note": ""
   },
   "mobile-390-happy-path-08-tap-open-the-mobile-end-date-calendar.jpg": {
-    "sha256": "e0ad18d3ee84a9eb4ab70f3e1ffb053d9ca5ba0dff49dbd996eeb20fc350ad6b",
+    "sha256": "bd4e7902e7c7a12cf425f6ad1c28480d77f2dc1cfbca2bb4cc1eb461a9a94f27",
     "verdict": "ok",
     "note": ""
   },
   "mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg": {
-    "sha256": "aeed688b3a8bd3b7eebfe7b590d3ad33d86228ef248e3406dfad3bd78ba98f27",
+    "sha256": "a9c54fa3913bd13281c181fea6c6686abafa26c8f70ee63805dbe73aa36e33d8",
     "verdict": "ok",
     "note": ""
   },

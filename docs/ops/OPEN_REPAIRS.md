@@ -30742,3 +30742,29 @@ Status: repository code only. Nothing deployed, no migration applied, no flag ch
 5. Re-subscribe after a drop (finding 5). Calendar, Production and Workload replace a channel that reports CHANNEL_ERROR or TIMED_OUT with a new one (fresh topic) after 1, 2, 4 ... 30 s, and at once on the browser's `online` event; the new SUBSCRIBED runs the existing catch-up. Proof: the three suites above. Not proven against a real network cut: the first real proof is a second run of the 30 s cut in the findings doc after deploy.
 Not touched: Today also re-reads on any work-item change, so a comment stamp (once applied) refreshes an open Today page once, debounced, like any other change.
 Way back: revert this PR and rebuild the fragments; for the database part, `migrations/2026-10-06-production-comment-signal.ROLLBACK.sql`.
+
+## 358. [2026-10-06, BUILT, NOT DEPLOYED] Staff Expanded phone final pass
+
+The 12 reported staff phone problems and three smaller differences are fixed.
+Calendar/Samples More uses labelled native proxies; navigation and client pickers
+share their builders and sheet structure. Analytics defaults to cards on phones
+without replacing the desktop choice. Segments, legends, dates, brief sections,
+Upload wording and Linear cards have the requested spacing and contrast.
+Native permissions, actions, pending decisions and saved copies remain intact.
+Phone-to-desktop resizing restores breadcrumbs and browse wording without
+rebuilding the issue editor or file chooser. Styles stay in the existing phone
+scopes and use the existing colour variables.
+
+Proof: `docs/audits/2026-10-07-phone-final-pass/README.md` links 31 fictional views,
+186 phone renders and 310 pictures. The full desktop gate compares 72 staff/client
+screens at 1024/1280/1440/1920, with identical PNG bytes and computed styles;
+actual zero-pixel diffs and hashes are published, while raw desktop pictures stay
+private. Its optional four-worker mode keeps every original check and retry.
+The PTO lifecycle passes 101 action/result pictures and 35 gates, with reviewed
+hashes and single-file source coupling refreshed for CI.
+
+Exact checks and retained failures are in the evidence folder. The same 17 unit
+suites fail on unchanged main; existing Production editor-size, board-width and
+pending-read failures remain reported. Physical phones and deployment are not
+verified. No live approvals, comments, uploads or PTO writes, database changes,
+workflow edits or deployment. Way back: revert this PR and rebuild the fragments.

@@ -79,30 +79,26 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const dialog = document.createElement('dialog');
             dialog.className = 'pocket-staff-cal-menu';
             dialog.setAttribute('aria-label', kind === 'tabs' ? 'Tabs' : 'More');
-            dialog.innerHTML = `<div class="pocket-staff-cal-menu-head"><h2>${kind === 'tabs' ? 'Tabs' : 'More'}</h2><button type="button" aria-label="Close menu"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div><div class="pocket-staff-cal-menu-body"></div>`;
+            dialog.innerHTML = `<div class="pocket-staff-cal-menu-head"><h2>${kind === 'tabs' ? 'Tabs' : 'More'}</h2><button type="button" aria-label="Close ${kind}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div><div class="pocket-staff-cal-menu-body"></div>`;
             dialog.querySelector('button').addEventListener('click', () => dialog.close());
             dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
             root.append(dialog);
             menus[kind] = dialog;
             const trigger = heading.querySelector(`[data-staff-menu=${kind}]`);
             trigger.addEventListener('click', () => {
-                if (kind === 'more' && state.kebab) state.kebab.node.hidden = false;
+                if (kind === 'more') {
+                    const body = dialog.querySelector('[class$=menu-body]');
+                    body.querySelector('.sv-phone-proxies')?.remove();
+                    window.svStaffPhoneMenus.more(body, dialog);
+                    if (state.kebab) state.kebab.node.hidden = false;
+                }
                 dialog.showModal();
                 dialog.scrollTop = 0;
             });
             dialog.addEventListener('close', () => { if (document.getElementById('svJump')?.hidden !== false) trigger.focus(); });
         }
         const tabBody = menus.tabs.querySelector('.pocket-staff-cal-menu-body');
-        document.querySelectorAll('#headerNav > .header-nav-btn').forEach(native => {
-            if (native.hidden || getComputedStyle(native).display === 'none') return;
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = native.textContent.trim();
-            button.disabled = !!native.disabled;
-            if (native.classList.contains('active')) button.setAttribute('aria-current', 'page');
-            button.addEventListener('click', () => { menus.tabs.close(); native.click(); });
-            tabBody.append(button);
-        });
+        window.svStaffPhoneMenus.tabs(tabBody, menus.tabs);
         const tools = document.createElement('div');
         tools.className = 'pocket-staff-cal-tools';
         tools.textContent = 'Calendar Tools';
@@ -125,13 +121,6 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 if (kebab && !state.kebab) {
                     state.kebab = { node: kebab, hidden: kebab.hidden };
                     kebab.hidden = false;
-                }
-            }
-            for (const selector of ['#svClientBadgeWrap', '#staffIdentityWrap', '.header .sv-jump-touch']) {
-                const control = document.querySelector(selector);
-                if (control && !moreBody.contains(control)) {
-                    state.moved.push({ node: control, parent: control.parentNode, next: control.nextSibling });
-                    moreBody.prepend(control);
                 }
             }
         };
@@ -1076,7 +1065,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
             body.innerHTML = document.body.classList.contains('sv-shared-client')
-                ? `<div class="cal-empty">Pick a client in the top bar to start.</div>`
+                ? _calStaffPhoneActive() ? `<div class="cal-empty">Choose a client to start.<button type="button" class="sv-phone-choose-client" onclick="svPhoneOpenClientPicker()">Choose client</button></div>` : `<div class="cal-empty">Pick a client in the top bar to start.</div>`
                 : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }

@@ -1,5 +1,10 @@
 # Repo map
 
+Staff phone final pass: `qa/staff-phone-final-pass.js` drives the generated app
+with the existing fictional browser transports, checks phone controls and
+native picker actions, and captures before/after journeys. Evidence and the
+comparison gallery live in `docs/audits/2026-10-07-phone-final-pass/`.
+
 Digger's preventive audit: `docs/audits/2026-10-02-bug-archaeology.md` records the
 history-derived patterns, skeptical verdicts and bounded loop over the September
 19 to October 2 changes. Regression guards: `test/analytics-essentials-http.js`,

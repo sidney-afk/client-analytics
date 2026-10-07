@@ -40,6 +40,8 @@ const BEFORE_REF = arg('before', 'origin/main');
 const OUT = arg('out', '');
 const STAFF_ONLY = process.argv.includes('--staff-only');
 const WIDTHS = process.env.PARITY_W ? process.env.PARITY_W.split(',').map(Number) : [1024, 1280, 1440, 1920];
+const WORKERS = Number(process.env.PARITY_WORKERS || 1);
+if (!Number.isInteger(WORKERS) || WORKERS < 1 || WORKERS > 4) throw new Error('PARITY_WORKERS must be an integer from 1 to 4');
 const HEIGHT = 900;
 const ORIGIN = 'http://127.0.0.1:8765';
 const SETTLE_STAFF = 3500;
@@ -207,9 +209,11 @@ async function staffTabs(browser) {
   }
   if (process.env.PARITY_ONLY) pages = pages.filter(p => p.name === process.env.PARITY_ONLY);
   if (OUT) fs.mkdirSync(OUT, { recursive: true });
-  const rows = []; let fail = 0;
-  for (const pg of pages) {
-    for (const w of WIDTHS) {
+  const jobs = pages.flatMap(pg => WIDTHS.map(w => ({ pg, w })));
+  const rows = new Array(jobs.length); let fail = 0, cursor = 0;
+  async function worker() {
+    while (cursor < jobs.length) {
+      const index = cursor++; const { pg, w } = jobs[index];
       let a, b, same = false;
       let attempts = 0;
       const snapshot = new Map(); // one pair only; released after this width
@@ -232,10 +236,11 @@ async function staffTabs(browser) {
       }
       const row = { page: pg.name, width: w, pixels: a.png.equals(b.png) ? 'identical' : 'DIFFERENT', styles: a.styleHash === b.styleHash ? 'identical' : 'DIFFERENT', sha: crypto.createHash('sha256').update(b.png).digest('hex').slice(0, 12), attempts };
       if (!same) fail++;
-      rows.push(row);
+      rows[index] = row;
       console.log(`${same ? 'ok  ' : 'FAIL'} ${pg.name} @${w}: pixels ${row.pixels}, computed styles ${row.styles} (${row.sha}${attempts > 1 ? ', attempts ' + attempts : ''})`);
     }
   }
+  await Promise.all(Array.from({ length: Math.min(WORKERS, jobs.length) }, worker));
   await browser.close();
   if (OUT) fs.writeFileSync(path.join(OUT, 'parity.json'), JSON.stringify(rows, null, 1));
   console.log(`\n${rows.length - fail}/${rows.length} desktop shots identical to ${BEFORE_REF}`);

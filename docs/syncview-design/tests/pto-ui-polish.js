@@ -586,7 +586,10 @@ async function phoneExpandedChecks(browser, port) {
       await page.evaluate(() => { _syncviewStaffIdentityClear(); _ptoPaint(); }); await check('sign-in');
       // Sign-out can immediately open the existing entry gate. Otherwise use
       // the Time Off sign-in action; neither path enters a key or signs in.
-      if (!await page.locator('#staffIdentityForm').isVisible()) await page.locator('.pto-signin button').tap();
+      // The gate can open a moment after sign-out, so give it time before
+      // falling back to the button it would otherwise cover.
+      const gateOpened = await page.locator('#staffIdentityForm').waitFor({ state: 'visible', timeout: 2000 }).then(() => true, () => false);
+      if (!gateOpened) await page.locator('.pto-signin button').tap();
       await page.locator('#staffIdentityForm').waitFor({ state: 'visible' }); await check('sign-in-dialog');
       await page.locator('#staffIdentityMemberBtn').tap(); await check('sign-in-name-picker'); await page.keyboard.press('Escape');
       if (await page.locator('#staffIdentityCancel').isVisible()) await page.locator('#staffIdentityCancel').tap();

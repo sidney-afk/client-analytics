@@ -254,7 +254,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (c.mode === 'image') {
             body = c.blob
                 ? `<div class="tk-file-card"><div class="tk-file-meta"><div class="tk-file-meta-text"><div class="tk-file-name">${_igEsc(c.name)}</div><div class="tk-file-size">${_igEsc(c.dims)} · ${_igDeps.formatBytes(c.blob.size)} · ${c.source === 'calendar' ? 'from the Calendar' : 'uploaded'}</div></div><div class="tk-file-actions"><button type="button" class="tk-mini-btn" id="igCoverRemove" ${off}>Remove</button></div></div></div>`
-                : `<div class="tk-drop" id="igCoverDrop"><input type="file" id="igCoverFile" accept="image/jpeg,image/png" ${off}><div class="tk-drop-title">Drop a cover image here, or click to browse</div><div class="tk-drop-sub">JPEG or PNG · 9:16 (1080×1920 is ideal) · up to ${_igDeps.formatBytes(IG_COVER_MAX_BYTES)}</div></div>`;
+                : `<div class="tk-drop" id="igCoverDrop"><input type="file" id="igCoverFile" accept="image/jpeg,image/png" ${off}><div class="tk-drop-title">Drop a cover image here, or ${window.svIsStaffPhone?.() ? 'tap' : 'click'} to browse</div><div class="tk-drop-sub">JPEG or PNG · 9:16 (1080×1920 is ideal) · up to ${_igDeps.formatBytes(IG_COVER_MAX_BYTES)}</div></div>`;
         } else {
             const maxMs = Math.max(0, Math.floor((c.duration || 0) * 1000));
             body = igState.file
@@ -340,7 +340,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 </div>`
             : `<div class="tk-drop" id="igDrop">
                     <input type="file" id="igFile" accept="video/mp4,video/quicktime,video/*" ${igState.submitting ? 'disabled' : ''}>
-                    <div class="tk-drop-title">Drop a video here, or click to browse</div>
+                    <div class="tk-drop-title">Drop a video here, or ${window.svIsStaffPhone?.() ? 'tap' : 'click'} to browse</div>
                     <div class="tk-drop-sub">MP4 or MOV · up to ${_igDeps.formatBytes(_igDeps.maxBytes)}</div>
                 </div>`;
         col.innerHTML = `

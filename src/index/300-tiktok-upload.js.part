@@ -738,7 +738,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
                     <div class="tk-drop-icon">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
-                    <div class="tk-drop-title">Drop a video here, or click to browse</div>
+                    <div class="tk-drop-title">Drop a video here, or ${window.svIsStaffPhone?.() ? 'tap' : 'click'} to browse</div>
                     ${reattachHint}
                 </div>`;
         }
@@ -749,7 +749,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
                 <div class="tk-drop-icon">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
-                <div class="tk-drop-title">${tkState.photos.length ? 'Drop more images, or click to add' : 'Drop images here, or click to browse'}</div>
+                <div class="tk-drop-title">${tkState.photos.length ? 'Drop more images, or ' + (window.svIsStaffPhone?.() ? 'tap' : 'click') + ' to add' : 'Drop images here, or ' + (window.svIsStaffPhone?.() ? 'tap' : 'click') + ' to browse'}</div>
                 <div class="tk-drop-sub">JPEG, PNG or WEBP · 1 to ${TIKTOK_MAX_PHOTOS} images, up to ${_tkFormatBytes(TIKTOK_PHOTO_MAX_BYTES)} each</div>
             </div>`;
         const photoReattachHint = (!tkState.photos.length && tkState.photosMeta && tkState.photosMeta.length)

@@ -187,7 +187,12 @@ function serve() {
 /* ---------------------------------------------------------------- states */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function settle(page, ms) { await page.waitForTimeout(ms || 500); }
-async function go(page, tab) { await page.evaluate(t => navTo(t), tab); await settle(page, 900); }
+async function go(page, tab) {
+  await page.evaluate(t => navTo(t), tab);
+  // The split loader may need more than one frame to expose a lazy area's controls.
+  if (tab === 'templates') await page.waitForFunction(() => typeof openClientTemplate === 'function');
+  await settle(page, 1500);
+}
 async function client(page, name) { await page.evaluate(n => { openClientTemplate(n); }, name); await settle(page, 1200); }
 async function holdThen(fn, flag) {   // run fn() while the named backend answers are held, then release them
   let release; scenario.gate = new Promise(r => { release = r; }); scenario[flag] = 'slow';
@@ -349,7 +354,7 @@ function judge(m, width) {
 }
 
 /* ------------------------------------------------------------------- run */
-(async () => {
+if (require.main === module) (async () => {
   const server = await serve();
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch();
@@ -419,3 +424,6 @@ function judge(m, width) {
   console.log(`staff-phone-browser: ${ran} state renders, ${failures.length} problems`);
   if (failures.length && !BEFORE) process.exit(1);
 })().catch(e => { console.error(e); process.exit(1); });
+
+// The final-pass proof reuses these native journeys and the same refused-write transport.
+module.exports = { serve, installBackend, resetScenario, S, NAMES, measure, judge };

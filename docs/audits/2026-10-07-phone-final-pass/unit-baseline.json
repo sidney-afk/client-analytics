@@ -1,0 +1,76 @@
+{
+  "baseline_commit": "ed3d8386aeab9658827aed7ae20b399ec4a8d0b4",
+  "current_failure_count": 17,
+  "baseline_failure_count": 17,
+  "same_failing_suites": true,
+  "suites": [
+    {
+      "file": "test/client-onboarding-handler.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/clean-urls-routes.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/b2-brief-link-rewrite.mjs",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/alert-digest.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/analytics-market-research-collect-function.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/analytics-metrics-collect-function.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/analytics-top-videos-collect-function.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/brain-parse.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/client-profile-edit.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/client-reconcile-after-posted.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/filming-plan-tabs-source.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/key-verify-behavior.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/overnight-runner-output-path.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/overnight-runner-singleton-lock.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/production-write-card-link.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/urgent-ping-fresh-round.js",
+      "baseline_exit": 1
+    },
+    {
+      "file": "test/write-refusal-browser-codes.js",
+      "baseline_exit": 1
+    }
+  ]
+}

@@ -138,6 +138,8 @@ async function review(browser, origin, width, theme) {
     await page.keyboard.press('Escape');
     ok(await note.inputValue() === 'Please shorten the opening line.', 'Tabs lost the draft');
     await page.locator('[data-staff-menu=more]').click();
+    const credentialRows = await page.locator('dialog[open] button').evaluateAll(nodes => nodes.filter(node => node.checkVisibility() && /^client credentials$/i.test(node.textContent.trim())).length);
+    ok(credentialRows === 1, 'More lists Client credentials ' + credentialRows + ' times');
     await measure(page, 'more-' + suffix);
     await shot(page, 'more-' + suffix);
     await page.keyboard.press('Escape');
@@ -173,14 +175,15 @@ async function review(browser, origin, width, theme) {
     await shot(page, 'import-select-empty-' + suffix);
     await page.evaluate(() => closeCalImport());
     await page.locator('[data-staff-menu=more]').click();
-    await page.evaluate(() => _syncviewOpenStaffAccount());
-    await page.locator('#staffAccountPopover').waitFor();
+    const staffLabel = await page.locator('#staffIdentityMenuLabel').textContent();
+    await page.getByRole('button', { name: staffLabel.trim(), exact: true }).waitFor();
+    ok(await page.locator('#staffIdentitySignOut').evaluate(button => typeof button.onclick === 'function'), 'More staff action was not initialized by its native menu');
+    ok(await page.locator('#staffAccountPopover').isHidden(), 'More left the old header popover open');
     await measure(page, 'account-' + suffix);
     await shot(page, 'account-' + suffix);
-    await page.evaluate(() => _syncviewCloseStaffAccount());
     await page.keyboard.press('Escape');
       await page.locator('[data-staff-menu=more]').click();
-      await page.locator('dialog[open] .sv-jump-touch').click();
+      await page.getByRole('button', { name: 'Quick jump', exact: true }).click();
       await page.locator('#svJump:not([hidden])').waitFor();
       ok(await page.locator('dialog[open]').count() === 0, 'More trapped native Quick jump');
       await page.locator('#svJumpInput').fill('phone fixture');

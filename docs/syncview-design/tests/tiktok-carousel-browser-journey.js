@@ -139,6 +139,11 @@ async function mockNetwork(page, { mintDelayMs = 0, putFailAtIndex = null, direc
   // -added route first, so every specific mock below wins over this one.
   await page.route('https://**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
 
+  // This journey drives the n8n transport. Answer the tiktok_upload_source
+  // switch here so the live setting (now "supabase") never picks the path.
+  await page.route('**/rest/v1/syncview_runtime_flags?*tiktok_upload_source*', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ value: { source: 'n8n' } }]) }));
+
   await page.route('**/gviz/tq**', route => {
     const url = new URL(route.request().url());
     const sheet = url.searchParams.get('sheet') || '';

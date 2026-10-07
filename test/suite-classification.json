@@ -622,6 +622,7 @@
     "tiktok-carousel-transport.js",
     "tiktok-size-label.js",
     "tiktok-upload-cancel-source.js",
+    "tiktok-upload-source.js",
     "title-name-rule-drift.js",
     "title-review-lifecycle.js",
     "today-render.js",
@@ -1337,6 +1338,14 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "tiktok-upload-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Runs the tiktok-upload and tiktok-upload-cancel functions' own code over a fake Post For Me and a fake queue table with the switch on supabase: list, submit, refusal, retry, cancel, already posted and a failed cancel.",
+      "reproduce": "node test/tiktok-upload-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "tiktok-cancel-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1503,6 +1512,15 @@
       "postgres_major": 17,
       "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
       "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/analytics-metrics-collect-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "tiktok-uploads-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/tiktok-uploads-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

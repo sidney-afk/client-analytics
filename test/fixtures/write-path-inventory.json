@@ -338,6 +338,15 @@
       ],
       "note": "TikTok cancel. Recorded as tiktok_cancel."
     },
+    "300-tiktok-upload.js.part|_tkFn|TIKTOK_UPLOAD_FN_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_tkCreateViaFunction",
+        "_tkSubmitDirect",
+        "_tkSubmitPhotoCarousel"
+      ],
+      "note": "TikTok upload function (mint, create, list, status) once the tab runs off n8n (OPEN_REPAIRS 362). Create is recorded as tiktok_upload, mint as tiktok_upload_prepare or tiktok_photo_upload; list and status are reads of state."
+    },
     "300-tiktok-upload.js.part|_tkFinishDirectSubmit|TIKTOK_UPLOAD_DIRECT_WEBHOOK|POST": {
       "status": "reports",
       "within": [
@@ -358,6 +367,13 @@
         "_tkPutDirect"
       ],
       "note": "TikTok video upload to storage. Recorded as tiktok_storage_put."
+    },
+    "300-tiktok-upload.js.part|_tkRetryRow|TIKTOK_UPLOAD_FN_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_tkRetryRow"
+      ],
+      "note": "TikTok retry through the upload function (OPEN_REPAIRS 362). Recorded as tiktok_retry."
     },
     "300-tiktok-upload.js.part|_tkRetryRow|TIKTOK_UPLOAD_STATUS_URL|POST": {
       "status": "reports",

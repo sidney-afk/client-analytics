@@ -30882,3 +30882,5 @@ and allocates full touch widths in the Create post stepper. The expanded Calenda
 flow applies painted-overlap and scroll-lock assertions at every measured state.
 Main first-paint repair 363 is retained from merge `787c693d`; this entry is now 366 after the final reservation check.
 
+
+Latest-main follow-up: main `8f66c36b` was merged in `6a9bd7b6`, preserving its Clients redesign and repair 364. Final phone admin guards pass 2,474 checks per width. Strict desktop proof is 71 original exact matches plus one passing unchanged-gate replay (72/72 comparisons); the original 1920 reviewer PNG failure remains recorded. Hosted classified unit and split-preview lanes pass on `c6734775`; the historical failures are retained.

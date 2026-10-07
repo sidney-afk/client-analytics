@@ -304,3 +304,7 @@ The 53 additional state groups below cover 212 native captures at both requested
 | `Calendar week-loading` | 390 dark, 390 light, 430 dark, 430 light | The date heading and navigation share one group; cards use the available width. At 390 the year wraps naturally rather than squeezing arrows. Empty, loading and retry states retain their own honest presentation. |
 | `Calendar week-preview` | 390 dark, 390 light, 430 dark, 430 light | The pinned hover hint covered the heading on touch. I removed that hint on staff phones; the final preview leaves the title clear, with status chips grouped above the caption and editing actions together below. |
 | `Calendar week-read-error` | 390 dark, 390 light, 430 dark, 430 light | The date heading and navigation share one group; cards use the available width. At 390 the year wraps naturally rather than squeezing arrows. Empty, loading and retry states retain their own honest presentation. |
+
+## Latest main integration review
+
+The final merged Clients detail and edit states were inspected at 390/430 in both themes: the labelled search/list controls align; profile identity and contact actions are grouped; edit actions remain together. The inherited low-emphasis metadata is consistent across sections. Latest Calendar/Samples captures keep the quiet utility group and safe More sheet. The new captures yielded no additional ratified design change.

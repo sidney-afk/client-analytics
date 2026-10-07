@@ -82,6 +82,22 @@ COMPLETED
 KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 0 failures; fictional data; no live writes.
 ```
 
+## admin-latest390.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2474 checks; 0 failures; fictional data; no live writes.
+```
+
+## admin-latest430.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2474 checks; 0 failures; fictional data; no live writes.
+```
+
 ## admin-merged390.log
 
 COMPLETED
@@ -175,6 +191,16 @@ COMPLETED
 ```text
 build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
 build-index: wrote index.html (1287574 bytes) from 67 fragment(s)
+build-index: wrote src/index/INDEX.md
+```
+
+## build-latest-main.log
+
+COMPLETED
+
+```text
+build-index: js/sv-16-kasper-7f446f6f9a66.js (316991 bytes)
+build-index: wrote index.html (1305214 bytes) from 67 fragment(s)
 build-index: wrote src/index/INDEX.md
 ```
 
@@ -328,6 +354,14 @@ COMPLETED
 staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
 ```
 
+## calendar-latest-main.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
 ## calendar-merged-final.log
 
 COMPLETED
@@ -432,6 +466,16 @@ FAILED / retained
   expected: [],
   operator: 'deepStrictEqual'
 }
+```
+
+## cards-latest-main.log
+
+COMPLETED
+
+```text
+ok sample-reviews-430-dark-missing-media
+ok sample-reviews-430-dark-linked
+STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
 ```
 
 ## cards-merged-captures.log
@@ -718,6 +762,55 @@ ok   client-analytics @1920: pixels identical, computed styles identical (aa6926
 ok   client-calendar @1024: pixels identical, computed styles identical (69fabd5010fe)
 ```
 
+## desktop-latest1024.log
+
+COMPLETED
+
+```text
+ok   client-brief @1024: pixels identical, computed styles identical (69fabd5010fe)
+ok   client-sample-reviews @1024: pixels identical, computed styles identical (7b698a748e34)
+18/18 desktop shots identical to 8f66c36b503ebb3a881cf20f27dca48607e750ab
+```
+
+## desktop-latest1280.log
+
+COMPLETED
+
+```text
+ok   client-brief @1280: pixels identical, computed styles identical (fc7b056f7e75)
+ok   client-sample-reviews @1280: pixels identical, computed styles identical (d869de825d13)
+18/18 desktop shots identical to 8f66c36b503ebb3a881cf20f27dca48607e750ab
+```
+
+## desktop-latest1440.log
+
+COMPLETED
+
+```text
+ok   client-brief @1440: pixels identical, computed styles identical (6f0161af69d3)
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (29e7eb2d8015)
+18/18 desktop shots identical to 8f66c36b503ebb3a881cf20f27dca48607e750ab
+```
+
+## desktop-latest1920-replay.log
+
+COMPLETED
+
+```text
+ok   staff-navKasper @1920: pixels identical, computed styles identical (1cb78a8b88a7, attempts 2)
+1/1 desktop shots identical to 8f66c36b503ebb3a881cf20f27dca48607e750ab
+```
+
+## desktop-latest1920.log
+
+FAILED / retained
+
+```text
+ok   client-brief @1920: pixels identical, computed styles identical (de140d5698bd)
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (f87764b62642)
+17/18 desktop shots identical to 8f66c36b503ebb3a881cf20f27dca48607e750ab
+```
+
 ## desktop-merged1024.log
 
 COMPLETED
@@ -826,6 +919,12 @@ COMPLETED
 
 No output was emitted.
 
+## diff-final-docs.log
+
+COMPLETED
+
+No output was emitted.
+
 ## diff-fixed-detector.log
 
 COMPLETED
@@ -880,6 +979,32 @@ FAILED / retained
 
 ```text
 detector missed a fixed popup collision outside a clipped ancestor
+```
+
+## hosted-latest-split-complete.log
+
+COMPLETED
+
+```text
+2026-10-07T20:20:20.9393675Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T20:20:20.9835482Z Cleaning up orphan processes
+2026-10-07T20:20:21.0200856Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## hosted-latest-split.log
+
+FAILED / retained
+
+No output was emitted.
+
+## hosted-latest-unit-complete.log
+
+COMPLETED
+
+```text
+2026-10-07T20:22:07.3837432Z github_network_0fb0b5fcacc146fe8db16711db849432
+2026-10-07T20:22:07.3912375Z Cleaning up orphan processes
+2026-10-07T20:22:07.4317755Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
 ```
 
 ## hosted-merged-entry.log
@@ -982,7 +1107,27 @@ COMPLETED
 This change adds no client slug and no colleague's name ✅
 ```
 
+## identity-final-docs.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
 ## identity-final-head.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
+## identity-latest-main.log
 
 COMPLETED
 
@@ -1009,6 +1154,16 @@ identity exposure check failed: git diff failed (status null)
 ```
 
 ## identity-push.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
+## identity-shipping-head.log
 
 COMPLETED
 
@@ -1068,6 +1223,16 @@ check-index: FAIL — working-tree index.html does not equal committed index.htm
 check-index: FAILED
 ```
 
+## index-latest-main.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=34abdeeb12d094016ad6534933d7da3e95b83fd5dd9e1272277ac6e9aad3de09 bytes=1305214
+check-index: committed index.html (HEAD) — sha256=34abdeeb12d094016ad6534933d7da3e95b83fd5dd9e1272277ac6e9aad3de09 bytes=1305214
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
 ## index-merged-final.log
 
 COMPLETED
@@ -1098,6 +1263,16 @@ check-index: FAIL — working-tree index.html does not equal committed index.htm
 check-index: FAILED
 ```
 
+## index-shipping-head.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
+check-index: committed index.html (HEAD) — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
 ## lazy-complete.log
 
 COMPLETED
@@ -1109,6 +1284,16 @@ check-lazy-safety: all checks passed (38 recorded hazards)
 ```
 
 ## lazy-current-main.log
+
+COMPLETED
+
+```text
+approve path reaching into on-demand areas: 2 hazards, 26 import ties
+  synclinear: PROD_WRITE_EF_URL, _prodCanWrite, _prodCanonicalCommentGate, _prodCardCommentsPending, _prodClientCommentGatewayContext, _prodComments, _prodCommentsSkeletonHtml, _prodGatewayWrite, _prodIssue, _prodProjectCanonicalCardComments, _prodRestRows, _prodToast, _prodVerifiedClientCommentMutationContext, _prodWriteErrorText
+check-lazy-safety: all checks passed (38 recorded hazards)
+```
+
+## lazy-latest-main.log
 
 COMPLETED
 
@@ -1167,6 +1352,16 @@ Node.js v22.12.0
 ```
 
 ## map-current-main.log
+
+COMPLETED
+
+```text
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+repo-map-sync: 1116 passed, 0 failed
+```
+
+## map-latest-main.log
 
 COMPLETED
 
@@ -1240,6 +1435,24 @@ CONFLICT (content): Merge conflict in src/index/INDEX.md
 Automatic merge failed; fix conflicts and then commit the result.
 ```
 
+## merge-latest-diff.log
+
+COMPLETED
+
+```text
+docs/ops/OPEN_REPAIRS.md:30884: new blank line at EOF.
+```
+
+## merge-shipping-main.log
+
+FAILED / retained
+
+```text
+Auto-merging src/index/INDEX.md
+CONFLICT (content): Merge conflict in src/index/INDEX.md
+Automatic merge failed; fix conflicts and then commit the result.
+```
+
 ## merge.log
 
 FAILED / retained
@@ -1267,6 +1480,16 @@ COMPLETED
 ```text
 typeof guards in modules: 514; unresolvable: 0
 minified parts: 19 files, 2628 KB, 5162 top-level names, 0 lost, 0 changed kind
+check-modules: all checks passed
+```
+
+## modules-latest-main.log
+
+COMPLETED
+
+```text
+typeof guards in modules: 517; unresolvable: 0
+minified parts: 19 files, 2651 KB, 5211 top-level names, 0 lost, 0 changed kind
 check-modules: all checks passed
 ```
 
@@ -1346,6 +1569,16 @@ STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; 
 ```
 
 ## rules-inline-overlay.log
+
+COMPLETED
+
+```text
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+```
+
+## rules-latest-main.log
 
 COMPLETED
 
@@ -1465,6 +1698,14 @@ COMPLETED
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 58 rules phone-capped and staff-scoped
 ```
 
+## source-latest-main.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped
+```
+
 ## source-lightbox.log
 
 COMPLETED
@@ -1534,6 +1775,16 @@ Node.js v22.12.0
 ```
 
 ## truth-current-main.log
+
+COMPLETED
+
+```text
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+truth-sync: 515 passed, 0 failed
+```
+
+## truth-latest-main.log
 
 COMPLETED
 

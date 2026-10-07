@@ -470,6 +470,11 @@ import {
     // Cancel is a Supabase function, not n8n: it deletes the post in Post For Me first and
     // only then marks the queue row cancelled (supabase/functions/tiktok-upload-cancel).
     const TIKTOK_UPLOAD_CANCEL_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/tiktok-upload-cancel';
+    // The move off n8n and the Sheet (OPEN_REPAIRS 362): one Supabase function for mint, create, list, status
+    // and retry, keeping the queue in the table tiktok_uploads. The page uses it only while the runtime flag
+    // below reads {"source":"supabase"}; anything else keeps the n8n webhooks above.
+    const TIKTOK_UPLOAD_FN_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/tiktok-upload';
+    const TIKTOK_UPLOAD_SOURCE_FLAG_KEY = 'tiktok_upload_source';
     // Direct-to-storage transport (see _tkSubmit). `tiktok-upload-url` mints a
     // one-time Post For Me upload URL; the browser PUTs the video straight to
     // their storage and `tiktok-upload-direct` then takes metadata + that media
@@ -2048,7 +2053,7 @@ export {
   SHEET_ID, TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES,
   TIKTOK_MAX_PHOTOS, TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES,
   TIKTOK_QUEUE_CACHE_KEY, TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL,
-  TIKTOK_UPLOAD_DIRECT_WEBHOOK, TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK,
+  TIKTOK_UPLOAD_DIRECT_WEBHOOK, TIKTOK_UPLOAD_FN_URL, TIKTOK_UPLOAD_SOURCE_FLAG_KEY, TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK,
   TIKTOK_UPLOAD_WEBHOOK, WEEKLY_SLACK_WEBHOOK, _analyticsAppliedFp, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
   _analyticsHoldExtras, _analyticsHydrateFromCache, _analyticsHydrateFromIdb, _analyticsIdbDelete,

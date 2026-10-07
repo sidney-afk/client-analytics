@@ -2,13 +2,14 @@ import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiRecordSaveFailure, _
 import {
   TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES, TIKTOK_MAX_PHOTOS,
   TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES, TIKTOK_QUEUE_CACHE_KEY,
-  TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL, TIKTOK_UPLOAD_DIRECT_WEBHOOK,
-  TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK, TIKTOK_UPLOAD_WEBHOOK, clientMap,
+  TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL, TIKTOK_UPLOAD_DIRECT_WEBHOOK, TIKTOK_UPLOAD_FN_URL,
+  TIKTOK_UPLOAD_SOURCE_FLAG_KEY, TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK, TIKTOK_UPLOAD_WEBHOOK, clientMap,
   showConfirm, showNotify, svAreaRegister
 } from './040-shared-briefs.js';
 import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, getRecent } from './050-market-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, teardownInstagramPanel } from './299-instagram-upload.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
@@ -21,6 +22,13 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
          POST /webhook/tiktok-upload         multipart: media + JSON metadata
          GET  /webhook/tiktok-uploads-list   → recent uploads from TikTokUploads sheet
          GET  /webhook/tiktok-upload-status  ?id=…  → poll a single upload
+
+       Since OPEN_REPAIRS 362 the whole tab can run without n8n or the
+       Sheet: while syncview_runtime_flags.tiktok_upload_source reads
+       {"source":"supabase"}, mint, create, list, status and retry go to the
+       Supabase function tiktok-upload (queue in the table tiktok_uploads),
+       and every video takes the direct-to-storage path. Any other value
+       keeps the n8n webhooks listed above.
 
        Cancel is NOT n8n: POST { id } to the Supabase function
        tiktok-upload-cancel, which deletes the post in Post For Me, checks
@@ -95,6 +103,56 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     let _tkActivePhotoAbort = null; // AbortController for the photo-carousel mint+PUT loop
     let _tkMounted = false;   // true while the TikTok Upload view is on screen
     let _tkVisHooked = false; // one-time guard for the visibilitychange listener
+
+    /* ---- Which backend: n8n + the Sheet, or the tiktok-upload function --
+       Read from syncview_runtime_flags (publicly readable, like the other
+       switches). A read that fails keeps the last answer this browser saw,
+       so a blip can never send one upload to the Sheet and the next to the
+       table; a browser that never read it stays on n8n, today's path.
+       Three answers: 'supabase' (everything through the function),
+       'n8n' (everything through n8n and the Sheet) and 'n8n+table', the
+       rollback: new uploads go to n8n, but the queue still shows the table's
+       rows (read, status and retry through the function), so posts made
+       while the function was on never vanish from the page. */
+    const TK_SOURCE_TTL_MS = 60000;
+    const TK_SOURCE_LAST_KEY = 'syncview_tiktok_upload_source_last';
+    let _tkSourceCache = null;   // { at, value }
+    async function _tkSource(fresh) {
+        if (!fresh && _tkSourceCache && Date.now() - _tkSourceCache.at < TK_SOURCE_TTL_MS) return _tkSourceCache.value;
+        let value = null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(TIKTOK_UPLOAD_SOURCE_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }, cache: 'no-store', signal: (AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined) });
+            if (resp.ok) {
+                const rows = await resp.json();
+                const v = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+                value = v && typeof v === 'object' && v.source === 'supabase' ? 'supabase'
+                    : (v && typeof v === 'object' && v.read_table === true ? 'n8n+table' : 'n8n');
+            }
+        } catch {}
+        if (!value) {
+            let last = _tkSourceCache ? _tkSourceCache.value : null;
+            if (!last) { try { last = localStorage.getItem(TK_SOURCE_LAST_KEY); } catch {} }
+            value = last === 'supabase' || last === 'n8n+table' ? last : 'n8n';
+        } else {
+            try { localStorage.setItem(TK_SOURCE_LAST_KEY, value); } catch {}
+        }
+        _tkSourceCache = { at: Date.now(), value };
+        return value;
+    }
+    // One call to the tiktok-upload function with the staff key. A bad answer never throws; a network failure does.
+    async function _tkFn(payload, signal) {
+        const resp = await fetch(TIKTOK_UPLOAD_FN_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }, TIKTOK_UPLOAD_FN_URL),
+            body: JSON.stringify(payload),
+            cache: 'no-store',
+            signal,
+        });
+        let json = null;
+        try { json = await resp.json(); } catch { json = null; }
+        return { ok: !!(resp.ok && json && json.ok !== false), status: resp.status, json };
+    }
 
     // ---- TikTok Pilot state (isolated from tkState above) ----
     // Declared here, alongside the _tk* runtime state, so the same early-init
@@ -1283,7 +1341,8 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         return null;
     }
 
-    function _tkSubmit() {
+    async function _tkSubmit() {
+        if (tkState.submitting) return;
         // Re-resolve the account id from the freshest client map right before
         // sending. It's derived purely from the selected client but gets
         // resolved-and-cached early (on draft restore / client select); if that
@@ -1303,8 +1362,35 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         const scheduledAtWall = tkState.schedule.postNow ? '' : tkState.schedule.at;
         const scheduledAtUTC  = scheduledAtWall ? (_tkWallClockToUTC(scheduledAtWall, tkState.schedule.tz) || '') : '';
 
+        // Which backend takes this upload, read fresh. The form is locked while it is read.
+        tkState.submitting = true;
+        tkState.error = null;
+        _tkRenderForm();
+        const source = await _tkSource(true);
+        tkState.submitting = false;
+
+        // A create whose answer was lost may have reached Post For Me. The same draft is sent again with the
+        // SAME key and the media already in storage, so the server finds the first attempt instead of posting twice.
+        const again = tkState.retryCreate;
+        if (source === 'supabase' && again && again.sig === _tkDraftSig()) {
+            const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source };
+            tkState.submitting = true;
+            tkState.error = null;
+            tkState.progress = 90;
+            _tkRenderForm();
+            _tkCreateViaFunction(again.media, again.key, again.scheduledAtWall, again.scheduledAtUTC, target, again.what);
+            return;
+        }
+        tkState.retryCreate = null;
+
         if (tkState.mediaType === 'photo') {
-            _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC);
+            _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC, source);
+            return;
+        }
+
+        // Without n8n there is no in-band upload: every video goes straight to Post For Me's storage.
+        if (source === 'supabase') {
+            _tkSubmitDirect(idempotencyKey, scheduledAtWall, scheduledAtUTC, source);
             return;
         }
 
@@ -1439,7 +1525,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     // Cloudflare's 100 MB cap never applies), (3) POST just the metadata + the
     // resulting media URL to n8n to actually create the post. Same UI, same
     // drop zone — the SMM never sees which path ran.
-    function _tkSubmitDirect(idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+    function _tkSubmitDirect(idempotencyKey, scheduledAtWall, scheduledAtUTC, source) {
         const file = tkState.file;
         // Snapshot the submission target now, synchronously, before any async gap.
         // The mint + PUT round trip below can take a while for a large video, and
@@ -1448,11 +1534,37 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         // mid-upload (e.g. switching clients) redirect an already-uploading video
         // to the wrong Post For Me account. Read once here, thread the snapshot
         // through instead.
-        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at } };
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source: source || 'n8n' };
         tkState.submitting = true;
         tkState.error = null;
         tkState.progress = 0;
         _tkRenderForm();
+
+        if (target.source === 'supabase') {
+            const controller = new AbortController();
+            _tkActivePhotoAbort = controller;
+            _tkFn({ action: 'mint' }, controller.signal).then(mint => {
+                _tkActivePhotoAbort = null;
+                if (!mint.ok || !mint.json.upload_url || !mint.json.media_url) {
+                    tkState.submitting = false;
+                    tkState.progress = 0;
+                    _tkRecordFailure('tiktok_upload_prepare', mint.status);
+                    tkState.error = 'Could not prepare the upload — ' + ((mint.json && mint.json.error) || 'no upload url returned') + '.';
+                    _tkRenderForm();
+                    return;
+                }
+                _tkPutDirect(file, mint.json.upload_url, mint.json.media_url, idempotencyKey, scheduledAtWall, scheduledAtUTC, target);
+            }, e => {
+                _tkActivePhotoAbort = null;
+                tkState.submitting = false;
+                tkState.progress = 0;
+                if (e && e.name === 'AbortError') { tkState.error = 'Upload cancelled.'; _tkRenderForm(); return; }
+                _tkRecordFailure('tiktok_upload_prepare', 0, true);
+                tkState.error = 'Network error — could not reach the server to prepare the upload. Try again.';
+                _tkRenderForm();
+            });
+            return;
+        }
 
         const urlXhr = new XMLHttpRequest();
         _tkActiveXhr = urlXhr;
@@ -1541,6 +1653,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     }
 
     function _tkFinishDirectSubmit(mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC, target) {
+        if (target.source === 'supabase') { _tkCreateViaFunction({ mediaUrl }, idempotencyKey, scheduledAtWall, scheduledAtUTC, target, 'video'); return; }
         // FormData (not JSON) deliberately: a JSON content-type forces the browser
         // to send a CORS preflight (OPTIONS) first, and n8n's webhook node here is
         // bound to POST only — it 500s on OPTIONS instead of answering it, which
@@ -1610,7 +1723,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     // tiktok-upload-direct as JSON array `mediaUrls`. Always goes through this
     // direct-to-storage transport regardless of size, so this never touches the
     // in-band single-video tiktok-upload workflow.
-    async function _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+    async function _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC, source) {
         const photos = tkState.photos.slice();
         // Snapshot the submission target now, synchronously, before the sequential
         // mint+PUT loop below (which can take a while for several images). Client,
@@ -1618,7 +1731,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         // tkState.* lazily in _tkFinishPhotoSubmit would let an edit made mid-upload
         // (e.g. switching clients) hand these photos to the wrong Post For Me
         // account. Read once here, thread the snapshot through instead.
-        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at } };
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source: source || 'n8n' };
         tkState.submitting = true;
         tkState.error = null;
         tkState.progress = 0;
@@ -1630,10 +1743,16 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         try {
             for (let i = 0; i < photos.length; i++) {
                 const { file } = photos[i];
-                const mintResp = await fetch(TIKTOK_UPLOAD_URL_WEBHOOK, { signal: controller.signal });
-                if (!mintResp.ok) throw new Error(`Could not prepare image ${i + 1} (HTTP ${mintResp.status}).`);
                 let mint = {};
-                try { mint = await mintResp.json(); } catch {}
+                if (target.source === 'supabase') {
+                    const m = await _tkFn({ action: 'mint' }, controller.signal);
+                    if (!m.ok) throw new Error(`Could not prepare image ${i + 1} (HTTP ${m.status}).`);
+                    mint = m.json || {};
+                } else {
+                    const mintResp = await fetch(TIKTOK_UPLOAD_URL_WEBHOOK, { signal: controller.signal });
+                    if (!mintResp.ok) throw new Error(`Could not prepare image ${i + 1} (HTTP ${mintResp.status}).`);
+                    try { mint = await mintResp.json(); } catch {}
+                }
                 if (!mint.ok || !mint.upload_url || !mint.media_url) throw new Error(`Could not prepare image ${i + 1} — ${mint.error || 'no upload url returned'}.`);
                 const putResp = await fetch(mint.upload_url, { method: 'PUT', headers: { 'Content-Type': _tkImageMimeFor(file) }, body: file, signal: controller.signal });
                 if (!putResp.ok) throw new Error(`Image ${i + 1} upload to storage failed (HTTP ${putResp.status}).`);
@@ -1657,6 +1776,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     }
 
     function _tkFinishPhotoSubmit(mediaUrls, idempotencyKey, scheduledAtWall, scheduledAtUTC, target) {
+        if (target.source === 'supabase') { _tkCreateViaFunction({ mediaUrls }, idempotencyKey, scheduledAtWall, scheduledAtUTC, target, 'images'); return; }
         // FormData (not JSON) for the same CORS-simple reason as _tkFinishDirectSubmit above.
         const fd = new FormData();
         fd.append('clientName', target.client);
@@ -1716,6 +1836,64 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         xhr.send(fd);
     }
 
+    // Creates the post through the tiktok-upload function (the Supabase backend): same success and failure
+    // handling as the n8n paths above, same optimistic queue row.
+    // What makes two submits "the same draft": client, account, caption, options, schedule and the same files.
+    function _tkDraftSig() {
+        const f = tkState.file;
+        const files = tkState.mediaType === 'photo'
+            ? (tkState.photos || []).map(p => p.file ? [p.file.name, p.file.size, p.file.lastModified].join(':') : '').join('|')
+            : (f ? [f.name, f.size, f.lastModified].join(':') : '');
+        return JSON.stringify([tkState.client, tkState.profile, tkState.title, tkState.options, tkState.schedule.postNow, tkState.schedule.at, tkState.schedule.tz, tkState.mediaType, files]);
+    }
+
+    async function _tkCreateViaFunction(media, idempotencyKey, scheduledAtWall, scheduledAtUTC, target, what) {
+        // Until a clear answer comes back, this create may have reached Post For Me: keep its key and media.
+        const ambiguous = { key: idempotencyKey, media, scheduledAtWall, scheduledAtUTC, what, sig: _tkDraftSig() };
+        const controller = new AbortController();
+        _tkActivePhotoAbort = controller;
+        let out;
+        try {
+            out = await _tkFn({
+                action: 'create',
+                clientName: target.client,
+                socialAccountId: target.profile,
+                title: target.title,
+                options: target.options,
+                scheduledAt: scheduledAtWall,
+                scheduledAtUTC,
+                timezone: target.tz,
+                idempotencyKey,
+                ...media,
+            }, controller.signal);
+        } catch (e) {
+            _tkActivePhotoAbort = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.retryCreate = ambiguous;
+            if (e && e.name === 'AbortError') { tkState.error = 'Upload cancelled.'; _tkRenderForm(); return; }
+            _tkRecordFailure('tiktok_upload', 0, true);
+            tkState.error = `The ${what} finished uploading to storage, but the server could not be reached to finish creating the post. Press Submit again without changing anything: it finishes this same post and cannot post it twice.`;
+            _tkRenderForm();
+            return;
+        }
+        _tkActivePhotoAbort = null;
+        tkState.submitting = false;
+        // A 5xx or no JSON is no answer: the post may exist. Anything else is a clear answer.
+        tkState.retryCreate = (!out.ok && (out.status >= 500 || !out.json)) ? ambiguous : null;
+        if (!out.ok) {
+            tkState.progress = 0;
+            _tkRecordFailure('tiktok_upload', out.json && out.json.ok === false && out.status < 300 ? 0 : out.status);
+            const err = out.json && (out.json.error || (out.json.row && out.json.row.error));
+            tkState.error = err ? `Upload failed: ${err}` : (out.status >= 200 && out.status < 300 ? 'Post For Me rejected this post. Try again.' : `Upload failed (HTTP ${out.status || 'no response'}). Try again.`);
+            if (tkState.retryCreate) tkState.error += ' Press Submit again without changing anything: it finishes this same post and cannot post it twice.';
+            _tkRenderForm();
+            return;
+        }
+        tkState.progress = 100;
+        _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, out.json, target);
+    }
+
     // Failed-saves log (Priority 4): every way a TikTok upload can fail is
     // recorded once, next to the message the person sees. Status only; the
     // file, title and links never leave the page.
@@ -1772,10 +1950,26 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         try {
             // Timeout so a hung request can't stall the poll chain forever —
             // the next poll is only armed in the .finally() of this fetch.
-            const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            const json = await r.json();
-            const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            const source = await _tkSource();
+            const readTable = async () => {
+                const out = await _tkFn({ action: 'list' }, (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined));
+                if (!out.ok) throw new Error('HTTP ' + out.status);
+                return (out.json.rows || []).map(r => ({ ...r, _store: 'table' }));
+            };
+            const readSheet = async () => {
+                const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const json = await r.json();
+                return Array.isArray(json) ? json : (json.rows || json.items || []);
+            };
+            let rows;
+            if (source === 'supabase') rows = await readTable();
+            else if (source === 'n8n+table') {
+                // Rollback: both queues, and a row in both (the one-time copy) shows the table's newer copy.
+                const [table, sheet] = await Promise.all([readTable(), readSheet()]);
+                const inTable = new Set(table.map(r => r.id));
+                rows = table.concat(sheet.filter(r => !inTable.has(r.id)));
+            } else rows = await readSheet();
             _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
             const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
@@ -1966,8 +2160,21 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
 
     async function _tkRetryRow(id) {
         try {
-            const r = await _writeUiTrackSave('tiktok', 'tiktok_retry', {}, () => fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' }));
-            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const viaTable = (await _tkSource()) === 'supabase' || ((tkState.uploads || []).find(r => r.id === id) || {})._store === 'table';
+            if (viaTable) {
+                const r = await _writeUiTrackSave('tiktok', 'tiktok_retry', {}, () => fetch(TIKTOK_UPLOAD_FN_URL, {
+                    method: 'POST',
+                    headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }, TIKTOK_UPLOAD_FN_URL),
+                    body: JSON.stringify({ action: 'retry', id }),
+                    cache: 'no-store',
+                }));
+                let j = null;
+                try { j = await r.json(); } catch {}
+                if (!r.ok || !j || j.ok === false) throw new Error((j && (j.error || (j.row && j.row.error))) || ('HTTP ' + r.status));
+            } else {
+                const r = await _writeUiTrackSave('tiktok', 'tiktok_retry', {}, () => fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' }));
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+            }
             Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
         } catch (e) {
             showNotify('Retry failed', e.message || 'The n8n status webhook did not accept the retry.');
@@ -2009,8 +2216,14 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         let changed = false;
         for (const r of due) {
             try {
-                const resp = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(r.id) + '&_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
-                const json = resp.ok ? await resp.json() : null;
+                let json = null;
+                if ((await _tkSource()) === 'supabase' || r._store === 'table') {
+                    const out = await _tkFn({ action: 'status', id: r.id }, (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined));
+                    json = out.ok ? out.json : null;
+                } else {
+                    const resp = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(r.id) + '&_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
+                    json = resp.ok ? await resp.json() : null;
+                }
                 const pfm = (json && json.pfm) || null;
                 const prev = tkState.pfm[r.id] || {};
                 // Only an answer from Post For Me counts toward the slower pace; a failed request is retried at the same gap.

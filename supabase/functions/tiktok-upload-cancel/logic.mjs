@@ -53,11 +53,14 @@ export function findByExternalId(resp, rowId) {
 }
 
 // pfm(method, path) -> { ok, status, data }, never throws (status 0 = network failure or timeout).
-// sheet: { find(id) -> { row, rowNumber } | null, markCancelled(found, nowIso) -> void (throws on failure) }.
-export async function cancelTiktokUpload({ id, pfm, sheet, nowIso }) {
+// queue (or sheet, its older name): { find(id) -> { row, ... } | null, markCancelled(found, nowIso) -> void
+// (throws on failure) }. firstQueue() below joins the table and the Sheet into one.
+export async function cancelTiktokUpload(args) {
+  const { id, pfm, nowIso } = args;
+  const store = args.queue || args.sheet;
   const rowId = clean(id);
   if (!rowId) return { status: 400, body: { ok: false, code: 'bad_request', message: 'id required' } };
-  const found = await sheet.find(rowId);
+  const found = await store.find(rowId);
   if (!found) return outcome('not_found');
   const row = found.row;
   const rowStatus = clean(row.status).toLowerCase();
@@ -112,11 +115,49 @@ export async function cancelTiktokUpload({ id, pfm, sheet, nowIso }) {
   }
 
   try {
-    await sheet.markCancelled(found, nowIso);
+    await store.markCancelled(found, nowIso);
   } catch (_e) {
     return outcome('queue_update_failed');
   }
   return outcome('cancelled', { row: { id: rowId, status: 'cancelled', updated_at: nowIso } });
+}
+
+// The queue lives in the table tiktok_uploads (OPEN_REPAIRS 362). A row the table does not have yet is looked
+// up in the TikTokUpload Sheet tab, which stays the queue until the page is switched to the table. A row is
+// marked cancelled only in the store that has it. A Sheet that cannot be reached when the table has no such
+// row is a failure, never "not found".
+export function firstQueue(stores) {
+  const list = (stores || []).filter(Boolean);
+  return {
+    async find(rowId) {
+      for (const store of list) {
+        const hit = await store.find(rowId);
+        if (hit) return { ...hit, store };
+      }
+      return null;
+    },
+    async markCancelled(found, nowIso) {
+      await found.store.markCancelled(found, nowIso);
+    },
+  };
+}
+
+// The table, through any client with select/update on tiktok_uploads ({ from(table) } like supabase-js).
+export const TABLE_MISSING = Object.freeze(['42P01', 'PGRST205']);
+export function tableQueue(db) {
+  return {
+    async find(rowId) {
+      const { data, error } = await db.from('tiktok_uploads').select('*').eq('id', rowId).maybeSingle();
+      // Before the migration is applied the table does not exist: the Sheet is then the only queue.
+      if (error && TABLE_MISSING.includes(String(error.code || ''))) return null;
+      if (error) throw new Error('table_read_failed');
+      return data ? { row: data } : null;
+    },
+    async markCancelled(found, nowIso) {
+      const { error } = await db.from('tiktok_uploads').update({ status: 'cancelled', error: '', updated_at: nowIso }).eq('id', found.row.id);
+      if (error) throw new Error('table_write_failed');
+    },
+  };
 }
 
 // ---- The queue Sheet (TikTokUpload tab), read and written with a Google service account ----------------

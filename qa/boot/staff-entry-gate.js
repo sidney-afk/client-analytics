@@ -214,7 +214,7 @@ function identity(verifiedAt) {
     {
       const d = new Date();
       const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      const saved = JSON.stringify({ who: MEMBER.id + '|' + MEMBER.role, at: Date.now(), day,
+      const saved = JSON.stringify({ v: 2, who: MEMBER.id + '|' + MEMBER.role, at: Date.now(), day,
         html: '<div class="tdy-top"><h1 class="tdy-date">Gate day</h1></div><p class="tdy-big">GATE-SAVED-MARKER</p>' });
       const watch = () => {
         window.__sawEarly = false;

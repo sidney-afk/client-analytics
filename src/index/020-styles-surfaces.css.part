@@ -5035,6 +5035,12 @@
             body:has(.pocket-staff-bar) .tdy-meter i { height: 8px; border-radius: 4px; }
             body:has(.pocket-staff-bar) .tdy-mrow { margin-bottom: 22px; font-size: 12px; }
             body:has(.pocket-staff-bar) .tdy-big { font-size: 29px; line-height: 1.25; letter-spacing: -1.1px; margin: 0 0 20px; }
+            body:has(.pocket-staff-bar) .tdy-clients { flex-direction: column; flex-wrap: nowrap; gap: 14px; margin: -8px 0 22px; }
+            body:has(.pocket-staff-bar) .tdy-cl-g { width: 100%; }
+            body:has(.pocket-staff-bar) .tdy-cl-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+            body:has(.pocket-staff-bar) .tdy-cl-row::-webkit-scrollbar { display: none; }
+            body:has(.pocket-staff-bar) .tdy-cl { flex: none; min-height: 44px; font-size: 13px; }
+            body:has(.pocket-staff-bar) .tdy-skel .tdy-clients .sv-skeleton-pill { height: 44px !important; }
             body:has(.pocket-staff-bar) .tdy-rings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
             body:has(.pocket-staff-bar) .tdy-rg { min-width: 0; min-height: 124px; padding: 16px 8px; border-radius: 20px; border: 1px solid var(--border); justify-content: center; gap: 12px; font-size: 13px; line-height: 1.4; }
             body:has(.pocket-staff-bar) .tdy-rg:nth-child(5):last-child { grid-column: 1 / -1; flex-direction: row; min-height: 88px; gap: 16px; }
@@ -5352,6 +5358,22 @@
         .tdy-b:focus-visible, .tdy-vw button:focus-visible, .tdy-rg:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
         .tdy-ic { width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; flex: none; }
         .tdy-more { padding: 11px 16px; border-top: 1px solid var(--border-light); font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
+        /* My clients, under the greeting: own clients as solid chips, the ones
+           only also seen as quieter dashed chips under their own label. */
+        .tdy-clients { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 28px; margin: -4px 0 22px; }
+        .tdy-cl-g { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; }
+        .tdy-cl-lab { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); }
+        .tdy-cl-row { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+        .tdy-cl { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 34px; box-sizing: border-box; padding: 4px 14px 4px 5px; border: 1px solid var(--border); border-radius: 99px; background: var(--white); color: var(--text-primary); font: 700 0.8rem 'Plus Jakarta Sans', sans-serif; cursor: pointer; transition: border-color 0.15s ease, background-color 0.15s ease; }
+        .tdy-cl:hover { border-color: var(--text-secondary); }
+        .tdy-cl:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .tdy-cl .tdy-av { width: 24px; height: 24px; }
+        .tdy-cl-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tdy-cl.also { background: transparent; border-style: dashed; color: var(--text-secondary); font-weight: 600; }
+        .tdy-cl.also:hover { background: var(--surface-subtle); border-style: solid; }
+        .tdy-cl.also .tdy-av { opacity: 0.7; }
+        .tdy-cl-all { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); line-height: 34px; }
+        .tdy-skel .tdy-clients .sv-skeleton-pill { border-radius: 99px; }
         .tdy-rings { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
         .tdy-rg { background: var(--white); border: 1px solid var(--border-light); border-radius: 16px; padding: 14px 8px 12px; text-align: center; cursor: pointer; font: 600 0.78rem 'Plus Jakarta Sans', sans-serif; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .tdy-rg.on { border-color: var(--text-primary); box-shadow: 0 0 0 1px var(--text-primary); color: var(--text-primary); }

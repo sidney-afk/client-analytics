@@ -27,7 +27,7 @@
 | 19 | `092-core-submit-form-navigation.js.part` | 899 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 20 | `095-shared-client.js.part` | 565 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 22 | `097-today.js.part` | 840 | TODAY (owner design , session Compass). |
+| 22 | `097-today.js.part` | 841 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `099-phone-staff-shell.js.part` | 225 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
 | 25 | `099-staff-phone-bar.js.part` | 225 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |

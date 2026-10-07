@@ -30768,3 +30768,13 @@ suites fail on unchanged main; existing Production editor-size, board-width and
 pending-read failures remain reported. Physical phones and deployment are not
 verified. No live approvals, comments, uploads or PTO writes, database changes,
 workflow edits or deployment. Way back: revert this PR and rebuild the fragments.
+
+## 359. [2026-10-07, BUILT, NOT DEPLOYED] Live updates: the four slow spots from the re-test after PR 1981
+
+Source: the re-test section of `docs/ops/2026-10-06-realtime-test-findings.md` (findings A to D). Browser code only; no migration, no Edge Function, no flag, no n8n change.
+A. Calendar: the "storm" switch back to the 8 s floor now counts distinct cards in the 15 s window, not row writes. One status step on a card with video or thumbnail work writes that card two or three times, so a person stepping one card through statuses hit the limit; a reconciler touching many cards still does. Events without a card id (fallback pull, catch-up) count on their own, as before.
+B. Filming plans: the open-page poll is every 5 s instead of 20 s (only while the page is open and visible).
+C. Workload: changes are collected for 1 s instead of 3 s before the one snapshot read.
+D. Reconnect after a drop: the backoff cap is 5 s instead of 30 s on Calendar, Workload and Production.
+Proof (offline): `test/calendar-realtime-burst-coalesces.js` (new checks: many writes to one card keep the normal floor; five different cards still storm; deletes count by card), `test/filming-plans-live-poll.js`, `test/workload-native-realtime.js`, `test/production-live-refresh.js`. Not proven live; the next Relay re-test is the proof.
+Way back: revert this PR and rebuild the fragments.

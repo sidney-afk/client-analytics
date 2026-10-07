@@ -1822,8 +1822,11 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
        once when shown again). It never prompts for sign-in, and it never
        overwrites a plan being edited: while an edit or the add form is open,
        a changed list is held and a "Updated by someone else" notice offers
-       Reload; closing the edit applies it. */
-    const FP_LIVE_POLL_MS = 20000;
+       Reload; closing the edit applies it.
+       Every 5 s, not 20 (2026-10-07 re-test, finding B): at 20 s a teammate's
+       edit took 9 to 13 s to show. The read only runs while this page is open
+       and visible, so the extra reads are a handful of staff tabs at most. */
+    const FP_LIVE_POLL_MS = 5000;
     let _fpLiveTimer = null;
     let _fpLiveBusy = false;
     let _fpLivePending = null;

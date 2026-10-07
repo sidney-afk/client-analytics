@@ -110,10 +110,14 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
        not available without an Edge Function change; this is the cost cut that
        needs none. The board's comment stamp
        (migrations/2026-10-06-production-comment-signal.sql) changes nothing the
-       board draws, so an UPDATE that moved only that stamp is skipped. */
-    const WL_V2_RT_COLLECT_MS = 3000;
+       board draws, so an UPDATE that moved only that stamp is skipped.
+       The window is 1 s, not 3 (2026-10-07 re-test, finding C): 3 s made one
+       change take about 5 s to show. 1 s still folds a burst into one download.
+       Reconnect waits are capped at 5 s, not 30 (finding D), so a screen that
+       lost its connection is back within seconds of the network returning. */
+    const WL_V2_RT_COLLECT_MS = 1000;
     const WL_V2_RT_RETRY_BASE_MS = 1000;
-    const WL_V2_RT_RETRY_MAX_MS = 30000;
+    const WL_V2_RT_RETRY_MAX_MS = 5000;
     // Realtime auto-update is ON. It was gated off because the board read
     // workload_issues, which the n8n reconcile re-wrote in full each run (to
     // advance synced_at for the mark-sweep) — ~1 event per row per run, a flood

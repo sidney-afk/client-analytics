@@ -1613,7 +1613,9 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        the platforms strip, the colour tag (+ its open picker), the
        Linear-link warning and the SMM media-gap banner. They're absolutely
        positioned SIBLINGS of the <img>, not part of it. */
-    const CAL_THUMB_OVERLAY_SEL = '.cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn';
+    // PORT-DELTA: preserve the phone artifact's native-controls container when
+    // media is replaced. It exists only while the staff phone controller runs.
+    const CAL_THUMB_OVERLAY_SEL = '.cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn, .sv-phone-card-tools';
     /* Swap ONLY the thumbnail media (img / fallback / load-error notice),
        leaving the overlays above untouched. The thumb's src carries a
        cache-bust token derived from updated_at (see _calCacheBustThumb), and

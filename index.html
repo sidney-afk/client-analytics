@@ -11698,6 +11698,72 @@
  html.pocket-admin-phone #kasperContent .pocket-admin-new-toggle[aria-checked=true]::after { left:15px; background:var(--bg); }
 }
 /* POCKET-ADMIN-PHONE:END */
+
+/* STAFF-PHONE-RULES:BEGIN */
+@media (max-width: 767px) {
+    html.sv-staff-phone.sv-phone-locked { overflow: hidden; overscroll-behavior: none; }
+    html.sv-staff-phone [hidden] { display: none !important; }
+    html.sv-staff-phone body { padding-bottom: env(safe-area-inset-bottom); }
+    html.sv-staff-phone .main { padding-top: max(16px, env(safe-area-inset-top)); }
+    html.sv-staff-phone button, html.sv-staff-phone [role=button] { min-width: 44px; min-height: 44px; }
+    html.sv-staff-phone .prod-cmd-item { min-height: 44px; box-sizing: border-box; }
+    html.sv-staff-phone input:not([type=hidden]):not([type=checkbox]):not([type=radio]), html.sv-staff-phone textarea, html.sv-staff-phone select { font-size: 16px; scroll-margin-block: 24px; }
+    html.sv-staff-phone textarea:focus { max-height: calc(var(--sv-phone-vh, 100dvh) - 64px); overflow-y: auto !important; }
+    html.sv-staff-phone dialog { max-height: calc(var(--sv-phone-vh, 100dvh) - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone dialog.sv-phone-sheet[open] { display: flex; flex-direction: column; overflow: hidden; }
+    html.sv-staff-phone .sv-phone-sheet > [class$="-head"] { position: static !important; flex-shrink: 0; }
+    html.sv-staff-phone .sv-phone-sheet > [class$="-body"] { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone .cal-fld-status-menu, html.sv-staff-phone .dp-popup, html.sv-staff-phone .sv-select-popup, html.sv-staff-phone .cal-card-color-picker { max-width: calc(100vw - 24px); max-height: calc(var(--sv-phone-vh, 100dvh) - 32px); box-sizing: border-box; overflow: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone .sv-stepper { grid-template-columns: 44px minmax(44px, 1fr) 44px; min-width: 134px; }
+    html.sv-staff-phone .sv-stepper .sv-stepper-input { min-height: 44px; }
+    html.sv-staff-phone .global-tip:not([data-label-explainer="true"]) { display: none; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) { display: flex; flex-direction: column; height: auto !important; aspect-ratio: auto; padding: 0 !important; overflow: visible; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > * { flex-shrink: 0; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > img { position: static; width: 100%; height: 160px !important; object-fit: cover; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > .cal-card-thumb-fallback { min-height: 104px; display: grid; place-items: center; }
+    html.sv-staff-phone .sv-phone-card-tools { width: 100%; box-sizing: border-box; padding: 6px 10px; background: var(--white); }
+    html.sv-staff-phone .sv-phone-card-primary, html.sv-staff-phone .sv-phone-card-secondary { display: flex; align-items: center; gap: 4px; min-width: 0; justify-content: flex-end; }
+    html.sv-staff-phone .sv-phone-card-primary > .cal-linear-pile { margin-left: 0; order: 0; }
+    html.sv-staff-phone .sv-phone-card-primary > .sv-phone-card-more { order: 3; }
+    html.sv-staff-phone .sv-phone-card-secondary:empty { display: none; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platforms, html.sv-staff-phone .sv-phone-card-tools .cal-card-color-tag, html.sv-staff-phone .sv-phone-card-tools .cal-card-link, html.sv-staff-phone .sv-phone-card-tools .cal-card-del, html.sv-staff-phone .sv-phone-card-tools .cal-linear-pile, html.sv-staff-phone .sv-phone-card-tools .cal-smm-warn-overlay { position: static !important; inset: auto !important; transform: none; opacity: 1; margin: 0; flex-shrink: 0; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platforms { display: flex; flex-direction: row; flex-wrap: wrap; gap: 0; flex: 1; min-width: 0; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platform-btn { position: relative; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; box-shadow: none; background: transparent !important; color: var(--text-secondary) !important; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platform-btn.is-active { color: var(--text-primary) !important; box-shadow: none; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platform-btn.is-active::before { content: ''; position: absolute; inset: 9px; border-radius: 7px; background: var(--field-bg); }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platform-btn svg { position: relative; width: 16px; height: 16px; }
+    html.sv-staff-phone #calView .sv-phone-card-tools .cal-card-color-tag, html.sv-staff-phone #sxrView .sv-phone-card-tools .cal-card-color-tag, html.sv-staff-phone .sv-phone-card-more { width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--text-secondary); border: 0; border-radius: 10px; box-shadow: none; flex-shrink: 0; }
+    html.sv-staff-phone .sv-phone-card-more svg { width: 20px; height: 20px; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-linear-pile { display: flex; flex-direction: row; flex-wrap: wrap; gap: 0; margin-left: auto; order: 2; }
+    html.sv-staff-phone #calView .sv-phone-card-tools .cal-linear-btn, html.sv-staff-phone #sxrView .sv-phone-card-tools .cal-linear-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; border: 0 !important; border-radius: 10px; box-shadow: none; background: transparent !important; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-linear-btn svg { width: 18px; height: 18px; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-smm-warn-overlay { flex: 1; min-width: 0; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; padding: 8px; border: 0; box-shadow: none; border-radius: 10px; font-size: 12px; line-height: 1.5; }
+    html.sv-staff-phone .sv-phone-card-menu { position: fixed; inset: auto 12px max(12px, env(safe-area-inset-bottom)); margin: 0 auto; width: auto; max-width: 430px; padding: 0; border: 1px solid var(--border); border-radius: 20px; background: var(--white); color: var(--text-primary); }
+    html.sv-staff-phone .sv-phone-card-menu[open] { display: flex; flex-direction: column; overflow: hidden; }
+    html.sv-staff-phone .sv-phone-card-menu::backdrop { background: var(--sv-bg-rgba-0-0-0-0_35); }
+    html.sv-staff-phone .sv-phone-card-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    html.sv-staff-phone .sv-phone-card-head button { background: transparent; border: 0; border-radius: 10px; color: var(--text-secondary); padding: 0 12px; }
+    html.sv-staff-phone .sv-phone-card-body { padding: 8px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone .sv-phone-card-body .cal-card-link, html.sv-staff-phone .sv-phone-card-body .cal-card-del { display: flex; gap: 12px; justify-content: flex-start; width: 100%; height: 48px; padding: 0 12px; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-primary); font: inherit; font-size: 14px; }
+    html.sv-staff-phone .sv-phone-card-body svg { width: 18px; height: 18px; flex-shrink: 0; }
+    html.sv-staff-phone .cal-cap-wrap { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+    html.sv-staff-phone .cal-cap-wrap .cal-fld-cap { flex: 1 1 100%; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { position: static !important; inset: auto; margin: 0; margin-block: 0 !important; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; width: auto; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-gen { order: 1; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { order: 2; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle { order: 3; margin-left: auto; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle-txt { display: inline; }
+    html.sv-staff-phone .cal-cap-fade { bottom: 52px; }
+    html.sv-staff-phone .tk-submit-bar { position: static; inset: auto; margin: 16px 0; }
+    html.sv-staff-phone .ca-editbar { position: static; }
+    html.sv-staff-phone .sxr-cd-wrap { display: flex; align-items: flex-start; gap: 8px; }
+    html.sv-staff-phone .sxr-cd-input { flex: 1; min-width: 0; width: 0; padding: 12px; }
+    html.sv-staff-phone .sxr-cd-eye { position: static; flex-shrink: 0; margin: 0; }
+    html.sv-staff-phone .cc-password-wrap { display: flex; align-items: center; gap: 8px; }
+    html.sv-staff-phone .cc-password-wrap input { flex: 1; min-width: 0; width: 0; padding-right: 12px; }
+    html.sv-staff-phone .cc-password-wrap .cc-pass-toggle { position: static; transform: none; flex-shrink: 0; }
+}
+/* STAFF-PHONE-RULES:END */
     </style>
 </head>
 <body>
@@ -12264,8 +12330,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-f8577a5a379f.js";
-        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-5fdafde0b67c.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-263b1a3c6743.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-382e40c04792.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-456699936aea.js";
+        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-d02717a5c726.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-5a8de0e5d2a4.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-6f46224ed096.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-120e08ae3620.js","kasper":"js/sv-16-kasper-7f446f6f9a66.js"};
         var FORCE = null;
         var CLIENTS = true;

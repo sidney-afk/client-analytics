@@ -30853,3 +30853,47 @@ Source: owner, 2026-10-07 (session Compass). "When I open my Today I should see 
 - Built from the same read Today already makes (the roster, the grants, Clients Info), so there is no extra wait; the grey shape has chip placeholders in the same place, so nothing moves when the list lands. Saved copies are versioned (TDY_SAVED_V = 2, also checked by the boot shell), so a copy saved before the chips existed is never painted and then reshaped.
 - Phone: the groups stack, chips are 44 px tall (the touch-target rule in AGENTS.md) and each row scrolls sideways instead of wrapping into a tall block.
 Proof (offline, fixture data): `qa/today/today-clients-shots.js` (desktop and phone, light and dark: own chips, also-seen chips apart, right under the greeting, a chip opens that client's Calendar), `test/today-render.js` (groups, also-only, admin line, older saved copy not painted), `qa/today/today-no-flicker.js` 20 of 20 in a row.
+
+## 366. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
+
+Phone-only artifact and native transplant repair background scrolling under overlays,
+overlapping Calendar/Samples tools, caption action placement, hidden/collapse labels,
+inside dialog padding dismissal, nested popup scroll ownership and field-covering
+controls. Expanded rules include 44 px targets, viewport fit, keyboard visibility and
+focus return. The existing native persistence handlers remain the owners of writes.
+
+Proof and retained failures: `docs/audits/2026-10-07-staff-phone-feedback.md`.
+Machine geometry and trusted touch/wheel checks run on every rendered screen/overlay
+in the full known phone catalogues, both requested widths and themes; deliberately
+broken detector controls must fail. Raw images and backend data remain private.
+Required broad gates retain their failures. The audit also records a default
+aggregate-read gate exceeding the requested TEST-only scope; it made no writes.
+One branch and one draft PR; no merge or deployment. Way back: revert and rebuild.
+
+Design follow-up, 2026-10-07: the mechanically passing first version had an
+oversized utility stack and exposed Archive X. Artifact-first revisions reduce
+visual icon weight while retaining 44 px touch boxes, group card tools by purpose,
+move Archive and copy-link into More, align caption actions and place creative
+reveal beside its field. Native media refresh preserves the same action nodes;
+confirmation cancellation returns focus to visible More. Personal screenshot
+review and fictional before/after cards are recorded in
+`docs/audits/2026-10-07-staff-phone-design-review.md`. This entry was renumbered
+after checking main and open PR reservations: 361 and 362 were occupied, then
+concurrent open PRs reserved 363. The earlier next free number was 364; the final check found another open PR claiming 364 in its body and adding 365 in its diff. The next free number is now 366. Main was merged into the existing branch, without rebase. The phone CI
+matrix now runs only for relevant staff phone/shared UI or harness changes.
+Broad local unit failures remain under verification hold; this follow-up does
+not claim deployment or physical-device proof.
+
+
+Native follow-through also distinguishes inline video/selection/poster layers from
+modal roots, includes both real lightboxes, hides persistent hover hints on touch,
+and allocates full touch widths in the Create post stepper. The expanded Calendar
+flow applies painted-overlap and scroll-lock assertions at every measured state.
+Main first-paint repair 363 is retained from merge `787c693d`; this entry is now 366 after the final reservation check.
+
+
+Latest-main follow-up: main `8f66c36b` was merged in `6a9bd7b6`, preserving its Clients redesign and repair 364. Final phone admin guards pass 2,474 checks per width. Strict desktop proof is 71 original exact matches plus one passing unchanged-gate replay (72/72 comparisons); the original 1920 reviewer PNG failure remains recorded. Hosted classified unit and split-preview lanes pass on `c6734775`; the historical failures are retained.
+
+Final hosted UI proof: Calendar workflow `37680056732` passes all nine jobs on `c6734775`; each width has 232 catalogue renders/zero problems and 126 admin states/2,478 checks on Linux. Its unit lane passes 686 suites and explicitly leaves 96 required profiles NOT_RUN. A subsequent docs-only head skips the staff-phone-rules job in GitHub. No deployment or physical-device claim.
+
+Owner-requested current main integration: `8c4f3168` is preserved by actual merge `3176d927` (no rebase), with index conflicts rebuilt from all 67 fragments. Repair 366 follows 365 uniquely; two header scans found no new duplicate and recorded eight historical duplicates already on main. Fresh 390/430 light/dark cards, Today, Clients and native Calendar captures were personally reviewed. Native guards remain green. Strict desktop comparison totals 72 exact matches (71 initial plus one strict replay); the original 1920 PNG failure is retained. Current hosted results and real check tails are in the design review/check receipts.

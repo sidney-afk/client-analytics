@@ -6,7 +6,8 @@ const fs = require('fs'), path = require('path'), assert = require('assert/stric
 const { chromium } = require('playwright');
 const { SCENARIOS } = require('./finch-phone/scenarios');
 const staff = require('../docs/syncview-design/tests/staff-phone-browser');
-const { seedStaffGate } = require('./staff-gate-seed');
+const { seedStaffGate, seedStaffIdentity } = require('./staff-gate-seed');
+const phoneRules = require('./staff-phone-rule-checks');
 const arg = (key, fallback) => process.argv.find(x => x.startsWith('--' + key + '='))?.slice(key.length + 3) || fallback;
 const before = !!arg('before-root', '');
 if (before) process.env.FINCH_ROOT = arg('before-root', '');
@@ -14,6 +15,7 @@ const { open } = require('./finch-phone/harness');
 const widths = arg('widths', '360,390,430').split(',').map(Number);
 const only = new RegExp(arg('only', '.*'));
 const shots = arg('shots', ''), receipts = [], failures = [];
+const allStates = process.argv.includes('--all-states');
 const settle = p => p.waitForTimeout(850);
 const core = SCENARIOS.filter(s => ['analytics-overview','analytics-detail','workload-week','linear-list','linear-detail','tiktok-client-ready','instagram-client-ready','menu-tabs','menu-more','menu-client'].includes(s.id)).map(s => ({ ...s, name: s.id }));
 core.push({...SCENARIOS.find(s=>s.id==='linear-list'),name:'linear-project',steps:async p=>{
@@ -28,6 +30,25 @@ for (const [name, base] of [['analytics-client-picker','analytics-overview'],['w
   }});
 }
 const states = staff.S.filter(s => /^(templates-client|templates-client-edit|templates-client-spec-form|today-rings|today-walk|submit|sheet-tabs|sheet-more)$/.test(s.name));
+if (allStates) {
+  for (const s of SCENARIOS) if (!core.some(c=>c.name===s.id)) core.push({...s,name:s.id});
+  for (const s of staff.S) if (!states.some(c=>c.name===s.name)) states.push(s);
+  // The old journey looked for the retired sheet class. Follow the current
+  // visible native controls rather than treating a stale selector as a defect.
+  const picker = states.find(s=>s.name==='client-picker');
+  if (picker && !before) picker.setup=async p=>{
+    await p.evaluate(()=>navTo('templates'));await settle(p);
+    await p.locator('.pocket-staff-more-btn, #fphMoreBtn, [data-staff-menu=more]').filter({visible:true}).first().tap();
+    await p.getByRole('button',{name:'Change client',exact:true}).tap();await settle(p);
+  };
+  // These journeys predate the phone's native card preference. Reach the
+  // existing content link on the card; all downstream native controls remain.
+  for (const s of core.filter(s=>/^analytics-(detail|content-calendar|brief)/.test(s.name))) s.steps=async p=>{
+    await p.locator('.card-client-link').filter({hasText:s.name==='analytics-detail-dash'?'Client C':'Client A'}).first().tap();await p.waitForTimeout(2200);
+    if(s.name==='analytics-content-calendar')await p.getByRole('button',{name:'Content Calendar',exact:true}).tap();
+    if(s.name==='analytics-brief')await p.locator('.view-tab-btn').filter({hasText:'Brief'}).tap();
+  };
+}
 const cases = ['calendar-sheet','calendar-empty','calendar-more','calendar-tabs','samples-sheet','samples-empty','samples-more','samples-tabs','today-cleared'];
 async function phoneMeasure(page) {
   return page.evaluate(() => {
@@ -43,6 +64,11 @@ async function verify(page, name, width, theme) {
   const m = await phoneMeasure(page);
   const faults = [];
   if (!before) {
+    const surface = await phoneRules.activeSurface(page);
+    const geometry = await phoneRules.inspect(page, surface);
+    if (geometry.overlaps.length) faults.push('independent controls overlap: ' + JSON.stringify(geometry.overlaps.slice(0, 8)));
+    if (geometry.misalignedActions.length) faults.push('caption actions detached or misaligned: '+JSON.stringify(geometry.misalignedActions));
+    if (surface !== 'body') await phoneRules.scrollLock(page, surface);
     if (m.pageWidth > width + 1) faults.push('sideways page scroll');
     if (m.small.length) faults.push('targets under 44px: ' + JSON.stringify(m.small.slice(0, 5)));
     if (m.smallText.length) faults.push('fields below 16px: ' + m.smallText.join(', '));
@@ -60,7 +86,7 @@ async function verify(page, name, width, theme) {
     }
     if (name === 'menu-client' || name.endsWith('client-picker')) {
       if (!await page.locator('.sv-phone-client-sheet[open]').count()) faults.push('picker lacks modal sheet');
-      await page.locator('#svClientSearch').fill('Client A'); await settle(page);
+      await page.locator('#svClientSearch').fill(name==='client-picker'?staff.NAMES[0]:'Client A'); await settle(page);
       await page.locator('.sv-phone-client-sheet [data-sv-client]').first().click(); await settle(page);
       if (await page.locator('.sv-phone-client-sheet[open]').count()) faults.push('native picker did not close after choice');
       if (name === 'menu-client' && width === 390 && theme === 'light') {
@@ -172,6 +198,7 @@ async function prepare(page,name) {
   for (const s of core.filter(s=>only.test(s.name))) for(const width of widths) for(const theme of ['light','dark']) {
     const h=await open({...s.open,width,theme,dsf:1});
     try { await h.page.waitForTimeout(s.settle||3000);
+      await h.page.evaluate(names=>{WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();names.forEach(n=>WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n));if(typeof wlState!=='undefined')wlState.clientOptions=names.slice();},require('./finch-phone/fixtures').CLIENTS);
       if(s.name==='analytics-detail') { await h.page.locator(before?'.overview-table a.client-name-link':'.card-client-link',{hasText:'Client A'}).first().click();await h.page.waitForTimeout(2200); }
       else if(s.steps) await s.steps(h.page);
       if((s.name==='menu-client'||s.name.endsWith('client-picker'))&&shots) {await settle(h.page);await capture(h.page,s.name,width,theme);}
@@ -183,12 +210,16 @@ async function prepare(page,name) {
   const browser=await chromium.launch();
   try {for(const st of [...states,...cases.map(name=>({name,setup:p=>prepare(p,name)}))].filter(s=>only.test(s.name))) for(const width of widths) for(const theme of ['light','dark']) {
     staff.resetScenario();const ctx=await browser.newContext({viewport:{width,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
-    await staff.installBackend(ctx,false);await seedStaffGate(ctx);await ctx.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);
+    await staff.installBackend(ctx,st.editor);
+    if(st.editor) await seedStaffIdentity(ctx,{id:'qa_editor',name:'Casey Fixture',role:'editor',team:'video'}); else await seedStaffGate(ctx);
+    await ctx.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);
     await ctx.route('https://images.example.invalid/**', r=>r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="1080" height="1350" fill="lavender"/><circle cx="750" cy="380" r="210" fill="thistle"/><path d="M0 950Q500 600 1080 1000V1350H0Z" fill="slateblue"/></svg>'}));
     const p=await ctx.newPage();
     try {await p.goto(origin+'/');await p.waitForFunction(()=>typeof navTo==='function');await settle(p);
       await p.evaluate(names=>{window.__seedRoster=WL_CLIENT_NAMES.slice();WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();names.forEach(n=>{WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n);clientMap[n]={instagram_handle:'sample.one',tiktok_handle:'sampleone',youtube_channel_id:'UCsample0000000000000000'};});wlMergeClientsFromSheet(names);},staff.NAMES);
-      await st.setup(p);await verify(p,st.name,width,theme);
+      await st.setup(p);
+      if(st.name==='client-picker'&&shots)await capture(p,st.name,width,theme);
+      await verify(p,st.name,width,theme);
       const leaked=await p.evaluate(()=> (window.__seedRoster||[]).filter(n=>n&&document.body.innerText.toLowerCase().includes(n.toLowerCase())).length);assert.equal(leaked,0,'built-in identity visible');
     }catch(e){failures.push(st.name+' '+width+' '+theme+': '+e.message.split('\n')[0]);console.log('FAIL '+failures.at(-1));}finally{await ctx.close();}
   }}finally{await browser.close();server.close();}

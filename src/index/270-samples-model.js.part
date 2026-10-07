@@ -1273,7 +1273,8 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
 
     /* ── Thumbnail: reuse the pure derivation; FORK only the overlay-preserving
        media swap so a media-link edit can't wipe the Linear pile / warn. ── */
-    const SXR_THUMB_OVERLAY_SEL = '.cal-thumb-linear-warn, .cal-linear-slot';
+    // PORT-DELTA: keep the phone artifact's native controls through media refresh.
+    const SXR_THUMB_OVERLAY_SEL = '.cal-thumb-linear-warn, .cal-linear-slot, .sv-phone-card-tools';
     function _sxrSetThumbMedia(thumbDiv, mediaHtml) {
         if (!thumbDiv) return;
         const overlays = Array.from(thumbDiv.children).filter(el => el.matches(SXR_THUMB_OVERLAY_SEL));

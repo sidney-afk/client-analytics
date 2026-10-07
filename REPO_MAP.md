@@ -1,5 +1,30 @@
 # Repo map
 
+Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
+native Calendar/Samples cards, deliberate Archive access, chained focus return,
+media-refresh node preservation and restoration on desktop resize.
+`scripts/staff-phone-changed.js` classifies relevant changes for the scoped CI
+matrix. The visual decisions and state inventory are in
+`docs/audits/2026-10-07-staff-phone-design-review.md` and
+`docs/audits/2026-10-07-staff-phone-design-states.md`; exact check endings are in
+`docs/audits/2026-10-07-staff-phone-design-checks.md`. Fictional native before/after
+cards and action sheets are in `docs/audits/2026-10-07-staff-phone-design/`,
+including refreshed Today and Clients captures after the latest main merge.
+
+Staff phone feedback expansion: `docs/syncview-design/staff-phone-rules.html`
+is the fictional artifact, with `staff-phone-rules.css` and
+`staff-phone-rules.js` transplanted into the native fragments.
+`test/staff-phone-rules-source.js` enforces byte fidelity and phone scope.
+`qa/staff-phone-rule-checks.js` supplies the overlap detector and wheel/touch
+scroll-lock assertions; `qa/staff-phone-rules-browser.js` covers every staff
+screen's menus at 390/430 in both themes, caption states and keyboard viewport.
+The existing final-pass and admin suites also use those geometry/lock checks.
+`qa/staff-phone-final-pass.js --all-states` includes every existing staff/Finch
+scenario. Private captures and public-safe results are described in
+`docs/audits/2026-10-07-staff-phone-feedback.md`, with the per-state inventory in
+`docs/audits/2026-10-07-staff-phone-states.md` and exact check endings in
+`docs/audits/2026-10-07-staff-phone-checks.md`.
+
 Staff phone final pass: `qa/staff-phone-final-pass.js` drives the generated app
 with the existing fictional browser transports, checks phone controls and
 native picker actions, and captures before/after journeys. Evidence and the

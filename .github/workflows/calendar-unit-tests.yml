@@ -1,8 +1,8 @@
 name: Calendar unit tests
 
-# Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
-# source/logic checks; F63 additionally exercises only a disposable PostgreSQL
-# 16 service. No test in this job reaches a live backend or browser.
+# The unit lane checks source/logic with disposable PostgreSQL. Separate browser
+# lanes exercise the generated UI against fictional transports. Staff phone
+# matrices run only for staff phone/shared UI, harness or gate changes.
 # `push` is restricted to main ON PURPOSE. With `branches: ['**']` a commit on
 # an open pull request's branch matched BOTH triggers and ran this suite twice
 # on the same source. Measured on fc068d15 (2026-08-26): run #3499 (push) passed
@@ -17,6 +17,63 @@ on:
   pull_request:
 
 jobs:
+  staff-phone-files:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.files.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - id: files
+        env:
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          base="$BEFORE"
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then base="$PR_BASE"; fi
+          if [[ -z "$base" ]]; then base="$(git rev-parse "$HEAD^")"; fi
+          node scripts/staff-phone-changed.js "$base" "$HEAD"
+
+  staff-phone-rules:
+    needs: staff-phone-files
+    if: needs.staff-phone-files.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [390, 430]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the pinned browser harness
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Phone rules on every staff screen and menu
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-rules-browser.js --widths=${{ matrix.width }}
+      - name: Native card design, safe actions and media refresh
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-design-browser.js --widths=${{ matrix.width }}
+      - name: Existing staff phone state inventory with overlap and scroll checks
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-final-pass.js --all-states --widths=${{ matrix.width }}
+      - name: Every reviewer and admin state with overlap and scroll checks
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/kasper-admin-expanded-browser.js --width=${{ matrix.width }}
+
   unit:
     runs-on: ubuntu-latest
     # The expanded classified suite completed close to the ten-minute limit.

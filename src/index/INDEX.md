@@ -11,7 +11,7 @@
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3931 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 7008 | Templates view |
-| 6 | `030-body-shell.html.part` | 549 | Confirmation modal |
+| 6 | `030-body-shell.html.part` | 550 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2073 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2364 | Multiple links per link field (client photos, thumbnail, reference reel) |

@@ -208,9 +208,9 @@ function identity(verifiedAt) {
 
     // 3b. TODAY'S SAVED PAGE (owner, 2026-10-07). The boot shell paints the
     //     last Today this person saw, straight from storage, before the app
-    //     runs. It must never outlive a rejected staff check: a stored
-    //     identity the verifier refuses gets the grey shape back, and the
-    //     saved page is deleted. With a passing check it is painted at once.
+    //     runs, but only once the staff check has passed: a stored identity
+    //     the verifier refuses (or cannot reach) never shows it, not even
+    //     briefly, and the saved page is deleted (Codex P1 on #1987).
     {
       const d = new Date();
       const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -224,7 +224,7 @@ function identity(verifiedAt) {
       for (const [kv, label] of [[401, 'rejected'], ['down', 'unreachable']]) {
         const { context, page } = await openPage(browser, origin, {
           identity: identity(new Date().toISOString()), keyVerify: kv, suffix: '#today',
-          storage: { syncview_today_paint_v1: saved }
+          storage: { syncview_today_paint_v1: saved }, init: watch
         });
         await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
         await page.waitForTimeout(500);
@@ -232,7 +232,8 @@ function identity(verifiedAt) {
           shown: !!document.querySelector('[data-tdy-early]') || document.getElementById('content').innerText.indexOf('GATE-SAVED-MARKER') >= 0,
           kept: !!localStorage.getItem('syncview_today_paint_v1')
         }));
-        ok(!after.shown, "a saved Today page is taken off screen when the staff check is " + label);
+        ok(!after.shown && await page.evaluate(() => window.__sawEarly === false),
+          'a saved Today page is never painted, not even briefly, when the staff check is ' + label);
         ok(!after.kept, 'and the saved page is deleted (' + label + ')');
         await context.close();
       }

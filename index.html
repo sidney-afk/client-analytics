@@ -11916,10 +11916,12 @@
            097-today, _tdyPaintWrite), marked "Updating", instead of the grey
            shape above. The app replaces it in place once its own read lands.
            Shown only when the saved page belongs to the stored staff member
-           (same member id and role) and was written today; nothing new is
-           revealed, since the copy already sits in this browser's storage.
-           If the staff check (the early key-verify) does not pass, the grey
-           shape comes back and the saved page is deleted. */
+           (same member id and role), was written today, and the staff check
+           (the early key-verify, started in <head>) has PASSED: nothing is
+           painted while it is pending (Codex P1 on #1987: a revoked key must
+           not get even a flash). A check that fails deletes the saved page.
+           The app, whose own paint waits for the same check, may get there
+           first; then this does nothing. */
         (function () {
             try {
                 if (document.documentElement.getAttribute('data-boot-nav') !== 'today') return;
@@ -11934,14 +11936,13 @@
                 if (s.who !== who || s.day !== day || !(Date.now() - Number(s.at || 0) < 864e5)) return;
                 var kv = window.__svEarlyKeyVerify;
                 if (!kv || !kv.response || kv.memberId !== String(id.member.id) || kv.key !== String(id.key)) return;
-                var keep = host.innerHTML;
-                host.innerHTML = '<div class="tdy" data-tdy-early="1">' + s.html.replace('</h1>', '</h1><span class="tdy-upd" role="status">Updating</span>') + '</div>';
-                var undo = function () {
-                    host.innerHTML = keep;
-                    try { localStorage.removeItem('syncview_today_paint_v1'); } catch (e) {}
-                };
-                kv.response.then(function (r) { return r.ok ? r.clone().json() : null; })
-                    .then(function (j) { if (!(j && j.ok === true)) undo(); }, undo);
+                var drop = function () { try { localStorage.removeItem('syncview_today_paint_v1'); } catch (e) {} };
+                kv.response.then(function (r) { return r.ok ? r.clone().json() : null; }).then(function (j) {
+                    if (!(j && j.ok === true)) return drop();
+                    // Still the boot shell (the app has not mounted Today yet).
+                    if (!host.isConnected || document.getElementById('tdyRoot')) return;
+                    host.innerHTML = '<div class="tdy" data-tdy-early="1">' + s.html.replace('</h1>', '</h1><span class="tdy-upd" role="status">Updating</span>') + '</div>';
+                }, drop);
             } catch (e) {}
         })();
         </script>

@@ -5,7 +5,7 @@ const REROUTE_FIXTURE = require('./write_ui_reroute_fixture.js');
 // Design (see docs/testing/CALENDAR-TEST-CATALOG.md §10.5):
 //   - Kasper actions  -> real Kasper handlers on a live Kasper page.
 //   - Client actions  -> real _calReview* handlers on a live client page (client mode).
-//   - SMM status moves-> the upsert webhook (the exact write the SMM status control
+//   - SMM status moves-> the calendar-upsert function (the exact write the SMM status control
 //                        performs; the SMM Review tab routes via the same status field).
 //   - Assertions      -> Supabase backend row (the source of truth every surface
 //                        renders from) polled after each step, + Kasper-queue membership.
@@ -24,11 +24,24 @@ const {
   gotoTestClientEntry,
 } = require('./test-client-entry.js');
 const ORIGIN = 'http://localhost:8000';
-const UPSERT = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+// Card writes go to the calendar-upsert Edge Function, the same writer the
+// live page uses. Until 2026-10-07 this posted to the n8n
+// `calendar-upsert-post` webhook, and test tooling was the only thing still
+// calling it (OPEN_REPAIRS ledger). Same body, same `{ ok, post }` answer.
+const UPSERT = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
 const SUPA   = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts';
 const KEY    = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
 
-const up = (post) => fetch(UPSERT, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+// The live writer is the owner-frozen un-gated build and ignores this header.
+// When the runner provides SYNCVIEW_STAFF_KEY (the nightly probe lanes do), send
+// it the way a signed-in staff tab does, so a re-gated writer still accepts it.
+function upsertHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  const staffKey = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
+  if (staffKey) h['X-Syncview-Key'] = staffKey;
+  return h;
+}
+const up = (post) => fetch(UPSERT, { method: 'POST', headers: upsertHeaders(),
   body: JSON.stringify({ client: 'sidneylaruel', post, comments_base_at: '' }) }).then(r => r.json());
 
 const SEL = 'caption_status,video_status,graphic_status,status,caption_tweaks,kasper_approved_after_tweaks';
@@ -194,7 +207,7 @@ function makeOk() { const s = { pass: 0, fail: 0 };
   return s; }
 
 module.exports = {
-  up, row, pollRow, launch, clientPage, kasperPage,
+  up, upsertHeaders, UPSERT, row, pollRow, launch, clientPage, kasperPage,
   seedCaptionCard, smmSetCaption, smmMarkPosted, archive, smmResolveCaptionTweak,
   kasperLoadHas, kasperApprove, kasperRequest, kasperApproveAfterTweaks,
   kasperUndoViaToast, kasperGoneFromQueue,

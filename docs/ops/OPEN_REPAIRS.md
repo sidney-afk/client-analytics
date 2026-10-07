@@ -30768,3 +30768,16 @@ suites fail on unchanged main; existing Production editor-size, board-width and
 pending-read failures remain reported. Physical phones and deployment are not
 verified. No live approvals, comments, uploads or PTO writes, database changes,
 workflow edits or deployment. Way back: revert this PR and rebuild the fragments.
+
+## 359. [2026-10-07, BUILT, NOT RUN LIVE] Test tooling stops writing calendar cards through the n8n "Calendar — Upsert Post" webhook
+
+Measured 2026-10-07: all 344 runs in 24 h of the n8n workflow "SyncView Calendar — Upsert Post" (and so its "Calendar Comment Merge" helper) came from test tooling, none from the website, which already saves through the `calendar-upsert` Edge Function. The callers that actually sent requests are moved to `https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert`, with the same body (`{ client: 'sidneylaruel', post, comments_base_at }`) and the same `{ ok, post }` answer, so every check on the response is unchanged:
+1. `qa/golden_lib.js` `up()`: the seed/mutate/archive write behind every golden probe and, through `qa/probes/lib.js` (`Q.up`; its `UPSERT` is now re-exported from golden_lib), every calendar probe in the nightly lanes (the `p_sa_*` cards of `p34_set_all.js`, `p66_stale_approval_clear.js`, and the rest).
+2. `qa/sxr_courier_lib.js` `upCal()` (curl): the calendar seeds of the samples twin tester and `archiveCalSafe`, which is the dawn check's `p_dawn_*` cleanup (`qa/dawn/dawn-check.js`).
+3. `docs/testing/HEADLESS-TESTING-GUIDE.md` §3: the constants and the probe template sessions copy now name the function and say not to use the webhook.
+Auth: the live writer is the owner-frozen un-gated build and needs no credential. Both libraries attach `X-Syncview-Key` from the runner's `SYNCVIEW_STAFF_KEY` when it is set (the calendar and samples nightlies and the dawn check already pass that secret), as a signed-in staff tab does, so a re-gated writer would still accept them. No key is in the repo.
+Not callers, left alone: `scripts/a1-calendar-upsert-parity.js` (a deliberate n8n-versus-function comparer, kept as is); `qa/ef-writepath/lib.js` (`CAL_N8N` only classifies page traffic); `qa/boot/client-entry-sequence.js`, `qa/write_ui_reroute_fixture.js` and the browser tests under `test/` and `docs/syncview-design/tests/` (they only mock or mention the URL). Noticed, not changed: `qa/probes/p87_kasper_finish_stale_refresh.js` mocks only the n8n URL, so with the test client routed to the function its page save is not intercepted and reaches the live function (still not n8n).
+Still on n8n, out of scope here: `qa/sxr_courier_lib.js` `up()` and `reorder()` post to the n8n `sample-review-upsert` and `sample-review-reorder` webhooks.
+Next: once a full day of n8n executions shows zero calls to "SyncView Calendar — Upsert Post", the owner can switch it and its "Calendar Comment Merge" helper off. No n8n workflow was edited here.
+Proof (offline only): `node --check` on the changed files, the related unit suites, `npm test`. Nothing ran against the live backend.
+Way back: revert this PR.

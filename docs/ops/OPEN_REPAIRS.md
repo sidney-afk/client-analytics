@@ -30800,3 +30800,17 @@ Needs before it works: deploy through `deploy-single-function.yml` after merge, 
 Proof (offline): `test/tiktok-upload-cancel-source.js` (fake Post For Me: success, already posted, publishing mid-cancel, refused, unreachable, delete that lies, queue write failure and retry) and `test/tiktok-cancel-browser.js` (the real page against the function's own logic: success, already posted, failure).
 Not proven live: the test client has no TikTok account in Post For Me, so no real post was scheduled or cancelled.
 Way back: revert this PR and rebuild the fragments; Cancel goes back to the n8n webhook.
+
+## 362. [2026-10-07, BUILT, MIGRATION NOT APPLIED, NOT DEPLOYED, NOT PROVEN LIVE] TikTok Upload tab off n8n and off the Sheet
+
+Source: owner, 2026-10-07. The TikTok side of the tab ran on five n8n webhooks, all reading or writing the TikTokUpload tab of the SYNCVIEW Sheet: `tiktok-upload-url` (Media Upload URL `FlvoUXIFwRDg8KUb`), `tiktok-upload` (Submit `o6wWaGNlIlyZFTX7`, the in-band upload every video of 100 MB or less still used), `tiktok-upload-direct` (Submit (Direct) `qGJ7mUjml98DSiGo`), `tiktok-uploads-list` (List `iYb1896sIAclGvy8`) and `tiktok-upload-status` (Status `IjayuU6jkA21aKo3`), plus the Post For Me result callback (Result `1qZmOQPtG6rKYlK7`). All were read, none edited.
+Built, the way instagram-upload works:
+- `migrations/2026-10-07-tiktok-uploads.sql` (NOT APPLIED, for the owner's go): table `tiktok_uploads` with the tab's 15 columns plus the kept Post For Me request (`post_body`, so Retry works), `last_checked_at`, `created_by`, `source`; RLS on, no browser privilege, service_role select/insert/update only, all four roles named in the revoke. Adds the switch `syncview_runtime_flags.tiktok_upload_source` = `{"source":"n8n"}` (never overwrites a live value).
+- Edge Function `tiktok-upload` (staff key): mint, create, list, status, retry, and an admin-only `import_sheet` for the one-time copy. Create checks the account is the one on file for the client (by slug or display name, since one TikTok client's slug is not its name) and that Post For Me says it is a TikTok account. Results are pulled from Post For Me on list and status, so the n8n Result callback is not needed.
+- `tiktok-upload-cancel` now looks in the table first and falls back to the Sheet only for a row the table does not have.
+- The page reads the switch. On `supabase` every step goes to the functions and every video goes direct to storage; anything else keeps today's n8n path. A failed read keeps the last value the browser saw.
+- `scripts/tiktok-uploads-copy.js` runs the copy (dry run by default, counts only).
+Cut-over order: apply the migration; merge; deploy `tiktok-upload` and `tiktok-upload-cancel` (one-function lane); flip the switch to `{"source":"supabase"}`; run the copy with `--apply`; run it again a few minutes later to catch rows a still-open page sent to n8n. Way back: flip the switch to `{"source":"n8n"}`.
+Who else reads the TikTokUpload tab: nothing outside the TikTok n8n workflows above (Sheets map 2026-10-03, and no reader in this repo or the pipelines, brain or website repos). After the switch it gets no new rows and can stay as a frozen archive; nothing needs it kept in sync.
+Proof (offline): `test/tiktok-upload-source.js` (handler and logic, fake Post For Me), `test/tiktok-upload-browser.js` (real page, the functions' own code), `test/tiktok-uploads-postgres.js` (the migration on a throwaway Postgres).
+Not proven live: the test client has no TikTok account in Post For Me.

@@ -37,6 +37,9 @@ here with where it stopped, so it can be restarted.
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
+  TikTok Upload (Courier, 2026-10-07, OPEN_REPAIRS 362): built behind the switch `tiktok_upload_source`, still on n8n.
+  Owner steps: approve and apply `migrations/2026-10-07-tiktok-uploads.sql`, deploy `tiktok-upload` and `tiktok-upload-cancel`,
+  flip the switch, run `scripts/tiktok-uploads-copy.js --apply`; then the six n8n TikTok workflows can be switched off (owner's go).
 - **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
   checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
   shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the

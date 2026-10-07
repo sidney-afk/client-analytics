@@ -2,6 +2,11 @@
 require('./helpers/single-file-index');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
+const {isStaffPhoneFile}=require('../scripts/staff-phone-changed');
+for(const file of ['src/index/020-styles-surfaces.css.part','qa/staff-phone-design-browser.js','docs/syncview-design/staff-phone-rules.css','index.html'])assert(isStaffPhoneFile(file),'phone change skipped: '+file);
+for(const file of ['docs/ops/OPEN_REPAIRS.md','docs/audits/report.md','supabase/functions/example/index.ts','src/indexer.js'])assert(!isStaffPhoneFile(file),'unrelated change runs phone matrix: '+file);
+const workflow=fs.readFileSync(path.join(root,'.github/workflows/calendar-unit-tests.yml'),'utf8');
+assert(workflow.includes('needs: staff-phone-files')&&workflow.includes("if: needs.staff-phone-files.outputs.changed == 'true'"),'phone job missing file gate');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const marker=/\/\* STAFF-PHONE-RULES:BEGIN[\s\S]*?\/\* STAFF-PHONE-RULES:END \*\//g;
 for(const [artifact,target] of [['docs/syncview-design/staff-phone-rules.css','src/index/020-styles-surfaces.css.part'],['docs/syncview-design/staff-phone-rules.js','src/index/099-staff-phone-bar.js.part']]) {

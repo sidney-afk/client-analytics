@@ -234,7 +234,7 @@
             || document.body.matches('.intake-mode, .onboarding-mode')) return;
         const html = document.documentElement;
         html.classList.add('sv-staff-phone');
-        const moves = new Map(), labels = new Map(), overlays = new Map();
+        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [];
         let lastTrigger = null, locked = null, queued = false, touch = null;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
@@ -263,13 +263,37 @@
                 let tools = thumb.querySelector('.sv-phone-card-tools');
                 if (!tools) {
                     tools = document.createElement('div'); tools.className = 'sv-phone-card-tools';
+                    tools.innerHTML = '<div class="sv-phone-card-primary"></div><div class="sv-phone-card-secondary"></div><dialog class="sv-phone-card-menu"><div class="sv-phone-card-head"><strong>Card actions</strong><button type="button" aria-label="Close card actions">Close</button></div><div class="sv-phone-card-body"></div></dialog>';
                     thumb.append(tools);
+                    const menu = tools.querySelector('dialog'), primary = tools.firstElementChild;
+                    const more = document.createElement('button'); more.type = 'button'; more.className = 'sv-phone-card-more';
+                    more.setAttribute('aria-label', 'More card actions'); more.setAttribute('aria-haspopup', 'dialog'); more.setAttribute('aria-expanded', 'false');
+                    more.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg>';
+                    primary.append(more);
+                    more.onclick = event => { event.stopPropagation(); menu.showModal(); more.setAttribute('aria-expanded', 'true'); };
+                    menu.querySelector('button').onclick = event => { event.stopPropagation(); menu.close(); };
+                    menu.addEventListener('close', () => { more.setAttribute('aria-expanded', 'false'); if (more.isConnected) more.focus({preventScroll:true}); });
+                    menu.addEventListener('click', event => { event.stopPropagation(); if (event.target === menu) menu.close(); });
                 }
-                // Keep tools in the thumbnail subtree: native colour/media handlers
-                // and delegated card interactions still query that subtree.
-                card.querySelectorAll('.cal-card-platforms, .cal-card-color-tag, .cal-card-link, .cal-card-del, .cal-linear-pile, .cal-smm-warn-overlay').forEach(el => {
-                    if (!tools.contains(el)) move(el, tools);
+                const primary = tools.querySelector('.sv-phone-card-primary'), secondary = tools.querySelector('.sv-phone-card-secondary');
+                const menu = tools.querySelector('dialog'), body = menu.querySelector('.sv-phone-card-body'), more = primary.querySelector('.sv-phone-card-more');
+                // The native thumbnail subtree is retained, including native
+                // callbacks. Archive is intentionally available only after More.
+                card.querySelectorAll('.cal-card-platforms, .cal-card-color-tag').forEach(el => {
+                    if (el.parentNode !== primary) { move(el, primary); primary.append(more); }
                 });
+                card.querySelectorAll('.cal-linear-pile, .cal-smm-warn-overlay').forEach(el => {
+                    const target = el.matches('.cal-linear-pile') && !card.querySelector('.cal-card-platforms, .cal-smm-warn-overlay') ? primary : secondary;
+                    if (el.parentNode !== target) move(el, target);
+                });
+                card.querySelectorAll('.cal-card-link, .cal-card-del').forEach(el => {
+                    if (el.parentNode === body) return;
+                    move(el, body);
+                    const label = document.createElement('span'); label.className = 'sv-phone-action-label';
+                    label.textContent = el.matches('.cal-card-del') ? 'Archive card' : 'Copy card link'; el.append(label);
+                    const close = () => menu.close(); el.addEventListener('click', close, true); actionListeners.push([el, close]);
+                });
+                more.hidden = !body.childElementCount;
             });
             document.querySelectorAll('#calView .cal-cap-toggle, #sxrView .cal-cap-toggle').forEach(btn => {
                 const label = btn.querySelector('.cal-cap-toggle-txt');
@@ -327,7 +351,10 @@
         }
         function pointer(event) {
             const el = event.target.closest('button, a[href], input, textarea, [role="button"], [tabindex]');
-            if (el) lastTrigger = el;
+            if (el) {
+                const cardMenu = el.closest('.sv-phone-card-menu');
+                lastTrigger = cardMenu ? cardMenu.closest('.cal-card')?.querySelector('.sv-phone-card-more') || el : el;
+            }
         }
         function insideDialog(event) {
             const dialog = event.target;
@@ -419,6 +446,8 @@
                     if (value === null) btn.removeAttribute(key); else btn.setAttribute(key, value);
                 }
             });
+            actionListeners.forEach(([el, listener]) => el.removeEventListener('click', listener, true));
+            document.querySelectorAll('.sv-phone-action-label').forEach(el => el.remove());
             document.querySelectorAll('.sv-phone-card-tools').forEach(el => el.remove());
             html.classList.remove('sv-staff-phone');
             html.style.removeProperty('--sv-phone-vh'); html.style.removeProperty('--sv-phone-vtop');

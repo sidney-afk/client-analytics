@@ -30801,7 +30801,7 @@ Proof (offline): `test/tiktok-upload-cancel-source.js` (fake Post For Me: succes
 Not proven live: the test client has no TikTok account in Post For Me, so no real post was scheduled or cancelled.
 Way back: revert this PR and rebuild the fragments; Cancel goes back to the n8n webhook.
 
-## 363. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
+## 364. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
 
 Phone-only artifact and native transplant repair background scrolling under overlays,
 overlapping Calendar/Samples tools, caption action placement, hidden/collapse labels,
@@ -30816,3 +30816,17 @@ broken detector controls must fail. Raw images and backend data remain private.
 Required broad gates retain their failures. The audit also records a default
 aggregate-read gate exceeding the requested TEST-only scope; it made no writes.
 One branch and one draft PR; no merge or deployment. Way back: revert and rebuild.
+
+Design follow-up, 2026-10-07: the mechanically passing first version had an
+oversized utility stack and exposed Archive X. Artifact-first revisions reduce
+visual icon weight while retaining 44 px touch boxes, group card tools by purpose,
+move Archive and copy-link into More, align caption actions and place creative
+reveal beside its field. Native media refresh preserves the same action nodes;
+confirmation cancellation returns focus to visible More. Personal screenshot
+review and fictional before/after cards are recorded in
+`docs/audits/2026-10-07-staff-phone-design-review.md`. This entry was renumbered
+after checking main and open PR reservations: 361 and 362 were occupied, then
+concurrent open PRs reserved 363. The next free number is 364. Main was merged into the existing branch, without rebase. The phone CI
+matrix now runs only for relevant staff phone/shared UI or harness changes.
+Broad local unit failures remain under verification hold; this follow-up does
+not claim deployment or physical-device proof.

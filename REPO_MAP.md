@@ -1,5 +1,15 @@
 # Repo map
 
+Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
+native Calendar/Samples cards, deliberate Archive access, chained focus return,
+media-refresh node preservation and restoration on desktop resize.
+`scripts/staff-phone-changed.js` classifies relevant changes for the scoped CI
+matrix. The visual decisions and state inventory are in
+`docs/audits/2026-10-07-staff-phone-design-review.md` and
+`docs/audits/2026-10-07-staff-phone-design-states.md`; exact check endings are in
+`docs/audits/2026-10-07-staff-phone-design-checks.md`. Fictional native before/after
+cards and action sheets are in `docs/audits/2026-10-07-staff-phone-design/`.
+
 Staff phone feedback expansion: `docs/syncview-design/staff-phone-rules.html`
 is the fictional artifact, with `staff-phone-rules.css` and
 `staff-phone-rules.js` transplanted into the native fragments.

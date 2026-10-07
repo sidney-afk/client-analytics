@@ -30778,3 +30778,12 @@ C. Workload: changes are collected for 1 s instead of 3 s before the one snapsho
 D. Reconnect after a drop: the backoff cap is 5 s instead of 30 s on Calendar, Workload and Production.
 Proof (offline): `test/calendar-realtime-burst-coalesces.js` (new checks: many writes to one card keep the normal floor; five different cards still storm; deletes count by card), `test/filming-plans-live-poll.js`, `test/workload-native-realtime.js`, `test/production-live-refresh.js`. Not proven live; the next Relay re-test is the proof.
 Way back: revert this PR and rebuild the fragments.
+
+## 360. [2026-10-07, BUILT, NOT DEPLOYED, NOT PROVEN LIVE] TikTok Cancel really stops the post in Post For Me
+
+Source: owner, 2026-10-07. Cancel on the TikTok Upload tab called the n8n webhook `tiktok-upload-cancel` (workflow `4ca3li54eRFtSfXE`), which only set `status=cancelled` on the TikTokUpload Sheet row. Nothing told Post For Me, so a "cancelled" scheduled post still published.
+Fix: new Edge Function `tiktok-upload-cancel` (staff key required). It reads the row from the TikTokUpload tab, finds the Post For Me post (`upload_post_id`, or `external_id` = row id), refuses if Post For Me says `processing` or `processed` ("Already posted, could not cancel"), sends `DELETE /v1/social-posts/{id}`, reads the post back to prove it is gone, checks no result says it went out, and only then writes `status`, `error`, `updated_at` on that one row. Any refusal, timeout or doubt leaves the row as it was ("Cancel failed, try again"). The page's Cancel button now calls it; the "you may also need to cancel it there" text is gone. No n8n workflow was edited; the old Cancel workflow is now unused by the page.
+Needs before it works: deploy through `deploy-single-function.yml` after merge, with `POST_FOR_ME_API_KEY`, a Google service account with edit access to the Sheet holding TikTokUpload, and `TIKTOK_UPLOADS_SHEET_ID` (or the existing `CLIENTS_INFO_SHEET_ID` if it is the same Sheet) set as Supabase secrets.
+Proof (offline): `test/tiktok-upload-cancel-source.js` (fake Post For Me: success, already posted, publishing mid-cancel, refused, unreachable, delete that lies, queue write failure and retry) and `test/tiktok-cancel-browser.js` (the real page against the function's own logic: success, already posted, failure).
+Not proven live: the test client has no TikTok account in Post For Me, so no real post was scheduled or cancelled.
+Way back: revert this PR and rebuild the fragments; Cancel goes back to the n8n webhook.

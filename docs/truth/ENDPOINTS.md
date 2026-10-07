@@ -95,7 +95,7 @@ here, because this inventory is compared for SET EQUALITY against index.html.
 TikTok upload (Post For Me; the TikTok pilot and its TTP auth were removed 2026-09-24, see below):
 - `webhook/tiktok-upload`, `webhook/tiktok-upload-status`, `webhook/tiktok-uploads-list`
 - `functions/v1/tiktok-upload-cancel` — Cancel (2026-10-07, OPEN_REPAIRS 361). Replaces
-  `webhook/tiktok-upload-cancel`, which only marked the TikTokUpload row cancelled and never told
+  the old n8n cancel webhook, which only marked the TikTokUpload row cancelled and never told
   Post For Me. The function deletes the post in Post For Me, reads it back to prove it is gone,
   and only then marks the row cancelled; already posted or any failure leaves the row as it was.
   Staff key required. Until the function is deployed, Cancel fails closed ("Cancel failed, try

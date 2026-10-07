@@ -26,6 +26,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _fphScreen() {
         if (_isClientLink || !document.body) return null;
         if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return null;
+        // Booting into Today: currentNav still reads its default ('home')
+        // until Today opens; do not show the Analytics bar in the meantime.
+        if (currentNav !== 'today' && document.documentElement.getAttribute('data-boot-nav') === 'today') return null;
         return FPH_SCREENS[currentNav] || null;
     }
     function _fphEsc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

@@ -333,13 +333,15 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyTrail(list, names) {
         if (!list.length) return '';
-        const chips = list.slice(0, 12).map(r => `<span class="tdy-chip"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
+        const chips = list.slice(0, 12).map(r => `<span class="tdy-chip" data-k="c:${_calEscAttr(r.id)}"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
         return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
     }
     function _tdyTop(views, on) {
         const d = (window.svPhoneDate ? window.svPhoneDate(new Date()) : '') || new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
         // The saved copy is on screen until the fresh read lands, then this goes.
-        const upd = tdyState.fromSaved ? '<span class="tdy-upd" role="status">Updating</span>' : '';
+        // Always in the markup, hidden when fresh, so the swap from the saved
+        // copy changes one attribute instead of moving the view switch.
+        const upd = `<span class="tdy-upd" role="status"${tdyState.fromSaved ? '' : ' hidden'}>Updating</span>`;
         return `<div class="tdy-top"><h1 class="tdy-date">${_calEsc(d)}</h1>${upd}<div class="tdy-vw" role="group" aria-label="View">${views.map(v => `<button type="button" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
     }
     const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
@@ -354,7 +356,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyEditorRow(r, d) {
         const name = d.names[r.client_slug] || r.client_slug || '';
-        return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
+        return `<div class="tdy-rw" data-k="e:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
     }
     function _tdyEditorHtml(me, d, view) {
         const q = _tdyEditorQueue(d);
@@ -394,10 +396,10 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (x.kind === 'del') {
             const r = x.r, name = d.names[r.client_slug] || r.client_slug || '';
             const card = r.origin === 'calendar' ? _tdyBtnCard('del', r.id) : '';
-            return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
+            return `<div class="tdy-rw" data-k="d:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
         }
         const p = x.p, name = d.names[p.client] || p.client || '';
-        return `<div class="tdy-rw">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
+        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
     }
     function _tdyShortDate(iso) {
         const d = new Date(String(iso || '') + 'T12:00:00');
@@ -443,14 +445,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
        (_svSkel), laid out like the page it stands in for. The boot shell
        paints the same markup before the app script runs
        (030-body-shell, boot-skeleton-today). */
-    function _tdySkeletonHtml() {
+    function _tdySkeletonHtml(editor) {
         const row = w => `<div class="tdy-rw">${_svSkel('sv-skeleton-dot', 'width:24px;height:24px;')}<div class="tdy-who">${_svSkel('sv-skeleton-line', 'width:' + w + ';height:12px;')}${_svSkel('sv-skeleton-line', 'width:90px;height:10px;margin-top:6px;')}</div>${_svSkel('sv-skeleton-pill', 'width:92px;height:30px;')}</div>`;
         return `<div class="tdy-skel" role="status" aria-label="Loading Today">
             <div class="tdy-top">${_svSkel('sv-skeleton-line', 'width:190px;height:16px;')}${_svSkel('sv-skeleton-pill', 'width:170px;height:34px;')}</div>
             ${_svSkel('sv-skeleton-pill', 'width:100%;height:10px;')}
             <div class="tdy-mrow">${_svSkel('sv-skeleton-line', 'width:130px;height:12px;')}${_svSkel('sv-skeleton-line', 'width:80px;height:12px;')}</div>
             ${_svSkel('sv-skeleton-line', 'width:min(300px,70%);height:36px;margin:4px 0 18px;')}
-            <div class="tdy-rings">${[0, 1, 2, 3, 4].map(() => `<div class="tdy-rg">${_svSkel('sv-skeleton-dot', 'width:56px;height:56px;')}${_svSkel('sv-skeleton-line', 'width:70%;height:10px;')}</div>`).join('')}</div>
+            ${editor ? '' : `<div class="tdy-rings">${[0, 1, 2, 3, 4].map(() => `<div class="tdy-rg">${_svSkel('sv-skeleton-dot', 'width:56px;height:56px;')}${_svSkel('sv-skeleton-line', 'width:70%;height:10px;')}</div>`).join('')}</div>`}
             <div class="tdy-ls">${['62%', '48%', '70%', '54%'].map(row).join('')}</div>
         </div>`;
     }
@@ -495,26 +497,87 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             const cached = _tdyCacheRead(who);
             tdyState.data = cached; tdyState.who = cached ? who : ''; tdyState.day = cached ? _tdyIso(_tdyDays(0)) : ''; tdyState.fromSaved = !!cached; tdyState.freshAt = 0;
         }
-        return `<div class="tdy" id="tdyRoot">${who && tdyState.data && tdyState.who === who ? '' : _tdySkeletonHtml()}</div>`;
+        // The boot shell's grey shape or saved page is about to be replaced
+        // by this root: keep its nodes and move them in (_tdyPaint), so the
+        // first paint patches what is already on screen instead of redrawing it.
+        _tdyBootNodes = null;
+        try {
+            const boot = document.querySelector('#content [data-tdy-early]') || document.querySelector('#content .boot-skeleton-today > .tdy');
+            if (boot && boot.getClientRects().length) _tdyBootNodes = boot;
+        } catch (e) {}
+        if (_tdyBootNodes) return '<div class="tdy" id="tdyRoot"></div>';
+        const me = _tdyIdentity();
+        return `<div class="tdy" id="tdyRoot">${who && tdyState.data && tdyState.who === who ? '' : _tdySkeletonHtml(me && me.editor)}</div>`;
+    }
+    let _tdyBootNodes = null;
+    /* IN-PLACE UPDATE (owner, 2026-10-07: no flash between the grey shape,
+       the saved copy and the fresh list; rows that did not change must not
+       redraw). The new markup is compared with what is on screen and only
+       the differences are written: a row is matched by its key (data-k, or
+       data-tdy-key on controls), other nodes by tag in order. An unchanged
+       row keeps its node and is never touched. */
+    function _tdyKey(n) {
+        return n.nodeType === 1 ? (n.getAttribute('data-k') || n.getAttribute('data-tdy-key') || '') : '';
+    }
+    function _tdySameKind(a, b) {
+        return a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && _tdyKey(a) === _tdyKey(b)));
+    }
+    function _tdyMorphNode(a, b) {
+        if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+        for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+        for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+        _tdyMorphChildren(a, b);
+    }
+    function _tdyMorphChildren(from, to) {
+        const old = [...from.childNodes];
+        const keyed = new Map();
+        const plain = [];
+        old.forEach(n => { const k = _tdyKey(n); if (k) keyed.set(k, n); else plain.push(n); });
+        let pi = 0;
+        let ref = from.firstChild;
+        for (const nn of [...to.childNodes]) {
+            const k = _tdyKey(nn);
+            let match = null;
+            if (k) { const o = keyed.get(k); if (o && _tdySameKind(o, nn)) { match = o; keyed.delete(k); } }
+            else {
+                for (let j = pi; j < plain.length; j++) if (_tdySameKind(plain[j], nn)) { match = plain[j]; pi = j + 1; break; }
+            }
+            if (match) _tdyMorphNode(match, nn); else match = nn;
+            if (match === ref) ref = ref.nextSibling;
+            else from.insertBefore(match, ref);
+        }
+        while (ref) { const next = ref.nextSibling; from.removeChild(ref); ref = next; }
+    }
+    function _tdyPatch(root, html) {
+        if (_tdyBootNodes) {
+            // Same task as the boot shell's removal: no frame shows the gap.
+            const boot = _tdyBootNodes;
+            _tdyBootNodes = null;
+            if (!root.firstChild) root.append(...boot.childNodes);
+        }
+        const t = document.createElement('template');
+        t.innerHTML = html;
+        _tdyMorphChildren(root, t.content);
     }
     function _tdyPaint() {
         _tdyDropOldDay();
         const root = document.getElementById('tdyRoot');
         if (!root) return;
         const me = _tdyIdentity();
-        if (!me) { root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
+        if (!me) { _tdyBootNodes = null; root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
         // A failed quiet refresh keeps the day on screen; only a first load
         // with nothing to show turns into the error card.
-        if (tdyState.error && !tdyState.data) { root.innerHTML = `<div class="tdy-win" role="alert"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`; return; }
-        if (!tdyState.data) { if (!root.querySelector('.tdy-skel')) root.innerHTML = _tdySkeletonHtml(); return; }
+        if (tdyState.error && !tdyState.data) { _tdyPatch(root, `<div class="tdy-win" role="alert"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`); return; }
+        if (!tdyState.data) { _tdyPatch(root, _tdySkeletonHtml(me.editor)); return; }
         const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-tdy-key') : '';
         const views = me.editor ? ['List', 'Deck'] : ['Rings', 'Walk-through'];
         const view = views.includes(tdyState.view) ? tdyState.view : views[0];
-        root.innerHTML = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
-        if (tdyState.who === _tdyWho(me)) _tdyPaintWrite(tdyState.who, root.innerHTML);
-        // Repainting replaces the controls; put keyboard focus back on the one
-        // that was just used so a keyboard user keeps their place.
-        if (focused) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
+        const html = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
+        _tdyPatch(root, html);
+        if (tdyState.who === _tdyWho(me)) _tdyPaintWrite(tdyState.who, html);
+        // Controls are patched in place, so focus normally stays put; if the
+        // one just used was replaced, put keyboard focus back on its twin.
+        if (focused && !root.contains(document.activeElement)) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
     }
     /* Coming back to the browser tab reads again, quietly, keeping what is
        on screen until the answer lands. A different person signing in on

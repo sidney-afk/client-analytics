@@ -1669,6 +1669,18 @@
         .boot-skeleton-row { display: grid; grid-template-columns: 1fr 0.85fr 0.7fr; gap: 12px; }
         @media (max-width: 700px) { .boot-skeleton-row { grid-template-columns: 1fr; } }
         .boot-skeleton-variant { display: none; }
+        html[data-tdy-editor] .boot-skeleton-today .tdy-rings { display: none; }
+        /* Phone: the grey shape for Today already has the phone layout of the
+           real list (two columns of rings, card rows), so the swap to the list
+           moves nothing. Mirrors the Today rules in the STAFF-PHONE block. */
+        @media (max-width: 767px) {
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy { max-width: none; margin: 0; padding: 0 0 24px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rg { min-width: 0; min-height: 124px; padding: 16px 8px; border-radius: 20px; border: 1px solid var(--border); justify-content: center; gap: 12px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rg:nth-child(5):last-child { grid-column: 1 / -1; flex-direction: row; min-height: 88px; gap: 16px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-ls { display: flex; flex-direction: column; gap: 12px; border: 0; background: none; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rw { padding: 16px; border: 1px solid var(--border); border-radius: 20px; background: var(--white); }
+        }
         html:not([data-boot-nav]) .boot-skeleton-analytics,
         html[data-boot-nav="analytics"] .boot-skeleton-analytics,
         html[data-boot-nav="linear"] .boot-skeleton-linear,

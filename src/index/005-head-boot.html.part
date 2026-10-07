@@ -291,6 +291,8 @@
                         var tdRole = String(tdId.role || tdId.member.role || '').toLowerCase();
                         var tdTeam = String(tdId.member.team || '').toLowerCase();
                         var tdEditor = tdRole !== 'admin' && tdRole !== 'smm' && (tdTeam === 'video' || tdTeam === 'graphics');
+                        // Editors have no rings: the grey shape drops them too (030 boot-skeleton-today).
+                        try { if (tdEditor) document.documentElement.setAttribute('data-tdy-editor', '1'); } catch (e) {}
                         var tdIn = function (list) { return 'in.(' + list.join(',') + ')'; };
                         var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
                         var tdKv = window.__svEarlyKeyVerify;

@@ -369,6 +369,10 @@
         (function () {
             try {
                 if (document.documentElement.getAttribute('data-boot-nav') !== 'today') return;
+                // Phone: the app paints the saved copy together with the phone
+                // Today bar in one frame; painting it here first, before that
+                // bar exists, would show the desktop layout for a moment.
+                if (window.matchMedia && window.matchMedia('(max-width: 767px)').matches) return;
                 var host = document.currentScript && document.currentScript.previousElementSibling;
                 if (!host || !host.classList.contains('boot-skeleton-today')) return;
                 var id = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');

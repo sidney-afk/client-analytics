@@ -1,0 +1,67 @@
+# Prism phone review
+
+Status: ACTIVE. The finish line has not been reached. A complete visually clean
+round and a separate fresh-review round are both still required. Lighthouse
+reviews and merges; Prism does not merge.
+
+[Coverage](COVERAGE.md) lists the native scenarios and all width/theme cells.
+[Machine-readable coverage](coverage.json) also tracks ten discovery obligations
+for every staff tab, reviewer/admin subtab, personal Time Off and client review
+surface. Missing setups remain OPEN. Screenshots and passing geometry never
+automatically turn a cell CLEAN. Reviews must identify the exact capture hash.
+Changing source fragments invalidates previously clean cells in the generator.
+
+[Batch 1 before/after gallery](batch-1/gallery.html) includes 36 matched pairs.
+[Personal review receipts](batch-1/reviews.json) identify 36 clean cells by exact
+PNG hash. This is bounded state evidence, not a clean full round.
+
+## Batch 1: Save problems and coverage tooling
+
+Branch: `codex/prism-phone-batch-1`. Base:
+`1c64ddee5250071af478db45f2332c275072259d`.
+
+Confirmed visual findings and repairs:
+
+- A wide log hid the error and recovery message to the right with no phone
+  scrolling cue. Phone records now stack labelled fields vertically and put the
+  error and message first. Long messages and unbroken references wrap.
+- Filter controls had different starting positions and changed arrangement at
+  430 pixels. Their labels and controls now align in three equal-width rows.
+- The loading log used Calendar media/action skeletons extending several phone
+  screens. It now shows a compact, labelled loading panel on phones.
+- The inherited admin Filming empty fixture returned an invalid response. Its
+  transport now returns a successful empty list, with an explicit empty-state
+  assertion. This repairs evidence, not a deployed backend.
+
+All product CSS sits inside the existing owned admin phone block and a
+`max-width:767px` query. No save request, authorization, database or workflow
+changes. The client runner now checks both themes and captures the card,
+individual panels, confirmation, draft and action result. The staff/admin
+runners expose their existing inventories; admin accepts all requested widths.
+
+Regression guards cover field containment, recovery-first order, every visible
+field label, filter alignment, compact loading and native filter/Refresh reads.
+All five native read actions are intercepted and their payloads are checked.
+
+## Still open
+
+The broad staff captures, most detailed human reviews, missing refused-save and
+content-stress setups, client loading/error/refused-save journeys and the fresh
+review round remain OPEN. The twelve-record stress case has passing containment
+checks; its entire long screenshot still requires detailed visual review.
+The Filming information icon remains an open design-standard issue for a later
+batch, rather than an accepted exception.
+
+Initial staff captures used fallback fonts; final accepted captures must use the
+intended local font assets. Raw broad captures remain private until visually
+reviewed for both quality and fixture-only content. No physical-phone,
+deployment or live-save claim is made.
+
+Desktop parity is a required batch gate. Preserve every failed invocation;
+pixel differences with matching computed styles are failures until investigated.
+The default gate could not resolve its token without a staff key. The existing
+private read-only adapter uses the configured credential to select only the TEST
+review token; it performs no issuing, rotation or database write. Raw live
+desktop images stay private. Only hash/pixel-difference receipts may be public.
+
+Rollback: revert this batch and run `npm run build:index`.

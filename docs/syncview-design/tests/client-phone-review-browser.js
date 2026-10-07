@@ -92,15 +92,27 @@ async function installFixture(ctx, origin, ROW, writes, surfaceName) {
   });
 }
 
-async function run(browser, origin, [vpLabel, width, height], surfaceName) {
+async function run(browser, origin, [vpLabel, width, height], surfaceName, theme = 'light') {
   const { card: CARD, query, table, panels, tweakComp } = SURFACES[surfaceName];
   const ROW = Object.assign({}, BASE_ROW, { id: CARD });
-  const label = `${surfaceName} / ${vpLabel}`;
+  const label = `${surfaceName} / ${vpLabel} / ${theme}`;
   const failures = [];
   const writes = [];
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: theme, reducedMotion: 'reduce' });
   await installFixture(ctx, origin, ROW, writes, surfaceName);
+  await ctx.addInitScript(theme => localStorage.setItem('syncview_theme', theme), theme);
+  if (process.env.POCKET_FONT_DIR) {
+    const css = [400,500,600,700,800].map(w=>`@font-face{font-family:'Plus Jakarta Sans';font-weight:${w};src:url(data:font/ttf;base64,${fs.readFileSync(path.join(process.env.POCKET_FONT_DIR,'plus-jakarta-'+w+'.ttf')).toString('base64')}) format('truetype');font-display:block}`).join('\n');
+    await ctx.route('https://fonts.googleapis.com/**', r=>r.fulfill({contentType:'text/css',body:css}));
+  }
   const page = await ctx.newPage();
+  const capture = async state => {
+    if (!process.env.CLIENT_PHONE_SHOTS) return;
+    fs.mkdirSync(process.env.CLIENT_PHONE_SHOTS, { recursive: true });
+    await page.evaluate(()=>document.fonts.ready);
+    await page.screenshot({path:path.join(process.env.CLIENT_PHONE_SHOTS,`${surfaceName}-${state}-${theme}-${width}.png`),animations:'disabled'});
+    await page.screenshot({path:path.join(process.env.CLIENT_PHONE_SHOTS,`${surfaceName}-${state}-${theme}-${width}-full.png`),fullPage:true,animations:'disabled'});
+  };
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(String(e.message || e).slice(0, 160)));
   const q = new URLSearchParams(Object.assign({ c: CLIENT, t: TOKEN }, query));
@@ -109,6 +121,7 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   const drew = await page.waitForSelector(card, { timeout: CAP_MS }).then(() => true, () => false);
   if (!drew) { await ctx.close(); return [`${label}: review card never drew`]; }
   await page.waitForTimeout(600);
+  await capture('single');
   await page.tap(`${card} .kcard-expand-btn`);
   await page.waitForSelector(`${card} .cal-review-body`, { timeout: 5000 }).catch(() => failures.push(`${label}: card did not open`));
   await page.waitForTimeout(400);
@@ -120,7 +133,9 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
     if (foldCount) {
       const fold = page.locator(`${card} .pocket-cal-fold`).nth(i);
       if (await fold.getAttribute("open") === null) await fold.locator(":scope > summary").click();
+      await fold.scrollIntoViewIfNeeded();
     }
+    await capture('expanded-'+['video','graphic','caption'][i]);
     const part = await page.evaluate(sel => {
     const W = document.documentElement.clientWidth;
     const c = document.querySelector(sel);
@@ -162,6 +177,7 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
       buttons: [...o.querySelectorAll('button')].filter(b => b.getClientRects().length).map(b => { const r = b.getBoundingClientRect(); return { what: b.innerText.trim(), w: r.width, h: r.height }; }) };
   });
   if (confirm) {
+    await capture('approve-confirm');
     if (process.env.CLIENT_PHONE_DEBUG) console.log(label, 'confirm:', JSON.stringify(confirm));
     if (!confirm.fits) failures.push(`${label}: approve confirmation is wider than the screen`);
     for (const b of confirm.buttons) if (b.w < 44 || b.h < 44) failures.push(`${label}: confirmation "${b.what}" is ${Math.round(b.w)}x${Math.round(b.h)}px, under 44px`);
@@ -169,6 +185,7 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   }
   await page.waitForTimeout(1500);
   const approveWrites = writes.slice(before);
+  await capture('approved');
   if (!approveWrites.length) failures.push(`${label}: tapping Approve video sent no write`);
   else if (!approveWrites.some(w => w.body.includes('"video_status":"Approved"') && w.body.includes(CARD))) failures.push(`${label}: Approve sent writes that do not approve: ${approveWrites.map(w => w.method + ' ' + w.path).join(', ')}`);
 
@@ -180,6 +197,7 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   await page.locator(`${panel} .cal-review-textarea`).scrollIntoViewIfNeeded();
   await page.tap(`${panel} .cal-review-textarea`);
   await page.keyboard.type(note);
+  await capture('change-draft');
   const tweak = `${panel} .cal-review-tweak-btn`;
   if (await page.locator(tweak).isDisabled()) failures.push(`${label}: Request change stayed disabled after typing a note`);
   const before2 = writes.length;
@@ -190,10 +208,7 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName) {
   const after = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   if (after) failures.push(`${label}: page scrolls sideways after the change request`);
   if (pageErrors.length) failures.push(`${label}: page errors: ${pageErrors.slice(0, 2).join(' | ')}`);
-  if (process.env.CLIENT_PHONE_SHOTS) {
-    fs.mkdirSync(process.env.CLIENT_PHONE_SHOTS, { recursive: true });
-    await page.screenshot({ path: path.join(process.env.CLIENT_PHONE_SHOTS, `${surfaceName}-${width}x${height}.png`), fullPage: true });
-  }
+  await capture('change-sent');
   if (process.env.CLIENT_PHONE_DEBUG) console.log(label, JSON.stringify({ approveWrites, tweakWrites }).slice(0, 2000));
   await ctx.close();
   return failures;
@@ -205,14 +220,14 @@ async function runMain() {
   const browser = await chromium.launch({ headless: true });
   const failures = [];
   try {
-    for (const surface of Object.keys(SURFACES)) for (const vp of VIEWPORTS) {
-      const f = await run(browser, origin, vp, surface);
-      console.log(`${f.length ? 'FAIL' : 'ok  '} ${surface} ${vp[0]} ${vp[1]}x${vp[2]}`);
+    for (const surface of Object.keys(SURFACES)) for (const vp of VIEWPORTS) for (const theme of ['light','dark']) {
+      const f = await run(browser, origin, vp, surface, theme);
+      console.log(`${f.length ? 'FAIL' : 'ok  '} ${surface} ${vp[0]} ${vp[1]}x${vp[2]} ${theme}`);
       failures.push(...f);
     }
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error('\n' + failures.join('\n')); process.exit(1); }
-  console.log(`\nclient-phone-review: OK (${Object.keys(SURFACES).join(' + ')}, ${VIEWPORTS.length} phone sizes each, approve + request change)`);
+  console.log(`\nclient-phone-review: OK (${Object.keys(SURFACES).join(' + ')}, ${VIEWPORTS.length} phone sizes each, light + dark, approve + request change)`);
 }
 if (require.main === module) runMain().catch(e => { console.error(e); process.exit(2); });
 

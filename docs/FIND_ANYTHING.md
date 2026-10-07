@@ -1,5 +1,8 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Prism's full phone review: [coverage and batch evidence](audits/2026-10-07-prism-phone/README.md),
+[screen/state matrix](audits/2026-10-07-prism-phone/COVERAGE.md).
+
 Staff Expanded phone final pass: [before/after and verification](audits/2026-10-07-phone-final-pass/README.md),
 [interactive comparison](audits/2026-10-07-phone-final-pass/gallery.html), and
 the native fictional-data runner `qa/staff-phone-final-pass.js`.

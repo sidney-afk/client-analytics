@@ -1,5 +1,10 @@
 # Repo map
 
+Prism phone rounds: `qa/client-phone/coverage.js` inventories the existing native
+journeys and records width/theme review cells and outstanding state/action
+discovery in `docs/audits/2026-10-07-prism-phone/`. Its coverage statuses remain
+open until individual visual review and interaction evidence are recorded.
+
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,
 media-refresh node preservation and restoration on desktop resize.

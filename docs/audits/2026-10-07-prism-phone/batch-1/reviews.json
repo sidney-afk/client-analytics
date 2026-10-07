@@ -1,0 +1,290 @@
+[
+  {
+    "file": "batch-1/after/save-problems-empty-light-375.png",
+    "sha256": "300566cc19f8f42fc4d5295d200f8089d7273eb662fc49c34a9828fd16888746",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-empty-dark-375.png",
+    "sha256": "837355b32b731666d07289ceaf12ebbc7367e05c26c8ac7f9ea8257caba6438f",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-empty-light-390.png",
+    "sha256": "cc67f2ce4e2b8ed657bf924ffbe9ce4e72d7b94221316d59f1f30caf9515d05e",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-empty-dark-390.png",
+    "sha256": "ec2ddd0e28ad304a34a3a7bcf952c77e293c8767f376d91f1546dd8e05aa849f",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-empty-light-430.png",
+    "sha256": "8546a0ac191cc7dde52ed8769a742031430204f3d9a473400c45e3c3c77bb451",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-empty-dark-430.png",
+    "sha256": "30744bd2062f56a985aff0e609ca38a24ba3765d58445c4360d2660a2775c14a",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-light-375.png",
+    "sha256": "e59ece40a2474ddf926ed5aa2b7110f096ba182ca887bd39dfe694d6cf7a69b1",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-dark-375.png",
+    "sha256": "23e6df2735b43b732775850b90d9b8ad90ce168dc1d80d7b2bf899e5788cc88c",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-light-390.png",
+    "sha256": "74d995cd540ea8a4b586cbe01733ed7dc4d7cf182f014b7612c7a1c7b2ec88cf",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-dark-390.png",
+    "sha256": "70bb15bdccd236f308846972ca5943a986cd95982b4b09b93d4c094c8e50dc26",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-light-430.png",
+    "sha256": "2b1413f5f648949f96bc70a5232214b84377c03d6effac830a467d5703704edf",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-dark-430.png",
+    "sha256": "74675cdae341683d40b3c3d163d54e32c0583c005b81f3420b0a14f6d4ae1d3e",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-error-light-375.png",
+    "sha256": "828e0b65d9c417e8cfaf2f1f56d8ac8366ce20108d967c398b5a2c57f3c6e3bb",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-error-dark-375.png",
+    "sha256": "7b72ee56188a65de3ed375f7e751434df74370993c5552720701cb89b688bff4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-error-light-390.png",
+    "sha256": "0e7aa72ca916c9256a10727ef26fbbc35a46537624f55eb6e376786c88713f35",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-error-dark-390.png",
+    "sha256": "c80b5facf9beef90b7e153b4753d965049f4dfaf4afbf95e88393c99dd2ea95c",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-error-light-430.png",
+    "sha256": "ac1c30045b364d8bb0c3a74ac8f8cf7ab1781c07d0d1f1ad8c439c68bc52baa7",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-error-dark-430.png",
+    "sha256": "29f7fbea0c57c12493fdba9f956386b1170cab40af2e6c5fc133a4004c34353c",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-long-light-375.png",
+    "sha256": "ffb7cc40a196f9c5bfa7cb06270491697bcff747bca98a7f241f06c6470108d2",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-long-dark-375.png",
+    "sha256": "49b617e616d9545f1ae2e7cdc24b671e9a1814425372dc0d9a0404600d308036",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-long-light-390.png",
+    "sha256": "446bf4f1b446652a09f4a5b61e9426515c68ea3ce3346d1ccc165f8db852e4e1",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-long-dark-390.png",
+    "sha256": "348a0c8d9ac608fd3837d773c0d9be57a97a2b639061e0cb52734db9caf12226",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-long-light-430.png",
+    "sha256": "5954a9bbdefe170ea1ef71b75665256e23c22589c0aec4614c0f8bdc39ae7959",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-long-dark-430.png",
+    "sha256": "dd5f51026b71efbbb189b61d86e2125f0538110bab45c25854a490f55936f28b",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-filter-actions-light-375.png",
+    "sha256": "ee628f72c65d44c194a779c7e2040834c79e105441c0d04f2df03fe8d9073424",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-filter-actions-dark-375.png",
+    "sha256": "812f73d36b29b7a9aef2aa8af6036897948d692365c9e40b932fc0f9a68c4c2e",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-filter-actions-light-390.png",
+    "sha256": "29ce905fb223c01808b93cb5dfe01b841c70839c9cfcb6dff0e974439fa52a8f",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-filter-actions-dark-390.png",
+    "sha256": "c39996fecb802e7c3f89785fa941278eef112739d2e37db51ff5a02315940f1e",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-filter-actions-light-430.png",
+    "sha256": "cb084ddbc89fff35bd87c0404cb27d6d68021c1302b9b7d673aa32d3aef3cc5c",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-filter-actions-dark-430.png",
+    "sha256": "021ddf1ab0b42744dec87531bcbdfed538d3d3971b7b863087153370d3d0ce20",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-loading-light-375.png",
+    "sha256": "745fba55731773a88056cbcca155e6af492e39f1dff57c6218374be96d95cad7",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-loading-dark-375.png",
+    "sha256": "6a219c785af100101e23bc5cab7ab2d517c8a52d8b20ab1238a82b8db69fe28d",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-loading-light-390.png",
+    "sha256": "68c77c9967a0ca9e68552f6a6c6c0ff188fa71aab0d7ec842949380f35e8f27a",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-loading-dark-390.png",
+    "sha256": "e56dae888ad9b20f05332a36070f8ca0b2e2b348c9385ba9901bb1fbd111baaa",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-loading-light-430.png",
+    "sha256": "eb1a0ba51f7e2574892c581af0d945799f528521d536eb0b6bd15a5f1829ff79",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  },
+  {
+    "file": "batch-1/after/save-problems-loading-dark-430.png",
+    "sha256": "976cb452393b5eeb2feb63c9bf10d8cdca3ee088da36699d51ecaa98009cb6f7",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "note": "Personally inspected at native pixels, or an exact PNG match to the personally inspected aligned capture. Native read actions and layout guards pass. This cell covers the named state only.",
+    "sourceHash": "509203c15ecb0600e9416f98146b8726468cfa145df121e829b9fe520892c5cb"
+  }
+]

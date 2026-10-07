@@ -13,7 +13,7 @@ const arg = name => process.argv.find(x => x.startsWith('--' + name + '='))?.spl
 const before = process.argv.includes('--capture-before');
 const base = path.resolve(arg('before-root') || root);
 const desktop = process.argv.includes('--desktop');
-const widths = arg('width') ? [Number(arg('width'))] : desktop ? [1024,1280,1440,1920] : [360,390,430];
+const widths = arg('widths') ? arg('widths').split(',').map(Number) : arg('width') ? [Number(arg('width'))] : desktop ? [1024,1280,1440,1920] : [360,390,430];
 const out = arg('out');
 const themes = arg('theme') ? [arg('theme')] : ['light','dark'];
 const only = arg('only');
@@ -74,6 +74,29 @@ add('ads-error', 'ad-performance', () => { _kadState.loading = false; _kadState.
 add('save-problems-empty', 'save-problems');
 add('save-problems', 'save-problems', () => { _spState.loaded = true; _spState.loading = false; _spState.error = null; _spState.data = { rows: [{ surface: 'calendar', ui_action: 'Approve', operation: 'review', code: 'network_failure', recorded_at: '2026-10-01T10:00:00Z', attempts: 2, page: 'staff_page', staff_role: 'admin', detail: 'The connection was interrupted. Your decision has not saved.', browser: 'Chrome', os: 'Fixture OS', card_ref: 'fixture-card' }], total: 1 }; _spPaint(); });
 add('save-problems-error', 'save-problems', () => { _spState.loading = false; _spState.error = 'Save problems could not load. Try again.'; _spPaint(); });
+add('save-problems-long', 'save-problems', () => {
+ _spState.loaded=true;_spState.loading=false;_spState.error=null;
+ _spState.data={rows:[{surface:'calendar',ui_action:'Approve a caption with a longer title',operation:'review',code:'network_failure',recorded_at:'2026-10-01T10:00:00Z',attempts:3,page:'staff_page',staff_role:'admin',detail:'Your decision has not saved. Keep your draft open and try again when the connection returns. '.repeat(3),browser:'Chrome',os:'Fixture OS',card_ref:'fixture-reference-with-an-unbroken-long-identifier-012345678901234567890123456789',app_version:'2026-10-01T10:00:00'}],total:1};_spPaint();
+});
+add('save-problems-many', 'save-problems', () => {
+ _spState.loaded=true;_spState.loading=false;_spState.error=null;
+ _spState.data={rows:Array.from({length:12},(_,i)=>({surface:'calendar',ui_action:'Approve',code:'network_failure',recorded_at:'2026-10-01T10:00:00Z',page:'staff_page',staff_role:'admin',detail:'Your decision has not saved. Try again.',card_ref:'fixture-card-'+i})),total:12};_spPaint();
+});
+add('save-problems-filter-actions','save-problems',tests.find(t=>t.label==='save-problems').setup,async p=>{
+ const requests=[],endpoint=await p.evaluate(()=>SP_EF_URL);
+ const result=await p.evaluate(()=>_spState.data);
+ await p.context().route(endpoint,r=>{requests.push(JSON.parse(r.request().postData()));return r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,result})});});
+ for(const [index,label] of [[0,'Last 30 days'],[1,'Calendar'],[2,'Staff']]) {
+  await p.locator('.sp-control .sv-select-trigger').nth(index).tap();
+  await p.getByRole('option',{name:label,exact:true}).tap();
+  await p.waitForFunction(()=>!_spState.loading);
+ }
+ await p.locator('[data-sp-automation]').check();await p.waitForFunction(()=>!_spState.loading);
+ await p.locator('[data-sp-refresh]').tap();await p.waitForFunction(()=>!_spState.loading);
+ expect(requests.length===5,'Save problems: every native filter/automation/refresh tap requests a fresh read');
+ expect(requests.at(-1).days===30 && requests.at(-1).surface==='calendar' && requests.at(-1).page==='staff_page' && requests.at(-1).include_automation===true,'Save problems: native filters preserve the expected read payload');
+ expect(await p.locator('.sp-table tbody tr').count()===1,'Save problems: refresh preserves the returned record');
+});
 add('more', 'review', null, p => p.locator('[data-kasper-more-trigger]').click());
 add('tabs', 'review', null, async p => { if (!before && !desktop) await p.getByRole('button', { name: 'Tabs', exact: true }).click(); });
 add('tabs-client-picker','review',null,async p=>{ if(!before&&!desktop) await p.getByRole('button',{name:'Tabs',exact:true}).click();await p.locator('#svClientBadge').click();await p.locator('#svClientSearch').fill('Example'); });
@@ -154,6 +177,7 @@ async function open(browser,origin,width,theme) {
     if (u.pathname.endsWith('/analytics-read')) return json({ ok:true,principal:'staff',clients:[profile] });
     if (u.pathname.endsWith('/client-credentials')) return json({ ok:true,credentials:[],clients:[{slug:profile.slug,name:profile.display_name}],history:[] });
     if (u.pathname.endsWith('/client-profile-write')) return json({ ok:true,sheet_configured:true,row:profile });
+    if (u.pathname.endsWith('/filming-plans')) return json({ok:true,plans:[]});
     if (u.pathname.endsWith('/syncview_runtime_flags') && u.search.includes('pto_enabled')) return json([{ key:'pto_enabled',value:{mode:'on'} }]);
     if (/\/rest\/v1\//.test(u.pathname)) return json([]);
     if (/\/functions\/|\/webhook\//.test(u.pathname)) return json({ ok:true,applications:[],leads:[],rows:[],daily:[],editors:[],submissions:[],pending_requests:[],admin_members:[] });
@@ -196,7 +220,14 @@ async function open(browser,origin,width,theme) {
   });
   return {ctx,page,errors};
 }
+async function measureSaveProblemsLoading(page) {
+ return page.locator('#spBody .cal-loader').evaluate(el=>({height:el.getBoundingClientRect().height,label:el.getAttribute('aria-label'),calendarCards:[...el.querySelectorAll('.cal-skeleton-card')].filter(card=>card.checkVisibility({checkVisibilityCSS:true})).length}));
+}
 async function runMain() {
+  if (process.argv.includes('--list')) {
+    console.log(JSON.stringify(tests.map(t=>({name:t.label,tab:t.tab,lane:'admin'})),null,2));
+    return;
+  }
   const server = await serve(); const origin = 'http://127.0.0.1:'+server.address().port;
   const browser = await chromium.launch({headless:!process.argv.includes('--headed')});
   try {
@@ -220,6 +251,7 @@ async function runMain() {
               _kasperState.lastLoaded = Date.now(); _kasperState.loading = false;
               _ptoStoreFlagValue({ mode:'on' }); // Each fictional state uses the declared enabled flag, including after background refresh.
               _kasperState.editorsData = { editors:[] }; _kasperState.filmingData = { rows:[] };
+              if(tab==='save-problems') { _spState.days=7;_spState.screen='';_spState.page='';_spState.automation=false; }
               _kasperGotoTab(tab);
             },t.tab);
             await page.waitForTimeout(250);
@@ -230,8 +262,28 @@ async function runMain() {
               await page.evaluate(({source,item,profile}) => new Function('data','row','return ('+source+')(data,row)')(item,profile),{source,item:JSON.parse(JSON.stringify(item)),profile});
             }
             if (t.action) await t.action(page);
+            if (t.label === 'filming-empty') {
+              await page.getByText('No filming plans yet.',{exact:false}).waitFor();
+              expect(!(await page.locator('#kasperContent').innerText()).includes('Invalid filming plans response'),'Filming empty must be a successful empty response');
+            }
             if (!before && !desktop) {
               await page.waitForTimeout(50);
+              if(t.label==='save-problems-loading') {
+                const loader=await measureSaveProblemsLoading(page);
+                expect(loader.height<=210 && loader.label==='Loading save problems' && !loader.calendarCards,'Save problems: a compact labelled loader never presents Calendar media/action placeholders');
+              }
+              if (t.label === 'save-problems' || t.label === 'save-problems-long' || t.label === 'save-problems-many') {
+                const filters=await page.locator('.sp-control .sv-select-trigger').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {left:r.left,width:r.width};}));
+                expect(filters.length===3 && Math.max(...filters.map(r=>r.left))-Math.min(...filters.map(r=>r.left))<1 && Math.max(...filters.map(r=>r.width))-Math.min(...filters.map(r=>r.width))<1,'Save problems: all three filters align and have equal width');
+                const cards = await page.locator('.sp-table tbody tr').evaluateAll(rows=>rows.map(row=>{
+                  const box=row.getBoundingClientRect(),error=row.children[5].getBoundingClientRect(),message=row.children[6].getBoundingClientRect();
+                  return {fits:row.scrollWidth<=row.clientWidth+1 && [...row.children].every(cell=>{const r=cell.getBoundingClientRect();return r.left>=box.left && r.right<=box.right && cell.scrollWidth<=cell.clientWidth+1;}),errorFirst:error.top<=message.top && message.bottom<=row.children[0].getBoundingClientRect().top+1,labels:[...row.children].map(cell=>getComputedStyle(cell,'::before').content)};
+                }));
+                expect(cards.length===(t.label==='save-problems-many'?12:1),'Save problems: every fixture row is present');
+                expect(cards.every(card=>card.fits),'Save problems: all fields fit without sideways scrolling, including long identifiers');
+                expect(cards.every(card=>card.errorFirst),'Save problems: error and recovery message lead each record');
+                expect(cards.every(card=>card.labels.every(label=>label!=='none'&&label!=='normal')),'Save problems: every value has a visible field label');
+              }
               const dashboard = ['review','replies','filming'].includes(t.tab) && !t.label.startsWith('staff-');
               expect(await page.locator('.kasper-subtabs:visible').count() === (dashboard ? 1 : 0), t.label+': reviewer navigation belongs only to dashboard');
               if (dashboard) {

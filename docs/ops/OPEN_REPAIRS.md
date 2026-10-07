@@ -30897,3 +30897,26 @@ Latest-main follow-up: main `8f66c36b` was merged in `6a9bd7b6`, preserving its 
 Final hosted UI proof: Calendar workflow `37680056732` passes all nine jobs on `c6734775`; each width has 232 catalogue renders/zero problems and 126 admin states/2,478 checks on Linux. Its unit lane passes 686 suites and explicitly leaves 96 required profiles NOT_RUN. A subsequent docs-only head skips the staff-phone-rules job in GitHub. No deployment or physical-device claim.
 
 Owner-requested current main integration: `8c4f3168` is preserved by actual merge `3176d927` (no rebase), with index conflicts rebuilt from all 67 fragments. Repair 366 follows 365 uniquely; two header scans found no new duplicate and recorded eight historical duplicates already on main. Fresh 390/430 light/dark cards, Today, Clients and native Calendar captures were personally reviewed. Native guards remain green. Strict desktop comparison totals 72 exact matches (71 initial plus one strict replay); the original 1920 PNG failure is retained. Current hosted results and real check tails are in the design review/check receipts.
+
+## 367. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Prism phone batch 1: readable Save problems records
+
+On phones, the wide save-problem table hid the error and recovery message beyond
+the right edge; its filters did not align, and its loading state displayed several
+screens of Calendar media/action placeholders. The existing admin phone scope
+now stacks labelled record fields with the error/message first, aligns filters,
+and shows a compact labelled loader. Desktop styles and native reads are preserved.
+
+Native guards cover long unbroken references, long messages, twelve records,
+filter alignment, labelled values, compact loading and the five native filter,
+automation-visibility and Refresh reads. The inherited admin Filming empty
+transport now answers a valid empty plan list instead of an invalid-response error.
+Client review journeys include both themes and capture each action stage.
+
+Prism's ongoing full review inventory and exact-image review receipts live in
+`docs/audits/2026-10-07-prism-phone/`; `qa/client-phone/coverage.js` generates its
+screen/state matrix. Only personally reviewed cells with action evidence become
+CLEAN. The complete round, remaining discovery obligations and fresh reviewer
+round are open. The original desktop invocation was 70/72 and remains a failure;
+the final frozen-source proof is pending. No database, Edge Function, n8n workflow,
+client save, deployment or live mutation was changed. Lighthouse reviews/merges.
+Rollback: revert this batch and rebuild the index fragments.

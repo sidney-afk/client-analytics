@@ -194,7 +194,11 @@ async function prepare(page,name) {
   await settle(page);
   if (name.endsWith('more') || name.endsWith('tabs')) await page.locator('[data-staff-menu='+(name.endsWith('more')?'more':'tabs')+']').click();
 }
-(async()=>{
+async function main(){
+  if (process.argv.includes('--list')) {
+    console.log(JSON.stringify([...core.map(s=>({name:s.name,lane:'finch'})),...states.map(s=>({name:s.name,lane:'staff'})),...cases.map(name=>({name,lane:'staff'}))],null,2));
+    return;
+  }
   for (const s of core.filter(s=>only.test(s.name))) for(const width of widths) for(const theme of ['light','dark']) {
     const h=await open({...s.open,width,theme,dsf:1});
     try { await h.page.waitForTimeout(s.settle||3000);
@@ -226,4 +230,5 @@ async function prepare(page,name) {
   if(arg('report',''))fs.writeFileSync(arg('report',''),JSON.stringify({receipts,failures},null,2)+'\n');
   console.log(`staff-phone-final-pass: ${receipts.length} renders, ${failures.length} problems${before?' (baseline capture)':''}`);
   if(failures.length&&!before)process.exitCode=1;
-})().catch(e=>{console.error(e);process.exitCode=1;});
+}
+if (require.main === module) main().catch(e=>{console.error(e);process.exitCode=1;});

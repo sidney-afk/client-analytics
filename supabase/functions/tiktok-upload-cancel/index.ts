@@ -7,17 +7,20 @@
 //                     409 { ok:false, code:"already_posted", message:"Already posted, could not cancel." }
 //                     502 { ok:false, code:"cancel_failed" | "queue_update_failed", message:"Cancel failed, try again." }
 //
-// Order (logic.mjs): read the row from the TikTokUpload tab, delete the post in Post For Me, read it back to
-// prove it is gone, and only then write status=cancelled on the row. Any doubt leaves the row as it was.
+// Order (logic.mjs): find the row (the table tiktok_uploads first, then the TikTokUpload Sheet tab for a row the
+// table does not have yet), delete the post in Post For Me, read it back to prove it is gone, and only then
+// mark that row cancelled. Any doubt leaves the row as it was.
 //
-// Required env: POST_FOR_ME_API_KEY, a staff role key secret (ROLE_KEY_ADMIN / ROLE_KEY_SMM / ROLE_KEY_CREATIVE),
-// a Google service account (GOOGLE_SERVICE_ACCOUNT_JSON, or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY) with edit
-// access to the Sheet holding the TikTokUpload tab, and that Sheet's id in TIKTOK_UPLOADS_SHEET_ID (falls back
-// to CLIENTS_INFO_SHEET_ID, the same SYNCVIEW Sheet). No Sheet id is in this repository.
+// Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, POST_FOR_ME_API_KEY, a staff role key secret
+// (ROLE_KEY_ADMIN / ROLE_KEY_SMM / ROLE_KEY_CREATIVE). Optional, for the Sheet fallback: a Google service account
+// (GOOGLE_SERVICE_ACCOUNT_JSON, or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY) with edit access to the Sheet holding
+// the TikTokUpload tab, and that Sheet's id in TIKTOK_UPLOADS_SHEET_ID (falls back to CLIENTS_INFO_SHEET_ID).
+// No Sheet id is in this repository.
 
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 import { googleToken, serviceAccount } from "../_shared/roster-sheet-copy.mjs";
-import { cancelTiktokUpload, sheetQueue } from "./logic.mjs";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { cancelTiktokUpload, firstQueue, sheetQueue, tableQueue } from "./logic.mjs";
 
 const PFM = "https://api.postforme.dev/v1";
 const PFM_TIMEOUT_MS = 25000;
@@ -59,19 +62,26 @@ Deno.serve(async (req) => {
   if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
 
   const pfmKey = clean(Deno.env.get("POST_FOR_ME_API_KEY"));
+  const supabaseUrl = clean(Deno.env.get("SUPABASE_URL"));
+  const serviceKey = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+  if (!pfmKey || !supabaseUrl || !serviceKey) {
+    return json({ ok: false, code: "not_configured", message: "Cancel is not set up on the server.", missing: { post_for_me: !pfmKey, database: !supabaseUrl || !serviceKey } }, 500);
+  }
+  // The Sheet is only the fallback for rows the table does not have yet (before the switch to the table).
   const sa = serviceAccount(Deno.env);
   const sheetId = clean(Deno.env.get("TIKTOK_UPLOADS_SHEET_ID")) || clean(Deno.env.get("CLIENTS_INFO_SHEET_ID"));
-  if (!pfmKey || !sa || !sheetId) {
-    return json({ ok: false, code: "not_configured", message: "Cancel is not set up on the server.", missing: { post_for_me: !pfmKey, service_account: !sa, sheet_id: !sheetId } }, 500);
-  }
 
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   try {
-    const token = await googleToken(sa, fetch);
+    const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const sheet = sa && sheetId ? {
+      find: async (rowId: string) => sheetQueue({ sheetId, token: await googleToken(sa, fetch), fetchFn: fetch }).find(rowId),
+      markCancelled: async (found: any, nowIso: string) => sheetQueue({ sheetId, token: await googleToken(sa, fetch), fetchFn: fetch }).markCancelled(found, nowIso),
+    } : null;
     const out = await cancelTiktokUpload({
       id: body.id,
       pfm: pfmClient(pfmKey),
-      sheet: sheetQueue({ sheetId, token, fetchFn: fetch }),
+      queue: firstQueue([tableQueue(db), sheet]),
       nowIso: new Date().toISOString(),
     });
     return json(out.body, out.status);

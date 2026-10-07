@@ -152,7 +152,9 @@ and SMM weekly reports.
 | `300-tiktok-upload.js` | `_tkCancelRow` | `TIKTOK_UPLOAD_CANCEL_URL` POST | reports | `_tkCancelRow` | TikTok cancel. Recorded as tiktok_cancel. |
 | `300-tiktok-upload.js` | `_tkFinishDirectSubmit` | `TIKTOK_UPLOAD_DIRECT_WEBHOOK` POST | reports | `_tkFinishDirectSubmit` | TikTok post creation after a direct upload. Recorded as tiktok_upload. |
 | `300-tiktok-upload.js` | `_tkFinishPhotoSubmit` | `TIKTOK_UPLOAD_DIRECT_WEBHOOK` POST | reports | `_tkFinishPhotoSubmit` | TikTok photo post creation. Recorded as tiktok_upload. |
+| `300-tiktok-upload.js` | `_tkFn` | `TIKTOK_UPLOAD_FN_URL` POST | reports-in-callers | `via _tkCreateViaFunction`, `_tkSubmitDirect`, `_tkSubmitPhotoCarousel` | TikTok upload function (mint, create, list, status) once the tab runs off n8n (OPEN_REPAIRS 362). Create is recorded as tiktok_upload, mint as tiktok_upload_prepare or tiktok_photo_upload; list and status are reads of state. |
 | `300-tiktok-upload.js` | `_tkPutDirect` | `uploadUrl` PUT | reports | `_tkPutDirect` | TikTok video upload to storage. Recorded as tiktok_storage_put. |
+| `300-tiktok-upload.js` | `_tkRetryRow` | `TIKTOK_UPLOAD_FN_URL` POST | reports | `_tkRetryRow` | TikTok retry through the upload function (OPEN_REPAIRS 362). Recorded as tiktok_retry. |
 | `300-tiktok-upload.js` | `_tkRetryRow` | `TIKTOK_UPLOAD_STATUS_URL` POST | reports | `_tkRetryRow` | TikTok retry. Recorded as tiktok_retry. |
 | `300-tiktok-upload.js` | `_tkSubmitPhotoCarousel` | `TIKTOK_UPLOAD_URL_WEBHOOK` PUT | reports | `_tkSubmitPhotoCarousel` | TikTok photo upload address. Recorded as tiktok_photo_upload. |
 | `300-tiktok-upload.js` | `_tkSubmitPhotoCarousel` | `mint.upload_url` PUT | reports | `_tkSubmitPhotoCarousel` | TikTok photo upload to storage. Recorded as tiktok_photo_upload. |

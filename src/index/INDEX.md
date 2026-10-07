@@ -12,7 +12,7 @@
 | 4 | `010-styles-foundation.css.part` | 3931 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 7090 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 2075 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
+| 7 | `040-shared-briefs.js.part` | 2080 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2364 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
@@ -61,7 +61,7 @@
 | 53 | `280-samples-cards-notes.js.part` | 2946 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 55 | `299-instagram-upload.js.part` | 696 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
-| 56 | `300-tiktok-upload.js.part` | 2143 | TIKTOK UPLOAD MODULE |
+| 56 | `300-tiktok-upload.js.part` | 2356 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 752 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 59 | `320-core-kasper-subtabs.js.part` | 20 | — |

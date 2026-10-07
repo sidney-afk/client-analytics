@@ -386,11 +386,11 @@ function _curlRequestSync(method, url, headers, postData) {
 }
 
 // ---- Node-side network (works through the egress proxy) --------------------
-function nodePost(url, obj) {
+function nodePost(url, obj, extraHeaders) {
   const response = _curlRequestSync(
     'POST',
     url,
-    { 'Content-Type': 'application/json' },
+    Object.assign({ 'Content-Type': 'application/json' }, extraHeaders || {}),
     JSON.stringify(obj),
   );
   const out = response.body.toString('utf8');
@@ -817,11 +817,19 @@ async function client(browser, name = 'Sidney Laruel', token, opts) {
   return p;
 }
 
-// Seed/save a CALENDAR post via the live calendar-upsert-post webhook — used to
-// prove an unrelated calendar card NEVER appears in the samples sub-tab, and (in
-// the twin-live tester) to seed the calendar SOURCE-OF-TRUTH row alongside the
-// samples row so the SAME journey can be driven on both surfaces.
-function upCal(post, base) { return nodePost(HOOKS + '/calendar-upsert-post', { client: 'sidneylaruel', post, comments_base_at: base || '' }); }
+// Seed/save a CALENDAR post via the live calendar-upsert Edge Function (the
+// writer the page itself uses) — used to prove an unrelated calendar card NEVER
+// appears in the samples sub-tab, to seed the calendar SOURCE-OF-TRUTH row
+// alongside the samples row in the twin-live tester, and by archiveCalSafe (the
+// dawn check's `p_dawn_*` cleanup). Until 2026-10-07 this posted to the n8n
+// `calendar-upsert-post` webhook; same body, same `{ ok, post }` answer. The
+// staff key rides along when the runner has one (ignored by the un-gated
+// live writer, required if it is ever re-gated).
+const CAL_UPSERT = SUPA + '/functions/v1/calendar-upsert';
+function upCal(post, base) {
+  return nodePost(CAL_UPSERT, { client: 'sidneylaruel', post, comments_base_at: base || '' },
+    STAFF_KEY ? { 'x-syncview-key': STAFF_KEY } : null);
+}
 // Read a calendar_posts row (or rows) back from Supabase REST.
 function supaCal(qs) { return _supaRead('calendar_posts', qs); }
 // Archive a CALENDAR seed and VERIFY it stuck (mirror of archiveSafe for samples).

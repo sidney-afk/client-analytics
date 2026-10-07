@@ -286,6 +286,16 @@
       "counts": {},
       "total": 0,
       "measured_on": "2026-10-02"
+    },
+    "tiktok-upload-cancel": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-07"
+    },
+    "tiktok-upload": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-07"
     }
   }
 }

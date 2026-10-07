@@ -6273,43 +6273,73 @@
           "width": 375,
           "theme": "light",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\filming-empty-light-375.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "b6025e50ab158af50413802802bc95314953fb0f9fe2b7e90193293861a88df3",
+            "note": "OPEN: empty-state instructions refer to an unexplained source-of-truth tab; inherited information icon also needs design-standard repair. Personally inspected all six native full captures."
+          }
         },
         {
           "width": 375,
           "theme": "dark",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\filming-empty-dark-375.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "5f4eb8c02a708bf6a73563aea6811059e1c8984278325acf0f20082117babff3",
+            "note": "OPEN: empty-state instructions refer to an unexplained source-of-truth tab; inherited information icon also needs design-standard repair. Personally inspected all six native full captures."
+          }
         },
         {
           "width": 390,
           "theme": "light",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\filming-empty-light-390.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "ff8a506b9aa0a5bc0afd38c77fee61768464620a00ca3d1df121b3b3d4eaad41",
+            "note": "OPEN: empty-state instructions refer to an unexplained source-of-truth tab; inherited information icon also needs design-standard repair. Personally inspected all six native full captures."
+          }
         },
         {
           "width": 390,
           "theme": "dark",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\filming-empty-dark-390.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "e53c3a8a79aec5c4cb2caa9a993e2b46c6398f67f8f84a1573ba98cf236f2273",
+            "note": "OPEN: empty-state instructions refer to an unexplained source-of-truth tab; inherited information icon also needs design-standard repair. Personally inspected all six native full captures."
+          }
         },
         {
           "width": 430,
           "theme": "light",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\filming-empty-light-430.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "ef5c412a2561a519f1a7f1ce2abee7606d1b2e84f7f8b44a45edb396a2211d99",
+            "note": "OPEN: empty-state instructions refer to an unexplained source-of-truth tab; inherited information icon also needs design-standard repair. Personally inspected all six native full captures."
+          }
         },
         {
           "width": 430,
           "theme": "dark",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\filming-empty-dark-430.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "673bb042ad0f44668c9f3a7d9e591ee99e8a68d9a0dc26b8e4da51c571d525c7",
+            "note": "OPEN: empty-state instructions refer to an unexplained source-of-truth tab; inherited information icon also needs design-standard repair. Personally inspected all six native full captures."
+          }
         }
       ]
     },
@@ -8639,8 +8669,13 @@
           "width": 375,
           "theme": "light",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\quiz-loading-light-375.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "3763d553643ab3aa70a0e787489a9552363b407465d91680d0fb118f851a9c67",
+            "note": "OPEN: native viewport inspection confirms oversized Calendar media/action skeletons in a Quiz screen. Full-page capture exceeds 5000 pixels."
+          }
         },
         {
           "width": 375,
@@ -8674,8 +8709,13 @@
           "width": 430,
           "theme": "dark",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\quiz-loading-dark-430.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "97f7b7b9064a822fec4327e1bca445a97609dbff0745226dd28a8b80ce27dbff",
+            "note": "OPEN: native viewport inspection confirms oversized Calendar media/action skeletons in a Quiz screen. Full-page capture exceeds 5000 pixels."
+          }
         }
       ]
     },
@@ -8695,15 +8735,25 @@
           "width": 375,
           "theme": "dark",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\ads-loading-dark-375.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "deee09ae90a863edbe77f393e5999fc2b5c35aa4b78c907b758c12deafea2fab",
+            "note": "OPEN: native viewport inspection confirms oversized Calendar media/action skeletons in an Ads screen. Full-page capture exceeds 5000 pixels. Refresh text fit and light-theme description contrast need measurement."
+          }
         },
         {
           "width": 390,
           "theme": "light",
           "status": "OPEN",
-          "capture": null,
-          "review": null
+          "capture": "C:\\Users\\Sidney\\.codex\\visualizations\\2026\\10\\07\\01a1186b-1b43-76b2-a1a5-089e6b8cad24\\prism\\round-1\\admin-current\\ads-loading-light-390.png",
+          "review": {
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "sha256": "63bb14c59228304fdf34be09d8e37c71665c9055b9eb23340da934b1926ba7eb",
+            "note": "OPEN: native viewport inspection confirms oversized Calendar media/action skeletons in an Ads screen. Full-page capture exceeds 5000 pixels. Refresh text fit and light-theme description contrast need measurement."
+          }
         },
         {
           "width": 390,
@@ -9019,6 +9069,3191 @@
       "name": "standalone-onboarding",
       "tab": "onboarding",
       "lane": "admin",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "review-queue",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "review",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "thumbnail",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "lightbox",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "caption",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "save-error",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "sending",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "tabs",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "organizer",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "month",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "week",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "month-post",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "week-post",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "date-picker",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "notes",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "sheet-cta",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "more",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "organize",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "suggest-post",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "loading",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "error",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "empty",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-loading",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-pending",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-retry-loading",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-empty",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-error",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-denied",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-ready",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "comparison-image-error",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-list",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-review",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-tabs",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-lightbox",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-save-error",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-sending",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-approve-sending",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-sheet",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-notes",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-more",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-confirm",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-queue",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-loading",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-read-error",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-invalid-link",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-verify-error",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-retry-restored",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-loading",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-pending",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-retry-loading",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-empty",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-error",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-denied",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-ready",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-comparison-image-error",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-single",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-tabs",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-more",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-about",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-empty",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-loading",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-read-error",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-invalid-link",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-verify-error",
+      "tab": "analytics",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "analytics-retry-restored",
+      "tab": "analytics",
       "cells": [
         {
           "width": 375,
@@ -12836,6 +16071,55 @@
           "review": null
         }
       ]
+    },
+    {
+      "lane": "client-discovery",
+      "name": "brief-legacy-redirect",
+      "tab": "brief",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
     }
   ],
   "obligations": [
@@ -14676,6 +17960,146 @@
     },
     {
       "tab": "Client Samples",
+      "dimension": "main actions",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "menus/sheets/pickers",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "editing",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "empty",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "loading",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "error",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "refused saves",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "long names/captions",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "many items",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "single item",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Analytics",
+      "dimension": "main actions",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "menus/sheets/pickers",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "editing",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "empty",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "loading",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "error",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "refused saves",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "long names/captions",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "many items",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
+      "dimension": "single item",
+      "status": "OPEN",
+      "evidence": [],
+      "reason": "Native state/action discovery and review pending"
+    },
+    {
+      "tab": "Client Brief",
       "dimension": "main actions",
       "status": "OPEN",
       "evidence": [],

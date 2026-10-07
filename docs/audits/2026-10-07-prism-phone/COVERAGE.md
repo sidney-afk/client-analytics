@@ -190,6 +190,71 @@ Widths: 375, 390, 430. Themes: light, dark. All data is fictional; requests are 
 | admin | onboarding-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | standalone-credentials | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | standalone-onboarding | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | review-queue | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | review | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | thumbnail | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | lightbox | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | caption | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | save-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | sending | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | tabs | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | organizer | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | month | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | week | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | month-post | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | week-post | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | date-picker | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | notes | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | sheet-cta | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | more | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | organize | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | suggest-post | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-pending | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-retry-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-denied | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-ready | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-calendar-expanded | comparison-image-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-list | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-review | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-tabs | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-lightbox | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-save-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-sending | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-approve-sending | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-sheet | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-notes | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-more | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-confirm | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-queue | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-read-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-invalid-link | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-verify-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-retry-restored | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-pending | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-retry-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-denied | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-ready | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | samples-comparison-image-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-single | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-tabs | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-more | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-about | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-read-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-invalid-link | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-verify-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-links-expanded | analytics-retry-restored | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | rules | today-screen | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | rules | today-tabs | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | rules | today-more | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -267,6 +332,7 @@ Widths: 375, 390, 430. Themes: light, dark. All data is fictional; requests are 
 | client | samples-refused-save | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | client | samples-long-content | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | client | samples-many | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| client-discovery | brief-legacy-redirect | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 
 ## Discovery obligations
 
@@ -300,3 +366,5 @@ A screen with no meaningful instance of a state needs an explicit source-backed 
 | Personal Time Off | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Client Calendar | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Client Samples | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Client Analytics | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Client Brief | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |

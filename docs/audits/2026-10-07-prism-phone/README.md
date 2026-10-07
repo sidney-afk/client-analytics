@@ -11,7 +11,8 @@ surface. Missing setups remain OPEN. Screenshots and passing geometry never
 automatically turn a cell CLEAN. Reviews must identify the exact capture hash.
 Changing source fragments invalidates previously clean cells in the generator.
 
-[Batch 1 before/after gallery](batch-1/gallery.html) includes 36 matched pairs.
+[Batch 1 before/after gallery](batch-1/gallery.md) includes 36 matched pairs;
+[HTML gallery](batch-1/gallery.html) is also available for local viewing.
 [Personal review receipts](batch-1/reviews.json) identify 36 clean cells by exact
 PNG hash. This is bounded state evidence, not a clean full round.
 
@@ -38,6 +39,11 @@ All product CSS sits inside the existing owned admin phone block and a
 changes. The client runner now checks both themes and captures the card,
 individual panels, confirmation, draft and action result. The staff/admin
 runners expose their existing inventories; admin accepts all requested widths.
+The existing expanded client Calendar/Samples/Analytics journeys also expose
+their inventories. The source redirects stale client Brief history to Calendar
+(`050-market-briefs.js.part`, `render()`); its phone redirect proof is listed
+separately for discovery. A catalogue entry
+does not claim a screenshot, a dark-painted client page or a passing journey.
 
 Regression guards cover field containment, recovery-first order, every visible
 field label, filter alignment, compact loading and native filter/Refresh reads.
@@ -50,7 +56,16 @@ content-stress setups, client loading/error/refused-save journeys and the fresh
 review round remain OPEN. The twelve-record stress case has passing containment
 checks; its entire long screenshot still requires detailed visual review.
 The Filming information icon remains an open design-standard issue for a later
-batch, rather than an accepted exception.
+batch, rather than an accepted exception. Personal review of its valid empty
+state also found unexplained "source-of-truth tab" instructions. Ads and Quiz
+loading captures repeat Calendar media/action skeletons for over 5,000 pixels;
+their native viewport crops confirm the same unsuitable loading pattern. These
+are pending repairs in the next batch, not accepted exceptions. Ads' narrow
+Refresh control and faint light-theme description need focused measurement.
+Client captures requested with dark preferences currently paint light; this
+must be recorded as the effective theme. The client review fixture also needs
+verification that its supplied thumbnail actually paints, rather than accepting
+the visible media fallback as proof of linked-media coverage.
 
 Initial staff captures used fallback fonts; final accepted captures must use the
 intended local font assets. Raw broad captures remain private until visually
@@ -63,5 +78,13 @@ The default gate could not resolve its token without a staff key. The existing
 private read-only adapter uses the configured credential to select only the TEST
 review token; it performs no issuing, rotation or database write. Raw live
 desktop images stay private. Only hash/pixel-difference receipts may be public.
+
+[Desktop receipts](batch-1/desktop.json) cover all 72 distinct page/width cells
+with exact PNG bytes and matching computed styles: 71 matches in the final
+frozen-source invocation plus one passing unchanged-gate Kasper/1280 replay.
+The final full invocation remains FAILED at 71/72; its ten-pixel mismatch and
+the earlier 70/72 invocation are retained. The mismatch's cause is UNPROVEN.
+No tolerance, exclusion or gate change was used. This proves the batch's desktop
+comparisons, not deployment or the unfinished phone round.
 
 Rollback: revert this batch and run `npm run build:index`.

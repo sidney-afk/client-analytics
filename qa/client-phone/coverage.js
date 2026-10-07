@@ -13,17 +13,22 @@ const widths = [375,390,430], themes = ['light','dark'];
 const inventory = [
   ...list('qa/staff-phone-final-pass.js', ['--all-states']),
   ...list('docs/syncview-design/tests/kasper-admin-expanded-browser.js'),
+  ...list('docs/syncview-design/tests/client-calendar-expanded-browser.js'),
+  ...list('docs/syncview-design/tests/client-links-expanded-browser.js'),
 ];
 const routes = ['today','calendar','sample-reviews','templates','filming-plans','tiktok-upload','home','workload','production','linear','kasper','time-off'];
 for (const tab of routes) for (const kind of ['screen','tabs','more']) inventory.push({lane:'rules',name:tab+'-'+kind,tab});
 for (const kind of ['caption-open','set-all','color','keyboard','empty-caption']) inventory.push({lane:'rules',name:'calendar-'+kind,tab:'calendar'});
 for (const tab of ['calendar','sample-reviews']) for (const media of ['linked',tab==='calendar'?'warning':'missing-media']) for (const kind of ['card','actions']) inventory.push({lane:'design',name:tab+'-'+media+'-'+kind,tab});
 for (const tab of ['calendar','samples']) for (const state of ['single','expanded-video','expanded-graphic','expanded-caption','approve-confirm','approved','change-draft','change-sent','empty','loading','error','refused-save','long-content','many']) inventory.push({lane:'client',name:tab+'-'+state,tab});
+// render() redirects stale client Brief history to Calendar. There is no
+// separate client Brief screen to inventory; phone redirect proof stays OPEN.
+inventory.push({lane:'client-discovery',name:'brief-legacy-redirect',tab:'brief'});
 const unique = [...new Map(inventory.map(s=>[s.lane+':'+s.name,s])).values()];
 // These are explicit discovery obligations, not claims that a native screen
 // has each state or that a similarly named fixture proves it.
 const dimensions = ['menus/sheets/pickers','editing','empty','loading','error','refused saves','long names/captions','many items','single item','main actions'];
-const tabs = ['Today','Calendar','Samples','Templates','Filming','TikTok/Instagram','Analytics','Workload','SyncLinear','Submit','Kasper Review','Kasper Messages','Kasper Filming','Kasper Editors','Kasper Time Off','Kasper Sales Intake','Kasper Hiring','Kasper Onboarding','Kasper Credentials','Kasper Clients','Kasper Save problems','Kasper Ads','Kasper Quiz','Personal Time Off','Client Calendar','Client Samples'];
+const tabs = ['Today','Calendar','Samples','Templates','Filming','TikTok/Instagram','Analytics','Workload','SyncLinear','Submit','Kasper Review','Kasper Messages','Kasper Filming','Kasper Editors','Kasper Time Off','Kasper Sales Intake','Kasper Hiring','Kasper Onboarding','Kasper Credentials','Kasper Clients','Kasper Save problems','Kasper Ads','Kasper Quiz','Personal Time Off','Client Calendar','Client Samples','Client Analytics','Client Brief'];
 fs.mkdirSync(destination,{recursive:true});
 const file = path.join(destination,'coverage.json');
 const previous = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file,'utf8')) : {states:[],obligations:[]};

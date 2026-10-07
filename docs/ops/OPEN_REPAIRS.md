@@ -30920,3 +30920,13 @@ round are open. The original desktop invocation was 70/72 and remains a failure;
 the final frozen-source proof is pending. No database, Edge Function, n8n workflow,
 client save, deployment or live mutation was changed. Lighthouse reviews/merges.
 Rollback: revert this batch and rebuild the index fragments.
+
+Batch 1 desktop follow-through: all 72 distinct page/width cells now have exact
+PNG/style matches (71 final frozen-source matches plus one unchanged strict
+Kasper/1280 replay). The final full invocation remains FAILED at 71/72 and the
+earlier 70/72 invocation is retained; the ten-pixel mismatch's cause is UNPROVEN.
+Public hash receipts are in `batch-1/desktop.json` under the Prism audit.
+The full updated admin runner passes 396 states/7,758 checks with zero failures.
+The phone finish line, hosted checks, deployment and physical-device proof are
+still open. Ads/Quiz loading, Filming empty-state wording and client fixture/theme
+verification have been added to the open review work.

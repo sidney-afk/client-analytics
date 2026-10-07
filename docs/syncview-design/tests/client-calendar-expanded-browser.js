@@ -19,6 +19,12 @@ const headed = process.argv.includes('--headed');
 const shots = process.env.POCKET_PHONE_SHOTS;
 const out = [];
 let checks = 0;
+if (process.argv.includes('--list')) {
+  const names = ['review-queue','review','thumbnail','lightbox','caption','save-error','sending','tabs','organizer','month','week','month-post','week-post','date-picker','notes','sheet-cta','more','organize','suggest-post','loading','error','empty',
+    ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state => 'comparison-' + state)];
+  console.log(JSON.stringify(names.map(name => ({lane:'client-calendar-expanded',name,tab:'calendar'}))));
+  process.exit(0);
+}
 function ok(value, message) { assert(value, message); checks++; }
 
 async function measure(page, label) {

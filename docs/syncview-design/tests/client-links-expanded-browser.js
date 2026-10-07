@@ -15,6 +15,15 @@ const beforeRoot = process.argv.find(a => a.startsWith('--before-root='))?.slice
 const shots = process.env.POCKET_PHONE_SHOTS;
 const measurements = [];
 let checks = 0;
+if (process.argv.includes('--list')) {
+  const names = [
+    ...['list','review','tabs','lightbox','save-error','sending','approve-sending','sheet','notes','more','confirm','queue','loading','read-error','invalid-link','verify-error','retry-restored',
+      ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state => 'comparison-' + state)].map(state => ({lane:'client-links-expanded',name:'samples-'+state,tab:'samples'})),
+    ...['single','tabs','more','about','empty','loading','read-error','invalid-link','verify-error','retry-restored'].map(state => ({lane:'client-links-expanded',name:'analytics-'+state,tab:'analytics'})),
+  ];
+  console.log(JSON.stringify(names));
+  process.exit(0);
+}
 const ok = (value, message) => { assert(value, message); checks++; };
 async function measure(page, label) {
   const m = await page.evaluate(() => {

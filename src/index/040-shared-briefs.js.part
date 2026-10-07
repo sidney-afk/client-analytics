@@ -467,7 +467,9 @@ import {
     const TIKTOK_UPLOAD_WEBHOOK    = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload';
     const TIKTOK_UPLOADS_LIST_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-uploads-list';
     const TIKTOK_UPLOAD_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-status';
-    const TIKTOK_UPLOAD_CANCEL_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-cancel';
+    // Cancel is a Supabase function, not n8n: it deletes the post in Post For Me first and
+    // only then marks the queue row cancelled (supabase/functions/tiktok-upload-cancel).
+    const TIKTOK_UPLOAD_CANCEL_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/tiktok-upload-cancel';
     // Direct-to-storage transport (see _tkSubmit). `tiktok-upload-url` mints a
     // one-time Post For Me upload URL; the browser PUTs the video straight to
     // their storage and `tiktok-upload-direct` then takes metadata + that media

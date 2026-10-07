@@ -1,4 +1,4 @@
-import { _writeUiRecordFailure, _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
+import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
   TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES, TIKTOK_MAX_PHOTOS,
   TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES, TIKTOK_QUEUE_CACHE_KEY,
@@ -21,7 +21,10 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
          POST /webhook/tiktok-upload         multipart: media + JSON metadata
          GET  /webhook/tiktok-uploads-list   → recent uploads from TikTokUploads sheet
          GET  /webhook/tiktok-upload-status  ?id=…  → poll a single upload
-         POST /webhook/tiktok-upload-cancel  { id } → cancel a scheduled upload
+
+       Cancel is NOT n8n: POST { id } to the Supabase function
+       tiktok-upload-cancel, which deletes the post in Post For Me, checks
+       it is gone, and only then marks the queue row cancelled.
 
        Client → Post For Me account mapping comes from the
        "Clients Info" sheet column `postforme_account_id` (the
@@ -1924,15 +1927,29 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     }
 
     async function _tkCancelRow(id) {
-        showConfirm('Cancel upload?', 'This marks the upload as cancelled in your queue. If it was already scheduled in Post For Me you may also need to cancel it there. The video file stays on your computer.', async () => {
+        showConfirm('Cancel upload?', 'This stops the post in Post For Me, so it will not go out, and marks it cancelled in your queue. The video file stays on your computer.', async () => {
+            let r, j = null;
             try {
-                const r = await _writeUiTrackSave('tiktok', 'tiktok_cancel', {}, () => fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }));
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                _tkSavePending(_tkLoadPending().filter(p => p.id !== id));
-                Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+                r = await _writeUiTrackSave('tiktok', 'tiktok_cancel', {}, () => fetch(TIKTOK_UPLOAD_CANCEL_URL, {
+                    method: 'POST',
+                    headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }, TIKTOK_UPLOAD_CANCEL_URL),
+                    body: JSON.stringify({ id }),
+                    cache: 'no-store',
+                }));
+                try { j = await r.json(); } catch { j = null; }
             } catch (e) {
-                showNotify('Could not cancel', e.message || 'The n8n cancel webhook failed.');
+                showNotify('Cancel failed, try again', 'Could not reach the server. The upload is still scheduled.');
+                return;
             }
+            // The row only says Cancelled when the server proved Post For Me no longer has the post.
+            if (r.ok && j && j.ok) {
+                _tkSavePending(_tkLoadPending().filter(p => p.id !== id));
+            } else if (j && j.code === 'already_posted') {
+                showNotify('Already posted, could not cancel', 'Post For Me has already published this upload, or is publishing it now.');
+            } else {
+                showNotify('Cancel failed, try again', (j && j.message && j.code !== 'cancel_failed') ? j.message : 'Post For Me did not confirm the cancel. The upload is still scheduled.');
+            }
+            Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
         }, 'Cancel upload');
     }
 

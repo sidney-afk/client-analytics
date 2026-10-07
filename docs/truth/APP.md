@@ -342,10 +342,15 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   each event. Three windows govern how often that happens:
   `CAL_V2_RT_DEBOUNCE_MS` **350 ms** trailing debounce; `CAL_RT_SELF_ECHO_MS`
   **4 s**, which defers the echo of a write THIS TAB made; and
-  `CAL_V2_RT_MIN_RELOAD_MS` **8 s**, a floor between realtime-triggered reloads
-  that a FOREIGN burst re-arms against. So the **maximum delay before another
-  writer's change appears is 8 s**, and the first event after a quiet period
-  still lands on the 350 ms debounce. The floor exists because backend writers
+  `CAL_V2_RT_MIN_RELOAD_MS` **1.8 s** (was 8 s until 2026-10-06), a floor between
+  realtime-triggered reloads that a FOREIGN burst re-arms against, rising to
+  `CAL_V2_RT_STORM_RELOAD_MS` **8 s** only while 5 or more foreign events land
+  inside 15 s (`CAL_V2_RT_STORM_EVENTS` / `CAL_V2_RT_STORM_WINDOW_MS`). So
+  another writer's change normally appears **within about 2 s** even right after
+  another change (8 s at most during a storm), and the first event after a quiet
+  period still lands on the 350 ms debounce. A channel that reports
+  CHANNEL_ERROR or TIMED_OUT is replaced with backoff (1 s doubling to 30 s) and
+  at once on the browser's `online` event (OPEN_REPAIRS 357). The floor exists because backend writers
   (the reconcilers that still apply Linear → card, OPEN_REPAIRS 76) update rows
   one at a time over seconds: measured 2026-09-03, 200 row writes in an hour
   across 9 clients, 56 on the busiest. Before the floor the self-echo window was

@@ -30791,3 +30791,19 @@ Still on n8n, out of scope here: `qa/sxr_courier_lib.js` `up()` and `reorder()` 
 Next: the switch-off of "SyncView Calendar — Upsert Post" and its "Calendar Comment Merge" helper waits for BOTH (a) the moved probes passing live on this code: the calendar and samples nightly lanes and the next dawn check, green, with their writes landing through the function, and (b) a full day of n8n executions showing zero calls to that workflow. Then the owner decides; switching off is an n8n change that needs the owner's go. No n8n workflow was edited here.
 Proof (offline only): `node --check` on the changed files, the related unit suites, `npm test`. Nothing ran against the live backend.
 Way back: revert this PR.
+
+## 361. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
+
+Phone-only artifact and native transplant repair background scrolling under overlays,
+overlapping Calendar/Samples tools, caption action placement, hidden/collapse labels,
+inside dialog padding dismissal, nested popup scroll ownership and field-covering
+controls. Expanded rules include 44 px targets, viewport fit, keyboard visibility and
+focus return. The existing native persistence handlers remain the owners of writes.
+
+Proof and retained failures: `docs/audits/2026-10-07-staff-phone-feedback.md`.
+Machine geometry and trusted touch/wheel checks run on every rendered screen/overlay
+in the full known phone catalogues, both requested widths and themes; deliberately
+broken detector controls must fail. Raw images and backend data remain private.
+Required broad gates retain their failures. The audit also records a default
+aggregate-read gate exceeding the requested TEST-only scope; it made no writes.
+One branch and one draft PR; no merge or deployment. Way back: revert and rebuild.

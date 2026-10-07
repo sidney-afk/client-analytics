@@ -1,5 +1,17 @@
 # Repo map
 
+Staff phone feedback expansion: `docs/syncview-design/staff-phone-rules.html`
+is the fictional artifact, with `staff-phone-rules.css` and
+`staff-phone-rules.js` transplanted into the native fragments.
+`test/staff-phone-rules-source.js` enforces byte fidelity and phone scope.
+`qa/staff-phone-rule-checks.js` supplies the overlap detector and wheel/touch
+scroll-lock assertions; `qa/staff-phone-rules-browser.js` covers every staff
+screen's menus at 390/430 in both themes, caption states and keyboard viewport.
+The existing final-pass and admin suites also use those geometry/lock checks.
+`qa/staff-phone-final-pass.js --all-states` includes every existing staff/Finch
+scenario. Private captures and public-safe results are described in
+`docs/audits/2026-10-07-staff-phone-feedback.md`.
+
 Staff phone final pass: `qa/staff-phone-final-pass.js` drives the generated app
 with the existing fictional browser transports, checks phone controls and
 native picker actions, and captures before/after journeys. Evidence and the

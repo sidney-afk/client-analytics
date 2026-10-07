@@ -1,0 +1,42 @@
+/* STAFF-PHONE-RULES:BEGIN */
+@media (max-width: 767px) {
+    html.sv-staff-phone.sv-phone-locked { overflow: hidden; overscroll-behavior: none; }
+    html.sv-staff-phone [hidden] { display: none !important; }
+    html.sv-staff-phone body { padding-bottom: env(safe-area-inset-bottom); }
+    html.sv-staff-phone .main { padding-top: max(16px, env(safe-area-inset-top)); }
+    html.sv-staff-phone button, html.sv-staff-phone [role=button] { min-width: 44px; min-height: 44px; }
+    html.sv-staff-phone .prod-cmd-item { min-height: 44px; box-sizing: border-box; }
+    html.sv-staff-phone input:not([type=hidden]):not([type=checkbox]):not([type=radio]), html.sv-staff-phone textarea, html.sv-staff-phone select { font-size: 16px; scroll-margin-block: 24px; }
+    html.sv-staff-phone textarea:focus { max-height: calc(var(--sv-phone-vh, 100dvh) - 64px); overflow-y: auto !important; }
+    html.sv-staff-phone dialog { max-height: calc(var(--sv-phone-vh, 100dvh) - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone dialog.sv-phone-sheet[open] { display: flex; flex-direction: column; overflow: hidden; }
+    html.sv-staff-phone .sv-phone-sheet > [class$="-head"] { position: static !important; flex-shrink: 0; }
+    html.sv-staff-phone .sv-phone-sheet > [class$="-body"] { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone .cal-fld-status-menu, html.sv-staff-phone .dp-popup, html.sv-staff-phone .sv-select-popup, html.sv-staff-phone .cal-card-color-picker { max-width: calc(100vw - 24px); max-height: calc(var(--sv-phone-vh, 100dvh) - 32px); box-sizing: border-box; overflow: auto; overscroll-behavior: contain; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) { display: flex; flex-direction: column; height: auto !important; aspect-ratio: auto; padding-bottom: 0; overflow: visible; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > * { flex-shrink: 0; }
+    html.sv-staff-phone .sv-phone-card-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; box-sizing: border-box; width: 100%; background: var(--white); border-top: 1px solid var(--border); }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platforms, html.sv-staff-phone .sv-phone-card-tools .cal-card-color-tag, html.sv-staff-phone .sv-phone-card-tools .cal-card-link, html.sv-staff-phone .sv-phone-card-tools .cal-card-del, html.sv-staff-phone .sv-phone-card-tools .cal-linear-pile, html.sv-staff-phone .sv-phone-card-tools .cal-smm-warn-overlay { position: static !important; inset: auto !important; transform: none; opacity: 1; margin: 0; flex-shrink: 0; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platforms, html.sv-staff-phone .sv-phone-card-tools .cal-linear-pile { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-platforms { flex: 1 1 100%; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-smm-warn-overlay { flex: 1 1 100%; width: 100%; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+    html.sv-staff-phone .sv-phone-card-tools .cal-card-link, html.sv-staff-phone .sv-phone-card-tools .cal-card-del { display: inline-flex; justify-content: center; align-items: center; }
+    html.sv-staff-phone .sv-phone-card-tools a { min-width: 44px; min-height: 44px; }
+    html.sv-staff-phone .cal-cap-wrap { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+    html.sv-staff-phone .cal-cap-wrap .cal-fld-cap { flex: 1 1 100%; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { position: static !important; inset: auto; margin: 0; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; width: auto; min-height: 44px; align-self: center; display: inline-flex; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-gen { order: 1; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { order: 2; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle { order: 3; margin-left: auto; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle-txt { display: inline; }
+    html.sv-staff-phone .cal-cap-fade { bottom: 52px; }
+    html.sv-staff-phone .tk-submit-bar { position: static; inset: auto; margin: 16px 0; }
+    html.sv-staff-phone .ca-editbar { position: static; }
+    html.sv-staff-phone .sxr-cd-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    html.sv-staff-phone .sxr-cd-input { flex: 1 1 100%; padding: 12px; }
+    html.sv-staff-phone .sxr-cd-eye { position: static; margin-left: auto; }
+    html.sv-staff-phone .cc-password-wrap { display: flex; align-items: center; gap: 8px; }
+    html.sv-staff-phone .cc-password-wrap input { flex: 1; min-width: 0; width: 0; padding-right: 12px; }
+    html.sv-staff-phone .cc-password-wrap .cc-pass-toggle { position: static; transform: none; flex-shrink: 0; }
+}
+/* STAFF-PHONE-RULES:END */

@@ -18,6 +18,9 @@ src/index/** text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 
+# This artifact is compared byte-for-byte with the native phone CSS fragment.
+docs/syncview-design/staff-phone-rules.css text eol=lf
+
 # This authenticated row contract is hashed as exact bytes across checkouts.
 docs/independence/LINEAR_EXIT_PRIORITY_ROW_SCHEMA_20260910.json text eol=lf
 

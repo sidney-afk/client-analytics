@@ -17,6 +17,35 @@ on:
   pull_request:
 
 jobs:
+  staff-phone-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [390, 430]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the pinned browser harness
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Phone rules on every staff screen and menu
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-rules-browser.js --widths=${{ matrix.width }}
+      - name: Existing staff phone state inventory with overlap and scroll checks
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-final-pass.js --all-states --widths=${{ matrix.width }}
+      - name: Every reviewer and admin state with overlap and scroll checks
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/kasper-admin-expanded-browser.js --width=${{ matrix.width }}
+
   unit:
     runs-on: ubuntu-latest
     # The expanded classified suite completed close to the ten-minute limit.

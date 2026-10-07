@@ -6,6 +6,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
+const phoneRules = require('../../../qa/staff-phone-rule-checks');
 const BASE_ROW = { id:'p_phone_fixture',client_slug:'phone-fixture',post_type:'Reel',type:'Reel',caption_alt:'',caption_status:'Kasper Approval',cta:'Try one small change today.',scheduled_date:'2026-10-12',platforms:['instagram'],tweaks:[],graphic_status:'Kasper Approval',video_status:'Kasper Approval' };
 const root = path.resolve(__dirname, '../../..');
 const arg = name => process.argv.find(x => x.startsWith('--' + name + '='))?.split('=').slice(1).join('=');
@@ -126,6 +127,10 @@ async function capture(page,label,width,theme) {
     return { width:innerWidth, scrollWidth:document.documentElement.scrollWidth,controls,fields };
   });
   if (!before && !desktop) {
+    const surface=await phoneRules.activeSurface(page);
+    const geometry=await phoneRules.inspect(page,surface);
+    expect(!geometry.overlaps.length,label+': controls overlap '+JSON.stringify(geometry.overlaps));
+    if(surface!=='body')await phoneRules.scrollLock(page,surface);
     expect(metrics.scrollWidth <= width + 1,label + ': sideways page scroll ' + metrics.scrollWidth);
     for (const c of metrics.controls) expect(c.w >= 43.5 && c.h >= 43.5,label + ': target below 44px ' + JSON.stringify(c));
     for (const f of metrics.fields) expect(f >= 16,label + ': text field below 16px');

@@ -301,6 +301,7 @@ a.tile:hover{border-color:var(--tc);transform:translateY(-1px)}
 <div id="root"></div>
 <script>
 'use strict';
+const SRC = '<!doctype html>' + document.documentElement.outerHTML;
 // ── Fictional data (invented names only) ───────────────────────────────
 const MANAGERS = [
   { id: 'm1', name: 'Rae Okafor', color: '#7c5cff' },
@@ -378,7 +379,7 @@ const FIELDS = {
 const link = (c, k, inner) => { const l = LINKS[k](c); return l ? `<a class="lnk" href="${esc(l.href)}" target="_blank" rel="noopener">${inner || esc(l.text)}</a>` : '<span class="empty">Not set</span>'; };
 
 // ── State ───────────────────────────────────────────────────────────────
-const P = new URLSearchParams(location.search);
+const P = new URLSearchParams(window.__Q || location.search);
 const S = { dir: P.get('d') || 'a', sel: P.get('c') || '', q: '', active: 0, popOpen: false, list: P.get('list') === '1', picker: P.get('picker') === '1', edit: P.get('edit') === '1', draft: {}, hist: false, toast: '' };
 if (P.get('sel') === '1' && !S.sel) S.sel = CLIENTS[0].slug;
 const phone = () => window.innerWidth <= 600;
@@ -599,8 +600,9 @@ if (P.get('bare') === '1') {
     document.getElementById('gc').innerHTML = `<div style="display:flex;gap:10px;flex-wrap:wrap">${seg('d', [['a', 'A · Dossier'], ['b', 'B · Index card'], ['c', 'C · Launchpad']])}${seg('w', [['1440', 'Desktop 1440'], ['390', 'Phone 390']])}${seg('t', [['light', 'Light'], ['dark', 'Dark']])}${seg('s', [['1', 'A client open'], ['0', 'Start (nothing open)']])}</div>`;
     document.getElementById('gn').innerHTML = DIRS[G.d].blurb;
     const f = document.getElementById('gf'), w = +G.w, h = w === 390 ? 844 : 960;
-    const src = location.pathname + '?bare=1&sel=' + G.s + '&d=' + G.d + '&theme=' + G.t;
-    if (f.getAttribute('src') !== src) f.setAttribute('src', src);
+    // Self-contained: the frame gets this same file, told which view to draw.
+    const q = 'bare=1&sel=' + G.s + '&d=' + G.d + '&theme=' + G.t;
+    if (f.dataset.q !== q) { f.dataset.q = q; f.srcdoc = SRC.replace('<script>', '<script>window.__Q=' + JSON.stringify(q) + ';</' + 'script><script>'); }
     f.style.width = w + 'px'; f.style.height = h + 'px';
     const avail = document.getElementById('gs').clientWidth - 32, s = Math.min(1, avail / (w + 2));
     const wrap = document.getElementById('gw');

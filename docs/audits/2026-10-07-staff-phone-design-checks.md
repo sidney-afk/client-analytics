@@ -66,6 +66,38 @@ CANCELLED / superseded
 
 No output was emitted.
 
+## admin-fixed-final390.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 0 failures; fictional data; no live writes.
+```
+
+## admin-fixed-final430.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 0 failures; fictional data; no live writes.
+```
+
+## admin-merged390.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 0 failures; fictional data; no live writes.
+```
+
+## admin-merged430.log
+
+COMPLETED
+
+```text
+KASPER_ADMIN_EXPANDED: 126 native states; 2456 checks; 0 failures; fictional data; no live writes.
+```
+
 ## baseline-checkout.log
 
 COMPLETED
@@ -163,6 +195,16 @@ COMPLETED
 ```text
 build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
 build-index: wrote index.html (1283896 bytes) from 67 fragment(s)
+build-index: wrote src/index/INDEX.md
+```
+
+## build-merged-final.log
+
+COMPLETED
+
+```text
+build-index: js/sv-16-kasper-baedbf6dc851.js (298341 bytes)
+build-index: wrote index.html (1293692 bytes) from 67 fragment(s)
 build-index: wrote src/index/INDEX.md
 ```
 
@@ -278,6 +320,30 @@ COMPLETED
 staff-calendar-expanded: OK (6300 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
 ```
 
+## calendar-fixed-painted-final.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
+## calendar-merged-final.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
+## calendar-painted-final.log
+
+COMPLETED
+
+```text
+staff-calendar-expanded: OK (9450 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).
+```
+
 ## cards-before-complete.log
 
 COMPLETED
@@ -368,6 +434,36 @@ FAILED / retained
 }
 ```
 
+## cards-merged-captures.log
+
+COMPLETED
+
+```text
+ok sample-reviews-430-dark-missing-media
+ok sample-reviews-430-dark-linked
+STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
+```
+
+## cards-merged-final.log
+
+COMPLETED
+
+```text
+ok sample-reviews-430-dark-missing-media
+ok sample-reviews-430-dark-linked
+STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
+```
+
+## cards-merged-visual.log
+
+COMPLETED
+
+```text
+ok sample-reviews-430-dark-missing-media
+ok sample-reviews-430-dark-linked
+STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports
+```
+
 ## cards-safe-actions-complete.log
 
 COMPLETED
@@ -430,12 +526,12 @@ ok instagram-empty 390 dark
 
 ## catalogue-390-shipping.log
 
-RUNNING
+FAILED / retained
 
 ```text
-ok linear-error 390 light
-ok linear-error 390 dark
-ok templates-client 390 light
+ok today-cleared 390 light
+ok today-cleared 390 dark
+staff-phone-final-pass: 231 renders, 1 problems
 ```
 
 ## catalogue-390.log
@@ -470,12 +566,12 @@ ok instagram-queue 430 dark
 
 ## catalogue-430-shipping.log
 
-RUNNING
+FAILED / retained
 
 ```text
-ok templates-client-edit 430 light
-ok templates-client-edit 430 dark
-ok templates-client-spec-form 430 light
+ok today-cleared 430 light
+ok today-cleared 430 dark
+staff-phone-final-pass: 231 renders, 1 problems
 ```
 
 ## catalogue-430.log
@@ -486,6 +582,66 @@ CANCELLED / superseded
 ok analytics-detail 430 dark
 ok workload-week 430 light
 ok workload-week 430 dark
+```
+
+## catalogue-client-replay.log
+
+COMPLETED
+
+```text
+ok templates-client-facts 430 light
+ok templates-client-facts 430 dark
+staff-phone-final-pass: 8 renders, 0 problems
+```
+
+## catalogue-merged-focused.log
+
+COMPLETED
+
+```text
+ok today-cleared 430 light
+ok today-cleared 430 dark
+staff-phone-final-pass: 80 renders, 0 problems
+```
+
+## comment-census-before.log
+
+FAILED / retained
+
+```text
+  ok  the recovered region is the size the ledger records: 88780 characters
+FAIL  no gate strips block comments with the raw regex — found in: test/staff-phone-rules-source.js
+1 check(s) failed.
+```
+
+## comment-census-fixed.log
+
+COMPLETED
+
+```text
+  ok  the recovered region is the size the ledger records: 88780 characters
+  ok  no gate strips block comments with the raw regex
+comment strip honesty checks passed
+```
+
+## comment-honesty-before.log
+
+COMPLETED
+
+```text
+  ok  the recovered region is the size the ledger records: 88780 characters
+  ok  no gate strips block comments with the raw regex
+comment strip honesty checks passed
+```
+
+## comment-honesty-fixed.log
+
+COMPLETED
+
+```text
+  ok  the recovered region is the size the ledger records: 88780 characters
+  ok  no gate strips block comments with the raw regex
+comment strip honesty checks passed
 ```
 
 ## commit-current-merge.log
@@ -562,6 +718,46 @@ ok   client-analytics @1920: pixels identical, computed styles identical (aa6926
 ok   client-calendar @1024: pixels identical, computed styles identical (69fabd5010fe)
 ```
 
+## desktop-merged1024.log
+
+COMPLETED
+
+```text
+ok   client-brief @1024: pixels identical, computed styles identical (69fabd5010fe)
+ok   client-sample-reviews @1024: pixels identical, computed styles identical (7b698a748e34)
+18/18 desktop shots identical to 6a692504c664b9c6781d89e82eca51b346d408e5
+```
+
+## desktop-merged1280.log
+
+COMPLETED
+
+```text
+ok   client-brief @1280: pixels identical, computed styles identical (fc7b056f7e75)
+ok   client-sample-reviews @1280: pixels identical, computed styles identical (d869de825d13)
+18/18 desktop shots identical to 6a692504c664b9c6781d89e82eca51b346d408e5
+```
+
+## desktop-merged1440.log
+
+COMPLETED
+
+```text
+ok   client-brief @1440: pixels identical, computed styles identical (6f0161af69d3)
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (29e7eb2d8015)
+18/18 desktop shots identical to 6a692504c664b9c6781d89e82eca51b346d408e5
+```
+
+## desktop-merged1920.log
+
+COMPLETED
+
+```text
+ok   client-brief @1920: pixels identical, computed styles identical (7688fece9a2e)
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (f87764b62642)
+18/18 desktop shots identical to 6a692504c664b9c6781d89e82eca51b346d408e5
+```
+
 ## desktop-software-focused.log
 
 COMPLETED
@@ -574,43 +770,49 @@ ok   staff-navFilmingPlans @1440: pixels identical, computed styles identical (5
 
 ## desktop-width1024.log
 
-RUNNING
+COMPLETED
 
 ```text
-ok   staff-navHome @1024: pixels identical, computed styles identical (8c26e67ac6dd, attempts 2)
-ok   staff-navWorkload @1024: pixels identical, computed styles identical (260caa24dd62)
-ok   staff-navProd @1024: pixels identical, computed styles identical (7cf17c287f06)
+ok   client-brief @1024: pixels identical, computed styles identical (69fabd5010fe)
+ok   client-sample-reviews @1024: pixels identical, computed styles identical (7b698a748e34)
+18/18 desktop shots identical to c8375c9207c1d3522bbdc1d95e8abed3ce27ccc4
 ```
 
 ## desktop-width1280.log
 
-RUNNING
+COMPLETED
 
 ```text
-ok   staff-navWorkload @1280: pixels identical, computed styles identical (e96202fa342e)
-ok   staff-navProd @1280: pixels identical, computed styles identical (1b1b954bde6a)
-ok   staff-navLinear @1280: pixels identical, computed styles identical (4235249bad93)
+ok   client-brief @1280: pixels identical, computed styles identical (fc7b056f7e75)
+ok   client-sample-reviews @1280: pixels identical, computed styles identical (d869de825d13)
+18/18 desktop shots identical to c8375c9207c1d3522bbdc1d95e8abed3ce27ccc4
 ```
 
 ## desktop-width1440.log
 
-RUNNING
+COMPLETED
 
 ```text
-ok   staff-navWorkload @1440: pixels identical, computed styles identical (c06567030d36)
-ok   staff-navProd @1440: pixels identical, computed styles identical (9a7e4fa29e6a)
-ok   staff-navLinear @1440: pixels identical, computed styles identical (03875f804194)
+ok   client-brief @1440: pixels identical, computed styles identical (6f0161af69d3)
+ok   client-sample-reviews @1440: pixels identical, computed styles identical (29e7eb2d8015)
+18/18 desktop shots identical to c8375c9207c1d3522bbdc1d95e8abed3ce27ccc4
 ```
 
 ## desktop-width1920.log
 
-RUNNING
+COMPLETED
 
 ```text
-ok   staff-navHome @1920: pixels identical, computed styles identical (eda761079921)
-ok   staff-navWorkload @1920: pixels identical, computed styles identical (b964434c8695)
-ok   staff-navProd @1920: pixels identical, computed styles identical (21a6bcb77219)
+ok   client-brief @1920: pixels identical, computed styles identical (de140d5698bd)
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (f87764b62642)
+18/18 desktop shots identical to c8375c9207c1d3522bbdc1d95e8abed3ce27ccc4
 ```
+
+## diff-code-complete.log
+
+COMPLETED
+
+No output was emitted.
 
 ## diff-complete.log
 
@@ -619,6 +821,30 @@ COMPLETED
 No output was emitted.
 
 ## diff-current-main.log
+
+COMPLETED
+
+No output was emitted.
+
+## diff-fixed-detector.log
+
+COMPLETED
+
+No output was emitted.
+
+## diff-handoff.log
+
+COMPLETED
+
+No output was emitted.
+
+## diff-receipts-final.log
+
+COMPLETED
+
+No output was emitted.
+
+## diff-renumber.log
 
 COMPLETED
 
@@ -648,6 +874,74 @@ From https://github.com/sidney-afk/client-analytics
    cbd443a3..c8375c92  main       -> origin/main
 ```
 
+## fixed-popup-detector-before.log
+
+FAILED / retained
+
+```text
+detector missed a fixed popup collision outside a clipped ancestor
+```
+
+## hosted-merged-entry.log
+
+FAILED / retained
+
+```text
+﻿<?xml version="1.0" encoding="utf-8"?><Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+RequestId:6bc36e4c-c01e-00c0-6594-56ee35000000
+Time:2026-10-07T19:45:42.9429249Z</Message></Error>
+```
+
+## hosted-merged-split.log
+
+FAILED / retained
+
+```text
+2026-10-07T19:42:17.4134660Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T19:42:17.4467885Z Cleaning up orphan processes
+2026-10-07T19:42:17.4715201Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## hosted-merged-unit.log
+
+FAILED / retained
+
+```text
+﻿<?xml version="1.0" encoding="utf-8"?><Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+RequestId:33426076-c01e-0079-6494-56ea2f000000
+Time:2026-10-07T19:45:42.0642798Z</Message></Error>
+```
+
+## hosted-painted-split-complete.log
+
+COMPLETED
+
+```text
+2026-10-07T19:56:09.9289994Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T19:56:09.9578247Z Cleaning up orphan processes
+2026-10-07T19:56:09.9772992Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
+## hosted-painted-split-unavailable.log
+
+FAILED / retained
+
+```text
+﻿<?xml version="1.0" encoding="utf-8"?><Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+RequestId:9e0a0779-801e-007e-3295-56ad87000000
+Time:2026-10-07T19:54:43.2536149Z</Message></Error>
+```
+
+## hosted-painted-unit-complete.log
+
+FAILED / retained
+
+```text
+2026-10-07T19:56:51.9992986Z github_network_a0e6dfd2732b4b7abe9864fe4f5cb82d
+2026-10-07T19:56:52.0069862Z Cleaning up orphan processes
+2026-10-07T19:56:52.0378675Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+```
+
 ## hosted-production-superseded.log
 
 CANCELLED / superseded
@@ -672,9 +966,49 @@ FAILED / retained
 
 COMPLETED
 
-No output was emitted.
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
 
 ## identity-current-main.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
+## identity-final-head.log
+
+COMPLETED
+
+```text
+  files carrying at least one      0   (any is a failure)
+  WHERE (counts only — this tool never prints what it matched):
+This change adds no client slug and no colleague's name ✅
+```
+
+## identity-merged-final.log
+
+FAILED / retained
+
+```text
+identity exposure check failed: git diff failed (status null)
+```
+
+## identity-merged-pruned.log
+
+FAILED / retained
+
+```text
+identity exposure check failed: git diff failed (status null)
+```
+
+## identity-push.log
 
 COMPLETED
 
@@ -694,6 +1028,16 @@ check-index: FAIL — working-tree index.html does not equal committed index.htm
 check-index: FAILED
 ```
 
+## index-complete.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=3e488ff24df9b1d7d50e3136686cf6ac7c8e4369fefd79c2df459051b2da1845 bytes=1287850
+check-index: committed index.html (HEAD) — sha256=3e488ff24df9b1d7d50e3136686cf6ac7c8e4369fefd79c2df459051b2da1845 bytes=1287850
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
 ## index-current-main.log
 
 COMPLETED
@@ -701,6 +1045,16 @@ COMPLETED
 ```text
 check-index: working-tree index.html — sha256=01276417888eb2b6bd3f79afdf8e2e2eb9de482d87c46b77b7fa0a6054bd7165 bytes=1287574
 check-index: committed index.html (HEAD) — sha256=01276417888eb2b6bd3f79afdf8e2e2eb9de482d87c46b77b7fa0a6054bd7165 bytes=1287574
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
+## index-final-review.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
+check-index: committed index.html (HEAD) — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
 check-index: OK — assembled == working tree == committed (HEAD)
 ```
 
@@ -712,6 +1066,26 @@ FAILED / retained
 check-index: FAIL — assembled bytes do not equal committed index.html (HEAD)
 check-index: FAIL — working-tree index.html does not equal committed index.html (HEAD)
 check-index: FAILED
+```
+
+## index-merged-final.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
+check-index: committed index.html (HEAD) — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
+## index-pruned-final.log
+
+COMPLETED
+
+```text
+check-index: working-tree index.html — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
+check-index: committed index.html (HEAD) — sha256=669130ebc23921fb98f7d989273984651f0b56c9ebdc2f7aa6260aa221d5680a bytes=1293692
+check-index: OK — assembled == working tree == committed (HEAD)
 ```
 
 ## index-settled.log
@@ -735,6 +1109,16 @@ check-lazy-safety: all checks passed (38 recorded hazards)
 ```
 
 ## lazy-current-main.log
+
+COMPLETED
+
+```text
+approve path reaching into on-demand areas: 2 hazards, 26 import ties
+  synclinear: PROD_WRITE_EF_URL, _prodCanWrite, _prodCanonicalCommentGate, _prodCardCommentsPending, _prodClientCommentGatewayContext, _prodComments, _prodCommentsSkeletonHtml, _prodGatewayWrite, _prodIssue, _prodProjectCanonicalCardComments, _prodRestRows, _prodToast, _prodVerifiedClientCommentMutationContext, _prodWriteErrorText
+check-lazy-safety: all checks passed (38 recorded hazards)
+```
+
+## lazy-merged-final.log
 
 COMPLETED
 
@@ -772,7 +1156,27 @@ FAILED / retained
 check-lazy-safety: the acorn parser is not installed. See the DEPENDENCY note in scripts/check-modules.js.
 ```
 
+## map-complete.log
+
+FAILED / retained
+
+```text
+  requireStack: []
+}
+Node.js v22.12.0
+```
+
 ## map-current-main.log
+
+COMPLETED
+
+```text
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+repo-map-sync: 1116 passed, 0 failed
+```
+
+## map-merged-final.log
 
 COMPLETED
 
@@ -792,6 +1196,16 @@ OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` 
 repo-map-sync: 1103 passed, 0 failed
 ```
 
+## map-source-complete.log
+
+COMPLETED
+
+```text
+OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists
+OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists
+repo-map-sync: 1116 passed, 0 failed
+```
+
 ## merge-current.log
 
 FAILED / retained
@@ -807,6 +1221,24 @@ Automatic merge failed; fix conflicts and then commit the result.
 COMPLETED
 
 No output was emitted.
+
+## merge-final-diff.log
+
+COMPLETED
+
+```text
+docs/ops/OPEN_REPAIRS.md:30866: new blank line at EOF.
+```
+
+## merge-final-main.log
+
+FAILED / retained
+
+```text
+Auto-merging src/index/INDEX.md
+CONFLICT (content): Merge conflict in src/index/INDEX.md
+Automatic merge failed; fix conflicts and then commit the result.
+```
 
 ## merge.log
 
@@ -835,6 +1267,16 @@ COMPLETED
 ```text
 typeof guards in modules: 514; unresolvable: 0
 minified parts: 19 files, 2628 KB, 5162 top-level names, 0 lost, 0 changed kind
+check-modules: all checks passed
+```
+
+## modules-merged-final.log
+
+COMPLETED
+
+```text
+typeof guards in modules: 514; unresolvable: 0
+minified parts: 19 files, 2633 KB, 5180 top-level names, 0 lost, 0 changed kind
 check-modules: all checks passed
 ```
 
@@ -893,7 +1335,27 @@ ok sample-reviews-light-430 screen, menus, layout and scroll lock
 ok sample-reviews-dark-430 screen, menus, layout and scroll lock
 ```
 
+## rules-fixed-painted-final.log
+
+COMPLETED
+
+```text
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+```
+
 ## rules-inline-overlay.log
+
+COMPLETED
+
+```text
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+```
+
+## rules-merged-final.log
 
 COMPLETED
 
@@ -905,12 +1367,12 @@ STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; 
 
 ## rules-painted-complete.log
 
-RUNNING
+COMPLETED
 
 ```text
-ok workload-dark-390 screen, menus, layout and scroll lock
-ok workload-light-430 screen, menus, layout and scroll lock
-ok workload-dark-430 screen, menus, layout and scroll lock
+ok time-off-light-430 screen, menus, layout and scroll lock
+ok time-off-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes
 ```
 
 ## rules-shipping.log
@@ -924,6 +1386,14 @@ STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; 
 ```
 
 ## scope-complete.log
+
+COMPLETED
+
+```text
+staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+```
+
+## scope-merged-final.log
 
 COMPLETED
 
@@ -971,6 +1441,14 @@ COMPLETED
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 55 rules phone-capped and staff-scoped
 ```
 
+## source-final-review.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped
+```
+
 ## source-final.log
 
 COMPLETED
@@ -995,12 +1473,28 @@ COMPLETED
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 59 rules phone-capped and staff-scoped
 ```
 
+## source-merged-final.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped
+```
+
 ## source-review.log
 
 COMPLETED
 
 ```text
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 58 rules phone-capped and staff-scoped
+```
+
+## source-safe-parser-final.log
+
+COMPLETED
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped
 ```
 
 ## source-settled.log
@@ -1029,7 +1523,27 @@ ok tiktok-posting 430 dark
 staff-phone-final-pass: 64 renders, 0 problems
 ```
 
+## truth-complete.log
+
+FAILED / retained
+
+```text
+  requireStack: []
+}
+Node.js v22.12.0
+```
+
 ## truth-current-main.log
+
+COMPLETED
+
+```text
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+truth-sync: 515 passed, 0 failed
+```
+
+## truth-merged-final.log
 
 COMPLETED
 
@@ -1047,6 +1561,16 @@ COMPLETED
 OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
 OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
 truth-sync: 513 passed, 0 failed
+```
+
+## truth-source-complete.log
+
+COMPLETED
+
+```text
+OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema
+OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction
+truth-sync: 515 passed, 0 failed
 ```
 
 ## unit-complete.log

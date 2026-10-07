@@ -67,9 +67,9 @@ head, so a docs-only update skips the matrix; opening a PR compares its base.
 Source assertions and a historical docs-only diff verify both outcomes.
 
 `origin/main` was merged, without rebase, into the existing branch in merge
-commit `47ecd481`, then merged newly advanced main (`c8375c92`) in `5948ca2e`. Repair 361 on main and 362 in open PR reservations were
+commit `47ecd481`, then merged newly advanced main (`c8375c92`) in `5948ca2e` and the first-paint repair (`6a692504`) in `787c693d`. Repair 361 on main and 362 in open PR reservations were
 occupied. A later reservation check found 363 occupied in other open PRs, so
-this work uses **364**. The inherited main changes are preserved.
+this work initially reserved 364. A final scan of every open PR found a concurrent description reservation for 364 and an added ledger header for 365; this work now uses **366**, the next free number. The inherited main changes are preserved.
 
 Before the second main merge, the complete local unit suite remains red: 17 of 685 suites fail. Every failing
 suite also fails in a fresh detached main worktree, where 19 of 684 fail. Main's
@@ -87,3 +87,19 @@ control-mode pass is substituted for its exact byte/style assertion.
 The expanded Calendar flow exposed three further defects: inline video/selection/poster layers incorrectly acquired modal scroll ownership; true Calendar/reviewer lightboxes were omitted; and touch previews retained a hover tooltip over their title. Artifact-first classification and phone CSS fixes preserve ordinary scrolling and lock actual lightboxes. A shared normal-screen assertion rejects phantom locks. The Create post stepper also had a 2 px painted collision because 44 px targets occupied 42 px grid columns; phone columns now reserve their full target size.
 
 The expanded native Calendar runner now applies the shared overlap and touch/wheel scroll checks at every measured state. It passes all 9,450 existing checks across 360/390/430, light/dark. The detector clips DOM rectangles to their actual scrollport before comparing painted regions; adversarial controls verify both clipped-away non-collisions and real visible collisions. The original unlocked-background control first scrolls the viewport, so its geometry fixture explicitly resets the viewport before testing.
+
+After the latest main merge, native card checks pass all 16 combinations, Calendar passes 9,450 checks, both admin widths pass 126 states/2,456 checks each, and the rule suite passes 160 states. The focused main-affected catalogue passes 80 renders. The older full catalogue repeat retained one fixture-boot timeout per width (different Templates client states); an exact 8-render replay of both states at both widths/themes passes. This is retained failure plus replay evidence, not a rewritten clean run.
+
+Linux CI exposed a measurement race between closing the navigation sheet and applying the opening class to the status picker. The shared checker now waits two native animation frames before classifying ownership; the normal-screen assertion remains strict. The final local Calendar run passes with this sequencing. The hosted rerun is recorded separately.
+
+Nine generated bundles introduced by intermediate, unreleased iterations of this PR were removed after regeneration. Current generated references and all bundles inherited from main are preserved. Before removal, the public identity gate hit its diff-buffer limit; that failure remains in the receipts. After the cleanup, the unchanged identity gate passes with zero added identities.
+
+The hosted suite remains a distinct gate. Superseded failing/cancelled runs are retained; the final source-hash rerun must not be described as passing while queued. Broad unit and entry gates are reported with their actual conclusions. No physical-phone, deployment or full loaded-chart claim is made from these intercepted screenshots.
+
+## Strict desktop result
+
+The unchanged repository gate `qa/client-phone/desktop-parity.js` passes **72/72** against merged main `6a692504c664b9c6781d89e82eca51b346d408e5`: four independent width runs at 1024/1280/1440/1920, each 18/18. Every PNG buffer and every element computed-style hash must match. `PARITY_WORKERS=1` and `PARITY_W` use the gate's existing options. The private relay restricts live client token reads to the designated TEST and GET; staff fixtures are offline. No control mode, tolerance, mask, renderer override or edited gate is used for this result. Each captured image was personally inspected; identical hashes reuse earlier review. Earlier 69/72 and 71/72 runs remain failures in the receipts, rather than being changed into passes.
+
+A final adversarial detector case placed overlapping controls in a viewport-fixed popup outside an overflow-clipped ancestor. The earlier clipping calculation incorrectly clipped that fixed popup away. The case failed before the correction and remains mandatory afterward. The detector now respects fixed-position containing blocks, without weakening overlap or target assertions. The final Calendar replay still passes all 9,450 checks.
+
+The hosted 09f9a14e unit lane failed exactly one of 686 suites: the comment-stripping policy found the raw block-comment regex in this PR's new source guard. That is an attributed regression, not an inherited failure. The guard now uses `test/helpers/strip-comments.js`. A private Windows adapter gives the existing honesty test its intended tracked-file census with `execFileSync` arguments; the unchanged prior source fails, and the repaired source passes. The first stock Windows check did not exercise that census because shell quoting returned no files, and is not used as clean proof.

@@ -14,10 +14,17 @@ async function inspect(page, root = 'body') {
     // boxes can extend through a sheet header/footer without covering it.
     const painted = (el, r) => {
       let left=Math.max(0,r.left),right=Math.min(innerWidth,r.right),top=Math.max(0,r.top),bottom=Math.min(innerHeight,r.bottom);
+      let fixed=getComputedStyle(el).position==='fixed';
       for(let p=el.parentElement;p;p=p.parentElement){
         const css=getComputedStyle(p),b=p.getBoundingClientRect();
+        // Viewport-fixed surfaces escape ordinary ancestor overflow. A
+        // transform/paint containing block makes them local again.
+        const containingBlock=css.transform!=='none'||css.perspective!=='none'||css.filter!=='none'||/transform|perspective|filter/.test(css.willChange)||/layout|paint|strict|content/.test(css.contain);
+        if(fixed&&!containingBlock)continue;
+        if(containingBlock)fixed=false;
         if(/auto|scroll|hidden|clip/.test(css.overflowX)){left=Math.max(left,b.left+p.clientLeft);right=Math.min(right,b.left+p.clientLeft+p.clientWidth);}
         if(/auto|scroll|hidden|clip/.test(css.overflowY)){top=Math.max(top,b.top+p.clientTop);bottom=Math.min(bottom,b.top+p.clientTop+p.clientHeight);}
+        if(css.position==='fixed')fixed=true;
       }
       return {left,right,top,bottom};
     };

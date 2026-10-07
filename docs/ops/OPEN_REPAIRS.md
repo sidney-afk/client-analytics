@@ -30834,7 +30834,7 @@ Proof (offline): `qa/today/today-no-flicker.js` (every animation frame of a relo
 Follow-up, same day: Lighthouse saw a blank frame between the loading screen and the grey shape in 2 of 9 phone runs. Cause: a phone draws while it is still reading the page, and Today's grey shape sat behind about 30 KB of other tabs' shapes in the content area, so a frame could show the content area empty. The shape is now the first thing in the content area; afterwards 25 of 25 phone runs and 25 of 25 full runs (desktop and phone) passed.
 Still open: the first ~90 ms of a phone load show only the page background, before the browser reaches the page's own markup (about 1.2 MB of styles come first). That is every tab, the same on main, and needs its own change.
 
-## 364. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
+## 366. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
 
 Phone-only artifact and native transplant repair background scrolling under overlays,
 overlapping Calendar/Samples tools, caption action placement, hidden/collapse labels,
@@ -30859,8 +30859,14 @@ confirmation cancellation returns focus to visible More. Personal screenshot
 review and fictional before/after cards are recorded in
 `docs/audits/2026-10-07-staff-phone-design-review.md`. This entry was renumbered
 after checking main and open PR reservations: 361 and 362 were occupied, then
-concurrent open PRs reserved 363. The next free number is 364. Main was merged into the existing branch, without rebase. The phone CI
+concurrent open PRs reserved 363. The earlier next free number was 364; the final check found another open PR claiming 364 in its body and adding 365 in its diff. The next free number is now 366. Main was merged into the existing branch, without rebase. The phone CI
 matrix now runs only for relevant staff phone/shared UI or harness changes.
 Broad local unit failures remain under verification hold; this follow-up does
 not claim deployment or physical-device proof.
 
+
+Native follow-through also distinguishes inline video/selection/poster layers from
+modal roots, includes both real lightboxes, hides persistent hover hints on touch,
+and allocates full touch widths in the Create post stepper. The expanded Calendar
+flow applies painted-overlap and scroll-lock assertions at every measured state.
+Main first-paint repair 363 is retained from merge `787c693d`; this entry is now 366 after the final reservation check.

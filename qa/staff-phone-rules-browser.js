@@ -43,6 +43,12 @@ async function detectorControls(browser) {
   await page.locator('#clip-footer').evaluate(el=>el.style.top='200px');
   assert((await checks.inspect(page)).overlaps.length,'detector missed a real collision in the visible part of a clipped row');
   await page.evaluate(()=>{document.querySelector('#clip-control').remove();document.querySelector('#clip-footer').remove();});
+  await page.evaluate(()=>{
+    const clip=document.createElement('div');clip.id='fixed-clip-control';clip.style.cssText='position:absolute;left:10px;top:160px;width:120px;height:50px;overflow:hidden';
+    clip.innerHTML='<div style="position:fixed;left:10px;top:260px;width:120px;height:100px"><button style="top:0;left:0">A</button><button style="top:0;left:0">B</button></div>';document.body.append(clip);
+  });
+  assert((await checks.inspect(page)).overlaps.length,'detector missed a fixed popup collision outside a clipped ancestor');
+  await page.locator('#fixed-clip-control').evaluate(el=>el.remove());
   await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'docs/syncview-design/staff-phone-rules.js'),'utf8')});
   await page.addStyleTag({content:fs.readFileSync(path.join(ROOT,'docs/syncview-design/staff-phone-rules.css'),'utf8')});
   await settle(page);await checks.scrollLock(page,'.test-overlay');

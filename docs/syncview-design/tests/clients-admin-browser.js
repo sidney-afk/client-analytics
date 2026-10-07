@@ -74,7 +74,7 @@ async function open(browser, origin, role, viewport) {
   const ctx = await browser.newContext({ viewport, isMobile: viewport.width < 768, hasTouch: viewport.width < 768 });
   const calls = [];
   const writes = [];
-  const ctl = { fail: false, edit: 'ok', assign: 'ok' };
+  const ctl = { fail: false, edit: 'ok', assign: 'ok', managersFail: 0 };
   const edits = [];
   const ROWS = rows();
   await ctx.route(u => !u.toString().startsWith(origin), route => {
@@ -86,6 +86,7 @@ async function open(browser, origin, role, viewport) {
     if (u.pathname === '/functions/v1/client-profile-write') {
       const b = JSON.parse(r.postData() || '{}');
       edits.push({ body: b, key: r.headers()['x-syncview-key'] });
+      if (b.action === 'list_managers' && ctl.managersFail > 0) { ctl.managersFail--; return json({ ok: false, error: 'unknown_action' }, 400); }
       if (b.action === 'list_managers') return json({ ok: true, managers: MANAGERS, assignments: { fixture1: 'qamanagerone', fixture2: 'qamanagerone' } });
       if (b.action === 'assign_manager') {
         if (ctl.assign === 'changed') return json({ ok: false, error: 'manager_changed', manager_slug: 'qamanagertwo' }, 409);
@@ -338,6 +339,17 @@ const measure = page => page.evaluate(() => {
       await s.page.click('.ca-status .cc-btn');
       await s.page.waitForFunction(() => _caState.loaded, null, { timeout: 5000 }).catch(() => failures.push('failed load: Try again did not load'));
       console.log('ok   a failed load says so and recovers');
+      // A failed manager list (e.g. before client-profile-write is deployed) offers Try again.
+      s.ctl.managersFail = 1;
+      await s.page.evaluate(() => { _caState.managers = null; _caState.managersError = null; });
+      await s.page.evaluate(() => _caLoadManagers());
+      await s.page.evaluate(() => _caSelect('fixture1'));
+      const retry = await s.page.$eval('#caMgrBtn', b => ({ text: b.innerText, disabled: b.disabled })).catch(() => ({}));
+      if (!/Try again/.test(retry.text || '') || retry.disabled) failures.push(`manager load failure: the chip shows ${JSON.stringify(retry)}`);
+      await s.page.click('#caMgrBtn');
+      await s.page.waitForFunction(() => _caState.managers && /Manager One/.test(document.getElementById('caMgrBtn').innerText), null, { timeout: 4000 })
+        .catch(() => failures.push('manager load failure: Try again did not load the managers'));
+      console.log('ok   a failed manager load offers Try again and recovers');
       await s.ctx.close();
     }
     for (const role of ['smm', 'creative']) {

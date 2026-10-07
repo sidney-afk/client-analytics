@@ -405,12 +405,12 @@
       ],
       "note": "Client credentials. list and history are reads; every other action is recorded as credentials_<action>."
     },
-    "323-kasper-dashboard-tail.js.part|_caEditPost|CA_WRITE_URL|POST": {
+    "323-kasper-dashboard-tail.js.part|send|CA_WRITE_URL|POST": {
       "status": "reports",
       "within": [
         "_caEditPost"
       ],
-      "note": "Client profile edit / status / refresh. Recorded as client_profile_<action>."
+      "note": "Client profile edit, manager change (assign_manager), status and refresh, recorded as client_profile_<action>. list_managers and history are reads sent as POST and are not recorded."
     },
     "323-kasper-dashboard-tail.js.part|stale|CA_READ_URL|POST": {
       "status": "read",

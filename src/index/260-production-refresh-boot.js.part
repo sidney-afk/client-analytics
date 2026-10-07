@@ -295,6 +295,21 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
              turns it off. Open tabs re-read the flag every 5 minutes and on
              every Production open.
 
+           - COMMENTS (2026-10-06 findings, item 2). The comment tables stay
+             closed to the browser key, so a comment never arrives as an event
+             of its own. migrations/2026-10-06-production-comment-signal.sql
+             (source-only until applied) makes every comment insert or edit
+             stamp `deliverables.comments_changed_at` on its work item -- with
+             `updated_at` held still, so no stale-save check moves -- and that
+             UPDATE does arrive here. A changed `comments_changed_at` re-reads
+             only that work item's thread, and only if it is the one open; it
+             is never a board refresh. Before the migration is applied the
+             column is simply absent and nothing changes;
+           - RE-SUBSCRIBE (item 5). CHANNEL_ERROR or TIMED_OUT replaces the
+             channel with a new one after a backoff (1 s, 2 s, 4 s ... 30 s),
+             and at once when the browser reports it is back online; the new
+             channel's SUBSCRIBED runs the usual catch-up.
+
            The controller takes all its effects as arguments so a unit test can
            drive it with a mocked channel (test/prod-realtime-controller.js).
            `window.prodRtStatus()` prints the live state. */
@@ -303,12 +318,18 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             const d = deps;
             const debounceMs = Number(d.debounceMs || 300);
             const retryMs = Number(d.retryMs || 2000);
+            const reconnectBaseMs = Number(d.reconnectBaseMs || 1000);
+            const reconnectMaxMs = Number(d.reconnectMaxMs || 30000);
             const st = {
                 status: 'idle', subscribedOnce: false, events: 0, echoes: 0,
                 refreshes: 0, retries: 0, catchups: 0, lastEventAt: 0,
-                lastStatusAt: 0, lastProblem: ''
+                lastStatusAt: 0, lastProblem: '', reconnects: 0, commentSignals: 0
             };
             let channel = null, client = null, timer = 0, pending = false, pendingFull = false, generation = 0;
+            let reconnectTimer = 0, reconnectAttempt = 0, topicSerial = 0;
+            let commentTimer = 0;
+            const pendingComments = new Set();
+            const commentMarks = new Map();
             function pollInterval() {
                 return st.status === 'SUBSCRIBED' ? d.slowPollMs : d.fastPollMs;
             }
@@ -352,11 +373,35 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     }
                 }, () => {});
             }
+            function flushComments() {
+                commentTimer = 0;
+                if (!pendingComments.size) return;
+                if (!d.active()) { pendingComments.clear(); return; }
+                if (d.hidden()) return; // resume() runs it when the tab is shown
+                const ids = Array.from(pendingComments);
+                pendingComments.clear();
+                try { if (d.refreshComments) d.refreshComments(ids); } catch (e) {}
+            }
+            // A work item's comment stamp moved: re-read that one thread (the
+            // page decides whether it is open). Returns true when it did.
+            function noteCommentSignal(row) {
+                if (!row || row.id == null || !Object.prototype.hasOwnProperty.call(row, 'comments_changed_at')) return false;
+                const mark = String(row.comments_changed_at || '');
+                if (!mark) return false;
+                const id = String(row.id);
+                if (commentMarks.get(id) === mark) return false;
+                commentMarks.set(id, mark);
+                st.commentSignals++;
+                pendingComments.add(id);
+                if (!commentTimer) commentTimer = d.setTimeout(flushComments, debounceMs);
+                return true;
+            }
             function onEvent(table, payload) {
                 st.events++;
                 st.lastEventAt = d.now();
                 // A realtime event type, not an HTTP method.
                 const removed = /^DELETE$/.test(String(payload && payload.eventType || ''));
+                if (!removed && table === 'deliverables') noteCommentSignal(payload && payload.new);
                 if (!removed && table !== 'deliverable_events' && isEcho(table, payload)) {
                     st.echoes++;
                     return;
@@ -374,24 +419,54 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 st.status = String(status || '');
                 st.lastStatusAt = d.now();
                 if (st.status === 'SUBSCRIBED') {
+                    reconnectAttempt = 0;
+                    if (reconnectTimer) { d.clearTimeout(reconnectTimer); reconnectTimer = 0; }
                     if (st.subscribedOnce) { st.catchups++; queue(true); }
                     st.subscribedOnce = true;
                 } else {
                     st.lastProblem = st.status;
+                    if (st.status === 'CHANNEL_ERROR' || st.status === 'TIMED_OUT') scheduleReconnect(false);
                 }
                 if (before !== pollInterval() && d.onPollChange) d.onPollChange(pollInterval());
             }
-            function start() {
-                if (d.enabled && !d.enabled()) { stop(); st.status = 'disabled'; return; }
-                if (channel || st.status === 'connecting') return;
+            function reconnectDelay(attempt) {
+                return Math.min(reconnectMaxMs, reconnectBaseMs * Math.pow(2, Math.max(0, attempt)));
+            }
+            // Replace a failed channel with a new one. supabase-js will not
+            // subscribe one channel object twice, and hands back the old object
+            // for a topic it still holds, so the replacement gets a new topic.
+            function scheduleReconnect(immediate) {
+                if (reconnectTimer) {
+                    if (!immediate) return;
+                    d.clearTimeout(reconnectTimer);
+                    reconnectTimer = 0;
+                }
+                const delay = immediate ? 0 : reconnectDelay(reconnectAttempt++);
+                reconnectTimer = d.setTimeout(() => {
+                    reconnectTimer = 0;
+                    if (st.status === 'SUBSCRIBED' || st.status === 'idle' || st.status === 'disabled') return;
+                    if (!d.active() || (d.enabled && !d.enabled())) return;
+                    st.reconnects++;
+                    generation++;   // the failed channel's late callbacks are now ignored
+                    if (channel && client && typeof client.removeChannel === 'function') {
+                        try { client.removeChannel(channel); } catch (e) {}
+                    }
+                    channel = null;
+                    // subscribedOnce stays true: the new SUBSCRIBED is a catch-up.
+                    open();
+                }, delay);
+            }
+            function open() {
                 const gen = ++generation;
                 st.status = 'connecting';
+                const topic = (d.channelName || 'production_live') + (topicSerial ? '~' + topicSerial : '');
+                topicSerial++;
                 return Promise.resolve(d.getClient()).then((c) => {
                     if (gen !== generation) return;
                     if (!c || !d.active()) { st.status = 'idle'; return; }
                     client = c;
                     try {
-                        let ch = c.channel(d.channelName || 'production_live');
+                        let ch = c.channel(topic);
                         ['deliverables', 'batches', 'deliverable_events'].forEach((table) => {
                             ch = ch.on('postgres_changes', { event: '*', schema: 'public', table }, (p) => onEvent(table, p));
                         });
@@ -401,15 +476,31 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                         channel = null;
                         st.status = 'CHANNEL_ERROR';
                         st.lastProblem = 'subscribe_threw';
+                        scheduleReconnect(false);
                     }
                 }, () => { if (gen === generation) { st.status = 'idle'; st.lastProblem = 'client_failed'; } });
             }
+            function start() {
+                if (d.enabled && !d.enabled()) { stop(); st.status = 'disabled'; return; }
+                if (channel || st.status === 'connecting') return;
+                return open();
+            }
+            // The browser says it is back online: do not wait out the backoff.
+            function online() {
+                if (st.status === 'SUBSCRIBED' || st.status === 'idle' || st.status === 'disabled') return;
+                reconnectAttempt = 0;
+                scheduleReconnect(true);
+            }
             function stop() {
+                if (reconnectTimer) { d.clearTimeout(reconnectTimer); reconnectTimer = 0; }
+                reconnectAttempt = 0;
                 if (!channel && (st.status === 'idle' || st.status === 'disabled')) return;
                 const wasSubscribed = st.status === 'SUBSCRIBED';
                 generation++;
                 if (timer) { d.clearTimeout(timer); timer = 0; }
+                if (commentTimer) { d.clearTimeout(commentTimer); commentTimer = 0; }
                 pending = false; pendingFull = false;
+                pendingComments.clear();
                 if (channel && client && typeof client.removeChannel === 'function') {
                     try { client.removeChannel(channel); } catch (e) {}
                 }
@@ -420,6 +511,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             }
             function resume() {
                 if (pending && !timer) arm(0);
+                if (pendingComments.size && !commentTimer) commentTimer = d.setTimeout(flushComments, 0);
             }
             function status() {
                 return {
@@ -428,10 +520,11 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     refreshes: st.refreshes, retries: st.retries, catchups: st.catchups,
                     lastEventAt: st.lastEventAt ? new Date(st.lastEventAt).toISOString() : '',
                     lastStatusAt: st.lastStatusAt ? new Date(st.lastStatusAt).toISOString() : '',
-                    lastProblem: st.lastProblem
+                    lastProblem: st.lastProblem, reconnects: st.reconnects,
+                    reconnectPending: !!reconnectTimer, commentSignals: st.commentSignals
                 };
             }
-            return { start, stop, resume, status, pollInterval, onEvent };
+            return { start, stop, resume, status, pollInterval, onEvent, online };
         }
         /* PROD_RT_CONTROLLER_END */
         const PROD_RT_DEBOUNCE_MS = 300;
@@ -484,6 +577,13 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             enabled: () => _prodRtEnabled(),
             getClient: () => svArea('workload').then(wl => wl.v2Client(), () => null),
             refresh: (o) => _prodDeltaRefresh({ full: !!(o && o.full) }),
+            // Only the thread on screen is re-read; refresh() keeps the
+            // composer draft and scroll, and skips a read already running.
+            refreshComments: (ids) => {
+                if (_prodState.view !== 'detail' || !_prodState.openId) return;
+                const open = String(_prodOpenRowId() || '');
+                if (open && ids.indexOf(open) >= 0) _prodComments.refresh(open);
+            },
             localRow: (table, id) => {
                 const rows = table === 'batches' ? _prodState.batches : _prodState.deliverables;
                 return (rows || []).find(r => String(r && r.id || '') === id) || null;
@@ -497,6 +597,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         });
         window.prodRtStatus = () => _prodRt.status();
         document.addEventListener('visibilitychange', () => { if (!document.hidden) _prodRt.resume(); });
+        window.addEventListener('online', () => { if (_prodRtActive()) _prodRt.online(); });
         function _prodOperationalRefreshDelay() {
             const failures = Number(_prodState.refreshFailures || 0);
             if (!failures) return _prodRt.pollInterval();

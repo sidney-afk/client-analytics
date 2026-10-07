@@ -2,7 +2,10 @@ import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL, _svReadWithRetry } from './100-onboarding-staff-controls.js';
-import { CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS, CAL_V2_RT_MIN_RELOAD_MS } from './115-core-calendar-flags.js';
+import {
+  CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS, CAL_V2_RT_MIN_RELOAD_MS,
+  CAL_V2_RT_STORM_EVENTS, CAL_V2_RT_STORM_RELOAD_MS, CAL_V2_RT_STORM_WINDOW_MS
+} from './115-core-calendar-flags.js';
 import {
   CAL_STATUSES, _calNormStatus, _calUpsertFetch,
   _prodStripEphemeralCanonicalPosts, _writeUiAuthoritySnapshot, _writeUiFilterCachedPosts,
@@ -1093,6 +1096,31 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     function _calSetLastLocalWriteAt(value) { _calLastLocalWriteAt = value; }
     let _calV2RtLastReloadAt = 0;      // when realtime last triggered a reload — the floor a foreign burst re-arms against
     const CAL_RT_SELF_ECHO_MS = 4000;  // a realtime event within this window of a local save is treated as our own echo and deferred
+    let _calV2RtRecent = [];           // arrival times of recent FOREIGN events — decides normal floor vs storm floor
+    /* Which floor applies right now: the short one for a person's edits, the
+       old 8 s one only while a storm of foreign row writes is landing
+       (CAL_V2_RT_STORM_EVENTS inside CAL_V2_RT_STORM_WINDOW_MS). */
+    function _calV2RtFloorMs(now) {
+        while (_calV2RtRecent.length && now - _calV2RtRecent[0] > CAL_V2_RT_STORM_WINDOW_MS) _calV2RtRecent.shift();
+        return _calV2RtRecent.length >= CAL_V2_RT_STORM_EVENTS ? CAL_V2_RT_STORM_RELOAD_MS : CAL_V2_RT_MIN_RELOAD_MS;
+    }
+    /* RE-SUBSCRIBE AFTER A DROP (2026-10-06 findings, item 5). After a network
+       cut the channel reported CHANNEL_ERROR and stayed there; only the 30 s
+       fallback pull kept the screen current. supabase-js will not subscribe the
+       same channel object twice, so a failed channel is replaced by a NEW one
+       on the same lease, with exponential backoff (1 s, 2 s, 4 s ... capped at
+       30 s), and at once when the browser reports it is back online. The
+       replacement's SUBSCRIBED runs the usual one catch-up reload, because
+       realtime does not replay what it missed. The fallback pull keeps running
+       underneath until the new channel reports SUBSCRIBED. */
+    const CAL_V2_RT_RETRY_BASE_MS = 1000;
+    const CAL_V2_RT_RETRY_MAX_MS = 30000;
+    let _calV2RetryTimer = null;
+    let _calV2RetryAttempt = 0;
+    let _calV2RetrySerial = 0;
+    function _calV2RetryDelay(attempt) {
+        return Math.min(CAL_V2_RT_RETRY_MAX_MS, CAL_V2_RT_RETRY_BASE_MS * Math.pow(2, Math.max(0, attempt)));
+    }
     function _calV2LeaseCurrent(lease) {
         if (!lease
             || lease !== _calV2Lease
@@ -1142,31 +1170,10 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         _calV2SubSlug = slug;
         _calV2Lease = lease;
         _calV2SubscribedOnce = false;
+        _calV2RetryAttempt = 0;
         try {
-            const channel = client
-                .channel('cal-' + slug)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug, lease));
-            _calV2Channel = channel;
-            _calV2SetRtState('connecting');
+            const channel = _calV2OpenChannel(client, slug, lease, 'cal-' + slug);
             _calV2StartFallback(slug, lease);
-            channel.subscribe((status) => {
-                if (_calV2Channel !== channel || !_calV2LeaseCurrent(lease)) return;
-                _calV2SetRtState(String(status || ''));
-                _calV2Log('subscribe status:', status, '| slug:', slug, '| is re-subscribe:', _calV2SubscribedOnce);
-                if (status === 'SUBSCRIBED') {
-                    // A *re*-subscribe means the socket had dropped (a
-                    // backgrounded/asleep tab whose WebSocket was suspended,
-                    // then woke up). Supabase realtime does NOT replay the
-                    // row changes missed during that gap, so pull one
-                    // catch-up snapshot from Supabase (cheap, no n8n). Skip
-                    // the FIRST subscribe — the load that opened this channel
-                    // is already current.
-                    if (_calV2SubscribedOnce) _calV2OnRealtimeChange(slug, lease);
-                    _calV2SubscribedOnce = true;
-                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-                    console.warn('[Calendar v2] realtime status:', status);
-                }
-            });
             if (epoch !== _calV2Epoch || !_calLoadRunCurrent(loadRun)) {
                 try { if (typeof channel.unsubscribe === 'function') channel.unsubscribe(); } catch (e) {}
                 if (_calV2Lease === lease) _calV2DropChannel();
@@ -1177,10 +1184,90 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             if (_calV2Lease === lease) _calV2DropChannel();
         }
     }
+    /* One channel on one lease. Used for the first subscribe and for every
+       replacement after a drop, so both paths share the exact binding. */
+    function _calV2OpenChannel(client, slug, lease, topic) {
+        const channel = client
+            .channel(topic)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug, lease));
+        _calV2Channel = channel;
+        _calV2SetRtState('connecting');
+        channel.subscribe((status) => {
+            if (_calV2Channel !== channel || !_calV2LeaseCurrent(lease)) return;
+            _calV2SetRtState(String(status || ''));
+            _calV2Log('subscribe status:', status, '| slug:', slug, '| is re-subscribe:', _calV2SubscribedOnce);
+            if (status === 'SUBSCRIBED') {
+                // A *re*-subscribe means the socket had dropped (a
+                // backgrounded/asleep tab whose WebSocket was suspended,
+                // then woke up). Supabase realtime does NOT replay the
+                // row changes missed during that gap, so pull one
+                // catch-up snapshot from Supabase (cheap, no n8n). Skip
+                // the FIRST subscribe — the load that opened this channel
+                // is already current.
+                _calV2RetryAttempt = 0;
+                if (_calV2SubscribedOnce) _calV2OnRealtimeChange(slug, lease);
+                _calV2SubscribedOnce = true;
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                console.warn('[Calendar v2] realtime status:', status);
+                // CLOSED is also what our own removeChannel reports; every path
+                // that removes a channel clears _calV2Channel first, so that one
+                // never reaches here. Errors and timeouts get a new channel.
+                if (status !== 'CLOSED') _calV2ScheduleResubscribe(slug, lease, false);
+            }
+        });
+        return channel;
+    }
+    function _calV2ScheduleResubscribe(slug, lease, immediate) {
+        if (!_calV2LeaseCurrent(lease)) return;
+        if (_calV2RetryTimer) {
+            if (!immediate) return;
+            clearTimeout(_calV2RetryTimer);
+            _calV2RetryTimer = null;
+        }
+        const delay = immediate ? 0 : _calV2RetryDelay(_calV2RetryAttempt++);
+        _calV2Log('realtime: re-subscribing in', delay, 'ms');
+        _calV2RetryTimer = setTimeout(() => {
+            _calV2RetryTimer = null;
+            if (!_calV2LeaseCurrent(lease) || _calV2RtState === 'SUBSCRIBED') return;
+            Promise.resolve(_calV2Client()).then((client) => {
+                if (!client || !_calV2LeaseCurrent(lease) || _calV2RtState === 'SUBSCRIBED') return;
+                const old = _calV2Channel;
+                _calV2Channel = null;   // its late CLOSED / errors are now ignored
+                if (old) {
+                    try {
+                        if (typeof client.removeChannel === 'function') client.removeChannel(old);
+                        else if (typeof old.unsubscribe === 'function') old.unsubscribe();
+                    } catch (e) {}
+                }
+                // The replacement's SUBSCRIBED is a reconnect: run the catch-up.
+                _calV2SubscribedOnce = true;
+                try {
+                    // A fresh topic: supabase-js hands back the channel it still
+                    // holds for a topic, and the failed one may not have
+                    // finished leaving yet.
+                    _calV2OpenChannel(client, slug, lease, 'cal-' + slug + '~' + (++_calV2RetrySerial));
+                } catch (e) {
+                    console.warn('[Calendar v2] realtime re-subscribe failed', e);
+                    _calV2ScheduleResubscribe(slug, lease, false);
+                }
+            }, () => _calV2ScheduleResubscribe(slug, lease, false));
+        }, delay);
+    }
+    function _calV2OnBrowserOnline() {
+        if (_calV2Lease && _calV2SubSlug && _calV2Channel && _calV2RtState !== 'SUBSCRIBED') {
+            _calV2RetryAttempt = 0;
+            _calV2ScheduleResubscribe(_calV2SubSlug, _calV2Lease, true);
+        }
+    }
+    try { window.addEventListener('online', _calV2OnBrowserOnline); } catch (e) {}
     function _calV2OnRealtimeChange(slug, lease) {
         if (!_calV2LeaseCurrent(lease)) return;
         _calV2Log('realtime event received for slug:', slug, '| currently viewing:', calClientSlug(calState.client));
         if (calClientSlug(calState.client) !== slug) return;
+        // Only foreign events count towards a storm; the echo of our own
+        // save is coalesced by the self-echo window below.
+        const arrivedAt = Date.now();
+        if (arrivedAt - _calLastLocalWriteAt >= CAL_RT_SELF_ECHO_MS) _calV2RtRecent.push(arrivedAt);
         if (_calV2RtTimer) clearTimeout(_calV2RtTimer);
         _calV2RtTimer = setTimeout(function tick() {
             _calV2RtTimer = null;
@@ -1197,12 +1284,14 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             const sinceLocal = Date.now() - _calLastLocalWriteAt;
             if (sinceLocal < CAL_RT_SELF_ECHO_MS) { _calV2Log('realtime: suppressed as self-echo (', sinceLocal, 'ms since local write); re-arming'); _calV2RtTimer = setTimeout(tick, CAL_RT_SELF_ECHO_MS - sinceLocal); return; }
             // Same treatment for a FOREIGN burst: re-arm rather than reload
-            // while we are inside the floor, so a reconciler writing a dozen
-            // rows over a few seconds costs one reload, not a dozen.
+            // while we are inside the floor, so changes landing close together
+            // cost one reload, not one each. The floor is short (about 2 s)
+            // for a person's edits and the old 8 s only during a storm.
             const sinceReload = Date.now() - _calV2RtLastReloadAt;
-            if (sinceReload < CAL_V2_RT_MIN_RELOAD_MS) {
-                _calV2Log('realtime: inside the reload floor (', sinceReload, 'ms since last); re-arming');
-                _calV2RtTimer = setTimeout(tick, CAL_V2_RT_MIN_RELOAD_MS - sinceReload);
+            const floor = _calV2RtFloorMs(Date.now());
+            if (sinceReload < floor) {
+                _calV2Log('realtime: inside the reload floor (', sinceReload, 'ms since last, floor', floor, 'ms); re-arming');
+                _calV2RtTimer = setTimeout(tick, floor - sinceReload);
                 return;
             }
             // A load is already running — don't DROP this change (that left the
@@ -1216,13 +1305,17 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     }
     function _calV2DropChannel() {
         if (_calV2RtTimer) { clearTimeout(_calV2RtTimer); _calV2RtTimer = null; }
-        if (_calV2Channel) {
+        if (_calV2RetryTimer) { clearTimeout(_calV2RetryTimer); _calV2RetryTimer = null; }
+        _calV2RetryAttempt = 0;
+        const dropping = _calV2Channel;
+        _calV2Channel = null;   // cleared first, so the CLOSED it reports is ignored
+        if (dropping) {
             try {
-                if (_calV2ClientObj && typeof _calV2ClientObj.removeChannel === 'function') _calV2ClientObj.removeChannel(_calV2Channel);
-                else if (typeof _calV2Channel.unsubscribe === 'function') _calV2Channel.unsubscribe();
+                if (_calV2ClientObj && typeof _calV2ClientObj.removeChannel === 'function') _calV2ClientObj.removeChannel(dropping);
+                else if (typeof dropping.unsubscribe === 'function') dropping.unsubscribe();
             } catch {}
         }
-        _calV2Channel = null; _calV2SubSlug = null;
+        _calV2SubSlug = null;
         _calV2Lease = null;
         _calV2SubscribedOnce = false;
         _calV2StopFallback();
@@ -1241,6 +1334,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
            fault of its own. Teardown is exactly the boundary where that budget
            should reset. */
         _calV2RtLastReloadAt = 0;
+        _calV2RtRecent = [];
         _calV2DropChannel();
     }
     /* Console helper for the Phase 2 test week: window.calV2Status(). */

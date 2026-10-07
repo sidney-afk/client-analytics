@@ -25,8 +25,24 @@
        settles. The cost is that a teammate's edit can take up to this long to
        appear when it lands right behind another change; the first event after
        a quiet period still reloads on the 350 ms debounce, which is the case
-       that actually reads as "live". */
-    const CAL_V2_RT_MIN_RELOAD_MS = 8000;
+       that actually reads as "live".
+
+       TWO FLOORS, NOT ONE (2026-10-06, docs/ops/2026-10-06-realtime-test-findings.md
+       finding 1). One 8-second floor made a teammate's SECOND change -- a status
+       step right after another, a caption right after a create -- take 5 to 14 s
+       to appear, although the live message itself arrived in under 2.1 s. A
+       person making two or three edits is not a reconciler storm, so the normal
+       floor is now 1.8 s: a burst inside it still collapses into ONE reload, and
+       the last change in it shows about 2 s after it arrives. Only a real storm
+       -- CAL_V2_RT_STORM_EVENTS or more foreign events inside
+       CAL_V2_RT_STORM_WINDOW_MS -- goes back to the old 8 s floor, so the
+       reconciler case the floor was built for still costs a handful of reloads
+       a minute, not one per row. The echo of this tab's own write never counts
+       towards a storm (it is coalesced by CAL_RT_SELF_ECHO_MS instead). */
+    const CAL_V2_RT_MIN_RELOAD_MS = 1800;
+    const CAL_V2_RT_STORM_RELOAD_MS = 8000;
+    const CAL_V2_RT_STORM_WINDOW_MS = 15000;
+    const CAL_V2_RT_STORM_EVENTS = 5;
     const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
     const WRITE_UI_REROUTE_FLAG_KEY = 'write_ui_reroute_clients';
     const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000;
@@ -123,7 +139,8 @@
        counting it. */
 export {
   CALENDAR_UPSERT_FLAG_KEY, CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS,
-  CAL_V2_RT_MIN_RELOAD_MS, CLIENT_COMMENT_GATEWAY_FLAG_KEY, SETTINGS_EF_FLAG_KEY,
+  CAL_V2_RT_MIN_RELOAD_MS, CAL_V2_RT_STORM_EVENTS, CAL_V2_RT_STORM_RELOAD_MS, CAL_V2_RT_STORM_WINDOW_MS,
+  CLIENT_COMMENT_GATEWAY_FLAG_KEY, SETTINGS_EF_FLAG_KEY,
   WRITE_UI_REROUTE_FLAG_KEY, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS, _calSetUpsertEfClients,
   _calSetUpsertFlagChannel, _calSetUpsertFlagClient, _calSetUpsertFlagClientPromise,
   _calSetUpsertFlagPromise, _calUpsertEfClients, _calUpsertFlagChannel, _calUpsertFlagClient,

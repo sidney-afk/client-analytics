@@ -99,7 +99,21 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
      * so v2 can never blank the board. Rollback for everyone = leave the default
      * false; rollback for one browser = ?wl2=0.
      * =================================================================== */
-    const WL_V2_RT_DEBOUNCE_MS = 500;
+    /* COLLECT, THEN FETCH ONCE (2026-10-06 findings, item 4). Every change
+       event made every open board download the whole snapshot (about 2 MB)
+       again, and the old trailing 500 ms debounce only merged events closer
+       than that. The first event now opens a 3-second window; every event inside it
+       rides along, and the window closes with ONE silent refetch. A read that
+       cannot start (one already running, a save in flight) re-opens the window
+       instead of dropping the change. The snapshot source (workload-plan,
+       `native_snapshot_v2`) has no per-item read, so "only the changed item" is
+       not available without an Edge Function change; this is the cost cut that
+       needs none. The board's comment stamp
+       (migrations/2026-10-06-production-comment-signal.sql) changes nothing the
+       board draws, so an UPDATE that moved only that stamp is skipped. */
+    const WL_V2_RT_COLLECT_MS = 3000;
+    const WL_V2_RT_RETRY_BASE_MS = 1000;
+    const WL_V2_RT_RETRY_MAX_MS = 30000;
     // Realtime auto-update is ON. It was gated off because the board read
     // workload_issues, which the n8n reconcile re-wrote in full each run (to
     // advance synced_at for the mark-sweep) — ~1 event per row per run, a flood
@@ -533,15 +547,73 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
     const WL_V2_WATERMARK_POLL_MS = 5 * 60 * 1000;
     let _wlV2Channel = null, _wlV2RtTimer = null, _wlV2SubscribedOnce = false;
     let _wlV2WatermarkTimer = null, _wlV2WatermarkBusy = false;
-    function _wlV2OnRealtimeChange() {
+    let _wlV2RetryTimer = null, _wlV2RetryAttempt = 0, _wlV2RetrySerial = 0;
+    /* True for an UPDATE whose only change is the comment stamp. Needs the
+       full old image (both tables are `replica identity full`); with a partial
+       one it answers false, which is the safe direction (a refetch). */
+    function _wlV2IsCommentStampOnly(payload) {
+        if (!payload || String(payload.eventType || '') !== 'UPDATE') return false;
+        const n = payload.new, o = payload.old;
+        if (!n || !o || typeof n !== 'object' || typeof o !== 'object') return false;
+        if (!Object.prototype.hasOwnProperty.call(n, 'comments_changed_at')) return false;
+        if (String(n.comments_changed_at || '') === String(o.comments_changed_at || '')) return false;
+        const keys = new Set(Object.keys(n).concat(Object.keys(o)));
+        for (const k of keys) {
+            if (k === 'comments_changed_at') continue;
+            if (!Object.prototype.hasOwnProperty.call(n, k) || !Object.prototype.hasOwnProperty.call(o, k)) return false;
+            if (JSON.stringify(n[k]) !== JSON.stringify(o[k])) return false;
+        }
+        return true;
+    }
+    function _wlV2OnRealtimeChange(payload) {
         if (!document.querySelector('.workload-view')) return;
-        if (_wlV2RtTimer) clearTimeout(_wlV2RtTimer);
-        _wlV2RtTimer = setTimeout(() => {
+        if (payload && _wlV2IsCommentStampOnly(payload)) return;
+        // Collect: the first event opens the window, the rest ride along.
+        if (_wlV2RtTimer) return;
+        _wlV2RtTimer = setTimeout(function collectTick() {
             _wlV2RtTimer = null;
             if (!document.querySelector('.workload-view')) return;
+            // A read already running may have started before these changes;
+            // a save in flight blocks the read. Either way, keep the change.
+            if (_wlV2WatermarkBusy || wlState.loading || wlState.refreshing
+                || _wlPlanWriteInFlight.size || _wlDueWriteInFlight.size) {
+                _wlV2RtTimer = setTimeout(collectTick, WL_V2_RT_COLLECT_MS);
+                return;
+            }
             _wlV2CheckWatermark();
-        }, WL_V2_RT_DEBOUNCE_MS);
+        }, WL_V2_RT_COLLECT_MS);
     }
+    /* RE-SUBSCRIBE AFTER A DROP (2026-10-06 findings, item 5): a channel that
+       reports CHANNEL_ERROR or TIMED_OUT is replaced by a new one after a
+       backoff (1 s, 2 s, 4 s ... 30 s), and at once when the browser is back
+       online. Its SUBSCRIBED runs the usual catch-up refetch. */
+    function _wlV2ScheduleResubscribe(immediate) {
+        if (_wlV2RetryTimer) {
+            if (!immediate) return;
+            clearTimeout(_wlV2RetryTimer);
+            _wlV2RetryTimer = null;
+        }
+        const delay = immediate ? 0 : Math.min(WL_V2_RT_RETRY_MAX_MS, WL_V2_RT_RETRY_BASE_MS * Math.pow(2, _wlV2RetryAttempt++));
+        _wlV2RetryTimer = setTimeout(() => {
+            _wlV2RetryTimer = null;
+            if (!document.querySelector('.workload-view')) return;
+            const old = _wlV2Channel;
+            _wlV2Channel = null;   // its late callbacks are now ignored
+            if (old) {
+                try {
+                    if (_wlV2ClientObj && typeof _wlV2ClientObj.removeChannel === 'function') _wlV2ClientObj.removeChannel(old);
+                    else if (typeof old.unsubscribe === 'function') old.unsubscribe();
+                } catch (e) {}
+            }
+            // subscribedOnce stays true, so the new SUBSCRIBED is a catch-up.
+            _wlV2EnsureSubscribed();
+        }, delay);
+    }
+    try {
+        window.addEventListener('online', () => {
+            if (_wlV2Channel && document.querySelector('.workload-view')) { _wlV2RetryAttempt = 0; _wlV2ScheduleResubscribe(true); }
+        });
+    } catch (e) {}
     async function _wlV2EnsureSubscribed() {
         if (!WL_V2_REALTIME) return;            // one-line rollback lever (see note above)
         if (_wlPlanLive && _wlV2Ready()) _wlPlanLive.ensure();
@@ -549,19 +621,28 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
         const client = await _wlV2Client();
         if (!client || !document.querySelector('.workload-view')) return; // left during lib load
         try {
-            _wlV2Channel = client
-                .channel('workload_native')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, () => _wlV2OnRealtimeChange())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'batches' }, () => _wlV2OnRealtimeChange())
-                .subscribe((status) => {
+            // A replacement after a drop gets a fresh topic: supabase-js hands
+            // back the channel it still holds for a topic.
+            const topic = 'workload_native' + (_wlV2RetrySerial ? '~' + _wlV2RetrySerial : '');
+            _wlV2RetrySerial++;
+            const channel = client
+                .channel(topic)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, (payload) => _wlV2OnRealtimeChange(payload))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'batches' }, (payload) => _wlV2OnRealtimeChange(payload));
+            _wlV2Channel = channel;
+            channel.subscribe((status) => {
+                    if (_wlV2Channel !== channel) return;   // a replaced or torn-down channel
                     if (status === 'SUBSCRIBED') {
                         // A re-subscribe means the socket dropped (suspended tab woke up);
                         // realtime doesn't replay missed events, so pull a catch-up snapshot.
                         // Skip the FIRST subscribe — the load that opened the channel is current.
+                        _wlV2RetryAttempt = 0;
+                        if (_wlV2RetryTimer) { clearTimeout(_wlV2RetryTimer); _wlV2RetryTimer = null; }
                         if (_wlV2SubscribedOnce) _wlV2OnRealtimeChange();
                         _wlV2SubscribedOnce = true;
                     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                         console.warn('[Workload v2] realtime status:', status);
+                        if (status !== 'CLOSED') _wlV2ScheduleResubscribe(false);
                     }
                 });
         } catch (e) {
@@ -627,15 +708,19 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
     }
     function _wlV2Teardown() {
         if (_wlV2RtTimer) { clearTimeout(_wlV2RtTimer); _wlV2RtTimer = null; }
+        if (_wlV2RetryTimer) { clearTimeout(_wlV2RetryTimer); _wlV2RetryTimer = null; }
+        _wlV2RetryAttempt = 0;
         if (_wlV2WatermarkTimer) { clearInterval(_wlV2WatermarkTimer); _wlV2WatermarkTimer = null; }
         _wlV2WatermarkBusy = false;
-        if (_wlV2Channel) {
+        const dropping = _wlV2Channel;
+        _wlV2Channel = null;   // cleared first, so the CLOSED it reports is ignored
+        if (dropping) {
             try {
-                if (_wlV2ClientObj && typeof _wlV2ClientObj.removeChannel === 'function') _wlV2ClientObj.removeChannel(_wlV2Channel);
-                else if (typeof _wlV2Channel.unsubscribe === 'function') _wlV2Channel.unsubscribe();
+                if (_wlV2ClientObj && typeof _wlV2ClientObj.removeChannel === 'function') _wlV2ClientObj.removeChannel(dropping);
+                else if (typeof dropping.unsubscribe === 'function') dropping.unsubscribe();
             } catch {}
         }
-        _wlV2Channel = null; _wlV2SubscribedOnce = false;
+        _wlV2SubscribedOnce = false;
         if (_wlPlanLive) _wlPlanLive.teardown();
     }
 

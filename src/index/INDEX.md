@@ -10,14 +10,14 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3931 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 6751 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 6752 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2073 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1797 | Market Research Brief Tab Renderers |
-| 9 | `060-templates-filming.js.part` | 2235 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 9 | `060-templates-filming.js.part` | 2361 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
-| 12 | `067-workload-board-source.js.part` | 2580 | The roster saved with a cached board, checked with the same rules the |
+| 12 | `067-workload-board-source.js.part` | 2665 | The roster saved with a cached board, checked with the same rules the |
 | 13 | `068-core-workload-dates.js.part` | 133 | ONE FORMATTER, NOT ONE PER CALL. |
 | 14 | `069-workload-planning-helpers.js.part` | 384 | MEMOISED PURE HELPERS. |
 | 15 | `070-core-client-names.js.part` | 104 | — |
@@ -34,7 +34,7 @@
 | 26 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
-| 29 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
+| 29 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
 | 30 | `120-calendar-flags-write-repair.js.part` | 3447 | The members a flag value offers, or null when it offers no member list at |
 | 31 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
 | 32 | `130-calendar-model-cache.js.part` | 1406 | Returns the comments array for a given component. Falls back to the |
@@ -43,7 +43,7 @@
 | 35 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
 | 36 | `134-calendar-prefs-mount.js.part` | 1081 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 37 | `140-calendar-legacy-outbox.js.part` | 3497 | Shed the retired legacy rows from storage, under the surface mutation |
-| 38 | `150-calendar-hydration-import.js.part` | 2175 | For a card linked to a real sub-issue (not a parent), return which of |
+| 38 | `150-calendar-hydration-import.js.part` | 2269 | For a card linked to a real sub-issue (not a parent), return which of |
 | 39 | `160-calendar-organize-ui.js.part` | 3092 | Lighter path for the Order switch: update the chrome in place so the |
 | 40 | `170-calendar-links-status.js.part` | 3291 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 41 | `180-calendar-native-post-media.js.part` | 2942 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
@@ -56,7 +56,7 @@
 | 48 | `230-production-create-comments.js.part` | 2717 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 49 | `240-production-description.js.part` | 2709 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3093 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 51 | `260-production-refresh-boot.js.part` | 2711 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 51 | `260-production-refresh-boot.js.part` | 2812 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3068 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 53 | `280-samples-cards-notes.js.part` | 2946 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

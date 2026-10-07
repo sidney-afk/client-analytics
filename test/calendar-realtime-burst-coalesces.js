@@ -41,6 +41,9 @@ function constant(name) {
 const DEBOUNCE = constant('CAL_V2_RT_DEBOUNCE_MS');
 const SELF_ECHO = constant('CAL_RT_SELF_ECHO_MS');
 const FLOOR = constant('CAL_V2_RT_MIN_RELOAD_MS');
+const STORM_FLOOR = constant('CAL_V2_RT_STORM_RELOAD_MS');
+const STORM_WINDOW = constant('CAL_V2_RT_STORM_WINDOW_MS');
+const STORM_EVENTS = constant('CAL_V2_RT_STORM_EVENTS');
 
 /* A virtual clock, so the test measures the handler's arithmetic rather than
    the machine's scheduler. */
@@ -61,6 +64,9 @@ function harness(opts) {
         CAL_V2_RT_DEBOUNCE_MS: DEBOUNCE,
         CAL_RT_SELF_ECHO_MS: SELF_ECHO,
         CAL_V2_RT_MIN_RELOAD_MS: FLOOR,
+        CAL_V2_RT_STORM_RELOAD_MS: STORM_FLOOR,
+        CAL_V2_RT_STORM_WINDOW_MS: STORM_WINDOW,
+        CAL_V2_RT_STORM_EVENTS: STORM_EVENTS,
         calState: { client: 'A Client', loading: false },
         calClientSlug: () => 'aclient',
         _calV2LeaseCurrent: () => true,
@@ -71,14 +77,20 @@ function harness(opts) {
     vm.createContext(ctx);
     vm.runInContext('let _calV2RtTimer = null; let _calV2RtPending = false;'
         + ' let _calLastLocalWriteAt = ' + (opts && opts.lastLocalWriteAt != null ? opts.lastLocalWriteAt : -1e9) + ';'
-        + ' let _calV2RtLastReloadAt = 0;', ctx);
+        + ' let _calV2RtLastReloadAt = 0; let _calV2RtRecent = [];', ctx);
     let src = extractFunction(INDEX, '_calV2OnRealtimeChange');
+    let floorSrc = extractFunction(INDEX, '_calV2RtFloorMs');
     if (opts && opts.mutate) {
         // The mutant: the floor never applies, which is the code as it stood
         // when the owner reported the storm.
-        src = src.replace('sinceReload < CAL_V2_RT_MIN_RELOAD_MS', 'false');
+        src = src.replace('sinceReload < floor', 'false');
         if (!/false\)/.test(src)) throw new Error('mutation did not apply');
     }
+    if (opts && opts.oneFloor) {
+        // The mutant for finding 1 (2026-10-06): the single 8 s floor.
+        floorSrc = floorSrc.replace(/return [^;]+;/, 'return CAL_V2_RT_STORM_RELOAD_MS;');
+    }
+    vm.runInContext(floorSrc, ctx);
     vm.runInContext(src, ctx);
     const fire = () => vm.runInContext('_calV2OnRealtimeChange', ctx)('aclient', {});
     const advance = ms => {
@@ -99,12 +111,16 @@ function harness(opts) {
    debounce, which is precisely the shape 350 ms could not coalesce. */
 function burst(h, rows, gapMs) {
     for (let i = 0; i < rows; i++) { h.fire(); h.advance(gapMs); }
-    h.advance(FLOOR + DEBOUNCE + 10);   // let everything settle
+    h.advance(STORM_FLOOR + DEBOUNCE + 10);   // let everything settle
     return h.state.reloads.length;
 }
 
 ok(FLOOR > DEBOUNCE,
     'the floor is longer than the trailing debounce, or it would coalesce nothing (' + DEBOUNCE + 'ms debounce, ' + FLOOR + 'ms floor)');
+ok(FLOOR <= 2000,
+    'the normal floor is about 2 s at most (' + FLOOR + 'ms), so a second change lands within about 2 s (2026-10-06 finding 1)');
+ok(STORM_FLOOR >= 8000 && STORM_FLOOR > FLOOR,
+    'a storm still gets the old 8 s floor (' + STORM_FLOOR + 'ms)');
 
 {
     const rows = 15, gap = 700;
@@ -112,8 +128,8 @@ ok(FLOOR > DEBOUNCE,
     const stormy = burst(harness({ mutate: true }), rows, gap);
     ok(stormy >= rows - 1,
         'MUTANT (no floor): ' + rows + ' row writes ' + gap + 'ms apart produce ' + stormy + ' full reloads — the reported storm');
-    ok(fixed <= 2,
-        'with the floor, the same burst produces ' + fixed + ' — the owner sees one refresh, not ' + stormy);
+    ok(fixed <= 3,
+        'with the floors, the same burst produces ' + fixed + ' — a couple of refreshes, not ' + stormy);
 }
 
 {
@@ -122,8 +138,8 @@ ok(FLOOR > DEBOUNCE,
     const fixed = burst(harness(), rows, gap);
     const stormy = burst(harness({ mutate: true }), rows, gap);
     ok(stormy >= rows - 1, 'MUTANT: a 60-second trickle is ' + stormy + ' reloads');
-    ok(fixed <= Math.ceil((rows * gap) / FLOOR) + 1,
-        'with the floor it is ' + fixed + ', bounded by the elapsed time over the floor rather than by the row count');
+    ok(fixed <= Math.ceil((rows * gap) / STORM_FLOOR) + STORM_EVENTS,
+        'with the floors it is ' + fixed + ', bounded by the elapsed time over the storm floor rather than by the row count');
 }
 
 {
@@ -181,7 +197,7 @@ ok(FLOOR > DEBOUNCE,
     justLoaded.advance(600);
     ok(justLoaded.state.reloads.length === 0,
         'a foreign write 600ms after a load does NOT reload — the load already re-read the client');
-    justLoaded.advance(FLOOR);
+    justLoaded.advance(STORM_FLOOR);
     ok(justLoaded.state.reloads.length === 1,
         '...it lands once the floor is up, so the change is never dropped, only deferred');
 
@@ -192,6 +208,88 @@ ok(FLOOR > DEBOUNCE,
     afterSwitch.advance(DEBOUNCE + 1);
     ok(afterSwitch.state.reloads.length === 1,
         'and after a teardown cleared the clock, the new client\'s first live update is immediate');
+}
+
+{
+    /* FINDING 1 (2026-10-06): a teammate's SECOND change, landing soon after
+       another, used to wait out the whole 8 s floor (measured 5.4 to 13.7 s on
+       screen while the push itself arrived in under 2.1 s). Each of these
+       changes must now show within about 2 s of its push arriving. */
+    for (const mutant of [false, true]) {
+        const h = harness({ oneFloor: mutant });
+        h.advance(60000);
+        const arrivals = [0, 1000, 3000];      // status, another status, a caption
+        const shownAfter = [];
+        let t0 = h.state.t;
+        for (let i = 0; i < arrivals.length; i++) {
+            h.advance(t0 + arrivals[i] - h.state.t);
+            const before = h.state.reloads.length;
+            const at = h.state.t;
+            h.fire();
+            // the next reload that starts after this push is the one that shows it
+            let waited = 0;
+            while (h.state.reloads.length === before && waited < 20000) { h.advance(50); waited += 50; }
+            shownAfter.push(h.state.reloads.length > before ? h.state.reloads[h.state.reloads.length - 1].at - at : Infinity);
+        }
+        const worst = Math.max.apply(null, shownAfter);
+        if (!mutant) {
+            ok(worst <= FLOOR + DEBOUNCE + 50,
+                'three changes 0 s, 1 s and 3 s apart each show within ' + worst + 'ms of arriving (about 2 s), not 5 to 14 s');
+        } else {
+            ok(worst > 4000,
+                'MUTANT (one 8 s floor): the same changes take up to ' + worst + 'ms — the reported 5 to 14 s');
+        }
+    }
+}
+
+{
+    /* The storm switch: five foreign events inside the window go back to the
+       8 s floor, so a reconciler run still costs a handful of reloads. */
+    const h = harness();
+    h.advance(60000);
+    for (let i = 0; i < STORM_EVENTS; i++) { h.fire(); h.advance(200); }
+    const ctxFloor = vm.runInContext('_calV2RtFloorMs', h.ctx)(h.state.t);
+    ok(ctxFloor === STORM_FLOOR, STORM_EVENTS + ' foreign events in ' + STORM_WINDOW + 'ms switch to the storm floor (' + ctxFloor + 'ms)');
+    h.advance(STORM_WINDOW + 10);
+    const calm = vm.runInContext('_calV2RtFloorMs', h.ctx)(h.state.t);
+    ok(calm === FLOOR, 'and once the window has passed with no events, the normal floor is back (' + calm + 'ms)');
+
+    /* The echo of our own save never counts towards a storm. */
+    const own = harness({ lastLocalWriteAt: 0 });
+    for (let i = 0; i < STORM_EVENTS + 2; i++) { own.fire(); own.advance(100); }
+    ok(vm.runInContext('_calV2RtRecent.length', own.ctx) === 0,
+        'events inside the self-echo window are not counted as foreign');
+}
+
+{
+    /* A fresher pushed row must never clobber this tab's own just-saved edit.
+       The reload merge keeps the local copy while a save is in flight, inside
+       the recent-save window, and whenever its updated_at is newer or equal. */
+    const load = extractFunction(INDEX, 'loadCalendarPosts');
+    ok(/if \(_calSaveInFlight\[fp\.id\]\) return lp;/.test(load),
+        'a save in flight keeps the local row over any fetched row');
+    ok(/if \(isFinite\(lT\) && isFinite\(fT\) && lT >= fT\) return lp;/.test(load),
+        'an older or equal server updated_at never replaces the local row');
+    ok(/const stillRecent = _calLocalRecentSaves\.has\(fp\.id\);/.test(load),
+        'and the recent-save window still protects a just-made edit');
+}
+
+{
+    /* RE-SUBSCRIBE (finding 5): an errored channel is replaced, with backoff. */
+    const open = extractFunction(INDEX, '_calV2OpenChannel');
+    ok(/status !== 'CLOSED'\) _calV2ScheduleResubscribe\(slug, lease, false\)/.test(open),
+        'CHANNEL_ERROR and TIMED_OUT schedule a new channel');
+    ok(/_calV2RetryAttempt = 0;/.test(open), 'SUBSCRIBED resets the backoff');
+    const delay = vm.runInContext('(' + extractFunction(INDEX, '_calV2RetryDelay') + ')', vm.createContext({
+        CAL_V2_RT_RETRY_BASE_MS: constant('CAL_V2_RT_RETRY_BASE_MS'), CAL_V2_RT_RETRY_MAX_MS: constant('CAL_V2_RT_RETRY_MAX_MS'), Math }));
+    ok(delay(0) === 1000 && delay(1) === 2000 && delay(3) === 8000 && delay(10) === 30000,
+        'backoff is 1 s, 2 s, 4 s, 8 s ... capped at 30 s');
+    const drop = extractFunction(INDEX, '_calV2DropChannel');
+    ok(/_calV2RetryTimer\) \{ clearTimeout\(_calV2RetryTimer\)/.test(drop)
+        && drop.indexOf('_calV2Channel = null') < drop.indexOf('removeChannel(dropping)'),
+        'teardown cancels a pending retry and clears the channel before removing it, so its CLOSED is ignored');
+    ok(/window\.addEventListener\('online', _calV2OnBrowserOnline\)/.test(INDEX),
+        'coming back online re-subscribes at once');
 }
 
 if (failures) {

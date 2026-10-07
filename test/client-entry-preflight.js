@@ -129,10 +129,18 @@ for (const token of [
   'if (epoch !== _calV2Epoch || !_calLoadRunCurrent(loadRun)) return;',
   'surface: loadRun.surface',
   'clientEntryRun: loadRun.clientEntryRun',
-  '_calV2LeaseCurrent(lease)',
 ]) {
   assert(calSubscribeSource.includes(token), 'Calendar async realtime lease is missing: ' + token);
 }
+/* 2026-10-06: the channel itself is opened by _calV2OpenChannel, shared with
+   the re-subscribe after a drop; its status callback, and the re-subscribe
+   timer, must still reject a stale lease. */
+assert(
+  calSubscribeSource.includes("_calV2OpenChannel(client, slug, lease, 'cal-' + slug)")
+    && extract('_calV2OpenChannel').includes('if (_calV2Channel !== channel || !_calV2LeaseCurrent(lease)) return;')
+    && (extract('_calV2ScheduleResubscribe').match(/_calV2LeaseCurrent\(lease\)/g) || []).length >= 3,
+  'Calendar async realtime lease is missing: _calV2LeaseCurrent(lease)',
+);
 assert(
   calRealtimeSource.includes('if (!_calV2LeaseCurrent(lease)) return;')
     && calRealtimeSource.match(/_calV2LeaseCurrent\(lease\)/g).length >= 2,

@@ -362,7 +362,7 @@
            Shown only when the saved page belongs to the stored staff member
            (same member id and role), was written today, and the staff check
            (the early key-verify, started in <head>) has PASSED: nothing is
-           painted while it is pending (Codex P1 on #1987: a revoked key must
+           painted while it is pending (Codex P1 on PR 1987: a revoked key must
            not get even a flash). A check that fails deletes the saved page.
            The app, whose own paint waits for the same check, may get there
            first; then this does nothing. */

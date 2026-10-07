@@ -210,7 +210,7 @@ function identity(verifiedAt) {
     //     last Today this person saw, straight from storage, before the app
     //     runs, but only once the staff check has passed: a stored identity
     //     the verifier refuses (or cannot reach) never shows it, not even
-    //     briefly, and the saved page is deleted (Codex P1 on #1987).
+    //     briefly, and the saved page is deleted (Codex P1 on PR 1987).
     {
       const d = new Date();
       const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');

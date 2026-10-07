@@ -85,12 +85,14 @@ async function shot(browser, origin, phone, dark) {
     also: [...document.querySelectorAll('#tdyRoot .tdy-cl.also .tdy-cl-n')].map(e => e.textContent),
     order: (() => { const t = document.querySelector('#tdyRoot .tdy-clients').textContent; return t.indexOf('Your clients') >= 0 && t.indexOf('Your clients') < t.indexOf('Also seeing'); })(),
     dark: document.documentElement.getAttribute('data-theme') === 'dark',
+    minChip: Math.min(...[...document.querySelectorAll('#tdyRoot .tdy-cl')].map(e => e.getBoundingClientRect().height)),
     under: (() => { const big = document.querySelector('#tdyRoot .tdy-big'); const cl = document.querySelector('#tdyRoot .tdy-clients'); return !!big && !!cl && big.nextElementSibling === cl; })()
   }));
   ok(JSON.stringify(got.own) === JSON.stringify(['Alpha Fixture', 'Beta Fixture']), label + ': the two own clients are chips');
   ok(JSON.stringify(got.also) === JSON.stringify(['Delta Fixture', 'Epsilon Fixture', 'Gamma Fixture']), label + ': the also-seen clients are separate, quieter chips');
   ok(got.order && got.under, label + ': right under the greeting, own first');
   ok(got.dark === dark, label + ': theme is ' + (dark ? 'dark' : 'light'));
+  if (phone) ok(got.minChip >= 44, label + ': every chip is a 44 px touch target (smallest ' + Math.round(got.minChip) + ' px)');
   fs.mkdirSync(OUT, { recursive: true });
   await page.screenshot({ path: path.join(OUT, 'today-clients-' + label + '.png'), clip: phone ? undefined : { x: 0, y: 0, width: 1440, height: 640 } });
   if (!phone && !dark) {

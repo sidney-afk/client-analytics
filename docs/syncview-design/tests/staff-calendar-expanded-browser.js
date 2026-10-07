@@ -138,6 +138,8 @@ async function review(browser, origin, width, theme) {
     await page.keyboard.press('Escape');
     ok(await note.inputValue() === 'Please shorten the opening line.', 'Tabs lost the draft');
     await page.locator('[data-staff-menu=more]').click();
+    const credentialRows = await page.locator('dialog[open] button').evaluateAll(nodes => nodes.filter(node => node.checkVisibility() && /^client credentials$/i.test(node.textContent.trim())).length);
+    ok(credentialRows === 1, 'More lists Client credentials ' + credentialRows + ' times');
     await measure(page, 'more-' + suffix);
     await shot(page, 'more-' + suffix);
     await page.keyboard.press('Escape');

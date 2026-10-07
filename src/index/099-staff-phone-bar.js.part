@@ -114,7 +114,10 @@
                 proxy('Quick jump', document.querySelector('.sv-jump-touch'));
                 proxy(document.documentElement.dataset.theme === 'dark' ? 'Light appearance' : 'Dark appearance', control('themeToggle'));
                 proxy(document.documentElement.dataset.statusPalette === 'classic' ? 'Current status colors' : 'Original status colors', control('statusPaletteToggle'));
-                [['headerTimeOffMenuItem', 'Time Off'], ['headerOnboardingMenuItem', 'Onboarding'], ['headerCredentialsMenuItem', 'Client Credentials']].forEach(p => proxy(p[1], control(p[0])));
+                // A sheet whose own tools already open this client's credentials (Calendar) lists them once.
+                const ownCredentials = body.querySelector('[data-staff-capability="credentials"]:not([hidden])');
+                [['headerTimeOffMenuItem', 'Time Off'], ['headerOnboardingMenuItem', 'Onboarding'], ['headerCredentialsMenuItem', 'Client Credentials']]
+                    .forEach(p => { if (!(ownCredentials && p[0] === 'headerCredentialsMenuItem')) proxy(p[1], control(p[0])); });
                 proxy((document.getElementById('staffIdentityMenuLabel')?.textContent || '').trim() || 'Staff menu', control('staffIdentitySignOut'));
                 body.prepend(group);
             }

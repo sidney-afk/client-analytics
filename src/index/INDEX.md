@@ -30,7 +30,7 @@
 | 22 | `097-today.js.part` | 624 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `099-phone-staff-shell.js.part` | 222 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
-| 25 | `099-staff-phone-bar.js.part` | 219 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
+| 25 | `099-staff-phone-bar.js.part` | 222 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 26 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |

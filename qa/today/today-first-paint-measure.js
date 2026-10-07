@@ -16,7 +16,8 @@
  *
  * scenario=cold         no saved copy (a first visit)
  * scenario=stale        a saved copy written late yesterday, the morning case
- * scenario=warm         a saved copy from earlier today (a reload)
+ * scenario=warm         a saved copy from earlier today (a reload), with the saved
+ *                       page too on builds that keep one
  * scenario=switch-cold  land on Calendar with no saved copy, then click Today
  * scenario=switch-warm  land on Calendar with today's saved copy, then click Today
  * scenario=switch-back  open Today, go to Calendar, come back to Today
@@ -101,7 +102,10 @@ function recorder(cacheKey) {
     const root = document.getElementById('tdyRoot') || document.querySelector('[data-tdy-early]');
     if (!root) return;
     if (m.skeleton == null && root.querySelector('.tdy-skel')) m.skeleton = now();
-    const has = root.querySelector('.tdy-big, .tdy-win, .tdy-deck, .tdy-rings');
+    // A real day on screen: the count line, the all-clear card, a deck or a
+    // walk-through card. Not the grey shape, not the error or sign-in card.
+    const has = root.isConnected && !root.querySelector('.tdy-skel')
+      && !!root.querySelector('.tdy-big, .tdy-win:not([role="alert"]) .tdy-ok, .tdy-deck, .tdy-focus');
     // Pages that mark a saved copy "Updating" (.tdy-upd): a list without the
     // mark, in the app's own root, is the fresh answer (it may be painted from
     // a read that finished before the click, so no save follows it).
@@ -175,7 +179,8 @@ async function run(browser, base, profile, scenario, identity, seededCache) {
     try {
       localStorage.setItem('syncview_staff_identity_v1', JSON.stringify(id));
       sessionStorage.setItem('syncview_staff_identity_prompted_v1', '1');
-      if (seed) localStorage.setItem(ck, JSON.stringify(seed));
+      if (seed && seed.cache) localStorage.setItem(ck, JSON.stringify(seed.cache));
+      if (seed && seed.paint) localStorage.setItem('syncview_today_paint_v1', JSON.stringify(seed.paint));
     } catch (e) {}
   }, [identity, CACHE_KEY, cache]);
   await ctx.addInitScript(recorder, CACHE_KEY);
@@ -212,12 +217,12 @@ async function run(browser, base, profile, scenario, identity, seededCache) {
       .map(e => ({ url: e.name, start: e.startTime, end: e.responseEnd }));
     const nav = performance.getEntriesByType('navigation')[0];
     window.__tm.html = nav ? nav.responseEnd : null;   // the page's own bytes have arrived
-    return { marks: window.__tm, reqs, dcl: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart, cache: localStorage.getItem('syncview_today_cache_v1') };
+    return { marks: window.__tm, reqs, dcl: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart, cache: localStorage.getItem('syncview_today_cache_v1'), paint: localStorage.getItem('syncview_today_paint_v1') };
   });
   const rows = out.reqs.map(r => ({ what: label(r.url), start: Math.round(r.start), ms: Math.round(r.end - r.start), end: Math.round(r.end) }))
     .filter(r => r.what && !/key-verify|flags/.test(r.what) && !/syncview_runtime_flags/.test(r.what));
   await ctx.close();
-  return { marks: out.marks, rows, cache: out.cache };
+  return { marks: out.marks, rows, cache: out.cache, paint: out.paint };
 }
 
 const med = a => { const s = a.filter(x => x != null).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
@@ -235,9 +240,11 @@ const med = a => { const s = a.filter(x => x != null).sort((x, y) => x - y); ret
     const y = new Date(); y.setHours(0, 0, 0, 0);
     const yd = new Date(y.getTime() - 60 * 60 * 1000);
     const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    // The saved page (boot-shell paint) exists only on builds that write it.
+    const pt = seedRun.paint ? JSON.parse(seedRun.paint) : null;
     seed = {
-      stale: { ...c, at: yd.getTime(), day: iso(yd) },   // 23:00 yesterday, inside the old 24 h limit
-      warm: { ...c, at: Date.now() - 10 * 60 * 1000 }    // ten minutes ago, today
+      stale: { cache: { ...c, at: yd.getTime(), day: iso(yd) }, paint: pt && { ...pt, at: yd.getTime(), day: iso(yd) } },   // 23:00 yesterday
+      warm: { cache: { ...c, at: Date.now() - 10 * 60 * 1000 }, paint: pt && { ...pt, at: Date.now() - 10 * 60 * 1000 } }   // ten minutes ago, today
     };
   } catch (e) { console.error('could not capture a saved copy'); }
   const results = [];

@@ -232,7 +232,10 @@ async function bootToTiktokUpload(browser, port, mockOpts) {
       .then(() => SYNTHETIC_CLIENT).catch(() => null);
   }
   if (!picked) throw new Error('could not pick the synthetic client in the TikTok client search');
-  await page.locator('input[name=tkMediaType][value=photo]').check({ force: true });
+  // The form can redraw right after the client pick; wait for the choice to be on screen.
+  const photoType = page.locator('input[name=tkMediaType][value=photo]');
+  await photoType.waitFor({ state: 'visible', timeout: 10000 });
+  await photoType.check({ force: true });
   await page.waitForSelector('#tkPhotoFile');
   return { page, calls, pageErrors, clientName: picked };
 }

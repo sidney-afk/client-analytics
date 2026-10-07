@@ -77,7 +77,7 @@ function harness(opts) {
     vm.createContext(ctx);
     vm.runInContext('let _calV2RtTimer = null; let _calV2RtPending = false;'
         + ' let _calLastLocalWriteAt = ' + (opts && opts.lastLocalWriteAt != null ? opts.lastLocalWriteAt : -1e9) + ';'
-        + ' let _calV2RtLastReloadAt = 0; let _calV2RtRecent = [];', ctx);
+        + ' let _calV2RtLastReloadAt = 0; let _calV2RtRecent = []; let _calV2RtAnonSerial = 0;', ctx);
     let src = extractFunction(INDEX, '_calV2OnRealtimeChange');
     let floorSrc = extractFunction(INDEX, '_calV2RtFloorMs');
     if (opts && opts.mutate) {
@@ -91,8 +91,9 @@ function harness(opts) {
         floorSrc = floorSrc.replace(/return [^;]+;/, 'return CAL_V2_RT_STORM_RELOAD_MS;');
     }
     vm.runInContext(floorSrc, ctx);
+    vm.runInContext(extractFunction(INDEX, '_calV2RtEventKey'), ctx);
     vm.runInContext(src, ctx);
-    const fire = () => vm.runInContext('_calV2OnRealtimeChange', ctx)('aclient', {});
+    const fire = payload => vm.runInContext('_calV2OnRealtimeChange', ctx)('aclient', {}, payload);
     const advance = ms => {
         const target = state.t + ms;
         for (;;) {
@@ -254,6 +255,24 @@ ok(STORM_FLOOR >= 8000 && STORM_FLOOR > FLOOR,
     const calm = vm.runInContext('_calV2RtFloorMs', h.ctx)(h.state.t);
     ok(calm === FLOOR, 'and once the window has passed with no events, the normal floor is back (' + calm + 'ms)');
 
+    /* A storm is many CARDS (2026-10-07 re-test, finding A): one person
+       stepping one card through statuses writes that card two or three times
+       per step, and must keep the normal floor however many writes land. */
+    const one = harness();
+    one.advance(60000);
+    for (let i = 0; i < STORM_EVENTS * 3; i++) { one.fire({ new: { id: 'p_same' } }); one.advance(300); }
+    const oneFloor = vm.runInContext('_calV2RtFloorMs', one.ctx)(one.state.t);
+    ok(oneFloor === FLOOR, (STORM_EVENTS * 3) + ' writes to ONE card keep the normal floor (' + oneFloor + 'ms)');
+    const many = harness();
+    many.advance(60000);
+    for (let i = 0; i < STORM_EVENTS; i++) { many.fire({ new: { id: 'p_' + i } }); many.advance(200); }
+    const manyFloor = vm.runInContext('_calV2RtFloorMs', many.ctx)(many.state.t);
+    ok(manyFloor === STORM_FLOOR, STORM_EVENTS + ' different cards inside the window still switch to the storm floor (' + manyFloor + 'ms)');
+    const del = harness();
+    del.advance(60000);
+    for (let i = 0; i < STORM_EVENTS; i++) { del.fire({ new: {}, old: { id: 'p_d' + i } }); del.advance(200); }
+    ok(vm.runInContext('_calV2RtFloorMs', del.ctx)(del.state.t) === STORM_FLOOR, 'deletes are counted by the card they removed');
+
     /* The echo of our own save never counts towards a storm. */
     const own = harness({ lastLocalWriteAt: 0 });
     for (let i = 0; i < STORM_EVENTS + 2; i++) { own.fire(); own.advance(100); }
@@ -282,8 +301,8 @@ ok(STORM_FLOOR >= 8000 && STORM_FLOOR > FLOOR,
     ok(/_calV2RetryAttempt = 0;/.test(open), 'SUBSCRIBED resets the backoff');
     const delay = vm.runInContext('(' + extractFunction(INDEX, '_calV2RetryDelay') + ')', vm.createContext({
         CAL_V2_RT_RETRY_BASE_MS: constant('CAL_V2_RT_RETRY_BASE_MS'), CAL_V2_RT_RETRY_MAX_MS: constant('CAL_V2_RT_RETRY_MAX_MS'), Math }));
-    ok(delay(0) === 1000 && delay(1) === 2000 && delay(3) === 8000 && delay(10) === 30000,
-        'backoff is 1 s, 2 s, 4 s, 8 s ... capped at 30 s');
+    ok(delay(0) === 1000 && delay(1) === 2000 && delay(2) === 4000 && delay(3) === 5000 && delay(10) === 5000,
+        'backoff is 1 s, 2 s, 4 s, then capped at 5 s (2026-10-07 re-test, finding D)');
     const drop = extractFunction(INDEX, '_calV2DropChannel');
     ok(/_calV2RetryTimer\) \{ clearTimeout\(_calV2RetryTimer\)/.test(drop)
         && drop.indexOf('_calV2Channel = null') < drop.indexOf('removeChannel(dropping)'),

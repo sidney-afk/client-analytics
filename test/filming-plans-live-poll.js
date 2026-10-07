@@ -29,7 +29,7 @@ let n = 0;
 const ok = (cond, msg) => { assert.ok(cond, msg); n++; console.log('  ok  ' + msg); };
 
 const pollMs = Number((/const FP_LIVE_POLL_MS = (\d+);/.exec(INDEX) || [])[1]);
-ok(pollMs >= 10000 && pollMs <= 30000, 'the page polls about every 20 s while open (' + pollMs + 'ms)');
+ok(pollMs >= 3000 && pollMs <= 5000, 'the page polls about every 5 s while open, so an edit shows within about 5 s (' + pollMs + 'ms)');
 
 const NAMES = [
   '_fpNormalizePlan', '_fpSetData', '_fpRows', '_fpLiveFingerprint', '_fpLiveDirty',

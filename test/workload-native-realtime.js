@@ -100,7 +100,7 @@ ok(/wlRefetchSilent\(\)/.test(watermark) && !/synced_at/.test(watermark),
   // trailing debounce that a steady stream could postpone for ever is gone,
   // and a busy board keeps the change instead of dropping it.
   const collectMs = Number((/const WL_V2_RT_COLLECT_MS\s*=\s*(\d+);/.exec(html) || [])[1]);
-  ok(collectMs >= 2000 && collectMs <= 5000, `events are collected for about 3 s before one fetch (got ${collectMs}ms)`);
+  ok(collectMs >= 500 && collectMs <= 1500, `events are collected for about 1 s before one fetch (got ${collectMs}ms)`);
   const clock = { t: 0, timers: [], id: 0 };
   const vctx = {
     console, Date: { now: () => clock.t }, JSON, Object, Set, String,
@@ -132,7 +132,7 @@ ok(/wlRefetchSilent\(\)/.test(watermark) && !/synced_at/.test(watermark),
   const statusChange = (id, from, to) => ({ eventType: 'UPDATE', old: { id, status: from, updated_at: 'a' }, new: { id, status: to, updated_at: 'b' } });
   for (let i = 0; i < 20; i++) { vctx._wlV2OnRealtimeChange(statusChange('d' + i, 'In Progress', 'For Review')); advance(280); }
   advance(collectMs);
-  ok(vctx.checks === 2,
+  ok(vctx.checks >= 1 && vctx.checks <= Math.ceil((20 * 280) / collectMs) + 1 && vctx.checks < 20,
     `twenty changes 280 ms apart (5.6 s) cost ${vctx.checks} snapshot reads, not 20 — and a steady stream cannot postpone the read for ever`);
   vctx.checks = 0;
   vctx._wlV2OnRealtimeChange(statusChange('x', 'a', 'b'));

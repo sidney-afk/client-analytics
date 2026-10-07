@@ -74915,7 +74915,12 @@
        Read from syncview_runtime_flags (publicly readable, like the other
        switches). A read that fails keeps the last answer this browser saw,
        so a blip can never send one upload to the Sheet and the next to the
-       table; a browser that never read it stays on n8n, today's path. */
+       table; a browser that never read it stays on n8n, today's path.
+       Three answers: 'supabase' (everything through the function),
+       'n8n' (everything through n8n and the Sheet) and 'n8n+table', the
+       rollback: new uploads go to n8n, but the queue still shows the table's
+       rows (read, status and retry through the function), so posts made
+       while the function was on never vanish from the page. */
     const TK_SOURCE_TTL_MS = 60000;
     const TK_SOURCE_LAST_KEY = 'syncview_tiktok_upload_source_last';
     let _tkSourceCache = null;   // { at, value }
@@ -74928,13 +74933,14 @@
             if (resp.ok) {
                 const rows = await resp.json();
                 const v = Array.isArray(rows) && rows[0] ? rows[0].value : null;
-                value = v && typeof v === 'object' && v.source === 'supabase' ? 'supabase' : 'n8n';
+                value = v && typeof v === 'object' && v.source === 'supabase' ? 'supabase'
+                    : (v && typeof v === 'object' && v.read_table === true ? 'n8n+table' : 'n8n');
             }
         } catch {}
         if (!value) {
             let last = _tkSourceCache ? _tkSourceCache.value : null;
             if (!last) { try { last = localStorage.getItem(TK_SOURCE_LAST_KEY); } catch {} }
-            value = last === 'supabase' ? 'supabase' : 'n8n';
+            value = last === 'supabase' || last === 'n8n+table' ? last : 'n8n';
         } else {
             try { localStorage.setItem(TK_SOURCE_LAST_KEY, value); } catch {}
         }
@@ -76170,6 +76176,20 @@
         const source = await _tkSource(true);
         tkState.submitting = false;
 
+        // A create whose answer was lost may have reached Post For Me. The same draft is sent again with the
+        // SAME key and the media already in storage, so the server finds the first attempt instead of posting twice.
+        const again = tkState.retryCreate;
+        if (source === 'supabase' && again && again.sig === _tkDraftSig()) {
+            const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at }, source };
+            tkState.submitting = true;
+            tkState.error = null;
+            tkState.progress = 90;
+            _tkRenderForm();
+            _tkCreateViaFunction(again.media, again.key, again.scheduledAtWall, again.scheduledAtUTC, target, again.what);
+            return;
+        }
+        tkState.retryCreate = null;
+
         if (tkState.mediaType === 'photo') {
             _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC, source);
             return;
@@ -76625,7 +76645,18 @@
 
     // Creates the post through the tiktok-upload function (the Supabase backend): same success and failure
     // handling as the n8n paths above, same optimistic queue row.
+    // What makes two submits "the same draft": client, account, caption, options, schedule and the same files.
+    function _tkDraftSig() {
+        const f = tkState.file;
+        const files = tkState.mediaType === 'photo'
+            ? (tkState.photos || []).map(p => p.file ? [p.file.name, p.file.size, p.file.lastModified].join(':') : '').join('|')
+            : (f ? [f.name, f.size, f.lastModified].join(':') : '');
+        return JSON.stringify([tkState.client, tkState.profile, tkState.title, tkState.options, tkState.schedule.postNow, tkState.schedule.at, tkState.schedule.tz, tkState.mediaType, files]);
+    }
+
     async function _tkCreateViaFunction(media, idempotencyKey, scheduledAtWall, scheduledAtUTC, target, what) {
+        // Until a clear answer comes back, this create may have reached Post For Me: keep its key and media.
+        const ambiguous = { key: idempotencyKey, media, scheduledAtWall, scheduledAtUTC, what, sig: _tkDraftSig() };
         const controller = new AbortController();
         _tkActivePhotoAbort = controller;
         let out;
@@ -76646,19 +76677,23 @@
             _tkActivePhotoAbort = null;
             tkState.submitting = false;
             tkState.progress = 0;
+            tkState.retryCreate = ambiguous;
             if (e && e.name === 'AbortError') { tkState.error = 'Upload cancelled.'; _tkRenderForm(); return; }
             _tkRecordFailure('tiktok_upload', 0, true);
-            tkState.error = `The ${what} finished uploading to storage, but the server could not be reached to finish creating the post. Try Submit again — this re-uploads the ${what} (that part is not saved between attempts).`;
+            tkState.error = `The ${what} finished uploading to storage, but the server could not be reached to finish creating the post. Press Submit again without changing anything: it finishes this same post and cannot post it twice.`;
             _tkRenderForm();
             return;
         }
         _tkActivePhotoAbort = null;
         tkState.submitting = false;
+        // A 5xx or no JSON is no answer: the post may exist. Anything else is a clear answer.
+        tkState.retryCreate = (!out.ok && (out.status >= 500 || !out.json)) ? ambiguous : null;
         if (!out.ok) {
             tkState.progress = 0;
             _tkRecordFailure('tiktok_upload', out.json && out.json.ok === false && out.status < 300 ? 0 : out.status);
             const err = out.json && (out.json.error || (out.json.row && out.json.row.error));
             tkState.error = err ? `Upload failed: ${err}` : (out.status >= 200 && out.status < 300 ? 'Post For Me rejected this post. Try again.' : `Upload failed (HTTP ${out.status || 'no response'}). Try again.`);
+            if (tkState.retryCreate) tkState.error += ' Press Submit again without changing anything: it finishes this same post and cannot post it twice.';
             _tkRenderForm();
             return;
         }
@@ -76722,17 +76757,26 @@
         try {
             // Timeout so a hung request can't stall the poll chain forever —
             // the next poll is only armed in the .finally() of this fetch.
-            let json;
-            if (await _tkSource() === 'supabase') {
+            const source = await _tkSource();
+            const readTable = async () => {
                 const out = await _tkFn({ action: 'list' }, (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined));
                 if (!out.ok) throw new Error('HTTP ' + out.status);
-                json = out.json;
-            } else {
+                return (out.json.rows || []).map(r => ({ ...r, _store: 'table' }));
+            };
+            const readSheet = async () => {
                 const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
-                json = await r.json();
-            }
-            const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+                const json = await r.json();
+                return Array.isArray(json) ? json : (json.rows || json.items || []);
+            };
+            let rows;
+            if (source === 'supabase') rows = await readTable();
+            else if (source === 'n8n+table') {
+                // Rollback: both queues, and a row in both (the one-time copy) shows the table's newer copy.
+                const [table, sheet] = await Promise.all([readTable(), readSheet()]);
+                const inTable = new Set(table.map(r => r.id));
+                rows = table.concat(sheet.filter(r => !inTable.has(r.id)));
+            } else rows = await readSheet();
             _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
             const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
@@ -76923,7 +76967,8 @@
 
     async function _tkRetryRow(id) {
         try {
-            if (await _tkSource() === 'supabase') {
+            const viaTable = (await _tkSource()) === 'supabase' || ((tkState.uploads || []).find(r => r.id === id) || {})._store === 'table';
+            if (viaTable) {
                 const r = await _writeUiTrackSave('tiktok', 'tiktok_retry', {}, () => fetch(TIKTOK_UPLOAD_FN_URL, {
                     method: 'POST',
                     headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }, TIKTOK_UPLOAD_FN_URL),
@@ -76979,7 +77024,7 @@
         for (const r of due) {
             try {
                 let json = null;
-                if (await _tkSource() === 'supabase') {
+                if ((await _tkSource()) === 'supabase' || r._store === 'table') {
                     const out = await _tkFn({ action: 'status', id: r.id }, (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined));
                     json = out.ok ? out.json : null;
                 } else {
@@ -86914,4 +86959,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-eb4c343d4883.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-83504e7db751.js");

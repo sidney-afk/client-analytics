@@ -99,7 +99,8 @@ TikTok upload (Post For Me; the TikTok pilot and its TTP auth were removed 2026-
   while `syncview_runtime_flags.tiktok_upload_source` reads `{"source":"supabase"}` (read with the
   publishable key; a failed read keeps the last value this browser saw, a browser that never read it
   stays on n8n). With it on, every video goes direct to storage and none of the n8n TikTok webhooks
-  in this section is called. Staff key required.
+  in this section is called. The rollback `{"source":"n8n","read_table":true}` sends new uploads to n8n again
+  but still lists, checks and retries the table's rows here. Staff key required.
 - `functions/v1/tiktok-upload-cancel` — Cancel (2026-10-07, OPEN_REPAIRS 361; the table first since 362). Replaces
   the old n8n cancel webhook, which only marked the TikTokUpload row cancelled and never told
   Post For Me. The function deletes the post in Post For Me, reads it back to prove it is gone,

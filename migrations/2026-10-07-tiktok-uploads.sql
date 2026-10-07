@@ -17,8 +17,11 @@
 -- The switch: syncview_runtime_flags key 'tiktok_upload_source'. It starts at {"source":"n8n"}, so applying
 -- this changes nothing on the page. The page uses the Edge Functions only once it reads {"source":"supabase"}.
 --
--- Rollback: update syncview_runtime_flags set value = '{"source":"n8n"}' where key = 'tiktok_upload_source';
---           (the page goes back to the n8n webhooks and the Sheet). To remove entirely:
+-- Rollback once posts were made through the function:
+--   update syncview_runtime_flags set value = '{"source":"n8n","read_table":true}' where key = 'tiktok_upload_source';
+--   New uploads go back to the n8n webhooks and the Sheet, and the page keeps showing the table's rows (read,
+--   status, retry and cancel through the functions), so nothing sent while the function was on disappears.
+--   Plain {"source":"n8n"} hides the table's rows; use it only if the table has none. To remove entirely:
 --           delete from syncview_runtime_flags where key = 'tiktok_upload_source'; drop table public.tiktok_uploads;
 --           (queue rows only; posts already sent stay on TikTok)
 -- ============================================================

@@ -7,7 +7,11 @@
 //   2. submit: a small video goes mint -> PUT to storage -> create, never through any n8n webhook;
 //   3. a Post For Me refusal shows its reason on the form, and Retry sends the kept request again;
 //   4. cancel: success, already posted, and a failed cancel each end where they should;
-//   5. every function call carries the staff key; no n8n webhook is ever called.
+//   5. every function call carries the staff key; no n8n webhook is ever called;
+//   6. a create whose answer is lost: pressing Submit again on the same draft sends the SAME key, nothing is
+//      uploaded again, and Post For Me ends up with one post, not two;
+//   7. the rollback {"source":"n8n","read_table":true}: the queue shows the table's rows and the Sheet's,
+//      new uploads go to n8n, and a table row is still cancelled and checked through the functions.
 const assert = require('assert/strict');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -52,6 +56,7 @@ const csv = (v) => '"' + String(v).replace(/"/g, '""') + '"';
   const browser = await chromium.launch();
   let checks = 0;
   const fnCalls = [], n8nCalls = [], puts = [];
+  let loseNextCreateAnswer = false;
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, async (route) => {
@@ -66,8 +71,13 @@ const csv = (v) => '"' + String(v).replace(/"/g, '""') + '"';
       }
       if (/\/functions\/v1\/tiktok-upload$/.test(url)) {
         const body = JSON.parse(req.postData() || '{}');
-        fnCalls.push({ action: body.action, key: req.headers()['x-syncview-key'] || '' });
+        fnCalls.push({ action: body.action, key: req.headers()['x-syncview-key'] || '', idem: body.idempotencyKey || '' });
         const out = await handleTiktokUpload({ body, role: 'admin', actor: 'QA Admin', pfm, store, readSheet: async () => null });
+        if (body.action === 'create' && loseNextCreateAnswer) {
+          // The post was made, but the answer never reaches the page.
+          loseNextCreateAnswer = false;
+          return route.fulfill({ status: 504, contentType: 'text/plain', headers: cors, body: 'upstream timeout' });
+        }
         return reply(out.status, out.body);
       }
       if (/\/functions\/v1\/tiktok-upload-cancel$/.test(url)) {
@@ -122,6 +132,8 @@ const csv = (v) => '"' + String(v).replace(/"/g, '""') + '"';
     }
     assert.ok(picked, 'the fixture client is picked'); checks++;
     const submitVideo = async (caption) => {
+      // A refused upload keeps its file on the form (so it can be sent again); start each submit clean.
+      if (!(await page.locator('#tkFile').count())) await page.evaluate(() => _tkClearFile());
       await page.setInputFiles('#tkFile', { name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(2048, 1) });
       await page.fill('#tkTitle', caption);
       await page.waitForFunction(() => !document.getElementById('tkSubmit').disabled, null, { timeout: 10000 });
@@ -175,11 +187,76 @@ const csv = (v) => '"' + String(v).replace(/"/g, '""') + '"';
     await tab('Done');
     assert.match(await row('Cancel me').innerText(), /Cancelled/, 'the cancelled row shows under Done'); checks++;
 
+    // 6. A lost answer, then Submit again on the same draft: one post, not two.
+    await tab('Upcoming');
+    const postsBefore = pfm.calls.filter((c) => c.method === 'POST' && c.path === '/social-posts').length;
+    const putsBefore = puts.length;
+    loseNextCreateAnswer = true;
+    await submitVideo('Answer lost on the way back');
+    await page.waitForSelector('.tk-error', { timeout: 15000 });
+    assert.match(await page.locator('.tk-error').innerText(), /Press Submit again without changing anything/, 'the person is told a second press is safe'); checks++;
+    await page.waitForFunction(() => !document.getElementById('tkSubmit').disabled, null, { timeout: 10000 });
+    await page.click('#tkSubmit');
+    await page.waitForFunction(() => document.getElementById('tkTitle').value === '', null, { timeout: 15000 });
+    assert.equal(await notice(), 'Upload queued', 'the second press finishes it'); checks++;
+    const creates = fnCalls.filter((c) => c.action === 'create').slice(-2);
+    assert.equal(creates[0].idem, creates[1].idem, 'the second press sends the same key'); checks++;
+    assert.equal(puts.length - putsBefore, 1, 'and does not upload the video again'); checks++;
+    assert.equal(pfm.calls.filter((c) => c.method === 'POST' && c.path === '/social-posts').length - postsBefore, 1, 'Post For Me has one post, not two'); checks++;
+    assert.equal([...store.table.values()].filter((r) => r.title === 'Answer lost on the way back').length, 1, 'and the queue one row'); checks++;
+
     // 5. Staff key on every call; n8n never called.
     assert.ok(fnCalls.length >= 6 && fnCalls.every((c) => c.key), 'every function call carries the staff key'); checks++;
     assert.deepEqual(n8nCalls, [], 'no n8n webhook was called'); checks++;
     assert.deepEqual(errors, [], 'no page errors'); checks++;
     await context.close();
+
+    // 7. Rollback: {"source":"n8n","read_table":true}.
+    const rb = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const rbFn = [], rbN8n = [];
+    pfm.posts.sp_rollback = { id: 'sp_rollback', status: 'scheduled' };
+    store.table.set('rb-table', { ...base, id: 'rb-table', title: 'Made while the function was on', status: 'scheduled', scheduled_for: at(20), upload_post_id: 'sp_rollback', created_at: at(-1) });
+    await rb.route(/^https?:\/\/(?!127\.0\.0\.1)/, async (route) => {
+      const req = route.request(); const url = req.url();
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+      const reply = (status, body) => route.fulfill({ status, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
+      if (/key-verify/.test(url)) return reply(200, { ok: true, role: 'admin', member: ADMIN });
+      if (/syncview_runtime_flags.*tiktok_upload_source/.test(url)) return reply(200, [{ value: { source: 'n8n', read_table: true } }]);
+      if (/\/functions\/v1\/tiktok-upload$/.test(url)) {
+        const body = JSON.parse(req.postData() || '{}');
+        rbFn.push(body.action);
+        const out = await handleTiktokUpload({ body, role: 'admin', actor: 'QA Admin', pfm, store, readSheet: async () => null });
+        return reply(out.status, out.body);
+      }
+      if (/\/functions\/v1\/tiktok-upload-cancel$/.test(url)) {
+        const body = JSON.parse(req.postData() || '{}');
+        rbFn.push('cancel');
+        const out = await C.cancelTiktokUpload({ id: body.id, pfm, queue: C.firstQueue([cancelQueueOver(store)]), nowIso: new Date().toISOString() });
+        return reply(out.status, out.body);
+      }
+      if (/\/webhook\/tiktok-uploads-list/.test(url)) { rbN8n.push('list'); return reply(200, { ok: true, rows: [{ id: 'rb-sheet', client: CLIENT, title: 'Still in the Sheet', status: 'scheduled', scheduled_for: at(21), timezone: 'UTC' }, { id: 'old', client: CLIENT, title: 'Copied from the Sheet', status: 'scheduled', timezone: 'UTC', created_at: at(-200) }] }); }
+      if (/\/webhook\//.test(url)) { rbN8n.push(url.replace(/^.*\/webhook\//, '')); return reply(200, { ok: true }); }
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: /\/rest\/v1\//.test(url) ? '[]' : '{}' });
+    });
+    await seedStaffIdentity(rb, ADMIN);
+    const rp = await rb.newPage();
+    const rbErrors = [];
+    rp.on('pageerror', (e) => rbErrors.push(e.message));
+    await rp.goto(`http://127.0.0.1:${server.address().port}/#tiktok-upload`, { waitUntil: 'domcontentloaded' });
+    await rp.waitForFunction(() => /Made while the function was on/.test(document.querySelector('#tkQueueCol')?.innerText || '') && /Still in the Sheet/.test(document.querySelector('#tkQueueCol')?.innerText || ''), null, { timeout: 20000 })
+      .catch(async (e) => { console.error('queue text:', await rp.locator('#tkQueueCol').innerText().catch(() => '?'), 'fn:', rbFn, 'n8n:', rbN8n, 'errors:', rbErrors); throw e; });
+    assert.ok(rbFn.includes('list') && rbN8n.includes('list'), 'the rollback reads both queues'); checks++;
+    await rp.click('.tk-q-tab:has-text("Done")');
+    assert.match(await rp.locator('#tkQueueCol .tk-queue-item', { hasText: 'Copied from the Sheet' }).innerText(), /Posted/, 'a row in both shows the table\'s newer copy'); checks++;
+    await rp.click('.tk-q-tab:has-text("Upcoming")');
+    await rp.locator('#tkQueueCol .tk-queue-item', { hasText: 'Made while the function was on' }).locator('button:has-text("Cancel")').click();
+    await rp.waitForSelector('#confirmOverlay.active');
+    await rp.click('#confirmYes');
+    await rp.waitForFunction(() => !/Made while the function was on/.test(document.querySelector('#tkQueueCol .tk-q-tabs + *')?.parentElement?.innerText || document.querySelector('#tkQueueCol')?.innerText || ''), null, { timeout: 10000 });
+    assert.deepEqual([store.table.get('rb-table').status, !!pfm.posts.sp_rollback], ['cancelled', false], 'a table row is still cancelled for real during the rollback'); checks++;
+    assert.ok(!rbFn.includes('create') && !rbFn.includes('mint'), 'and nothing new is sent to the function'); checks++;
+    assert.deepEqual(rbErrors, [], 'no page errors in the rollback'); checks++;
+    await rb.close();
   } finally {
     await browser.close();
     server.close();

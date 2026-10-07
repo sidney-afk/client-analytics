@@ -20,6 +20,14 @@ import { clientMap } from './040-shared-briefs.js';
      *   5. Anyone on the roster sees their own clients, admins included
      *      (svScopeMode). An admin who is not on the roster sees every
      *      current client. There is no switch (owner decision 2026-09-28).
+     *   6. ALSO SEES (owner request 2026-10-07): a staff member can also see
+     *      clients they share with other managers, from the staff-only
+     *      smm_also_sees list (served beside the roster). A grant names a
+     *      roster manager (every current client of theirs, read through that
+     *      manager's roster row each time, so it follows the roster) or one
+     *      client. It never changes who owns a client: the roster, the review
+     *      queue and n8n do not read it. A staff member with no roster entry
+     *      sees only their grants (svAlsoSeesNames).
      *
      * Everything here is pure over its inputs except svCurrentClients, which
      * reads the loaded Clients Info rows. */
@@ -62,12 +70,33 @@ import { clientMap } from './040-shared-briefs.js';
             || (name && list.find(m => norm(m.name) === name))
             || (byFirst.length === 1 ? byFirst[0] : null);
     }
-    /* The current clients one roster entry owns, as Clients Info names. */
-    function svSmmCurrentClients(entry, current) {
-        if (!entry) return [];
+    /* The current clients one roster entry owns, as Clients Info names, plus
+       any "also sees" client names (rule 6; svAlsoSeesNames). entry may be
+       null for a staff member who is not on the roster. */
+    function svSmmCurrentClients(entry, current, also) {
+        const extra = Array.isArray(also) ? also : [];
+        if (!entry && !extra.length) return [];
         const cur = current instanceof Map ? current : svCurrentClients();
-        const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
+        const owned = new Set((entry && Array.isArray(entry.source_clients) ? entry.source_clients : []).concat(extra).map(svClientKey).filter(Boolean));
         return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
+    }
+    /* Rule 6: the client names one staff member also sees, from the
+       smm_also_sees grants (alsoSees: [{ viewer_member_id, manager_slug,
+       client_name }]). A manager grant expands to that manager's roster
+       clients now, so it follows the roster; an inactive or unknown manager
+       grants nothing. Only the grants for memberId count. */
+    function svAlsoSeesNames(alsoSees, managers, memberId) {
+        const id = String(memberId || '');
+        if (!id) return [];
+        const bySlug = new Map(svActiveManagers(managers).map(m => [String(m.slug || ''), m]));
+        const out = [];
+        for (const g of (Array.isArray(alsoSees) ? alsoSees : [])) {
+            if (!g || String(g.viewer_member_id || '') !== id) continue;
+            if (g.client_name) out.push(String(g.client_name));
+            const m = g.manager_slug ? bySlug.get(String(g.manager_slug)) : null;
+            if (m && Array.isArray(m.source_clients)) out.push(...m.source_clients.map(String));
+        }
+        return out;
     }
     /* Which clients a Today-style view shows: 'mine' or 'all'.
        isAdmin: the signed-in role is admin. onRoster: an active roster entry
@@ -83,4 +112,4 @@ import { clientMap } from './040-shared-briefs.js';
         return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
     }
 
-export { svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients };
+export { svAlsoSeesNames, svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients };

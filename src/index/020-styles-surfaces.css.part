@@ -5025,7 +5025,9 @@
 
             /* ---- Today ---- */
             body:has(.pocket-staff-bar) .tdy { max-width: none; margin: 0; padding: 0 0 24px; }
-            body:has(.pocket-staff-bar) .tdy-top { flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+            body:has(.pocket-staff-bar) .tdy-top { position: relative; flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+            /* On the date's own line, so it never pushes the page down or up. */
+            body:has(.pocket-staff-bar) .tdy-upd { position: absolute; top: 3px; right: 0; margin: 0; }
             body:has(.pocket-staff-bar) .tdy-date { font-size: 16px; font-weight: 600; color: var(--text-secondary); }
             body:has(.pocket-staff-bar) .tdy-vw { display: flex; padding: 4px; border-radius: 14px; background: var(--surface-subtle); }
             body:has(.pocket-staff-bar) .tdy-vw button { flex: 1; min-height: 44px; border-radius: 10px; font-size: 13px; padding: 0 12px; }
@@ -5303,6 +5305,12 @@
         /* STAFF-PHONE:END */
         /* TODAY: what is waiting on you (097-today). Reads only; no checkboxes. */
         .tdy { max-width: 880px; margin: 0 auto; padding: 36px 24px 80px; font-family: 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); }
+        /* Today's saved copy is on screen; the fresh read replaces it in place. */
+        .tdy-upd { display: inline-flex; align-items: center; gap: 6px; margin: 0 auto 0 12px; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-upd::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: tdy-upd-pulse 1.2s ease-in-out infinite; }
+        .tdy-upd[hidden] { display: none; }
+        @keyframes tdy-upd-pulse { 50% { opacity: 0.25; } }
+        @media (prefers-reduced-motion: reduce) { .tdy-upd::before { animation: none; } }
         .tdy-note { color: var(--text-secondary); font-size: 0.85rem; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px 16px; margin: 0 0 18px; }
         .tdy-skel .tdy-mrow { margin-top: 8px; }
         .tdy-skel .tdy-rg { cursor: default; }

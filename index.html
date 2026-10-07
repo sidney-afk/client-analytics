@@ -509,6 +509,8 @@
                         var tdRole = String(tdId.role || tdId.member.role || '').toLowerCase();
                         var tdTeam = String(tdId.member.team || '').toLowerCase();
                         var tdEditor = tdRole !== 'admin' && tdRole !== 'smm' && (tdTeam === 'video' || tdTeam === 'graphics');
+                        // Editors have no rings: the grey shape drops them too (030 boot-skeleton-today).
+                        try { if (tdEditor) document.documentElement.setAttribute('data-tdy-editor', '1'); } catch (e) {}
                         var tdIn = function (list) { return 'in.(' + list.join(',') + ')'; };
                         var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
                         var tdKv = window.__svEarlyKeyVerify;
@@ -2286,6 +2288,18 @@
         .boot-skeleton-row { display: grid; grid-template-columns: 1fr 0.85fr 0.7fr; gap: 12px; }
         @media (max-width: 700px) { .boot-skeleton-row { grid-template-columns: 1fr; } }
         .boot-skeleton-variant { display: none; }
+        html[data-tdy-editor] .boot-skeleton-today .tdy-rings { display: none; }
+        /* Phone: the grey shape for Today already has the phone layout of the
+           real list (two columns of rings, card rows), so the swap to the list
+           moves nothing. Mirrors the Today rules in the STAFF-PHONE block. */
+        @media (max-width: 767px) {
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy { max-width: none; margin: 0; padding: 0 0 24px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rg { min-width: 0; min-height: 124px; padding: 16px 8px; border-radius: 20px; border: 1px solid var(--border); justify-content: center; gap: 12px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rg:nth-child(5):last-child { grid-column: 1 / -1; flex-direction: row; min-height: 88px; gap: 16px; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-ls { display: flex; flex-direction: column; gap: 12px; border: 0; background: none; }
+            html[data-boot-nav="today"] .boot-skeleton-today .tdy-rw { padding: 16px; border: 1px solid var(--border); border-radius: 20px; background: var(--white); }
+        }
         html:not([data-boot-nav]) .boot-skeleton-analytics,
         html[data-boot-nav="analytics"] .boot-skeleton-analytics,
         html[data-boot-nav="linear"] .boot-skeleton-linear,
@@ -9573,7 +9587,9 @@
 
             /* ---- Today ---- */
             body:has(.pocket-staff-bar) .tdy { max-width: none; margin: 0; padding: 0 0 24px; }
-            body:has(.pocket-staff-bar) .tdy-top { flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+            body:has(.pocket-staff-bar) .tdy-top { position: relative; flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+            /* On the date's own line, so it never pushes the page down or up. */
+            body:has(.pocket-staff-bar) .tdy-upd { position: absolute; top: 3px; right: 0; margin: 0; }
             body:has(.pocket-staff-bar) .tdy-date { font-size: 16px; font-weight: 600; color: var(--text-secondary); }
             body:has(.pocket-staff-bar) .tdy-vw { display: flex; padding: 4px; border-radius: 14px; background: var(--surface-subtle); }
             body:has(.pocket-staff-bar) .tdy-vw button { flex: 1; min-height: 44px; border-radius: 10px; font-size: 13px; padding: 0 12px; }
@@ -9851,6 +9867,12 @@
         /* STAFF-PHONE:END */
         /* TODAY: what is waiting on you (097-today). Reads only; no checkboxes. */
         .tdy { max-width: 880px; margin: 0 auto; padding: 36px 24px 80px; font-family: 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); }
+        /* Today's saved copy is on screen; the fresh read replaces it in place. */
+        .tdy-upd { display: inline-flex; align-items: center; gap: 6px; margin: 0 auto 0 12px; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-upd::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: tdy-upd-pulse 1.2s ease-in-out infinite; }
+        .tdy-upd[hidden] { display: none; }
+        @keyframes tdy-upd-pulse { 50% { opacity: 0.25; } }
+        @media (prefers-reduced-motion: reduce) { .tdy-upd::before { animation: none; } }
         .tdy-note { color: var(--text-secondary); font-size: 0.85rem; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px 16px; margin: 0 0 18px; }
         .tdy-skel .tdy-mrow { margin-top: 8px; }
         .tdy-skel .tdy-rg { cursor: default; }
@@ -11865,6 +11887,62 @@
     </div>
     <div id="content">
         <span class="sr-only" id="bootLoadingText">Loading...</span>
+        <!-- Today: the same shape _tdySkeletonHtml (097-today) paints. FIRST in
+             #content on purpose: a phone draws while it is still reading the
+             page, and when Today's shape sat behind the other tabs' shapes a
+             frame could show #content empty (blank) before it (qa/today/
+             today-no-flicker.js, 2 of 9 phone runs, 2026-10-07). -->
+        <div class="boot-skeleton-variant boot-skeleton-today">
+            <div class="tdy"><div class="tdy-skel" role="status" aria-label="Loading Today">
+                <div class="tdy-top"><div class="sv-skeleton sv-skeleton-line" style="width:190px;height:16px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:170px;height:34px;"></div></div>
+                <div class="sv-skeleton sv-skeleton-pill" style="width:100%;height:10px;"></div>
+                <div class="tdy-mrow"><div class="sv-skeleton sv-skeleton-line" style="width:130px;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:80px;height:12px;"></div></div>
+                <div class="sv-skeleton sv-skeleton-line" style="width:min(300px,70%);height:36px;margin:4px 0 18px;"></div>
+                <div class="tdy-rings"><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div></div>
+                <div class="tdy-ls"><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:62%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:48%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:54%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div></div>
+            </div></div>
+        </div>
+        <script>
+        /* TODAY, PAINTED FROM THE FIRST BYTES (owner, 2026-10-07: Today should
+           feel instant on a reload). When the page opens on Today, paint the
+           last Today this same person saw in this browser today (saved by
+           097-today, _tdyPaintWrite), marked "Updating", instead of the grey
+           shape above. The app replaces it in place once its own read lands.
+           Shown only when the saved page belongs to the stored staff member
+           (same member id and role), was written today, and the staff check
+           (the early key-verify, started in <head>) has PASSED: nothing is
+           painted while it is pending (Codex P1 on PR 1987: a revoked key must
+           not get even a flash). A check that fails deletes the saved page.
+           The app, whose own paint waits for the same check, may get there
+           first; then this does nothing. */
+        (function () {
+            try {
+                if (document.documentElement.getAttribute('data-boot-nav') !== 'today') return;
+                // Phone: the app paints the saved copy together with the phone
+                // Today bar in one frame; painting it here first, before that
+                // bar exists, would show the desktop layout for a moment.
+                if (window.matchMedia && window.matchMedia('(max-width: 767px)').matches) return;
+                var host = document.currentScript && document.currentScript.previousElementSibling;
+                if (!host || !host.classList.contains('boot-skeleton-today')) return;
+                var id = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+                var s = JSON.parse(localStorage.getItem('syncview_today_paint_v1') || 'null');
+                if (!id || !id.key || !id.member || !id.member.id || !s || typeof s.html !== 'string') return;
+                var d = new Date();
+                var day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                var who = String(id.member.id) + '|' + String(id.role || id.member.role || '').toLowerCase();
+                if (s.who !== who || s.day !== day || !(Date.now() - Number(s.at || 0) < 864e5)) return;
+                var kv = window.__svEarlyKeyVerify;
+                if (!kv || !kv.response || kv.memberId !== String(id.member.id) || kv.key !== String(id.key)) return;
+                var drop = function () { try { localStorage.removeItem('syncview_today_paint_v1'); } catch (e) {} };
+                kv.response.then(function (r) { return r.ok ? r.clone().json() : null; }).then(function (j) {
+                    if (!(j && j.ok === true)) return drop();
+                    // Still the boot shell (the app has not mounted Today yet).
+                    if (!host.isConnected || document.getElementById('tdyRoot')) return;
+                    host.innerHTML = '<div class="tdy" data-tdy-early="1">' + s.html.replace('</h1>', '</h1><span class="tdy-upd" role="status">Updating</span>') + '</div>';
+                }, drop);
+            } catch (e) {}
+        })();
+        </script>
         <div class="boot-skeleton-variant boot-skeleton-analytics">
         <div class="overview-wrap analytics-overview-skeleton" role="status" aria-live="polite" aria-label="Loading">
             <div class="overview-controls">
@@ -11996,17 +12074,6 @@
                     <div class="table-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:69%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:72%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:82%;"></div><div class="sv-skeleton sv-skeleton-pill" style="height:22px;width:78px;"></div></div>
                 </div>
             </div>
-        </div>
-        <!-- Today: the same shape _tdySkeletonHtml (097-today) paints. -->
-        <div class="boot-skeleton-variant boot-skeleton-today">
-            <div class="tdy"><div class="tdy-skel" role="status" aria-label="Loading Today">
-                <div class="tdy-top"><div class="sv-skeleton sv-skeleton-line" style="width:190px;height:16px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:170px;height:34px;"></div></div>
-                <div class="sv-skeleton sv-skeleton-pill" style="width:100%;height:10px;"></div>
-                <div class="tdy-mrow"><div class="sv-skeleton sv-skeleton-line" style="width:130px;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:80px;height:12px;"></div></div>
-                <div class="sv-skeleton sv-skeleton-line" style="width:min(300px,70%);height:36px;margin:4px 0 18px;"></div>
-                <div class="tdy-rings"><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div><div class="tdy-rg"><div class="sv-skeleton sv-skeleton-dot" style="width:56px;height:56px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:10px;"></div></div></div>
-                <div class="tdy-ls"><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:62%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:48%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:70%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div><div class="tdy-rw"><div class="sv-skeleton sv-skeleton-dot" style="width:24px;height:24px;"></div><div class="tdy-who"><div class="sv-skeleton sv-skeleton-line" style="width:54%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:10px;margin-top:6px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:30px;"></div></div></div>
-            </div></div>
         </div>
         <div class="boot-skeleton-variant boot-skeleton-workload">
             <div class="boot-page-skeleton" role="status" aria-label="Loading">
@@ -12171,8 +12238,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-2fa2c945c6ba.js";
-        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e6d180213730.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-263b1a3c6743.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-2e77fa95aa36.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-cd04a8fa3f32.js";
+        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-0835b7db4535.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-263b1a3c6743.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-382e40c04792.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-120e08ae3620.js","kasper":"js/sv-16-kasper-7f446f6f9a66.js"};
         var FORCE = null;
         var CLIENTS = true;

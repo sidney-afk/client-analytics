@@ -67,6 +67,7 @@ async function verify(page, name, width, theme) {
     const surface = await phoneRules.activeSurface(page);
     const geometry = await phoneRules.inspect(page, surface);
     if (geometry.overlaps.length) faults.push('independent controls overlap: ' + JSON.stringify(geometry.overlaps.slice(0, 8)));
+    if (geometry.misalignedActions.length) faults.push('caption actions detached or misaligned: '+JSON.stringify(geometry.misalignedActions));
     if (surface !== 'body') await phoneRules.scrollLock(page, surface);
     if (m.pageWidth > width + 1) faults.push('sideways page scroll');
     if (m.small.length) faults.push('targets under 44px: ' + JSON.stringify(m.small.slice(0, 5)));

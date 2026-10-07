@@ -10,7 +10,9 @@ screen's menus at 390/430 in both themes, caption states and keyboard viewport.
 The existing final-pass and admin suites also use those geometry/lock checks.
 `qa/staff-phone-final-pass.js --all-states` includes every existing staff/Finch
 scenario. Private captures and public-safe results are described in
-`docs/audits/2026-10-07-staff-phone-feedback.md`.
+`docs/audits/2026-10-07-staff-phone-feedback.md`, with the per-state inventory in
+`docs/audits/2026-10-07-staff-phone-states.md` and exact check endings in
+`docs/audits/2026-10-07-staff-phone-checks.md`.
 
 Staff phone final pass: `qa/staff-phone-final-pass.js` drives the generated app
 with the existing fictional browser transports, checks phone controls and

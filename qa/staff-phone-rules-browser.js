@@ -21,6 +21,7 @@ async function layout(page,label) {
   await capture(page,label);
   assert(result.pageWidth<=result.width+1,label+': sideways scroll');
   assert.deepEqual(result.overlaps,[],label+': overlaps');
+  assert.deepEqual(result.misalignedActions,[],label+': caption action placement');
   assert.deepEqual(result.small,[],label+': small controls');
   assert.deepEqual(result.fields,[],label+': small field text');
   receipts.push({label,controls:result.controls,surface});
@@ -85,6 +86,15 @@ async function screen(browser,origin,width,theme,route) {
     }
     if(route==='calendar') {
       const wrap=page.locator('.cal-cap-wrap').filter({visible:true}).first(),ta=wrap.locator('textarea'),toggle=wrap.locator('.cal-cap-toggle');
+      const actions=await wrap.evaluate(el=>{
+        const field=el.querySelector('textarea').getBoundingClientRect();
+        return [...el.querySelectorAll('.cal-cap-gen, .cal-cap-gen-x, .cal-cap-toggle')]
+          .filter(button=>button.checkVisibility({checkVisibilityCSS:true}))
+          .map(button=>{const r=button.getBoundingClientRect();return {name:button.className,gap:r.top-field.bottom,center:r.top+r.height/2,height:r.height};});
+      });
+      assert(actions.length>=2,prefix+': caption action row missing');
+      assert(actions.every(a=>a.gap>=-1&&a.gap<=24),prefix+': caption action detached from its field');
+      assert(Math.max(...actions.map(a=>a.center))-Math.min(...actions.map(a=>a.center))<=1,prefix+': caption actions misaligned '+JSON.stringify(actions));
       const height=await ta.evaluate(el=>el.clientHeight);
       await toggle.tap();await settle(page);assert((await ta.evaluate(el=>el.clientHeight))>height+20,prefix+': caption did not expand');
       assert.equal(await toggle.getAttribute('aria-expanded'),'true');

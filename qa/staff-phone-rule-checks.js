@@ -30,8 +30,18 @@ async function inspect(page, root = 'body') {
         if(w>1&&h>1)overlaps.push({a:name(warning),b:b.name,w,h});
       }
     }
+    const misalignedActions=[];
+    for(const wrap of scope.querySelectorAll('.cal-cap-wrap')) {
+      const field=wrap.querySelector('textarea');
+      if(!field||!visible(field))continue;
+      const r=field.getBoundingClientRect();
+      const actions=[...wrap.querySelectorAll('.cal-cap-gen, .cal-cap-gen-x, .cal-cap-toggle')].filter(visible)
+        .map(button=>{const b=button.getBoundingClientRect();return {name:name(button),gap:b.top-r.bottom,center:b.top+b.height/2};});
+      if(actions.some(a=>a.gap < -1 || a.gap > 24) || actions.length>1 && Math.max(...actions.map(a=>a.center))-Math.min(...actions.map(a=>a.center))>1)
+        misalignedActions.push(actions);
+    }
     const fields=nodes.filter(el=>el.matches('input:not([type=checkbox]):not([type=radio]),textarea,select')).filter(el=>parseFloat(getComputedStyle(el).fontSize)<16).map(name);
-    return {width:innerWidth,pageWidth:document.documentElement.scrollWidth,small,overlaps,fields,controls:nodes.length};
+    return {width:innerWidth,pageWidth:document.documentElement.scrollWidth,small,overlaps,misalignedActions,fields,controls:nodes.length};
   },root);
 }
 
@@ -58,6 +68,7 @@ async function assertLayout(page, label, root='body') {
   assert(result.pageWidth<=result.width+1,label+': horizontal overflow');
   assert.deepEqual(result.small,[],label+': targets below 44px');
   assert.deepEqual(result.overlaps,[],label+': independent controls overlap');
+  assert.deepEqual(result.misalignedActions,[],label+': caption actions detached or misaligned');
   assert.deepEqual(result.fields,[],label+': fields below 16px');
   return result;
 }

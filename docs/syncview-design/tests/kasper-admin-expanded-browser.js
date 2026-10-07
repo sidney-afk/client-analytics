@@ -130,6 +130,7 @@ async function capture(page,label,width,theme) {
     const surface=await phoneRules.activeSurface(page);
     const geometry=await phoneRules.inspect(page,surface);
     expect(!geometry.overlaps.length,label+': controls overlap '+JSON.stringify(geometry.overlaps));
+    expect(!geometry.misalignedActions.length,label+': caption actions detached or misaligned '+JSON.stringify(geometry.misalignedActions));
     if(surface!=='body')await phoneRules.scrollLock(page,surface);
     expect(metrics.scrollWidth <= width + 1,label + ': sideways page scroll ' + metrics.scrollWidth);
     for (const c of metrics.controls) expect(c.w >= 43.5 && c.h >= 43.5,label + ': target below 44px ' + JSON.stringify(c));

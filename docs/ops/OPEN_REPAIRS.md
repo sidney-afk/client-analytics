@@ -30769,7 +30769,7 @@ pending-read failures remain reported. Physical phones and deployment are not
 verified. No live approvals, comments, uploads or PTO writes, database changes,
 workflow edits or deployment. Way back: revert this PR and rebuild the fragments.
 
-## 359. [2026-10-07, BUILT, NOT RUN LIVE] Test tooling stops writing calendar cards through the n8n "Calendar — Upsert Post" webhook
+## 360. [2026-10-07, BUILT, NOT RUN LIVE] Test tooling stops writing calendar cards through the n8n "Calendar — Upsert Post" webhook
 
 Measured 2026-10-07: all 344 runs in 24 h of the n8n workflow "SyncView Calendar — Upsert Post" (and so its "Calendar Comment Merge" helper) came from test tooling, none from the website, which already saves through the `calendar-upsert` Edge Function. The callers that actually sent requests are moved to `https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert`, with the same body (`{ client: 'sidneylaruel', post, comments_base_at }`) and the same `{ ok, post }` answer, so every check on the response is unchanged:
 1. `qa/golden_lib.js` `up()`: the seed/mutate/archive write behind every golden probe and, through `qa/probes/lib.js` (`Q.up`; its `UPSERT` is now re-exported from golden_lib), every calendar probe in the nightly lanes (the `p_sa_*` cards of `p34_set_all.js`, `p66_stale_approval_clear.js`, and the rest).

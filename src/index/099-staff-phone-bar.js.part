@@ -92,8 +92,12 @@
                 // Keep its header popover closed; its actions are proxied below.
                 const account = control('headerMenuButton'), popover = document.getElementById('staffAccountPopover');
                 if (account && popover) {
+                    // The opener re-reads the stored theme and status colors; keep what is on screen.
+                    const root = document.documentElement, theme = root.dataset.theme, palette = root.dataset.statusPalette;
                     if (popover.hidden) account.click();
                     if (!popover.hidden) account.click();
+                    if (root.dataset.theme !== theme) _syncviewApplyTheme(theme === 'dark' ? 'dark' : 'light', false);
+                    if (root.dataset.statusPalette !== palette) _syncviewApplyStatusPalette(palette === 'classic' ? 'classic' : 'vibrant');
                 }
                 const group = document.createElement('div'); group.className = 'sv-phone-proxies';
                 const title = document.createElement('p'); title.className = 'sv-phone-tools'; title.textContent = 'Tools'; group.append(title);
@@ -101,6 +105,8 @@
                     if (!el || el.hidden || el.style.display === 'none') return;
                     const b = document.createElement('button'); b.type = 'button'; b.className = cls || '';
                     b.disabled = !!el.disabled;
+                    // Names the native control this row stands in for (the sheet's own click handler skips proxy rows).
+                    if (el.id) b.dataset.proxy = el.id;
                     b.innerHTML = '<span>' + esc(label) + '</span>' + next;
                     b.addEventListener('click', () => { dialog.close(); setTimeout(() => picker ? window.svPhoneOpenClientPicker() : el.click(), 0); }); group.append(b);
                 };

@@ -33,6 +33,21 @@
 //
 // action "status" says whether Sheet writing is configured, and which Google
 // account the Sheet must be shared with. It never returns a secret.
+//
+// The Clients tab's manager picker and history (same admin key and member):
+//   list_managers  -- every active social media manager, and which one owns
+//                     each client (a client sits on exactly one manager's
+//                     source_clients list; the first by slug wins, as in
+//                     smm_assign_client);
+//   assign_manager -- moves one client to another active manager through the
+//                     same smm_assign_client transaction roster-write uses
+//                     (role "admin", the member's name as the editor), so the
+//                     move lands in smm_assignment_edits and the Sheet copy is
+//                     queued. It refuses if the client's manager changed since
+//                     the page loaded it (expected_manager_slug), never creates
+//                     a manager, and is refused by the database unless SyncView
+//                     is the main copy;
+//   history        -- the newest edits to one client's details and manager.
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
 import { clientSlug } from "../_shared/sheets-mirror.mjs";
@@ -181,6 +196,94 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
   return json({ ok: true, native: true, fields, request_id: requestId, row: result.row, sheet_copy: sheetCopy });
 }
 
+const MANAGER_SLUG = /^[a-z0-9&]+$/;
+type Roster = { managers: { slug: string; name: string }[]; byName: Map<string, string> };
+
+// Active managers, and client name (lower case) -> manager slug. Ordered by
+// slug so a client wrongly on two lists resolves the way smm_assign_client does.
+async function managerRoster(supabase: SupabaseClient): Promise<Roster> {
+  const { data, error } = await supabase.from("social_media_managers").select("slug,name,source_clients").eq("active", true).order("slug");
+  if (error) throw error;
+  const byName = new Map<string, string>();
+  const managers: { slug: string; name: string }[] = [];
+  for (const m of (data || []) as JsonMap[]) {
+    const slug = clean(m.slug);
+    if (!slug) continue;
+    managers.push({ slug, name: clean(m.name) || slug });
+    for (const c of Array.isArray(m.source_clients) ? m.source_clients : []) {
+      const k = clean(c).toLowerCase();
+      if (k && !byName.has(k)) byName.set(k, slug);
+    }
+  }
+  return { managers, byName };
+}
+
+async function listManagers(supabase: SupabaseClient): Promise<Response> {
+  const roster = await managerRoster(supabase);
+  const { data, error } = await supabase.from("client_profiles").select("slug,display_name").limit(2000);
+  if (error) throw error;
+  const assignments: Record<string, string> = {};
+  for (const r of (data || []) as JsonMap[]) {
+    const m = roster.byName.get(clean(r.display_name).toLowerCase());
+    if (m) assignments[clean(r.slug)] = m;
+  }
+  return json({ ok: true, managers: roster.managers, assignments });
+}
+
+async function assignManager(supabase: SupabaseClient, body: JsonMap, member: { id: string; name: string }): Promise<Response> {
+  const slug = clientSlug(body.slug);
+  if (!slug) return json({ ok: false, error: "missing_client" }, 400);
+  const managerSlug = clean(body.manager_slug);
+  if (!MANAGER_SLUG.test(managerSlug)) return json({ ok: false, error: "bad_manager" }, 400);
+  const { data: row, error: rowErr } = await supabase.from("client_profiles").select("slug,display_name,archived_at").eq("slug", slug).maybeSingle();
+  if (rowErr) throw rowErr;
+  const profile = row as JsonMap | null;
+  if (!profile) return json({ ok: false, error: "client_profile_missing" }, 404);
+  if (profile.archived_at) return json({ ok: false, error: "client_profile_archived" }, 409);
+  const roster = await managerRoster(supabase);
+  const target = roster.managers.find(m => m.slug === managerSlug);
+  if (!target) return json({ ok: false, error: "bad_manager" }, 400);
+  const current = roster.byName.get(clean(profile.display_name).toLowerCase()) || "";
+  if ("expected_manager_slug" in body && clean(body.expected_manager_slug) !== current) {
+    return json({ ok: false, error: "manager_changed", manager_slug: current || null }, 409);
+  }
+  if (current === managerSlug) return json({ ok: true, unchanged: true, manager_slug: current });
+  const { data, error: rpcErr } = await supabase.rpc("smm_assign_client", {
+    p_client_slug: slug,
+    p_client_name: clean(profile.display_name),
+    p_manager_slug: target.slug,
+    p_manager_name: target.name,
+    p_slack_profile_url: "",
+    p_actor: member.name,
+    p_role: "admin",
+    p_request_id: crypto.randomUUID(),
+  });
+  if (rpcErr) {
+    if (String(rpcErr.message).includes("roster_authority_not_syncview")) return json({ ok: false, error: "authority_not_syncview" }, 409);
+    console.error("client-profile-write: assign_manager failed", rpcErr.message);
+    return json({ ok: false, error: "write_failed" }, 500);
+  }
+  // Best effort: never turns a saved move into a failure.
+  const sheetCopy = await copyToSheet({ store: makeStore(supabase), env: Deno.env, fetchFn: fetch });
+  const out = (data || {}) as JsonMap;
+  return json({ ok: true, manager_slug: target.slug, old_manager_slug: out.old_manager_slug || null, sheet_copy: sheetCopy });
+}
+
+async function history(supabase: SupabaseClient, body: JsonMap): Promise<Response> {
+  const slug = clientSlug(body.slug);
+  if (!slug) return json({ ok: false, error: "missing_client" }, 400);
+  const { data: row, error: rowErr } = await supabase.from("client_profiles").select("display_name").eq("slug", slug).maybeSingle();
+  if (rowErr) throw rowErr;
+  if (!row) return json({ ok: false, error: "client_profile_missing" }, 404);
+  const [edits, moves] = await Promise.all([
+    supabase.from("client_profile_edits").select("field,old_value,new_value,edited_by,edited_at").eq("slug", slug).order("edited_at", { ascending: false }).limit(25),
+    supabase.from("smm_assignment_edits").select("old_manager_slug,new_manager_slug,edited_by,edited_at").eq("client_name", clean((row as JsonMap).display_name)).order("edited_at", { ascending: false }).limit(10),
+  ]);
+  if (edits.error) throw edits.error;
+  if (moves.error) throw moves.error;
+  return json({ ok: true, edits: edits.data || [], manager_moves: moves.data || [] });
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -203,10 +306,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (action === "status") {
       return json({ ok: true, sheet_configured: !!(sa && sheetId), service_account: sa ? sa.email : null, sheet_id_secret: SHEET_ID_SECRET });
     }
-    if (action !== "update_client_profile" && action !== "refresh_from_sheet") return json({ ok: false, error: "unknown_action" }, 400);
+    const PICKER_ACTIONS = ["list_managers", "assign_manager", "history"];
+    if (action !== "update_client_profile" && action !== "refresh_from_sheet" && !PICKER_ACTIONS.includes(action)) return json({ ok: false, error: "unknown_action" }, 400);
 
     const member = await adminMember(supabase, clean(body.member_id));
     if (!member) return json({ ok: false, error: "admin_member_required" }, 403);
+    if (action === "list_managers") return await listManagers(supabase);
+    if (action === "assign_manager") return await assignManager(supabase, body, member);
+    if (action === "history") return await history(supabase, body);
     const mode = await authority(supabase);
     if (mode === "syncview" && action === "update_client_profile") return await nativeUpdate(supabase, body, member);
     if (mode !== "sheet") return json({ ok: false, error: "authority_not_sheet" }, 409);

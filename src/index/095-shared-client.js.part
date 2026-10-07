@@ -560,6 +560,6 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         svOpenAnalytics
     });
 export {
-  SV_CLIENT_FOLLOW_TABS, _svClientPhoneActive, _svClientPhoneMount, _svClientPhoneRestore, _svClientPhoneRegisterSamplesRefresh, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
+  SV_CLIENT_FOLLOW_TABS, _svClientHue, _svClientPhoneActive, _svClientPhoneMount, _svClientPhoneRestore, _svClientPhoneRegisterSamplesRefresh, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
   svSharedClientGet, svSharedClientNote
 };

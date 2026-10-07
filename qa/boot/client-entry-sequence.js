@@ -832,6 +832,14 @@ function installBfcacheSyntheticNetwork(config) {
         state.captionBoundaryRequests.push({ at, method, path: url.pathname, url: url.href });
         return jsonResponse([]);
       }
+      // Today's own read (097-today, started in the background at boot since
+      // 2026-10-07): every client, the next 14 days, no client filter. It is
+      // not a Calendar read, so it is recorded under its own kind, answered at
+      // once, and the Calendar counts stay exact.
+      if (url.pathname === '/rest/v1/calendar_posts' && !url.searchParams.has('client') && url.searchParams.getAll('scheduled_date').length === 2) {
+        state.sensitiveClientReads.push({ kind: 'today_posts', at, url: url.href });
+        return jsonResponse([]);
+      }
       if (url.pathname === '/rest/v1/calendar_posts') {
         const read = {
           index: state.sensitiveClientReads.filter(item => item.kind === 'calendar_posts').length,
@@ -930,6 +938,13 @@ function installBfcacheSyntheticNetwork(config) {
       }
     }
 
+    // Today's own work-item reads (097-today, started in the background at
+    // boot since 2026-10-07): not a Calendar read; answered empty.
+    if (method === 'GET' && url.pathname === '/rest/v1/production_deliverables_browser_v1'
+      && (url.search.includes('select=id,client_slug,team,kind,title,status,status_at,assignee_id') || url.searchParams.has('raw_issue_parent_id'))) {
+      state.sensitiveClientReads.push({ kind: 'today_items', at, url: url.href });
+      return jsonResponse([]);
+    }
     state.unmocked.push({ at, method, url: url.href });
     return jsonResponse({ ok: false, error: 'synthetic_unmocked_request' }, 599);
   };
@@ -1042,6 +1057,12 @@ function installHeldTailPostLoad(config) {
 
     /* The Calendar reads calendar_posts only (n8n exit, step F: the calendar-get webhook is
        retired), so the held-tail harness answers that table and counts it as the calendar read. */
+    // Today's own background read (every client, next 14 days) is not a Calendar read.
+    if (method === 'GET'
+      && url.hostname === 'uzltbbrjidmjwwfakwve.supabase.co'
+      && url.pathname === '/rest/v1/calendar_posts' && !url.searchParams.has('client') && url.searchParams.getAll('scheduled_date').length === 2) {
+      return jsonResponse([]);
+    }
     if (method === 'GET'
       && url.hostname === 'uzltbbrjidmjwwfakwve.supabase.co'
       && url.pathname === '/rest/v1/calendar_posts') {
@@ -1355,6 +1376,15 @@ async function installSyntheticNetwork(context, origin, config = {}) {
         await fulfillJson(route, []);
         return;
       }
+      // Today's own read (097-today, started in the background at boot since
+      // 2026-10-07): every client, the next 14 days, no client filter. It is
+      // not a Calendar read, so it is recorded under its own kind, answered at
+      // once, and the Calendar counts stay exact.
+      if (url.pathname === '/rest/v1/calendar_posts' && !url.searchParams.has('client') && url.searchParams.getAll('scheduled_date').length === 2) {
+        state.sensitiveClientReads.push({ kind: 'today_posts', at, url: rawUrl });
+        await fulfillJson(route, []);
+        return;
+      }
       if (url.pathname === '/rest/v1/calendar_posts') {
         const read = { at, url: rawUrl };
         state.calendarReads.push(read);
@@ -1407,6 +1437,12 @@ async function installSyntheticNetwork(context, origin, config = {}) {
       }
     }
 
+    // Today's own work-item reads (see the fetch harness above): answered empty.
+    if (request.method() === 'GET' && url.pathname === '/rest/v1/production_deliverables_browser_v1'
+      && (url.search.includes('select=id,client_slug,team,kind,title,status,status_at,assignee_id') || url.searchParams.has('raw_issue_parent_id'))) {
+      await fulfillJson(route, []);
+      return;
+    }
     state.unmocked.push({ method: request.method(), url: rawUrl, resourceType: request.resourceType() });
     await route.abort('blockedbyclient');
   });

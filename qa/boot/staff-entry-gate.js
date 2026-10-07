@@ -46,12 +46,19 @@ function serve() {
 // keyVerify: 'ok' | 401 | 'down'. `suffix` is appended to the address (the
 // Linear tab is opened with '?prod=1'); `prodRows` answers the two big
 // SyncLinear reads with an empty list so a case can count how often each is asked.
-async function openPage(browser, origin, { identity, keyVerify, suffix, prodRows }) {
+async function openPage(browser, origin, { identity, keyVerify, suffix, prodRows, storage, init }) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await context.addInitScript(value => {
     if (value) localStorage.setItem('syncview_staff_identity_v1', value);
     else localStorage.removeItem('syncview_staff_identity_v1');
   }, identity ? JSON.stringify(identity) : null);
+  // Extra saved keys, written once (a reload must see what the page left).
+  if (storage) await context.addInitScript(items => {
+    if (sessionStorage.getItem('gate_seeded')) return;
+    sessionStorage.setItem('gate_seeded', '1');
+    for (const k of Object.keys(items)) localStorage.setItem(k, items[k]);
+  }, storage);
+  if (init) await context.addInitScript(init);
   // Playwright tries the most recently registered route first, so this
   // catch-all goes in BEFORE the specific stubs or it swallows them.
   await context.route('**/*', route => (route.request().url().startsWith(origin) ? route.continue() : route.abort()));
@@ -197,6 +204,58 @@ function identity(verifiedAt) {
       ok(leakedDown.length === 0, 'and a blocked verifier loads no staff data either'
         + (leakedDown.length ? ' (leaked: ' + leakedDown.length + ')' : ''));
       await context.close();
+    }
+
+    // 3b. TODAY'S SAVED PAGE (owner, 2026-10-07). The boot shell paints the
+    //     last Today this person saw, straight from storage, before the app
+    //     runs, but only once the staff check has passed: a stored identity
+    //     the verifier refuses (or cannot reach) never shows it, not even
+    //     briefly, and the saved page is deleted (Codex P1 on PR 1987).
+    {
+      const d = new Date();
+      const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const saved = JSON.stringify({ who: MEMBER.id + '|' + MEMBER.role, at: Date.now(), day,
+        html: '<div class="tdy-top"><h1 class="tdy-date">Gate day</h1></div><p class="tdy-big">GATE-SAVED-MARKER</p>' });
+      const watch = () => {
+        window.__sawEarly = false;
+        new MutationObserver(() => { if (document.querySelector('[data-tdy-early]')) window.__sawEarly = true; })
+          .observe(document, { childList: true, subtree: true });
+      };
+      for (const [kv, label] of [[401, 'rejected'], ['down', 'unreachable']]) {
+        const { context, page } = await openPage(browser, origin, {
+          identity: identity(new Date().toISOString()), keyVerify: kv, suffix: '#today',
+          storage: { syncview_today_paint_v1: saved }, init: watch
+        });
+        await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
+        await page.waitForTimeout(500);
+        const after = await page.evaluate(() => ({
+          shown: !!document.querySelector('[data-tdy-early]') || document.getElementById('content').innerText.indexOf('GATE-SAVED-MARKER') >= 0,
+          kept: !!localStorage.getItem('syncview_today_paint_v1')
+        }));
+        ok(!after.shown && await page.evaluate(() => window.__sawEarly === false),
+          'a saved Today page is never painted, not even briefly, when the staff check is ' + label);
+        ok(!after.kept, 'and the saved page is deleted (' + label + ')');
+        await context.close();
+      }
+      {
+        const { context: c2, page } = await openPage(browser, origin, {
+          identity: identity(new Date().toISOString()), keyVerify: 'ok', suffix: '#today',
+          storage: { syncview_today_paint_v1: saved }, init: watch
+        });
+        await page.waitForTimeout(800);
+        ok(await page.evaluate(() => window.__sawEarly === true), 'with a passing staff check the saved Today page is painted by the boot shell');
+        await c2.close();
+      }
+      {
+        const other = JSON.stringify({ ...JSON.parse(saved), who: 'someone-else|smm' });
+        const { context: c3, page } = await openPage(browser, origin, {
+          identity: identity(new Date().toISOString()), keyVerify: 'ok', suffix: '#today',
+          storage: { syncview_today_paint_v1: other }, init: watch
+        });
+        await page.waitForTimeout(800);
+        ok(await page.evaluate(() => window.__sawEarly === false), "another person's saved Today page is never painted");
+        await c3.close();
+      }
     }
 
     // 4. The same holds for an old identity: there is no timestamp, recent or

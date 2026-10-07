@@ -8,10 +8,10 @@
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
-| 3 | `005-head-boot.html.part` | 399 | NOT render-blocking, and the reason is measured rather than assumed. |
-| 4 | `010-styles-foundation.css.part` | 3931 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7068 | Templates view |
-| 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
+| 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
+| 4 | `010-styles-foundation.css.part` | 3943 | Video and Thumbnail share the same vibrant pink/blue pair the |
+| 5 | `020-styles-surfaces.css.part` | 7076 | Templates view |
+| 6 | `030-body-shell.html.part` | 558 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2080 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2364 | Multiple links per link field (client photos, thumbnail, reference reel) |
@@ -27,10 +27,10 @@
 | 19 | `092-core-submit-form-navigation.js.part` | 899 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 20 | `095-shared-client.js.part` | 565 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 22 | `097-today.js.part` | 624 | TODAY (owner design , session Compass). |
-| 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 24 | `099-phone-staff-shell.js.part` | 222 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
-| 25 | `099-staff-phone-bar.js.part` | 461 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
+| 22 | `097-today.js.part` | 793 | TODAY (owner design , session Compass). |
+| 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
+| 24 | `099-phone-staff-shell.js.part` | 225 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
+| 25 | `099-staff-phone-bar.js.part` | 464 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 26 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
@@ -56,7 +56,7 @@
 | 48 | `230-production-create-comments.js.part` | 2717 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 49 | `240-production-description.js.part` | 2709 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3093 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 51 | `260-production-refresh-boot.js.part` | 2813 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3058 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 53 | `280-samples-cards-notes.js.part` | 2946 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

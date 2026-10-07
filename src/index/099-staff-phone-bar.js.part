@@ -52,6 +52,9 @@
             if (document.documentElement.classList.contains('boot-client')) return '';
             if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return '';
             if (document.querySelector('#content > .pto-wrap')) return 'Time Off';
+            // A page booting into Today (no tab active yet) already wears the
+            // Today bar, so the bar does not change when Today opens.
+            if (!activeNavId() && document.documentElement.getAttribute('data-boot-nav') === 'today') return 'Today';
             return POCKET_STAFF_PAGES[activeNavId()] || '';
         }
         function dialogHtml(kind, title) {

@@ -30815,6 +30815,25 @@ Who else reads the TikTokUpload tab: nothing outside the TikTok n8n workflows ab
 Proof (offline): `test/tiktok-upload-source.js` (handler and logic, fake Post For Me), `test/tiktok-upload-browser.js` (real page, the functions' own code), `test/tiktok-uploads-postgres.js` (the migration on a throwaway Postgres).
 Not proven live: the test client has no TikTok account in Post For Me.
 
+## 363. [2026-10-07, BUILT, MIGRATION APPLIED, FUNCTION NOT DEPLOYED, NOT PROVEN LIVE] Today feels instant, never flickers, and gains a staff-only "also sees" setting
+
+Source: owner, 2026-10-07 (session Compass, PR #1987).
+Speed:
+- Today's reads start before the tab opens: at boot, 1.5 s after the landing tab has its data, and on pointer, touch or focus of the Today tab (desktop nav and the phone Tabs row). Opening the tab joins that read; an answer under 20 s old is shown as fresh.
+- Until Clients Info lands with the big Analytics read, the clients table's active non-test rows stand in for the current-client list (35 of 35 the same on 2026-10-07); Today reads again only if the two differ once Clients Info arrives. "My clients" never uses the stand-in.
+- On desktop, a reload that opens on Today paints the last Today this same person saw in this browser today, from the boot shell, but only AFTER the early staff check has passed (Codex P1 on #1987: a revoked key gets no flash). A failed check deletes the saved page. On a phone the app paints it, together with the phone Today bar.
+Seamless swap:
+- While Today waits it shows the grey shape in the layout of the real list (two columns of rings on a phone; no rings for editors).
+- Today patches the page in place instead of redrawing it: rows are matched by key, unchanged rows keep their element and are never written, and the "Updating" mark is hidden rather than removed (on a phone it sits on the date's own line), so nothing moves when the fresh list lands.
+- On a phone a page booting into Today no longer shows the Analytics bar while it waits (it read the default tab); it wears the Today bar from the start.
+Also sees:
+- `supabase/migrations/20261007150000_smm_also_sees.sql`: APPLIED live by the owner on 2026-10-07 (by hand; it is not in `supabase_migrations.schema_migrations`). Verified read-only on 2026-10-07: RLS on; the only grant beyond the owner role is service_role SELECT; 3 rows for one staff member (two roster-manager grants, one client grant).
+- `smm-weekly-reports` `options` returns the grants beside the roster (empty list if unreadable). Deploys on merge (deploy-onboarding-edge-functions.yml); until then the page simply finds no grants.
+- `svSmmCurrentClients` takes the grants, so Today and "My clients" agree; a staff member with no roster entry sees only their grants. The SMM roster itself is unchanged.
+Proof (offline): `qa/today/today-no-flicker.js` (every animation frame of a reload, desktop and phone: grey shape, saved copy, fresh list, never blank, never back; unchanged rows are the same elements and are never written; a live change writes only the changed row; a whole-list redraw fails it), `qa/boot/staff-entry-gate.js` (the saved page is never painted, even briefly, when the staff check is rejected or unreachable), `test/smm-client-match.js`, `test/today-render.js`. Timings: `qa/today/today-first-paint-measure.js`, numbers on the PR.
+Follow-up, same day: Lighthouse saw a blank frame between the loading screen and the grey shape in 2 of 9 phone runs. Cause: a phone draws while it is still reading the page, and Today's grey shape sat behind about 30 KB of other tabs' shapes in the content area, so a frame could show the content area empty. The shape is now the first thing in the content area; afterwards 25 of 25 phone runs and 25 of 25 full runs (desktop and phone) passed.
+Still open: the first ~90 ms of a phone load show only the page background, before the browser reaches the page's own markup (about 1.2 MB of styles come first). That is every tab, the same on main, and needs its own change.
+
 ## 364. [2026-10-07, BUILT, NOT DEPLOYED, VERIFICATION HOLD] Staff phone feedback rules
 
 Phone-only artifact and native transplant repair background scrolling under overlays,
@@ -30844,3 +30863,4 @@ concurrent open PRs reserved 363. The next free number is 364. Main was merged i
 matrix now runs only for relevant staff phone/shared UI or harness changes.
 Broad local unit failures remain under verification hold; this follow-up does
 not claim deployment or physical-device proof.
+

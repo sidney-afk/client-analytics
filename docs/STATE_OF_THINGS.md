@@ -37,9 +37,11 @@ here with where it stopped, so it can be restarted.
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
-  TikTok Upload (Courier, 2026-10-07, OPEN_REPAIRS 362): built behind the switch `tiktok_upload_source`, still on n8n.
-  Owner steps: approve and apply `migrations/2026-10-07-tiktok-uploads.sql`, deploy `tiktok-upload` and `tiktok-upload-cancel`,
-  flip the switch, run `scripts/tiktok-uploads-copy.js --apply`; then the six n8n TikTok workflows can be switched off (owner's go).
+  TikTok Upload (Courier, OPEN_REPAIRS 362): LIVE on Supabase since 2026-10-07 17:42 UTC (`tiktok_upload_source` = `supabase`,
+  sheet rows copied). Six n8n TikTok workflows switched off 2026-10-08 on the owner's go (`docs/ops/N8N_EDIT_LOG.md`). Still on:
+  `TikTok Upload, Result`, because Post For Me's result webhook points at it; it goes off once Courier's result action is deployed
+  and the webhook is re-pointed. Calendar Upsert Post and its Comment Merge helper were switched off the same day (zero runs since
+  2026-10-07 15:00 UTC; the page never sends Calendar saves to n8n since #1858).
 - **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
   checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
   shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the

@@ -31017,3 +31017,20 @@ centers, 1.89:1 light label contrast and an unlabeled keyboard-unreachable
 row disclosure. Those product repairs remain OPEN for the next batch. The
 branch has uploaded; Lighthouse still owns PR review/merge. The full phone
 round and separate fresh review remain OPEN.
+
+Batch 3 hosted-check follow-up (same PR #1994): entry-links-boot and split-preview
+exposed an existing empty Today circle squeezed to 34 x 36 px at 360 px. It was
+independently reproduced on the prior batch with a UTC host and Guatemala
+browser. The shared client-only phone marker now refuses flex shrink; the
+runner checks empty Today in Month and Week independently of the host date.
+The current source has 24 reviewed clean matrix cells and two extra 360 px
+Month reviews. Its native Calendar run passes 6,208 assertions at
+360/375/390/430. All 72 new desktop PNG/style pairs match the exact pre-follow-up
+head; modules, seven phone scope guards, map, truth, index and identity-exposure
+checks pass. Safe receipts and the before/after gallery live in
+`docs/audits/2026-10-07-prism-phone/batch-3/ci-followup/`.
+The 696-render staff sweep completed with zero reported problems on the initial
+source; those captures still require personal review and do not certify the
+changed source. Current coverage is 337 states/2,022 cells, 24 clean, with all
+other cells and 280 discovery obligations OPEN. Hosted rechecks, the full clean
+round, fresh review and deployment remain pending. Prism has not merged.

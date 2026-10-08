@@ -1,0 +1,42 @@
+{
+  "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+  "scope": "Final source local follow-up checks; hosted rechecks and full phone acceptance remain pending. Earlier broad phone results retain their original source binding.",
+  "actualTails": {
+    "ci-calendar-after": [
+      "CALENDAR_MARKER: {\"w\":36,\"h\":36,\"radius\":\"50%\",\"bg\":\"rgb(17, 17, 16)\",\"fg\":\"rgb(255, 255, 255)\"}",
+      "client-calendar-expanded: OK (6208 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/375/390/430; requested light/dark, effective client light)."
+    ],
+    "ci-desktop-cwd": [
+      "ok   client-sample-reviews @1920: pixels identical, computed styles identical (489f2b333237)",
+      "72/72 desktop shots identical to 20dbe73569aa9e7ae572b2fff139076b25fa1154"
+    ],
+    "ci-modules": [
+      "minified parts: 19 files, 2657 KB, 5216 top-level names, 0 lost, 0 changed kind",
+      "check-modules: all checks passed"
+    ],
+    "ci-repo-map": [
+      "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
+      "repo-map-sync: 1118 passed, 0 failed"
+    ],
+    "ci-index-head": [
+      "check-index: committed index.html (HEAD) \u2014 sha256=77ddae125eb67370d185c7a0d0bcd31bdc1105471fad109335ffe41da52b4b8e bytes=1314415",
+      "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    ],
+    "ci-exposure-staged": [
+      "  WHERE (counts only \u2014 this tool never prints what it matched):",
+      "This change adds no client slug and no colleague's name \u2705"
+    ],
+    "scope-guards": [
+      "client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width: <=767px) and html.boot-client)",
+      "kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)",
+      "finch-phone-css-scope: OK (1 block(s), 367 braces, all under @media (max-width: <=767px) and html.fph-on)",
+      "staff-selection-phone-css-scope: OK (1 block(s), 30 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])",
+      "staff-samples-phone-css-scope: OK (1 block(s), 344 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])",
+      "staff-phone-css-scope: OK (1 block(s), 367 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))",
+      "staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+    ],
+    "truth": [
+      "truth-sync: 515 passed, 0 failed"
+    ]
+  }
+}

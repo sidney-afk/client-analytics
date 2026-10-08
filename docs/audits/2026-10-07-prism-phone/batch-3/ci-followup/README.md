@@ -26,7 +26,10 @@ Actual focused check tail:
 client-calendar-expanded: OK (6208 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/375/390/430; requested light/dark, effective client light).
 ```
 
-Desktop comparison against the exact pre-follow-up head is still running.
+[Desktop proof](desktop.json) now records 72/72 exact PNG and computed-style pairs
+against the exact pre-follow-up head. The original batch 3 proof against batch 2
+and 32 focused loading pairs remain historical evidence. [Actual check tails](checks.json)
+include the final-source Calendar, module, scope, map, truth, index and exposure checks.
 Hosted rechecks remain pending. The 696-render staff sweep finished with zero
 reported problems on the initial source, but its screenshots await personal
 review and do not certify this changed source. No full round or fresh-review

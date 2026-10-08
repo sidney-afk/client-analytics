@@ -13,7 +13,8 @@ Retain the same native product fixtures, action assertions and screenshot review
 marker repairs. Its [CI follow-up](batch-3/ci-followup/README.md) has 24 personally
 reviewed matrix pairs on the current source, plus two 360 px Month comparisons.
 The original 72 broad desktop and 32 focused loading proofs remain historical;
-the changed source's desktop comparison and hosted rechecks are separate gates.
+the changed source now has 72/72 additional exact desktop pairs. Hosted rechecks
+remain a separate pending gate.
 The full phone finish line remains OPEN.
 
 [Coverage](COVERAGE.md) lists the native scenarios and all width/theme cells.

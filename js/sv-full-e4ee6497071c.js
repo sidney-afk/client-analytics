@@ -23332,6 +23332,17 @@
             throw _writeUiGatewayError(503, 'client_scope_unavailable');
         }
     }
+    /* A comment's change-request round, as the canonical table accepts it:
+       a whole number of 1 or more, otherwise no round at all. Older calendar
+       comments were stored with round 0, and a reply inherits its thread
+       root's round, so a reply under one of them sent round 0; the server
+       let it through and production_comments' CHECK (round > 0) threw, a 500
+       the page retried about 520 times (OPEN_REPAIRS 382). Every comment
+       write, and every queued retry of one, goes through this. */
+    function _writeUiCommentRound(value) {
+        const round = Number(value);
+        return value != null && value !== '' && Number.isInteger(round) && round > 0 ? round : null;
+    }
     function _writeUiNativeId(post, component) {
         if (!post) return '';
         // A component with no work item has no deliverable id -- least of all
@@ -25101,7 +25112,7 @@
                 parent_id: String(meta && meta.parentId || meta && meta.comment && meta.comment.parent_id || ''),
                 audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                 is_tweak: !!(meta && meta.isTweak),
-                round: meta && Number.isInteger(meta.round) ? meta.round : null
+                round: _writeUiCommentRound(meta && meta.round)
             } : null,
             attempted: false,
             native_committed: false
@@ -31520,7 +31531,7 @@
                         audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                         component,
                         is_tweak: !!(meta && meta.isTweak),
-                        round: meta && Number.isInteger(meta.round) ? meta.round : null,
+                        round: _writeUiCommentRound(meta && meta.round),
                         // The card the client link presents; the server matches
                         // it against the row card binding when one exists.
                         ...(clientGatewaySurface ? { card_id: clientGatewaySurface.card_id } : {})
@@ -57588,7 +57599,9 @@
                 attachments,
                 component: String(row.component || '').trim(),
                 is_tweak: _prodCommentTruthy(row.is_tweak),
-                round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+                // Number(null) is 0, which made every canonical comment with no
+                // round read back as round 0 (OPEN_REPAIRS 382).
+                round: _writeUiCommentRound(row.round),
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),
@@ -73446,7 +73459,7 @@
                     nativeId,
                     sourceEditedAt: comment && (comment.updated_at || comment.created_at),
                     requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
-                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: _writeUiCommentRound(meta && meta.round), ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
                 }, repair);
     }
     function _writeUiApplyJournalEdits(post, edits, surface) {
@@ -73623,7 +73636,7 @@
             created_at: String(row.source_created_at || fallback.created_at || row.created_at || lifecycleAt),
             updated_at: lifecycleAt,
             is_tweak: row.is_tweak === true || fallback.is_tweak === true,
-            round: Number.isInteger(row.round) ? row.round : (Number.isInteger(fallback.round) ? fallback.round : null),
+            round: _writeUiCommentRound(row.round) || _writeUiCommentRound(fallback.round),
             deleted: !!String(row.deleted_at || ''),
             done: !!String(row.resolved_at || ''),
             done_at: String(row.resolved_at || ''),
@@ -73791,7 +73804,7 @@
                 meta.parentId = intent.comment_meta && intent.comment_meta.parent_id;
                 meta.audience = intent.comment_meta && intent.comment_meta.audience;
                 meta.isTweak = !!(intent.comment_meta && intent.comment_meta.is_tweak);
-                meta.round = intent.comment_meta && Number.isInteger(intent.comment_meta.round) ? intent.comment_meta.round : null;
+                meta.round = _writeUiCommentRound(intent.comment_meta && intent.comment_meta.round);
                 acknowledgement = group.surface === 'sxr'
                     ? await _sxrPostLinearComment(_sxrLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta)
                     : await _calPostLinearComment(_calLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta);
@@ -88725,4 +88738,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-a3ce45b48138.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-e4ee6497071c.js");

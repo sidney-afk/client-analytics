@@ -133,6 +133,7 @@ function extractBlock(text, start) {
     extractFunction('_prodVerifiedClientCommentMutationContext'),
     extractFunction('_prodClientCommentSurfaceKey'),
     extractFunction('_prodCrosswalkKey'),
+    extractFunction('_writeUiCommentRound'),
     extractFunction('_prodCrosswalkVerdict'),
     extractFunction('_prodCanonicalCommentGate'),
     // The comment writer answers source-only for a component with no work

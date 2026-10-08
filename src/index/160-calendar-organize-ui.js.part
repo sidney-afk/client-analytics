@@ -2405,7 +2405,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
             </div>`;
         }
-        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)">`;
+        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)" onkeydown="_calOnLinkKey(event,this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
@@ -2444,6 +2444,24 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (!field) return;
         const post = calState.posts.find(p => p.id === input.dataset.pid);
         field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, false, post);
+    }
+    /* Escape and Enter close a thumbnail or video link box. The box had no key
+       handler at all, so Escape did nothing and the only way out was to click
+       somewhere else, which saved whatever was in the box (owner report,
+       2026-09-26). Enter keeps what was typed, like clicking away. Escape puts
+       back the link the box opened with: the box saves as you type, so the
+       old link goes back through the same input path before the blur, and a
+       half-typed link is never left on a card the client can see.
+       stopPropagation keeps this Escape from also leaving multi-select. */
+    function _calOnLinkKey(e, input) {
+        if (!e || !input || (e.key !== 'Escape' && e.key !== 'Enter')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape' && input.value !== input.defaultValue) {
+            input.value = input.defaultValue;
+            _calOnLinkInput(input);
+        }
+        input.blur();
     }
     function _calOpenLink(pid, fld) {
         const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);

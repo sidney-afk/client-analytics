@@ -834,8 +834,15 @@ import {
                             return;
                         }
                     if (e.key === 'Enter') {
-                        const selected = view === 'calendar' ? focusDay : _prodParseDue(inp.value);
+                        /* The calendar view's box says "Type a date", so a typed
+                           date wins over the highlighted day. It used to be
+                           ignored there: Enter saved the highlighted day (the
+                           current due date, or today) and toasted "Due date
+                           updated". Text that is not a date saves nothing. */
+                        const typed = String(inp.value || '').trim();
+                        const selected = typed ? _prodParseDue(typed) : (view === 'calendar' ? focusDay : '');
                         if (selected) apply(selected);
+                        else if (typed && view === 'calendar') _prodToast('That is not a date SyncView can read. Try Jul 20 2027 or 2027-07-20.');
                     }
                 });
                     try { inp.focus(); } catch (e) {}

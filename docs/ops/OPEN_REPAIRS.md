@@ -31108,3 +31108,11 @@ Fixed, each with a test that fails on the previous `main`:
 Not a defect, noted: leaving the page mid-upload gives no warning (the draft keeps the caption, not the file).
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 377. [2026-10-08, BUILT, NOT DEPLOYED] Correction to entry 371 item 3: Reply could carry an unsent internal comment into a client-visible thread
+
+Session Sentinel. Entry 371 (PR #2000, merged 2026-10-08) made Reply on a SyncLinear comment carry an unsent comment into the reply instead of wiping it. A reply takes its thread's audience, and the composer shows no audience switch for a reply. So an unsent comment typed as internal and then carried into a reply on a client-visible thread would be sent client-visible: staff-only words where the client reads them. An independent review of that change found it the same day. It is live from the merge of #2000 until this is merged; it needs a person to type an internal comment, not send it, click Reply on a client-visible thread, and send.
+
+Now: text is carried only into a thread of the audience it was typed for. Across audiences the person is asked ("It will not be moved into the reply. Send it first, or discard it and reply."), and nothing is moved. Edit is unchanged (it already asked).
+
+Browser only, one function. Pinned in `test/prod-comment-reply-audience.js`. The same correction is also in the Sentinel stack (the batch 6 PR), which will meet this one as an identical change. Way back: revert the PR, which restores the leak; revert #2000's Reply change with it if this is ever undone.

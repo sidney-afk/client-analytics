@@ -31049,6 +31049,44 @@ The owner also narrowed future acceptance to 1440 desktop, 393 x 852 iPhone
 and 412 x 915 Android, on the specified priority screens; historical galleries
 do not certify those new device sizes. Hosted checks remain pending.
 
+## 370. [2026-10-08, BUILT, NOT DEPLOYED, WEBHOOK NOT REGISTERED] TikTok queue table learns when posts go live, without n8n
+
+Source: owner, 2026-10-08. After the cut-over (362) Post For Me's result webhook still pointed at the n8n workflow "SyncView TikTok Upload — Result" (`1qZmOQPtG6rKYlK7`), which writes only to the Sheet, so `tiktok_uploads` never heard results. Measured live: 3 rows past their scheduled time still `scheduled`, `last_checked_at` empty on every open row. Cause of the second part: the list's refresh only looked at the newest 100 rows of the queue, and the overdue rows are older (May to September). Of the 3 overdue rows, 2 have no Post For Me post id at all (from before Post For Me), so no lookup can settle them; they now get `last_checked_at` and stay as they are.
+Fixed in `tiktok-upload` (no n8n workflow edited):
+- Result webhook: `POST .../functions/v1/tiktok-upload?pfm_webhook=1`, no staff key. Post For Me proves itself with the header `Post-For-Me-Webhook-Secret` (its docs: a shared secret, no HMAC). The function compares it, in constant time, with `TIKTOK_PFM_WEBHOOK_SECRET` if set, otherwise with the secret Post For Me holds for this URL (read with the key the function already has), so no secret is copied by hand. `social.post.result.created` updates the row by `upload_post_id` (posted with link, or failed with TikTok's reason); other events and posts not in the queue are acknowledged and ignored; a bad secret is 401.
+- Safety net: every list (and the new staff action `refresh_due`) asks Post For Me about open rows whose time has come, least recently asked first, anywhere in the table. A row with no post id is looked up by `external_id` first.
+- Admin actions `webhook_status`, `webhook_register`, `webhook_remove` and `scripts/tiktok-pfm-webhook.js` to point Post For Me at the function. They never show a secret.
+Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
+Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
+
+## 372. [2026-10-08, BUILT, NOT APPLIED, NOT DEPLOYED] "Create client" (onboarding step 2.5) and the Stage 3 matching dry run
+
+Session Beacon. Priority C in `docs/STATE_OF_THINGS.md`.
+
+**Built.** "New client" in the Kasper › Clients header, admin only (a square + on phones beside All
+clients). The dialog takes a name, a social media manager and an optional email; while typing,
+`client-onboarding` `create_preview` checks the name against the live roster (reads only) and lists what
+will be made; "Create client" calls `create`, which runs `client_create_native()` from
+`migrations/2026-10-08-create-client.sql`: real provisioning (or the throwaway test path for names
+starting `ZZ THROWAWAY`), Roster's profile write, the manager assignment and the 27-step checklist with 4
+steps ticked, in one transaction. The new profile opens afterwards. Slack is never queued (reason in
+`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`; an open owner decision).
+
+**Proof.** `scripts/client-create-proof.sql` on a disposable PostgreSQL ends `CLIENT_CREATE_PROOF_OK`
+(refusals leave nothing behind, a refusal deep inside rolls the whole create back, replay writes nothing,
+the throwaway never reaches the Sheet outbox and tears down to zero rows, only service_role may execute);
+`test/client-create-migration.js`, `test/client-onboarding-handler.js` (79 checks),
+`docs/syncview-design/tests/clients-create-browser.js` (desktop and two phones, mocked, test client
+only; screenshots in `docs/syncview-design/screenshots/clients-create/`).
+
+**Owner steps, in order, each with a go:** apply `2026-10-03-native-client-test-provision.sql`, apply
+`2026-10-08-create-client.sql`, deploy `client-onboarding`, then the throwaway proof and teardown. Exact SQL
+and readbacks: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. No n8n change.
+
+**Stage 3.** `scripts/client-resource-match.js` (read only, local files, counts on stdout, detail only
+outside git) ran for the 35 clients: `docs/audits/2026-10-08-stage3-matching-dry-run.md`. Nothing saved.
+Rollback: revert the PR; once applied, drop the two functions.
+
 ## 371. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 1: nine desktop defects on SyncLinear cards, TikTok and Instagram upload, and Calendar and Samples link boxes
 
 Session Sentinel, site-assurance cycle 1 (desktop only; phone layout is Prism's, the three red nightly lanes are Mend's). Candidates came from a pattern sweep of the six riskiest screens and a walk of the live site as signed-in staff on the test client; each was then checked against the code, and where it could be, against the live site or live counts, before being called real. Browser changes only: no Edge Function, migration, flag or n8n workflow is touched, and nothing was written to any client but the test client.
@@ -31071,7 +31109,112 @@ Not a defect, noted: leaving the page mid-upload gives no warning (the draft kee
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
-## 372. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 2: an edit could be saved under the wrong client; silent Samples archive and Calendar reschedule failures; notes sent twice
+## 373. [2026-10-08, BUILT, NOT MERGED; migration NOT APPLIED] Three red monitoring robots: Calendar E2E, Samples E2E, card vs calendar drift (session Mend)
+
+All three fed the `monitoring_heartbeat_stale` alert. Each was traced to its cause; no check was skipped or loosened.
+
+**Calendar E2E (nightly), 28 of 67 probes red.** Not one cause, four, all in the test harness:
+1. *Fake-key refusal shadowed the fake gateway.* #1644 (2026-09-25) made `seedVerifiedProbeStaff` register the
+   "answer invented keys with 401" route AFTER each probe's `stubNativeGateway`. Playwright tries the newest route
+   first, so every video and graphic status or note write got the refusal instead of the fake gateway (measured: the
+   app logged `invalid_staff_key` from the local stub, the fake gateway saw zero calls). Fix:
+   `stubNativeGateway` marks its context and the refusal steps aside for it in either order
+   (`qa/staff-gate-seed.js` `markProductionWriteMocked`). Guard: `test/staff-gate-stub-refusal-local.js` case 6
+   (fails on the old code).
+2. *Fake-key 401s signed the robot out.* Six staff reads (`pto`, `filming-plans`, `onboarding-full`,
+   `smm-weekly-reports`, `brain`, `thumbnail-revision-read`) refuse an invented key with 401, and the app rightly
+   signs a page out on a 401. Since Kasper became admin-only (#1672, 2026-09-26) a signed-out page is also sent to
+   Home, so Kasper probes lost their identity mid-run. Fix: live-backend harnesses opt in to
+   `seedStaffGate(ctx, { answerStaffReads: true })`, which answers those six, for invented keys only, as refused
+   but not 401. Offline suites keep the live-shaped 401. Real keys and the ungated writers are untouched.
+3. *Notes sent before their thread loaded.* Since #1642 (2026-09-25) a note on a linked piece is refused with
+   "Notes are still loading" until its thread is read; probes submitted in the same tick, and re-opened the thread
+   right before sending. Fix: the work-item fixture answers the thread read for the ids it mints (empty, as a new
+   work item has), and `NW.waitForNoteThread` waits on the app's own Send condition.
+4. *Probes on retired rules.* p32 faked the old n8n caption-job webhooks (moved to `caption-jobs` in #1889); p34's
+   linked card had no fake gateway, no verified identity and nothing to review (owner rule 2026-09-05); p76 posted a
+   video note on a card with no work item, which the app now correctly refuses (`native_link_required`). Each
+   now models the current product; their isolation and routing assertions are kept or strengthened.
+Local proof (test client only; this sandbox's realtime socket answers 500, so "0 JS errors" fails here and only
+here): p28 15/16, p29 6/7, p32 5/6, p34 7/8, p76 10/11, the one failure each being that socket. The probes that open
+a client link need the staff key and run only in the nightly; the branch run is the proof for those.
+
+*p96 and `invalid_staff_key` (owner step).* `description-image-upload` accepts only the three role keys
+(`ROLE_KEY_ADMIN/SMM/CREATIVE`, live source read 2026-10-08). The robot's `SYNCVIEW_STAFF_KEY` is accepted by
+`client-review-link` (role key OR the automation writer key) but refused here, so it is not a role key. Fix: set the
+repository secret `SYNCVIEW_STAFF_KEY` (GitHub, Settings, Secrets and variables, Actions) to the SMM role key, the same
+value as the Supabase Edge secret `ROLE_KEY_SMM`, and make sure `SYNCVIEW_STAFF_ACTOR` names one active SMM on the roster.
+p96 has failed this way since it was added on 2026-09-24.
+
+*Startup failure, run 110 (2026-10-07 15:15Z).* Zero jobs, no annotations; the workflow file is unchanged since
+`cab0229` and ran on 10-06; of 490 runs in the repository on 10-07 and 10-08 it is the only startup failure. A
+one-off on GitHub's side, not a file or secret problem; the next scheduled run is the check.
+
+**Samples E2E (nightly).** Robot bug, not an app bug: cause 2 above. The robot's Kasper tab drew a 401 from `pto`,
+was signed out, and was sent to Home, so no sample card existed and every Kasper verb reported "disabled" (the robot
+uses that word for "button not found" too). A real Kasper with a real admin key is not signed out. Red since
+2026-09-27 (first run after #1672). Also: `kasper()` waited 20 s per open for `_kasperRenderSamples`, removed in
+#1676, which pushed the tree lane past its 30-minute budget; it now waits for `_sxrKasperLoadQueue`.
+
+**Card vs calendar drift.** The 34 pre-bridge rows are the known backlog (212); of those, 30 hold N/A. The 4 gating
+rows are two posts:
+- *Test client card:* a direct database session (not the app, not a probe) set video and graphic to Approved on
+  2026-10-01 and again on 10-02, 57 minutes after the backfill had repaired them. The trigger only sees work-item
+  moves. Repair: the one-client backfill (below). Do not seed calendar statuses with raw SQL on a card linked to
+  work items; use a throwaway unlinked card.
+- *One active client's card:* the SMM set the whole card to N/A on 2026-10-07 while its work items stayed
+  approved / tweak. Owner decision 2026-10-08: **N/A wins.** The checker now lists N/A slots in their own
+  non-gating bucket; `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` makes the trigger and both
+  backfills leave N/A alone (it had already overwritten an N/A once, on 09-22), and adds a backfill that is bound to
+  one client. Proof: `test/native-calendar-status-bridge-postgres.js` (48 checks on PostgreSQL 16),
+  `test/card-calendar-status-drift-check.js`. The open thumbnail tweak under that N/A card is the SMM's to cancel.
+
+**Owner steps, in order.** (1) Apply the migration. (2) For the test client only:
+`select * from public.production_native_calendar_status_backfill('2026-09-18T22:38:14Z'::timestamptz, false, 'sidneylaruel');`
+then the same with `true`. (3) Re-point the two pins in `scripts/linear-exit-deploy-preflight.js` (project() and the
+two-argument backfill) at the new migration, in the next PR, before any Section 4 dispatch. (4) Set
+`SYNCVIEW_STAFF_KEY` as above.
+**Way back:** revert the PR; the migration's header names its inverse.
+
+## 381. [2026-10-08, BUILT, NOT MERGED] Follow-up to 373: deploy preflight pins re-pointed; live bodies carry Windows line endings (session Mend)
+
+**Done.** The owner applied `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and ran the one-client repair
+for the test client (2 rows applied). `scripts/linear-exit-deploy-preflight.js` now pins
+`production_native_calendar_status_project()` and the two-argument `production_native_calendar_status_backfill` to that
+file. No other pin, threshold or check changed.
+
+**Read-only check, 2026-10-08: the md5s do NOT match yet.** The preflight compares `md5(prosrc)` with the md5 of the
+body in the file. Repository bodies (LF): project `0bba613424a49ebad9aab831115668a6`, backfill
+`0633f083cf5222750510819a141750d4`. Live bodies: `e62ec093e64270a3cdc228ff875ae1da` and
+`6e00d65eae5aa2bd373dc3336b60da2c`. The only difference is line endings: the live bodies hold CRLF (127 and 153 lines,
+lengths 6671 and 8449 against 6544 and 8296), and the repository bodies converted to CRLF hash exactly to the live
+values (the three-argument backfill too: `8d1d93c2eea9715f013e0a51b361174f`). The logic live is the file's logic; the
+text was applied from a copy with Windows line breaks. `.gitattributes` keeps `*.sql` LF, and every other pinned body
+hashes LF, so the pin stays on the LF file and the preflight is not loosened.
+
+**Owner step.** Re-apply the same migration from an LF copy (for example the raw file from GitHub pasted into the SQL
+editor without a Windows round trip, or let a session apply it with your go). It is `create or replace` with the same
+logic, so nothing behaves differently; afterwards both live md5s must equal the two LF values above. Until then the
+preflight refuses a Section 4 dispatch on these two routines (as it already did with the previous pins, since the
+bodies changed when the migration was applied).
+
+**Companion changes the re-point requires (same as the 2026-10-01 re-point, #1915).** CI's `unit` job refused the
+first push in two suites: `test/linear-exit-preflight-latest-pin.js` ("cited but never installed by the integrated
+plan") and `test/native-calendar-status-bridge.js` (it mirrors each pin's file). So the migration is now a `CANDIDATE`
+in `scripts/linear-exit-install-manifest.js`, installed after the 2026-10-01 bridge and the 2026-09-18 repair; the
+strict install inventory is re-issued as `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20261008.json`
+(generated by `build()`, the older files kept) with its eight references re-pointed; and the bridge test expects the
+new file for those two routines. No pin, threshold or check logic changed.
+
+## 379. [2026-10-08, BUILT, NOT DEPLOYED] Correction to entry 371 item 3: Reply could carry an unsent internal comment into a client-visible thread
+
+Session Sentinel. Entry 371 (PR #2000, merged 2026-10-08) made Reply on a SyncLinear comment carry an unsent comment into the reply instead of wiping it. A reply takes its thread's audience, and the composer shows no audience switch for a reply. So an unsent comment typed as internal and then carried into a reply on a client-visible thread would be sent client-visible: staff-only words where the client reads them. An independent review of that change found it the same day. It is live from the merge of #2000 until this is merged; it needs a person to type an internal comment, not send it, click Reply on a client-visible thread, and send.
+
+Now: text is carried only into a thread of the audience it was typed for. Across audiences the person is asked ("It will not be moved into the reply. Send it first, or discard it and reply."), and nothing is moved. Edit is unchanged (it already asked).
+
+Browser only, one function. Pinned in `test/prod-comment-reply-audience.js`. The same correction is also in the Sentinel stack (the batch 6 PR), which will meet this one as an identical change. Way back: revert the PR, which restores the leak; revert #2000's Reply change with it if this is ever undone.
+
+## 375. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 2: an edit could be saved under the wrong client; silent Samples archive and Calendar reschedule failures; notes sent twice
 
 Session Sentinel, cycle 1, the Calendar and Samples save group. Browser changes only: no Edge Function (the two frozen writers are untouched), migration, flag or n8n workflow. Stacked on batch 1 (entry 371).
 
@@ -31098,9 +31241,9 @@ Unexplained, counts only: 31 live cards on real clients have a blank name and a 
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
-## 373. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 3: Today's paged reads had no sort order; N/A lanes counted as missing links; Clients history stuck on "Loading"; Resources links
+## 376. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 3: Today's paged reads had no sort order; N/A lanes counted as missing links; Clients history stuck on "Loading"; Resources links
 
-Session Sentinel, cycle 1, the Today and Clients group. Browser changes only. Stacked on batches 1 and 2 (entries 371, 372).
+Session Sentinel, cycle 1, the Today and Clients group. Browser changes only. Follows batches 1 and 2 (entries 371 and 375; batch 1 is merged).
 
 Fixed, each pinned in `test/today-clients-assurance.js` (which fails on the code before this change):
 
@@ -31118,9 +31261,9 @@ Confirmed or likely, not fixed here (each needs the owner or a server change):
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
-## 374. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 4 (cycle 2): thirteen places where the page said something untrue about a save, a send or a selection
+## 377. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 4 (cycle 2): thirteen places where the page said something untrue about a save, a send or a selection
 
-Session Sentinel, cycle 2. Two fresh sweeps with different lenses (the unfixed siblings of what cycle 1 confirmed, and the areas cycle 1 did not reach) returned 28 candidates. This batch takes the thirteen I verified in the code and judged most harmful. Browser changes only. Stacked on batches 1 to 3 (entries 371 to 373). All thirteen are pinned in `test/assurance-cycle2-saves-and-selection.js`, each block failing on the code before this change. None was reproduced on the live site: they are not deployed, and several need a failing save.
+Session Sentinel, cycle 2. Two fresh sweeps with different lenses (the unfixed siblings of what cycle 1 confirmed, and the areas cycle 1 did not reach) returned 28 candidates. This batch takes the thirteen I verified in the code and judged most harmful. Browser changes only. Follows batches 1 to 3 (entries 371, 375 and 376; batch 1 is merged). All thirteen are pinned in `test/assurance-cycle2-saves-and-selection.js`, each block failing on the code before this change. None was reproduced on the live site: they are not deployed, and several need a failing save.
 
 Uploads:
 
@@ -31137,7 +31280,7 @@ Calendar and Samples:
 8. **Review view: a plain Comment whose save failed showed nothing** (Calendar and Samples, staff and client link). The comment sat in the thread looking sent.
 9. **Samples Review: a failed Approve made the card vanish and the badge drop exactly as on success,** though nothing had reached Kasper. The Calendar already re-rendered the queue here; Samples now does too.
 10. **Samples: text from a save that failed was wiped by the next background refresh** (tab focus, a teammate's change, a reconnect), along with its "Save failed, Retry" chip. The unsaved text and its Retry now survive; statuses still follow the server.
-11. **Calendar "Add the missing video or thumbnail": finishing after a client switch wrote the list on screen into the first client's saved copy.** The same shape as entry 372, in a caller that fix missed; its Samples twin was already guarded.
+11. **Calendar "Add the missing video or thumbnail": finishing after a client switch wrote the list on screen into the first client's saved copy.** The same shape as entry 375, in a caller that fix missed; its Samples twin was already guarded.
 
 SyncLinear, Today, Clients:
 
@@ -31161,9 +31304,26 @@ Also: the weekly Slack update's "no channel" notice told staff to add a column t
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
-## 375. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 5 (cycle 2, second half): nine of the candidates entry 374 left unverified
+## 378. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 4: empty Today and native Notes
 
-Session Sentinel. Entry 374 listed fifteen cycle 2 candidates it had not verified. Nine are verified in the code here (two of them against live counts) and fixed; six remain, listed at the end. Browser changes only. Stacked on batches 1 to 4. Pinned in `test/assurance-cycle2-remaining.js`, each block failing on the code before this change.
+2026-10-08, Prism batch 4: PR #1994's final head passed both previously red
+hosted jobs and was independently merged; Prism did not merge it. The owner
+narrowed future acceptance to 1440 desktop, 393 x 852 iPhone and 412 x 915
+Android on the approved priority screens. The coverage inventory is rewritten
+for that scope, retaining historical galleries and legacy CI guards. An empty
+Today phone view now skips five zero-item job tiles. Native Notes has readable
+labels and a compact unavailable Samples state without a contradictory typing
+prompt. Drafts, native choices, the refusal gate and desktop presentation are
+preserved. The Today harness now applies empty/error/loading fixtures before
+boot instead of capturing cached normal data. Batch 4 publishes 18 reviewed
+fixture pairs, with exact source/PNG hashes and explicit remaining OPEN work.
+The full clean round, fresh review, hosted batch checks and deployment remain
+pending. Filming, Quiz, Save problems and unlisted tabs are excluded by the
+owner's revised scope. No database/n8n changes or live mutations were made.
+
+## 382. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 5 (cycle 2, second half): nine of the candidates entry 377 left unverified
+
+Session Sentinel. Entry 377 listed fifteen cycle 2 candidates it had not verified. Nine are verified in the code here (two of them against live counts) and fixed; six remain, listed at the end. Browser changes only. Stacked on batches 1 to 4. Pinned in `test/assurance-cycle2-remaining.js`, each block failing on the code before this change.
 
 1. **Kasper urgent ping: the "sent" marker was saved under whichever client was on screen when the ping returned** (Calendar and Samples). After a quick client switch the marker went to the other client with this card's id and was refused, so the ping (already delivered) left no trace: Kasper's Urgent list missed the card and the button was live for a second ping. The client is now fixed when the button is pressed, as the editor ping already did.
 2. **Today: "Open card" on a work-item row ended on "Card not shown" when that client's saved Calendar filter hid the card.** Post rows asked for the card by id, which gets it past the filter; work-item rows ("To approve", "Dates to move") named only the work item. They now ask by card id too, and the address carries the card. Measured live first: all 261 open calendar-origin work items carry the id of a card of their own client.

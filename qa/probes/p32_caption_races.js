@@ -16,7 +16,7 @@ const seed = (id) => Q.up({ id, name: 'CR ' + id.slice(-6), platforms: 'youtube'
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { answerStaffReads: true });
   const respFor = {};
   const cancelledJobs = new Set();   // jobIds the user requested cancel on (production-accurate: backend then returns cancelled)
   await ctx.route('**/webhook/generate-caption', async (r) => {
@@ -32,15 +32,32 @@ const seed = (id) => Q.up({ id, name: 'CR ' + id.slice(-6), platforms: 'youtube'
     await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(resp) });
   });
   await ctx.route('**/webhook/caption-prompts-get', async (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
-  await ctx.route('**/webhook/caption-job-status', async (r) => {
+  // Job progress and Cancel go to the caption-jobs function since #1889
+  // (2026-09-30): GET ?client= lists the runs, POST writes the keys sent
+  // (cancel_requested among them). This probe used to fake the two retired
+  // n8n webhooks, so the page's cancel reached the live function instead and
+  // the late caption landed: G went red on a robot that no longer modelled
+  // the product (OPEN_REPAIRS 373). Same contract, new address.
+  const jobs = new Map();   // jobId -> { jobId, postId, client }
+  await ctx.route('**/webhook/generate-caption', async (r) => {
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
-    const status = (cancelledJobs.has(body.jobId) || cancelledJobs.has(body.postId)) ? 'cancelled' : 'running';
-    await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status }) });
+    if (body.jobId) jobs.set(body.jobId, { jobId: body.jobId, postId: body.postId, client: body.client || body.slug || 'sidneylaruel' });
+    return r.fallback();
   });
-  await ctx.route('**/webhook/caption-job-update', async (r) => {
-    let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
-    if (body && (body.cancel_requested || body.cancelRequested)) { if (body.jobId) cancelledJobs.add(body.jobId); }
-    await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  await ctx.route('**/functions/v1/caption-jobs*', async (r) => {
+    const req = r.request();
+    const cors = { 'access-control-allow-origin': req.headers().origin || '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS' };
+    if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors, body: '' });
+    if (req.method() === 'POST') {
+      let body = {}; try { body = JSON.parse(req.postData() || '{}'); } catch (e) {}
+      if (body && (body.cancel_requested || body.cancelRequested) && body.jobId) cancelledJobs.add(body.jobId);
+      return r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: '{"ok":true}' });
+    }
+    const now = new Date().toISOString();
+    const rows = [...jobs.values()].map(j => ({ jobId: j.jobId, client: j.client, postId: j.postId,
+      status: (cancelledJobs.has(j.jobId) || cancelledJobs.has(j.postId)) ? 'cancelled' : 'running',
+      stage: 'writing', caption: '', error: '', cancel_requested: cancelledJobs.has(j.jobId), started_at: now, updated_at: now }));
+    return r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, jobs: rows }) });
   });
   const smm = await ctx.newPage(); smm._errs = [];
   smm.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) smm._errs.push(m.text()); });

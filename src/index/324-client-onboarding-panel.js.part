@@ -1,5 +1,6 @@
 import { CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature } from './100-onboarding-staff-controls.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
+import { showToast } from './040-shared-briefs.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     // ── Onboarding on the Clients profile (step 2.4 of docs/plans/2026-10-01-onboarding-checklist-and-profile.md) ──
@@ -68,6 +69,11 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         _cbGeneration++;
         Object.assign(_cbState, { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
         for (const id of ['caOnboarding', 'caHubspot', 'caOnbSummary']) { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
+        // A sign-out or role change also closes an open "New client" dialog.
+        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
+        Object.assign(_cnState, _cnFresh());
+        const create = document.getElementById('caCreate');
+        if (create) create.innerHTML = '';
     }
 
     function _cbWhen(iso) {
@@ -500,8 +506,191 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         _cbPaint();
     }
 
+    // ── Create client (step 2.5 of docs/plans/2026-10-01-onboarding-checklist-and-profile.md) ──
+    // "New client" in the Clients tab header, ADMIN ONLY. One dialog: name, social
+    // media manager, optional email. While you type, client-onboarding's
+    // `create_preview` checks the name against the live roster and says exactly
+    // what would be made (it writes nothing). "Create client" then makes the
+    // roster row, review link, four save permissions, profile, manager and the
+    // 27-step checklist in one database transaction (client_create_native), and
+    // opens the new profile. A name that starts with "ZZ THROWAWAY" makes a
+    // removable test client instead. Slack is never touched here.
+    const CN_BLOCKERS = {
+        name_invalid: 'Type the client\'s name.',
+        slug_invalid: 'That name has no letters or numbers to make a link name from.',
+        email_invalid: 'That email does not look right. Leave it empty if you do not have it yet.',
+        manager_unknown: 'Pick a social media manager.',
+        name_taken: 'A client with this name already exists. Open it from the search instead.',
+        name_on_a_manager_list: 'This name is already on a manager\'s client list. Use a different name, or take it off that list first.',
+        slug_taken: 'Another client already uses this link name. Add something to the name to tell them apart.',
+        throwaway_name_needs_test_mode: 'Test clients must start with "ZZ THROWAWAY" in capitals.',
+        authority_not_syncview: 'SyncView is not the main copy of the client list yet, so clients cannot be created here.',
+        production_authority_unavailable: 'Production is not running on SyncView yet, so clients cannot be created here.',
+        routing_flag_invalid: 'One of the save-permission lists looks wrong. Nothing can be created until it is checked.',
+        create_not_installed: 'The database step for Create client is not installed yet. It waits for the owner\'s go.',
+        request_reused: 'This dialog was already used for a different client. Close it and start again.',
+    };
+    const _cnFresh = () => ({ open: false, managers: null, managersError: '', name: '', manager: '', email: '', preview: null, previewKey: '', checking: false, busy: false, error: '', requestId: '', seq: 0 });
+    const _cnState = _cnFresh();
+    let _cnTimer = 0;
+    const _cnKey = () => [_cnState.name.trim().replace(/\s+/g, ' '), _cnState.manager, _cnState.email.trim()].join('\u0001');
+    function _cnNewRequestId() {
+        try { if (crypto && crypto.randomUUID) return 'create-' + crypto.randomUUID(); } catch (e) {}
+        return 'create-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+    }
+
+    async function _cnOpen() {
+        if (!_syncviewStaffCan('clients-admin')) return;
+        Object.assign(_cnState, _cnFresh(), { open: true, requestId: _cnNewRequestId() });
+        _cnRender();
+        document.getElementById('cnName')?.focus({ preventScroll: true });
+        const seq = ++_cnState.seq;
+        let out;
+        try { out = await _cbPost(CB_URL, { action: 'create_preview' }, false); } catch (e) { out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } }; }
+        if (!_cnState.open || seq !== _cnState.seq) return;
+        if (out.resp.status === 200 && out.json.ok) _cnState.managers = Array.isArray(out.json.managers) ? out.json.managers : [];
+        else _cnState.managersError = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not load the managers (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').';
+        _cnPaintManagers();
+        _cnPaintPreview();
+    }
+    function _cnClose(keepFocus) {
+        if (_cnState.busy) return;
+        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
+        Object.assign(_cnState, _cnFresh());
+        const el = document.getElementById('caCreate');
+        if (el) el.innerHTML = '';
+        if (keepFocus !== true) document.getElementById('caNewBtn')?.focus({ preventScroll: true });
+    }
+    function _cnRender() {
+        const el = document.getElementById('caCreate');
+        if (!el) return;
+        if (!_cnState.open) { el.innerHTML = ''; return; }
+        el.innerHTML = `<div class="cn-scrim" onclick="_cnClose()"></div>
+            <div class="cn-dialog" role="dialog" aria-modal="true" aria-labelledby="cnTitle" onkeydown="_cnKeydown(event)">
+                <div class="cn-head">
+                    <h3 id="cnTitle">New client</h3>
+                    <button type="button" class="ca-iconbtn" onclick="_cnClose()" aria-label="Close">
+                        <svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>
+                    </button>
+                </div>
+                <p class="cn-lead">Sets the client up everywhere SyncView needs it, in one step. Nothing is made until you press Create client.</p>
+                <label class="cn-field"><span class="cn-label">Client name</span>
+                    <input class="ca-input" id="cnName" type="text" autocomplete="off" spellcheck="false" maxlength="160" placeholder="First and last name, as the team writes it" value="${_calEscAttr(_cnState.name)}" data-cn="name" oninput="_cnInput(this)">
+                </label>
+                <div class="cn-slug" id="cnSlug" aria-live="polite"></div>
+                <label class="cn-field"><span class="cn-label">Social media manager</span>
+                    <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
+                </label>
+                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt">optional</span></span>
+                    <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
+                </label>
+                <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
+                <div class="cn-actions">
+                    <button type="button" class="cc-btn" onclick="_cnClose()">Cancel</button>
+                    <button type="button" class="cc-btn primary" id="cnCreateBtn" onclick="_cnCreate()" disabled>Create client</button>
+                </div>
+            </div>`;
+        _cnPaintManagers();
+        _cnPaintPreview();
+    }
+    function _cnPaintManagers() {
+        const sel = document.getElementById('cnManager');
+        if (!sel) return;
+        if (_cnState.managersError) { sel.innerHTML = `<option value="">${_calEsc(_cnState.managersError)}</option>`; sel.disabled = true; return; }
+        if (!_cnState.managers) return;
+        sel.disabled = false;
+        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}</option>`).join('');
+    }
+    function _cnKeydown(e) {
+        if (e.key === 'Escape') { e.preventDefault(); _cnClose(); return; }
+        if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') { e.preventDefault(); _cnCreate(); }
+    }
+    function _cnInput(el) {
+        const k = el && el.getAttribute('data-cn');
+        if (!k || _cnState.busy) return;
+        _cnState[k] = el.value;
+        _cnState.error = '';
+        _cnPaintPreview();
+        if (_cnTimer) clearTimeout(_cnTimer);
+        _cnTimer = setTimeout(_cnCheck, 350);
+    }
+    async function _cnCheck() {
+        _cnTimer = 0;
+        if (!_cnState.open || !_cnState.name.trim() || !_cnState.manager) { _cnState.preview = null; _cnPaintPreview(); return; }
+        const key = _cnKey(), seq = ++_cnState.seq;
+        _cnState.checking = true; _cnPaintPreview();
+        let out;
+        try { out = await _cbPost(CB_URL, { action: 'create_preview', display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, false); }
+        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
+        if (!_cnState.open || seq !== _cnState.seq) return;
+        _cnState.checking = false;
+        if (out.resp.status === 200 && out.json.ok) { _cnState.preview = out.json; _cnState.previewKey = key; }
+        else if (out.resp.status === 400 && out.json.error) { _cnState.preview = { ready: false, blockers: [out.json.error] }; _cnState.previewKey = key; }
+        else { _cnState.preview = null; _cnState.error = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not check the name (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').'; }
+        _cnPaintPreview();
+    }
+    function _cnSlugFor(name) {
+        let t = String(name || '').trim().toLowerCase();
+        try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
+        return t.replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, '');
+    }
+    function _cnPaintPreview() {
+        const slugEl = document.getElementById('cnSlug');
+        const slug = _cnSlugFor(_cnState.name);
+        const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
+        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet</span>' : ''}` : '';
+        const box = document.getElementById('cnPreview');
+        const btn = document.getElementById('cnCreateBtn');
+        const p = _cnState.preview;
+        const fresh = p && _cnState.previewKey === _cnKey();
+        const ready = !!(fresh && p.ready && !_cnState.checking);
+        if (btn) { btn.disabled = !ready || _cnState.busy; btn.textContent = _cnState.busy ? 'Creating…' : 'Create client'; }
+        if (!box) return;
+        if (_cnState.error) { box.innerHTML = `<div class="ca-msg is-error" role="alert">${_calEsc(_cnState.error)}</div>`; return; }
+        if (!_cnState.name.trim() || !_cnState.manager) { box.innerHTML = `<div class="cn-hint">Type a name and pick a manager. SyncView checks it before anything is made.</div>`; return; }
+        if (!fresh || _cnState.checking) { box.innerHTML = `<div class="cn-hint">Checking…</div>`; return; }
+        if (!p.ready) {
+            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span></div>`;
+            return;
+        }
+        const items = (p.will_create || []).map(t => `<li>${_calEsc(t)}</li>`).join('');
+        box.innerHTML = `<div class="cn-ready">
+                <div class="cn-ready-title"><span class="cn-dot" aria-hidden="true"></span>Ready. This will make:</div>
+                <ul class="cn-list">${items}</ul>
+                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>. ' : ''}Slack channels are not made here: the finalizer makes them later, once the onboarding form and filming plan are in.${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and can be removed completely.' : ''}</div>
+            </div>`;
+    }
+    async function _cnCreate() {
+        const p = _cnState.preview;
+        if (_cnState.busy || !p || !p.ready || _cnState.previewKey !== _cnKey() || _cnState.checking) return;
+        _cnState.busy = true; _cnState.error = ''; _cnPaintPreview();
+        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = true; }
+        let out;
+        try { out = await _cbPost(CB_URL, { action: 'create', request_id: _cnState.requestId, display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, true); }
+        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
+        _cnState.busy = false;
+        if (!_cnState.open) return;
+        const j = out.json;
+        if (out.resp.status === 200 && j.ok) {
+            const slug = j.client_slug, name = p.display_name;
+            _cnClose(true);
+            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.`);
+            try { if (typeof window._caLoad === 'function') await window._caLoad(true); } catch (e) {}
+            try { if (typeof window._caLoadManagers === 'function') window._caLoadManagers(); } catch (e) {}
+            try { if (typeof window._caSelect === 'function') window._caSelect(slug); } catch (e) {}
+            return;
+        }
+        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = false; }
+        const code = j.error || ('HTTP ' + out.resp.status);
+        _cnState.error = (CN_BLOCKERS[code] || (out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not create the client (' + code + ').')) + ' Nothing was made.';
+        // A refusal from the database means the live roster moved: check again.
+        if (out.resp.status === 409) { _cnState.preview = null; _cnState.previewKey = ''; }
+        _cnPaintPreview();
+    }
+
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional
+        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional, _cnClose,
+        _cnCreate, _cnInput, _cnKeydown, _cnOpen
     });
-export { _cbPurge, _cbSync };
+export { _cbPurge, _cbSync, _cnRender };

@@ -266,6 +266,25 @@ const cleanReport = classify(
 ok(cleanReport.totals.drift === 0 && cleanReport.totals.agree === 1 && cleanReport.drift.length === 0,
   'a world where the bridge is holding reports zero drift (the gate can actually go green)');
 
+/* ---- N/A wins (owner, 2026-10-08, OPEN_REPAIRS 373) ---- */
+const naDlv = (id, status, at) => ({ id, status, origin: 'calendar', card_id: 'post-na', client_slug: 'sidneylaruel', status_at: at });
+const naReport = classify(
+  [{ id: 'post-na', client: 'sidneylaruel', status: 'active', video_status: ' N/A ', graphic_status: 'Approved',
+     video_deliverable_id: 'dlv-na-v', graphic_deliverable_id: 'dlv-na-g' }],
+  { 'dlv-na-v': naDlv('dlv-na-v', 'approved', '2026-10-06T21:45:04Z'),
+    'dlv-na-g': naDlv('dlv-na-g', 'tweak', '2026-10-06T21:45:45Z') },
+  mapNative);
+ok(naReport.totals.opted_out === 1 && naReport.opted_out.length === 1 && naReport.opted_out[0].component === 'video',
+  'a post-go-live slot the SMM set to N/A (spaces trimmed, as the trigger trims) is listed as N/A, not drift');
+ok(naReport.totals.drift === 1 && naReport.drift[0].component === 'graphic',
+  'the same card\'s other slot that is not N/A and disagrees still gates');
+const naOld = classifySlot({ id: 'post-na', client: 'sidneylaruel', status: 'active', video_status: 'N/A', video_deliverable_id: 'dlv-old' },
+  SLOTS.find(x => x.component === 'video'), naDlv('dlv-old', 'in_progress', '2026-08-19T20:54:41Z'), mapNative);
+ok(naOld && naOld.bucket === 'opted_out', 'an N/A slot from before go-live is N/A too, so the pre-bridge backlog lists only real disagreements');
+ok(classifySlot({ id: 'post-na', client: 'sidneylaruel', status: 'active', video_status: 'N/A-ish', video_deliverable_id: 'dlv-x' },
+  SLOTS.find(x => x.component === 'video'), naDlv('dlv-x', 'approved', '2026-10-06T21:45:04Z'), mapNative).bucket === 'drift',
+  'only the exact N/A value opts out; anything else that disagrees after go-live is still drift');
+
 if (failures) {
   console.error('\n' + failures + ' card/calendar drift check assertion(s) failed');
   process.exit(1);

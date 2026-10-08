@@ -44,7 +44,7 @@ async function run() {
   });
   // After the catch-all: Playwright tries the most recent route first, so a
   // catch-all registered later would swallow the key-verify stub this needs.
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { answerStaffReads: true });
   // Deterministically reproduce the user's exact console error: a FULL quota
   // where writing NAV_KEY ('syncview_nav') throws QuotaExceededError. Headless
   // Chromium's real quota is too large to fill reliably, so we intercept

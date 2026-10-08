@@ -235,3 +235,30 @@ Tested (test client only, real services):
   now 341 characters, `updated_at` 2026-10-03T18:58:58.527Z; job row `done/done`. Calendar Upsert again had 0 runs.
 Not tested: a failed save on the new path (the function was not made to fail on purpose).
 Undo: in n8n, restore version `8d2ffd70-bb0c-49c5-b529-bbaad90176e0` (workflow history) and publish it. Nothing else changes.
+
+## 2026-10-08 Calendar Upsert Post, its Comment Merge helper and six TikTok Upload workflows switched off (owner's go, session Lighthouse)
+
+Workflows and the version that stays saved in each (unpublished only; no step, connection or credential touched):
+- SyncView Calendar, Upsert Post (`pWSqaqVw7dmqhYOA`): `7ef44971-5c6b-46d7-b7d1-68a504913d28`
+- Calendar Comment Merge (helper) (`meM78zr1Gcl72c6f`): `d9e14bb7-080c-4f42-9c0e-587d00c535c0`
+- SyncView TikTok Upload, Submit (`o6wWaGNlIlyZFTX7`): `e95ee3d7-57ec-4e2d-8594-2adbf8edbffb`
+- SyncView TikTok Upload, Submit (Direct) (`qGJ7mUjml98DSiGo`): `264ea658-39c2-449c-b215-d7daa08e53ac`
+- SyncView TikTok Upload, Media Upload URL (`FlvoUXIFwRDg8KUb`): `f7acdd9b-3738-491b-a14f-bae0956bffc7`
+- SyncView TikTok Upload, List (`iYb1896sIAclGvy8`): `6323674d-fc89-424a-bed7-7047b220a114`
+- SyncView TikTok Upload, Status (`IjayuU6jkA21aKo3`): `965543e4-7adc-468c-b7e9-ab31b3276476`
+- SyncView TikTok Upload, Cancel (`4ca3li54eRFtSfXE`): `bfa573f0-1964-4bdc-bab0-83c3c27932cc`
+Changed: unpublished (active true to false). Nothing deleted, nothing edited.
+Why: SyncView no longer calls them. Calendar staff saves go only to the `calendar-upsert` function since #1858 (client links
+always did), Generate Caption saves through the function since 2026-10-03, and the QA write-path probes assert zero
+`calendar-upsert-post` calls. TikTok has run on Supabase since the `tiktok_upload_source` switch was set to `supabase` on
+2026-10-07 17:42 UTC (OPEN_REPAIRS 362). The helper is only ever called by Upsert Post.
+Evidence, checked immediately before switching off on 2026-10-08: zero runs of Upsert Post and the helper after 2026-10-07 15:00
+UTC, and zero runs of the six TikTok workflows after 2026-10-07 17:45 UTC.
+Read back after: search by name shows `active: false` for all eight; `SyncView TikTok Upload, Result` (`1qZmOQPtG6rKYlK7`) is
+still `active: true`.
+Left on, on purpose: `TikTok Upload, Result`, because Post For Me's result webhook still points at it (3 runs on 2026-10-07 after
+the cut-over). It goes off once the function's result action is deployed and the webhook is re-pointed.
+Backup: the saved versions above stay in n8n (deactivated, not archived), and the Sunday weekly backup exports every workflow to
+the private Drive folder. The Upsert Post graph names a client in its code comments, so no copy is committed to this public repo.
+Undo: in n8n open the workflow and publish it again (the version above comes back). For TikTok, publish all six, then set
+`tiktok_upload_source` back to `n8n`. For Calendar, publish the helper first, then Upsert Post.

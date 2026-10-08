@@ -2,7 +2,7 @@
 /*
  * Site assurance, cycle 2 (2026-10-08), second half: the candidates batch 4
  * left unverified, each checked in the code (and against live counts where
- * that settled it) before it was fixed. OPEN_REPAIRS 375 has the stories.
+ * that settled it) before it was fixed. OPEN_REPAIRS 382 has the stories.
  * Each block lifts the real function and runs it against stand-ins; where a
  * function needs half the page to run, the block reads its code and says so.
  */

@@ -11,10 +11,21 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
   const S = Q.makeOk('P34 set-all');
   const browser = await Q.launch();
   const smm = await Q.smmPage(browser);
+  // The linked card's video and graphic now move through the native gateway
+  // (mocked here, see qa/native_work_item_fixture.js) under a verified staff
+  // identity, as a signed-in SMM's do. Without both, the invented key was
+  // refused and the linked card could never move (OPEN_REPAIRS 373).
+  const NW = require('../native_work_item_fixture.js');
+  const retired = await NW.captureRetiredWebhooks(smm.context());
+  const gateway = await NW.stubNativeGateway(smm.context());
   try {
     await Q.up({ id: NOLINK, name: 'SA-NL ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
     require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: LINK, components: ['video', 'graphic'] }]); await Q.up({ id: LINK, name: 'SA-LK ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress',
-      linear_issue_id: 'https://linear.app/sidtest/issue/SAV-' + TS, graphic_linear_issue_id: 'https://linear.app/sidtest/issue/SAG-' + TS });
+      linear_issue_id: 'https://linear.app/sidtest/issue/SAV-' + TS, graphic_linear_issue_id: 'https://linear.app/sidtest/issue/SAG-' + TS,
+      // A move into an approval state is refused on an empty component (owner
+      // rule 2026-09-05, `_kasperCompReviewable`), so the linked card carries
+      // a video and a thumbnail, as a real card at this point does.
+      thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/g.mp4' });
     await Q.up({ id: TERM, name: 'SA-TM ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
     for (const id of [NOLINK, LINK, TERM]) await Q.pollRaw(id, r => r.id === id, 'id');
     await Q.pollRaw(LINK, r => String(r.linear_issue_id || '').includes('SAV-' + TS), 'linear_issue_id', 14000);
@@ -27,9 +38,10 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
     S.ok(r.video_status === 'In Progress' && r.graphic_status === 'In Progress', '1: video/graphic UNCHANGED (no Linear → not settable)');
 
     // 2) linked card → all three move
+    S.ok(await NW.seedVerifiedProbeStaff(smm) === 'ok', '2: a verified staff identity is in place, as a signed-in SMM has');
     await smm.evaluate((pid) => { _calSetAllStatus(pid, 'Kasper Approval'); }, LINK);
     r = await Q.pollRaw(LINK, x => x.video_status === 'Kasper Approval' && x.graphic_status === 'Kasper Approval' && x.caption_status === 'Kasper Approval', 'video_status,graphic_status,caption_status', 14000);
-    S.ok(r.video_status === 'Kasper Approval' && r.graphic_status === 'Kasper Approval' && r.caption_status === 'Kasper Approval', '2: linked card — all three move to Kasper Approval');
+    S.ok(r.video_status === 'Kasper Approval' && r.graphic_status === 'Kasper Approval' && r.caption_status === 'Kasper Approval', '2: linked card — all three move to Kasper Approval (' + [r.video_status, r.graphic_status, r.caption_status].join('/') + '; gateway ' + JSON.stringify(gateway.map(c => c.operation + ':' + c.status)) + ')');
 
     // 3) no-Linear, terminal 'Approved' → confirm dialog, then only caption moves
     const confirmShown = await smm.evaluate(async (pid) => {
@@ -46,6 +58,8 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
     S.ok(r.caption_status === 'Approved', '3: after confirm, caption moves to Approved');
     S.ok(r.video_status === 'In Progress', '3: video unchanged (no Linear)');
 
+    S.ok(gateway.length >= 1, '2: the linked card moved through the native gateway (calls ' + gateway.length + ')');
+    S.ok(NW.retiredCallCount(retired) === 0, 'the retired Linear webhooks received nothing');
     S.ok(smm._errs.length === 0, 'SMM: 0 JS errors (' + JSON.stringify(smm._errs.slice(0, 3)) + ')');
   } finally {
     for (const id of [NOLINK, LINK, TERM]) { try { await Q.up({ id, status: 'Archived' }); } catch (e) {} }

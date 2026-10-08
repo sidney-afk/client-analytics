@@ -39,7 +39,7 @@ const GID = NW.nativeDeliverableId(PID, 'graphic');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { answerStaffReads: true });
   const retired = await NW.captureRetiredWebhooks(ctx);
   const gateway = await NW.stubNativeGateway(ctx);
   await NW.stubNativeWorkItems(ctx, [{ id: PID, components: ['video', 'graphic'] }]);
@@ -112,8 +112,10 @@ const GID = NW.nativeDeliverableId(PID, 'graphic');
       'caption status change transports NOTHING (gateway calls ' + beforeCap + '→' + gateway.length + ')');
 
     // 4) video NOTE → native gateway comment intent on the video work item
+    const threadState = await NW.waitForNoteThread(smm, PID, 'video');
+    S.ok(threadState === 'ready', 'the video notes thread loads before the note is written, as a person waits for it (' + threadState + ')');
     await smm.evaluate((a) => {
-      openCalComments(a.pid); _calComposeComp = 'video'; _calComposeIsTweak = false;
+      if (_calOpenCommentsPid !== a.pid) openCalComments(a.pid); _calComposeComp = 'video'; _calComposeIsTweak = false;
       const ta = document.getElementById('calCommentComposer'); if (ta) ta.value = a.body;
       _calSubmitComposer();
     }, { pid: PID, body: 'VIDEO-NOTE-' + TS });
@@ -127,8 +129,9 @@ const GID = NW.nativeDeliverableId(PID, 'graphic');
 
     // 5) caption NOTE → no transport at all
     const beforeCapNote = gateway.length;
+    await NW.waitForNoteThread(smm, PID, 'caption');
     await smm.evaluate((a) => {
-      openCalComments(a.pid); _calComposeComp = 'caption'; _calComposeIsTweak = false;
+      if (_calOpenCommentsPid !== a.pid) openCalComments(a.pid); _calComposeComp = 'caption'; _calComposeIsTweak = false;
       const ta = document.getElementById('calCommentComposer'); if (ta) ta.value = a.body;
       _calSubmitComposer();
     }, { pid: PID, body: 'CAPTION-NOTE-' + TS });

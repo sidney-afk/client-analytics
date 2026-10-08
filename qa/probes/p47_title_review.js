@@ -19,7 +19,7 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
   // Kasper context with BOTH lanes intercepted so we can prove title never pushes on either.
   const kctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(kctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await seedStaffGate(kctx);
+  await seedStaffGate(kctx, { answerStaffReads: true });
   // Through the shared helper rather than a hand-rolled route: one place owns the retired
   // webhook URLs, and it only supports COUNTING them, which is the only thing a probe on the
   // production roster may do with them (test/probes-assert-native-write-lane.js).

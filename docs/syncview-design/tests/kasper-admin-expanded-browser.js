@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
+const { heightFor } = require('../../../qa/client-phone/profiles');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
 const phoneRules = require('../../../qa/staff-phone-rule-checks');
 const BASE_ROW = { id:'p_phone_fixture',client_slug:'phone-fixture',post_type:'Reel',type:'Reel',caption_alt:'',caption_status:'Kasper Approval',cta:'Try one small change today.',scheduled_date:'2026-10-12',platforms:['instagram'],tweaks:[],graphic_status:'Kasper Approval',video_status:'Kasper Approval' };
@@ -17,6 +18,8 @@ const widths = arg('widths') ? arg('widths').split(',').map(Number) : arg('width
 const out = arg('out');
 const themes = arg('theme') ? [arg('theme')] : ['light','dark'];
 const only = arg('only');
+const exactStates = arg('states')?.split(',');
+const selected = t => (!only || only.split(',').some(label=>t.label.includes(label))) && (!exactStates || exactStates.includes(t.label));
 const failures = [], rows = [];
 let checks = 0, chartStates = 0;
 const expect = (value, message) => { checks++; if (!value) failures.push(message); };
@@ -87,6 +90,8 @@ add('credentials', 'client-credentials', () => { _ccState.kasper.credentials = [
 add('credentials-masked', 'client-credentials', () => { _ccState.kasper.credentials = [{ id: 'fixture-credential', client_slug: 'phone-fixture', client_name: 'Example workspace', platform: 'instagram', handle: '@example', password: 'synthetic-fixture-value', notes: 'Fictional value, shown masked.', status: 'active' }]; _ccState.kasper.loaded = true; _ccState.kasper.loading = false; _ccState.kasper.error = null; _ccExpanded.add('phone-fixture'); _ccPaintKasper(); });
 add('credential-add', 'client-credentials', null, p => p.locator('.cc-topbar .cc-btn').filter({ hasText: 'Add credential' }).click());
 add('clients', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = null; _caPaint(); });
+add('clients-empty', 'clients', () => { _caState.rows = []; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = null; _caPaint(); });
+add('clients-loading', 'clients', () => { _caState.rows = []; _caState.loaded = false; _caState.loading = true; _caState.error = null; _caState.selected = null; _caPaint(); });
 add('client-detail', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = row.slug; _caPaint(); });
 add('clients-error', 'clients', () => { _caState.rows = []; _caState.loading = false; _caState.loaded = false; _caState.error = 'The client list could not load. Refresh to try again.'; _caPaint(); });
 add('quiz-empty', 'quiz-leads');
@@ -252,11 +257,11 @@ async function capture(page,label,width,theme) {
     // viewport for those; expand only when there is content below it.
     const longPage=await page.evaluate(()=>Math.max(document.documentElement.scrollHeight,document.body.scrollHeight)>innerHeight+1);
     const png=await page.screenshot({path:path.join(out,label+'-'+theme+'-'+width+'.png'),fullPage:!overlay&&longPage,animations:'disabled'});
-    if(!desktop && !overlay) expect(png.readUInt32BE(16)===width && png.readUInt32BE(20)>=844,label+': ordinary phone capture retains its full viewport dimensions');
+    if(!desktop && !overlay) expect(png.readUInt32BE(16)===width && png.readUInt32BE(20)>=heightFor(width,arg('height')),label+': ordinary phone capture retains its full viewport dimensions');
   }
 }
 async function open(browser,origin,width,theme) {
-  const ctx = await browser.newContext({ viewport:{width,height:844},isMobile:width<768,hasTouch:width<768,reducedMotion:'reduce',locale:'en-US',timezoneId:'America/Guatemala' });
+  const ctx = await browser.newContext({ viewport:{width,height:heightFor(width,arg('height'))},isMobile:width<768,hasTouch:width<768,reducedMotion:'reduce',locale:'en-US',timezoneId:'America/Guatemala' });
   await ctx.route(u => !u.toString().startsWith(origin), async route => {
     const q = route.request(),u = new URL(q.url());
     const json = body => route.fulfill({ status:200,headers:CORS,contentType:'application/json',body:JSON.stringify(body) });
@@ -369,12 +374,12 @@ async function verifyAdsChart(page,width,theme) {
  await page.waitForFunction(()=>!document.documentElement.classList.contains('pocket-admin-phone'));
  const desktopState=await page.evaluate(()=>({legend:document.querySelectorAll('.pocket-admin-chart-legend').length,display:_kadState.chart.options.plugins.legend.display,color:_kadState.chart.options.scales.y.ticks.color,family:_kadState.chart.options.scales.y.ticks.font?.family||Chart.defaults.font.family,date:_kadState.chart.scales.x.ticks[0].label,defaultColor:Chart.defaults.color,defaultFamily:Chart.defaults.font.family,role:_kadState.chart.canvas.getAttribute('role'),label:_kadState.chart.canvas.getAttribute('aria-label')}));
  expect(!desktopState.legend && desktopState.display && desktopState.color===desktopState.defaultColor && desktopState.family===desktopState.defaultFamily && desktopState.date===first.labels[0] && desktopState.role===null && desktopState.label===null,'Ads: desktop crossing restores original native chart options, dates and attributes '+JSON.stringify(desktopState));
- await page.setViewportSize({width,height:844});
+ await page.setViewportSize({width,height:heightFor(width,arg('height'))});
  await page.locator('.pocket-admin-chart-legend').waitFor({state:'visible'});
  expect(JSON.stringify((await snapshot()).values)===JSON.stringify(first.values),'Ads: crossing back keeps native chart data');
  chartStates++;
  } finally {
-  await page.setViewportSize({width,height:844});
+  await page.setViewportSize({width,height:heightFor(width,arg('height'))});
   await page.evaluate(theme=>{document.documentElement.setAttribute('data-theme',theme);if(_kadState.chart?.canvas?.isConnected){for(const index of [0,1])_kadState.chart.setDatasetVisibility(index,true);_kadState.chart.update('none');}},theme);
  }
 }
@@ -383,14 +388,14 @@ async function runMain() {
     console.log(JSON.stringify(tests.map(t=>({name:t.label,tab:t.tab,lane:'admin'})),null,2));
     return;
   }
-  if(tests.some(t=>t.tab==='ad-performance' && (!only || only.split(',').some(label=>t.label.includes(label))))) chartSource=await loadChartSource();
+  if(tests.some(t=>t.tab==='ad-performance' && selected(t))) chartSource=await loadChartSource();
   const server = await serve(); const origin = 'http://127.0.0.1:'+server.address().port;
   const browser = await chromium.launch({headless:!process.argv.includes('--headed')});
   try {
     for (const width of widths) for (const theme of themes) {
       const {ctx,page,errors} = await open(browser,origin,width,theme);
       try {
-        for (const t of tests.filter(t => (!only || only.split(',').some(label=>t.label.includes(label))) && (!desktop || ['review-empty','review-open','review-single','messages','editors','filming','time-off','sales-intake','hiring-detail','onboarding','onboarding-detail','credentials','client-detail','quiz-detail','ads','save-problems','credential-add','account'].includes(t.label)))) {
+        for (const t of tests.filter(t => selected(t) && (!desktop || (exactStates && ['clients','ad-performance'].includes(t.tab)) || ['review-empty','review-open','review-single','messages','editors','filming','time-off','sales-intake','hiring-detail','onboarding','onboarding-detail','credentials','client-detail','quiz-detail','ads','save-problems','credential-add','account'].includes(t.label)))) {
           try {
             await page.evaluate(tab => {
               document.activeElement?.blur(); _syncviewCloseStaffAccount(); _kasperSetMoreOpen(false,false,false);
@@ -432,7 +437,7 @@ async function runMain() {
                   await page.setViewportSize({width:1280,height:844});
                   await page.waitForFunction(()=>!document.documentElement.classList.contains('pocket-admin-phone'));
                   expect((await page.locator(selector+' > .kasper-empty .kasper-empty-sub').innerText())===(t.label==='ads-empty'?'The n8n pull writes here twice a day — check back after the next run.':'Submissions from /quiz will show up here once the funnel is live.'),t.label+': desktop crossing restores original empty copy');
-                  await page.setViewportSize({width,height:844});
+                  await page.setViewportSize({width,height:heightFor(width,arg('height'))});
                   await page.waitForFunction(()=>document.documentElement.classList.contains('pocket-admin-phone'));
                 }
                 if(t.label.endsWith('-error')) expect(await page.getByText(t.tab==='ad-performance'?'Could not load ad performance':'Could not load quiz leads',{exact:true}).count()===1,t.label+': native error fixture renders an error, not cached/empty data');
@@ -531,7 +536,7 @@ async function runMain() {
                 expect(await page.locator('.kasper-replies-thread .cal-review-comment').count()===3,'Desktop resize retains the selected message filter');
                 expect(await page.locator('.kasper-replies-newfrom').textContent()==='New from Team' && await page.locator('.kasper-replies-newfrom').getAttribute('aria-label')===null,'Desktop restores the original unread-source badge');
               }
-              await page.setViewportSize({width,height:844}); await page.waitForTimeout(100);
+              await page.setViewportSize({width,height:heightFor(width,arg('height'))}); await page.waitForTimeout(100);
             }
             if (!before && !desktop && t.label === 'tabs') {
               await page.keyboard.press('Escape');
@@ -562,7 +567,7 @@ async function runMain() {
               expect(await page.locator('html.pocket-admin-phone').count()===0,'Desktop removes phone marker');
               expect(await page.locator('.kasper-subtabs .kasper-more').count()===1,'Desktop restores native More location');
               expect(await page.locator('[data-si=client_name]').inputValue()==='Example customer','Resize preserves saved draft');
-              await page.setViewportSize({width,height:844});await page.waitForTimeout(100);
+              await page.setViewportSize({width,height:heightFor(width,arg('height'))});await page.waitForTimeout(100);
             }
           } catch (e) { failures.push(t.label+' '+theme+' '+width+': '+e.message.slice(0,180)); }
         }

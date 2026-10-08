@@ -4,6 +4,16 @@
 
 All times are UTC unless noted.
 
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 2 (batch 4)
+
+Cycle 2 was not dry: 28 new candidates from two sweeps with different lenses
+(siblings of cycle 1's confirmed defects; the areas cycle 1 did not reach).
+Thirteen verified in the code and fixed in one stacked PR, pinned by a suite
+whose blocks each fail on the code before it; fifteen recorded unverified for
+the next cycle. The stop rule (two cycles in a row with nothing) has not been
+met. Browser changes only. No live write, deploy, merge, flag or n8n edit.
+Detail: OPEN_REPAIRS 377.
+
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 3) and the cycle 1 tally
 
 The Today and Clients group: eight candidates, four confirmed and fixed, one

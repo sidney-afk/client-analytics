@@ -4,6 +4,7 @@ const {chromium}=require('playwright');
 const staff=require('../docs/syncview-design/tests/staff-phone-browser');
 const {seedStaffGate}=require('./staff-gate-seed');
 const checks=require('./staff-phone-rule-checks');
+const {heightFor}=require('./client-phone/profiles');
 const arg=(key,fallback)=>process.argv.find(s=>s.startsWith('--'+key+'='))?.slice(key.length+3)||fallback;
 const out=arg('out',''),only=new RegExp(arg('only','.*'));
 const widths=arg('widths','390,430').split(',').map(Number);
@@ -85,7 +86,7 @@ async function detectorControls(browser) {
   await context.close();
 }
 async function screen(browser,origin,width,theme,route) {
-  const context=await browser.newContext({viewport:{width,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+  const context=await browser.newContext({viewport:{width,height:heightFor(width,arg('height'))},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   await staff.installBackend(context,false);await seedStaffGate(context);
   await context.addInitScript(theme=>{localStorage.setItem('syncview_theme',theme);sessionStorage.setItem('syncview_kasper_unlocked','ok');},theme);
   const page=await context.newPage();page.setDefaultTimeout(6000);

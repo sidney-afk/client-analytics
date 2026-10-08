@@ -4,6 +4,10 @@ Status: ACTIVE. The finish line has not been reached. A complete visually clean
 round and a separate fresh-review round are both still required. Lighthouse
 reviews and merges; Prism does not merge.
 
+[Batch 4](batch-4/README.md) records the narrowed-device Today/Notes slice with
+18 native before/after pairs. Its reviewed cells are explicitly marked in the
+current coverage; the complete round and fresh review remain OPEN.
+
 Browser execution preference (owner, 2026-10-07): use headless Chrome with no
 foreground calls, so screenshot checks do not interrupt other applications.
 This supersedes the earlier visible-browser setup for Prism's ongoing review.
@@ -11,16 +15,37 @@ Retain the same native product fixtures, action assertions and screenshot review
 
 [Batch 3](batch-3/README.md) records the client Calendar loading and empty Today
 marker repairs. Its [CI follow-up](batch-3/ci-followup/README.md) has 24 personally
-reviewed matrix pairs on the current source, plus two 360 px Month comparisons.
+reviewed matrix pairs on that batch's source, plus two 360 px Month comparisons.
 The original 72 broad desktop and 32 focused loading proofs remain historical;
-the changed source now has 72/72 additional exact desktop pairs. Hosted rechecks
-remain a separate pending gate.
+that batch's changed source has 72/72 additional exact desktop pairs. The two
+previously red hosted jobs passed before PR #1994 was independently merged.
 The full phone finish line remains OPEN.
 
-[Coverage](COVERAGE.md) lists the native scenarios and all width/theme cells.
-[Machine-readable coverage](coverage.json) also tracks ten discovery obligations
-for every staff tab, reviewer/admin subtab, personal Time Off and client review
-surface. Missing setups remain OPEN. Screenshots and passing geometry never
+PR #1994's final correction is at
+`8eb01d9339b2f1af773723c8c090f0d77dd6c2df`. Both previously failing jobs now
+pass on GitHub: [entry-links-boot](https://github.com/sidney-afk/client-analytics/actions/runs/37790856604/job/113357544258)
+and [split-preview](https://github.com/sidney-afk/client-analytics/actions/runs/37790856604/job/113357544081).
+The hosted Calendar check's actual last line at 2026-10-08 14:27:13 UTC is:
+
+```text
+client-calendar-expanded: OK (4668 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/430; requested light/dark, effective client light).
+```
+
+Owner scope, 2026-10-08: review desktop 1440 x 900, iPhone 14 Pro / 16 Pro
+393 x 852 and Android 412 x 915. Review Today, staff/client Calendar, Samples,
+card detail sheets, Clients, TikTok upload, Analytics, Workload and Ads in that
+order. Each needs normal, open menus/sheets, empty and loading; rare states
+are required only on Today, Calendar and Samples. Staff uses light/dark; client
+review pages intentionally support light only. Quiz, Save problems and unlisted
+tabs are excluded. Existing narrow-width CI guards remain regression checks.
+The unfinished Filming prototype, generated assets and both passing/failing
+evidence are preserved privately as deferred; they are not part of this batch.
+Older galleries retain their original source and device binding and do not
+certify the new device matrix. All local browsers run headlessly.
+
+[Coverage](COVERAGE.md) lists the scoped native scenarios and device/theme cells.
+[Machine-readable coverage](coverage.json) tracks state and action discovery on
+the approved screens. Missing setups remain OPEN. Screenshots and geometry never
 automatically turn a cell CLEAN. Reviews must identify the exact capture hash.
 Changing source fragments invalidates previously clean cells in the generator.
 
@@ -68,7 +93,7 @@ Regression guards cover field containment, recovery-first order, every visible
 field label, filter alignment, compact loading and native filter/Refresh reads.
 All five native read actions are intercepted and their payloads are checked.
 
-## Still open
+## Historical observations under the original scope
 
 The broad staff captures, most detailed human reviews, missing refused-save and
 content-stress setups, client loading/error/refused-save journeys and the fresh

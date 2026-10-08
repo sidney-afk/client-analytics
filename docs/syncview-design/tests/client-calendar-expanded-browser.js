@@ -12,6 +12,7 @@ const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
+const { heightFor } = require('../../../qa/client-phone/profiles');
 const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.split('=').slice(1).join('=');
 const widths = (arg('widths') || '360,390,430').split(',').map(Number);
 const themes = (arg('themes') || 'light,dark').split(',');
@@ -89,7 +90,7 @@ async function shot(page, label) {
 }
 async function run(browser, origin, width) {
   const timezoneId = 'America/Guatemala';
-  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId });
+  const ctx = await browser.newContext({ viewport: { width, height: heightFor(width, arg('height')) }, isMobile: width < 768, hasTouch: width < 768, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId });
   // The CI host can already be tomorrow while this browser is still today.
   // Use the browser's zone for the populated fixture; empty Today is exercised
   // separately below, so neither state depends on when CI happens to run.
@@ -243,6 +244,23 @@ async function run(browser, origin, width) {
       await page.keyboard.press('Escape');
       await page.locator('.cal-comments-btn').first().click();
       await page.locator('#calCommentsModal').waitFor({ state: 'visible' });
+      const labels = page.locator('#calCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap, #calCommentsModal [data-cm-toggle=tweak] .cal-cm-audience-cap');
+      ok((await labels.allTextContents()).includes('About') && (await labels.allTextContents()).includes('Type'), 'phone Calendar Notes labels must be complete');
+      // Wait for the phone styles to settle before measuring; a loaded runner once read the size too early.
+      const labelSel = '#calCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap, #calCommentsModal [data-cm-toggle=tweak] .cal-cm-audience-cap';
+      await page.waitForFunction(sel => { const n = [...document.querySelectorAll(sel)]; return n.length > 0 && n.every(x => parseFloat(getComputedStyle(x).fontSize) >= 13); }, labelSel, { timeout: 5000 }).catch(() => {});
+      const labelSizes = await labels.evaluateAll(nodes => nodes.map(n => n.textContent.trim() + ':' + getComputedStyle(n).fontSize));
+      ok(labelSizes.every(t => parseFloat(t.split(':').pop()) >= 13), 'Calendar Notes labels must be readable ' + JSON.stringify(labelSizes));
+      const composer = page.locator('#calCommentComposer');
+      await composer.fill('Fictional Calendar Notes draft.');
+      await page.locator('#calCommentsModal [data-comp=caption]').tap();
+      ok(await composer.inputValue() === 'Fictional Calendar Notes draft.', 'Calendar Notes component choice lost its draft');
+      await page.locator('#calCommentsModal [data-tweak="1"]').tap();
+      ok(await page.locator('#calCommentsModal [data-tweak="1"]').evaluate(n=>n.classList.contains('is-active')), 'Calendar Notes change-request choice did not activate');
+      ok(await composer.inputValue() === 'Fictional Calendar Notes draft.', 'Calendar Notes type choice lost its draft');
+      await page.locator('#calCommentsModal [data-comp=video]').tap();
+      await page.locator('#calCommentsModal [data-tweak="0"]').tap();
+      await composer.fill('');
       await measure(page, 'notes-' + width);
       await shot(page, 'notes-' + width);
       await page.locator('.cal-comments-close').click();
@@ -287,7 +305,7 @@ async function run(browser, origin, width) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.waitForTimeout(200);
     ok(await page.locator('.cal-week-grid').getAttribute('style') === desktopWeek, 'measurement viewport shifted desktop Week');
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: heightFor(width, arg('height')) });
     await page.locator('.pocket-client-calendar').waitFor();
     ok(await page.locator('.pocket-client-calendar').count() === 1, 'phone header not restored');
     // Held loading and failure paints remain recognisable, then recovery.

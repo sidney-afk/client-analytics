@@ -6,21 +6,49 @@
 // store: get(id) -> row|null, insert(row), save(row), list(limit) -> rows (newest sort_at first),
 //        profiles() -> [{ slug, display_name, postforme_account_id }], copy(rows) -> number of rows added
 //        (rows whose id is already there are kept as they are)
+//        dueOpen(limit) -> open rows whose time has come, least recently asked first (the safety net)
+//        byPostId(postId) -> row|null
 // readSheet: () -> values (the TikTokUpload tab, first row = headers), or null when no Sheet is configured
+// webhookUrl: the URL Post For Me should POST results to (admin webhook_status / webhook_register)
 import {
   applyCreateResponse, applyResults, buildCreate, expectedAccountId, findClientProfile, needsRefresh, planSheetCopy,
-  platformMismatch, publicRow, refreshCandidates, resultState, retryPlan,
+  platformMismatch, publicRow, refreshCandidates, resultState, retryPlan, sameSecret, sweepCandidates, WEBHOOK_EVENT, webhookFor,
 } from '../_shared/tiktok-queue.mjs';
 
 export const LIST_LIMIT = 100;
 export const REFRESH_PER_LIST = 10;
+export const SWEEP_LIMIT = 25;
 export const COPY_CHUNK = 200;
 
 const clean = (v) => String(v == null ? '' : v).trim();
 const reply = (status, body) => ({ status, body });
 
+const OPEN_STATUSES = ['queued', 'uploading', 'processing', 'scheduled'];
+
+// Post For Me's result webhook. No staff key: the request proves itself with the webhook's secret.
+// expectedSecret() -> the secret Post For Me holds for this URL, or null when it cannot be found.
+// Always 2xx for anything that is not a bad secret, so Post For Me does not retry events we choose to ignore.
+export async function handleResultWebhook(args) {
+  const { secret, body, expectedSecret, store, now } = args;
+  const nowIso = new Date(typeof now === 'function' ? now() : Date.now()).toISOString();
+  const expected = await expectedSecret();
+  if (!expected) return reply(503, { ok: false, error: 'webhook_not_configured' });
+  if (!sameSecret(secret, expected)) return reply(401, { ok: false, error: 'bad_secret' });
+  const event = body && typeof body === 'object' ? body : {};
+  if (clean(event.event_type) !== WEBHOOK_EVENT) return reply(200, { ok: true, ignored: 'event_type' });
+  const data = event.data && typeof event.data === 'object' ? event.data : {};
+  const postId = clean(data.post_id);
+  if (!postId) return reply(200, { ok: true, ignored: 'no_post_id' });
+  const row = await store.byPostId(postId);
+  // Not a TikTok queue post (an Instagram post on the same Post For Me account, or an older one): nothing to do.
+  if (!row) return reply(200, { ok: true, matched: false });
+  const next = { ...applyResults(row, { data: [{ ...data, post_id: postId }] }, nowIso), last_checked_at: nowIso };
+  await store.save(next);
+  return reply(200, { ok: true, matched: true, status: next.status });
+}
+
 export async function handleTiktokUpload(args) {
-  const { body, role, actor, pfm, store, readSheet, now } = args;
+  const { body, role, actor, pfm, store, readSheet, now, webhookUrl } = args;
   const input = body && typeof body === 'object' ? body : {};
   const action = clean(input.action);
   const nowMs = () => (typeof now === 'function' ? now() : Date.now());
@@ -28,12 +56,33 @@ export async function handleTiktokUpload(args) {
 
   // Asks Post For Me how a post went; saves the answer when the row can still change.
   const refresh = async (row) => {
+    let adopted = false;
+    if (!row.upload_post_id && OPEN_STATUSES.includes(row.status)) {
+      // A row that never got its post id back: the direct submit sent the row id as external_id.
+      const look = await pfm('GET', '/social-posts?external_id=' + encodeURIComponent(row.id));
+      const list = look.ok && look.data && Array.isArray(look.data.data) ? look.data.data : null;
+      const hit = list ? list.find((x) => x && x.id && String(x.external_id || '') === row.id) : null;
+      if (!hit) {
+        // Nothing to ask about yet (or a row from before Post For Me): note the try so others go first.
+        if (list) { try { await store.save({ ...row, last_checked_at: nowIso() }); } catch {} }
+        return { row, pfm: null };
+      }
+      row = applyCreateResponse(row, hit, nowIso());
+      adopted = true;
+    }
     if (!row.upload_post_id) return { row, pfm: null };
     const r = await pfm('GET', '/social-post-results?post_id=' + encodeURIComponent(row.upload_post_id));
-    if (!r.ok) return { row, pfm: { state: 'unknown' } };
-    const state = resultState(r.data, row.upload_post_id);
-    if (!needsRefresh(row)) return { row, pfm: state };
     const at = nowIso();
+    if (!r.ok) {
+      // The found post id is worth keeping even when the result lookup failed.
+      if (adopted) { try { await store.save(row); } catch {} }
+      return { row, pfm: { state: 'unknown' } };
+    }
+    const state = resultState(r.data, row.upload_post_id);
+    if (!needsRefresh(row)) {
+      if (adopted) { const kept = { ...row, last_checked_at: at }; try { await store.save(kept); return { row: kept, pfm: state }; } catch {} }
+      return { row, pfm: state };
+    }
     const next = { ...applyResults(row, r.data, at), last_checked_at: at };
     try { await store.save(next); } catch { return { row, pfm: state }; }
     return { row: next, pfm: state };
@@ -97,12 +146,49 @@ export async function handleTiktokUpload(args) {
     return created(await send(row, built.postBody));
   }
 
+  // The safety net: ask Post For Me about open rows whose time has come, wherever they sit in the queue.
+  const sweep = async (pageRows, limit) => {
+    const due = sweepCandidates((await store.dueOpen(limit)).concat(refreshCandidates(pageRows || [], nowMs(), limit)), nowMs(), limit);
+    const fresh = new Map();
+    await Promise.all(due.map(async (r) => { fresh.set(r.id, (await refresh(r)).row); }));
+    return fresh;
+  };
+
   if (action === 'list') {
     const rows = await store.list(LIST_LIMIT);
-    const stale = refreshCandidates(rows, nowMs(), REFRESH_PER_LIST);
-    const fresh = new Map();
-    await Promise.all(stale.map(async (r) => { fresh.set(r.id, (await refresh(r)).row); }));
+    const fresh = await sweep(rows, REFRESH_PER_LIST);
     return reply(200, { ok: true, rows: rows.map((r) => publicRow(fresh.get(r.id) || r)) });
+  }
+
+  if (action === 'refresh_due') {
+    const fresh = await sweep([], SWEEP_LIMIT);
+    const after = [...fresh.values()];
+    return reply(200, { ok: true, checked: after.length, still_open: after.filter((r) => OPEN_STATUSES.includes(r.status)).length,
+      posted: after.filter((r) => r.status === 'posted').length, failed: after.filter((r) => r.status === 'failed').length });
+  }
+
+  if (action === 'webhook_status' || action === 'webhook_register' || action === 'webhook_remove') {
+    if (role !== 'admin') return reply(403, { ok: false, error: 'admin key required' });
+    const listed = await pfm('GET', '/webhooks');
+    if (!listed.ok) return reply(502, { ok: false, error: 'Could not read the webhooks from Post For Me.' });
+    const all = Array.isArray(listed.data && listed.data.data) ? listed.data.data : (Array.isArray(listed.data) ? listed.data : []);
+    // Never the secrets: ids, urls and events only.
+    const shown = (w) => ({ id: w.id, url: w.url, event_types: w.event_types || [], points_here: w.url === webhookUrl });
+    if (action === 'webhook_status') return reply(200, { ok: true, webhook_url: webhookUrl, webhooks: all.map(shown) });
+    if (action === 'webhook_register') {
+      const mine = webhookFor(all, webhookUrl);
+      if (mine) return reply(200, { ok: true, created: false, webhook: shown(mine) });
+      const made = await pfm('POST', '/webhooks', { url: webhookUrl, event_types: [WEBHOOK_EVENT] });
+      if (!made.ok || !made.data || !made.data.id) return reply(502, { ok: false, error: 'Post For Me did not create the webhook.' });
+      return reply(200, { ok: true, created: true, webhook: shown(made.data) });
+    }
+    const id = clean(input.id);
+    const target = all.find((w) => w && w.id === id);
+    if (!target) return reply(404, { ok: false, error: 'No Post For Me webhook with that id.' });
+    if (target.url === webhookUrl) return reply(409, { ok: false, error: 'That is this function\'s own webhook; it is not removed from here.' });
+    const gone = await pfm('DELETE', '/webhooks/' + encodeURIComponent(id));
+    if (!gone.ok) return reply(502, { ok: false, error: 'Post For Me did not remove the webhook.' });
+    return reply(200, { ok: true, removed: shown(target) });
   }
 
   if (action === 'status' || action === 'retry') {

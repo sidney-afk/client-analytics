@@ -81,7 +81,7 @@ async function stubRerouteFlagProduction(ctx) {
 }
 async function _ctx(browser, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
-  await seedStaffGate(c);
+  await seedStaffGate(c, { answerStaffReads: true });
   await stubRerouteFlagProduction(c);
   await require('../native_work_item_fixture.js').applyProbeWorkItems(c);
   return c;

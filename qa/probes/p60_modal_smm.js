@@ -22,7 +22,9 @@ const INT = 'SMM-INTERNAL-' + TS, CLI = 'SMM-CLIENT-' + TS, REP = 'SMM-REPLY-' +
 // VIDEO_WORK_ITEM rather than VID, which is already this probe's video-note body marker.
 const VIDEO_WORK_ITEM = NW.nativeDeliverableId(PID, 'video');
 
-const modalPost = (page, pid, o) => page.evaluate((a) => {
+// Wait for the component's notes thread first, as a person does (#1642: a note
+// sent while it is still loading is refused). Unlinked components resolve at once.
+const modalPost = async (page, pid, o) => { if (!o.replyTo) await NW.waitForNoteThread(page, pid, o.comp || 'caption'); return page.evaluate((a) => {
   if (_calOpenCommentsPid !== a.pid) openCalComments(a.pid);
   if (a.replyTo) { _calBeginReply(a.replyTo); }
   else { _calReplyTarget = null;
@@ -33,7 +35,7 @@ const modalPost = (page, pid, o) => page.evaluate((a) => {
   if (!ta) return 'NO_COMPOSER';
   ta.value = a.body;
   try { _calSubmitComposer(); return 'ok'; } catch (e) { return 'ERR ' + e.message; }
-}, { pid, ...o });
+}, { pid, ...o }); };
 
 const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid, comp + '_tweaks'); let a = []; try { a = JSON.parse(r[comp + '_tweaks'] || '[]'); } catch (e) {} const m = a.find(c => (c.body || '').includes(needle) && !c.parent_id); return m ? m.id : null; };
 
@@ -43,7 +45,7 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
   // SMM context with Linear interception
   const sctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(sctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await seedStaffGate(sctx);
+  await seedStaffGate(sctx, { answerStaffReads: true });
   // Both contexts are watched, not just the acting one: the client tab below is a separate
   // context, and a capture installed only on the SMM side would let a client-side push slip
   // past the zero-assertion AND out to the live TEST backend. Same finding as p47.

@@ -1,0 +1,38 @@
+[
+  {
+    "label": "tiktok-client-ready-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6a4619c7942b418f625e82d64fb3a0766767367f5ef5ca542650a3531a9a10c7",
+    "afterHash": "6a4619c7942b418f625e82d64fb3a0766767367f5ef5ca542650a3531a9a10c7"
+  },
+  {
+    "label": "tiktok-client-ready-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "aafd4a87c357ed9b7081252f1cb999fabc345890dfc513448297f74cc0d668f6",
+    "afterHash": "aafd4a87c357ed9b7081252f1cb999fabc345890dfc513448297f74cc0d668f6"
+  },
+  {
+    "label": "tiktok-client-ready-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d789c24decb450b293c39db1a95acddc98b57ea5559bcc36e6c9ed970f7b6d02",
+    "afterHash": "d789c24decb450b293c39db1a95acddc98b57ea5559bcc36e6c9ed970f7b6d02"
+  },
+  {
+    "label": "tiktok-client-ready-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "ce04dd745b3f530d6bdd7f65589304d1d882f1c6aa4436f0df5c9f7fa3166784",
+    "afterHash": "ce04dd745b3f530d6bdd7f65589304d1d882f1c6aa4436f0df5c9f7fa3166784"
+  }
+]

@@ -1,6 +1,6 @@
 {
   "scopeVersion": "owner-2026-10-08",
-  "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
+  "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
   "profiles": [
     {
       "id": "desktop",
@@ -90,100 +90,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/today-all-clear-393-light.png",
-            "sha256": "2ebd953d15547a376a365235cba185ad145a2a90b7ccf86ac8414b043129f9cb"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "today-all-clear",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/today-all-clear-393-light.png",
-            "sha256": "2ebd953d15547a376a365235cba185ad145a2a90b7ccf86ac8414b043129f9cb",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/today-all-clear-393-dark.png",
-            "sha256": "4256ae825eb803d8fb8936458a573ed4c9063d0ac382de92e6fc2b048bf6754f"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "today-all-clear",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/today-all-clear-393-dark.png",
-            "sha256": "4256ae825eb803d8fb8936458a573ed4c9063d0ac382de92e6fc2b048bf6754f",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/today-all-clear-412-light.png",
-            "sha256": "2aa2d4bae431f97ea48e19b66c9257a4ac785994c4e7943e31be90f48b603f36"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "today-all-clear",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/today-all-clear-412-light.png",
-            "sha256": "2aa2d4bae431f97ea48e19b66c9257a4ac785994c4e7943e31be90f48b603f36",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/today-all-clear-412-dark.png",
-            "sha256": "cb4dd8f54749b52618c726e36d75fa32d0cf25af893a05eb9b9604de995fe83a"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "today-all-clear",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/today-all-clear-412-dark.png",
-            "sha256": "cb4dd8f54749b52618c726e36d75fa32d0cf25af893a05eb9b9604de995fe83a",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -2030,100 +1966,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/calendar-card-notes-393-light.png",
-            "sha256": "a52707481929207bd69485eef913526dce17cb233d5151dde579d444583491cd"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "calendar-card-notes",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/calendar-card-notes-393-light.png",
-            "sha256": "a52707481929207bd69485eef913526dce17cb233d5151dde579d444583491cd",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/calendar-card-notes-393-dark.png",
-            "sha256": "3eba02a633ffd6d9240b94d773b955d2bddc8f8293c682e5f11e2898a5302491"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "calendar-card-notes",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/calendar-card-notes-393-dark.png",
-            "sha256": "3eba02a633ffd6d9240b94d773b955d2bddc8f8293c682e5f11e2898a5302491",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/calendar-card-notes-412-light.png",
-            "sha256": "3f99c219e4e9f931a792c743d88d7cbef15a74cd8a917d3d3e5d36c9571a6560"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "calendar-card-notes",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/calendar-card-notes-412-light.png",
-            "sha256": "3f99c219e4e9f931a792c743d88d7cbef15a74cd8a917d3d3e5d36c9571a6560",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/calendar-card-notes-412-dark.png",
-            "sha256": "288eca8685eb311fc5f4b620d551c342b1e3596f466196b8bba45563b094c442"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "calendar-card-notes",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/calendar-card-notes-412-dark.png",
-            "sha256": "288eca8685eb311fc5f4b620d551c342b1e3596f466196b8bba45563b094c442",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -2907,7 +2779,7 @@
       "screen": "Calendar",
       "ownerScreen": "Calendar",
       "audience": "staff",
-      "kind": "normal",
+      "kind": "empty",
       "cells": [
         {
           "profile": "desktop",
@@ -4602,100 +4474,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-card-notes-393-light.png",
-            "sha256": "7d4223f54cb52cad6837b0ff3727d49244ee5f7a0a56eaa3522639e289cc4efd"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "samples-card-notes",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-card-notes-393-light.png",
-            "sha256": "7d4223f54cb52cad6837b0ff3727d49244ee5f7a0a56eaa3522639e289cc4efd",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-card-notes-393-dark.png",
-            "sha256": "ef050df30e12620df77146ba16573c79325def59d79b1bb3619fe7a5ed8d0e16"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "samples-card-notes",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-card-notes-393-dark.png",
-            "sha256": "ef050df30e12620df77146ba16573c79325def59d79b1bb3619fe7a5ed8d0e16",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-card-notes-412-light.png",
-            "sha256": "c10e2079788ba646fc72bae3aad95b7d29db4f8c54d2351b3ce6c75184516ccc"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "samples-card-notes",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-card-notes-412-light.png",
-            "sha256": "c10e2079788ba646fc72bae3aad95b7d29db4f8c54d2351b3ce6c75184516ccc",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-card-notes-412-dark.png",
-            "sha256": "73c59dc11b9171a9834949d3eef0d5d391246c063bd35b8a8a3bb0ee42fb0fa4"
-          },
-          "review": {
-            "lane": "staff",
-            "state": "samples-card-notes",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "audience": "staff",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-card-notes-412-dark.png",
-            "sha256": "73c59dc11b9171a9834949d3eef0d5d391246c063bd35b8a8a3bb0ee42fb0fa4",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -5025,7 +4833,7 @@
       "screen": "Samples",
       "ownerScreen": "Samples",
       "audience": "staff",
-      "kind": "normal",
+      "kind": "empty",
       "cells": [
         {
           "profile": "desktop",
@@ -5564,50 +5372,18 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/notes-393-light.png",
-            "sha256": "86b1610c69bc8c485ec64f481c3849128effc727520590f1418dc243c7952106"
-          },
-          "review": {
-            "lane": "client-calendar-expanded",
-            "state": "notes",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "audience": "client",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/notes-393-light.png",
-            "sha256": "86b1610c69bc8c485ec64f481c3849128effc727520590f1418dc243c7952106",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/notes-412-light.png",
-            "sha256": "ec345e196d88ae98e0c6173ec84faf298faecbbc038849f79bf6d205c4c0ccc5"
-          },
-          "review": {
-            "lane": "client-calendar-expanded",
-            "state": "notes",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "audience": "client",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/notes-412-light.png",
-            "sha256": "ec345e196d88ae98e0c6173ec84faf298faecbbc038849f79bf6d205c4c0ccc5",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -5862,50 +5638,18 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-notes-393-light.png",
-            "sha256": "1fb9c634e84f770ae5beab7b57bbb729a10e2b9cf75f178b4b77ceae6deb1627"
-          },
-          "review": {
-            "lane": "client-links-expanded",
-            "state": "samples-notes",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "audience": "client",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-notes-393-light.png",
-            "sha256": "1fb9c634e84f770ae5beab7b57bbb729a10e2b9cf75f178b4b77ceae6deb1627",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-notes-412-light.png",
-            "sha256": "5fb4e037bddec8a9a3df7dc2e955a73be3a6947d05aa34bafee9cfd2c92dc577"
-          },
-          "review": {
-            "lane": "client-links-expanded",
-            "state": "samples-notes",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "audience": "client",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-notes-412-light.png",
-            "sha256": "5fb4e037bddec8a9a3df7dc2e955a73be3a6947d05aa34bafee9cfd2c92dc577",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -5932,50 +5676,18 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-notes-unlinked-393-light.png",
-            "sha256": "5be5601ff6a588db0187bb078d099700e7dd1edd326a539d9fee690192f887a5"
-          },
-          "review": {
-            "lane": "client-links-expanded",
-            "state": "samples-notes-unlinked",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "audience": "client",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-notes-unlinked-393-light.png",
-            "sha256": "5be5601ff6a588db0187bb078d099700e7dd1edd326a539d9fee690192f887a5",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-4/main-followup/after/samples-notes-unlinked-412-light.png",
-            "sha256": "8715531d7b8595c3da182ee6485165ec6a4783ccb190ce08ab4a8cb9ce67aa63"
-          },
-          "review": {
-            "lane": "client-links-expanded",
-            "state": "samples-notes-unlinked",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "audience": "client",
-            "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
-            "file": "batch-4/main-followup/after/samples-notes-unlinked-412-light.png",
-            "sha256": "8715531d7b8595c3da182ee6485165ec6a4783ccb190ce08ab4a8cb9ce67aa63",
-            "verdict": "CLEAN",
-            "reviewer": "Prism",
-            "note": "Personally inspected the complete current native viewport after integrating main. Empty Today and Notes remain readable and aligned; unavailable Notes is compact and does not invite typing. Acceptance is limited to this named cell; the full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6407,6 +6119,331 @@
       ]
     },
     {
+      "name": "client-edit-save-actions",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "name": "client-history-open",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "name": "client-manager-change-actions",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "name": "client-manager-menu",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "name": "client-research-open",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
       "name": "clients",
       "tab": "clients",
       "lane": "admin",
@@ -6414,266 +6451,6 @@
       "ownerScreen": "Clients",
       "audience": "staff",
       "kind": "normal",
-      "cells": [
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        }
-      ]
-    },
-    {
-      "lane": "discovery",
-      "name": "clients-create-empty",
-      "screen": "Clients",
-      "ownerScreen": "Clients",
-      "audience": "staff",
-      "kind": "empty",
-      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
-      "cells": [
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        }
-      ]
-    },
-    {
-      "lane": "discovery",
-      "name": "clients-create-loading",
-      "screen": "Clients",
-      "ownerScreen": "Clients",
-      "audience": "staff",
-      "kind": "loading",
-      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
-      "cells": [
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        }
-      ]
-    },
-    {
-      "lane": "discovery",
-      "name": "clients-create-manager-menu",
-      "screen": "Clients",
-      "ownerScreen": "Clients",
-      "audience": "staff",
-      "kind": "menus/sheets open",
-      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
-      "cells": [
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "desktop",
-          "width": 1440,
-          "height": 900,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "iphone-pro",
-          "width": 393,
-          "height": 852,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        },
-        {
-          "profile": "android",
-          "width": 412,
-          "height": 915,
-          "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
-        }
-      ]
-    },
-    {
-      "lane": "discovery",
-      "name": "clients-create-open",
-      "screen": "Clients",
-      "ownerScreen": "Clients",
-      "audience": "staff",
-      "kind": "menus/sheets open",
-      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
       "cells": [
         {
           "profile": "desktop",
@@ -6797,6 +6574,71 @@
       ]
     },
     {
+      "name": "clients-list-menu",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
       "name": "clients-loading",
       "tab": "clients",
       "lane": "admin",
@@ -6804,6 +6646,71 @@
       "ownerScreen": "Clients",
       "audience": "staff",
       "kind": "loading",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "name": "clients-search-menu",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
       "cells": [
         {
           "profile": "desktop",
@@ -6956,6 +6863,93 @@
           "width": 393,
           "height": 852,
           "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-ready-light-393-viewport.png",
+            "sha256": "19a1957de4c4b8d75d0b485f279912038efac939d5b9df0a20e76ac1a5727cee"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-ready-dark-393-viewport.png",
+            "sha256": "25b162b46b26466fa3ca3422ee204dd5ddb16bdfff3a2602505f2618ac282ed1"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-ready-light-412-viewport.png",
+            "sha256": "66adde363371d10afb2041939298a1474344d07f38e834ef1ae769cddcd9e016"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-ready-dark-412-viewport.png",
+            "sha256": "57b989ec44fa19eef55f8c7ed981921a003c26177d40b84b180416f7a42c5c07"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "tiktok-client-search",
+      "lane": "finch",
+      "screen": "TikTok upload",
+      "ownerScreen": "TikTok upload",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
           "status": "OPEN",
           "capture": null,
           "review": null
@@ -6964,28 +6958,69 @@
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-light-393-viewport.png",
+            "sha256": "7cecc484e5599fd5adab7882b103961c5b38c0cd06a4ed6b36af39307129ee3b"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-dark-393-viewport.png",
+            "sha256": "730304edc492a57e4c9f6cc5807749f526d69ee6ae549d9c1d8cc45b2f8b80f9"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-light-412-viewport.png",
+            "sha256": "20b107c54fe2479438e3f64b1ce712d983f22bbd4daba8748eedfebbbbbd9271"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-dark-412-viewport.png",
+            "sha256": "728f60bf484a82325cb804318c12fe13406fc36e35b1651df0a4570b2819838d"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
         }
       ]
     },

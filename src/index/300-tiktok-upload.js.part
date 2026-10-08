@@ -769,7 +769,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         let profileLine = '';
         if (tkState.client) {
             if (tkState.profileSource === 'sheet') {
-                profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
+                profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
                 profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</div>`;
             }

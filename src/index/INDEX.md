@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7301 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7330 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -29,8 +29,8 @@
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 22 | `097-today.js.part` | 854 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 24 | `099-phone-staff-shell.js.part` | 225 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
-| 25 | `099-staff-phone-bar.js.part` | 464 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
+| 24 | `099-phone-staff-shell.js.part` | 244 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
+| 25 | `099-staff-phone-bar.js.part` | 472 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 26 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |

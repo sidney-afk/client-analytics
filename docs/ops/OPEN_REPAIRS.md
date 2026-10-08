@@ -31319,6 +31319,8 @@ Way back: revert the PR. Not yet seen by the owner in his browser.
 
 ## 378. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 4: empty Today and native Notes
 
+## 380. [2026-10-08, BUILT, NOT MERGED] Prism phone batches 4 and 5
+
 2026-10-08, Prism batch 4: PR #1994's final head passed both previously red
 hosted jobs and was independently merged; Prism did not merge it. The owner
 narrowed future acceptance to 1440 desktop, 393 x 852 iPhone and 412 x 915
@@ -31430,3 +31432,25 @@ V8's maximum string length, so the check crashed ("Invalid string length") on an
 page rebuild does. It now asks each file in turn; the answer is the same (a name never spans two files), and its
 term-use audit in `test/repo-identity-exposure.js` lists the new line. Separately, the 551 MB of retained old bundles
 deserves its own decision (they keep cached tabs working; how many to keep is the owner's call).
+
+2026-10-08, Prism batch 5: reproduced and repaired unreadable Clients supporting
+text and manager-menu focus returning to More after a native trigger repaint;
+clipped Analytics loading rows; false-empty Workload loading copy and invisible
+dark placeholders; opaque TikTok provider wording and pale instructions. Changes
+are phone-scoped. Existing native fixtures now exercise actual picker, search,
+fold, manager assignment and edit/save actions with intercepted fictional replies.
+The gallery preserves 44 complete before/after pairs and source/PNG hashes;
+60 phone cells were personally reviewed, 56 CLEAN and four empty Clients cells
+OPEN. Empty Clients guidance needs review with main's new Create client flow.
+The full narrowed round, separate fresh-eyes acceptance, hosted checks and live
+deployment remain separate unfinished gates. No live mutations, database or n8n
+changes, or merge by Prism. See docs/audits/2026-10-07-prism-phone/batch-5/.
+
+Same-PR follow-up: the TikTok phone destination now reads a data attribute
+rendered from the picked client, rather than the mutable search query. Native
+checks reproduce eight before failures, then verify unchanged destinations
+while typing, selecting another client, a missing-handle fallback and exact
+desktop wording restoration. Entry 380 owns the batch 4 and 5 paragraphs above.
+It is unique; a full scan also identifies pre-existing duplicate numbers
+13, 14, 22, 23, 175, 176, 177 and 180 on main. Historical records are retained.
+Retargeting to main and its local merge remain conditional on PR #2002 merging.

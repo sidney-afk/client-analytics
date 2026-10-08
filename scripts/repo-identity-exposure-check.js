@@ -249,7 +249,11 @@ function baseIndexHtmlLines(base) {
    terms as above: exact bytes, nothing normalized, nothing fuzzy, no name- or
    path-based exemption, and not for any other destination. */
 let baseScriptLineSet = null;
-let baseScriptText = '';
+/* One string per file, never joined: base's js/ passed 512 MB in October 2026,
+   past V8's maximum string length, and the joined text crashed the check with
+   "Invalid string length" on every change that touches js/ (OPEN_REPAIRS 382).
+   A name never spans two files, so asking each file answers the same question. */
+let baseScriptTexts = [];
 let baseScriptLineSetBase = null;
 function loadBaseGeneratedScripts(base) {
   if (baseScriptLineSetBase !== base) {
@@ -262,7 +266,7 @@ function loadBaseGeneratedScripts(base) {
       if (body !== null) { texts.push(body); for (const l of body.split('\n')) set.add(l); }
     }
     baseScriptLineSet = set;
-    baseScriptText = texts.join('\n');
+    baseScriptTexts = texts;
     baseScriptLineSetBase = base;
   }
 }
@@ -281,7 +285,7 @@ function baseGeneratedScriptLines(base) {
    exactly as before: this never applies to them. */
 function baseGeneratedScriptsContain(term, base) {
   loadBaseGeneratedScripts(base);
-  return baseScriptText.includes(term);
+  return baseScriptTexts.some(text => text.includes(term));
 }
 
 function addedLinesContaining(term, base) {

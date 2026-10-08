@@ -135,6 +135,7 @@ function makeApp(options) {
     // owns a deliverable at all (caption/title do not). OPEN_REPAIRS 127.
     extractFunction('_writeUiComponentHasWorkItem'),
     extractFunction('_writeUiNativeId'),
+    extractFunction('_writeUiCommentRound'),
     extractFunction('_prodCrosswalkTeamForComponent'),
     extractFunction('_prodCrosswalkCardSlug'),
     extractFunction('_prodCrosswalkMismatchFields'),
@@ -178,6 +179,7 @@ function makeShaper() {
   vm.createContext(env);
   vm.runInContext([
     extractFunction('_prodCommentTruthy'),
+    extractFunction('_writeUiCommentRound'),
     extractFunction('_prodCommentNormalize'),
     extractFunction('_prodCanonicalCardComment'),
   ].join('\n'), env);

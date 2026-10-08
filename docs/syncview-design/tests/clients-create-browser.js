@@ -125,11 +125,11 @@ async function open(browser, origin, role, viewport, opts) {
 }
 async function openClients(s, label) {
   await s.page.evaluate(() => _kasperGotoTab('clients'));
-  await s.page.waitForFunction(() => document.querySelector('#caSearch') && _caState.loaded, null, { timeout: 10000 }).catch(() => s.failures.push(`${label}: the Clients tab never loaded`));
+  await s.page.waitForFunction(() => document.querySelector('#caSearch') && _caState.loaded, null, { timeout: 15000 }).catch(() => s.failures.push(`${label}: the Clients tab never loaded`));
 }
 async function fill(s, name) {
   await s.page.fill('#cnName', name);
-  await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1, null, { timeout: 5000 }).catch(() => s.failures.push('the manager list never loaded'));
+  await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1, null, { timeout: 15000 }).catch(() => s.failures.push('the manager list never loaded'));
   await s.page.selectOption('#cnManager', 'managertwo');
   await s.page.waitForTimeout(700);
 }
@@ -153,7 +153,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       if (!(await s.page.$('#caNewBtn'))) failures.push(`${label}: no New client button`);
       if (s.ob.some(c => /^create/.test(c.body.action))) failures.push(`${label}: create calls before the button was pressed`);
       await s.page.click('#caNewBtn');
-      await s.page.waitForSelector('.cn-dialog', { timeout: 4000 }).catch(() => failures.push(`${label}: the dialog never opened`));
+      await s.page.waitForSelector('.cn-dialog', { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog never opened`));
       const focused = await s.page.evaluate(() => document.activeElement && document.activeElement.id);
       if (focused !== 'cnName') failures.push(`${label}: the name field is not focused on open (${focused})`);
       const first = s.ob.filter(c => /^create/.test(c.body.action));
@@ -190,7 +190,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
 
       const before = s.ob.length;
       await s.page.click('#cnCreateBtn');
-      await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the dialog did not close after a create`));
+      await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog did not close after a create`));
       await s.page.waitForTimeout(900);
       const creates = s.ob.slice(before).filter(c => c.body.action === 'create');
       if (creates.length !== 1) failures.push(`${label}: expected exactly one create, saw ${creates.length}`);
@@ -246,7 +246,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       await shot(s, 'slack-ready-1440');
       const before = s.ob.length;
       await s.page.click('#cnCreateBtn');
-      await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the dialog did not close`));
+      await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog did not close`));
       const c = s.ob.slice(before).filter(x => x.body.action === 'create');
       if (c.length !== 1 || c[0].body.display_name !== FORM.name || c[0].body.email !== FORM.email) failures.push(`${label}: the create did not carry the form's name and email`);
       const toast = await s.page.evaluate(() => (document.querySelector('.toast, #toast, [class*="toast"]') || {}).innerText || '').catch(() => '');

@@ -31303,3 +31303,20 @@ Also: the weekly Slack update's "no channel" notice told staff to add a column t
 - Clients: searching "@name" finds nothing when the handle is stored without "@"; the HubSpot band is not searched again for ten minutes after an email is fixed (server); an older checklist read can repaint a just-saved step.
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 378. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 4: empty Today and native Notes
+
+2026-10-08, Prism batch 4: PR #1994's final head passed both previously red
+hosted jobs and was independently merged; Prism did not merge it. The owner
+narrowed future acceptance to 1440 desktop, 393 x 852 iPhone and 412 x 915
+Android on the approved priority screens. The coverage inventory is rewritten
+for that scope, retaining historical galleries and legacy CI guards. An empty
+Today phone view now skips five zero-item job tiles. Native Notes has readable
+labels and a compact unavailable Samples state without a contradictory typing
+prompt. Drafts, native choices, the refusal gate and desktop presentation are
+preserved. The Today harness now applies empty/error/loading fixtures before
+boot instead of capturing cached normal data. Batch 4 publishes 18 reviewed
+fixture pairs, with exact source/PNG hashes and explicit remaining OPEN work.
+The full clean round, fresh review, hosted batch checks and deployment remain
+pending. Filming, Quiz, Save problems and unlisted tabs are excluded by the
+owner's revised scope. No database/n8n changes or live mutations were made.

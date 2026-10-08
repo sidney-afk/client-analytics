@@ -70,6 +70,8 @@ const builds = {
   before: singleFileAt(),
   after: fs.readFileSync(path.join(ROOT, 'index.html')),
 };
+const sourceNames = fs.readFileSync(path.join(ROOT,'src/index/manifest.txt'),'utf8').split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!x.startsWith('#'));
+const sourceHash = crypto.createHash('sha256').update(Buffer.concat(sourceNames.map(name=>fs.readFileSync(path.join(ROOT,'src/index',name))))).digest('hex');
 if (process.env.PARITY_CONTROL) builds.after = builds.before; // same build twice: measures harness noise
 const FREEZE = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' };
@@ -208,7 +210,10 @@ async function staffTabs(browser) {
     }
   }
   if (process.env.PARITY_ONLY) pages = pages.filter(p => p.name === process.env.PARITY_ONLY);
-  if (OUT) fs.mkdirSync(OUT, { recursive: true });
+  if (OUT) {
+    fs.mkdirSync(OUT, { recursive: true });
+    fs.writeFileSync(path.join(OUT,'provenance.json'),JSON.stringify({sourceHash,before:BEFORE_REF,widths:WIDTHS,height:HEIGHT,afterFormat:'assembled single-file fixture',startedAt:new Date().toISOString()},null,2)+'\n');
+  }
   const jobs = pages.flatMap(pg => WIDTHS.map(w => ({ pg, w })));
   const rows = new Array(jobs.length); let fail = 0, cursor = 0;
   async function worker() {

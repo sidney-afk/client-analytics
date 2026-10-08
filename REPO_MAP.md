@@ -1,9 +1,19 @@
 # Repo map
 
-Prism phone rounds: `qa/client-phone/coverage.js` inventories the existing native
-journeys and records width/theme review cells and outstanding state/action
+Prism phone rounds: `qa/client-phone/coverage.js` inventories the scoped native
+journeys using owner-approved devices in `qa/client-phone/profiles.js` and records
+device/theme review cells and outstanding state/action
 discovery in `docs/audits/2026-10-07-prism-phone/`. Its coverage statuses remain
 open until individual visual review and interaction evidence are recorded.
+`qa/client-phone/fixture-desktop-parity.js` reuses the native staff/client
+fixtures for exact 1440 px Today and Notes comparisons, including Notes after
+a phone-to-desktop resize. It complements the broad desktop parity runner.
+`docs/audits/2026-10-07-prism-phone/batch-4/` contains the narrowed-device
+Today/Notes gallery, personal reviews, source binding, check tails and desktop
+hash receipts. The complete review and fresh-eyes round remain open.
+`docs/audits/2026-10-07-prism-phone/batch-4/main-followup/` preserves the
+post-main-integration gallery, exact current-main desktop comparisons and
+the marker-based unavailable Notes regression receipts.
 
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,

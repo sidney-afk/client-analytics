@@ -518,7 +518,7 @@ const CANDIDATES = new Map([
     // itself after a native create and imports ./card-link.mjs (9 -> 10 files);
     // re-pinned with ef-fingerprint. Comment round 0 (2026-10-08, OPEN_REPAIRS
     // 382): round 0 is saved as no round, never a 500; re-pinned with ef-fingerprint.
-    source: '6b4c676f2374f3a582ee50f6d609ffa23165dbcf863924044253f890b7c550c9',
+    source: '692b5c473be2d404ee05da0eb2fb87dca64e94cb4654cc0daa931d8c4f544502',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 10,
   }],

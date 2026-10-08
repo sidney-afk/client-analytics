@@ -31260,3 +31260,50 @@ Confirmed or likely, not fixed here (each needs the owner or a server change):
 - Not verified: the first-name fallback that matches a signed-in person to a manager's client list could match the wrong person when a non-manager shares a first name with exactly one manager; the HubSpot band drops its "no deal" reason for ten minutes after a lookup.
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 382. [2026-10-08, BUILT, NOT MERGED, SERVER NOT DEPLOYED] Comment round 0: 670 failed saves of one reply, as a 500 (session Mend)
+
+**What happened.** Lighthouse found production-write answering 500 on comment saves between 2026-10-07 21:58 and
+2026-10-08 19:10 UTC. The write-refusal log for that window holds 670 `calendar / comment / native_write_failed / 500`
+rows, and every one is the SAME request (one hashed request id, one hashed work item): a single reply, retried by the
+page about every two minutes. It is a thumbnail work item on card `p_native_c4cb226748bdb19fb0fefb31fc12_1` (one
+active client; not the test client).
+
+**Cause, two halves.**
+1. *Where the 0 came from (page and server).* A canonical comment with no round was read back as round 0, because
+   `Number(null)` is 0: the page's reader (`_prodCommentNormalize`, 230) and production-write's comment row shape both
+   did `Number.isInteger(Number(row.round)) ? Number(row.round) : null`. The page stored that 0 on the card's thread
+   (measured: the card holds comment `pc_0a4a…` with round 0; the same row in `production_comments` has no round), and
+   a reply inherits its thread root's round (`_calSubmitComposer`, 190), so the reply was sent with round 0. Across all
+   cards, 24 stored comments carry round 0 (20 cards, video and thumbnail threads, none of them change requests).
+2. *Why it was a 500.* production-write refused only `round < 0`, so 0 reached `production_comments`, whose
+   `CHECK (round IS NULL OR round > 0)` threw.
+
+**Fix.**
+- Page (ships alone, on merge): one rule, `_writeUiCommentRound` (120): a whole number of 1 or more, otherwise no round.
+  Used by the Calendar and Samples comment sends, the retry journal (record and replay, so the reply already queued in
+  that person's browser goes out with no round on its next try), the Samples lifecycle reader, and the canonical reader.
+  Index rebuilt.
+- Server (production-write, Section 4): `normalizeCommentRound` in `policy.mjs`; round 0 is saved as no round (never a
+  500), a non-integer or negative round is still a 400, and a comment with no round reads back as null. Fingerprint
+  re-pinned with `scripts/ef-fingerprint.js` (`692b5c47…`, files 10).
+
+**Was anything lost?** One comment. The failed request's comment id matches no row in `production_comments` and no
+entry on the card (checked by hashing every comment id on that card and work item), so that reply was never saved. Its
+text is only in that person's browser retry queue, which has kept sending it; with the fixed page it should save on
+the next retry. Three plain comments were saved on the same work item at 22:00 the same evening (no replies), which
+may be the person re-typing it. Nothing to repair in the database; the test client was not touched.
+
+**Proof.** `docs/syncview-design/tests/comment-round-zero-browser.js` (mocked; the shared mock now refuses round 0
+with the same 500 the table caused): fails on the old page exactly as live did (round 0 sent, `native_write_failed`)
+and passes now, on the Calendar and Samples paths, a queued retry, and the reader. `test/production-write-comment-round.js`
+(unit): the rule's truth table, both server comment paths, and on PostgreSQL 16 the migration's own round column
+refusing 0 and accepting what the rule saves.
+
+**Not changed, follow-up.** `supabase/functions/production-comments/policy.mjs` (the comment READ function) has the same
+`Number(null)` pattern. The page now cleans whatever it returns, so it is harmless; it deploys only through the
+onboarding lane, which also redeploys production-write outside Section 4, so it is left for its own change. The 24
+stored round-0 comments are left as they are: the page now reads them as no round.
+
+**Owner step.** Merge (the page fix goes live with Pages), then deploy production-write through the Section 4 lane with
+a fresh capture, at the main SHA of that moment. **Way back:** revert the PR; the previous pin is in the workflow comment.

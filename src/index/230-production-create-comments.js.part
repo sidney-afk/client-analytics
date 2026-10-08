@@ -1043,7 +1043,24 @@ import {
                comment, with no warning. Reply now carries the typed text into
                the reply; Edit has to put the old comment's text in the box, so
                it asks first. */
-            const unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            let unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            /* NEVER ACROSS AUDIENCES. A reply takes its thread's audience and
+               the composer shows no audience switch for a reply. Carrying an
+               unsent INTERNAL comment into a reply on a client-visible thread
+               would post staff-only words where the client reads them (found by
+               an independent review of the first version of this change). Text
+               is carried only into a thread of the audience it was typed for;
+               otherwise the person is asked, as for Edit. */
+            const crossesAudience = action === 'add' && comment && unsent
+                && String(comment.audience || 'internal') !== String(draft.audience || 'internal');
+            if (crossesAudience && !discardUnsent) {
+                showConfirm('Discard your unsent comment?',
+                    'You typed a comment marked ' + (draft.audience === 'client' ? 'client-visible' : 'internal') + ', and this thread is '
+                    + (comment.audience === 'client' ? 'client-visible' : 'internal') + '. It will not be moved into the reply. Send it first, or discard it and reply.',
+                    () => { _prodCommentBegin(id, 'add', commentId, true); }, 'Discard and reply');
+                return false;
+            }
+            if (crossesAudience) unsent = '';
             if (action === 'edit' && comment && unsent && !discardUnsent) {
                 showConfirm('Discard your unsent comment?',
                     'You typed a comment that is not sent yet. Editing another comment replaces it in the box.',

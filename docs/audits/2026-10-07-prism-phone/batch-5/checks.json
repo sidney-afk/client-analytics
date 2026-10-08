@@ -1,6 +1,6 @@
 {
   "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-  "status": "RUNNING",
+  "status": "PASS",
   "checks": [
     {
       "check": "after-clients-final",
@@ -142,9 +142,9 @@
     },
     {
       "check": "legacy-staff-final",
-      "status": "RUNNING",
-      "logHash": "c5c8492eb3b835d4e643c41ea55c96a632ea97bf3bd0d468c37f15d43c8ddf38",
-      "lastLines": "ok linear-search 430 dark\nok linear-status-picker 390 light\nok linear-status-picker 390 dark"
+      "status": "PASS",
+      "logHash": "43dfbab7b74018708f330c714ad98251b37e624ec39d54f7f696f76c4a42e603",
+      "lastLines": "ok samples-card-notes 430 light\nok samples-card-notes 430 dark\nstaff-phone-final-pass: 524 renders, 0 problems"
     },
     {
       "check": "before-clients-final",

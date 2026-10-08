@@ -1,5 +1,12 @@
 # Clients, loading and TikTok phone fixes
 
+[Reviewed follow-up](review-followup/README.md) binds the TikTok destination
+to the picked client, records entry 380 and the historical ledger collisions,
+and publishes fresh native screenshots/actions. PR 2002's merge is still the
+prerequisite for retargeting to main. Evidence below is historical and remains
+bound to its original source. Its 524-render legacy staff run has completed
+with zero problems; the source-bound check receipt now records that result.
+
 Clients had pale supporting labels, and closing its manager picker moved focus
 to More after the native header repainted. Analytics loading retained a clipped
 desktop table. Workload loading falsely claimed there was nothing overdue.

@@ -1,6 +1,6 @@
 {
   "scopeVersion": "owner-2026-10-08",
-  "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
+  "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
   "profiles": [
     {
       "id": "desktop",
@@ -6020,128 +6020,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-detail-light-393-viewport.png",
-            "sha256": "06fe2c16293b43f3ac9a55acd995047019daa89e2679026ab9645100d2bb3a38"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-detail",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-detail-light-393.png",
-                "sha256": "a4703dd31619ca0267460249af42e382b7cdcb2cc2882034eee5a5113d2bcba7"
-              },
-              {
-                "file": "batch-5/after/client-detail-light-393-viewport.png",
-                "sha256": "06fe2c16293b43f3ac9a55acd995047019daa89e2679026ab9645100d2bb3a38"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-detail-dark-393-viewport.png",
-            "sha256": "4908b36ca6732bbb339384cd34d09677466d5a9272e8757c5b111c690837dcb7"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-detail",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-detail-dark-393.png",
-                "sha256": "458ce07ceacc58c5eb68f23fe890eb1c482621f605985f54a154f5eccfb23012"
-              },
-              {
-                "file": "batch-5/after/client-detail-dark-393-viewport.png",
-                "sha256": "4908b36ca6732bbb339384cd34d09677466d5a9272e8757c5b111c690837dcb7"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-detail-light-412-viewport.png",
-            "sha256": "16501e45e95706580460d03d348f09b9d16fd73b338e1259c7e34a24e4816459"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-detail",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-detail-light-412.png",
-                "sha256": "28a850a1abf311e17f91d51daf2d057931411442fefc4ff2a02dc2d991f1b798"
-              },
-              {
-                "file": "batch-5/after/client-detail-light-412-viewport.png",
-                "sha256": "16501e45e95706580460d03d348f09b9d16fd73b338e1259c7e34a24e4816459"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-detail-dark-412-viewport.png",
-            "sha256": "a2a9465906ba588f240fcfe72f05aa40b03ee4368d6481bd8b2145f824b29e69"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-detail",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-detail-dark-412.png",
-                "sha256": "6a7a4d4b46310e9811f2d4284ba575cbd1eec4c3b338d94848ab7d43803e3129"
-              },
-              {
-                "file": "batch-5/after/client-detail-dark-412-viewport.png",
-                "sha256": "a2a9465906ba588f240fcfe72f05aa40b03ee4368d6481bd8b2145f824b29e69"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6177,128 +6085,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-light-393-viewport.png",
-            "sha256": "a271e90d6ee5ad6b300ce73cd92f10399558d82becce54188f55937ea24958dc"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-light-393.png",
-                "sha256": "014e0f067f05619653a0fec3ff7d84d451d4f7fb5dafaacbbd0fcb83c1eb6fc5"
-              },
-              {
-                "file": "batch-5/after/client-edit-light-393-viewport.png",
-                "sha256": "a271e90d6ee5ad6b300ce73cd92f10399558d82becce54188f55937ea24958dc"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-dark-393-viewport.png",
-            "sha256": "5d38826e3e07ce9bb44f81603f746762503d058b00519d9ba04bd02bcb71c3bf"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-dark-393.png",
-                "sha256": "2b88d047f0204b0a70e44ff90a27eafc4ce3cb77f53b042cedd8e39f744c02bc"
-              },
-              {
-                "file": "batch-5/after/client-edit-dark-393-viewport.png",
-                "sha256": "5d38826e3e07ce9bb44f81603f746762503d058b00519d9ba04bd02bcb71c3bf"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-light-412-viewport.png",
-            "sha256": "f3eb128773ddb860fbcc2829fc7d5d2f6328575840626de1974af44b8235ae93"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-light-412.png",
-                "sha256": "83ece1ca5ba485feaf2806fc8050ec80f8810d50d5acb2a573b013403758b635"
-              },
-              {
-                "file": "batch-5/after/client-edit-light-412-viewport.png",
-                "sha256": "f3eb128773ddb860fbcc2829fc7d5d2f6328575840626de1974af44b8235ae93"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-dark-412-viewport.png",
-            "sha256": "c6ea482c761f345d0405c16f5ed0170d21633b900ac741cabac20e4758e8dd53"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-dark-412.png",
-                "sha256": "96bff3926e471bd61a05ad0c4def8a921e69cd9c2a575c66ee9f87f0072887d0"
-              },
-              {
-                "file": "batch-5/after/client-edit-dark-412-viewport.png",
-                "sha256": "c6ea482c761f345d0405c16f5ed0170d21633b900ac741cabac20e4758e8dd53"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6334,128 +6150,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-save-actions-light-393-viewport.png",
-            "sha256": "0519dad0b8cc73ec0ada9f6890456efd3c74b7dcfb8f8b88f4baaf068acc4554"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit-save-actions",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-save-actions-light-393.png",
-                "sha256": "14c35f359c8babaaa8ad2f8a2bd76a784c867c23046001690bc25b5a31990482"
-              },
-              {
-                "file": "batch-5/after/client-edit-save-actions-light-393-viewport.png",
-                "sha256": "0519dad0b8cc73ec0ada9f6890456efd3c74b7dcfb8f8b88f4baaf068acc4554"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native Edit and Save write exactly one intercepted fixture payload with the expected previous update value and render the returned email."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-save-actions-dark-393-viewport.png",
-            "sha256": "8f853a8f528eb3de4d8fb6f65712206200a15738f5ddb132900879cb72e89f29"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit-save-actions",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-save-actions-dark-393.png",
-                "sha256": "2e253a9f9f1e20ceacb6da29d490c157aa386a542ecb6c858da30ad24c9689f5"
-              },
-              {
-                "file": "batch-5/after/client-edit-save-actions-dark-393-viewport.png",
-                "sha256": "8f853a8f528eb3de4d8fb6f65712206200a15738f5ddb132900879cb72e89f29"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native Edit and Save write exactly one intercepted fixture payload with the expected previous update value and render the returned email."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-save-actions-light-412-viewport.png",
-            "sha256": "516d96f878f9f592b34e5befb5dec06816e74287743e41301cb5e82c125ba89d"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit-save-actions",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-save-actions-light-412.png",
-                "sha256": "b2e24372b24f7502ec03d4fed6ffb81a8cc29770422a46928d89065a96c2fb05"
-              },
-              {
-                "file": "batch-5/after/client-edit-save-actions-light-412-viewport.png",
-                "sha256": "516d96f878f9f592b34e5befb5dec06816e74287743e41301cb5e82c125ba89d"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native Edit and Save write exactly one intercepted fixture payload with the expected previous update value and render the returned email."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-edit-save-actions-dark-412-viewport.png",
-            "sha256": "05dd9f5a7ac6ee02731251b98dbfe4d7720c31173fcc658344f4952462d50559"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-edit-save-actions",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-edit-save-actions-dark-412.png",
-                "sha256": "7df207acac18643d9965bb141d8ccfe899c1c46d3375e6fe71e0079651c066e7"
-              },
-              {
-                "file": "batch-5/after/client-edit-save-actions-dark-412-viewport.png",
-                "sha256": "05dd9f5a7ac6ee02731251b98dbfe4d7720c31173fcc658344f4952462d50559"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native Edit and Save write exactly one intercepted fixture payload with the expected previous update value and render the returned email."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6491,128 +6215,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-history-open-light-393-viewport.png",
-            "sha256": "38ec48118dff26f3c01152a2881d39c76ee0b53956f6ccce0ba58881537b2514"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-history-open",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-history-open-light-393.png",
-                "sha256": "c3da49071f6dc08fa1b3f50c481eb9103917e9e070fb2c82baa59cb96822a1e2"
-              },
-              {
-                "file": "batch-5/after/client-history-open-light-393-viewport.png",
-                "sha256": "38ec48118dff26f3c01152a2881d39c76ee0b53956f6ccce0ba58881537b2514"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-history-open-dark-393-viewport.png",
-            "sha256": "f9d4aa4e3c47456458c9ff9c94d1a61ae09d6d73b9a21193b100890a0b4c2ba5"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-history-open",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-history-open-dark-393.png",
-                "sha256": "dd8245e744801a0ec75dbfd859f0a20ec28792531406b6586d3d110f7de6b41f"
-              },
-              {
-                "file": "batch-5/after/client-history-open-dark-393-viewport.png",
-                "sha256": "f9d4aa4e3c47456458c9ff9c94d1a61ae09d6d73b9a21193b100890a0b4c2ba5"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-history-open-light-412-viewport.png",
-            "sha256": "cad65cf8a3cd6a870b5ad81105c47a9ac68d6f539eeb6184617b0c6dc2e111d8"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-history-open",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-history-open-light-412.png",
-                "sha256": "fc0299ba86ba88e736254572b62f37759373d711b907ea723ff04c72290ad7e3"
-              },
-              {
-                "file": "batch-5/after/client-history-open-light-412-viewport.png",
-                "sha256": "cad65cf8a3cd6a870b5ad81105c47a9ac68d6f539eeb6184617b0c6dc2e111d8"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-history-open-dark-412-viewport.png",
-            "sha256": "6047fac81ac75c648e6d292f368dffadfcfc5428eb38f4331d8b953e2439a397"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-history-open",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-history-open-dark-412.png",
-                "sha256": "63e0e728fffdf178d348d2d72712100fc79c4d07f77f609512d5078c57c4259d"
-              },
-              {
-                "file": "batch-5/after/client-history-open-dark-412-viewport.png",
-                "sha256": "6047fac81ac75c648e6d292f368dffadfcfc5428eb38f4331d8b953e2439a397"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6648,128 +6280,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-change-actions-light-393-viewport.png",
-            "sha256": "d1b8c27d5f5a73ca3b3181181014b4ddb0176bd28a6580a025487fedb5c70364"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-change-actions",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-change-actions-light-393.png",
-                "sha256": "9129c4544b1f3de62eda2068658691e9a6bdaafa46e8ef0d35c02fb0a70f9cd0"
-              },
-              {
-                "file": "batch-5/after/client-manager-change-actions-light-393-viewport.png",
-                "sha256": "d1b8c27d5f5a73ca3b3181181014b4ddb0176bd28a6580a025487fedb5c70364"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native manager selection writes exactly one intercepted fixture payload and renders the returned assignment."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-change-actions-dark-393-viewport.png",
-            "sha256": "a140a663b7e5bf7609548eb8373d77fb2819ed90693d61f8c239daf3d9958a87"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-change-actions",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-change-actions-dark-393.png",
-                "sha256": "07107c268f0dc810df9f9043cbc85691693bed0460ab96bc8b7d2cc57a4e12d1"
-              },
-              {
-                "file": "batch-5/after/client-manager-change-actions-dark-393-viewport.png",
-                "sha256": "a140a663b7e5bf7609548eb8373d77fb2819ed90693d61f8c239daf3d9958a87"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native manager selection writes exactly one intercepted fixture payload and renders the returned assignment."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-change-actions-light-412-viewport.png",
-            "sha256": "6cdec79f1b47b9f69f8bf9506600db1aec64ce36fb4555d48ea445848415a759"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-change-actions",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-change-actions-light-412.png",
-                "sha256": "cdc8be3312e094b0f0ae97be7be6a2b753a04ae101a78c6e3797df423f130d15"
-              },
-              {
-                "file": "batch-5/after/client-manager-change-actions-light-412-viewport.png",
-                "sha256": "6cdec79f1b47b9f69f8bf9506600db1aec64ce36fb4555d48ea445848415a759"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native manager selection writes exactly one intercepted fixture payload and renders the returned assignment."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-change-actions-dark-412-viewport.png",
-            "sha256": "38493474ac739652bf6cb990c533bd83bbd0a78b401de4c810ad1fbfe342ba18"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-change-actions",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-change-actions-dark-412.png",
-                "sha256": "0d7a7aa8b90e591eab5cc2e6842cdf1517d3260e35bf19cb46bce3cc84ae55dd"
-              },
-              {
-                "file": "batch-5/after/client-manager-change-actions-dark-412-viewport.png",
-                "sha256": "38493474ac739652bf6cb990c533bd83bbd0a78b401de4c810ad1fbfe342ba18"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Native manager selection writes exactly one intercepted fixture payload and renders the returned assignment."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6805,128 +6345,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-menu-light-393-viewport.png",
-            "sha256": "da71abbfad3d4aeb68a0671a530a3e7847166c925ae2a544e1c4e085cbd1fd3e"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-menu",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-menu-light-393.png",
-                "sha256": "da71abbfad3d4aeb68a0671a530a3e7847166c925ae2a544e1c4e085cbd1fd3e"
-              },
-              {
-                "file": "batch-5/after/client-manager-menu-light-393-viewport.png",
-                "sha256": "da71abbfad3d4aeb68a0671a530a3e7847166c925ae2a544e1c4e085cbd1fd3e"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Dismissal by Escape and backdrop restores the current native trigger after the header is repainted."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-menu-dark-393-viewport.png",
-            "sha256": "2affca98a1c968e010ed3339f316eed2210e261d2143821129f728285f489ac1"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-menu",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-menu-dark-393.png",
-                "sha256": "2affca98a1c968e010ed3339f316eed2210e261d2143821129f728285f489ac1"
-              },
-              {
-                "file": "batch-5/after/client-manager-menu-dark-393-viewport.png",
-                "sha256": "2affca98a1c968e010ed3339f316eed2210e261d2143821129f728285f489ac1"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Dismissal by Escape and backdrop restores the current native trigger after the header is repainted."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-menu-light-412-viewport.png",
-            "sha256": "49f5da8ba8f9e0374c39b13c136356b712744ef117baacd221c326954a188eb9"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-menu",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-menu-light-412.png",
-                "sha256": "49f5da8ba8f9e0374c39b13c136356b712744ef117baacd221c326954a188eb9"
-              },
-              {
-                "file": "batch-5/after/client-manager-menu-light-412-viewport.png",
-                "sha256": "49f5da8ba8f9e0374c39b13c136356b712744ef117baacd221c326954a188eb9"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Dismissal by Escape and backdrop restores the current native trigger after the header is repainted."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-manager-menu-dark-412-viewport.png",
-            "sha256": "a3b0f8af36c11f13f74e701aedc0ef56ec337c53b01b295972d3211af073fd09"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-manager-menu",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-manager-menu-dark-412.png",
-                "sha256": "a3b0f8af36c11f13f74e701aedc0ef56ec337c53b01b295972d3211af073fd09"
-              },
-              {
-                "file": "batch-5/after/client-manager-menu-dark-412-viewport.png",
-                "sha256": "a3b0f8af36c11f13f74e701aedc0ef56ec337c53b01b295972d3211af073fd09"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Dismissal by Escape and backdrop restores the current native trigger after the header is repainted."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6962,128 +6410,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-research-open-light-393-viewport.png",
-            "sha256": "38ec48118dff26f3c01152a2881d39c76ee0b53956f6ccce0ba58881537b2514"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-research-open",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-research-open-light-393.png",
-                "sha256": "2a9cbcb978b4c290acbfeb64608c038f57d07ccbe24efdd0066d46735a43d9dd"
-              },
-              {
-                "file": "batch-5/after/client-research-open-light-393-viewport.png",
-                "sha256": "38ec48118dff26f3c01152a2881d39c76ee0b53956f6ccce0ba58881537b2514"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-research-open-dark-393-viewport.png",
-            "sha256": "f9d4aa4e3c47456458c9ff9c94d1a61ae09d6d73b9a21193b100890a0b4c2ba5"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-research-open",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-research-open-dark-393.png",
-                "sha256": "d1f4698377130da8de98cc6d68092112010f95f315f0a7f5f980a58e1b10d915"
-              },
-              {
-                "file": "batch-5/after/client-research-open-dark-393-viewport.png",
-                "sha256": "f9d4aa4e3c47456458c9ff9c94d1a61ae09d6d73b9a21193b100890a0b4c2ba5"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-research-open-light-412-viewport.png",
-            "sha256": "cad65cf8a3cd6a870b5ad81105c47a9ac68d6f539eeb6184617b0c6dc2e111d8"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-research-open",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-research-open-light-412.png",
-                "sha256": "09a140a84317d030b827af21a65ef4a06c0756f4cf7af29eef8dda71d6123615"
-              },
-              {
-                "file": "batch-5/after/client-research-open-light-412-viewport.png",
-                "sha256": "cad65cf8a3cd6a870b5ad81105c47a9ac68d6f539eeb6184617b0c6dc2e111d8"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/client-research-open-dark-412-viewport.png",
-            "sha256": "6047fac81ac75c648e6d292f368dffadfcfc5428eb38f4331d8b953e2439a397"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "client-research-open",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/client-research-open-dark-412.png",
-                "sha256": "218b81ef7a0f8d5acb1b6a3e06a65e1bda96630b7ce6499bdef34ba496b79ccc"
-              },
-              {
-                "file": "batch-5/after/client-research-open-dark-412-viewport.png",
-                "sha256": "6047fac81ac75c648e6d292f368dffadfcfc5428eb38f4331d8b953e2439a397"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7119,128 +6475,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-light-393-viewport.png",
-            "sha256": "d0396df1f544caf8d72719fc6a69202371a702c51f5b58b38eb52a38ee1257f5"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-light-393.png",
-                "sha256": "d0396df1f544caf8d72719fc6a69202371a702c51f5b58b38eb52a38ee1257f5"
-              },
-              {
-                "file": "batch-5/after/clients-light-393-viewport.png",
-                "sha256": "d0396df1f544caf8d72719fc6a69202371a702c51f5b58b38eb52a38ee1257f5"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-dark-393-viewport.png",
-            "sha256": "7e5fb94e36f2061b15584572bbe6cfea6d7d0b9975aa4b1777c0c54624db8794"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-dark-393.png",
-                "sha256": "7e5fb94e36f2061b15584572bbe6cfea6d7d0b9975aa4b1777c0c54624db8794"
-              },
-              {
-                "file": "batch-5/after/clients-dark-393-viewport.png",
-                "sha256": "7e5fb94e36f2061b15584572bbe6cfea6d7d0b9975aa4b1777c0c54624db8794"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-light-412-viewport.png",
-            "sha256": "b8b7531ba0c9c7986cfe1dd9ec743f46236ff43e7d6a133796f80b090fe11af4"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-light-412.png",
-                "sha256": "b8b7531ba0c9c7986cfe1dd9ec743f46236ff43e7d6a133796f80b090fe11af4"
-              },
-              {
-                "file": "batch-5/after/clients-light-412-viewport.png",
-                "sha256": "b8b7531ba0c9c7986cfe1dd9ec743f46236ff43e7d6a133796f80b090fe11af4"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-dark-412-viewport.png",
-            "sha256": "3a9974d8cb4c0563d5077313b73b363da7f732f8ec5ad27b057cf82a401e1e4f"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-dark-412.png",
-                "sha256": "3a9974d8cb4c0563d5077313b73b363da7f732f8ec5ad27b057cf82a401e1e4f"
-              },
-              {
-                "file": "batch-5/after/clients-dark-412-viewport.png",
-                "sha256": "3a9974d8cb4c0563d5077313b73b363da7f732f8ec5ad27b057cf82a401e1e4f"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7277,31 +6541,8 @@
           "height": 852,
           "theme": "light",
           "status": "OPEN",
-          "capture": {
-            "file": "batch-5/after/clients-empty-light-393-viewport.png",
-            "sha256": "4bfad7ac6c224cdaee32dd02fed0be9f870bd6f10b6287a15d83e2c44b9cc798"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-empty",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "OPEN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-empty-light-393.png",
-                "sha256": "4bfad7ac6c224cdaee32dd02fed0be9f870bd6f10b6287a15d83e2c44b9cc798"
-              },
-              {
-                "file": "batch-5/after/clients-empty-light-393-viewport.png",
-                "sha256": "4bfad7ac6c224cdaee32dd02fed0be9f870bd6f10b6287a15d83e2c44b9cc798"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. OPEN: zero clients followed by an instruction to search is unhelpful. Review the new Create client flow from main before rewriting this state."
-          }
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
@@ -7309,31 +6550,8 @@
           "height": 852,
           "theme": "dark",
           "status": "OPEN",
-          "capture": {
-            "file": "batch-5/after/clients-empty-dark-393-viewport.png",
-            "sha256": "f6eb333562433468e99d96079eddd08b6ebe71a33206b49b12c94dee1aa13347"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-empty",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "OPEN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-empty-dark-393.png",
-                "sha256": "f6eb333562433468e99d96079eddd08b6ebe71a33206b49b12c94dee1aa13347"
-              },
-              {
-                "file": "batch-5/after/clients-empty-dark-393-viewport.png",
-                "sha256": "f6eb333562433468e99d96079eddd08b6ebe71a33206b49b12c94dee1aa13347"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. OPEN: zero clients followed by an instruction to search is unhelpful. Review the new Create client flow from main before rewriting this state."
-          }
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
@@ -7341,31 +6559,8 @@
           "height": 915,
           "theme": "light",
           "status": "OPEN",
-          "capture": {
-            "file": "batch-5/after/clients-empty-light-412-viewport.png",
-            "sha256": "e6a87a33efdb5f84d71f5cfd1f24322f3d41f4f6458531984adfffa4bebe91ef"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-empty",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "OPEN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-empty-light-412.png",
-                "sha256": "e6a87a33efdb5f84d71f5cfd1f24322f3d41f4f6458531984adfffa4bebe91ef"
-              },
-              {
-                "file": "batch-5/after/clients-empty-light-412-viewport.png",
-                "sha256": "e6a87a33efdb5f84d71f5cfd1f24322f3d41f4f6458531984adfffa4bebe91ef"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. OPEN: zero clients followed by an instruction to search is unhelpful. Review the new Create client flow from main before rewriting this state."
-          }
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
@@ -7373,31 +6568,8 @@
           "height": 915,
           "theme": "dark",
           "status": "OPEN",
-          "capture": {
-            "file": "batch-5/after/clients-empty-dark-412-viewport.png",
-            "sha256": "5c8b488378b048dcfee885aecf607213014280bf881d034f8e77cfa8e37ceae4"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-empty",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "OPEN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-empty-dark-412.png",
-                "sha256": "5c8b488378b048dcfee885aecf607213014280bf881d034f8e77cfa8e37ceae4"
-              },
-              {
-                "file": "batch-5/after/clients-empty-dark-412-viewport.png",
-                "sha256": "5c8b488378b048dcfee885aecf607213014280bf881d034f8e77cfa8e37ceae4"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. OPEN: zero clients followed by an instruction to search is unhelpful. Review the new Create client flow from main before rewriting this state."
-          }
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7433,128 +6605,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-list-menu-light-393-viewport.png",
-            "sha256": "69953a4afcba2aa88a585d26ef7c4b45504c3b7d9514b90cfe9438105ce31af2"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-list-menu",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-list-menu-light-393.png",
-                "sha256": "c8f2ebb3baf3db78ceaae919d74bab4a74b53c8426a57a82ef1f08764c6c8c68"
-              },
-              {
-                "file": "batch-5/after/clients-list-menu-light-393-viewport.png",
-                "sha256": "69953a4afcba2aa88a585d26ef7c4b45504c3b7d9514b90cfe9438105ce31af2"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-list-menu-dark-393-viewport.png",
-            "sha256": "dffaf1cca492ffe4b310bfc5ba9be0f42bd40d3fbb7febd6b0b4c1966877b75e"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-list-menu",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-list-menu-dark-393.png",
-                "sha256": "76ec60f13c2a39d442403f5ebcaaaa9c40d6818149df72b26a5f33fd898e6d6d"
-              },
-              {
-                "file": "batch-5/after/clients-list-menu-dark-393-viewport.png",
-                "sha256": "dffaf1cca492ffe4b310bfc5ba9be0f42bd40d3fbb7febd6b0b4c1966877b75e"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-list-menu-light-412-viewport.png",
-            "sha256": "089d050ad0a022c2ababb99f80a83a411a4bb138ab4557728d19aba2cf575078"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-list-menu",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-list-menu-light-412.png",
-                "sha256": "a15dae8d74c277644c4901a93ab1fb722ded05778b2035ca755da02446616448"
-              },
-              {
-                "file": "batch-5/after/clients-list-menu-light-412-viewport.png",
-                "sha256": "089d050ad0a022c2ababb99f80a83a411a4bb138ab4557728d19aba2cf575078"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-list-menu-dark-412-viewport.png",
-            "sha256": "6b10eac19990b774185e6d54586b1881fb8c6f2b1d059c53b9fdd93cec0c78ed"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-list-menu",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-list-menu-dark-412.png",
-                "sha256": "c9e38f096a9154bb6653b4e203300bfc2fbb4699317c458e88795d338b6d8d0c"
-              },
-              {
-                "file": "batch-5/after/clients-list-menu-dark-412-viewport.png",
-                "sha256": "6b10eac19990b774185e6d54586b1881fb8c6f2b1d059c53b9fdd93cec0c78ed"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7590,128 +6670,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-loading-light-393-viewport.png",
-            "sha256": "42b4b4b47915c8e40fa10bc438aba6af5d5e5526f85c0d703d3fffe9ae049aa9"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-loading",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-loading-light-393.png",
-                "sha256": "42b4b4b47915c8e40fa10bc438aba6af5d5e5526f85c0d703d3fffe9ae049aa9"
-              },
-              {
-                "file": "batch-5/after/clients-loading-light-393-viewport.png",
-                "sha256": "42b4b4b47915c8e40fa10bc438aba6af5d5e5526f85c0d703d3fffe9ae049aa9"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-loading-dark-393-viewport.png",
-            "sha256": "03c9851fe75411a7a8e3bc4cfeac057da217ffd03042e400ea3273855b3c2ca6"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-loading",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-loading-dark-393.png",
-                "sha256": "03c9851fe75411a7a8e3bc4cfeac057da217ffd03042e400ea3273855b3c2ca6"
-              },
-              {
-                "file": "batch-5/after/clients-loading-dark-393-viewport.png",
-                "sha256": "03c9851fe75411a7a8e3bc4cfeac057da217ffd03042e400ea3273855b3c2ca6"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-loading-light-412-viewport.png",
-            "sha256": "6a425ac3915ffa235ab4cddf619ddf9eeac136cfaab40b0a7c10b5d496aef6df"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-loading",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-loading-light-412.png",
-                "sha256": "6a425ac3915ffa235ab4cddf619ddf9eeac136cfaab40b0a7c10b5d496aef6df"
-              },
-              {
-                "file": "batch-5/after/clients-loading-light-412-viewport.png",
-                "sha256": "6a425ac3915ffa235ab4cddf619ddf9eeac136cfaab40b0a7c10b5d496aef6df"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-loading-dark-412-viewport.png",
-            "sha256": "2e67ec5142c3bd096fc4b5e81a0282e7b56dc99d41782059ace4f6a48a3903e7"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-loading",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-loading-dark-412.png",
-                "sha256": "2e67ec5142c3bd096fc4b5e81a0282e7b56dc99d41782059ace4f6a48a3903e7"
-              },
-              {
-                "file": "batch-5/after/clients-loading-dark-412-viewport.png",
-                "sha256": "2e67ec5142c3bd096fc4b5e81a0282e7b56dc99d41782059ace4f6a48a3903e7"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7747,128 +6735,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-search-menu-light-393-viewport.png",
-            "sha256": "c98b7d2a8e831010d42dc9adab2b8322a1103eabe3936dc5bb1e9187106582d9"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-search-menu",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-search-menu-light-393.png",
-                "sha256": "bdf2a013f15b5e2994f0eba189c14242b81b0dbe50360d429ac2e1b7dac74dc6"
-              },
-              {
-                "file": "batch-5/after/clients-search-menu-light-393-viewport.png",
-                "sha256": "c98b7d2a8e831010d42dc9adab2b8322a1103eabe3936dc5bb1e9187106582d9"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-search-menu-dark-393-viewport.png",
-            "sha256": "02e803b16a93d36c375e1a5f8b5b4771cf99102681390e8f655f763907fe6a2a"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-search-menu",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-search-menu-dark-393.png",
-                "sha256": "ba2cbc9e904717e4ffb4e7d8e13bfbe088f5a458b77adfa6add208f59e6f77c5"
-              },
-              {
-                "file": "batch-5/after/clients-search-menu-dark-393-viewport.png",
-                "sha256": "02e803b16a93d36c375e1a5f8b5b4771cf99102681390e8f655f763907fe6a2a"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-search-menu-light-412-viewport.png",
-            "sha256": "2cee8bd0c555722cfc56c9b6da582ac611ab3519bc0a167cbeaf94c10bdafbb5"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-search-menu",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-search-menu-light-412.png",
-                "sha256": "a627da668db1467f7c1ec2392fd33ac40988765612169d8695d1a02b525fdbbb"
-              },
-              {
-                "file": "batch-5/after/clients-search-menu-light-412-viewport.png",
-                "sha256": "2cee8bd0c555722cfc56c9b6da582ac611ab3519bc0a167cbeaf94c10bdafbb5"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/clients-search-menu-dark-412-viewport.png",
-            "sha256": "f4cfcad648b13373d1303ad1c75b06c6b7a8d95e93eb2741eef38734028bd8ad"
-          },
-          "review": {
-            "lane": "admin",
-            "state": "clients-search-menu",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/clients-search-menu-dark-412.png",
-                "sha256": "2789b091b0e6b51a3f8b1f4eeb92853803b0476be9cdd6f67efa5e9a1bded408"
-              },
-              {
-                "file": "batch-5/after/clients-search-menu-dark-412-viewport.png",
-                "sha256": "f4cfcad648b13373d1303ad1c75b06c6b7a8d95e93eb2741eef38734028bd8ad"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Readable supporting text and fields; native controls, focus and layout are preserved. This named cell alone is accepted; the full round remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7969,29 +6865,14 @@
           "theme": "light",
           "status": "CLEAN",
           "capture": {
-            "file": "batch-5/after/tiktok-client-ready-light-393-viewport.png",
+            "file": "batch-5/review-followup/after/tiktok-client-ready-light-393-viewport.png",
             "sha256": "19a1957de4c4b8d75d0b485f279912038efac939d5b9df0a20e76ac1a5727cee"
           },
           "review": {
-            "lane": "finch",
-            "state": "tiktok-client-ready",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
+            "file": "batch-5/review-followup/reviews.json",
             "reviewer": "Prism",
             "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/tiktok-client-ready-light-393.png",
-                "sha256": "29da365828d672d492b5a317eb66d4114d26f64585924f6f496ff89fd5fb5d5f"
-              },
-              {
-                "file": "batch-5/after/tiktok-client-ready-light-393-viewport.png",
-                "sha256": "19a1957de4c4b8d75d0b485f279912038efac939d5b9df0a20e76ac1a5727cee"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. The target uses the trusted TikTok handle rather than a provider ID. Placeholder, preview heading and empty queue copy are readable."
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
           }
         },
         {
@@ -8001,29 +6882,14 @@
           "theme": "dark",
           "status": "CLEAN",
           "capture": {
-            "file": "batch-5/after/tiktok-client-ready-dark-393-viewport.png",
+            "file": "batch-5/review-followup/after/tiktok-client-ready-dark-393-viewport.png",
             "sha256": "25b162b46b26466fa3ca3422ee204dd5ddb16bdfff3a2602505f2618ac282ed1"
           },
           "review": {
-            "lane": "finch",
-            "state": "tiktok-client-ready",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
+            "file": "batch-5/review-followup/reviews.json",
             "reviewer": "Prism",
             "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/tiktok-client-ready-dark-393.png",
-                "sha256": "49724fa9ebb0a4904da351e87450ed1af35e0a01a36987321ed7e860f84daaf9"
-              },
-              {
-                "file": "batch-5/after/tiktok-client-ready-dark-393-viewport.png",
-                "sha256": "25b162b46b26466fa3ca3422ee204dd5ddb16bdfff3a2602505f2618ac282ed1"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. The target uses the trusted TikTok handle rather than a provider ID. Placeholder, preview heading and empty queue copy are readable."
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
           }
         },
         {
@@ -8033,29 +6899,14 @@
           "theme": "light",
           "status": "CLEAN",
           "capture": {
-            "file": "batch-5/after/tiktok-client-ready-light-412-viewport.png",
+            "file": "batch-5/review-followup/after/tiktok-client-ready-light-412-viewport.png",
             "sha256": "66adde363371d10afb2041939298a1474344d07f38e834ef1ae769cddcd9e016"
           },
           "review": {
-            "lane": "finch",
-            "state": "tiktok-client-ready",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
+            "file": "batch-5/review-followup/reviews.json",
             "reviewer": "Prism",
             "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/tiktok-client-ready-light-412.png",
-                "sha256": "1dadb23c6d81ddf201c4d654a10a232777d116b2279ea63e91a028f3945931cc"
-              },
-              {
-                "file": "batch-5/after/tiktok-client-ready-light-412-viewport.png",
-                "sha256": "66adde363371d10afb2041939298a1474344d07f38e834ef1ae769cddcd9e016"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. The target uses the trusted TikTok handle rather than a provider ID. Placeholder, preview heading and empty queue copy are readable."
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
           }
         },
         {
@@ -8065,29 +6916,110 @@
           "theme": "dark",
           "status": "CLEAN",
           "capture": {
-            "file": "batch-5/after/tiktok-client-ready-dark-412-viewport.png",
+            "file": "batch-5/review-followup/after/tiktok-client-ready-dark-412-viewport.png",
             "sha256": "57b989ec44fa19eef55f8c7ed981921a003c26177d40b84b180416f7a42c5c07"
           },
           "review": {
-            "lane": "finch",
-            "state": "tiktok-client-ready",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
+            "file": "batch-5/review-followup/reviews.json",
             "reviewer": "Prism",
             "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/tiktok-client-ready-dark-412.png",
-                "sha256": "2538c0a644d4a3afeff3a216dcbda91ef9ec294eba67c7882caa315864f0e369"
-              },
-              {
-                "file": "batch-5/after/tiktok-client-ready-dark-412-viewport.png",
-                "sha256": "57b989ec44fa19eef55f8c7ed981921a003c26177d40b84b180416f7a42c5c07"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. The target uses the trusted TikTok handle rather than a provider ID. Placeholder, preview heading and empty queue copy are readable."
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "tiktok-client-search",
+      "lane": "finch",
+      "screen": "TikTok upload",
+      "ownerScreen": "TikTok upload",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-light-393-viewport.png",
+            "sha256": "7cecc484e5599fd5adab7882b103961c5b38c0cd06a4ed6b36af39307129ee3b"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-dark-393-viewport.png",
+            "sha256": "730304edc492a57e4c9f6cc5807749f526d69ee6ae549d9c1d8cc45b2f8b80f9"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-light-412-viewport.png",
+            "sha256": "20b107c54fe2479438e3f64b1ce712d983f22bbd4daba8748eedfebbbbbd9271"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-5/review-followup/after/tiktok-client-search-dark-412-viewport.png",
+            "sha256": "728f60bf484a82325cb804318c12fe13406fc36e35b1651df0a4570b2819838d"
+          },
+          "review": {
+            "file": "batch-5/review-followup/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
           }
         }
       ]
@@ -9608,128 +8540,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/analytics-loading-light-393-viewport.png",
-            "sha256": "77705eecedba221e950400c251cda450f93357ae5a87f0e93b65b99f26a6731a"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "analytics-loading",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/analytics-loading-light-393.png",
-                "sha256": "e24539328d1b0f356a0f186183cd48fedc1b21dca9baa1b22fa81394d15f9330"
-              },
-              {
-                "file": "batch-5/after/analytics-loading-light-393-viewport.png",
-                "sha256": "77705eecedba221e950400c251cda450f93357ae5a87f0e93b65b99f26a6731a"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Loading appears as complete rounded cards without clipped table columns, unexplained spacing or inherited colored metric borders."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/analytics-loading-dark-393-viewport.png",
-            "sha256": "f15d78db467a08c2e5060ad2f6bf95c85f669cc6f0e36886f3a384fa86eb1704"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "analytics-loading",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/analytics-loading-dark-393.png",
-                "sha256": "592d50aeac1c401700171e987325208d75cd0d46a71d393d598d245f444a4d94"
-              },
-              {
-                "file": "batch-5/after/analytics-loading-dark-393-viewport.png",
-                "sha256": "f15d78db467a08c2e5060ad2f6bf95c85f669cc6f0e36886f3a384fa86eb1704"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Loading appears as complete rounded cards without clipped table columns, unexplained spacing or inherited colored metric borders."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/analytics-loading-light-412-viewport.png",
-            "sha256": "dfafa338dd6bcc0c22b51da091e3a87a562ea8cb2a9179f2ee049966ba928950"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "analytics-loading",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/analytics-loading-light-412.png",
-                "sha256": "c17a7a26bf8c728818a0d1022443dab8b4337faad586f76bf0e1c66c38501379"
-              },
-              {
-                "file": "batch-5/after/analytics-loading-light-412-viewport.png",
-                "sha256": "dfafa338dd6bcc0c22b51da091e3a87a562ea8cb2a9179f2ee049966ba928950"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Loading appears as complete rounded cards without clipped table columns, unexplained spacing or inherited colored metric borders."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/analytics-loading-dark-412-viewport.png",
-            "sha256": "8707204beca43bd4779738e18ab1b040aa2ddbf91256c129d429ffd44787ce0c"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "analytics-loading",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/analytics-loading-dark-412.png",
-                "sha256": "5b45c5940b09010976b0ec63cbde8b4058d5673f6323ebdde55c9e14642af2a3"
-              },
-              {
-                "file": "batch-5/after/analytics-loading-dark-412-viewport.png",
-                "sha256": "8707204beca43bd4779738e18ab1b040aa2ddbf91256c129d429ffd44787ce0c"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Loading appears as complete rounded cards without clipped table columns, unexplained spacing or inherited colored metric borders."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -10471,128 +9311,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/workload-loading-light-393-viewport.png",
-            "sha256": "019705fc396fedee9b036ebd6870fbf222ed22441529d18b50c2758b83621926"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "workload-loading",
-            "width": 393,
-            "height": 852,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/workload-loading-light-393.png",
-                "sha256": "a1a7699dd2dad88e497ecbeb7f89c0a0425f3414fcec48b54a7cf7421d666531"
-              },
-              {
-                "file": "batch-5/after/workload-loading-light-393-viewport.png",
-                "sha256": "019705fc396fedee9b036ebd6870fbf222ed22441529d18b50c2758b83621926"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Unknown workload no longer claims that nothing is due. Skeleton shapes remain visible in both themes, including the lower calendar."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/workload-loading-dark-393-viewport.png",
-            "sha256": "fc52f480cf53b0025605f0adb0d2c02d496c4bef340a736882fac2c02b969228"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "workload-loading",
-            "width": 393,
-            "height": 852,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/workload-loading-dark-393.png",
-                "sha256": "7071c455826aab34233be7cb978d81637dbdefb4d78c5d944483b6ae4d1eee7f"
-              },
-              {
-                "file": "batch-5/after/workload-loading-dark-393-viewport.png",
-                "sha256": "fc52f480cf53b0025605f0adb0d2c02d496c4bef340a736882fac2c02b969228"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Unknown workload no longer claims that nothing is due. Skeleton shapes remain visible in both themes, including the lower calendar."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/workload-loading-light-412-viewport.png",
-            "sha256": "7483da8601d9e20b8f1fff21ce19b19bb4dd2723abb83d854e6afbc5f115db87"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "workload-loading",
-            "width": 412,
-            "height": 915,
-            "theme": "light",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/workload-loading-light-412.png",
-                "sha256": "cbada8442eeb99f8ba653c6ea8ce357fbd7571d51d976f767abe57bc895ec441"
-              },
-              {
-                "file": "batch-5/after/workload-loading-light-412-viewport.png",
-                "sha256": "7483da8601d9e20b8f1fff21ce19b19bb4dd2723abb83d854e6afbc5f115db87"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Unknown workload no longer claims that nothing is due. Skeleton shapes remain visible in both themes, including the lower calendar."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/after/workload-loading-dark-412-viewport.png",
-            "sha256": "0d53dafcace92b03c095889b1066c50650e9b25f0d4eedc002070520149b2adc"
-          },
-          "review": {
-            "lane": "finch",
-            "state": "workload-loading",
-            "width": 412,
-            "height": 915,
-            "theme": "dark",
-            "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "files": [
-              {
-                "file": "batch-5/after/workload-loading-dark-412.png",
-                "sha256": "c4e8cc4fdc17fa66c7488a5397cc6d201d1068dad4cc2d4425e54118f81a65e4"
-              },
-              {
-                "file": "batch-5/after/workload-loading-dark-412-viewport.png",
-                "sha256": "0d53dafcace92b03c095889b1066c50650e9b25f0d4eedc002070520149b2adc"
-              }
-            ],
-            "note": "Personally inspected unscaled full-page chunks, plus separately inspected viewports where their pixels differ from the full-page top. Unknown workload no longer claims that nothing is due. Skeleton shapes remain visible in both themes, including the lower calendar."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },

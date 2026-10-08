@@ -16,6 +16,8 @@ hash receipts. The complete review and fresh-eyes round remain open.
 `docs/audits/2026-10-07-prism-phone/batch-5/` records Clients supporting text
 and picker focus, Analytics/Workload loading and TikTok account wording,
 with complete before/after pages, native action receipts and open findings.
+`docs/audits/2026-10-07-prism-phone/batch-5/review-followup/` records the picked-client TikTok regression,
+eight reviewed phone pairs, exact desktop checks and the entry 380 ledger scan.
 
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,

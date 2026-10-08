@@ -31088,3 +31088,12 @@ OPEN. Empty Clients guidance needs review with main's new Create client flow.
 The full narrowed round, separate fresh-eyes acceptance, hosted checks and live
 deployment remain separate unfinished gates. No live mutations, database or n8n
 changes, or merge by Prism. See docs/audits/2026-10-07-prism-phone/batch-5/.
+
+Same-PR follow-up: the TikTok phone destination now reads a data attribute
+rendered from the picked client, rather than the mutable search query. Native
+checks reproduce eight before failures, then verify unchanged destinations
+while typing, selecting another client, a missing-handle fallback and exact
+desktop wording restoration. Entry 380 owns the batch 4 and 5 paragraphs above.
+It is unique; a full scan also identifies pre-existing duplicate numbers
+13, 14, 22, 23, 175, 176, 177 and 180 on main. Historical records are retained.
+Retargeting to main and its local merge remain conditional on PR #2002 merging.

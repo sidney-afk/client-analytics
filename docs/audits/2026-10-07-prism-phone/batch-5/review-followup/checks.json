@@ -1,0 +1,37 @@
+{
+  "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+  "checks": [
+    {
+      "check": "before",
+      "status": "EXPECTED_BEFORE_FAILURE",
+      "logHash": "ae9953bfc5df65f317ff647b00091f8c7dc00144a607d36359ee0fd4ddfd43fd",
+      "lastLines": "FAIL tiktok-client-search 412 light: TikTok phone account uses the human-readable handle or selected name\nFAIL tiktok-client-search 412 dark: TikTok phone account uses the human-readable handle or selected name\nstaff-phone-final-pass: 0 renders, 8 problems"
+    },
+    {
+      "check": "pre-main-after",
+      "status": "PASS",
+      "logHash": "2ff0e6a125296ab16df8e32d2eb5230f0cec75b63fb1af48616faa3ab822891f",
+      "lastLines": "ok tiktok-client-search 412 light\nok tiktok-client-search 412 dark\nstaff-phone-final-pass: 8 renders, 0 problems"
+    },
+    {
+      "check": "legacy-tiktok",
+      "status": "PASS",
+      "logHash": "964913f0535aaa401b4a2d93e59215aa247423b674843a140504043c67e2cc4c",
+      "lastLines": "ok tiktok-client-search 430 light\nok tiktok-client-search 430 dark\nstaff-phone-final-pass: 18 renders, 0 problems"
+    },
+    {
+      "check": "desktop",
+      "status": "PASS",
+      "logHash": "fce9982a1542c6a4b1ca49c35064973d5a583880b4b0cd49da2a7bebbee657f0",
+      "lastLines": "ok tiktok-client-ready-dark-cold: desktop pixels and computed styles identical\nok tiktok-client-ready-dark-warm: desktop pixels and computed styles identical\nFIXTURE_DESKTOP_PARITY: 4/4 exact 1440 desktop pairs; native Today/Notes/Analytics/Workload/TikTok fixtures; cold and phone-to-desktop; no live writes."
+    },
+    {
+      "check": "modules",
+      "status": "PASS",
+      "logHash": "93a48dc11665b225db70b63ee8b666a15e4912b9498324c35851c61e33f36dbd",
+      "lastLines": "minified parts: 19 files, 2659 KB, 5219 top-level names, 0 lost, 0 changed kind\n\ncheck-modules: all checks passed"
+    }
+  ],
+  "desktopBaseline": "59a2158ce53f1d28ea6415a5c496cc80a0af5e60; branch 4 updated product",
+  "hosted": "PENDING on new push; no deployed claim"
+}

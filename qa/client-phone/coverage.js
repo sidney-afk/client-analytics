@@ -30,7 +30,7 @@ function classify(state) {
   else screen=[[/^today-/,'Today'],[/^calendar-/,'Calendar'],[/^(samples|sample-reviews)-/,'Samples'],[/^tiktok-/,'TikTok upload'],[/^(analytics|home)-/,'Analytics'],[/^workload-/,'Workload']].find(([pattern])=>pattern.test(name))?.[1];
   if(!screen || /analytics-(brief|content-calendar)/.test(name)) return null;
   const ownerScreen=screen;
-  const kind=/loading|posting|sending/.test(name)?'loading':/empty|all-clear|no-account|no-posts/.test(name)?'empty':/save-error|denied/.test(name)?'refused saves':/error|failed|invalid-link/.test(name)?'error':/long/.test(name)?'long names/captions':/many/.test(name)?'many items':/tabs|more|menu|picker|popover|options|schedule|confirm|detail|edit|lightbox|notes|comparison|open|actions|caption|organize$|suggest-post/.test(name)?'menus/sheets open':'normal';
+  const kind=/loading|posting|sending/.test(name)?'loading':/empty|all-clear|no-account|no-posts/.test(name)?'empty':/save-error|denied/.test(name)?'refused saves':/error|failed|invalid-link/.test(name)?'error':/long/.test(name)?'long names/captions':/many/.test(name)?'many items':/tabs|more|menu|picker|client-search|popover|options|schedule|confirm|detail|edit|lightbox|notes|comparison|open|actions|caption|organize$|suggest-post/.test(name)?'menus/sheets open':'normal';
   if(client && /^(month|week)-post$|lightbox|notes|comparison/.test(name)) screen='Card detail sheet';
   if(rare.includes(kind) && !['Today','Calendar','Samples'].includes(screen)) return null;
   return {...state,screen,ownerScreen,audience:client?'client':'staff',kind};

@@ -129,20 +129,21 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Card detail sheet | staff / discovery | card-detail-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Card detail sheet | staff / discovery | card-detail-menus | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Card detail sheet | staff / finch | linear-detail | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | client-detail | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | client-edit | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | client-edit-save-actions | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | client-history-open | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | client-manager-change-actions | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | client-manager-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | client-research-open | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | clients | normal | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | client-detail | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | client-edit | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | client-edit-save-actions | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | client-history-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | client-manager-change-actions | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | client-manager-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | client-research-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | clients | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients-list-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | clients-search-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-list-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | clients-search-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-cancel-confirm | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-client-ready | normal | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| TikTok upload | staff / finch | tiktok-client-search | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | TikTok upload | staff / finch | tiktok-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-no-account | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-options | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -169,7 +170,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Analytics | staff / finch | analytics-detail-dash | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-grid | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Analytics | staff / finch | analytics-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Analytics | staff / finch | analytics-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-overview | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-pin | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-search | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -181,7 +182,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Workload | staff / finch | workload-clients-search | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / finch | workload-editors-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / finch | workload-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Workload | staff / finch | workload-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Workload | staff / finch | workload-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / finch | workload-month | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / rules | workload-more | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / finch | workload-plan-due | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |

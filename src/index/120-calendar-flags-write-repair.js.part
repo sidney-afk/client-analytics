@@ -765,7 +765,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        comments were stored with round 0, and a reply inherits its thread
        root's round, so a reply under one of them sent round 0; the server
        let it through and production_comments' CHECK (round > 0) threw, a 500
-       the page retried about 520 times (OPEN_REPAIRS 380). Every comment
+       the page retried about 520 times (OPEN_REPAIRS 382). Every comment
        write, and every queued retry of one, goes through this. */
     function _writeUiCommentRound(value) {
         const round = Number(value);

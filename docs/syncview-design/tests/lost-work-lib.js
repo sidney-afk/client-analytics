@@ -240,7 +240,7 @@ async function createEnv(opts = {}) {
           }
           let comment = null;
           // production_comments CHECK (round IS NULL OR round > 0): the live
-          // table throws on round 0 and the function answered 500 (OPEN_REPAIRS 380).
+          // table throws on round 0 and the function answered 500 (OPEN_REPAIRS 382).
           const sentRound = body.operation === 'comment' && body.comment ? body.comment.round : null;
           if (sentRound != null && !(Number.isInteger(sentRound) && sentRound > 0)) {
             return { status: 500, body: { ok: false, error: 'native_write_failed' } };

@@ -246,7 +246,7 @@ export function normalizeTeam(value) {
  * comments were stored with 0 and a reply inherits its thread root's round, so
  * 0 is saved as null. It used to pass the gateway's own check (which refused
  * only round < 0) and then fail the table's, a 500 the page retried about 520
- * times (OPEN_REPAIRS 380). Returns the round (a whole number of 1 or more),
+ * times (OPEN_REPAIRS 382). Returns the round (a whole number of 1 or more),
  * null for no round, or undefined for a value the caller must refuse (400). */
 export function normalizeCommentRound(value) {
   if (value == null || value === "") return null;

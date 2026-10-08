@@ -1629,7 +1629,7 @@ function publicComment(value: unknown, principal?: Principal): JsonMap {
     component: clean(row.component) || null,
     is_tweak: row.is_tweak === true,
     // Number(null) is 0: a comment with no round must read back as null, or
-    // the page stores 0 and a reply under it sends 0 (OPEN_REPAIRS 380).
+    // the page stores 0 and a reply under it sends 0 (OPEN_REPAIRS 382).
     round: normalizeCommentRound(row.round) ?? null,
     source_created_at: clean(row.source_created_at) || null,
     source_updated_at: clean(row.source_updated_at) || null,

@@ -1483,7 +1483,7 @@ import {
                 component: String(row.component || '').trim(),
                 is_tweak: _prodCommentTruthy(row.is_tweak),
                 // Number(null) is 0, which made every canonical comment with no
-                // round read back as round 0 (OPEN_REPAIRS 380).
+                // round read back as round 0 (OPEN_REPAIRS 382).
                 round: _writeUiCommentRound(row.round),
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),

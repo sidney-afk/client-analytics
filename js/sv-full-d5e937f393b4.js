@@ -17487,7 +17487,6 @@
             if (label && val && positive && /views last 30d/i.test(label.textContent) && val.textContent.trim() === '0') dash(val, label.textContent.trim());
         });
     }
-    const _fphAccountCopy = new WeakMap();
     function _fphBrowseWords(on) {
         const pattern = on ? /\bclick to (browse|add)\b/g : /\btap to (browse|add)\b/g;
         const replacement = on ? 'tap to $1' : 'click to $1';
@@ -17497,23 +17496,6 @@
                 const text = node.nodeValue.replace(pattern, replacement);
                 if (text !== node.nodeValue) node.nodeValue = text;
             });
-        });
-        document.querySelectorAll('.tk-profile-line').forEach(line => {
-            const chip = line.querySelector('.tk-profile-chip'), label = line.firstChild;
-            if (!chip || label?.nodeType !== 3) return;
-            if (!_fphAccountCopy.has(line)) {
-                if (!/^Posts to Post For Me account\s*$/.test(label.nodeValue)) return;
-                _fphAccountCopy.set(line, { label: label.nodeValue, chip: chip.textContent });
-            }
-            const original = _fphAccountCopy.get(line);
-            const client = line.getAttribute('data-tk-picked-client') || '';
-            const handle = String(clientMap[client]?.tiktok_handle || '').trim().replace(/^@+/, '');
-            const phoneAccount = on && currentNav === 'tiktok-upload'
-                && !document.getElementById('tkPlatInstagram')?.classList.contains('on') && client;
-            const text = phoneAccount ? (handle ? 'Posting to ' : 'Posting for ') : original.label;
-            const account = phoneAccount ? (handle ? '@' + handle : client) : original.chip;
-            if (label.nodeValue !== text) label.nodeValue = text;
-            if (chip.textContent !== account) chip.textContent = account;
         });
     }
     function _fphSync() {
@@ -17905,22 +17887,14 @@
             }
             active.forEach(el => {
                 if (!overlays.has(el)) {
-                    const trigger = liveTrigger(lastTrigger)
-                        || document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
+                    const trigger = lastTrigger?.isConnected && lastTrigger.checkVisibility() ? lastTrigger
+                        : document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
                     overlays.set(el, trigger);
                 }
             });
             if (active.length) lock(); else unlock();
-            returnTo = liveTrigger(returnTo);
-            if (returnTo
+            if (returnTo?.isConnected && returnTo.checkVisibility()
                 && (!active.length || active.some(el => el.contains(returnTo)))) returnTo.focus({ preventScroll: true });
-        }
-        function liveTrigger(trigger) {
-            // Native pickers can repaint their trigger on opening and closing.
-            // Follow its stable id so a disconnected old node cannot redirect
-            // focus to the page's unrelated More button after native restore.
-            const current = trigger?.isConnected ? trigger : trigger?.id ? document.getElementById(trigger.id) : null;
-            return current?.checkVisibility() ? current : null;
         }
         function schedule() {
             if (!queued) { queued = true; queueMicrotask(sync); }
@@ -76629,7 +76603,7 @@
         let profileLine = '';
         if (tkState.client) {
             if (tkState.profileSource === 'sheet') {
-                profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
+                profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
                 profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</div>`;
             }
@@ -84623,7 +84597,10 @@
     const CN_BLOCKERS = {
         name_invalid: 'Type the client\'s name.',
         slug_invalid: 'That name has no letters or numbers to make a link name from.',
-        email_invalid: 'That email does not look right. Leave it empty if you do not have it yet.',
+        email_invalid: 'That email does not look right.',
+        email_required: 'Add the client\'s email. The Slack channels are only made when it matches the onboarding form.',
+        name_differs_from_form: 'The onboarding form is already in under a different spelling of this name. The Slack channels are only made when the two match exactly.',
+        email_differs_from_form: 'The onboarding form for this client has a different email. The Slack channels are only made when the two match.',
         manager_unknown: 'Pick a social media manager.',
         name_taken: 'A client with this name already exists. Open it from the search instead.',
         name_on_a_manager_list: 'This name is already on a manager\'s client list. Use a different name, or take it off that list first.',
@@ -84686,7 +84663,7 @@
                 <label class="cn-field"><span class="cn-label">Social media manager</span>
                     <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
                 </label>
-                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt">optional</span></span>
+                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">needed for Slack</span></span>
                     <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
                 </label>
                 <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
@@ -84704,7 +84681,7 @@
         if (_cnState.managersError) { sel.innerHTML = `<option value="">${_calEsc(_cnState.managersError)}</option>`; sel.disabled = true; return; }
         if (!_cnState.managers) return;
         sel.disabled = false;
-        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}</option>`).join('');
+        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}${m.slack_id === false ? ' (no Slack id yet)' : ''}</option>`).join('');
     }
     function _cnKeydown(e) {
         if (e.key === 'Escape') { e.preventDefault(); _cnClose(); return; }
@@ -84743,7 +84720,9 @@
         const slugEl = document.getElementById('cnSlug');
         const slug = _cnSlugFor(_cnState.name);
         const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
-        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet</span>' : ''}` : '';
+        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet or Slack</span>' : ''}` : '';
+        const emailNote = document.getElementById('cnEmailNote');
+        if (emailNote) emailNote.textContent = test ? 'optional' : 'needed for Slack';
         const box = document.getElementById('cnPreview');
         const btn = document.getElementById('cnCreateBtn');
         const p = _cnState.preview;
@@ -84755,15 +84734,43 @@
         if (!_cnState.name.trim() || !_cnState.manager) { box.innerHTML = `<div class="cn-hint">Type a name and pick a manager. SyncView checks it before anything is made.</div>`; return; }
         if (!fresh || _cnState.checking) { box.innerHTML = `<div class="cn-hint">Checking…</div>`; return; }
         if (!p.ready) {
-            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span></div>`;
+            const sl = p.slack || {};
+            const fixes = [];
+            if ((p.blockers || []).includes('name_differs_from_form') && sl.form_name) fixes.push(`<button type="button" class="cc-btn" data-cn-use="name" onclick="_cnUseForm('name')">Use the form's name: ${_calEsc(sl.form_name)}</button>`);
+            if ((p.blockers || []).includes('email_differs_from_form') && sl.form_email) fixes.push(`<button type="button" class="cc-btn" data-cn-use="email" onclick="_cnUseForm('email')">Use the form's email: ${_calEsc(sl.form_email)}</button>`);
+            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span>${fixes.length ? `<span class="cn-fixes">${fixes.join('')}</span>` : ''}</div>`;
             return;
         }
         const items = (p.will_create || []).map(t => `<li>${_calEsc(t)}</li>`).join('');
         box.innerHTML = `<div class="cn-ready">
                 <div class="cn-ready-title"><span class="cn-dot" aria-hidden="true"></span>Ready. This will make:</div>
                 <ul class="cn-list">${items}</ul>
-                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>. ' : ''}Slack channels are not made here: the finalizer makes them later, once the onboarding form and filming plan are in.${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and can be removed completely.' : ''}</div>
+                ${_cnSlackHtml(p)}
+                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>.' : ''}${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and Slack, and can be removed completely.' : ''}</div>
             </div>`;
+    }
+    // Slack (real clients): the finalizer makes both channels by itself once its
+    // three pieces are in; this create asks it to look right away, and saving the
+    // filming plan link asks again.
+    function _cnSlackHtml(p) {
+        const sl = p.slack || {};
+        if (sl.mode !== 'finalizer') return '';
+        const row = (done, text) => `<li class="${done ? 'is-done' : ''}"><span class="cn-tick" aria-hidden="true">${done ? '✓' : '○'}</span>${_calEsc(text)}<span class="cn-sr">${done ? ' (in)' : ' (still missing)'}</span></li>`;
+        const all = sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
+        return `<div class="cn-slack"><div class="cn-slack-title">Slack channels: ${all ? 'made right after you create' : 'made automatically once these are in'}</div>
+                <ul class="cn-checks">
+                    ${row(sl.form_received, 'Onboarding form from the client, same name and email')}
+                    ${row(sl.manager_slack_id, 'The manager\'s Slack id')}
+                    ${row(sl.filming_plan_linked, 'Filming plan link')}
+                </ul></div>`;
+    }
+    function _cnUseForm(field) {
+        const sl = (_cnState.preview && _cnState.preview.slack) || {};
+        const value = field === 'name' ? sl.form_name : sl.form_email;
+        const el = document.getElementById(field === 'name' ? 'cnName' : 'cnEmail');
+        if (!value || !el || _cnState.busy) return;
+        el.value = value;
+        _cnInput(el);
     }
     async function _cnCreate() {
         const p = _cnState.preview;
@@ -84779,7 +84786,8 @@
         if (out.resp.status === 200 && j.ok) {
             const slug = j.client_slug, name = p.display_name;
             _cnClose(true);
-            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.`);
+            const slackNote = j.result && j.result.slack === 'finalizer_nudged' ? ' Slack channels follow once the form and filming plan are in.' : '';
+            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.${slackNote}`);
             try { if (typeof window._caLoad === 'function') await window._caLoad(true); } catch (e) {}
             try { if (typeof window._caLoadManagers === 'function') window._caLoadManagers(); } catch (e) {}
             try { if (typeof window._caSelect === 'function') window._caSelect(slug); } catch (e) {}
@@ -84796,7 +84804,7 @@
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional, _cnClose,
-        _cnCreate, _cnInput, _cnKeydown, _cnOpen
+        _cnCreate, _cnInput, _cnKeydown, _cnOpen, _cnUseForm
     });
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
@@ -88738,4 +88746,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-e4ee6497071c.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-d5e937f393b4.js");

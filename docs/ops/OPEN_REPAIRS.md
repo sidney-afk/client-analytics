@@ -31059,7 +31059,7 @@ Fixed in `tiktok-upload` (no n8n workflow edited):
 Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
 Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
 
-## 372. [2026-10-08, BUILT, NOT APPLIED, NOT DEPLOYED] "Create client" (onboarding step 2.5) and the Stage 3 matching dry run
+## 372. [2026-10-08, LIVE (applied, deployed, throwaway proof passed 2026-10-08); Slack nudge BUILT, NOT APPLIED] "Create client" (onboarding step 2.5) and the Stage 3 matching dry run
 
 Session Beacon. Priority C in `docs/STATE_OF_THINGS.md`.
 
@@ -31069,8 +31069,7 @@ clients). The dialog takes a name, a social media manager and an optional email;
 will be made; "Create client" calls `create`, which runs `client_create_native()` from
 `migrations/2026-10-08-create-client.sql`: real provisioning (or the throwaway test path for names
 starting `ZZ THROWAWAY`), Roster's profile write, the manager assignment and the 27-step checklist with 4
-steps ticked, in one transaction. The new profile opens afterwards. Slack is never queued (reason in
-`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`; an open owner decision).
+steps ticked, in one transaction. The new profile opens afterwards. Slack: see the follow-up below.
 
 **Proof.** `scripts/client-create-proof.sql` on a disposable PostgreSQL ends `CLIENT_CREATE_PROOF_OK`
 (refusals leave nothing behind, a refusal deep inside rolls the whole create back, replay writes nothing,
@@ -31086,6 +31085,20 @@ and readbacks: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. No n8n change.
 **Stage 3.** `scripts/client-resource-match.js` (read only, local files, counts on stdout, detail only
 outside git) ran for the 35 clients: `docs/audits/2026-10-08-stage3-matching-dry-run.md`. Nothing saved.
 Rollback: revert the PR; once applied, drop the two functions.
+
+**Slack follow-up (built 2026-10-08, PR 2011, NOT applied; owner request).** Create client also gets the
+client's Slack channels made, real clients only, with no n8n edit, through a NEW migration on top of the live one,
+`migrations/2026-10-09-create-client-slack-nudge.sql`: the database nudges the existing finalizer webhook after a
+real create and whenever a filming plan link is saved (`slack_finalizer_nudge()`, trigger on `filming_plans`);
+any other last piece is picked up by the finalizer's 15 minute timer. Never for a test client. The whole nudge,
+its lookup included, is inside one exception handler, so it can never fail a create or a link save. A real client
+needs an email, and the preview blocks a name or email that differs from an onboarding form on file (standard and
+AI-funnel form tables both read; extra spaces do not count). Proof: `CLIENT_CREATE_PROOF_OK` applies the live file
+then the new one, and checks one nudge per real create and per changed link, none for test clients, none once a
+channel exists, and that a failing web call or a failing lookup never loses the save. Owner steps (apply, readback,
+redeploy `client-onboarding`, throwaway check): `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 6. The no-form case
+needs an n8n change, written out (not made) in the same file. Rollback: drop the trigger and the two nudge
+functions, re-run `2026-10-08-create-client.sql`.
 
 ## 371. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 1: nine desktop defects on SyncLinear cards, TikTok and Instagram upload, and Calendar and Samples link boxes
 

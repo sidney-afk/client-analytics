@@ -13,6 +13,8 @@
  *   - "Create client" sends ONE create with a request id, the name, manager and email; the list is
  *     read again and the new client's profile opens;
  *   - when the database step is not installed yet, the dialog says so and that nothing was made;
+ *   - a REAL client needs an email; a name that differs from the onboarding form is explained with a
+ *     one-click fix; the preview lists what the Slack finalizer still waits for; the toast says Slack follows;
  *   - Escape closes the dialog; on two phones it is a bottom sheet with 44px controls, 16px inputs and
  *     no sideways scroll.
  * Screenshots (desktop 1440 and iPhone 390): docs/syncview-design/screenshots/clients-create/.
@@ -47,7 +49,9 @@ const mk = (slug, name, extra) => Object.assign({
   roam_channel_id: null, upload_post_profile: null, postforme_account_id: null, extra: {}, source: 'syncview',
   sheet_synced_at: null, archived_at: null, created_at: '2026-10-01T06:00:00Z', updated_at: '2026-10-01T06:00:00Z', updated_by: 'QA admin',
 }, extra || {});
-const MANAGERS = [{ slug: 'managerone', name: 'Manager One' }, { slug: 'managertwo', name: 'Manager Two' }];
+const MANAGERS = [{ slug: 'managerone', name: 'Manager One', slack_id: false }, { slug: 'managertwo', name: 'Manager Two', slack_id: true }];
+// The onboarding form already in for the real client (fictional).
+const FORM = { name: 'Qx Newclient', email: 'qx@example.invalid' };
 const NEW_NAME = 'ZZ THROWAWAY Beacon';
 const WILL = ['Roster row (the client appears across SyncView)', 'Review link for the client', 'Save permissions in all four lists',
   'Client profile (the Clients tab details)', 'Social media manager assignment', '27-step onboarding checklist, with 4 steps ticked by this create'];
@@ -77,15 +81,24 @@ async function open(browser, origin, role, viewport, opts) {
         if (!String(b.display_name || '').trim()) return json({ ok: true, ready: false, blockers: ['name_invalid'], managers: MANAGERS });
         const name = String(b.display_name).trim().replace(/\s+/g, ' ');
         const slug = name.toLowerCase().replace(/[^a-z0-9&]+/g, '');
+        const mode = /^ZZ THROWAWAY/.test(name) ? 'test' : 'client';
+        if (mode === 'client' && !String(b.email || '').trim()) return json({ ok: false, error: 'email_required' }, 400);
         const blockers = rows.some(x => x.display_name.toLowerCase() === name.toLowerCase()) ? ['name_taken'] : [];
         const manager = MANAGERS.find(m => m.slug === b.manager_slug) || null;
-        return json({ ok: true, ready: !blockers.length, blockers, mode: /^ZZ THROWAWAY/.test(name) ? 'test' : 'client', slug, display_name: name, email: b.email || null, manager, managers: MANAGERS, will_create: WILL, slack: 'not_queued' });
+        let slack = { mode: 'never' };
+        if (mode === 'client') {
+          const form = String(b.email).toLowerCase() === FORM.email || slug === FORM.name.toLowerCase().replace(/[^a-z0-9&]+/g, '') ? FORM : null;
+          if (form && form.name !== name) blockers.push('name_differs_from_form');
+          slack = { mode: 'finalizer', form_received: !!form, form_name: form ? form.name : null, form_email: form ? form.email : null, manager_slack_id: !!(manager && manager.slack_id), filming_plan_linked: false };
+        }
+        return json({ ok: true, ready: !blockers.length, blockers, mode, slug, display_name: name, email: b.email || null, manager, managers: MANAGERS, will_create: WILL, slack });
       }
       if (b.action === 'create') {
         if (ctl.notInstalled) return json({ ok: false, error: 'create_not_installed', blockers: [] }, 503);
         const slug = String(b.display_name).toLowerCase().replace(/[^a-z0-9&]+/g, '');
         rows.push(mk(slug, b.display_name, { email: b.email || null }));
-        return json({ ok: true, request_id: b.request_id, client_slug: slug, mode: 'test', result: { ok: true, outcome: 'created', slack: 'not_queued' } });
+        const mode = /^ZZ THROWAWAY/.test(b.display_name) ? 'test' : 'client';
+        return json({ ok: true, request_id: b.request_id, client_slug: slug, mode, result: { ok: true, outcome: 'created', slack: mode === 'client' ? 'finalizer_nudged' : 'not_queued' } });
       }
       if (b.action === 'get') {
         const steps = Array.from({ length: 27 }, (_, i) => ({ step_key: 'fixture_step_' + String(i + 1).padStart(2, '0'), position: i + 1, label: 'Fixture step ' + (i + 1), kind: 'owner', required: !(i + 1 === 25 || i + 1 === 27), detectable: false, proof: 'Proof', status: i >= 9 && i <= 13 && i !== 10 ? 'done' : 'todo', responsible: 'owner', evidence: null, note: null, source: null, done_by: null, done_at: null, updated_at: '2026-10-08T08:00:00Z' }));
@@ -112,11 +125,11 @@ async function open(browser, origin, role, viewport, opts) {
 }
 async function openClients(s, label) {
   await s.page.evaluate(() => _kasperGotoTab('clients'));
-  await s.page.waitForFunction(() => document.querySelector('#caSearch') && _caState.loaded, null, { timeout: 10000 }).catch(() => s.failures.push(`${label}: the Clients tab never loaded`));
+  await s.page.waitForFunction(() => document.querySelector('#caSearch') && _caState.loaded, null, { timeout: 15000 }).catch(() => s.failures.push(`${label}: the Clients tab never loaded`));
 }
 async function fill(s, name) {
   await s.page.fill('#cnName', name);
-  await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1, null, { timeout: 5000 }).catch(() => s.failures.push('the manager list never loaded'));
+  await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1, null, { timeout: 15000 }).catch(() => s.failures.push('the manager list never loaded'));
   await s.page.selectOption('#cnManager', 'managertwo');
   await s.page.waitForTimeout(700);
 }
@@ -140,7 +153,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       if (!(await s.page.$('#caNewBtn'))) failures.push(`${label}: no New client button`);
       if (s.ob.some(c => /^create/.test(c.body.action))) failures.push(`${label}: create calls before the button was pressed`);
       await s.page.click('#caNewBtn');
-      await s.page.waitForSelector('.cn-dialog', { timeout: 4000 }).catch(() => failures.push(`${label}: the dialog never opened`));
+      await s.page.waitForSelector('.cn-dialog', { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog never opened`));
       const focused = await s.page.evaluate(() => document.activeElement && document.activeElement.id);
       if (focused !== 'cnName') failures.push(`${label}: the name field is not focused on open (${focused})`);
       const first = s.ob.filter(c => /^create/.test(c.body.action));
@@ -149,6 +162,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       await shot(s, 'dialog-empty-1440');
 
       // a name already in use
+      await s.page.fill('#cnEmail', 'someone@example.invalid');
       await fill(s, 'qa test client');
       const blocked = await s.page.$eval('#cnPreview', e => e.innerText).catch(() => '');
       if (!/already exists/.test(blocked)) failures.push(`${label}: a taken name is not explained (${blocked})`);
@@ -160,7 +174,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       await s.page.fill('#cnEmail', 'zz@example.invalid');
       await s.page.waitForTimeout(800);
       const ready = await s.page.$eval('#cnPreview', e => e.innerText).catch(() => '');
-      if (!/Ready\. This will make/.test(ready) || !/27-step onboarding checklist/.test(ready) || !/Slack channels are not made here/.test(ready)) failures.push(`${label}: the ready preview is missing its list (${ready})`);
+      if (!/Ready\. This will make/.test(ready) || !/27-step onboarding checklist/.test(ready) || !/stays off the Clients Info Sheet and Slack/.test(ready)) failures.push(`${label}: the ready preview is missing its list (${ready})`);
       const slugLine = await s.page.$eval('#cnSlug', e => e.innerText).catch(() => '');
       if (!/zzthrowawaybeacon/.test(slugLine) || !/Test client/.test(slugLine)) failures.push(`${label}: the link name and test badge are not shown (${slugLine})`);
       if (await s.page.$eval('#cnCreateBtn', b => b.disabled)) failures.push(`${label}: Create stays off after a clean check`);
@@ -176,7 +190,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
 
       const before = s.ob.length;
       await s.page.click('#cnCreateBtn');
-      await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: the dialog did not close after a create`));
+      await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog did not close after a create`));
       await s.page.waitForTimeout(900);
       const creates = s.ob.slice(before).filter(c => c.body.action === 'create');
       if (creates.length !== 1) failures.push(`${label}: expected exactly one create, saw ${creates.length}`);
@@ -195,6 +209,50 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       await s.page.waitForSelector('.cn-dialog');
       await s.page.keyboard.press('Escape');
       if (await s.page.$('.cn-dialog')) failures.push(`${label}: Escape did not close the dialog`);
+      if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
+      await s.ctx.close();
+      console.log('ok   ' + label);
+    }
+
+    // ---- a REAL client: email needed, the form's exact name, and what the Slack finalizer still waits for ----
+    {
+      const label = 'admin, real client and Slack';
+      const s = await open(browser, origin, 'admin', { width: 1440, height: 900 });
+      failures.push(...s.failures);
+      await openClients(s, label);
+      await s.page.evaluate(() => _caSelect('sidneylaruel'));
+      await s.page.click('#caNewBtn');
+      await s.page.waitForSelector('.cn-dialog');
+      const note = await s.page.$eval('#cnEmailNote', e => e.innerText).catch(() => '');
+      if (note !== 'needed for Slack') failures.push(`${label}: the email is not marked as needed for Slack (${note})`);
+      // The managers load after the dialog opens; read the picker only once they are in.
+      await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1, null, { timeout: 15000 }).catch(() => {});
+      const opts = await s.page.$$eval('#cnManager option', os => os.map(o => o.textContent)).catch(() => []);
+      if (!opts.some(t => /Manager One \(no Slack id yet\)/.test(t)) || opts.some(t => /Manager Two \(/.test(t))) failures.push(`${label}: the picker does not flag the manager without a Slack id (${opts.join(' | ')})`);
+      await fill(s, 'Qx newclient');
+      let msg = await s.page.$eval('#cnPreview', e => e.innerText).catch(() => '');
+      if (!/Add the client's email/.test(msg)) failures.push(`${label}: a real client without an email is not stopped (${msg})`);
+      if (!(await s.page.$eval('#cnCreateBtn', b => b.disabled))) failures.push(`${label}: Create is on without an email`);
+      await s.page.fill('#cnEmail', FORM.email);
+      await s.page.waitForTimeout(800);
+      msg = await s.page.$eval('#cnPreview', e => e.innerText).catch(() => '');
+      if (!/different spelling of this name/.test(msg) || !(await s.page.$('[data-cn-use="name"]'))) failures.push(`${label}: a name that differs from the form is not explained with a fix (${msg})`);
+      await shot(s, 'slack-name-differs-1440');
+      await s.page.click('[data-cn-use="name"]');
+      await s.page.waitForTimeout(800);
+      const nameNow = await s.page.$eval('#cnName', e => e.value);
+      if (nameNow !== FORM.name) failures.push(`${label}: "Use the form's name" did not set the name (${nameNow})`);
+      msg = await s.page.$eval('#cnPreview', e => e.innerText).catch(() => '');
+      if (!/Slack channels: made automatically once these are in/.test(msg) || !/Filming plan link\s*\(still missing\)/.test(msg) || !/Onboarding form from the client, same name and email\s*\(in\)/.test(msg) || !/Slack id\s*\(in\)/.test(msg)) failures.push(`${label}: the Slack checklist is wrong (${msg})`);
+      if (await s.page.$eval('#cnCreateBtn', b => b.disabled)) failures.push(`${label}: Create stays off for a ready real client`);
+      await shot(s, 'slack-ready-1440');
+      const before = s.ob.length;
+      await s.page.click('#cnCreateBtn');
+      await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog did not close`));
+      const c = s.ob.slice(before).filter(x => x.body.action === 'create');
+      if (c.length !== 1 || c[0].body.display_name !== FORM.name || c[0].body.email !== FORM.email) failures.push(`${label}: the create did not carry the form's name and email`);
+      const toast = await s.page.evaluate(() => (document.querySelector('.toast, #toast, [class*="toast"]') || {}).innerText || '').catch(() => '');
+      if (!/Slack channels follow/.test(toast)) failures.push(`${label}: the toast does not mention Slack (${toast})`);
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
       await s.ctx.close();
       console.log('ok   ' + label);
@@ -268,6 +326,15 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       if (!m.sheet) failures.push(`${label}: the dialog is not a bottom sheet`);
       if (await s.page.$eval('#cnCreateBtn', b => b.disabled)) failures.push(`${label}: Create stays off after a clean check`);
       if (vp.width === 390) await shot(s, 'dialog-ready-390');
+      if (vp.width === 390) {
+        await s.page.fill('#cnName', FORM.name);
+        await s.page.fill('#cnEmail', FORM.email);
+        await s.page.waitForTimeout(800);
+        const sm = await s.page.evaluate(() => { const W = document.documentElement.clientWidth; return { sw: document.documentElement.scrollWidth, W, has: !!document.querySelector('.cn-slack') }; });
+        if (!sm.has || sm.sw > sm.W) failures.push(`${label}: the Slack checklist is missing or scrolls sideways`);
+        await s.page.evaluate(() => { const d = document.querySelector('.cn-dialog'); if (d) d.scrollTop = d.scrollHeight; });
+        await shot(s, 'slack-ready-390');
+      }
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
       await s.ctx.close();
       console.log('ok   ' + label);

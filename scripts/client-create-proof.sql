@@ -1,4 +1,5 @@
--- Disposable-cluster proof for migrations/2026-10-08-create-client.sql ("Create client").
+-- Disposable-cluster proof for migrations/2026-10-08-create-client.sql ("Create client", live) and
+-- migrations/2026-10-09-create-client-slack-nudge.sql (its Slack nudge) applied on top.
 -- Run on a THROWAWAY PostgreSQL (never a real project), as a superuser, from the repo root:
 --   psql -v ON_ERROR_STOP=1 -d <empty database> -f scripts/client-create-proof.sql
 -- It first runs scripts/native-client-test-provision-proof.sql (the real 2026-09-09 provisioning
@@ -68,6 +69,8 @@ alter table public.filming_plans add column if not exists doc_id text;
 
 \i migrations/2026-10-08-create-client.sql
 \i migrations/2026-10-08-create-client.sql
+\i migrations/2026-10-09-create-client-slack-nudge.sql
+\i migrations/2026-10-09-create-client-slack-nudge.sql
 
 do $$
 declare r jsonb; n int; k text; v record;
@@ -195,6 +198,14 @@ begin
     language plpgsql as $f$ begin raise exception 'net down'; end $f$;
   update public.filming_plans set doc_url = 'https://docs.google.com/document/d/ghi', doc_id = 'ghi' where client_slug = 'newone';
   if (select doc_id from public.filming_plans where client_slug = 'newone') <> 'ghi' then raise exception 'the save was lost'; end if;
+  -- the nudge's own lookup failing (a column gone) never fails the save either
+  create or replace function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds integer default 5000) returns bigint
+    language sql as $f$ insert into net.sent (url, body) values (url, body) returning id $f$;
+  alter table public.client_profiles rename column slack_channel_id to slack_channel_id_gone;
+  update public.filming_plans set doc_url = 'https://docs.google.com/document/d/jkl', doc_id = 'jkl' where client_slug = 'newone';
+  if (select doc_id from public.filming_plans where client_slug = 'newone') <> 'jkl' then raise exception 'a failing lookup lost the save'; end if;
+  if public.slack_finalizer_nudge('newone') then raise exception 'a failing lookup reported a nudge'; end if;
+  alter table public.client_profiles rename column slack_channel_id_gone to slack_channel_id;
 end $$;
 
 -- roles: service_role alone may execute; nobody else

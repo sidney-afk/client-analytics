@@ -116,7 +116,8 @@ const managerOut = (m) => ({ slug: m.slug, name: clean(m.name) || m.slug, slack_
 // channels would never be made.
 export function slackReadiness(v, forms, manager, plan) {
   const lower = (x) => clean(x).toLowerCase();
-  const nameOf = (f) => [clean(f.first_name), clean(f.last_name)].filter(Boolean).join(' ');
+  // Spaces collapsed exactly as validateCreate does for the typed name.
+  const nameOf = (f) => [clean(f.first_name), clean(f.last_name)].filter(Boolean).join(' ').replace(/\s+/g, ' ');
   const byEmail = v.email ? (forms || []).filter((f) => lower(f.email) === lower(v.email)) : [];
   const bySlug = (forms || []).filter((f) => clientSlug(nameOf(f)) === v.slug);
   const form = byEmail[0] || bySlug[0] || null;
@@ -157,12 +158,17 @@ export function validateCreate(body) {
 // Read-only checks against the live roster. Returns the blockers (codes) the
 // database would refuse with, so the preview can say so before anything runs.
 export async function createPreview(db, v) {
-  const [managers, flags, clients, profiles, forms, plans] = await Promise.all([
+  // The onboarding form lands in client_onboarding (standard funnel) or
+  // ai_client_onboarding (AI funnel); the finalizer's queue row can come from either.
+  const FORM_COLS = 'first_name,last_name,email,created_at';
+  const readForms = (table) => must(db.from(table).select(FORM_COLS).order('created_at', { ascending: false }).limit(1000));
+  const [managers, flags, clients, profiles, forms, aiForms, plans] = await Promise.all([
     must(db.from('social_media_managers').select('slug,name,active,source_clients,slack_profile_url').eq('active', true).order('name', { ascending: true })),
     must(db.from('syncview_runtime_flags').select('key,value').in('key', ['client_profiles_authority', 'prod_authority', ...ROUTING_KEYS])),
     must(db.from('clients').select('slug,display_name')),
     must(db.from('client_profiles').select('slug,display_name')),
-    v.mode === 'client' ? must(db.from('client_onboarding').select('first_name,last_name,email,created_at').order('created_at', { ascending: false }).limit(1000)) : [],
+    v.mode === 'client' ? readForms('client_onboarding') : [],
+    v.mode === 'client' ? readForms('ai_client_onboarding') : [],
     v.mode === 'client' ? must(db.from('filming_plans').select('client_slug,doc_url,doc_id').eq('client_slug', v.slug)) : [],
   ]);
   const flag = Object.fromEntries((flags || []).map((f) => [f.key, f.value]));
@@ -178,7 +184,8 @@ export async function createPreview(db, v) {
   if (all.some((r) => lower(r.display_name) === lower(v.name))) blockers.push('name_taken');
   else if ((managers || []).some((m) => (Array.isArray(m.source_clients) ? m.source_clients : []).some((c) => lower(c) === lower(v.name)))) blockers.push('name_on_a_manager_list');
   if (all.some((r) => clean(r.slug) === v.slug)) blockers.push('slug_taken');
-  const ready = v.mode === 'client' ? slackReadiness(v, forms, manager, (plans || [])[0]) : null;
+  const allForms = [...(forms || []), ...(aiForms || [])].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const ready = v.mode === 'client' ? slackReadiness(v, allForms, manager, (plans || [])[0]) : null;
   if (ready) blockers.push(...ready.blockers);
   return {
     ready: blockers.length === 0, blockers, mode: v.mode, slug: v.slug, display_name: v.name, email: v.email || null,

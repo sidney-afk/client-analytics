@@ -1,58 +1,99 @@
 -- ============================================================
--- 2026-10-08 -- "Create client" (step 2.5 of
--- docs/plans/2026-10-01-onboarding-checklist-and-profile.md): one call that
--- creates a client's roster row, review link, four save permissions, profile,
--- manager assignment and onboarding checklist, all in ONE transaction. Either
--- everything exists afterwards or nothing does.
+-- 2026-10-09 -- "Create client" also gets the client's Slack channels made
+-- (owner request 2026-10-08; real clients only; no n8n edit).
 --
--- SOURCE-ONLY. Not applied. Lighthouse applies it by hand in the SQL editor, and
--- only after the owner's go at that moment. APPLY ORDER: after
---   2026-09-09-native-client-provisioning.sql   (applied, live)
---   2026-10-02-roster-native.sql                 (applied, live)
---   2026-10-03-onboarding-checklist-tables.sql   (applied, live)
---   2026-10-03-native-client-test-provision.sql  (NOT applied yet; this file
---                                                 needs it for the throwaway path)
+-- SOURCE-ONLY. Not applied. Lighthouse applies it in the SQL editor after the
+-- owner's go. APPLY ORDER: after 2026-10-08-create-client.sql (applied and live
+-- since 2026-10-08), which this file builds on and does not edit.
 --
--- client_create_native(request_id, slug, display_name, manager_slug, email, actor, mode)
---   mode 'client': the real path. production_native_client_provision() (roster
---     row kind 'client', review token, four routing lists, immutable receipt),
---     then Roster's client_profile_service_write() (profile + history + Sheet
---     outbox), then smm_assign_client() (one manager, history, Sheet outbox),
---     then the 27 checklist rows. The steps this call itself proved are ticked:
---     roster_row_created, routing_enrolled, review_token_present (source
---     'detected') and smm_assigned (source 'manual', the admin's pick). Each
---     tick writes one checklist history row.
---   mode 'test': the throwaway path. production_native_client_test_provision()
---     (kind 'test', a deletable receipt, names that must start with
---     "ZZ THROWAWAY" / "zzthrowaway", profile and checklist), then the same
---     manager assignment and ticks. Every Sheet outbox row for the throwaway is
---     removed in the same transaction, so the Clients Info and Social Media
---     Managers tabs never see it.
+-- WHY. The Slack Creative Channel Finalizer (n8n) already waits for its missing
+-- pieces and re-checks every 15 minutes and once a day: a pending queue row
+-- (written by the onboarding form's provisioning), exactly one Clients Info row
+-- with the same name (case included) and email, the manager with a Slack user
+-- id, and a linked filming plan. Create client supplies the client row and the
+-- manager. This file NUDGES the finalizer's existing webhook at the two moments
+-- a piece arrives, through slack_finalizer_nudge():
+--   1. at the end of a real create (client_create_native, mode 'client'), and
+--   2. whenever a filming plan link is saved for a real, active client with no
+--      Slack channel yet (trigger on filming_plans, any writer).
+-- Between those moments the finalizer's own 15 minute timer picks the client
+-- up. A nudge only asks it to look now; if a piece is still missing it waits
+-- and posts nothing.
 --
--- SLACK. Neither mode queues the Slack channel finalizer. The finalizer is fed
--- by the onboarding form's provisioning snapshot and needs a filming plan link,
--- neither of which exists when an admin creates the client, so a queued job
--- could only end in "manual reconciliation". Nothing in this file touches Slack.
+-- SAFETY. The whole nudge, its lookup included, runs inside one exception
+-- handler: it can never fail a create or a filming plan save. pg_net sends it
+-- after the transaction commits (a rolled-back create sends nothing). It is
+-- NEVER sent for a test client (kind 'test', a "zzthrowaway" slug or a
+-- "ZZ THROWAWAY" name), nor for a client that already has a Slack channel.
 --
--- client_create_native_test_teardown(slug, actor) removes a throwaway made by
--- the test mode: it takes the name off its manager's list (the assignment
--- history row stays, like every history), then calls
--- production_native_client_test_teardown(), which refuses anything that is not
--- a verified throwaway or that has gained work.
+-- WHAT CHANGES. client_create_native is redefined with exactly two additions to
+-- the live version: a real client now needs an email (the finalizer compares it
+-- with the form and sends an empty one to manual reconciliation), and the
+-- answer says slack 'finalizer_nudged' when the nudge was queued. Everything
+-- else is the 2026-10-08 body unchanged.
 --
--- Refusals are plain exceptions with stable names (client_create_*), mapped to
--- codes by supabase/functions/_shared/client-onboarding.mjs. A replay of the
--- same request id returns the first answer and writes nothing new.
+-- ACCESS. Every function is revoked from all four roles (public, anon,
+-- authenticated, service_role). client_create_native gets EXECUTE back for
+-- service_role only, as before; the two nudge functions are granted to nobody
+-- (only the create function and the trigger run them, as their owner).
 --
--- ACCESS. Both functions: SECURITY DEFINER with a pinned search_path, every
--- privilege revoked from all four roles (public, anon, authenticated,
--- service_role), then EXECUTE granted to service_role alone. The browser never
--- calls them; the client-onboarding Edge Function does, after its admin check.
---
--- Rollback: drop the two functions (no table is created, no data is changed by
--- applying this file).
+-- Idempotent: safe to run twice. Rollback: drop the trigger
+-- filming_plans_slack_finalizer_nudge and the two nudge functions, then re-run
+-- 2026-10-08-create-client.sql to restore the previous client_create_native.
 -- ============================================================
 begin;
+
+-- Ask the Slack finalizer to look at one client now. Returns true when a nudge
+-- was queued. Real, active clients without a Slack channel only.
+create or replace function public.slack_finalizer_nudge(p_slug text)
+returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog, public, extensions, pg_temp
+as $fn$
+declare
+  v_name text;
+begin
+  select pr.display_name into v_name
+    from public.clients c
+    join public.client_profiles pr on pr.slug = c.slug and pr.archived_at is null
+   where c.slug = p_slug and c.kind = 'client' and c.active
+     and c.slug !~ '^zzthrowaway' and pr.display_name !~* '^zz throwaway'
+     and coalesce(btrim(pr.creative_channel_id), '') = '' and coalesce(btrim(pr.slack_channel_id), '') = '';
+  if v_name is null then return false; end if;
+  perform net.http_post(
+    url := 'https://synchrosocial.app.n8n.cloud/webhook/slack-creative-finalize',
+    body := jsonb_build_object('client_name', v_name),
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    timeout_milliseconds := 10000);
+  return true;
+exception when others then
+  -- A nudge is a convenience (the finalizer also checks every 15 minutes and
+  -- once a day): whatever goes wrong here, lookup included, never fails the
+  -- write it rides on.
+  return false;
+end;
+$fn$;
+
+create or replace function public.filming_plans_slack_finalizer_nudge()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $fn$
+begin
+  if coalesce(btrim(new.doc_url), '') <> '' and coalesce(btrim(new.doc_id), '') <> ''
+     and (tg_op = 'INSERT' or new.doc_url is distinct from old.doc_url or new.doc_id is distinct from old.doc_id) then
+    perform public.slack_finalizer_nudge(new.client_slug);
+  end if;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists filming_plans_slack_finalizer_nudge on public.filming_plans;
+create trigger filming_plans_slack_finalizer_nudge
+  after insert or update of doc_url, doc_id on public.filming_plans
+  for each row execute function public.filming_plans_slack_finalizer_nudge();
 
 create or replace function public.client_create_native(
   p_request_id   text,
@@ -94,6 +135,7 @@ begin
   if v_email <> '' and (length(v_email) > 254 or v_email !~ '^[^\s@]+@[^\s@]+\.[^\s@]+$') then
     raise exception 'client_create_email_invalid';
   end if;
+  if v_mode = 'client' and v_email = '' then raise exception 'client_create_email_required'; end if;
   if v_mode = 'test' and (v_slug !~ '^zzthrowaway' or v_name !~ '^ZZ THROWAWAY') then
     raise exception 'client_create_test_needs_throwaway_name';
   end if;
@@ -179,47 +221,14 @@ begin
     'ok', true, 'outcome', 'created', 'mode', v_mode, 'client_slug', v_slug,
     'kind', case when v_mode = 'test' then 'test' else 'client' end,
     'manager_slug', v_mgr.slug, 'checklist_steps', v_steps, 'checklist_ticked', v_ticked,
-    'slack', 'not_queued');
+    'slack', case when v_mode = 'client' and public.slack_finalizer_nudge(v_slug) then 'finalizer_nudged' else 'not_queued' end);
 end;
 $fn$;
 
-create or replace function public.client_create_native_test_teardown(
-  p_client_slug text,
-  p_actor       text
-) returns jsonb
-language plpgsql
-security definer
-set search_path = pg_catalog, public, extensions, pg_temp
-as $fn$
-declare
-  v_slug text := lower(btrim(coalesce(p_client_slug, '')));
-  v_name text;
-  v_out  jsonb;
-  n      integer;
-begin
-  if btrim(coalesce(p_actor, '')) = '' then raise exception 'client_create_actor_required'; end if;
-  if v_slug !~ '^zzthrowaway[a-z0-9]{0,60}$' then raise exception 'client_create_teardown_not_throwaway'; end if;
-  select display_name into v_name from public.clients
-   where slug = v_slug and kind = 'test' and source = 'syncview_native_test' and display_name ~ '^ZZ THROWAWAY';
-  if v_name is null then raise exception 'client_create_teardown_not_throwaway'; end if;
-
-  update public.social_media_managers m set
-    source_clients = coalesce((select jsonb_agg(c order by c) from jsonb_array_elements_text(m.source_clients) c
-                               where lower(btrim(c)) <> lower(v_name)), '[]'::jsonb),
-    updated_at = clock_timestamp()
-  where exists (select 1 from jsonb_array_elements_text(m.source_clients) c where lower(btrim(c)) = lower(v_name));
-  get diagnostics n = row_count;
-
-  v_out := public.production_native_client_test_teardown(v_slug, p_actor);
-  return v_out || jsonb_build_object('manager_lists_cleared', n);
-end;
-$fn$;
-
+revoke all on function public.slack_finalizer_nudge(text) from public, anon, authenticated, service_role;
+revoke all on function public.filming_plans_slack_finalizer_nudge() from public, anon, authenticated, service_role;
 revoke all on function public.client_create_native(text, text, text, text, text, text, text)
   from public, anon, authenticated, service_role;
-revoke all on function public.client_create_native_test_teardown(text, text)
-  from public, anon, authenticated, service_role;
 grant execute on function public.client_create_native(text, text, text, text, text, text, text) to service_role;
-grant execute on function public.client_create_native_test_teardown(text, text) to service_role;
 
 commit;

@@ -261,6 +261,22 @@ function makeReq(method, headers, body, spy) {
   ok(res.status === 400 && out.error === 'email_required' && h.db.calls.rpcs.length === 0, 'slack: a real client needs an email (the finalizer sends an empty one to manual)');
   h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'ZZ THROWAWAY Slack', manager_slug: 'managerb' }); out = await j(res);
   ok(out.ready === true && out.slack.mode === 'never' && !h.db.calls.selects.some((q) => q.table === 'client_onboarding'), 'slack: a test client never reaches Slack and needs no email');
+  // an AI-funnel form (ai_client_onboarding) counts as the form too
+  const aiState = slackState(); aiState.tables.client_onboarding = [];
+  aiState.tables.ai_client_onboarding = [{ first_name: 'New', last_name: 'Person', email: 'new@example.test', created_at: '2026-10-08T01:00:00Z' }];
+  h = harness(aiState); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === true && out.slack.form_received === true && h.db.calls.selects.some((q) => q.table === 'ai_client_onboarding'), 'slack: an AI-funnel client\'s form (ai_client_onboarding) is found, not shown as missing');
+  aiState.tables.ai_client_onboarding[0].first_name = 'new';
+  h = harness(aiState); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === false && out.blockers.includes('name_differs_from_form') && out.slack.form_name === 'new Person', 'slack: an AI-funnel form under another spelling is a blocker too');
+  // double spaces collapse on both sides, the same way validateCreate does
+  const spaced = slackState(); spaced.tables.client_onboarding[0].first_name = 'New ';
+  spaced.tables.client_onboarding[0].last_name = '  Person';
+  h = harness(spaced); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New  Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === true && !out.blockers.includes('name_differs_from_form') && out.slack.form_name === 'New Person', 'slack: extra spaces in the form name or the typed name do not count as a difference');
+  const inner = slackState(); inner.tables.client_onboarding[0].first_name = 'New  Middle';
+  h = harness(inner); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Middle Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(!out.blockers.includes('name_differs_from_form'), 'slack: a double space inside the form\'s first name collapses too');
   ok(mod.mapCreateError('client_create_email_required').code === 'email_required', 'slack: the database refusal for a missing email maps to email_required');
 
   // ---- source wiring

@@ -47,14 +47,14 @@ here with where it stopped, so it can be restarted.
   shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
   27-step checklist (admin only; OPEN_REPAIRS 332). Next, each with the owner's go: "Create client" (step 2.5),
   then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
-  **2026-10-08 (Beacon): "Create client" is BUILT, not applied or deployed** (OPEN_REPAIRS 372): owner steps, in order, in
-  `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` (apply the 2026-10-03 test path, apply `2026-10-08-create-client.sql`, deploy
-  `client-onboarding`, throwaway proof and teardown). **Stage 3 dry run done**, nothing saved:
+  **"Create client" is LIVE since 2026-10-08** (OPEN_REPAIRS 372): both migrations applied, `client-onboarding`
+  deployed, throwaway create and teardown passed (Lighthouse). **Its Slack nudge is built, not applied** (PR 2011):
+  real clients only, no n8n edit; the database nudges the existing finalizer webhook after a create and when a filming
+  plan link is saved, the 15 minute timer covers the rest. Owner steps in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 6
+  (apply `2026-10-09-create-client-slack-nudge.sql`, redeploy `client-onboarding`). Clients who never fill the form
+  would need an n8n change, written out there for the owner's go. **Stage 3 dry run done**, nothing saved:
   `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
   confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.
-  Same PR, 2026-10-08: Create client also gets the **Slack channels** made (real clients only, no n8n edit): the
-  database nudges the existing finalizer webhook after a create and when a filming plan link is saved. Clients who
-  never fill the form would need an n8n change, written out for the owner's go in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03

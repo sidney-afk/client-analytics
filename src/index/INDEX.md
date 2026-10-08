@@ -35,7 +35,7 @@
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 29 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
-| 30 | `120-calendar-flags-write-repair.js.part` | 3447 | The members a flag value offers, or null when it offers no member list at |
+| 30 | `120-calendar-flags-write-repair.js.part` | 3458 | The members a flag value offers, or null when it offers no member list at |
 | 31 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
 | 32 | `130-calendar-model-cache.js.part` | 1406 | Returns the comments array for a given component. Falls back to the |
 | 33 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
@@ -53,7 +53,7 @@
 | 45 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 46 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 47 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
-| 48 | `230-production-create-comments.js.part` | 2767 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 48 | `230-production-create-comments.js.part` | 2769 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 49 | `240-production-description.js.part` | 2709 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |

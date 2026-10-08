@@ -277,6 +277,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/lost-work-drafts-browser.js
+      - name: A reply under an old round-0 comment saves with no round, never a 500 (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/comment-round-zero-browser.js
       - name: Urgent ping uses the stamp the database holds, and a refused ping can be refreshed
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

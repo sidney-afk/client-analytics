@@ -186,6 +186,7 @@ function contextHarness(overrides) {
     // all (caption/title do not). OPEN_REPAIRS 127.
     extract('_writeUiComponentHasWorkItem'),
     extract('_writeUiNativeId'),
+    extract('_writeUiCommentRound'),
     extract('_prodCrosswalkKey'),
     extract('_prodCrosswalkVerdict'),
     extract('_prodCrosswalkSetVerdict'),
@@ -361,6 +362,7 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
     // Both writers answer source-only for a component with no work item of
     // its own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
     vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
+    vm.runInContext(extract('_writeUiCommentRound'), context);
     vm.runInContext(extract('_calPostLinearComment') + '\n' + extract('_sxrPostLinearComment'), context);
     return { context, host };
   }

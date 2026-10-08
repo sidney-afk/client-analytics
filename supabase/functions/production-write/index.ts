@@ -61,6 +61,7 @@ import {
   lower,
   normalizeActor,
   normalizeCommentAction,
+  normalizeCommentRound,
   normalizeOperation,
   normalizeTeam,
   overdueStatusBumpDate,
@@ -309,6 +310,12 @@ class GatewayError extends Error {
     this.code = code;
     this.detail = detail;
   }
+}
+
+function commentRoundOrRefuse(value: unknown): number | null {
+  const round = normalizeCommentRound(value);
+  if (round === undefined) throw new GatewayError(400, "invalid_comment_round");
+  return round;
 }
 
 function json(body: JsonMap, status = 200): Response {
@@ -1621,7 +1628,9 @@ function publicComment(value: unknown, principal?: Principal): JsonMap {
     audience: lower(row.audience) === "client" ? "client" : "internal",
     component: clean(row.component) || null,
     is_tweak: row.is_tweak === true,
-    round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+    // Number(null) is 0: a comment with no round must read back as null, or
+    // the page stores 0 and a reply under it sends 0 (OPEN_REPAIRS 380).
+    round: normalizeCommentRound(row.round) ?? null,
     source_created_at: clean(row.source_created_at) || null,
     source_updated_at: clean(row.source_updated_at) || null,
     edited_at: clean(row.edited_at) || null,
@@ -2022,12 +2031,7 @@ async function reconstructCommentAdd(
     ? await deterministicNativeId("pc", `${entity}:${id}`, suppliedNativeId)
     : await deterministicNativeId("pc", requestId, `${entity}:${id}:production`);
   const nativeCommentId = suppliedNativeId || productionCommentId;
-  const round = commentInput.round == null || commentInput.round === ""
-    ? null
-    : Number(commentInput.round);
-  if (round != null && (!Number.isInteger(round) || round < 0)) {
-    throw new GatewayError(400, "invalid_comment_round");
-  }
+  const round = commentRoundOrRefuse(commentInput.round);
   const fingerprint = await commentAddFingerprint({
     operation: "comment", entity, id,
     ...(suppliedNativeId ? {} : { requestId, surface, legacyParity: historicalLegacyParity }),
@@ -5429,12 +5433,7 @@ async function handleEntityOperation(
         : await deterministicNativeId("pc", requestId, `${entity}:${id}:production`);
       nativeCommentId = suppliedNativeId || productionCommentId;
     }
-    const round = commentInput.round == null || commentInput.round === ""
-      ? null
-      : Number(commentInput.round);
-    if (round != null && (!Number.isInteger(round) || round < 0)) {
-      throw new GatewayError(400, "invalid_comment_round");
-    }
+    const round = commentRoundOrRefuse(commentInput.round);
     const fingerprint = await (action === "add" ? commentAddFingerprint : intentFingerprint)({
       operation, action, entity, id,
       ...(suppliedNativeId ? {} : { requestId, surface, legacyParity }),

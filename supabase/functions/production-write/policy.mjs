@@ -241,6 +241,20 @@ export function normalizeTeam(value) {
   return TEAM_KEYS[lower(value)] || "";
 }
 
+/* A comment's change-request round, as production_comments stores it:
+ * CHECK (round IS NULL OR round > 0). Round 0 means "no round": older calendar
+ * comments were stored with 0 and a reply inherits its thread root's round, so
+ * 0 is saved as null. It used to pass the gateway's own check (which refused
+ * only round < 0) and then fail the table's, a 500 the page retried about 520
+ * times (OPEN_REPAIRS 380). Returns the round (a whole number of 1 or more),
+ * null for no round, or undefined for a value the caller must refuse (400). */
+export function normalizeCommentRound(value) {
+  if (value == null || value === "") return null;
+  const round = Number(value);
+  if (!Number.isInteger(round) || round < 0) return undefined;
+  return round === 0 ? null : round;
+}
+
 export function normalizeOperation(value) {
   const operation = lower(value);
   return OPERATIONS.includes(operation) ? operation : "";

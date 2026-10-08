@@ -6,7 +6,7 @@ import {
 import {
   _calComponentsFor, _clientCommentGatewayOn, _prodCanonicalCoversLegacy, _prodCardBindingToken,
   _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
-  _prodResolveCardCrosswalk, _syncviewClientWriteToken, _syncviewEfHeaders, _writeUiFailureText,
+  _prodResolveCardCrosswalk, _syncviewClientWriteToken, _syncviewEfHeaders, _writeUiCommentRound, _writeUiFailureText,
   _writeUiNativeId, _writeUiPrimeRerouteFlag, _writeUiRecordFailure
 } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calSetCommentsFor, calClientSlug, calState } from './130-calendar-model-cache.js';
@@ -1482,7 +1482,9 @@ import {
                 attachments,
                 component: String(row.component || '').trim(),
                 is_tweak: _prodCommentTruthy(row.is_tweak),
-                round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+                // Number(null) is 0, which made every canonical comment with no
+                // round read back as round 0 (OPEN_REPAIRS 380).
+                round: _writeUiCommentRound(row.round),
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),

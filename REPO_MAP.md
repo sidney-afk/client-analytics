@@ -11,6 +11,9 @@ a phone-to-desktop resize. It complements the broad desktop parity runner.
 `docs/audits/2026-10-07-prism-phone/batch-4/` contains the narrowed-device
 Today/Notes gallery, personal reviews, source binding, check tails and desktop
 hash receipts. The complete review and fresh-eyes round remain open.
+`docs/audits/2026-10-07-prism-phone/batch-4/main-followup/` preserves the
+post-main-integration gallery, exact current-main desktop comparisons and
+the marker-based unavailable Notes regression receipts.
 
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,

@@ -132,6 +132,10 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Clients | staff / admin | client-detail | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | client-edit | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-manager-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-cancel-confirm | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -254,7 +258,7 @@ Missing setups stay OPEN. Sheet-view names do not prove a card detail overlay. E
 | Clients | staff | empty | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Clients | staff | loading | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Clients | staff | main actions | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
-| TikTok upload | staff | normal | OPEN | Prior native baseline displays an opaque upload-provider account ID. Verify supported account metadata and review the full native form; OPEN. |
+| TikTok upload | staff | normal | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | TikTok upload | staff | menus/sheets open | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | TikTok upload | staff | empty | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | TikTok upload | staff | loading | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
@@ -262,7 +266,7 @@ Missing setups stay OPEN. Sheet-view names do not prove a card detail overlay. E
 | Analytics | staff | normal | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | staff | menus/sheets open | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | staff | empty | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
-| Analytics | staff | loading | OPEN | Prior native baseline captures raised an unfinished skeleton-layout candidate. Current native bounds verification and complete review remain OPEN. |
+| Analytics | staff | loading | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | staff | main actions | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | client | normal | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | client | menus/sheets open | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |

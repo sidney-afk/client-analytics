@@ -16830,16 +16830,7 @@
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
             if (!list.length) return head + scope + _tdyClientsHtml(d) + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>`;
-            /* The walk keeps its place by POST, not by position. The list is
-               rebuilt on every live re-read, and with a bare index a post
-               leaving the list earlier in date order (a teammate added its
-               link) silently swapped the card under "Post 3 of 5" for the next
-               one, possibly another client's, with "Open card" following the
-               swap. If the post being shown is gone, the position is kept. */
-            let i = tdyState.walkId ? list.findIndex(x => x.id === tdyState.walkId) : -1;
-            if (i < 0) i = ((tdyState.walk % list.length) + list.length) % list.length;
-            tdyState.walk = i;
-            tdyState.walkId = list[i].id;
+            const i = ((tdyState.walk % list.length) + list.length) % list.length;
             const p = list[i], name = d.names[p.client] || p.client || '';
             const gap = _calSmmMediaGap(p) || {};
             const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
@@ -17047,7 +17038,7 @@
     }
     function _tdyPurgeSensitiveState() {
         tdyState.gen++; tdyState.purges++; tdyState.freshAt = 0; tdyState.fromSaved = false; _tdyInflight = null;
-        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0; tdyState.walkId = '';
+        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0;
         _tdyClientRows = null;
         _tdyAlsoSees = null;
         _tdyCacheClear();
@@ -17156,7 +17147,7 @@
         _tdyPaint();
     }
     function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
-    function _tdyWalkNext() { tdyState.walk++; tdyState.walkId = ''; _tdyPaint(); }
+    function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
     function _tdyOpenSync(id) {
         try { window.open(svRoute.fast('/synclinear/' + encodeURIComponent(id)), '_blank', 'noopener'); } catch (e) {}
@@ -17197,20 +17188,6 @@
         if (!r) return;
         const name = d.names[r.client_slug] || r.client_slug;
         try { svSharedClientNote(name); } catch (e) {}
-        /* A work item that knows its card opens it the way a post row does.
-           The other road names only the work item, and the Calendar lets a
-           card past its saved month and status filter only when it is asked
-           for by card id, so "Open card" from "To approve" or "Dates to move"
-           ended on "Card not shown" whenever that client's filter hid the
-           card, and the address never carried the card either. Measured
-           2026-10-08: all 261 open calendar-origin items carry a card id that
-           is a card of their own client. */
-        if (r.card_id) {
-            _calSetFocusRequest({ client: name, cardId: String(r.card_id) });
-            navTo('calendar');
-            _tdyCardInAddress(r.client_slug, String(r.card_id));
-            return;
-        }
         wlOpenInContentCalendar(name, '', r.id);
     }
     function _tdyTeardown() { tdyState.gen++; _tdyStopLive(); }
@@ -23329,6 +23306,17 @@
             throw _writeUiGatewayError(503, 'client_scope_unavailable');
         }
     }
+    /* A comment's change-request round, as the canonical table accepts it:
+       a whole number of 1 or more, otherwise no round at all. Older calendar
+       comments were stored with round 0, and a reply inherits its thread
+       root's round, so a reply under one of them sent round 0; the server
+       let it through and production_comments' CHECK (round > 0) threw, a 500
+       the page retried about 520 times (OPEN_REPAIRS 382). Every comment
+       write, and every queued retry of one, goes through this. */
+    function _writeUiCommentRound(value) {
+        const round = Number(value);
+        return value != null && value !== '' && Number.isInteger(round) && round > 0 ? round : null;
+    }
     function _writeUiNativeId(post, component) {
         if (!post) return '';
         // A component with no work item has no deliverable id -- least of all
@@ -25098,7 +25086,7 @@
                 parent_id: String(meta && meta.parentId || meta && meta.comment && meta.comment.parent_id || ''),
                 audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                 is_tweak: !!(meta && meta.isTweak),
-                round: meta && Number.isInteger(meta.round) ? meta.round : null
+                round: _writeUiCommentRound(meta && meta.round)
             } : null,
             attempted: false,
             native_committed: false
@@ -31517,7 +31505,7 @@
                         audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                         component,
                         is_tweak: !!(meta && meta.isTweak),
-                        round: meta && Number.isInteger(meta.round) ? meta.round : null,
+                        round: _writeUiCommentRound(meta && meta.round),
                         // The card the client link presents; the server matches
                         // it against the row card binding when one exists.
                         ...(clientGatewaySurface ? { card_id: clientGatewaySurface.card_id } : {})
@@ -32064,19 +32052,11 @@
             showNotify('Not waiting on Kasper', 'Nothing on this card is at Kasper Approval right now, so there is nothing to ping him about.');
             return;
         }
-        /* The client this card belongs to, fixed now. The marker is saved after
-           the confirm, two flag reads and the Slack call, and it used to read
-           the client on screen at THAT moment: after a quick client switch the
-           "sent" marker went to the other client with this card's id, was
-           refused, and the ping (already delivered) left no trace, so Kasper's
-           Urgent list missed the card and the button was live for a second
-           ping. The editor ping already pins its client the same way. */
-        const sourceClient = calState.client;
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(calState.client || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('calendar'), surface: 'calendar', component: comp },
-            persist: (ping) => _calPersistKasperUrgentForPost(sourceClient, post, comp, ping),
-            preflight: () => _calAssertSavingOn(sourceClient)
+            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping),
+            preflight: () => _calAssertSavingOn(calState.client)
         });
     }
     /* Which component the ping is recorded against. The button can be clicked
@@ -43507,18 +43487,7 @@
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', (e) => {
-            card.classList.remove('dragging');
-            /* A drag that ended with no drop (Escape, or released outside the
-               strip) saved nothing, but the cards had already been moved on
-               screen as the pointer passed over them and nothing put them
-               back. The strip showed an order that did not exist, and the next
-               real drop read the order from the screen and saved the abandoned
-               move with it. Redraw from what is actually stored. */
-            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
-                try { _calRenderBody({ preserveScroll: true }); } catch (err) {}
-            }
-        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');
@@ -44942,13 +44911,7 @@
                 items.push({ component, name: component === 'video' ? 'Video work item' : k.second + ' work item', read, plan });
             }
             const slot = _arxOrderSlot(fresh, _arxLive(kind));
-            /* "Has passed" means before today on this person's calendar. Parsing
-               the date as an instant read it as midnight UTC, so west of UTC
-               the note came on during the evening of the scheduled day itself
-               (from 6 pm in Guatemala). Compare the two days as days. */
-            const nowDay = new Date();
-            const todayIso = nowDay.getFullYear() + '-' + String(nowDay.getMonth() + 1).padStart(2, '0') + '-' + String(nowDay.getDate()).padStart(2, '0');
-            const past = kind === 'cal' && !!fresh.scheduled_date && String(fresh.scheduled_date).slice(0, 10) < todayIso;
+            const past = kind === 'cal' && fresh.scheduled_date && Date.parse(String(fresh.scheduled_date).slice(0, 10)) < Date.now() - 86400000;
             const ok = await _arxDialog({
                 title: 'Restore “' + _arxNameOf(fresh) + '”?',
                 msg: 'It goes back to ' + k.where + ' exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be ' + status + '.',
@@ -46390,15 +46353,13 @@
        "ready only" filter (or an active month filter) would otherwise hide an
        in-review post; the focus clears when the user leaves the Sheet. */
     function _calReviewOpenInSheet(pid) {
-        /* Through the one road every other view change takes. This used to
-           switch the view by hand, which skipped what onCalViewChange also
-           does: the Sheet came up with no Organize menu (so an active month
-           filter could be neither seen nor changed), no Select buttons and no
-           zoom, until "Sheet" was clicked again. The focus is set after, since
-           it is what lets the card past the filters. */
         calState.focusPid = pid;
-        if (calState.view !== 'organizer') onCalViewChange('organizer');
-        else _calRenderBody();
+        if (calState.view !== 'organizer') {
+            calState.view = 'organizer';
+            _calSavePrefs();
+            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
+        }
+        _calRenderBody();
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
             if (!card) return;
@@ -46420,13 +46381,12 @@
 
     function editInOrganizerFromPreview(id) {
         closeCalPreview();
-        // Same road as _calReviewOpenInSheet, and the same focus: without it a
-        // card the saved month or status filter hides (every card from the
-        // Unscheduled tray under a month filter) was never rendered, and the
-        // button did nothing at all.
-        calState.focusPid = id;
-        if (calState.view !== 'organizer') onCalViewChange('organizer');
-        else _calRenderBody({ preserveScroll: true });
+        if (calState.view !== 'organizer') {
+            calState.view = 'organizer';
+            _calSavePrefs();
+            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
+            _calRenderBody();
+        }
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
             if (card) {
@@ -57613,7 +57573,9 @@
                 attachments,
                 component: String(row.component || '').trim(),
                 is_tweak: _prodCommentTruthy(row.is_tweak),
-                round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+                // Number(null) is 0, which made every canonical comment with no
+                // round read back as round 0 (OPEN_REPAIRS 382).
+                round: _writeUiCommentRound(row.round),
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),
@@ -58970,15 +58932,7 @@
             return _prodCancelDescriptionEdit(id);
         }
         function _prodCaptureDescriptionFocus(root) {
-            /* The ROW id, not the raw open id. A card opened by a pasted link
-               or through its batch is open under its identifier, while the
-               description is read and kept under the row id (the comments had
-               the same split and were fixed with _prodOpenRowId; see
-               test/prod-deep-link-open-id-key.js). With the raw id the
-               description never repainted when its read landed, so it sat on
-               the loading bar, and the caret jumped to the start of the text on
-               any re-render while editing. */
-            const id = _prodOpenRowId();
+            const id = String(_prodState.openId || '');
             const state = id && _prodState.descriptions.get(id);
             if (!root || !state || !state.editing) return null;
             const panel = root.querySelector('[data-prod-description="' + CSS.escape(id) + '"]');
@@ -59470,7 +59424,7 @@
                         _prodAdoptDescriptionValue(id, loadedRow.description, loadedRow.updated_at);
                         const reconciled = _prodState.descriptions.get(id);
                         if (reconciled) reconciled.scopeSignature = _prodIssueScopeSignature(issue);
-                        if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                        if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                         return state;
                     }
                 }
@@ -59495,7 +59449,7 @@
                 state.refreshError = '';
                 state.refreshSilent = !force;
                 state.status = state.hasValue ? 'stale' : 'loading';
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 // The owner reads, guards and records. It never throws.
                 await _prodEnsureBatchDescription(batchId, force);
                 if (!panelStillCurrent()) {
@@ -59534,7 +59488,7 @@
                     state.refreshError = '';
                     state.status = state.hasValue ? 'stale' : 'idle';
                 }
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             }
             if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
@@ -59544,7 +59498,7 @@
                 state.status = state.hasValue ? 'stale' : 'error';
                 state.error = state.hasValue ? state.error : 'Staff sign-in is required to load this description.';
                 state.refreshError = state.hasValue ? 'Staff sign-in is required to refresh this description.' : '';
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return null;
             }
             const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
@@ -59568,7 +59522,7 @@
             state.refreshSilent = !force;
             if (state.hasValue) state.status = 'stale';
             else state.status = 'loading';
-            if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+            if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
             try {
                 const response = await fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
@@ -59637,7 +59591,7 @@
                     adopted.renderValue = renderBrief;
                     adopted.renderExpiresAt = renderExpiresAt;
                 }
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             } catch (error) {
                 if (!requestStillCurrent()) return null;
@@ -59649,7 +59603,7 @@
                     state.status = 'error';
                     state.error = 'Description could not load.';
                 }
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return null;
             }
         }
@@ -70027,13 +69981,11 @@
         if (!post) return;
         const comp = _sxrKasperUrgentPingComp(post);
         if (!comp) { if (typeof showNotify === 'function') showNotify('Not waiting on Kasper', 'Nothing on this sample is at Kasper Approval right now, so there is nothing to ping him about.'); return; }
-        // The sample's own client, fixed now: the marker is saved seconds later (see _calSendKasperUrgentSlack).
-        const sourceClient = sxrState.client;
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
-            persist: (ping) => _sxrPersistKasperUrgentForPost(sourceClient, post, comp, ping),
-            preflight: () => _sxrAssertSavingOn(sourceClient)
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping),
+            preflight: () => _sxrAssertSavingOn(sxrState.client)
         });
     }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
@@ -70448,13 +70400,7 @@
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', (e) => {
-            card.classList.remove('dragging');
-            // A drag with no drop saved nothing: redraw the stored order (see the Calendar's twin).
-            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
-                try { _sxrRenderBody({ preserveScroll: true }); } catch (err) {}
-            }
-        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');
@@ -73487,7 +73433,7 @@
                     nativeId,
                     sourceEditedAt: comment && (comment.updated_at || comment.created_at),
                     requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
-                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: _writeUiCommentRound(meta && meta.round), ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
                 }, repair);
     }
     function _writeUiApplyJournalEdits(post, edits, surface) {
@@ -73664,7 +73610,7 @@
             created_at: String(row.source_created_at || fallback.created_at || row.created_at || lifecycleAt),
             updated_at: lifecycleAt,
             is_tweak: row.is_tweak === true || fallback.is_tweak === true,
-            round: Number.isInteger(row.round) ? row.round : (Number.isInteger(fallback.round) ? fallback.round : null),
+            round: _writeUiCommentRound(row.round) || _writeUiCommentRound(fallback.round),
             deleted: !!String(row.deleted_at || ''),
             done: !!String(row.resolved_at || ''),
             done_at: String(row.resolved_at || ''),
@@ -73832,7 +73778,7 @@
                 meta.parentId = intent.comment_meta && intent.comment_meta.parent_id;
                 meta.audience = intent.comment_meta && intent.comment_meta.audience;
                 meta.isTweak = !!(intent.comment_meta && intent.comment_meta.is_tweak);
-                meta.round = intent.comment_meta && Number.isInteger(intent.comment_meta.round) ? intent.comment_meta.round : null;
+                meta.round = _writeUiCommentRound(intent.comment_meta && intent.comment_meta.round);
                 acknowledgement = group.surface === 'sxr'
                     ? await _sxrPostLinearComment(_sxrLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta)
                     : await _calPostLinearComment(_calLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta);
@@ -75592,7 +75538,7 @@
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
@@ -75872,21 +75818,7 @@
     function mountInstagramPanel(deps) {
         _igDeps = deps;
         const shared = svSharedClientFor('tiktok-upload');
-        /* Follow the client in the top bar unless a post is already being put
-           together, as the TikTok side does. This only took the top-bar client
-           when the form had none, so after its first client the Instagram form
-           kept that one for the whole session: pick another client in the top
-           bar and the top bar and the TikTok side said B while this form, empty,
-           still said A, and a video attached then went to A's Instagram. */
-        const igIdle = !igState.file && !String(igState.title || '').trim() && !igState.submitting;
-        if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
-            if (igState.client && igState.client !== shared) {
-                igState.error = null; igState.notice = null;
-                if (igState.cover.source === 'calendar') _igCoverClear(true);
-                igState.cover.cardId = ''; igState.cover.note = '';
-            }
-            igState.client = shared;
-        }
+        if (!igState.client && shared && (WL_CLIENT_NAMES || []).includes(shared)) igState.client = shared;
         _igMounted = true;
         const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');
         if (form) form.hidden = false;
@@ -83675,16 +83607,8 @@
         const rows = (_caState.rows || []).filter(r => {
             if (r.archived_at && !_caState.showArchived) return false;
             if (!q) return true;
-            /* The profile shows handles as "@name", and they are stored
-               without the "@" (all 32 Instagram and 18 TikTok handles on
-               2026-10-08), so a handle typed the way it is shown matched
-               nobody. A leading "@" is ignored on both sides for the three
-               handle fields; a bare "@" is not a search. */
-            const bare = q.replace(/^@+/, '');
-            if ([r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
-                .some(v => String(v || '').toLowerCase().includes(q))) return true;
-            return bare !== q && !!bare && [r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
-                .some(v => String(v || '').toLowerCase().replace(/^@+/, '').includes(bare));
+            return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().includes(q));
         });
         const recent = _caRecentMap();
         return rows.slice().sort((a, b) => {
@@ -88788,4 +88712,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-106087c182d6.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-8ed71b7b9841.js");

@@ -380,7 +380,14 @@ jobs:
       # scripts/ef-fingerprint.js --slugs=production-write --expected-only;
       # entrypoint and file count (10) unchanged.
       # (Previous pin: 6de7c0b545... -- production-write, files=10, #1624.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 192c9aa1b33b72245e020a51345b1f5606544d57c8e3ee257aa15b9faa86b962
+      # Re-pinned 2026-10-08 (OPEN_REPAIRS 382): a comment round of 0 is saved as
+      # no round instead of reaching production_comments' CHECK (round > 0) as a
+      # 500, and a comment with no round reads back as null, not 0 (policy.mjs
+      # normalizeCommentRound). Regenerated with scripts/ef-fingerprint.js
+      # --slugs=production-write --expected-only; entrypoint and file count (10)
+      # unchanged.
+      # (Previous pin: 192c9aa1b3... -- production-write, files=10, 2026-09-25.)
+      PRODUCTION_WRITE_SOURCE_SHA256: 692b5c473be2d404ee05da0eb2fb87dca64e94cb4654cc0daa931d8c4f544502
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

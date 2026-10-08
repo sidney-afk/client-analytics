@@ -239,6 +239,12 @@ async function createEnv(opts = {}) {
             return { status: 409, body: { ok: false, error: 'write_conflict', conflict: true, row: deliverableOut(d) } };
           }
           let comment = null;
+          // production_comments CHECK (round IS NULL OR round > 0): the live
+          // table throws on round 0 and the function answered 500 (OPEN_REPAIRS 382).
+          const sentRound = body.operation === 'comment' && body.comment ? body.comment.round : null;
+          if (sentRound != null && !(Number.isInteger(sentRound) && sentRound > 0)) {
+            return { status: 500, body: { ok: false, error: 'native_write_failed' } };
+          }
           if (body.operation === 'status') {
             d.status = body.status; d.status_at = iso(Date.now());
             if (d.team === 'video' && d.card_id) {   // the native -> calendar bridge (migrations/2026-09-18-native-calendar-status-bridge.sql)
@@ -251,7 +257,7 @@ async function createEnv(opts = {}) {
           if (body.operation === 'assignee') d.assignee_id = body.assignee_id || null;
           d.updated_at = iso(Date.now());
           if (body.operation === 'comment') {
-            comment = { id: 'c' + (S.comments.length + 1), deliverable_id: d.id, body: (body.comment || {}).body, audience: (body.comment || {}).audience, author_name: 'Browser Staff', created_at: iso(Date.now()), updated_at: iso(Date.now()), version: 1, native_comment_id: 'nc' + (S.comments.length + 1) };
+            comment = { id: 'c' + (S.comments.length + 1), deliverable_id: d.id, round: sentRound == null ? null : sentRound, body: (body.comment || {}).body, audience: (body.comment || {}).audience, author_name: 'Browser Staff', created_at: iso(Date.now()), updated_at: iso(Date.now()), version: 1, native_comment_id: 'nc' + (S.comments.length + 1) };
             S.comments.push(comment);
           }
           return { status: 200, body: { ok: true, native_committed: true, mirror_pending: true, row: deliverableOut(d), ...(comment ? { comment } : {}) } };

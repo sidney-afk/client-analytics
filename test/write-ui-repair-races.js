@@ -553,7 +553,7 @@ function createReceiptReplayHarness(options) {
     // _writeUiNativeId asks _writeUiComponentHasWorkItem whether the component
     // owns a deliverable at all (caption/title do not). OPEN_REPAIRS 127.
     '_writeUiComponentHasWorkItem',
-    '_writeUiNativeId', '_writeUiNativeStatus', '_writeUiDisplayStatus', '_writeUiTeam',
+    '_writeUiNativeId', '_writeUiCommentRound', '_writeUiNativeStatus', '_writeUiDisplayStatus', '_writeUiTeam',
     '_writeUiAppendRepairRef', '_writeUiAdoptRepairAck', '_writeUiMaxSourceClock',
     '_writeUiValidatePinnedRepairPayload', '_writeUiReceiptMatchesSource', '_writeUiReadRepairReceipt',
     '_writeUiCanonicalSourceComment',

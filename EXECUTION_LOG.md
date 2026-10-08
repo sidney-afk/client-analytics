@@ -12,7 +12,7 @@ impact, one already covered by batch 1. The wrong-client save was reproduced in 
 real browser against a local stand-in backend before it was fixed, and the live
 database was read (counts only) for its signature: none found. Browser changes
 only; the two frozen client writers are untouched. No live write, deploy, merge,
-flag or n8n edit. Detail: OPEN_REPAIRS 372.
+flag or n8n edit. Detail: OPEN_REPAIRS 375.
 
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 1)
 

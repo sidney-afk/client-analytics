@@ -31049,6 +31049,44 @@ The owner also narrowed future acceptance to 1440 desktop, 393 x 852 iPhone
 and 412 x 915 Android, on the specified priority screens; historical galleries
 do not certify those new device sizes. Hosted checks remain pending.
 
+## 370. [2026-10-08, BUILT, NOT DEPLOYED, WEBHOOK NOT REGISTERED] TikTok queue table learns when posts go live, without n8n
+
+Source: owner, 2026-10-08. After the cut-over (362) Post For Me's result webhook still pointed at the n8n workflow "SyncView TikTok Upload — Result" (`1qZmOQPtG6rKYlK7`), which writes only to the Sheet, so `tiktok_uploads` never heard results. Measured live: 3 rows past their scheduled time still `scheduled`, `last_checked_at` empty on every open row. Cause of the second part: the list's refresh only looked at the newest 100 rows of the queue, and the overdue rows are older (May to September). Of the 3 overdue rows, 2 have no Post For Me post id at all (from before Post For Me), so no lookup can settle them; they now get `last_checked_at` and stay as they are.
+Fixed in `tiktok-upload` (no n8n workflow edited):
+- Result webhook: `POST .../functions/v1/tiktok-upload?pfm_webhook=1`, no staff key. Post For Me proves itself with the header `Post-For-Me-Webhook-Secret` (its docs: a shared secret, no HMAC). The function compares it, in constant time, with `TIKTOK_PFM_WEBHOOK_SECRET` if set, otherwise with the secret Post For Me holds for this URL (read with the key the function already has), so no secret is copied by hand. `social.post.result.created` updates the row by `upload_post_id` (posted with link, or failed with TikTok's reason); other events and posts not in the queue are acknowledged and ignored; a bad secret is 401.
+- Safety net: every list (and the new staff action `refresh_due`) asks Post For Me about open rows whose time has come, least recently asked first, anywhere in the table. A row with no post id is looked up by `external_id` first.
+- Admin actions `webhook_status`, `webhook_register`, `webhook_remove` and `scripts/tiktok-pfm-webhook.js` to point Post For Me at the function. They never show a secret.
+Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
+Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
+
+## 372. [2026-10-08, BUILT, NOT APPLIED, NOT DEPLOYED] "Create client" (onboarding step 2.5) and the Stage 3 matching dry run
+
+Session Beacon. Priority C in `docs/STATE_OF_THINGS.md`.
+
+**Built.** "New client" in the Kasper › Clients header, admin only (a square + on phones beside All
+clients). The dialog takes a name, a social media manager and an optional email; while typing,
+`client-onboarding` `create_preview` checks the name against the live roster (reads only) and lists what
+will be made; "Create client" calls `create`, which runs `client_create_native()` from
+`migrations/2026-10-08-create-client.sql`: real provisioning (or the throwaway test path for names
+starting `ZZ THROWAWAY`), Roster's profile write, the manager assignment and the 27-step checklist with 4
+steps ticked, in one transaction. The new profile opens afterwards. Slack is never queued (reason in
+`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`; an open owner decision).
+
+**Proof.** `scripts/client-create-proof.sql` on a disposable PostgreSQL ends `CLIENT_CREATE_PROOF_OK`
+(refusals leave nothing behind, a refusal deep inside rolls the whole create back, replay writes nothing,
+the throwaway never reaches the Sheet outbox and tears down to zero rows, only service_role may execute);
+`test/client-create-migration.js`, `test/client-onboarding-handler.js` (79 checks),
+`docs/syncview-design/tests/clients-create-browser.js` (desktop and two phones, mocked, test client
+only; screenshots in `docs/syncview-design/screenshots/clients-create/`).
+
+**Owner steps, in order, each with a go:** apply `2026-10-03-native-client-test-provision.sql`, apply
+`2026-10-08-create-client.sql`, deploy `client-onboarding`, then the throwaway proof and teardown. Exact SQL
+and readbacks: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. No n8n change.
+
+**Stage 3.** `scripts/client-resource-match.js` (read only, local files, counts on stdout, detail only
+outside git) ran for the 35 clients: `docs/audits/2026-10-08-stage3-matching-dry-run.md`. Nothing saved.
+Rollback: revert the PR; once applied, drop the two functions.
+
 ## 371. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 1: nine desktop defects on SyncLinear cards, TikTok and Instagram upload, and Calendar and Samples link boxes
 
 Session Sentinel, site-assurance cycle 1 (desktop only; phone layout is Prism's, the three red nightly lanes are Mend's). Candidates came from a pattern sweep of the six riskiest screens and a walk of the live site as signed-in staff on the test client; each was then checked against the code, and where it could be, against the live site or live counts, before being called real. Browser changes only: no Edge Function, migration, flag or n8n workflow is touched, and nothing was written to any client but the test client.
@@ -31071,7 +31109,7 @@ Not a defect, noted: leaving the page mid-upload gives no warning (the draft kee
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
-## 372. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 2: an edit could be saved under the wrong client; silent Samples archive and Calendar reschedule failures; notes sent twice
+## 375. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 2: an edit could be saved under the wrong client; silent Samples archive and Calendar reschedule failures; notes sent twice
 
 Session Sentinel, cycle 1, the Calendar and Samples save group. Browser changes only: no Edge Function (the two frozen writers are untouched), migration, flag or n8n workflow. Stacked on batch 1 (entry 371).
 

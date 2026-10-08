@@ -50,8 +50,8 @@
       "check-modules: all checks passed"
     ],
     "legacy-staff-all": [
-      "ok tiktok-schedule 390 dark",
-      "ok tiktok-schedule 430 light"
+      "ok analytics-detail-dash 390 light",
+      "ok analytics-detail-dash 390 dark"
     ],
     "legacy-rules-final": [
       "ok time-off-dark-430 screen, menus, layout and scroll lock",
@@ -59,7 +59,7 @@
     ],
     "map-final": [
       "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
-      "repo-map-sync: 1120 passed, 0 failed"
+      "repo-map-sync: 1121 passed, 0 failed"
     ],
     "truth-final": [
       "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",

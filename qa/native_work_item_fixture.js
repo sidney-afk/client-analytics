@@ -85,6 +85,31 @@ function crosswalkRowFor(cardId, component, slug) {
 }
 
 /*
+ * The comment-thread read for synthetic work items. Since #1642 (2026-09-25) a
+ * note on a linked component waits for its canonical thread before it is sent,
+ * and the live production-comments cannot know an id this fixture minted (it
+ * refuses the probe's invented key with 401 besides), so the note never left
+ * the page and p28/p60/p76 went red (OPEN_REPAIRS 373). A minted work item has
+ * no comments yet: answer the empty canonical thread a new deliverable really
+ * has. Every other deliverable's read is left live.
+ */
+async function answerProbeCommentThreads(ctx, isProbeId) {
+  await ctx.route(url => url.pathname === '/functions/v1/production-comments', async (route) => {
+    const request = route.request();
+    if (request.method() !== 'POST') return route.fallback();
+    let body = null;
+    try { body = JSON.parse(request.postData() || '{}'); } catch (e) { body = null; }
+    if (!body || !isProbeId(String(body.deliverable_id || ''))) return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: CORS,
+      body: JSON.stringify({ comments: [], next_cursor: null, has_more: false, canonical_thread: true, feedback: null })
+    });
+  });
+}
+
+/*
  * Stamp native work items onto the probe's OWN cards, and answer the crosswalk
  * read for them.
  *
@@ -159,6 +184,10 @@ async function stubNativeWorkItems(ctx, cards, options) {
     });
   });
 
+  // 3. The comment-thread read for exactly those synthetic ids (see
+  //    answerProbeCommentThreads).
+  await answerProbeCommentThreads(ctx, id => crosswalkById.has(id));
+
   return { ids: idsByCard };
 }
 
@@ -171,6 +200,9 @@ async function stubNativeWorkItems(ctx, cards, options) {
 async function stubNativeGateway(ctx, options) {
   const opts = options || {};
   const calls = [];
+  // Tell the shared stub-key refusal to step aside on this context, whenever
+  // it is registered (seedVerifiedProbeStaff registers it again later).
+  require('./staff-gate-seed.js').markProductionWriteMocked(ctx);
   await ctx.route(url => url.pathname.endsWith(NATIVE_GATEWAY_PATH), async (route) => {
     const request = route.request();
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
@@ -233,9 +265,12 @@ async function seedVerifiedProbeStaff(page, options) {
   const opts = options || {};
   // The key is invented, so a production-write call carrying it is answered
   // locally with the live refusal instead of landing in the refusal log. A
-  // stubNativeGateway registered later still wins (Playwright tries the most
-  // recent route first).
+  // stubNativeGateway on the same context still wins, registered before or
+  // after this: it marks the context and the refusal falls back to it.
   await require('./staff-gate-seed.js').refuseStubKeyProductionWrite(page.context());
+  // The staff reads that refuse this invented key with 401 would sign the
+  // page straight back out (OPEN_REPAIRS 373); answer them as refused, not 401.
+  await require('./staff-gate-seed.js').answerStubKeyStaffReads(page.context());
   return page.evaluate((identity) => {
     try {
       localStorage.setItem('syncview_staff_identity_v1', JSON.stringify(identity));
@@ -250,6 +285,37 @@ async function seedVerifiedProbeStaff(page, options) {
     role: opts.role || 'smm',
     member: { id: opts.memberId || 'probe_staff', name: opts.memberName || 'Probe Staff', role: opts.role || 'smm', team: null }
   });
+}
+
+/*
+ * Open a card's notes thread and wait until a note on `component` may be sent.
+ * Since #1642 (2026-09-25) a note on a linked component is refused with
+ * "Notes are still loading" until its canonical thread has been read, exactly
+ * as a person cannot post into a thread that is still loading. A probe that
+ * submits in the same tick as openCalComments therefore had its note dropped
+ * (OPEN_REPAIRS 373). Resolves 'ready', 'unlinked' (nothing to wait for) or
+ * the last gate status seen when the time runs out, so a probe can assert it.
+ */
+async function waitForNoteThread(page, pid, component, ms) {
+  return page.evaluate(async (a) => {
+    if (typeof _calOpenCommentsPid === 'undefined' || _calOpenCommentsPid !== a.pid) openCalComments(a.pid);
+    if (typeof _calSetComposeComp === 'function') _calSetComposeComp(a.component);
+    const until = Date.now() + a.ms;
+    let gate = null;
+    while (Date.now() < until) {
+      const post = (calState.posts || []).find(x => x.id === a.pid);
+      gate = post ? _prodCanonicalCommentGate(post, a.component) : null;
+      // The app's own Send condition (_calAppendComment refuses while it is
+      // true): a linked thread still loading, or the card's work-item lookup
+      // still in flight, which holds every component's Send, caption included.
+      // An unresolved lookup is still running, so it is waited out too.
+      const settled = gate && post && !_calCommentSendPending(post, gate)
+        && gate.status !== 'crosswalk_unresolved';
+      if (settled) return gate.linked ? 'ready' : 'unlinked';
+      await new Promise(r => setTimeout(r, 300));
+    }
+    return 'not-ready:' + (gate ? gate.status : 'no-post');
+  }, { pid, component, ms: ms || 15000 });
 }
 
 /*
@@ -337,6 +403,7 @@ async function applyProbeWorkItems(ctx) {
     if (!rows.length) return route.fallback();
     return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(rows) });
   });
+  await answerProbeCommentThreads(ctx, id => !!crosswalkFor(id));
   return true;
 }
 
@@ -353,6 +420,7 @@ module.exports = {
   captureRetiredWebhooks,
   retiredCallCount,
   seedVerifiedProbeStaff,
+  waitForNoteThread,
   statusCalls,
   commentCalls
 };

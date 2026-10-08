@@ -31109,6 +31109,73 @@ Not a defect, noted: leaving the page mid-upload gives no warning (the draft kee
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
+## 373. [2026-10-08, BUILT, NOT MERGED; migration NOT APPLIED] Three red monitoring robots: Calendar E2E, Samples E2E, card vs calendar drift (session Mend)
+
+All three fed the `monitoring_heartbeat_stale` alert. Each was traced to its cause; no check was skipped or loosened.
+
+**Calendar E2E (nightly), 28 of 67 probes red.** Not one cause, four, all in the test harness:
+1. *Fake-key refusal shadowed the fake gateway.* #1644 (2026-09-25) made `seedVerifiedProbeStaff` register the
+   "answer invented keys with 401" route AFTER each probe's `stubNativeGateway`. Playwright tries the newest route
+   first, so every video and graphic status or note write got the refusal instead of the fake gateway (measured: the
+   app logged `invalid_staff_key` from the local stub, the fake gateway saw zero calls). Fix:
+   `stubNativeGateway` marks its context and the refusal steps aside for it in either order
+   (`qa/staff-gate-seed.js` `markProductionWriteMocked`). Guard: `test/staff-gate-stub-refusal-local.js` case 6
+   (fails on the old code).
+2. *Fake-key 401s signed the robot out.* Six staff reads (`pto`, `filming-plans`, `onboarding-full`,
+   `smm-weekly-reports`, `brain`, `thumbnail-revision-read`) refuse an invented key with 401, and the app rightly
+   signs a page out on a 401. Since Kasper became admin-only (#1672, 2026-09-26) a signed-out page is also sent to
+   Home, so Kasper probes lost their identity mid-run. Fix: live-backend harnesses opt in to
+   `seedStaffGate(ctx, { answerStaffReads: true })`, which answers those six, for invented keys only, as refused
+   but not 401. Offline suites keep the live-shaped 401. Real keys and the ungated writers are untouched.
+3. *Notes sent before their thread loaded.* Since #1642 (2026-09-25) a note on a linked piece is refused with
+   "Notes are still loading" until its thread is read; probes submitted in the same tick, and re-opened the thread
+   right before sending. Fix: the work-item fixture answers the thread read for the ids it mints (empty, as a new
+   work item has), and `NW.waitForNoteThread` waits on the app's own Send condition.
+4. *Probes on retired rules.* p32 faked the old n8n caption-job webhooks (moved to `caption-jobs` in #1889); p34's
+   linked card had no fake gateway, no verified identity and nothing to review (owner rule 2026-09-05); p76 posted a
+   video note on a card with no work item, which the app now correctly refuses (`native_link_required`). Each
+   now models the current product; their isolation and routing assertions are kept or strengthened.
+Local proof (test client only; this sandbox's realtime socket answers 500, so "0 JS errors" fails here and only
+here): p28 15/16, p29 6/7, p32 5/6, p34 7/8, p76 10/11, the one failure each being that socket. The probes that open
+a client link need the staff key and run only in the nightly; the branch run is the proof for those.
+
+*p96 and `invalid_staff_key` (owner step).* `description-image-upload` accepts only the three role keys
+(`ROLE_KEY_ADMIN/SMM/CREATIVE`, live source read 2026-10-08). The robot's `SYNCVIEW_STAFF_KEY` is accepted by
+`client-review-link` (role key OR the automation writer key) but refused here, so it is not a role key. Fix: set the
+repository secret `SYNCVIEW_STAFF_KEY` (GitHub, Settings, Secrets and variables, Actions) to the SMM role key, the same
+value as the Supabase Edge secret `ROLE_KEY_SMM`, and make sure `SYNCVIEW_STAFF_ACTOR` names one active SMM on the roster.
+p96 has failed this way since it was added on 2026-09-24.
+
+*Startup failure, run 110 (2026-10-07 15:15Z).* Zero jobs, no annotations; the workflow file is unchanged since
+`cab0229` and ran on 10-06; of 490 runs in the repository on 10-07 and 10-08 it is the only startup failure. A
+one-off on GitHub's side, not a file or secret problem; the next scheduled run is the check.
+
+**Samples E2E (nightly).** Robot bug, not an app bug: cause 2 above. The robot's Kasper tab drew a 401 from `pto`,
+was signed out, and was sent to Home, so no sample card existed and every Kasper verb reported "disabled" (the robot
+uses that word for "button not found" too). A real Kasper with a real admin key is not signed out. Red since
+2026-09-27 (first run after #1672). Also: `kasper()` waited 20 s per open for `_kasperRenderSamples`, removed in
+#1676, which pushed the tree lane past its 30-minute budget; it now waits for `_sxrKasperLoadQueue`.
+
+**Card vs calendar drift.** The 34 pre-bridge rows are the known backlog (212); of those, 30 hold N/A. The 4 gating
+rows are two posts:
+- *Test client card:* a direct database session (not the app, not a probe) set video and graphic to Approved on
+  2026-10-01 and again on 10-02, 57 minutes after the backfill had repaired them. The trigger only sees work-item
+  moves. Repair: the one-client backfill (below). Do not seed calendar statuses with raw SQL on a card linked to
+  work items; use a throwaway unlinked card.
+- *One active client's card:* the SMM set the whole card to N/A on 2026-10-07 while its work items stayed
+  approved / tweak. Owner decision 2026-10-08: **N/A wins.** The checker now lists N/A slots in their own
+  non-gating bucket; `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` makes the trigger and both
+  backfills leave N/A alone (it had already overwritten an N/A once, on 09-22), and adds a backfill that is bound to
+  one client. Proof: `test/native-calendar-status-bridge-postgres.js` (48 checks on PostgreSQL 16),
+  `test/card-calendar-status-drift-check.js`. The open thumbnail tweak under that N/A card is the SMM's to cancel.
+
+**Owner steps, in order.** (1) Apply the migration. (2) For the test client only:
+`select * from public.production_native_calendar_status_backfill('2026-09-18T22:38:14Z'::timestamptz, false, 'sidneylaruel');`
+then the same with `true`. (3) Re-point the two pins in `scripts/linear-exit-deploy-preflight.js` (project() and the
+two-argument backfill) at the new migration, in the next PR, before any Section 4 dispatch. (4) Set
+`SYNCVIEW_STAFF_KEY` as above.
+**Way back:** revert the PR; the migration's header names its inverse.
+
 ## 375. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 2: an edit could be saved under the wrong client; silent Samples archive and Calendar reschedule failures; notes sent twice
 
 Session Sentinel, cycle 1, the Calendar and Samples save group. Browser changes only: no Edge Function (the two frozen writers are untouched), migration, flag or n8n workflow. Stacked on batch 1 (entry 371).

@@ -31,7 +31,7 @@ const APP_VID = NW.nativeDeliverableId(APP, 'video');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { answerStaffReads: true });
   const retired = await NW.captureRetiredWebhooks(ctx);
   const gateway = await NW.stubNativeGateway(ctx);
   await NW.stubNativeWorkItems(ctx, [

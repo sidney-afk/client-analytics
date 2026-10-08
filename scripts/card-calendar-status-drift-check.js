@@ -68,6 +68,12 @@ require('../test/helpers/single-file-index.js'); // split switch on (plan step 4
  *                   that to 'video' and never projects the graphic slot.
  *   unresolved      the card names a deliverable id that did not read back.
  *   agree           the slot already holds the mapped value.
+ *   opted_out       the SMM set the slot to N/A: this post does not need that
+ *                   piece. Owner decision 2026-10-08 (OPEN_REPAIRS 373): N/A
+ *                   WINS. The trigger and both backfills leave an N/A slot
+ *                   alone (migrations/2026-10-08-native-calendar-na-wins-one-client.sql),
+ *                   so the card holding N/A is the rule, not drift. Counted
+ *                   and LISTED, never gating.
  *   pre_bridge      the two disagree, but the deliverable last moved BEFORE the
  *                   trigger existed (see BRIDGE_GO_LIVE). The trigger fires on
  *                   a change and does not reconcile history, so this is the
@@ -178,7 +184,7 @@ const BRIDGE_GO_LIVE = '2026-09-18T22:38:14Z';
 const BRIDGE_GO_LIVE_MS = Date.parse(BRIDGE_GO_LIVE);
 
 const BUCKETS = Object.freeze([
-  'drift', 'pre_bridge', 'agree', 'unmapped', 'archived', 'out_of_scope', 'link_asymmetric', 'shadowed', 'unresolved',
+  'drift', 'pre_bridge', 'opted_out', 'agree', 'unmapped', 'archived', 'out_of_scope', 'link_asymmetric', 'shadowed', 'unresolved',
 ]);
 
 function clean(value) { return String(value == null ? '' : value).trim(); }
@@ -218,6 +224,12 @@ function classifySlot(card, slot, deliverable, mapNative) {
      trigger and here alike. */
   const raw = card[slot.statusColumn] == null ? null : String(card[slot.statusColumn]);
   if (raw === target) return { bucket: 'agree', target };
+
+  /* N/A wins (owner, 2026-10-08). The trigger's own guard is
+     `coalesce(btrim(status), '') <> 'N/A'`, so the comparison here trims
+     exactly as that does. Checked after `agree` and before the date cutoff,
+     so an N/A slot is never counted as drift or as pre-bridge backlog. */
+  if (clean(raw) === 'N/A') return { bucket: 'opted_out', target };
 
   /* A disagreement the bridge was never present for.
      ------------------------------------------------------------------
@@ -305,6 +317,7 @@ function classify(cards, deliverablesById, mapNative) {
   const byComponent = { video: 0, graphic: 0 };
   const drift = [];
   const preBridge = [];
+  const optedOut = [];
 
   for (const card of cards || []) {
     for (const slot of SLOTS) {
@@ -312,7 +325,7 @@ function classify(cards, deliverablesById, mapNative) {
       const verdict = classifySlot(card, slot, deliverable, mapNative);
       if (!verdict) continue;
       totals[verdict.bucket]++;
-      if (verdict.bucket !== 'drift' && verdict.bucket !== 'pre_bridge') continue;
+      if (verdict.bucket !== 'drift' && verdict.bucket !== 'pre_bridge' && verdict.bucket !== 'opted_out') continue;
 
       const row = {
         post_id: clean(card.id),
@@ -330,6 +343,7 @@ function classify(cards, deliverablesById, mapNative) {
       };
 
       if (verdict.bucket === 'pre_bridge') { preBridge.push(row); continue; }
+      if (verdict.bucket === 'opted_out') { optedOut.push(row); continue; }
       byComponent[slot.component]++;
       drift.push(row);
     }
@@ -339,7 +353,8 @@ function classify(cards, deliverablesById, mapNative) {
   /* Oldest first: the top of this list is the oldest thing the calendar has
      been wrong about, which is the one worth deciding about. */
   preBridge.sort((a, b) => clean(a.deliverable_status_at).localeCompare(clean(b.deliverable_status_at)) || order(a, b));
-  return { totals, by_component: byComponent, drift, pre_bridge: preBridge };
+  optedOut.sort(order);
+  return { totals, by_component: byComponent, drift, pre_bridge: preBridge, opted_out: optedOut };
 }
 
 async function rest(pathAndQuery) {
@@ -478,6 +493,7 @@ async function main() {
     console.log('');
     console.log('  DRIFT            ' + t.drift + '   moved at/after go-live, the bridge would have written it, and it holds something else');
     console.log('  pre-bridge       ' + t.pre_bridge + '   disagrees, but last moved before the trigger existed (' + BRIDGE_GO_LIVE + ')');
+    console.log('  N/A (SMM)        ' + t.opted_out + '   the SMM marked the piece N/A; the bridge leaves it alone (owner rule 2026-10-08)');
     console.log('  agree            ' + t.agree + '   already holds the mapped value');
     console.log('  unmapped         ' + t.unmapped + '   no calendar equivalent; the card is left as it was, correctly');
     console.log('  archived         ' + t.archived + '   out of scope for the trigger, the backfill and the reconciler');
@@ -529,6 +545,16 @@ async function main() {
       console.log('component being compared, so there is no correct value a backfill could write for');
       console.log('them -- but that is a reason for those specific rows, not a blanket explanation for');
       console.log('this whole list; the rest of the backlog remains open (OPEN_REPAIRS 212).');
+    }
+    if (report.opted_out && report.opted_out.length) {
+      console.log('');
+      console.log('Marked N/A by the SMM, listed and not gated (post id, deliverable id, component, work item -> would map to):');
+      for (const d of report.opted_out.slice(0, LIMIT)) {
+        console.log('  ' + d.post_id.padEnd(40) + ' ' + d.deliverable_id.padEnd(40) + ' ' + d.component.padEnd(8)
+          + ' ' + String(d.deliverable_status || '(none)').padEnd(20) + ' -> ' + d.expected);
+      }
+      if (report.opted_out.length > LIMIT) console.log('  ... and ' + (report.opted_out.length - LIMIT) + ' more (use --json or --limit=N)');
+      console.log('A work item still open under an N/A card is the SMM\'s to cancel or finish in Production.');
     }
     if (t.link_asymmetric) {
       console.log('');

@@ -371,6 +371,70 @@ try {
    * What IS proved here is the consequence a stale apply would break: the
    * reported `applied` flag is read back from what the UPDATE returned, and the
    * ledger is written from the same place. */
+  /* ---- N/A wins + the one-client backfill (2026-10-08, OPEN_REPAIRS 373) */
+  // The 2026-10-08 bodies are built on the live 2026-10-01 trigger, so that
+  // lands first, exactly as the install order has it.
+  cluster.runFile(path.join(MIGRATIONS, '2026-10-01-calendar-overall-status-bridge.sql'));
+  cluster.runFile(path.join(MIGRATIONS, '2026-10-08-native-calendar-na-wins-one-client.sql'));
+  cluster.exec(`
+    insert into public.batches(id, client_slug, team, name, status, purpose)
+    values ('batch-split', 'fixture-split', 'video', 'Split client batch', 'active', 'calendar');
+    insert into public.calendar_posts(id, client, status, video_status, graphic_status, updated_at)
+    values ('card-split', 'fixture-split', 'Planned', 'In Progress', 'In Progress', '2026-09-18T10:00:00.000Z'),
+           ('card-na', 'fixture-split', 'Planned', 'In Progress', 'In Progress', '2026-09-18T10:00:00.000Z');
+    insert into public.deliverables(id, batch_id, client_slug, team, kind, title, status, origin, card_id)
+    values ('dv-split', 'batch-split', 'fixture-split', 'video', 'video', 'Split video', 'backlog', 'calendar', 'card-split'),
+           ('dv-na', 'batch-split', 'fixture-split', 'video', 'video', 'N/A video', 'backlog', 'calendar', 'card-na');
+    update public.calendar_posts set video_deliverable_id = 'dv-split' where id = 'card-split';
+    update public.calendar_posts set video_deliverable_id = 'dv-na' where id = 'card-na';
+  `);
+  // The trigger first: an SMM's N/A is not undone by the work item moving.
+  cluster.exec(`update public.calendar_posts set video_status = 'N/A' where id = 'card-na';`);
+  const naEvents = bridgeEvents('card-na').length;
+  cluster.exec(`update public.deliverables set status = 'approved' where id = 'dv-na';`);
+  ok('N/A wins: a work item that moves leaves an N/A slot alone and writes no bridge event',
+    card('card-na').video_status === 'N/A' && bridgeEvents('card-na').length === naEvents);
+  // Control in the same statement shape: a non-N/A slot still follows.
+  cluster.exec(`update public.deliverables set status = 'smm_approval' where id = 'dv-split';`);
+  ok('a slot that is not N/A still follows its work item (control)', card('card-split').video_status === 'For SMM Approval');
+  // A disagreement the trigger never saw (a direct card write), for the backfill to find.
+  cluster.exec(`update public.calendar_posts set video_status = 'Approved' where id = 'card-split';`);
+  const splitBefore = card('card-split');
+  const fixtureScoped = jsonRows(cluster,
+    `select * from public.production_native_calendar_status_backfill('2026-09-18T00:00:00Z'::timestamptz, true, 'fixture-client')`);
+  ok('the one-client backfill never lists or writes another client\'s card',
+    fixtureScoped.every(r => r.client === 'fixture-client')
+    && JSON.stringify(card('card-split')) === JSON.stringify(splitBefore));
+  const splitDry = jsonRows(cluster,
+    `select * from public.production_native_calendar_status_backfill('2026-09-18T00:00:00Z'::timestamptz, false, 'fixture-split')`);
+  ok('scoped to its client it lists the drifted card and NOT the N/A one, and a dry run writes nothing',
+    splitDry.length === 1 && splitDry[0].post_id === 'card-split' && splitDry[0].card_status === 'Approved'
+    && splitDry[0].target_status === 'For SMM Approval' && splitDry[0].applied === false
+    && card('card-split').video_status === 'Approved');
+  const twoArg = jsonRows(cluster,
+    `select * from public.production_native_calendar_status_backfill('2026-09-18T00:00:00Z'::timestamptz, false)`);
+  ok('the two-argument backfill also leaves the N/A slot out of its scope',
+    !twoArg.some(r => r.post_id === 'card-na') && twoArg.some(r => r.post_id === 'card-split'));
+  const splitApplied = jsonRows(cluster,
+    `select * from public.production_native_calendar_status_backfill('2026-09-18T00:00:00Z'::timestamptz, true, 'fixture-split')`);
+  const splitEvents = bridgeEvents('card-split');
+  ok('applied, it projects that card through the same compare-and-set and ledger shape, N/A untouched',
+    splitApplied.length === 1 && splitApplied[0].applied === true
+    && card('card-split').video_status === 'For SMM Approval' && card('card-na').video_status === 'N/A'
+    && splitEvents.length >= 1 && splitEvents[splitEvents.length - 1].via === 'backfill');
+  let emptyRefused = false;
+  try { cluster.exec(`select * from public.production_native_calendar_status_backfill(now(), false, '  ')`); }
+  catch (e) { emptyRefused = /native_calendar_backfill_client_required/.test(String(e && (e.stderr || e.message) || e)); }
+  ok('an empty client is refused, never read as "every client"', emptyRefused);
+  ok('the two-argument backfill is still installed beside it',
+    Number(scalar(cluster, `select count(*) from pg_proc where proname = 'production_native_calendar_status_backfill'`)) === 2);
+  // Back to this file's own object set, so the ROLLBACK.md rehearsal below
+  // still proves exactly the five objects the 09-18 inverse removes.
+  cluster.exec(`drop function public.production_native_calendar_status_backfill(timestamptz, boolean, text);
+    drop function public.production_native_calendar_overall_status_repair(boolean);
+    drop function public.production_native_calendar_overall_status(text, text, text);
+    drop function public.production_native_calendar_status_norm(text);`);
+
   const appliedFlags = jsonRows(cluster,
     `select * from public.production_native_calendar_status_backfill('2026-09-18T00:00:00Z'::timestamptz, false)`);
   ok('a dry run reports applied=false on every row, because nothing was returned by an UPDATE',

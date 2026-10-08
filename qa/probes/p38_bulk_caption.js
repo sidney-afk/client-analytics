@@ -13,7 +13,7 @@ const seed = (id) => Q.up({ id, name: 'BG ' + id.slice(-6), platforms: 'youtube'
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { answerStaffReads: true });
   let inFlight = 0, maxConcurrent = 0;
   const respFor = {};
   await ctx.route('**/webhook/generate-caption', async (r) => {

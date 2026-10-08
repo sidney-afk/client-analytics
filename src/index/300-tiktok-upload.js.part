@@ -634,7 +634,9 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         try { return new Set(JSON.parse(localStorage.getItem(TIKTOK_HIDDEN_KEY) || '[]')); } catch { return new Set(); }
     }
     function _tkSaveHidden(set) {
-        try { localStorage.setItem(TIKTOK_HIDDEN_KEY, JSON.stringify([...set].slice(0, 200))); } catch {}
+        // Keep the NEWEST 200: a Set lists oldest first, so slice(0, 200) threw
+        // away the id just dismissed once the list was full and the row came back.
+        try { localStorage.setItem(TIKTOK_HIDDEN_KEY, JSON.stringify([...set].slice(-200))); } catch {}
     }
     function _tkPrunePending(rows) {
         // Drop optimistic rows that the server still hasn't acknowledged after the TTL —
@@ -769,7 +771,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             if (tkState.profileSource === 'sheet') {
                 profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
-                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Add this client's <code>postforme_account_id</code> — the account's <strong>Connection ID</strong> (<code>spc_…</code>) from Post For Me — to the Clients Info sheet before uploading.</div>`;
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</div>`;
             }
         }
 
@@ -1326,7 +1328,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
 
     function _tkValidate() {
         if (!tkState.client) return 'Pick a client first.';
-        if (!tkState.profile) return 'This client has no Post For Me account mapping — add a postforme_account_id in the Clients Info sheet.';
+        if (!tkState.profile) return 'This client has no Post For Me account yet. An admin adds its Connection ID under Kasper, Clients, Publishing, "Post for Me".';
         if (tkState.mediaType === 'photo') {
             if (!tkState.photos.length) return 'Attach at least one image.';
         } else if (!tkState.file) return 'Attach a video.';
@@ -1334,7 +1336,11 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         if (tkState.title.length > 2200) return 'Caption is over the 2200-character limit.';
         if (!tkState.schedule.postNow) {
             if (!tkState.schedule.at) return 'Pick a schedule time, or switch on "Post immediately".';
-            const t = new Date(tkState.schedule.at).getTime();
+            // The time is a wall clock in the picked timezone, so the past check
+            // must read it there. Reading it in the browser's own zone let a
+            // time already gone in the picked zone through (or blocked a good
+            // one) by the gap between the two zones.
+            const t = Date.parse(_tkWallClockToUTC(tkState.schedule.at, tkState.schedule.tz) || '');
             if (!Number.isFinite(t)) return 'That schedule time is not valid.';
             if (t < Date.now() - 60_000) return 'The schedule time is in the past.';
         }
@@ -2158,7 +2164,13 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         _tkRenderQueue();
     }
 
+    // One retry per row at a time. The button stays on screen while the request
+    // is out, and a second click used to send a second retry for the same row
+    // (two posts from one upload when both reached the sender).
+    const _tkRetrying = new Set();
     async function _tkRetryRow(id) {
+        if (_tkRetrying.has(id)) return;
+        _tkRetrying.add(id);
         try {
             const viaTable = (await _tkSource()) === 'supabase' || ((tkState.uploads || []).find(r => r.id === id) || {})._store === 'table';
             if (viaTable) {
@@ -2178,6 +2190,8 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
         } catch (e) {
             showNotify('Retry failed', e.message || 'The n8n status webhook did not accept the retry.');
+        } finally {
+            _tkRetrying.delete(id);
         }
     }
 

@@ -1378,12 +1378,7 @@
         if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
         const started = performance.now();
         const promise = (async () => {
-            // The roster switch follows the staff path: with "roster": "database" a
-            // link the numbers read is not on for still asks for its own row only,
-            // so its client list never comes from the Clients Info tab.
-            const flagValue = await _analyticsMirrorFlagShared();
-            const numbersOn = _analyticsMirrorOnFor(flagValue, cap.slug);
-            if (!numbersOn && !_analyticsRosterOn(flagValue)) return null;
+            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
             const token = _syncviewClientWriteToken();
             if (!token) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -1396,7 +1391,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
                     cache: 'no-store',
                     signal: controller ? controller.signal : undefined,
-                    body: JSON.stringify(numbersOn ? { slug: cap.slug } : { slug: cap.slug, datasets: ['client_profile'] })
+                    body: JSON.stringify({ slug: cap.slug })
                 });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
@@ -1404,17 +1399,13 @@
                 const d = json.data, rc = json.receipts || {};
                 const covered = (rows, receipt) => (Array.isArray(rows) && rows.length > 0) || !!rc[receipt];
                 const profile = d.client_profile;
-                // The client's own Clients Info row, kept even when the numbers
-                // are not covered: with the roster switch on, the Metrics Sheet
-                // fallback still needs it and the Sheet's Clients Info is never read.
-                const clients = (profile && profile.display_name) ? [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
-                    tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
-                    content_description: _analyticsMirrorText(profile.content_description) }] : null;
-                const ess = (numbersOn && clients && covered(d.metrics, 'metrics')) ? {
+                const ess = (profile && profile.display_name && covered(d.metrics, 'metrics')) ? {
                     metrics: _analyticsMirrorRows(d.metrics),
-                    clients
+                    clients: [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
+                        tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
+                        content_description: _analyticsMirrorText(profile.content_description) }]
                 } : null;
-                const ext = (numbersOn && covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
                     && covered(d.content_summaries, 'content_summaries')) ? {
                     topvids: _analyticsMirrorRows(d.top_videos),
                     mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
@@ -1422,7 +1413,7 @@
                 } : null;
                 console.log('[SyncView] analytics database read in ' + Math.round(performance.now() - started) + ' ms'
                     + (ess ? '' : '; no copy of the numbers yet, using the Sheets') + (ext ? '' : '; no copy of videos/briefs yet, using the Sheets'));
-                return { ess, ext, clients };
+                return { ess, ext };
             } finally {
                 if (timer) clearTimeout(timer);
                 if (clientEntryRun.signal) clientEntryRun.signal.removeEventListener('abort', onAbort);
@@ -1446,21 +1437,6 @@
     }
     function _analyticsMirrorStaffOn(value){
         return !!value && typeof value === 'object' && (value.enabled === true || value.staff === true);
-    }
-    /* THE ROSTER SWITCH (Sheets move, slice 1: docs/plans/2026-10-03-sheets-remaining-map.md).
-       Since 2026-10-02 the database is the main copy of Clients Info and Social
-       Media Managers; the two Sheet tabs are a mirror the database keeps. With
-       "roster": "database" in the analytics read switch, the page never reads
-       those two tabs: the client list comes from analytics-read (staff: every
-       client; a client link: its own row) or this browser's saved copy, and the
-       review queue's manager map from smm-weekly-reports. Missing or anything
-       else: exactly as before. One switch row, read once per load (it is
-       already in the boot batch). Way back: remove the "roster" key. */
-    function _analyticsRosterOn(value){
-        return !!value && typeof value === 'object' && value.roster === 'database';
-    }
-    function _analyticsRosterFromDatabase(){
-        return _analyticsMirrorFlagShared().then(_analyticsRosterOn, () => false);
     }
     // Rows back into the Sheet's CSV shape, so the database answer goes
     // through the same parse, fingerprint and saved-copy path as a Sheet.
@@ -1491,9 +1467,7 @@
         if (_analyticsStaffMirror[scope]) return _analyticsStaffMirror[scope];
         const started = performance.now();
         const promise = (async () => {
-            const flagValue = await _analyticsMirrorFlagShared();
-            const rosterOn = _analyticsRosterOn(flagValue);
-            if (!_analyticsMirrorStaffOn(flagValue) && !(rosterOn && scope === 'overview')) return null;
+            if (!_analyticsMirrorStaffOn(await _analyticsMirrorFlagShared())) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
             const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_STAFF_TIMEOUT_MS[scope]) : null;
             try {
@@ -1517,17 +1491,7 @@
                     const m = d.metrics || {}, profiles = Array.isArray(d.client_profiles) ? d.client_profiles : [];
                     const latest = String(json.latest_metrics_date || '');
                     const oldest = new Date(Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
-                    if (rosterOn && profiles.length) {
-                        // The profiles ARE the main copy: no Sheet copy receipt
-                        // vouches for them. The numbers keep their freshness rule;
-                        // when it fails, metrics is null and only Metrics uses the Sheet.
-                        out = { metrics: null, clients: profiles.map(_analyticsMirrorProfileRow) };
-                        if (!Array.isArray(m.rows) || !m.rows.length) why = 'no copy of the numbers yet';
-                        else if (!fresh('metrics')) why = 'no complete copy of the numbers in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
-                        else if (latest < oldest) why = 'numbers are older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
-                        else out.metrics = _analyticsMirrorCsv(m.columns, m.rows);
-                    }
-                    else if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
+                    if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
                     else if (!fresh('metrics') || !fresh('client_profiles')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else if (latest < oldest) why = 'copy is older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else out = { metrics: _analyticsMirrorCsv(m.columns, m.rows), clients: profiles.map(_analyticsMirrorProfileRow) };
@@ -1542,7 +1506,7 @@
                     };
                 }
                 console.log('[SyncView] analytics database ' + scope + ' read in ' + Math.round(performance.now() - started) + ' ms'
-                    + (why ? '; ' + why + (out ? ', numbers from the Metrics Sheet, clients from the database' : ', using the Sheets') : ''));
+                    + (out ? '' : '; ' + why + ', using the Sheets'));
                 return out;
             } finally {
                 if (timer) clearTimeout(timer);
@@ -1553,7 +1517,7 @@
         });
         // A failed or refused read is not remembered: the next load tries again.
         _analyticsStaffMirror[scope] = promise;
-        promise.then(r => { if (!r || r.metrics === null) _analyticsStaffMirror[scope] = null; });
+        promise.then(r => { if (!r) _analyticsStaffMirror[scope] = null; });
         return promise;
     }
 
@@ -1566,29 +1530,13 @@
             return;   // a client link never saves a copy
         }
         const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('overview');
-        if(staff&&staff.metrics!=null){
+        if(staff){
             _analyticsLiveEssentials = true;
             const publicClientRows = _applyEssentialTexts(staff.metrics, staff.clients);
             _analyticsCacheWrite({ metrics: staff.metrics, clients: publicClientRows });
             return;
         }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
-        if(await _analyticsRosterFromDatabase()){
-            // Roster switch on: the client list never comes from the Sheet.
-            // Staff: the database answer, else this browser's saved copy of it.
-            // A client link: its own row from the database, nothing else.
-            let clients=clientEntryRun?(mirror&&mirror.clients):(staff&&staff.clients);
-            if(!clients&&!clientEntryRun){const saved=_analyticsCacheRead();clients=saved&&Array.isArray(saved.clients)&&saved.clients.length?saved.clients:null;}
-            if(!clients)throw new Error('analytics_roster_unavailable');
-            const mr=await fetch(METRICS_URL,requestOpts);
-            if(!mr.ok)throw new Error('analytics_essentials_http');
-            const metricsText=await mr.text();
-            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
-            _analyticsLiveEssentials = true;
-            const publicClientRows = _applyEssentialTexts(metricsText, clients);
-            if(!clientEntryRun)_analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
-            return;
-        }
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
         if(!mr.ok||!cr.ok)throw new Error('analytics_essentials_http');
         const metricsText=await mr.text(), clientsText=await cr.text();
@@ -37152,7 +37100,7 @@
                 <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
             </div>`;
         }
-        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)">`;
+        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)" onkeydown="_calOnLinkKey(event,this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
@@ -37191,6 +37139,24 @@
         if (!field) return;
         const post = calState.posts.find(p => p.id === input.dataset.pid);
         field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, false, post);
+    }
+    /* Escape and Enter close a thumbnail or video link box. The box had no key
+       handler at all, so Escape did nothing and the only way out was to click
+       somewhere else, which saved whatever was in the box (owner report,
+       2026-09-26). Enter keeps what was typed, like clicking away. Escape puts
+       back the link the box opened with: the box saves as you type, so the
+       old link goes back through the same input path before the blur, and a
+       half-typed link is never left on a card the client can see.
+       stopPropagation keeps this Escape from also leaving multi-select. */
+    function _calOnLinkKey(e, input) {
+        if (!e || !input || (e.key !== 'Escape' && e.key !== 'Enter')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape' && input.value !== input.defaultValue) {
+            input.value = input.defaultValue;
+            _calOnLinkInput(input);
+        }
+        input.blur();
     }
     function _calOpenLink(pid, fld) {
         const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
@@ -56507,13 +56473,23 @@
             }
             try {
                 for (const issue of issues) {
-                    await _prodGatewayWrite(issue, operation, fieldsFor());
+                    /* null means an earlier change to this same field on this
+                       issue is still saving, so nothing was sent. Counting it
+                       as written toasted "Status updated" for a value the
+                       server never saw, and the first change's receipt then
+                       put the old value back. Same answer as the rename path
+                       (_prodCommitTitle): say so, and let the catch below put
+                       the row back to what is actually being saved. */
+                    const receipt = await _prodGatewayWrite(issue, operation, fieldsFor());
+                    if (!receipt) throw Object.assign(new Error('write_pending'), { code: 'write_pending' });
                     completed++;
                 }
                 _prodToast(completed > 1 ? completed + ' issues updated' : (kind === 'status' ? 'Status updated' : kind === 'assign' ? 'Assignee updated' : 'Due date updated'));
             } catch (error) {
+                const pendingOnly = !!error && error.code === 'write_pending';
                 // OPEN_REPAIRS 101: leave a server record of the refusal (no UI).
-                _writeUiRecordFailure('production', kind, error, { id: String(issues[completed] && issues[completed].id || '') });
+                // A change held back by this tab's own in-flight write was never sent, so it is not one.
+                if (!pendingOnly) _writeUiRecordFailure('production', kind, error, { id: String(issues[completed] && issues[completed].id || '') });
                 let rolledBack = false;
                 optimistic.slice(completed).forEach(entry => {
                     if (!entry) return;
@@ -56538,7 +56514,9 @@
                     _prodRender();
                 }
                 const current = issues[Math.min(completed, issues.length - 1)];
-                _prodToast(_prodWriteErrorText(error, current, operation));
+                _prodToast(pendingOnly
+                    ? 'Another change to this sub-issue is still saving. Try again in a moment.'
+                    : _prodWriteErrorText(error, current, operation));
             }
         }
         function _prodLabelColorStyle(label) {
@@ -56819,14 +56797,26 @@
             draft.error = '';
             _prodCommentDraftKeep(id, draft);
         }
-        function _prodCommentBegin(id, action, commentId) {
+        function _prodCommentBegin(id, action, commentId, discardUnsent) {
             const draft = _prodCommentDraftFor(id);
             const comment = _prodComments.find(id, commentId);
             action = action === 'edit' ? 'edit' : 'add';
+            /* There is one composer per card. A comment typed and not yet sent
+               used to be wiped the moment Reply or Edit was clicked on another
+               comment, with no warning. Reply now carries the typed text into
+               the reply; Edit has to put the old comment's text in the box, so
+               it asks first. */
+            const unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            if (action === 'edit' && comment && unsent && !discardUnsent) {
+                showConfirm('Discard your unsent comment?',
+                    'You typed a comment that is not sent yet. Editing another comment replaces it in the box.',
+                    () => { _prodCommentBegin(id, 'edit', commentId, true); }, 'Discard and edit');
+                return false;
+            }
             draft.action = action;
             draft.commentId = action === 'edit' && comment ? comment.id : '';
             draft.parentId = action === 'add' && comment ? (comment.parent_id || comment.id) : '';
-            draft.body = action === 'edit' && comment ? comment.body : '';
+            draft.body = action === 'edit' && comment ? comment.body : unsent;
             draft.audience = comment ? comment.audience : 'internal';
             draft.expectedVersion = comment ? comment.version : null;
             draft.expectedUpdatedAt = comment ? comment.row_updated_at : '';
@@ -56835,6 +56825,8 @@
             draft.rebased = false;
             draft.requestId = '';
             draft.error = '';
+            // The stored copy follows the carried text to its new thread.
+            if (unsent && action === 'add') _prodCommentDraftKeep(id, draft);
             _prodRender();
             setTimeout(() => {
                 const form = document.querySelector('[data-prod-comment-form="' + CSS.escape(String(id || '')) + '"]');
@@ -57292,6 +57284,13 @@
             if (days < 7) return { text: days + 'd ago', raw };
             return { text: new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), raw };
         }
+        /* "Resolved 2h ago", in the reader's own time like every other comment
+           stamp. The line used to print the stored value as it came, a raw UTC
+           timestamp. A value that is not a date is shown as it is. */
+        function _prodCommentResolvedWhen(resolvedAt) {
+            const when = _prodCommentTime({ created_at: resolvedAt });
+            return when.raw ? when.text : String(resolvedAt || '');
+        }
         function _prodCommentHTML(comment) {
             const c = _prodCommentNormalize(comment);
             if (c.hidden) return '';
@@ -57323,7 +57322,7 @@
                 + '<div class="prod-comment-main"><div class="prod-comment-meta"><span class="prod-comment-author">' + _calEsc(c.author) + '</span>'
                 + '<span aria-hidden="true">·</span><time' + (time.raw ? ' datetime="' + _calEscAttr(time.raw) + '" title="' + _calEscAttr(time.raw) + '"' : '') + '>' + _calEsc(time.text) + '</time>'
                 + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments
-                + (c.done && c.resolved_at ? '<div class="prod-feedback-context">Resolved ' + _calEsc(c.resolved_at) + (c.resolved_by_name ? ' by ' + _calEsc(c.resolved_by_name) : '') + '</div>' : '')
+                + (c.done && c.resolved_at ? '<div class="prod-feedback-context" title="' + _calEscAttr(c.resolved_at) + '">Resolved ' + _calEsc(_prodCommentResolvedWhen(c.resolved_at)) + (c.resolved_by_name ? ' by ' + _calEsc(c.resolved_by_name) : '') + '</div>' : '')
                 + (c.source_only ? '<div class="prod-feedback-context">Read-only here; manage on the original ' + (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' card.'
                     + (c.parent_unavailable ? ' Original reply parent is unavailable.' : '') + '</div>' : '')
                 + actions + '</div></div>';
@@ -61985,8 +61984,15 @@
                             return;
                         }
                     if (e.key === 'Enter') {
-                        const selected = view === 'calendar' ? focusDay : _prodParseDue(inp.value);
+                        /* The calendar view's box says "Type a date", so a typed
+                           date wins over the highlighted day. It used to be
+                           ignored there: Enter saved the highlighted day (the
+                           current due date, or today) and toasted "Due date
+                           updated". Text that is not a date saves nothing. */
+                        const typed = String(inp.value || '').trim();
+                        const selected = typed ? _prodParseDue(typed) : (view === 'calendar' ? focusDay : '');
                         if (selected) apply(selected);
+                        else if (typed && view === 'calendar') _prodToast('That is not a date SyncView can read. Try Jul 20 2027 or 2027-07-20.');
                     }
                 });
                     try { inp.focus(); } catch (e) {}
@@ -68237,7 +68243,7 @@
             const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
             return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}"><a class="cal-link-pill-open" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a></div>`;
         }
-        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_sxrEsc(v)}" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)">`;
+        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_sxrEsc(v)}" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)" onkeydown="_sxrOnLinkKey(event,this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
@@ -68265,6 +68271,18 @@
             const post = sxrState.posts.find(p => p.id === input.dataset.pid);
             field.outerHTML = _sxrLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, post);
         }
+    }
+    // Escape or Enter closes a link box; Escape first puts back the link it
+    // opened with (twin of _calOnLinkKey, see the note there).
+    function _sxrOnLinkKey(e, input) {
+        if (!e || !input || (e.key !== 'Escape' && e.key !== 'Enter')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape' && input.value !== input.defaultValue) {
+            input.value = input.defaultValue;
+            _sxrOnLinkInput(input);
+        }
+        input.blur();
     }
     function _sxrOpenLink(pid, fld) {
         const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
@@ -74989,7 +75007,8 @@
         if (!igState.schedule.postNow) {
             const at = _igAt();
             if (!at) return 'Pick a schedule date and time, or switch on "Post immediately".';
-            const t = new Date(at).getTime();
+            // Wall clock in the picked timezone, not the browser's (see _tkValidate).
+            const t = Date.parse(_igDeps.wallClockToUTC(at, igState.schedule.tz) || '');
             if (!Number.isFinite(t)) return 'That schedule time is not valid.';
             if (t < Date.now() - 60000) return 'The schedule time is in the past.';
         }
@@ -75999,7 +76018,9 @@
         try { return new Set(JSON.parse(localStorage.getItem(TIKTOK_HIDDEN_KEY) || '[]')); } catch { return new Set(); }
     }
     function _tkSaveHidden(set) {
-        try { localStorage.setItem(TIKTOK_HIDDEN_KEY, JSON.stringify([...set].slice(0, 200))); } catch {}
+        // Keep the NEWEST 200: a Set lists oldest first, so slice(0, 200) threw
+        // away the id just dismissed once the list was full and the row came back.
+        try { localStorage.setItem(TIKTOK_HIDDEN_KEY, JSON.stringify([...set].slice(-200))); } catch {}
     }
     function _tkPrunePending(rows) {
         // Drop optimistic rows that the server still hasn't acknowledged after the TTL —
@@ -76134,7 +76155,7 @@
             if (tkState.profileSource === 'sheet') {
                 profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
-                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Add this client's <code>postforme_account_id</code> — the account's <strong>Connection ID</strong> (<code>spc_…</code>) from Post For Me — to the Clients Info sheet before uploading.</div>`;
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</div>`;
             }
         }
 
@@ -76691,7 +76712,7 @@
 
     function _tkValidate() {
         if (!tkState.client) return 'Pick a client first.';
-        if (!tkState.profile) return 'This client has no Post For Me account mapping — add a postforme_account_id in the Clients Info sheet.';
+        if (!tkState.profile) return 'This client has no Post For Me account yet. An admin adds its Connection ID under Kasper, Clients, Publishing, "Post for Me".';
         if (tkState.mediaType === 'photo') {
             if (!tkState.photos.length) return 'Attach at least one image.';
         } else if (!tkState.file) return 'Attach a video.';
@@ -76699,7 +76720,11 @@
         if (tkState.title.length > 2200) return 'Caption is over the 2200-character limit.';
         if (!tkState.schedule.postNow) {
             if (!tkState.schedule.at) return 'Pick a schedule time, or switch on "Post immediately".';
-            const t = new Date(tkState.schedule.at).getTime();
+            // The time is a wall clock in the picked timezone, so the past check
+            // must read it there. Reading it in the browser's own zone let a
+            // time already gone in the picked zone through (or blocked a good
+            // one) by the gap between the two zones.
+            const t = Date.parse(_tkWallClockToUTC(tkState.schedule.at, tkState.schedule.tz) || '');
             if (!Number.isFinite(t)) return 'That schedule time is not valid.';
             if (t < Date.now() - 60_000) return 'The schedule time is in the past.';
         }
@@ -77523,7 +77548,13 @@
         _tkRenderQueue();
     }
 
+    // One retry per row at a time. The button stays on screen while the request
+    // is out, and a second click used to send a second retry for the same row
+    // (two posts from one upload when both reached the sender).
+    const _tkRetrying = new Set();
     async function _tkRetryRow(id) {
+        if (_tkRetrying.has(id)) return;
+        _tkRetrying.add(id);
         try {
             const viaTable = (await _tkSource()) === 'supabase' || ((tkState.uploads || []).find(r => r.id === id) || {})._store === 'table';
             if (viaTable) {
@@ -77543,6 +77574,8 @@
             Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
         } catch (e) {
             showNotify('Retry failed', e.message || 'The n8n status webhook did not accept the retry.');
+        } finally {
+            _tkRetrying.delete(id);
         }
     }
 
@@ -77867,44 +77900,7 @@
         try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
         return subs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
     }
-    /* Roster switch on (see _analyticsRosterOn): the managers come from the
-       database through the staff door smm-weekly-reports already serves
-       (?action=options, Admin/SMM keys), one row per manager with the clients
-       it owns. The queues show only the manager's name, so only the name is kept. No staff key, a refused key or a failure: an empty map, the
-       same answer a failed Sheet read gave (the queue shows no manager). */
-    async function _kasperLoadSMMMapFromDatabase() {
-        try {
-            const ident = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
-            if (!ident || !ident.key) return new Map();
-            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
-                headers: {
-                    Accept: 'application/json',
-                    apikey: CAL_SUPABASE_ANON_KEY,
-                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-                    'X-Syncview-Key': ident.key
-                },
-                cache: 'no-store'
-            });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
-            const map = new Map();
-            for (const m of (data && Array.isArray(data.managers) ? data.managers : [])) {
-                if (!m || m.active === false) continue;
-                const name = String(m.name || '').trim();
-                for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) {
-                    const slug = wlNormalizeClient(String(c || '').trim());
-                    if (!slug || map.has(slug)) continue;
-                    map.set(slug, { name });
-                }
-            }
-            return map;
-        } catch (e) {
-            console.warn('[Kasper] manager list (database) load failed:', e);
-            return new Map();
-        }
-    }
     async function _kasperLoadSMMMap() {
-        if (await _analyticsRosterFromDatabase()) return _kasperLoadSMMMapFromDatabase();
         // The "Social Media Managers" tab: client_name, social_media_manager,
         // optional slack_user_id / slack_team_id (the script ignores anything
         // it doesn't recognise so adding columns later is non-breaking).
@@ -82945,7 +82941,6 @@
         pen: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/></svg>',
         chev: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>',
         x: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
-        plus: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
     };
 
     // ---- Links: every value that has a stable address opens it ----
@@ -83012,7 +83007,7 @@
                 <div class="search-bar-wrap ca-search" id="caSearchWrap">
                     <div class="search-bar-pill">
                         <input class="search-bar-input" id="caSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
-                            placeholder="${_caPhone() ? (_syncviewStaffCan('clients-admin') ? 'Search' : 'Search clients') : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
+                            placeholder="${_caPhone() ? 'Search clients' : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
                             oninput="_caSetSearch(this.value)" onfocus="_caSearchFocus()" onkeydown="_caSearchKey(event)">
                         <button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById('caSearch')?.focus()">${CA_ICONS.search}</button>
                     </div>
@@ -83020,13 +83015,10 @@
                 </div>
                 <button type="button" class="ca-allbtn" id="caAllBtn" aria-expanded="${_caState.listOpen}" aria-controls="caDrop" onclick="_caToggleList()" title="All clients">${CA_ICONS.list}<span>All clients</span></button>
                 <div class="ca-drop" id="caDrop" role="dialog" aria-label="All clients" hidden></div>
-                ${_syncviewStaffCan('clients-admin') ? `<button type="button" class="ca-allbtn ca-newbtn" id="caNewBtn" onclick="_cnOpen()" title="New client" aria-label="New client">${CA_ICONS.plus}<span>New client</span></button>` : ''}
             </div>
-            <div class="ca-create" id="caCreate"></div>
             <div class="ca-body" id="caBody"></div>
         </div>`;
         _caPaint();
-        _cnRender();
         if (!_caState.loaded && !_caState.loading) _caLoad(false);
         // A manager list that failed to load is asked for again on the next visit.
         else if (_caState.loaded && !_caState.managers && !_caState.managersLoading) _caLoadManagers();
@@ -83615,11 +83607,6 @@
         _cbGeneration++;
         Object.assign(_cbState, { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
         for (const id of ['caOnboarding', 'caHubspot', 'caOnbSummary']) { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
-        // A sign-out or role change also closes an open "New client" dialog.
-        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
-        Object.assign(_cnState, _cnFresh());
-        const create = document.getElementById('caCreate');
-        if (create) create.innerHTML = '';
     }
 
     function _cbWhen(iso) {
@@ -84042,192 +84029,9 @@
         _cbPaint();
     }
 
-    // ── Create client (step 2.5 of docs/plans/2026-10-01-onboarding-checklist-and-profile.md) ──
-    // "New client" in the Clients tab header, ADMIN ONLY. One dialog: name, social
-    // media manager, optional email. While you type, client-onboarding's
-    // `create_preview` checks the name against the live roster and says exactly
-    // what would be made (it writes nothing). "Create client" then makes the
-    // roster row, review link, four save permissions, profile, manager and the
-    // 27-step checklist in one database transaction (client_create_native), and
-    // opens the new profile. A name that starts with "ZZ THROWAWAY" makes a
-    // removable test client instead. Slack is never touched here.
-    const CN_BLOCKERS = {
-        name_invalid: 'Type the client\'s name.',
-        slug_invalid: 'That name has no letters or numbers to make a link name from.',
-        email_invalid: 'That email does not look right. Leave it empty if you do not have it yet.',
-        manager_unknown: 'Pick a social media manager.',
-        name_taken: 'A client with this name already exists. Open it from the search instead.',
-        name_on_a_manager_list: 'This name is already on a manager\'s client list. Use a different name, or take it off that list first.',
-        slug_taken: 'Another client already uses this link name. Add something to the name to tell them apart.',
-        throwaway_name_needs_test_mode: 'Test clients must start with "ZZ THROWAWAY" in capitals.',
-        authority_not_syncview: 'SyncView is not the main copy of the client list yet, so clients cannot be created here.',
-        production_authority_unavailable: 'Production is not running on SyncView yet, so clients cannot be created here.',
-        routing_flag_invalid: 'One of the save-permission lists looks wrong. Nothing can be created until it is checked.',
-        create_not_installed: 'The database step for Create client is not installed yet. It waits for the owner\'s go.',
-        request_reused: 'This dialog was already used for a different client. Close it and start again.',
-    };
-    const _cnFresh = () => ({ open: false, managers: null, managersError: '', name: '', manager: '', email: '', preview: null, previewKey: '', checking: false, busy: false, error: '', requestId: '', seq: 0 });
-    const _cnState = _cnFresh();
-    let _cnTimer = 0;
-    const _cnKey = () => [_cnState.name.trim().replace(/\s+/g, ' '), _cnState.manager, _cnState.email.trim()].join('\u0001');
-    function _cnNewRequestId() {
-        try { if (crypto && crypto.randomUUID) return 'create-' + crypto.randomUUID(); } catch (e) {}
-        return 'create-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
-    }
-
-    async function _cnOpen() {
-        if (!_syncviewStaffCan('clients-admin')) return;
-        Object.assign(_cnState, _cnFresh(), { open: true, requestId: _cnNewRequestId() });
-        _cnRender();
-        document.getElementById('cnName')?.focus({ preventScroll: true });
-        const seq = ++_cnState.seq;
-        let out;
-        try { out = await _cbPost(CB_URL, { action: 'create_preview' }, false); } catch (e) { out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } }; }
-        if (!_cnState.open || seq !== _cnState.seq) return;
-        if (out.resp.status === 200 && out.json.ok) _cnState.managers = Array.isArray(out.json.managers) ? out.json.managers : [];
-        else _cnState.managersError = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not load the managers (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').';
-        _cnPaintManagers();
-        _cnPaintPreview();
-    }
-    function _cnClose(keepFocus) {
-        if (_cnState.busy) return;
-        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
-        Object.assign(_cnState, _cnFresh());
-        const el = document.getElementById('caCreate');
-        if (el) el.innerHTML = '';
-        if (keepFocus !== true) document.getElementById('caNewBtn')?.focus({ preventScroll: true });
-    }
-    function _cnRender() {
-        const el = document.getElementById('caCreate');
-        if (!el) return;
-        if (!_cnState.open) { el.innerHTML = ''; return; }
-        el.innerHTML = `<div class="cn-scrim" onclick="_cnClose()"></div>
-            <div class="cn-dialog" role="dialog" aria-modal="true" aria-labelledby="cnTitle" onkeydown="_cnKeydown(event)">
-                <div class="cn-head">
-                    <h3 id="cnTitle">New client</h3>
-                    <button type="button" class="ca-iconbtn" onclick="_cnClose()" aria-label="Close">
-                        <svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>
-                    </button>
-                </div>
-                <p class="cn-lead">Sets the client up everywhere SyncView needs it, in one step. Nothing is made until you press Create client.</p>
-                <label class="cn-field"><span class="cn-label">Client name</span>
-                    <input class="ca-input" id="cnName" type="text" autocomplete="off" spellcheck="false" maxlength="160" placeholder="First and last name, as the team writes it" value="${_calEscAttr(_cnState.name)}" data-cn="name" oninput="_cnInput(this)">
-                </label>
-                <div class="cn-slug" id="cnSlug" aria-live="polite"></div>
-                <label class="cn-field"><span class="cn-label">Social media manager</span>
-                    <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
-                </label>
-                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt">optional</span></span>
-                    <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
-                </label>
-                <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
-                <div class="cn-actions">
-                    <button type="button" class="cc-btn" onclick="_cnClose()">Cancel</button>
-                    <button type="button" class="cc-btn primary" id="cnCreateBtn" onclick="_cnCreate()" disabled>Create client</button>
-                </div>
-            </div>`;
-        _cnPaintManagers();
-        _cnPaintPreview();
-    }
-    function _cnPaintManagers() {
-        const sel = document.getElementById('cnManager');
-        if (!sel) return;
-        if (_cnState.managersError) { sel.innerHTML = `<option value="">${_calEsc(_cnState.managersError)}</option>`; sel.disabled = true; return; }
-        if (!_cnState.managers) return;
-        sel.disabled = false;
-        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}</option>`).join('');
-    }
-    function _cnKeydown(e) {
-        if (e.key === 'Escape') { e.preventDefault(); _cnClose(); return; }
-        if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') { e.preventDefault(); _cnCreate(); }
-    }
-    function _cnInput(el) {
-        const k = el && el.getAttribute('data-cn');
-        if (!k || _cnState.busy) return;
-        _cnState[k] = el.value;
-        _cnState.error = '';
-        _cnPaintPreview();
-        if (_cnTimer) clearTimeout(_cnTimer);
-        _cnTimer = setTimeout(_cnCheck, 350);
-    }
-    async function _cnCheck() {
-        _cnTimer = 0;
-        if (!_cnState.open || !_cnState.name.trim() || !_cnState.manager) { _cnState.preview = null; _cnPaintPreview(); return; }
-        const key = _cnKey(), seq = ++_cnState.seq;
-        _cnState.checking = true; _cnPaintPreview();
-        let out;
-        try { out = await _cbPost(CB_URL, { action: 'create_preview', display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, false); }
-        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
-        if (!_cnState.open || seq !== _cnState.seq) return;
-        _cnState.checking = false;
-        if (out.resp.status === 200 && out.json.ok) { _cnState.preview = out.json; _cnState.previewKey = key; }
-        else if (out.resp.status === 400 && out.json.error) { _cnState.preview = { ready: false, blockers: [out.json.error] }; _cnState.previewKey = key; }
-        else { _cnState.preview = null; _cnState.error = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not check the name (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').'; }
-        _cnPaintPreview();
-    }
-    function _cnSlugFor(name) {
-        let t = String(name || '').trim().toLowerCase();
-        try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
-        return t.replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, '');
-    }
-    function _cnPaintPreview() {
-        const slugEl = document.getElementById('cnSlug');
-        const slug = _cnSlugFor(_cnState.name);
-        const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
-        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet</span>' : ''}` : '';
-        const box = document.getElementById('cnPreview');
-        const btn = document.getElementById('cnCreateBtn');
-        const p = _cnState.preview;
-        const fresh = p && _cnState.previewKey === _cnKey();
-        const ready = !!(fresh && p.ready && !_cnState.checking);
-        if (btn) { btn.disabled = !ready || _cnState.busy; btn.textContent = _cnState.busy ? 'Creating…' : 'Create client'; }
-        if (!box) return;
-        if (_cnState.error) { box.innerHTML = `<div class="ca-msg is-error" role="alert">${_calEsc(_cnState.error)}</div>`; return; }
-        if (!_cnState.name.trim() || !_cnState.manager) { box.innerHTML = `<div class="cn-hint">Type a name and pick a manager. SyncView checks it before anything is made.</div>`; return; }
-        if (!fresh || _cnState.checking) { box.innerHTML = `<div class="cn-hint">Checking…</div>`; return; }
-        if (!p.ready) {
-            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span></div>`;
-            return;
-        }
-        const items = (p.will_create || []).map(t => `<li>${_calEsc(t)}</li>`).join('');
-        box.innerHTML = `<div class="cn-ready">
-                <div class="cn-ready-title"><span class="cn-dot" aria-hidden="true"></span>Ready. This will make:</div>
-                <ul class="cn-list">${items}</ul>
-                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>. ' : ''}Slack channels are not made here: the finalizer makes them later, once the onboarding form and filming plan are in.${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and can be removed completely.' : ''}</div>
-            </div>`;
-    }
-    async function _cnCreate() {
-        const p = _cnState.preview;
-        if (_cnState.busy || !p || !p.ready || _cnState.previewKey !== _cnKey() || _cnState.checking) return;
-        _cnState.busy = true; _cnState.error = ''; _cnPaintPreview();
-        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = true; }
-        let out;
-        try { out = await _cbPost(CB_URL, { action: 'create', request_id: _cnState.requestId, display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, true); }
-        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
-        _cnState.busy = false;
-        if (!_cnState.open) return;
-        const j = out.json;
-        if (out.resp.status === 200 && j.ok) {
-            const slug = j.client_slug, name = p.display_name;
-            _cnClose(true);
-            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.`);
-            try { if (typeof window._caLoad === 'function') await window._caLoad(true); } catch (e) {}
-            try { if (typeof window._caLoadManagers === 'function') window._caLoadManagers(); } catch (e) {}
-            try { if (typeof window._caSelect === 'function') window._caSelect(slug); } catch (e) {}
-            return;
-        }
-        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = false; }
-        const code = j.error || ('HTTP ' + out.resp.status);
-        _cnState.error = (CN_BLOCKERS[code] || (out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not create the client (' + code + ').')) + ' Nothing was made.';
-        // A refusal from the database means the live roster moved: check again.
-        if (out.resp.status === 409) { _cnState.preview = null; _cnState.previewKey = ''; }
-        _cnPaintPreview();
-    }
-
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional, _cnClose,
-        _cnCreate, _cnInput, _cnKeydown, _cnOpen
+        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional
     });
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
@@ -88169,4 +87973,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-ea6455191b79.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-d9459f0ad444.js");

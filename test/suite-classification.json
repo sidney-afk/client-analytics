@@ -129,6 +129,8 @@
     "calendar-kebab-import-menu.js",
     "calendar-linear-link-move.js",
     "calendar-link-adoption-repaint.js",
+
+    "calendar-link-box-keys.js",
     "calendar-native-link-gap-check.js",
     "calendar-organize-menu.js",
     "calendar-pinned-gate-migration.js",
@@ -469,6 +471,8 @@
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",
     "prod-client-composer-present.js",
+
+    "prod-comment-unsent-and-resolved.js",
     "prod-comments-read-timeout.js",
     "prod-context-menu-pixel-contract.js",
     "prod-create-closed.js",
@@ -483,6 +487,8 @@
     "prod-description-rich-editor.js",
     "prod-description-scope-gate.js",
     "prod-detail-scroll-key.js",
+
+    "prod-due-typed-date.js",
     "prod-focus-survives-render.js",
     "prod-group-select-honest.js",
     "prod-incomplete-pane-honesty.js",
@@ -492,6 +498,11 @@
     "prod-multiselect-parity.js",
     "prod-not-found-exits-enumerated.js",
     "prod-optimistic-rollback.js",
+
+    "prod-picker-pending-write.js",
+
+
+    "upload-schedule-zone-and-queue-guards.js",
     "prod-parent-rows-not-overdue.js",
     "prod-polish-failure-location.js",
     "prod-polish-gate-failure-codes.js",
@@ -1355,6 +1366,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Runs the tiktok-upload-cancel function's own logic against a fake Post For Me: success, already posted and failure.",
       "reproduce": "node test/tiktok-cancel-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "calendar-link-box-keys-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/calendar-link-box-keys-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

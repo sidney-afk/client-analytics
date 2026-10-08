@@ -31087,6 +31087,28 @@ and readbacks: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. No n8n change.
 outside git) ran for the 35 clients: `docs/audits/2026-10-08-stage3-matching-dry-run.md`. Nothing saved.
 Rollback: revert the PR; once applied, drop the two functions.
 
+## 371. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 1: nine desktop defects on SyncLinear cards, TikTok and Instagram upload, and Calendar and Samples link boxes
+
+Session Sentinel, site-assurance cycle 1 (desktop only; phone layout is Prism's, the three red nightly lanes are Mend's). Candidates came from a pattern sweep of the six riskiest screens and a walk of the live site as signed-in staff on the test client; each was then checked against the code, and where it could be, against the live site or live counts, before being called real. Browser changes only: no Edge Function, migration, flag or n8n workflow is touched, and nothing was written to any client but the test client.
+
+Fixed, each with a test that fails on the previous `main`:
+
+1. **SyncLinear: a second status, assignee or due change made while the first is still saving was dropped and reported as saved.** The gateway helper answers nothing (it does not throw) when a write for the same field is in flight; the picker counted that as done, toasted "Status updated", and the first change's receipt then put the old value back. It now says an earlier change is still saving and puts the row back. `test/prod-picker-pending-write.js`.
+2. **SyncLinear due picker, Custom view: a typed date was ignored.** The box says "Type a date", but Enter saved the highlighted day (the current due date, or today). The typed date now saves; text that is not a date saves nothing and says so. `test/prod-due-typed-date.js`.
+3. **SyncLinear comments: Reply or Edit wiped a comment that was typed and not yet sent.** Reply now carries the text into the reply; Edit asks first. `test/prod-comment-unsent-and-resolved.js`.
+4. **SyncLinear comments: a resolved thread showed a raw UTC timestamp.** It now reads like every other comment time. Same test.
+5. **TikTok and Instagram upload: the "schedule time is in the past" check read the time in the browser's timezone, not the picked one.** From a browser two hours behind the default zone, a time up to two hours gone was accepted and the whole video uploaded before anything refused it. `test/upload-schedule-zone-and-queue-guards.js`.
+6. **TikTok queue: Retry had no in-flight guard,** so a double click sent two retries for one row. Same test.
+7. **TikTok queue: the dismissed list kept its oldest 200 ids,** so once full, a row just dismissed came back. Same test.
+8. **TikTok "No account" help sent staff to the Clients Info sheet.** Since entry 331 the database is the main copy and the sheet is copied from it, so an id typed into the sheet never reaches the database (which the new `tiktok-upload` function and the onboarding checklist read). The text now points at Kasper, Clients, Publishing. Same test.
+9. **Calendar and Samples: Escape did nothing in a thumbnail or video link box** (the owner's 2026-09-26 report in `docs/STATE_OF_THINGS.md`; reproduced on the live site, test client, 2026-10-08). Escape now puts back the link the box opened with and closes; Enter keeps what was typed and closes. `test/calendar-link-box-keys.js` and, in a real browser, `test/calendar-link-box-keys-browser.js`.
+
+**Confirmed, not fixed here: Instagram accounts can no longer be connected from the app (needs the owner).** The Instagram upload form reads a client's Post For Me id from the Clients Info sheet and tells staff to put it there; the `instagram-upload` function checks the id against `client_profiles.extra` in the database. The sheet-to-database copy of client profiles is refused outright since the database became the main copy (last copy 2026-10-02 15:53 UTC, measured), the Clients tab has no Instagram field, and `client_profile_admin_edit` does not accept one. So for the next client connected, the form will show the account and the post will be refused with "It refreshes daily; run the Sheets copy lane", which no longer does that. Measured today: 1 active client has an Instagram id and it is in both copies, so nobody is stuck yet. Closing it needs a database function change and a `client-profile-write` deploy (a field in the Clients tab), which is the owner's call.
+
+Not a defect, noted: leaving the page mid-upload gives no warning (the draft keeps the caption, not the file).
+
+Way back: revert the PR. Not yet seen by the owner in his browser.
+
 ## 374. [2026-10-08, BUILT, NOT DEPLOYED, SWITCH NOT FLIPPED] The page stops reading Clients Info and Social Media Managers from the Sheet; the daily copy job stops failing
 
 Session Quarry. Sheets move (STATE_OF_THINGS item A), slice 1 of

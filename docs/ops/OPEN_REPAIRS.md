@@ -30930,3 +30930,35 @@ The full updated admin runner passes 396 states/7,758 checks with zero failures.
 The phone finish line, hosted checks, deployment and physical-device proof are
 still open. Ads/Quiz loading, Filming empty-state wording and client fixture/theme
 verification have been added to the open review work.
+
+## 368. [2026-10-07, BUILT, NOT DEPLOYED, DESKTOP VERIFICATION PENDING] Prism phone batch 2: compact Ads/Quiz states and usable native charts
+
+Ads and Quiz repeated Calendar media/action skeletons for more than 5,000 pixels
+while loading. Ads also had a narrowed Refresh label, faint supporting captions,
+oversized nested empty panels and small canvas legend targets. The phone-only
+admin presentation now uses labelled 160-pixel loaders, readable captions,
+compact sections and 44-pixel native series buttons. Phone chart calendar dates
+remain on their ISO day west of UTC. Quiz's Refresh/search spacing is compact;
+phone empty copy is plain, with original desktop copy/options restored on resize.
+
+The fragments were edited and the index/assets rebuilt. Native Chart.js 4.4.0
+bytes are pinned and verified in the expanded runner. Regression checks cover
+label containment/contrast, compact loading/empty sections, date ranges, series
+tap/keyboard/theme behavior, focus, desktop restoration and failed read/retry
+actions. Error fixtures now render real error states; screenshot capture preserves
+short viewports and settles header geometry after public label substitution.
+
+The final local admin runner passes 420 states/8,892 checks. Staff rules pass
+240 states, card design passes 24 states, and client review passes Calendar and
+Samples journeys across five sizes and both theme preferences. The gallery and
+source-bound review receipts in `docs/audits/2026-10-07-prism-phone/batch-2/`
+accept 78 named width/theme cells; all other states and discovery obligations
+remain OPEN. The full clean round and separate fresh-review round are not done.
+
+The filled Ads desktop comparison matches eight exact PNG/style pairs. The
+current broad 72-pair desktop invocation is still running; its gate remains a
+publication requirement. Earlier failures and superseded captures are retained.
+No database, Edge Function, n8n workflow, authorization, live client mutation or
+deployment change was made. Browser checks use headless Chrome with no foreground
+calls, per the owner's request. Lighthouse reviews/merges; Prism does not merge.
+Rollback: revert this batch and rebuild the index/assets.

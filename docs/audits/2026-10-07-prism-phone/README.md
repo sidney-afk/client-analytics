@@ -4,6 +4,11 @@ Status: ACTIVE. The finish line has not been reached. A complete visually clean
 round and a separate fresh-review round are both still required. Lighthouse
 reviews and merges; Prism does not merge.
 
+Browser execution preference (owner, 2026-10-07): use headless Chrome with no
+foreground calls, so screenshot checks do not interrupt other applications.
+This supersedes the earlier visible-browser setup for Prism's ongoing review.
+Retain the same native product fixtures, action assertions and screenshot review.
+
 [Coverage](COVERAGE.md) lists the native scenarios and all width/theme cells.
 [Machine-readable coverage](coverage.json) also tracks ten discovery obligations
 for every staff tab, reviewer/admin subtab, personal Time Off and client review
@@ -15,6 +20,12 @@ Changing source fragments invalidates previously clean cells in the generator.
 [HTML gallery](batch-1/gallery.html) is also available for local viewing.
 [Personal review receipts](batch-1/reviews.json) identify 36 clean cells by exact
 PNG hash. This is bounded state evidence, not a clean full round.
+
+[Batch 2 before/after gallery](batch-2/gallery.md) contains 78 matched Ads/Quiz
+pairs, with [78 current visual receipts](batch-2/reviews.json). Its
+[repair and evidence notes](batch-2/README.md) identify the exact source and
+remaining work. The current matrix accepts only these named cells; batch 1's
+historical reviews remain available separately.
 
 ## Batch 1: Save problems and coverage tooling
 
@@ -57,11 +68,10 @@ review round remain OPEN. The twelve-record stress case has passing containment
 checks; its entire long screenshot still requires detailed visual review.
 The Filming information icon remains an open design-standard issue for a later
 batch, rather than an accepted exception. Personal review of its valid empty
-state also found unexplained "source-of-truth tab" instructions. Ads and Quiz
-loading captures repeat Calendar media/action skeletons for over 5,000 pixels;
-their native viewport crops confirm the same unsuitable loading pattern. These
-are pending repairs in the next batch, not accepted exceptions. Ads' narrow
-Refresh control and faint light-theme description need focused measurement.
+state also found unexplained "source-of-truth tab" instructions. Batch 2 repairs
+the Ads/Quiz Calendar loading placeholders, Ads' narrowed Refresh control and
+faint captions, and Quiz's excessive control spacing. The populated tables,
+longer timelines and detailed stress states remain separate OPEN work.
 Client captures requested with dark preferences currently paint light; this
 must be recorded as the effective theme. The client review fixture also needs
 verification that its supplied thumbnail actually paints, rather than accepting

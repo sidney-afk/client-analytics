@@ -1,0 +1,760 @@
+{
+  "base": "1770cc7104ac4fc7de5eeef7decc75e8c287550a",
+  "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96",
+  "publicSafety": "Safe comparison metadata only; raw live TEST images and credentials remain private. No issuing, rotation or live writes.",
+  "supersededBroadComparison": {
+    "status": "FAILED, SUPERSEDED before final calendar-date and empty-copy changes",
+    "matched": 71,
+    "total": 72,
+    "rows": [
+      {
+        "page": "staff-navToday",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "6798827bd769",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navToday",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "8567a9aff2f4",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navToday",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "c286e1d82635",
+        "attempts": 2
+      },
+      {
+        "page": "staff-navToday",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7bc9e7d77237",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "b292d80e30d8",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "35f1c6e299e8",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7e8a04160f7d",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "3515bba69a1b",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "8e209974f229",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "ed0eb621f630",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "ce5f7c0387a5",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d64380c21ad5",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f26a5c283411",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "624f286675a0",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "76af22a3b7a7",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "abc65e5e79f2",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "4b5276598369",
+        "attempts": 2
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "e0cc11df7541",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "5d63f4d43ad2",
+        "attempts": 2
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f69f63fed914",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "bd3b874ff285",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "106666273fb6",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d33a554a295f",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d87f441ae10e",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1024,
+        "pixels": "DIFFERENT",
+        "styles": "identical",
+        "sha": "8c26e67ac6dd",
+        "attempts": 4
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "ff11f590fec4",
+        "attempts": 3
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "896e8593ad28",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "eda761079921",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "260caa24dd62",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "e96202fa342e",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "c06567030d36",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "b964434c8695",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7cf17c287f06",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "1b1b954bde6a",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "9a7e4fa29e6a",
+        "attempts": 2
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "21a6bcb77219",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "cf22bf546a1d",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "4235249bad93",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "03875f804194",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "53b291175396",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "3e56a6fb6a9f",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7a7977c87963",
+        "attempts": 3
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7117b958557b",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "5d93e095e4c4",
+        "attempts": 1
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a82019276a64",
+        "attempts": 1
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "990302c517a9",
+        "attempts": 1
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "28c1b9d25607",
+        "attempts": 1
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d4bf0f603e75",
+        "attempts": 1
+      },
+      {
+        "page": "client-analytics",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "e3092a62a1fb",
+        "attempts": 1
+      },
+      {
+        "page": "client-analytics",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f2f3e2fab43a",
+        "attempts": 1
+      },
+      {
+        "page": "client-analytics",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d11ef7ceab99",
+        "attempts": 1
+      },
+      {
+        "page": "client-analytics",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "aa6926766e3a",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "69fabd5010fe",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "fc7b056f7e75",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "6f0161af69d3",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "de140d5698bd",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "e50e98d976d7",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "8756ac3c0a04",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7cc394d1e40e",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "1cc59733a717",
+        "attempts": 2
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "eab332567b1e",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "dffb1c7f4c0a",
+        "attempts": 2
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a61a8c3f61ed",
+        "attempts": 1
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "b64edb7e974c",
+        "attempts": 1
+      },
+      {
+        "page": "client-brief",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "69fabd5010fe",
+        "attempts": 1
+      },
+      {
+        "page": "client-brief",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "fc7b056f7e75",
+        "attempts": 1
+      },
+      {
+        "page": "client-brief",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "6f0161af69d3",
+        "attempts": 1
+      },
+      {
+        "page": "client-brief",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7688fece9a2e",
+        "attempts": 1
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7b698a748e34",
+        "attempts": 1
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d869de825d13",
+        "attempts": 1
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "29e7eb2d8015",
+        "attempts": 1
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f87764b62642",
+        "attempts": 1
+      }
+    ]
+  },
+  "initialFilledComparison": [
+    {
+      "state": "ads",
+      "width": 1024,
+      "theme": "light",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": true,
+      "beforeSha256": "99c03b0902c115bb9d4f8f2ea45b629de24b641724527cdc9d02767b07e4c626",
+      "afterSha256": "99c03b0902c115bb9d4f8f2ea45b629de24b641724527cdc9d02767b07e4c626"
+    },
+    {
+      "state": "ads",
+      "width": 1024,
+      "theme": "dark",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": true,
+      "beforeSha256": "ff0971737cb861c11af2893325359deccd6d2539f3e3fbd9a9247af6a67fcd41",
+      "afterSha256": "ff0971737cb861c11af2893325359deccd6d2539f3e3fbd9a9247af6a67fcd41"
+    },
+    {
+      "state": "ads",
+      "width": 1280,
+      "theme": "light",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": false,
+      "beforeSha256": "63e0a33b57ba8183d37927af63431129e68d10587e6867ccd00b6049253944aa",
+      "afterSha256": "63e0a33b57ba8183d37927af63431129e68d10587e6867ccd00b6049253944aa"
+    },
+    {
+      "state": "ads",
+      "width": 1280,
+      "theme": "dark",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": true,
+      "beforeSha256": "102b4c7823c46fadb1ca70897fa137a9602e4e9840026791729aa4925cc01845",
+      "afterSha256": "102b4c7823c46fadb1ca70897fa137a9602e4e9840026791729aa4925cc01845"
+    },
+    {
+      "state": "ads",
+      "width": 1440,
+      "theme": "light",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": true,
+      "beforeSha256": "26e73b943e7f96f8a340da24084ef4c6f7b31a589b11a5249b26e7f3ff17c58d",
+      "afterSha256": "26e73b943e7f96f8a340da24084ef4c6f7b31a589b11a5249b26e7f3ff17c58d"
+    },
+    {
+      "state": "ads",
+      "width": 1440,
+      "theme": "dark",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": true,
+      "beforeSha256": "213463e727639d4a6c7364b49c492f03a892ac249e6676d744bd1d334c76a245",
+      "afterSha256": "213463e727639d4a6c7364b49c492f03a892ac249e6676d744bd1d334c76a245"
+    },
+    {
+      "state": "ads",
+      "width": 1920,
+      "theme": "light",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": false,
+      "beforeSha256": "31519ea5bec5ed609101d42575b6cbab7c3ef1246173a4e42540c265de3c70da",
+      "afterSha256": "31519ea5bec5ed609101d42575b6cbab7c3ef1246173a4e42540c265de3c70da"
+    },
+    {
+      "state": "ads",
+      "width": 1920,
+      "theme": "dark",
+      "pngBytesIdentical": true,
+      "computedStylesIdentical": true,
+      "beforeSha256": "0dee72da6f9230fa7747732abff14155f3406a2139222a84d776079f61683beb",
+      "afterSha256": "0dee72da6f9230fa7747732abff14155f3406a2139222a84d776079f61683beb"
+    }
+  ],
+  "finalFilledComparison": {
+    "status": "PASS",
+    "matched": 8,
+    "total": 8,
+    "rows": [
+      {
+        "screen": "ads",
+        "width": 1024,
+        "theme": "light",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "8c0ac4e7af0697308935d06d9684aca7876f2ab1b23a4d009f1b7ca855eadb6c",
+        "afterPngSha256": "8c0ac4e7af0697308935d06d9684aca7876f2ab1b23a4d009f1b7ca855eadb6c",
+        "beforeStyleHash": "20c01b7a6198348f8c1a87f8d3094eae93db8bd472d127cf8dac200ab8a2b74b",
+        "afterStyleHash": "20c01b7a6198348f8c1a87f8d3094eae93db8bd472d127cf8dac200ab8a2b74b"
+      },
+      {
+        "screen": "ads",
+        "width": 1024,
+        "theme": "dark",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "b56f52b871530f24fb1307902560daae9b4d585d8a0d7cc86a79b8452ffd21da",
+        "afterPngSha256": "b56f52b871530f24fb1307902560daae9b4d585d8a0d7cc86a79b8452ffd21da",
+        "beforeStyleHash": "9a6b272a5e9a77ce677935653a018909958517a6548f59fc1684b2eb3ba44748",
+        "afterStyleHash": "9a6b272a5e9a77ce677935653a018909958517a6548f59fc1684b2eb3ba44748"
+      },
+      {
+        "screen": "ads",
+        "width": 1280,
+        "theme": "light",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "7ac43a8ac59262c778b55eef9b4fc3fc59cbe56f7eff431ac77e48de6599dea2",
+        "afterPngSha256": "7ac43a8ac59262c778b55eef9b4fc3fc59cbe56f7eff431ac77e48de6599dea2",
+        "beforeStyleHash": "f05c446bab24b82005a6f1bad43c477bb27b254fd28a8c9205df2e920e17d858",
+        "afterStyleHash": "f05c446bab24b82005a6f1bad43c477bb27b254fd28a8c9205df2e920e17d858"
+      },
+      {
+        "screen": "ads",
+        "width": 1280,
+        "theme": "dark",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "57400946575d3691dd4cf4cc73d27acdbedd7c07d0900436b8321ac298e161de",
+        "afterPngSha256": "57400946575d3691dd4cf4cc73d27acdbedd7c07d0900436b8321ac298e161de",
+        "beforeStyleHash": "64bca482615144ba31bcca0ece2e6349862fa609550205a259cfac43bce7a540",
+        "afterStyleHash": "64bca482615144ba31bcca0ece2e6349862fa609550205a259cfac43bce7a540"
+      },
+      {
+        "screen": "ads",
+        "width": 1440,
+        "theme": "light",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "222e7562fe2d8842b2b998d37acfadf93fcd83283ee5b948363bb6454354979f",
+        "afterPngSha256": "222e7562fe2d8842b2b998d37acfadf93fcd83283ee5b948363bb6454354979f",
+        "beforeStyleHash": "ca71f58852501f6670b5aa120df9e0793420be0c788ef5f5a6b5958b695ca45e",
+        "afterStyleHash": "ca71f58852501f6670b5aa120df9e0793420be0c788ef5f5a6b5958b695ca45e"
+      },
+      {
+        "screen": "ads",
+        "width": 1440,
+        "theme": "dark",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "3fa4586b60eb9b056ab18f983fe4dbd2978a5f888084ffd9ae922f1f119cc626",
+        "afterPngSha256": "3fa4586b60eb9b056ab18f983fe4dbd2978a5f888084ffd9ae922f1f119cc626",
+        "beforeStyleHash": "0f826066abe2110799f3536348abf19cf040d59dfa4ca46aba49a5f7d2933c3e",
+        "afterStyleHash": "0f826066abe2110799f3536348abf19cf040d59dfa4ca46aba49a5f7d2933c3e"
+      },
+      {
+        "screen": "ads",
+        "width": 1920,
+        "theme": "light",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "2836e13edd36b5ada2a3318c9bb44c86ad58c1ab45fdea666912ededaaba076c",
+        "afterPngSha256": "2836e13edd36b5ada2a3318c9bb44c86ad58c1ab45fdea666912ededaaba076c",
+        "beforeStyleHash": "b3d485ab9e6aed49157114fb81fb8939894a5c04f5b8ced99f1a8a8ce3f4866c",
+        "afterStyleHash": "b3d485ab9e6aed49157114fb81fb8939894a5c04f5b8ced99f1a8a8ce3f4866c"
+      },
+      {
+        "screen": "ads",
+        "width": 1920,
+        "theme": "dark",
+        "pixelsIdentical": true,
+        "stylesIdentical": true,
+        "beforePngSha256": "25aa133eee9337481a1266151d37496ef835bedd5049caa20af23b8de5907bee",
+        "afterPngSha256": "25aa133eee9337481a1266151d37496ef835bedd5049caa20af23b8de5907bee",
+        "beforeStyleHash": "a13a106275404d60ef462b06458f8c3387a257279721ac7151da1e4dce4a0b62",
+        "afterStyleHash": "a13a106275404d60ef462b06458f8c3387a257279721ac7151da1e4dce4a0b62"
+      }
+    ]
+  },
+  "finalBroadComparison": {
+    "status": "PENDING"
+  }
+}

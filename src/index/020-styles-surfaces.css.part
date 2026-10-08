@@ -7141,9 +7141,22 @@
  html.pocket-admin-phone #kasperContent .sp-control { display:grid; grid-template-columns:50px minmax(0,1fr); gap:10px; }
  html.pocket-admin-phone #kasperContent .sp-control .sv-select { width:100%; min-width:0; }
  html.pocket-admin-phone #kasperContent .sp-control .sv-select-trigger { width:100%; }
- html.pocket-admin-phone #spBody .cal-loader { display:flex; align-items:center; justify-content:center; min-height:160px; padding:24px; border:1px solid var(--border); border-radius:16px; background:var(--surface-raised); }
- html.pocket-admin-phone #spBody .cal-loader > * { display:none; }
- html.pocket-admin-phone #spBody .cal-loader::before { content:attr(aria-label); color:var(--text-secondary); font-size:14px; font-weight:500; }
+ html.pocket-admin-phone :is(#spBody,#kadBody,#kqlBody) .cal-loader { display:flex; align-items:center; justify-content:center; min-height:160px; padding:24px; border:1px solid var(--border); border-radius:16px; background:var(--surface-raised); }
+ html.pocket-admin-phone :is(#spBody,#kadBody,#kqlBody) .cal-loader > * { display:none; }
+ html.pocket-admin-phone :is(#spBody,#kadBody,#kqlBody) .cal-loader::before { content:attr(aria-label); color:var(--text-secondary); font-size:14px; font-weight:500; }
+ html.pocket-admin-phone #kasperContent .kad-card-head { flex-wrap:wrap; gap:12px; }
+ html.pocket-admin-phone #kasperContent .kad-card-head > div:first-child { flex:1 1 100%; min-width:0; }
+ html.pocket-admin-phone #kasperContent .kad-card-sub { font-size:13px; line-height:1.7; color:var(--text-secondary); }
+ html.pocket-admin-phone #kasperContent .kad-refresh { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-width:88px; padding:10px 12px; border-radius:12px; font-size:13px; white-space:nowrap; }
+ html.pocket-admin-phone #kasperContent .kql-card-head { padding-bottom:0; margin-bottom:4px; }
+ html.pocket-admin-phone #kasperContent :is(.kad-stat-label,.kad-stat-sub,.kad-section-sub) { font-size:13px; line-height:1.5; color:var(--text-secondary); }
+ html.pocket-admin-phone #kasperContent .kad-stat-label { min-height:39px; }
+ html.pocket-admin-phone #kasperContent .kad-card { margin-bottom:0; }
+ html.pocket-admin-phone #kadBody .kad-card > .kasper-empty { min-height:0; padding:18px 0; margin:0; border:0; border-radius:0; background:transparent; }
+ html.pocket-admin-phone #kasperContent .pocket-admin-chart-legend { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:12px 0; }
+ html.pocket-admin-phone #kasperContent .pocket-admin-chart-legend button { display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px; border:1px solid var(--border); border-radius:12px; background:var(--field-bg); color:var(--text-secondary); font-size:13px; font-weight:600; }
+ html.pocket-admin-phone #kasperContent .pocket-admin-chart-swatch { width:14px; height:14px; flex:none; border-radius:3px; }
+ html.pocket-admin-phone #kasperContent .pocket-admin-chart-legend button[aria-pressed=false] .pocket-admin-chart-swatch { opacity:.3; }
  html.pocket-admin-phone #kasperContent .sp-scroll { overflow:visible; border:0; border-radius:0; }
  html.pocket-admin-phone #kasperContent .sp-table { display:block; width:100%; min-width:0; font-size:13px; }
  html.pocket-admin-phone #kasperContent .sp-table thead { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }

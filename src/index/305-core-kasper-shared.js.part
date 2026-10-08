@@ -1,10 +1,12 @@
 import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
 import {
-  SHEET_ID, parseCSV, showToast, svArea, svAreaApi
+  SHEET_ID, _analyticsRosterFromDatabase, parseCSV, showToast, svArea, svAreaApi
 } from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
 import { navTo } from './092-core-submit-form-navigation.js';
-import { _syncviewCloseStaffAccount } from './100-onboarding-staff-controls.js';
+import {
+  CAL_SUPABASE_ANON_KEY, SMM_WEEKLY_REPORTS_URL, _syncviewCloseStaffAccount, _syncviewStaffIdentityForHeaders
+} from './100-onboarding-staff-controls.js';
 import {
   _calComponentsFor, _calReadFreshCardStamp, _calUnionCommentCell, _calUpsertFetch,
   _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
@@ -170,7 +172,49 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
         return subs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
     }
+    /* Roster switch on (see _analyticsRosterOn): the managers come from the
+       database through the staff door smm-weekly-reports already serves
+       (?action=options, Admin/SMM keys), one row per manager with the clients
+       it owns. No staff key, a refused key or a failure: an empty map, the
+       same answer a failed Sheet read gave (the queue shows no manager). */
+    async function _kasperLoadSMMMapFromDatabase() {
+        try {
+            const ident = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+            if (!ident || !ident.key) return new Map();
+            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                headers: {
+                    Accept: 'application/json',
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    'X-Syncview-Key': ident.key
+                },
+                cache: 'no-store'
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            const map = new Map();
+            for (const m of (data && Array.isArray(data.managers) ? data.managers : [])) {
+                if (!m || m.active === false) continue;
+                const name = String(m.name || '').trim();
+                for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) {
+                    const slug = wlNormalizeClient(String(c || '').trim());
+                    if (!slug || map.has(slug)) continue;
+                    map.set(slug, {
+                        name,
+                        slack_profile_url: String(m.slack_profile_url || '').trim(),
+                        slack_user_id: '',
+                        slack_team_id: '',
+                    });
+                }
+            }
+            return map;
+        } catch (e) {
+            console.warn('[Kasper] manager list (database) load failed:', e);
+            return new Map();
+        }
+    }
     async function _kasperLoadSMMMap() {
+        if (await _analyticsRosterFromDatabase()) return _kasperLoadSMMMapFromDatabase();
         // The "Social Media Managers" tab: client_name, social_media_manager,
         // optional slack_user_id / slack_team_id (the script ignores anything
         // it doesn't recognise so adding columns later is non-breaking).

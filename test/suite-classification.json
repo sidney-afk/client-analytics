@@ -558,6 +558,7 @@
     "review-collab-gate.js",
     "review-request-change-audience.js",
     "rollback-row-freshness.js",
+    "roster-managers-parity.js",
     "roster-native.js",
     "sales-intake-form.js",
     "sample-review-upsert-twins-guard.js",

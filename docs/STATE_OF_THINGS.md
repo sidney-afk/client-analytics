@@ -33,9 +33,22 @@ here with where it stopped, so it can be restarted.
   Media Managers (session Roster): DONE 2026-10-02, live.** The database is the main copy (`client_profiles_authority` =
   `{"source":"syncview"}` since 20:00 UTC); six n8n workflows read or write through `roster-read` / `roster-write`; Manager Sync is off;
   the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 331, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
-  the two tabs in Google; the Finalizer's first real client is its end to end proof; the page still reads both tabs itself (own step);
+  the two tabs in Google; the Finalizer's first real client is its end to end proof;
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
+  **Slice 1, the page's own two reads (session Quarry, 2026-10-08, OPEN_REPAIRS 369): BUILT, in PR, switch not flipped.** With
+  `"roster": "database"` in `analytics_mirror_read_enabled` the page never downloads Clients Info or Social Media Managers (client
+  list from `analytics-read`, review queue managers from `smm-weekly-reports`); merging deploys `smm-weekly-reports` by itself (one
+  added field). Parity measured 2026-10-08 (read only): Clients Info 36 of 36 rows equal, all columns; manager assignments 41 and
+  41, 0 differences. The daily copy job failed every day from 2026-10-03 (it tried to copy Clients Info, which the database now owns,
+  and stopped before Metrics); this PR makes it skip Clients Info and adds the manager comparison. Steps:
+  `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`.
+  **Found 2026-10-08, needs the owner now: no analytics numbers since 2026-10-06.** n8n CLIENTS METRICS and TOP VIDEOS are switched
+  off (last runs 2026-10-06; no entry in `docs/ops/N8N_EDIT_LOG.md`), and our own two jobs were set to `"mode":"off"` at 20:47 UTC
+  that day with their "live" migrations not applied. Staff pages also read the Sheet for the numbers since about 2026-10-05,
+  because the newest whole-copy receipt is from 2026-10-02. Practice runs were not clean enough to go live (metrics 35 of 36 clients
+  matched on 2026-10-06, top videos 32 of 36 each day). Fastest way back: switch the two n8n workflows on again (an n8n edit, owner's
+  go). Details in OPEN_REPAIRS 369.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
   TikTok Upload (Courier, 2026-10-07, OPEN_REPAIRS 362): built behind the switch `tiktok_upload_source`, still on n8n.
   Owner steps: approve and apply `migrations/2026-10-07-tiktok-uploads.sql`, deploy `tiktok-upload` and `tiktok-upload-cancel`,

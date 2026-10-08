@@ -99,6 +99,10 @@ function serializeManager(row: JsonMap): JsonMap {
     // last sync, and a reader looking at a stale answer should be able to tell.
     source_clients: Array.isArray(row.source_clients) ? row.source_clients : [],
     synced_at: row.synced_at || "",
+    // The manager's Slack profile link, for the review queue's "message the
+    // manager" button: the page read it from the Social Media Managers Sheet
+    // until the roster switch (Sheets move, slice 1).
+    slack_profile_url: row.slack_profile_url || "",
   };
 }
 
@@ -166,7 +170,7 @@ async function loadOptions(): Promise<Response> {
   const [{ data, error }, alsoSees] = await Promise.all([
     supabase
       .from("social_media_managers")
-      .select("slug,name,email,active,source_clients,synced_at")
+      .select("slug,name,email,active,source_clients,synced_at,slack_profile_url")
       .eq("active", true)
       .order("name", { ascending: true })
       .limit(500),

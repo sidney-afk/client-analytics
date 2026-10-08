@@ -30970,3 +30970,53 @@ pairs across four desktop widths and both themes. Public safe hashes are in
 private. The rebuilt index passes assembled == working tree == committed HEAD.
 The original failed/superseded invocations are retained. The batch is ready for
 Lighthouse's PR review, not deployed; the full phone finish line remains OPEN.
+
+## 369. [2026-10-08, BUILT, NOT DEPLOYED, SWITCH NOT FLIPPED] The page stops reading Clients Info and Social Media Managers from the Sheet; the daily copy job stops failing
+
+Session Quarry. Sheets move (STATE_OF_THINGS item A), slice 1 of
+`docs/plans/2026-10-03-sheets-remaining-map.md`: the page's own two Sheet reads.
+
+**What was built.** A switch inside the existing `analytics_mirror_read_enabled` row:
+`"roster": "database"`. With it the page never downloads the Clients Info or Social Media Managers
+tab. Staff get the client list from `analytics-read` (the profiles are the main copy, so no Sheet copy
+receipt has to vouch for them), then this browser's saved copy, then the page's "could not load"
+state. A client link gets only its own row from the database; its old fallback downloaded the whole
+Clients Info tab into the client's browser. The numbers keep their rule (stale or missing database
+copy: the Metrics tab only). The review queues build their manager map from `smm-weekly-reports`
+`?action=options`, which now also returns `slack_profile_url`. Without the key: unchanged.
+
+**Daily copy job.** "Sheets mirror daily copy and parity" failed on every scheduled run from
+2026-10-03 to 2026-10-07: the copy sent Clients Info first, `analytics-write` refused it with 409
+`client_profiles_owned_by_syncview` (the database owns it since 2026-10-02), and the job stopped
+before Metrics and the other tabs. `--skip-database-owned` now also leaves out Clients Info while
+`client_profiles_authority` says `syncview`. The parity step still compares Clients Info (the tab is
+the database's mirror), and a new step `scripts/roster-managers-parity.js --strict` compares the
+manager assignments.
+
+**Parity, measured 2026-10-08 (read only).** Clients Info: 36 Sheet rows, 36 database rows, 36 equal
+fingerprints (all columns), 0 differences. Social Media Managers: 41 Sheet rows, 41 database rows,
+41 clients, 0 differences, `PARITY: clean`.
+
+**Proof.** `docs/syncview-design/tests/analytics-mirror-read-browser.js` gains seven roster scenarios
+(client link with and without a numbers copy, read failure, staff fresh, staff stale, staff failure,
+managers from the door and, without the key, from the Sheet as before): `ANALYTICS_MIRROR_READ_OK`.
+`test/sheets-mirror-parity-catchup.js` 27 checks, `test/roster-managers-parity.js` 8 checks.
+
+**Not done (owner's go each).** Merge deploys `smm-weekly-reports` through the staff-sensitive lane
+(push trigger). The switch flip, the test-client proof and the way back are in
+`docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`. The two tabs stay until n8n CLIENTS METRICS / TOP VIDEOS,
+`clients-roster-sync` and Weekly Backup no longer read them.
+
+**Found while measuring: no analytics numbers since 2026-10-06.** n8n CLIENTS METRICS and TOP VIDEOS
+are inactive (last runs 2026-10-06 04:00 and 08:00 UTC; nothing in `docs/ops/N8N_EDIT_LOG.md`). Our own
+`analytics-metrics-collect` (v6) and `analytics-top-videos-collect` (v3) were redeployed at about 20:44
+UTC on 2026-10-06 and both switches set to `"mode":"off"` at 20:47; the "Going live" migrations are
+not applied (`analytics_collect_daily_checks` does not exist). So nothing has collected for
+2026-10-07 and 2026-10-08: the newest Metrics and TopVideos rows are 2026-10-06. Practice runs
+(`analytics_*_shadow_compare`): metrics matched 16, 33 and 35 of 36 clients on 2026-10-04 to 10-06;
+top videos 32 of 36 each day, with 3 clients missing from the practice copy. Not clean enough to go
+live. Also, staff Analytics has read the numbers from the Sheet since about 2026-10-05, because the
+newest whole-copy receipt is from 2026-10-02 (the failing copy job above).
+Fastest way back (n8n edit, owner's go): activate the two workflows again; the next runs are 04:00
+and 08:00 UTC. The two missing days cannot be filled in afterwards for "gained today". Then the
+fixed copy job writes fresh receipts and staff pages read the database again.

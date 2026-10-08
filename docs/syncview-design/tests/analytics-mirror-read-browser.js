@@ -17,6 +17,11 @@
  *   8. staff read fails: the Sheets are read instead;
  *   9. staff copy incomplete (no whole-dataset receipt): the Sheets are read;
  *  10. staff copy stale (last whole-dataset receipt older than 3 days): Sheets.
+ * And the ROSTER SWITCH ("roster": "database", Sheets move slice 1): the
+ * Clients Info tab is never downloaded, by a client link or by staff, whether
+ * the numbers come from the database, from the Metrics tab or not at all; the
+ * client list comes from the database; the review queue's manager map comes
+ * from smm-weekly-reports, never from the Social Media Managers tab.
  * No request leaves the machine.
  */
 const fs = require('fs');
@@ -137,8 +142,8 @@ function staffAnswer(scope, mode) {
       market_research_briefs: [], content_summaries: [] } };
 }
 
-async function staffScenario(browser, origin, name, flag, efMode) {
-  const seen = { sheets: [], scopes: [], keyed: 0 };
+async function staffScenario(browser, origin, name, flag, efMode, opts = {}) {
+  const seen = { sheets: [], allSheets: [], scopes: [], keyed: 0, options: 0 };
   const ctx = await browser.newContext();
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
@@ -152,6 +157,10 @@ async function staffScenario(browser, origin, name, flag, efMode) {
       if (efMode === 'fail') return json({ ok: false, error: 'read_failed' }, 500);
       return json(staffAnswer(b.scope, efMode));
     }
+    if (u.pathname === '/functions/v1/smm-weekly-reports' && u.searchParams.get('action') === 'options') {
+      seen.options++;
+      return json({ ok: true, managers: [{ slug: 'fixture-manager', name: 'Fixture Manager', active: true, source_clients: [CLIENT], slack_profile_url: 'U0FIXTURE1' }], also_sees: [] });
+    }
     if (u.pathname === '/rest/v1/syncview_runtime_flags') {
       const rows = [];
       if (flag && /analytics_mirror_read_enabled/.test(decodeURIComponent(u.search))) rows.push({ key: 'analytics_mirror_read_enabled', value: flag });
@@ -162,6 +171,7 @@ async function staffScenario(browser, origin, name, flag, efMode) {
     if (/docs\.google\.com/.test(u.host)) {
       const tab = u.searchParams.get('sheet');
       seen.sheets.push(tab);
+      seen.allSheets.push(tab);
       const body = tab === 'Metrics' ? METRICS_CSV : tab === 'Clients Info' ? CLIENTS_CSV : tab === 'TopVideos' ? TOPVIDS_CSV : '';
       return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body });
     }
@@ -181,7 +191,17 @@ async function staffScenario(browser, origin, name, flag, efMode) {
     followers: (allData.find(r => r.date) || {}).ig_followers || '',
     video: (topVideos[0] || {}).caption || '',
     desc: (Object.values(clientMap)[0] || {}).content_description || '',
+    clients: Object.keys(clientMap).length,
   }));
+  if (opts.managers) {
+    // The review queue's manager map, loaded the way the queue loads it.
+    got.managers = await page.evaluate(async () => {
+      if (typeof _kasperLoadSMMMap !== 'function') return { missing: true };
+      const map = await _kasperLoadSMMMap();
+      const first = [...map.values()][0] || {};
+      return { size: map.size, name: first.name || '', slack: first.slack_profile_url || '' };
+    });
+  }
   await ctx.close();
   // The five analytics tabs only; other Sheet readers (the review queue's
   // manager tab) are not part of this switch.
@@ -245,6 +265,39 @@ async function staffScenario(browser, origin, name, flag, efMode) {
 
     const sStale = await staffScenario(browser, origin, 'staff copy stale', { enabled: true }, 'stale');
     expect(sStale.seen.sheets.includes('Metrics') && sStale.got.followers === SHEET_FOLLOWERS, 'staff copy whose last whole-dataset receipt is old: the numbers come from the Sheets');
+
+    // ---- the roster switch ----
+    const ROSTER = { enabled: true, roster: 'database' };
+    const rNo = await scenario(browser, origin, 'roster on, no numbers copy', ROSTER, 'nocopy');
+    expect(rNo.seen.sheets.includes('Metrics') && !rNo.seen.sheets.includes('Clients Info'),
+      'roster on, client link without a numbers copy: Metrics from the Sheet, Clients Info never (got ' + rNo.seen.sheets.join(',') + ')');
+    expect(rNo.got.followers === SHEET_FOLLOWERS && rNo.got.desc === 'Database description', 'roster on: the client\'s own row comes from the database');
+    const rFail = await scenario(browser, origin, 'roster on, read fails', ROSTER, 'fail');
+    expect(!rFail.seen.sheets.includes('Clients Info'), 'roster on, client link read failure: Clients Info is still not downloaded');
+    const rOff = await scenario(browser, origin, 'roster key absent', { enabled: true }, 'nocopy');
+    expect(rOff.seen.sheets.includes('Clients Info'), 'without the roster key the client link fallback is unchanged');
+
+    const rsOn = await staffScenario(browser, origin, 'staff roster on', ROSTER, 'full', { managers: true });
+    expect(rsOn.seen.allSheets.length === 0, 'staff roster on: no Sheet tab at all (got ' + rsOn.seen.allSheets.join(',') + ')');
+    expect(rsOn.got.managers && !rsOn.got.managers.missing && rsOn.got.managers.size === 1 && rsOn.got.managers.name === 'Fixture Manager'
+      && rsOn.got.managers.slack === 'U0FIXTURE1', 'staff roster on: the manager map comes from smm-weekly-reports with its Slack link (got ' + JSON.stringify(rsOn.got.managers) + ')');
+    const rsStale = await staffScenario(browser, origin, 'staff roster on, stale numbers', ROSTER, 'stale');
+    expect(rsStale.seen.sheets.includes('Metrics') && !rsStale.seen.sheets.includes('Clients Info'),
+      'staff roster on, stale numbers: Metrics from the Sheet, Clients Info never (got ' + rsStale.seen.sheets.join(',') + ')');
+    expect(rsStale.got.followers === SHEET_FOLLOWERS && rsStale.got.desc === 'Database description', 'staff roster on, stale numbers: the client list is the database one');
+    const rsFail = await staffScenario(browser, origin, 'staff roster on, read fails', ROSTER, 'fail');
+    expect(!rsFail.seen.sheets.includes('Clients Info'), 'staff roster on, read failure with no saved copy: Clients Info is not downloaded');
+    const rsSheet = await staffScenario(browser, origin, 'staff roster off, managers', { enabled: true }, 'full', { managers: true });
+    expect(rsSheet.seen.allSheets.includes('Social Media Managers') && rsSheet.got.managers && rsSheet.got.managers.size === 0,
+      'without the roster key the manager map still reads the Sheet tab (Today asks the door on its own, so its calls are not counted here)');
+
+    for (const s of [rNo, rFail, rOff]) {
+      console.log(`  ${s.name.padEnd(28)} analytics-read=${s.seen.ef} sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);
+      if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
+    }
+    for (const s of [rsOn, rsStale, rsFail, rsSheet]) {
+      console.log(`  ${s.name.padEnd(28)} analytics-read=[${s.seen.scopes.join(', ')}] sheets=[${s.seen.allSheets.join(', ')}] followers=${s.got.followers || '-'} managers=${s.got.managers ? JSON.stringify(s.got.managers) : '-'}`);
+    }
 
     for (const s of [off, other, on, fail, nocopy, empty]) {
       console.log(`  ${s.name.padEnd(28)} analytics-read=${s.seen.ef} sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);

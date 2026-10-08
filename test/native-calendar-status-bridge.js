@@ -197,16 +197,16 @@ ok('the event source is distinct from every existing calendar_post_events writer
  * with 21000 and was replaced the same day. Pinning it to this file would tell
  * the preflight to expect a body a working database must not hold. */
 const BRIDGE = 'migrations/2026-09-18-native-calendar-status-bridge.sql';
-const REPAIR = 'migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql';
-/* The projection was last re-defined by the 2026-10-01 overall-status bridge
- * (applied live that day), which adds the card's overall status to the same
- * UPDATE, so its pin follows that file. */
-const OVERALL = 'migrations/2026-10-01-calendar-overall-status-bridge.sql';
+/* The projection was then re-defined by the 2026-10-01 overall-status bridge,
+ * and both the projection and the two-argument backfill were last re-defined by
+ * the 2026-10-08 "N/A wins" migration (applied live that day, OPEN_REPAIRS
+ * 373/374), so both pins follow that file. */
+const NA_WINS = 'migrations/2026-10-08-native-calendar-na-wins-one-client.sql';
 const expectedRoutines = [
   ['production_native_calendar_status_above(text)', BRIDGE],
   ['production_native_calendar_status_map(text,text)', BRIDGE],
-  ['production_native_calendar_status_project()', OVERALL],
-  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', REPAIR],
+  ['production_native_calendar_status_project()', NA_WINS],
+  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', NA_WINS],
 ];
 for (const [signature, file] of expectedRoutines) {
   const row = ROUTINES.find(r => r[0] === signature);

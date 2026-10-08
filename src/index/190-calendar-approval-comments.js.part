@@ -2443,7 +2443,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _calRenderCommentsModal();
         return false;
     }
+    /* One send at a time. The box keeps its text and stays live while a note
+       is on its way, so a second Enter (or Enter then Send) used to post the
+       same note twice, each copy overwriting the other's view of the thread. */
+    let _calComposerSending = false;
     async function _calSubmitComposer() {
+        if (_calComposerSending) return;
+        _calComposerSending = true;
+        try { return await _calSubmitComposerNow(); }
+        finally { _calComposerSending = false; }
+    }
+    async function _calSubmitComposerNow() {
         const pid = _calOpenCommentsPid;
         if (!pid) return;
         _calCaptureModalDrafts();
@@ -2467,10 +2477,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!saved) { if (!parentId) _calNoteDraftSet(pid, body); return; }
         if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
         else {
-            _calRootDraft = '';
-            _calRootDraftRestored = '';
+            // The box on screen is only this card's while its Notes are still open.
+            if (_calOpenCommentsPid === pid) { _calRootDraft = ''; _calRootDraftRestored = ''; }
             _calNoteDraftSet(pid, '');
         }
+        // Notes closed, or another card's opened, while this one was sending:
+        // what is typed there now is not this note's to clear.
+        if (_calOpenCommentsPid !== pid) return;
         _calReplyTarget = null;
         _calRenderCommentsModal();
         setTimeout(() => {

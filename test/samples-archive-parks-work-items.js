@@ -69,7 +69,8 @@ function world(opts) {
     },
     _sxrUpsertFetch: async (slug, body) => {
       order.push('archive:' + body.sample.status);
-      return { ok: o.archiveFails ? false : true, status: o.archiveFails ? 500 : 200 };
+      // The function answers {"ok":true} on a real archive; the page now reads it.
+      return { ok: o.archiveFails ? false : true, status: o.archiveFails ? 500 : 200, json: async () => ({ ok: !o.archiveFails }) };
     },
     showNotify: (title, body) => notices.push(title + ' :: ' + body),
     console: { warn: () => {}, log: () => {} },

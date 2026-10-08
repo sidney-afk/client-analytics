@@ -1378,7 +1378,12 @@
         if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
         const started = performance.now();
         const promise = (async () => {
-            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
+            // The roster switch follows the staff path: with "roster": "database" a
+            // link the numbers read is not on for still asks for its own row only,
+            // so its client list never comes from the Clients Info tab.
+            const flagValue = await _analyticsMirrorFlagShared();
+            const numbersOn = _analyticsMirrorOnFor(flagValue, cap.slug);
+            if (!numbersOn && !_analyticsRosterOn(flagValue)) return null;
             const token = _syncviewClientWriteToken();
             if (!token) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -1391,7 +1396,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
                     cache: 'no-store',
                     signal: controller ? controller.signal : undefined,
-                    body: JSON.stringify({ slug: cap.slug })
+                    body: JSON.stringify(numbersOn ? { slug: cap.slug } : { slug: cap.slug, datasets: ['client_profile'] })
                 });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
@@ -1399,13 +1404,17 @@
                 const d = json.data, rc = json.receipts || {};
                 const covered = (rows, receipt) => (Array.isArray(rows) && rows.length > 0) || !!rc[receipt];
                 const profile = d.client_profile;
-                const ess = (profile && profile.display_name && covered(d.metrics, 'metrics')) ? {
+                // The client's own Clients Info row, kept even when the numbers
+                // are not covered: with the roster switch on, the Metrics Sheet
+                // fallback still needs it and the Sheet's Clients Info is never read.
+                const clients = (profile && profile.display_name) ? [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
+                    tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
+                    content_description: _analyticsMirrorText(profile.content_description) }] : null;
+                const ess = (numbersOn && clients && covered(d.metrics, 'metrics')) ? {
                     metrics: _analyticsMirrorRows(d.metrics),
-                    clients: [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
-                        tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
-                        content_description: _analyticsMirrorText(profile.content_description) }]
+                    clients
                 } : null;
-                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                const ext = (numbersOn && covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
                     && covered(d.content_summaries, 'content_summaries')) ? {
                     topvids: _analyticsMirrorRows(d.top_videos),
                     mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
@@ -1413,7 +1422,7 @@
                 } : null;
                 console.log('[SyncView] analytics database read in ' + Math.round(performance.now() - started) + ' ms'
                     + (ess ? '' : '; no copy of the numbers yet, using the Sheets') + (ext ? '' : '; no copy of videos/briefs yet, using the Sheets'));
-                return { ess, ext };
+                return { ess, ext, clients };
             } finally {
                 if (timer) clearTimeout(timer);
                 if (clientEntryRun.signal) clientEntryRun.signal.removeEventListener('abort', onAbort);
@@ -1437,6 +1446,21 @@
     }
     function _analyticsMirrorStaffOn(value){
         return !!value && typeof value === 'object' && (value.enabled === true || value.staff === true);
+    }
+    /* THE ROSTER SWITCH (Sheets move, slice 1: docs/plans/2026-10-03-sheets-remaining-map.md).
+       Since 2026-10-02 the database is the main copy of Clients Info and Social
+       Media Managers; the two Sheet tabs are a mirror the database keeps. With
+       "roster": "database" in the analytics read switch, the page never reads
+       those two tabs: the client list comes from analytics-read (staff: every
+       client; a client link: its own row) or this browser's saved copy, and the
+       review queue's manager map from smm-weekly-reports. Missing or anything
+       else: exactly as before. One switch row, read once per load (it is
+       already in the boot batch). Way back: remove the "roster" key. */
+    function _analyticsRosterOn(value){
+        return !!value && typeof value === 'object' && value.roster === 'database';
+    }
+    function _analyticsRosterFromDatabase(){
+        return _analyticsMirrorFlagShared().then(_analyticsRosterOn, () => false);
     }
     // Rows back into the Sheet's CSV shape, so the database answer goes
     // through the same parse, fingerprint and saved-copy path as a Sheet.
@@ -1467,7 +1491,9 @@
         if (_analyticsStaffMirror[scope]) return _analyticsStaffMirror[scope];
         const started = performance.now();
         const promise = (async () => {
-            if (!_analyticsMirrorStaffOn(await _analyticsMirrorFlagShared())) return null;
+            const flagValue = await _analyticsMirrorFlagShared();
+            const rosterOn = _analyticsRosterOn(flagValue);
+            if (!_analyticsMirrorStaffOn(flagValue) && !(rosterOn && scope === 'overview')) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
             const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_STAFF_TIMEOUT_MS[scope]) : null;
             try {
@@ -1491,7 +1517,17 @@
                     const m = d.metrics || {}, profiles = Array.isArray(d.client_profiles) ? d.client_profiles : [];
                     const latest = String(json.latest_metrics_date || '');
                     const oldest = new Date(Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
-                    if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
+                    if (rosterOn && profiles.length) {
+                        // The profiles ARE the main copy: no Sheet copy receipt
+                        // vouches for them. The numbers keep their freshness rule;
+                        // when it fails, metrics is null and only Metrics uses the Sheet.
+                        out = { metrics: null, clients: profiles.map(_analyticsMirrorProfileRow) };
+                        if (!Array.isArray(m.rows) || !m.rows.length) why = 'no copy of the numbers yet';
+                        else if (!fresh('metrics')) why = 'no complete copy of the numbers in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                        else if (latest < oldest) why = 'numbers are older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                        else out.metrics = _analyticsMirrorCsv(m.columns, m.rows);
+                    }
+                    else if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
                     else if (!fresh('metrics') || !fresh('client_profiles')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else if (latest < oldest) why = 'copy is older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else out = { metrics: _analyticsMirrorCsv(m.columns, m.rows), clients: profiles.map(_analyticsMirrorProfileRow) };
@@ -1506,7 +1542,7 @@
                     };
                 }
                 console.log('[SyncView] analytics database ' + scope + ' read in ' + Math.round(performance.now() - started) + ' ms'
-                    + (out ? '' : '; ' + why + ', using the Sheets'));
+                    + (why ? '; ' + why + (out ? ', numbers from the Metrics Sheet, clients from the database' : ', using the Sheets') : ''));
                 return out;
             } finally {
                 if (timer) clearTimeout(timer);
@@ -1517,7 +1553,7 @@
         });
         // A failed or refused read is not remembered: the next load tries again.
         _analyticsStaffMirror[scope] = promise;
-        promise.then(r => { if (!r) _analyticsStaffMirror[scope] = null; });
+        promise.then(r => { if (!r || r.metrics === null) _analyticsStaffMirror[scope] = null; });
         return promise;
     }
 
@@ -1530,13 +1566,29 @@
             return;   // a client link never saves a copy
         }
         const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('overview');
-        if(staff){
+        if(staff&&staff.metrics!=null){
             _analyticsLiveEssentials = true;
             const publicClientRows = _applyEssentialTexts(staff.metrics, staff.clients);
             _analyticsCacheWrite({ metrics: staff.metrics, clients: publicClientRows });
             return;
         }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
+        if(await _analyticsRosterFromDatabase()){
+            // Roster switch on: the client list never comes from the Sheet.
+            // Staff: the database answer, else this browser's saved copy of it.
+            // A client link: its own row from the database, nothing else.
+            let clients=clientEntryRun?(mirror&&mirror.clients):(staff&&staff.clients);
+            if(!clients&&!clientEntryRun){const saved=_analyticsCacheRead();clients=saved&&Array.isArray(saved.clients)&&saved.clients.length?saved.clients:null;}
+            if(!clients)throw new Error('analytics_roster_unavailable');
+            const mr=await fetch(METRICS_URL,requestOpts);
+            if(!mr.ok)throw new Error('analytics_essentials_http');
+            const metricsText=await mr.text();
+            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+            _analyticsLiveEssentials = true;
+            const publicClientRows = _applyEssentialTexts(metricsText, clients);
+            if(!clientEntryRun)_analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
+            return;
+        }
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
         if(!mr.ok||!cr.ok)throw new Error('analytics_essentials_http');
         const metricsText=await mr.text(), clientsText=await cr.text();
@@ -78325,7 +78377,44 @@
         try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
         return subs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
     }
+    /* Roster switch on (see _analyticsRosterOn): the managers come from the
+       database through the staff door smm-weekly-reports already serves
+       (?action=options, Admin/SMM keys), one row per manager with the clients
+       it owns. The queues show only the manager's name, so only the name is kept. No staff key, a refused key or a failure: an empty map, the
+       same answer a failed Sheet read gave (the queue shows no manager). */
+    async function _kasperLoadSMMMapFromDatabase() {
+        try {
+            const ident = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+            if (!ident || !ident.key) return new Map();
+            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                headers: {
+                    Accept: 'application/json',
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    'X-Syncview-Key': ident.key
+                },
+                cache: 'no-store'
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            const map = new Map();
+            for (const m of (data && Array.isArray(data.managers) ? data.managers : [])) {
+                if (!m || m.active === false) continue;
+                const name = String(m.name || '').trim();
+                for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) {
+                    const slug = wlNormalizeClient(String(c || '').trim());
+                    if (!slug || map.has(slug)) continue;
+                    map.set(slug, { name });
+                }
+            }
+            return map;
+        } catch (e) {
+            console.warn('[Kasper] manager list (database) load failed:', e);
+            return new Map();
+        }
+    }
     async function _kasperLoadSMMMap() {
+        if (await _analyticsRosterFromDatabase()) return _kasperLoadSMMMapFromDatabase();
         // The "Social Media Managers" tab: client_name, social_media_manager,
         // optional slack_user_id / slack_team_id (the script ignores anything
         // it doesn't recognise so adding columns later is non-breaking).
@@ -88623,4 +88712,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-458ae0c552b5.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-8ed71b7b9841.js");

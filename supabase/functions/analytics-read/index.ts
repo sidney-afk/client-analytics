@@ -50,11 +50,20 @@ function clean(v: unknown): string {
 // On for everyone with {"enabled": true}; on for named clients only with
 // {"enabled": false, "clients": ["<slug>"]}, so one test client can use the
 // mirror while the flag stays off for the rest.
-async function flagOn(supabase: SupabaseClient, key: string, slug: string): Promise<boolean> {
+async function flagValue(supabase: SupabaseClient, key: string): Promise<JsonMap> {
   const { data } = await supabase.from("syncview_runtime_flags").select("value").eq("key", key).maybeSingle();
-  const v = data && typeof data.value === "object" ? data.value as JsonMap : {};
+  return data && data.value && typeof data.value === "object" ? data.value as JsonMap : {};
+}
+function flagOnFor(v: JsonMap, slug: string): boolean {
   if (v.enabled === true) return true;
   return Array.isArray(v.clients) && v.clients.map(clean).includes(slug);
+}
+// The roster switch (Sheets move, slice 1: docs/ops/ROSTER_PAGE_SWITCH_STEPS.md): with
+// "roster": "database" a client link may read its OWN profile row even when the numbers
+// read is not on for it, so its page never downloads the Clients Info tab. Only a call
+// asking for client_profile alone qualifies; the link token is still checked.
+function rosterProfileOnly(v: JsonMap, datasets: string[]): boolean {
+  return v.roster === "database" && datasets.length === 1 && datasets[0] === "client_profile";
 }
 
 // Pages through a query until a short page comes back.
@@ -278,7 +287,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       principal = "staff";
     } else {
       const token = clean(req.headers.get("x-syncview-client-token") || body.token);
-      if (!(await flagOn(supabase, "analytics_mirror_read_enabled", slug))) {
+      const flag = await flagValue(supabase, "analytics_mirror_read_enabled");
+      if (!flagOnFor(flag, slug) && !rosterProfileOnly(flag, datasets)) {
         return json({ ok: false, error: "mirror_read_disabled" }, 503);
       }
       if (!(await clientTokenValid(supabase, slug, token))) {

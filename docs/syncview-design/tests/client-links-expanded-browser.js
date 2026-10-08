@@ -293,6 +293,9 @@ async function analytics(browser, origin, width, emptyCase = false) {
     ok(await page.evaluate(() => [...document.querySelectorAll('.chart-plat-toggle')].every(t => new Set([...t.children].map(b => Math.round(b.getBoundingClientRect().top))).size === 1)), 'Chart switches must stay on one row');
     ok(await page.evaluate(() => [...document.querySelectorAll('.chart-plat-toggle')].every(t => t.scrollWidth <= t.clientWidth + 1)), 'Chart switches must fit without being cut off');
     ok(await page.evaluate(() => _analyticsAxisDate('2026-10-05') === '5 Oct'), 'Chart dates must read 5 Oct on a phone');
+    // The charts draw only once the chart library has loaded (renderChart retries every 150 ms), so wait
+    // for both short notes before measuring them; a slow runner used to check before they existed.
+    await page.waitForFunction(() => document.querySelectorAll('.chart-wrap.chart-wrap-empty').length === 2, null, { timeout: 8000 }).catch(() => {});
     ok(await page.evaluate(() => [...document.querySelectorAll('.chart-wrap.chart-wrap-empty')].length === 2 && [...document.querySelectorAll('.chart-wrap.chart-wrap-empty')].every(w => w.getBoundingClientRect().height < 120)), 'A one-point chart is a short note, not an empty grid');
     await page.locator('[data-pocket-open=tabs]').click();
     await measure(page, 'analytics-tabs-' + width);

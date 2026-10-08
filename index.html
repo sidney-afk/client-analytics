@@ -9175,6 +9175,28 @@
         .ca-pop-keys kbd { font: inherit; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
         .ca-allbtn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border: 1px solid var(--border); border-radius: 99px; background: transparent; font-family: inherit; font-size: 0.78rem; font-weight: 650; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
         .ca-allbtn:hover, .ca-allbtn[aria-expanded="true"] { color: var(--text-primary); border-color: var(--text-secondary); }
+        /* "New client" (admin only) and its dialog (step 2.5). */
+        .ca-newbtn { margin-left: auto; color: var(--text-primary); }
+        .cn-scrim { position: fixed; inset: 0; z-index: 90; background: var(--overlay); }
+        .cn-dialog { position: fixed; z-index: 91; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box; padding: 20px 22px 18px; background: var(--white); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-lg); }
+        .cn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .cn-head h3 { margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        .cn-lead { margin: 6px 0 16px; font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary); }
+        .cn-field { display: block; margin-bottom: 12px; }
+        .cn-label { display: block; margin-bottom: 5px; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+        .cn-opt { font-weight: 500; color: var(--text-muted); }
+        .cn-slug { min-height: 1.2em; margin: -6px 0 12px; font-size: 0.74rem; color: var(--text-muted); }
+        .cn-slug code { font-family: inherit; font-weight: 700; color: var(--text-secondary); }
+        .cn-test { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px; background: var(--brief-know-bg); color: var(--brief-know-ink); font-weight: 700; }
+        .cn-preview { min-height: 44px; }
+        .cn-preview .ca-msg { margin: 0; }
+        .cn-hint { padding: 10px 12px; border-radius: 10px; background: var(--surface-subtle); font-size: 0.78rem; color: var(--text-muted); }
+        .cn-ready { padding: 12px 14px; border-radius: 12px; background: var(--brief-edit-bg); }
+        .cn-ready-title { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 800; color: var(--brief-edit-ink); }
+        .cn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--up); }
+        .cn-list { margin: 8px 0 8px; padding-left: 18px; font-size: 0.8rem; line-height: 1.6; color: var(--text-primary); }
+        .cn-note { font-size: 0.74rem; line-height: 1.5; color: var(--text-secondary); }
+        .cn-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
         .ca-ico { width: 16px; height: 16px; flex: none; }
         .ca-drop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 60; width: min(620px, 100%); background: var(--white); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 8px; }
         .ca-drop-head { display: flex; align-items: center; gap: 12px; padding: 4px 6px 8px 10px; font-size: 0.74rem; font-weight: 700; color: var(--text-muted); }
@@ -9347,6 +9369,12 @@
             /* The pocket admin shell tints every Kasper input; the pill is the field here. */
             html.pocket-admin-phone #kasperContent .ca-search .search-bar-input { background: transparent; border-radius: 0; }
             .ca-allbtn { flex: none; min-height: 44px; justify-content: center; padding: 0 14px; color: var(--text-primary); background: var(--white); }
+            /* "New client" is a square + next to "All clients": the search keeps its row. */
+            .ca-newbtn { margin-left: 0; width: 44px; padding: 0; }
+            .ca-newbtn span { display: none; }
+            .cn-dialog { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 88vh; border-radius: 18px 18px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
+            .cn-dialog .ca-input { font-size: 16px; min-height: 44px; }
+            .cn-actions .cc-btn { flex: 1; min-height: 48px; }
             .ca-drop { width: 100%; }
             .ca-list { grid-template-columns: 1fr; max-height: 60vh; }
             /* The pocket shell sizes .ca-row for the old full-page list (78px); the dropdown list is denser. */
@@ -12379,9 +12407,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-d206ae68ccb9.js";
+        var FULL = "js/sv-full-0ab732bdc253.js";
         var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-d02717a5c726.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d5b7a638eace.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-6f46224ed096.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-120e08ae3620.js","kasper":"js/sv-16-kasper-b5a2fd3069d7.js"};
+        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-120e08ae3620.js","kasper":"js/sv-16-kasper-85e8a54729d4.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

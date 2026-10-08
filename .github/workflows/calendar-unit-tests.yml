@@ -324,6 +324,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/clients-onboarding-browser.js
+      - name: Kasper Clients "New client" previews, creates and stays admin-only
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/clients-create-browser.js
       - name: Quick jump opens a client on a tab from the keyboard
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

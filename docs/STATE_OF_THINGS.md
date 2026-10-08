@@ -47,6 +47,11 @@ here with where it stopped, so it can be restarted.
   shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
   27-step checklist (admin only; OPEN_REPAIRS 332). Next, each with the owner's go: "Create client" (step 2.5),
   then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
+  **2026-10-08 (Beacon): "Create client" is BUILT, not applied or deployed** (OPEN_REPAIRS 372): owner steps, in order, in
+  `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` (apply the 2026-10-03 test path, apply `2026-10-08-create-client.sql`, deploy
+  `client-onboarding`, throwaway proof and teardown). **Stage 3 dry run done**, nothing saved:
+  `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
+  confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03

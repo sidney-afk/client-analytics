@@ -31184,6 +31184,33 @@ Now: text is carried only into a thread of the audience it was typed for. Across
 
 Browser only, one function. Pinned in `test/prod-comment-reply-audience.js`. The same correction is also in the Sentinel stack (the batch 6 PR), which will meet this one as an identical change. Way back: revert the PR, which restores the leak; revert #2000's Reply change with it if this is ever undone.
 
+## 375. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 2: an edit could be saved under the wrong client; silent Samples archive and Calendar reschedule failures; notes sent twice
+
+Session Sentinel, cycle 1, the Calendar and Samples save group. Browser changes only: no Edge Function (the two frozen writers are untouched), migration, flag or n8n workflow. Stacked on batch 1 (entry 371).
+
+**1. An edit typed on one client's card could be written under another client, or wipe the card it was typed on (Calendar and Samples).** The save engines read "which client" when a flush starts. Switching client flushes what is pending first, but two ordinary sequences let a flush wake after the switch:
+
+- *Type in a caption, click another client.* The click blurs the box, the save starts, and since #1915 (2026-10-01) it first re-reads the field to see whether someone else changed it. The view has moved by the time that read answers. The card is no longer in the list on screen, so the engine took it for a new row and sent a blank whole card carrying only the caption, to the right client, over the real card. `calendar-upsert` keeps a stored link when a blank one arrives but writes every other blank as sent, so the stored name, date and statuses would be replaced (read from the function's source; not exercised against the live function).
+- *A save in flight, more typed, then the switch.* The second flush waits behind the first one's lock, wakes after the switch, and reads the client now on screen: the edit is inserted as a new card (or sample) under that client, where its client link shows it.
+
+Both reproduced in a real browser against a local stand-in backend, on the code before this change. Measured on the live database the same day: no card carries the wipe's signature (blank name with a caption and no date; 0 of the 31 blank-named live cards), so this is a defect found before damage that I could see, not a clean-up. Samples met the second sequence once already, in its fill path, and answered it by parking the edit for its own client (`_sxrParkEditsForClient`); the two general engines never got that answer. They do now: an edit that cannot be written under its own client is held in the tab against that client and card, the person is told ("That edit is not saved yet"), and it is handed back to the normal engine when that client is opened again. A save that finishes after a switch also no longer writes the list on screen into the other client's saved copy (which the next visit painted before the network answered).
+
+Cost, stated plainly: in the first sequence the caption used to save (when it did not wipe); it now waits, with a notice, until the person returns to that client in the same tab. If that is too noisy, the next step is to let the engine finish a field-only save for a card that is no longer on screen; that is a larger change to the engine and was not attempted here.
+
+**2. Samples: a failed archive was silent, and a refused one counted as done.** The single-archive failure path put the sample back with no message and no check of which client was on screen; `sample-review-upsert` can refuse with HTTP 200 and `{"ok":false}`, which was read as success, so the sample stayed hidden and its work items were parked in Backlog while the sample was still live; bulk failures reloaded with no notice. All three now behave as the Calendar's archive already did.
+
+**3. Calendar Month and Week: a reschedule whose save failed left the post on the new day with no sign of trouble.** The move is painted before the save, so the engine's "before" copy already held the new day and the rollback restored the day it had just failed to save. Only Sheet cards carry the "Save failed" chip. The post now goes back to its day and a notice says "Date not saved".
+
+**4. Calendar and Samples Notes: Enter twice sent the note twice,** and an answer arriving after another card's Notes were opened cleared what was typed there. One send at a time; a late answer leaves the other card alone.
+
+Tests, each failing on the code before this change: `test/calendar-edit-stays-with-its-client-browser.js` and `test/calendar-samples-save-honesty-browser.js` (real Chromium, every backend call answered locally), `test/notes-composer-one-send.js`.
+
+Looked at and left: archived-restore reports "Restored" when the position write fails (low impact, not verified); the title approval stamp is not in the Calendar's rollback list (low, not verified); Escape does not close the status menu on desktop (not verified live).
+
+Unexplained, counts only: 31 live cards on real clients have a blank name and a caption, 28 of them with work items, 22 of them last changed today on one client. They do not match the wipe above (all have dates and thumbnails). Worth a look by whoever owns card creation.
+
+Way back: revert the PR. Not yet seen by the owner in his browser.
+
 ## 378. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 4: empty Today and native Notes
 
 2026-10-08, Prism batch 4: PR #1994's final head passed both previously red

@@ -16096,26 +16096,6 @@
         }
         _svClientPhoneMount(root, 'Analytics', 'analytics', '.detail-info-btn', wrapper);
     }
-    const _svPhoneNotesOriginal = new WeakMap();
-    function _svPhoneNotesPresentation() {
-        const phone = window.matchMedia('(max-width: 767px)').matches;
-        document.querySelectorAll('.cal-comments-modal').forEach(modal => {
-            modal.querySelectorAll('[data-cm-toggle="comp"] .cal-cm-audience-cap, [data-cm-toggle="tweak"] .cal-cm-audience-cap').forEach(label => {
-                if (phone && !_svPhoneNotesOriginal.has(label)) _svPhoneNotesOriginal.set(label, label.textContent);
-                if (_svPhoneNotesOriginal.has(label)) label.textContent = phone
-                    ? (label.closest('[data-cm-toggle]').dataset.cmToggle === 'comp' ? 'About' : 'Type')
-                    : _svPhoneNotesOriginal.get(label);
-            });
-            const blocked = modal.querySelector(':scope > .cal-comments-empty[data-notes-unavailable]');
-            if (!blocked) { modal.removeAttribute('data-phone-notes-unavailable'); return; }
-            const message = Array.from(blocked.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
-            if (phone && message && !_svPhoneNotesOriginal.has(blocked)) _svPhoneNotesOriginal.set(blocked, { node: message, text: message.textContent });
-            const original = _svPhoneNotesOriginal.get(blocked);
-            if (!original) { modal.removeAttribute('data-phone-notes-unavailable'); return; }
-            original.node.textContent = phone ? 'Your team needs to finish setting up notes for this card.' : original.text;
-            modal.toggleAttribute('data-phone-notes-unavailable', phone);
-        });
-    }
     function _svClientPhoneWatch() {
         const content = document.getElementById('content');
         if (!content) return;
@@ -16127,7 +16107,6 @@
         window.addEventListener('resize', () => {
             if (innerWidth < 5 || innerHeight < 5 || visualViewport && (visualViewport.width < 5 || visualViewport.height < 5)) return;
             const next = window.matchMedia('(max-width: 767px)').matches;
-            _svPhoneNotesPresentation();
             if (next === _svClientPhoneWidth) return;
             _svClientPhoneWidth = next;
             if (!next) for (const root of Array.from(_svClientPhoneRoots.keys())) _svClientPhoneRestore(root);
@@ -34255,6 +34234,10 @@
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
             ok = true;
+            // Edits typed on this client while the view was elsewhere, held by
+            // _calParkEditsForClient. calState describes this client now, so
+            // the normal engine can have them.
+            try { _calRestoreParkedEdits(slug); } catch (e) {}
         } catch (e) {
             if (!_calLoadRunCurrent(loadRun)) return;
             const isAbort = e && (e.name === 'AbortError' || /aborted|timed out/i.test(String(e.message || '')));
@@ -35942,6 +35925,17 @@
         const post = calState.posts.find(p => p.id === id);
         if (!post || !iso) return;
         if (String(post.scheduled_date || '').slice(0,10) === iso) return;
+        /* Remember the day the post was on. The move is painted before the
+           save, so by the time the engine takes its own "before" copy the post
+           already holds the new day, and a failed save rolled back to the day
+           it had just failed to save: the post stayed on the new day with no
+           sign anything was wrong (Month and Week cards have no save chip) and
+           was back on the old day after a reload. */
+        const priorDate = post.scheduled_date;
+        if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
+        const moveBucket = _calPendingEdits[id];
+        moveBucket._calPriorStatus = moveBucket._calPriorStatus || {};
+        if (!('scheduled_date' in moveBucket._calPriorStatus)) moveBucket._calPriorStatus.scheduled_date = priorDate;
         post.scheduled_date = iso;
         post.updated_at = new Date().toISOString();
         // Route the reschedule through the same per-card save funnel as every
@@ -37789,8 +37783,8 @@
     Object.assign(window, {
         _calCloseClientLinks, _calCloseKebab, _calEditLink, _calFillComponent, _calLinearClear,
         _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel, _calOnLinkBlur,
-        _calOnLinkInput, _calOnLinkKey, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError,
-        _calOpenLink, _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
+        _calOnLinkInput, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError, _calOpenLink,
+        _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
         _calToggleClientLinks, _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop,
         _calUpdateTabScroll, _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen,
         _thumbCompareSignIn, calZoom, onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle,
@@ -38885,6 +38879,109 @@
         });
     }
 
+    /* AN EDIT BELONGS TO THE CLIENT IT WAS TYPED ON.
+     *
+     * The save engine reads `calState` when a flush STARTS. `onCalClientChange`
+     * flushes everything pending before it switches, but a flush for a card
+     * whose earlier save is still in flight defers behind that save's lock and
+     * wakes after the switch. It then read the slug of the client now on
+     * screen, did not find the card there, took it for a new row and sent a
+     * blank card carrying the edit: a new post in the wrong client's calendar,
+     * visible on that client's link, while the card it was typed on never got
+     * it and showed no error. Samples met the same thing in its fill path
+     * (`_sxrParkEditsForClient`); this is the Calendar's copy of that answer.
+     *
+     * So an edit that cannot be written under its own client is PARKED against
+     * that client and card, said out loud, and handed back to the normal engine
+     * by `_calRestoreParkedEdits` the next time that client loads. Held in this
+     * tab only: one bucket per card per client, capped. Nothing here writes. */
+    const _calParkedEdits = Object.create(null);
+    const CAL_PARKED_EDIT_MAX_CARDS = 50;
+    function _calParkEditsForClient(slug, pid) {
+        const edits = _calPendingEdits[pid];
+        delete _calPendingEdits[pid];
+        if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
+        const key = String(slug || '');
+        if (!key || !edits || !Object.keys(edits).length) return;
+        const forClient = _calParkedEdits[key] || (_calParkedEdits[key] = Object.create(null));
+        if (!forClient[pid] && Object.keys(forClient).length >= CAL_PARKED_EDIT_MAX_CARDS) {
+            _writeUiQueueDiagnostic('calendar', 'parked_edit_capacity_dropped',
+                { kind: 'card_save' }, { code: 'parked_edit_cap' });
+            showNotify('That edit was not saved',
+                'This tab is already holding unsaved edits for ' + CAL_PARKED_EDIT_MAX_CARDS
+                + ' other cards on ' + key + ', so this one could not be held as well. It was not'
+                + ' written anywhere and cannot be brought back. Open ' + key + ' again to save the'
+                + ' edits being held, then retype this one.');
+            return;
+        }
+        // Whose edit it is goes with it: the account can change before that
+        // client is opened again, and a restored bucket is sent by whoever is
+        // signed in then.
+        const previous = forClient[pid];
+        forClient[pid] = {
+            principal: _writeUiPrincipalKey(),
+            edits: Object.assign({}, previous && previous.edits, edits)
+        };
+        _writeUiQueueDiagnostic('calendar', 'queued_edit_parked_off_client',
+            { kind: 'card_save' }, { code: 'client_changed_during_save' });
+        showNotify('That edit is not saved yet',
+            'A change you typed could not be saved while the client changed, so nothing was written to the wrong one. Open ' + key + ' again in this tab and it will save. If you reload first, retype it.');
+    }
+    /* Called after a successful load for `slug`, when `calState` describes the
+       client these edits belong to. A card the load did not return is NOT
+       restored: re-queuing it would make the engine insert it as a new row,
+       which is the defect this exists to avoid. */
+    function _calRestoreParkedEdits(slug) {
+        const key = String(slug || '');
+        const forClient = key && _calParkedEdits[key];
+        if (!forClient) return 0;
+        if (calClientSlug(calState.client) !== key) return 0;
+        let restored = 0;
+        const principalNow = _writeUiPrincipalKey();
+        for (const pid of Object.keys(forClient)) {
+            const entry = forClient[pid] || {};
+            if (!(calState.posts || []).some(post => post && post.id === pid)) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('calendar', 'parked_edit_card_gone',
+                    { kind: 'card_save' }, { code: 'card_absent_on_restore' });
+                showNotify('An unsaved edit was discarded',
+                    'A change typed on a card of ' + key + ' was still waiting to be saved, and that'
+                    + ' card is no longer in this client — archived, moved or removed while it'
+                    + ' waited. Nothing was written, and the change is gone.');
+                continue;
+            }
+            if (!principalNow || entry.principal !== principalNow) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('calendar', 'parked_edit_principal_changed',
+                    { kind: 'card_save' }, { code: 'principal_changed_before_restore' });
+                showNotify('An unsaved edit was discarded',
+                    'A change typed here before the signed-in account changed was not saved, because it is not this account’s to send. Nothing was written.');
+                continue;
+            }
+            // Newer input wins: somebody may already be typing in this card
+            // again while the load that triggers this restore was in flight.
+            _calPendingEdits[pid] = Object.assign({}, entry.edits, _calPendingEdits[pid] || {});
+            delete forClient[pid];
+            restored += 1;
+            _calFlushCardSave(pid);
+        }
+        if (!Object.keys(forClient).length) delete _calParkedEdits[key];
+        return restored;
+    }
+    window.peekCalParkedEdits = function () {
+        const out = {};
+        for (const slug of Object.keys(_calParkedEdits)) out[slug] = Object.keys(_calParkedEdits[slug]);
+        return out;
+    };
+    /* A save that finishes after the view moved to another client must not
+       write the list now on screen under the client it started on: that put one
+       client's cards into another's saved copy, which the next visit paints
+       before the network answers. True when the write was made or rightly
+       skipped; false only when storage refused a write that was due. */
+    function _calCacheWriteIfCurrent(slug, options) {
+        if (calClientSlug(calState.client) !== slug) return true;
+        return _calCacheWrite(slug, calState.posts, options);
+    }
     async function _calAwaitCardSave(pid) {
         for (;;) {
             const active = _calSaveInFlight[pid];
@@ -38952,7 +39049,8 @@
         if (retryPost && retryPost._writeUiRetrySourceAt) {
             _writeUiSnapshotRepairRefs(retryPost).forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
         }
-        const precommittedForWrite = edits._writeUiPrecommittedNative === true
+        const bucketPrecommitted = edits._writeUiPrecommittedNative === true;
+        const precommittedForWrite = bucketPrecommitted
             || !!(retryPost && retryPost._writeUiRetrySourceAt);
         const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
         const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
@@ -38996,6 +39094,21 @@
             const hadKeys = Object.keys(edits).length;
             await _calConflictGate(realId, _saveSlug, edits);
             if (hadKeys && !Object.keys(edits).length) return;
+            /* The view moved to another client during that read. The card is no
+               longer in `calState.posts`, so carrying on would treat it as a new
+               row: a blank card pushed into the list now on screen and a blank
+               whole-card write sent over the real one. Put the bucket back
+               whole; the finally below parks it for its own client. */
+            if (calClientSlug(calState.client) !== _saveSlug) {
+                const held = Object.assign({}, edits, _calPendingEdits[realId] || {});
+                if (Object.keys(priorStatusForWrite).length) held._calPriorStatus = Object.assign({}, priorStatusForWrite, held._calPriorStatus || {});
+                if (sourceRepairRefsForWrite.length) held._writeUiRepairRefs = sourceRepairRefsForWrite.slice();
+                if (bucketPrecommitted) held._writeUiPrecommittedNative = true;
+                if (companionRepairsForWrite.length) held._writeUiCompanionRepairs = companionRepairsForWrite.slice();
+                if (pinnedSourceTransportForWrite) held._writeUiPinnedSourceTransport = pinnedSourceTransportForWrite;
+                _calPendingEdits[realId] = held;
+                return;
+            }
         }
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
@@ -39054,7 +39167,7 @@
             post._writeUiRetryEdits = Object.assign({}, edits);
             post._writeUiRetrySourceAt = writeUiSourceAt;
             post._writeUiRetryPrincipal = _writeUiPrincipalKey();
-            if (!_calCacheWrite(_saveSlug, calState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+            if (!_calCacheWriteIfCurrent(_saveSlug)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
         };
         try {
             checkpointCommittedSource();
@@ -39352,7 +39465,7 @@
                It fired only AFTER the upsert above, so removing it changes no
                card state and no save ordering -- only the outbound copy to
                Linear is gone. */
-            _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
+            _calCacheWriteIfCurrent(_saveSlug, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
             // An earlier change that failed and is still unsent keeps its Retry chip.
             if (_okPost && _okPost._saveError) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
@@ -39472,10 +39585,17 @@
                     cur._writeUiRetrySourceAt = writeUiSourceAt;
                     cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                     delete cur._writeUiPrecommittedNative;
-                    _calCacheWrite(_saveSlug, calState.posts);
+                    _calCacheWriteIfCurrent(_saveSlug);
                 }
             }
             try { _calRenderBody({ preserveScroll: true }); } catch {}
+            /* A date that did not save is put back above. Only the Sheet card
+               ('organizer') carries the "Save failed" chip, so in Month and Week (where a
+               post is rescheduled by dragging) the person is told here; a
+               gateway refusal has already raised its own notice. */
+            if ('scheduled_date' in edits && !wasNewRow && !gatewayAttempted && calState.view !== 'organizer') {
+                showNotify('Date not saved', 'The post could not be moved to that day and is back where it was. ' + _writeUiFailureSentence(e, 'Try again in a moment.'));
+            }
             if (gatewayCommitted && !wasNewRow) _calScheduleSyncRetry(realId);
         }
         } finally {
@@ -39487,8 +39607,14 @@
             delete _calSaveInFlight[pid];
             delete _calSaveInFlight[realId];
             if (_releaseSave) _releaseSave();
-            if (_calPendingEdits[realId]) _calFlushCardSave(realId);
-            else if (realId !== pid && _calPendingEdits[pid]) _calFlushCardSave(pid);
+            // Only while the view is still on the client this save belongs to.
+            // After a client switch the queued edits are parked for their own
+            // client instead (see _calParkEditsForClient).
+            const queuedId = _calPendingEdits[realId] ? realId : (realId !== pid && _calPendingEdits[pid] ? pid : '');
+            if (queuedId) {
+                if (calClientSlug(calState.client) === _saveSlug) _calFlushCardSave(queuedId);
+                else _calParkEditsForClient(_saveSlug, queuedId);
+            }
         }
     }
 
@@ -46891,7 +47017,6 @@
                 <div class="cal-comments-feed-inner">${feedHtml}</div>
             </div>
             ${_calComposerHtml(post, comments)}`;
-        _svPhoneNotesPresentation();
         const ta = document.getElementById('calCommentComposer');
         if (ta) {
             _calAutosizeComposer(ta);
@@ -47111,7 +47236,17 @@
         _calRenderCommentsModal();
         return false;
     }
+    /* One send at a time. The box keeps its text and stays live while a note
+       is on its way, so a second Enter (or Enter then Send) used to post the
+       same note twice, each copy overwriting the other's view of the thread. */
+    let _calComposerSending = false;
     async function _calSubmitComposer() {
+        if (_calComposerSending) return;
+        _calComposerSending = true;
+        try { return await _calSubmitComposerNow(); }
+        finally { _calComposerSending = false; }
+    }
+    async function _calSubmitComposerNow() {
         const pid = _calOpenCommentsPid;
         if (!pid) return;
         _calCaptureModalDrafts();
@@ -47135,10 +47270,13 @@
         if (!saved) { if (!parentId) _calNoteDraftSet(pid, body); return; }
         if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
         else {
-            _calRootDraft = '';
-            _calRootDraftRestored = '';
+            // The box on screen is only this card's while its Notes are still open.
+            if (_calOpenCommentsPid === pid) { _calRootDraft = ''; _calRootDraftRestored = ''; }
             _calNoteDraftSet(pid, '');
         }
+        // Notes closed, or another card's opened, while this one was sending:
+        // what is typed there now is not this note's to clear.
+        if (_calOpenCommentsPid !== pid) return;
         _calReplyTarget = null;
         _calRenderCommentsModal();
         setTimeout(() => {
@@ -69820,7 +69958,18 @@
             _sxrRenderBody();
             try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
             if (!_sxrIsBlankId(pid)) {
-                _sxrArchiveOne(pid, slug, post || null).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
+                /* A failed archive says so, like the Calendar's (archiveCalPost).
+                   It used to put the sample back with no message at all, and it
+                   put the list back even after the view had moved to another
+                   client, which flashed one client's samples under another. */
+                _sxrArchiveOne(pid, slug, post || null).catch(e => {
+                    console.warn('[Samples] archive failed', e);
+                    _sxrArchivedRemove(slug, refs);
+                    const stillHere = sxrClientSlug(sxrState.client) === slug;
+                    if (stillHere) { sxrState.posts = snapshot; _sxrRenderBody(); }
+                    showNotify('Archive failed', 'The sample was not archived, so it is back in the list. ' + ((e && e.message) || 'Try again in a moment.'));
+                    if (stillHere) loadSxrCards({ skipCache: true });
+                });
             }
         }, 'Archive');
     }
@@ -69831,8 +69980,15 @@
         const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
         const archivedAt = new Date().toISOString();
-        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
+        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'), { requireOk: true });
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
+        // The function can refuse with HTTP 200 and {"ok":false} (a failed read
+        // of the stored row). That is not an archive: without this the sample
+        // stayed hidden and its work items were parked in Backlog while the
+        // sample itself was still live. The Calendar checks the same thing.
+        let json = null;
+        try { json = await resp.json(); } catch (e) {}
+        if (!json || json.ok !== true) throw new Error((json && json.error) || 'archive was not confirmed');
         // Same rule as the Calendar (owner ruling 2026-08-17, extended to
         // samples 2026-09-28): archiving parks the sample's work items in
         // Backlog through the same guarded status write a person's status
@@ -69949,7 +70105,13 @@
                 Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug, postById.get(id) || null))).then(results => {
                     const failedRefs = [];
                     results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(ids[i]); if (refs) refs.forEach(x => failedRefs.push(x)); } });
-                    if (failedRefs.length) { _sxrArchivedRemove(slug, failedRefs); loadSxrCards({ skipCache: true }); }
+                    if (failedRefs.length) _sxrArchivedRemove(slug, failedRefs);
+                    const failedCount = results.filter(r => r.status === 'rejected').length;
+                    if (failedCount) {
+                        // Said out loud, as the Calendar's bulk archive does.
+                        showNotify('Some samples were not archived', failedCount + ' of ' + ids.length + ' could not be archived. Reloading the list.');
+                        if (sxrClientSlug(sxrState.client) === slug) loadSxrCards({ skipCache: true });
+                    }
                 });
             }, 'Archive');
     }
@@ -69971,12 +70133,12 @@
         _sxrArchiveSelected, _sxrAutosize, _sxrCardSelectClick, _sxrCloseKebab, _sxrCopyCardLink,
         _sxrCopyShareLink, _sxrEditLink, _sxrFillComponent, _sxrLinearClear, _sxrLinearCommit, _sxrLinearEdit,
         _sxrLinearKey, _sxrLinkConflictCancel, _sxrMoveLinkConfirm, _sxrOnLinkBlur, _sxrOnLinkInput,
-        _sxrOnLinkKey, _sxrOnTextEditBlur, _sxrOnTextEditFocus, _sxrOnTextEditKey, _sxrOpenLink,
-        _sxrOpenSetAllMenu, _sxrOpenThumbLightbox, _sxrOpenThumbnailFolder, _sxrSendKasperUrgentSlack,
-        _sxrSendUrgentSlack, _sxrSetAllStatus, _sxrStatusPick, _sxrStatusToggleMenu, _sxrTabScrollBy,
-        _sxrThumbClick, _sxrToggleCreativeVisibility, _sxrToggleKebab, _sxrToggleSelectMode,
-        _sxrUpdateTabScroll, addSxrBlankCard, archiveSxrCard, closeSxrLightbox, loadSxrCards, onSxrPickClient,
-        onSxrTabAddClick, onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
+        _sxrOnTextEditBlur, _sxrOnTextEditFocus, _sxrOnTextEditKey, _sxrOpenLink, _sxrOpenSetAllMenu,
+        _sxrOpenThumbLightbox, _sxrOpenThumbnailFolder, _sxrSendKasperUrgentSlack, _sxrSendUrgentSlack,
+        _sxrSetAllStatus, _sxrStatusPick, _sxrStatusToggleMenu, _sxrTabScrollBy, _sxrThumbClick,
+        _sxrToggleCreativeVisibility, _sxrToggleKebab, _sxrToggleSelectMode, _sxrUpdateTabScroll,
+        addSxrBlankCard, archiveSxrCard, closeSxrLightbox, loadSxrCards, onSxrPickClient, onSxrTabAddClick,
+        onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
     });
     function _sxrRenderBody(opts) {
         const body = document.getElementById('sxrBody');
@@ -70241,6 +70403,13 @@
             return;
         }
     }
+    /* A save that finishes after the view moved to another client must not
+       write the list now on screen under the client it started on (twin of
+       _calCacheWriteIfCurrent). True when written or rightly skipped. */
+    function _sxrCacheWriteIfCurrent(slug, options) {
+        if (sxrClientSlug(sxrState.client) !== slug) return true;
+        return _sxrCacheWrite(slug, sxrState.posts, options);
+    }
     async function _sxrFlushCardSave(pid) {
         let edits = _sxrPendingEdits[pid];
         if (!edits) return;
@@ -70339,7 +70508,7 @@
                 post._writeUiRetryEdits = Object.assign({}, edits);
                 post._writeUiRetrySourceAt = writeUiSourceAt;
                 post._writeUiRetryPrincipal = _writeUiPrincipalKey();
-                if (!_sxrCacheWrite(_saveSlug, sxrState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+                if (!_sxrCacheWriteIfCurrent(_saveSlug)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
             };
             try {
                 checkpointCommittedSource();
@@ -70479,7 +70648,7 @@
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                     else delete _okPost._writeUiPrecommittedNative;
                 }
-                _sxrCacheWrite(_saveSlug, sxrState.posts, { clearRepairIds: [realId] });
+                _sxrCacheWriteIfCurrent(_saveSlug, { clearRepairIds: [realId] });
                 _sxrSetCardStatus(realId, 'saved');
                 // The database stamped a new round on any status this save changed; the echo never says so.
                 _urgentAdoptStampsAfterSave('samples', _saveSlug, realId, edits);
@@ -70515,7 +70684,7 @@
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
                         cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                         delete cur._writeUiPrecommittedNative;
-                        _sxrCacheWrite(_saveSlug, sxrState.posts);
+                        _sxrCacheWriteIfCurrent(_saveSlug);
                     }
                 }
                 try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
@@ -70524,8 +70693,18 @@
             delete _sxrSaveInFlight[pid];
             delete _sxrSaveInFlight[realId];
             if (_releaseSave) _releaseSave();
-            if (_sxrPendingEdits[realId]) _sxrFlushCardSave(realId);
-            else if (realId !== pid && _sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+            /* Only while the view is still on the client this save belongs to.
+               A flush reads the client at the moment it starts, and a sample
+               absent from the list on screen is inserted as a new row, so a
+               re-flush that wakes after a client switch wrote one client's
+               edit as a new sample under another. The fill path already parks
+               such an edit for its own client (_sxrParkEditsForClient); the
+               general engine now does the same. */
+            const queuedId = _sxrPendingEdits[realId] ? realId : (realId !== pid && _sxrPendingEdits[pid] ? pid : '');
+            if (queuedId) {
+                if (sxrClientSlug(sxrState.client) === _saveSlug) _sxrFlushCardSave(queuedId);
+                else _sxrParkEditsForClient(_saveSlug, queuedId);
+            }
         }
     }
 
@@ -71874,7 +72053,6 @@
             ${actionFailure}
             <div class="cal-comments-feed" id="sxrCommentsFeed"><div class="cal-comments-feed-inner">${feedHtml}</div></div>
             ${_sxrComposerHtml(post, videoComments)}`;
-        _svPhoneNotesPresentation();
         const ta = document.getElementById('sxrCommentComposer');
         if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
     }
@@ -71916,7 +72094,7 @@
         const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
         const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target ? _sxrFindCompForCommentId(post, target.id) : _sxrComposeComp);
         if (role === 'client' && !canonicalGate.linked) {
-            return '<div class="cal-comments-empty" data-notes-unavailable><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
         }
         if (canonicalGate.linked && (!canonicalGate.ready || (role === 'client' && !canonicalGate.client))) {
             return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
@@ -71966,7 +72144,15 @@
         _sxrRenderCommentsModal();
         return false;
     }
+    // One send at a time (twin of _calSubmitComposer; see the note there).
+    let _sxrComposerSending = false;
     async function _sxrSubmitComposer() {
+        if (_sxrComposerSending) return;
+        _sxrComposerSending = true;
+        try { return await _sxrSubmitComposerNow(); }
+        finally { _sxrComposerSending = false; }
+    }
+    async function _sxrSubmitComposerNow() {
         const pid = _sxrOpenCommentsPid; if (!pid) return;
         _sxrCaptureModalDrafts();
         const body = (_sxrEditTarget
@@ -71985,7 +72171,8 @@
         const saved = await _sxrAppendComment(pid, parentId, body);
         if (!saved) return;
         if (parentId) { delete _sxrReplyDrafts[parentId]; _sxrReplyDraftsPersist(pid); }
-        else { _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        else { if (_sxrOpenCommentsPid === pid) _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        if (_sxrOpenCommentsPid !== pid) return;
         _sxrReplyTarget = null;
         _sxrRenderCommentsModal();
         setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);
@@ -82964,7 +83151,6 @@
         pen: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/></svg>',
         chev: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>',
         x: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
-        plus: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
     };
 
     // ---- Links: every value that has a stable address opens it ----
@@ -83031,7 +83217,7 @@
                 <div class="search-bar-wrap ca-search" id="caSearchWrap">
                     <div class="search-bar-pill">
                         <input class="search-bar-input" id="caSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
-                            placeholder="${_caPhone() ? (_syncviewStaffCan('clients-admin') ? 'Search' : 'Search clients') : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
+                            placeholder="${_caPhone() ? 'Search clients' : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
                             oninput="_caSetSearch(this.value)" onfocus="_caSearchFocus()" onkeydown="_caSearchKey(event)">
                         <button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById('caSearch')?.focus()">${CA_ICONS.search}</button>
                     </div>
@@ -83039,13 +83225,10 @@
                 </div>
                 <button type="button" class="ca-allbtn" id="caAllBtn" aria-expanded="${_caState.listOpen}" aria-controls="caDrop" onclick="_caToggleList()" title="All clients">${CA_ICONS.list}<span>All clients</span></button>
                 <div class="ca-drop" id="caDrop" role="dialog" aria-label="All clients" hidden></div>
-                ${_syncviewStaffCan('clients-admin') ? `<button type="button" class="ca-allbtn ca-newbtn" id="caNewBtn" onclick="_cnOpen()" title="New client" aria-label="New client">${CA_ICONS.plus}<span>New client</span></button>` : ''}
             </div>
-            <div class="ca-create" id="caCreate"></div>
             <div class="ca-body" id="caBody"></div>
         </div>`;
         _caPaint();
-        _cnRender();
         if (!_caState.loaded && !_caState.loading) _caLoad(false);
         // A manager list that failed to load is asked for again on the next visit.
         else if (_caState.loaded && !_caState.managers && !_caState.managersLoading) _caLoadManagers();
@@ -83634,11 +83817,6 @@
         _cbGeneration++;
         Object.assign(_cbState, { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
         for (const id of ['caOnboarding', 'caHubspot', 'caOnbSummary']) { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
-        // A sign-out or role change also closes an open "New client" dialog.
-        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
-        Object.assign(_cnState, _cnFresh());
-        const create = document.getElementById('caCreate');
-        if (create) create.innerHTML = '';
     }
 
     function _cbWhen(iso) {
@@ -84061,192 +84239,9 @@
         _cbPaint();
     }
 
-    // ── Create client (step 2.5 of docs/plans/2026-10-01-onboarding-checklist-and-profile.md) ──
-    // "New client" in the Clients tab header, ADMIN ONLY. One dialog: name, social
-    // media manager, optional email. While you type, client-onboarding's
-    // `create_preview` checks the name against the live roster and says exactly
-    // what would be made (it writes nothing). "Create client" then makes the
-    // roster row, review link, four save permissions, profile, manager and the
-    // 27-step checklist in one database transaction (client_create_native), and
-    // opens the new profile. A name that starts with "ZZ THROWAWAY" makes a
-    // removable test client instead. Slack is never touched here.
-    const CN_BLOCKERS = {
-        name_invalid: 'Type the client\'s name.',
-        slug_invalid: 'That name has no letters or numbers to make a link name from.',
-        email_invalid: 'That email does not look right. Leave it empty if you do not have it yet.',
-        manager_unknown: 'Pick a social media manager.',
-        name_taken: 'A client with this name already exists. Open it from the search instead.',
-        name_on_a_manager_list: 'This name is already on a manager\'s client list. Use a different name, or take it off that list first.',
-        slug_taken: 'Another client already uses this link name. Add something to the name to tell them apart.',
-        throwaway_name_needs_test_mode: 'Test clients must start with "ZZ THROWAWAY" in capitals.',
-        authority_not_syncview: 'SyncView is not the main copy of the client list yet, so clients cannot be created here.',
-        production_authority_unavailable: 'Production is not running on SyncView yet, so clients cannot be created here.',
-        routing_flag_invalid: 'One of the save-permission lists looks wrong. Nothing can be created until it is checked.',
-        create_not_installed: 'The database step for Create client is not installed yet. It waits for the owner\'s go.',
-        request_reused: 'This dialog was already used for a different client. Close it and start again.',
-    };
-    const _cnFresh = () => ({ open: false, managers: null, managersError: '', name: '', manager: '', email: '', preview: null, previewKey: '', checking: false, busy: false, error: '', requestId: '', seq: 0 });
-    const _cnState = _cnFresh();
-    let _cnTimer = 0;
-    const _cnKey = () => [_cnState.name.trim().replace(/\s+/g, ' '), _cnState.manager, _cnState.email.trim()].join('\u0001');
-    function _cnNewRequestId() {
-        try { if (crypto && crypto.randomUUID) return 'create-' + crypto.randomUUID(); } catch (e) {}
-        return 'create-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
-    }
-
-    async function _cnOpen() {
-        if (!_syncviewStaffCan('clients-admin')) return;
-        Object.assign(_cnState, _cnFresh(), { open: true, requestId: _cnNewRequestId() });
-        _cnRender();
-        document.getElementById('cnName')?.focus({ preventScroll: true });
-        const seq = ++_cnState.seq;
-        let out;
-        try { out = await _cbPost(CB_URL, { action: 'create_preview' }, false); } catch (e) { out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } }; }
-        if (!_cnState.open || seq !== _cnState.seq) return;
-        if (out.resp.status === 200 && out.json.ok) _cnState.managers = Array.isArray(out.json.managers) ? out.json.managers : [];
-        else _cnState.managersError = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not load the managers (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').';
-        _cnPaintManagers();
-        _cnPaintPreview();
-    }
-    function _cnClose(keepFocus) {
-        if (_cnState.busy) return;
-        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
-        Object.assign(_cnState, _cnFresh());
-        const el = document.getElementById('caCreate');
-        if (el) el.innerHTML = '';
-        if (keepFocus !== true) document.getElementById('caNewBtn')?.focus({ preventScroll: true });
-    }
-    function _cnRender() {
-        const el = document.getElementById('caCreate');
-        if (!el) return;
-        if (!_cnState.open) { el.innerHTML = ''; return; }
-        el.innerHTML = `<div class="cn-scrim" onclick="_cnClose()"></div>
-            <div class="cn-dialog" role="dialog" aria-modal="true" aria-labelledby="cnTitle" onkeydown="_cnKeydown(event)">
-                <div class="cn-head">
-                    <h3 id="cnTitle">New client</h3>
-                    <button type="button" class="ca-iconbtn" onclick="_cnClose()" aria-label="Close">
-                        <svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>
-                    </button>
-                </div>
-                <p class="cn-lead">Sets the client up everywhere SyncView needs it, in one step. Nothing is made until you press Create client.</p>
-                <label class="cn-field"><span class="cn-label">Client name</span>
-                    <input class="ca-input" id="cnName" type="text" autocomplete="off" spellcheck="false" maxlength="160" placeholder="First and last name, as the team writes it" value="${_calEscAttr(_cnState.name)}" data-cn="name" oninput="_cnInput(this)">
-                </label>
-                <div class="cn-slug" id="cnSlug" aria-live="polite"></div>
-                <label class="cn-field"><span class="cn-label">Social media manager</span>
-                    <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
-                </label>
-                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt">optional</span></span>
-                    <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
-                </label>
-                <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
-                <div class="cn-actions">
-                    <button type="button" class="cc-btn" onclick="_cnClose()">Cancel</button>
-                    <button type="button" class="cc-btn primary" id="cnCreateBtn" onclick="_cnCreate()" disabled>Create client</button>
-                </div>
-            </div>`;
-        _cnPaintManagers();
-        _cnPaintPreview();
-    }
-    function _cnPaintManagers() {
-        const sel = document.getElementById('cnManager');
-        if (!sel) return;
-        if (_cnState.managersError) { sel.innerHTML = `<option value="">${_calEsc(_cnState.managersError)}</option>`; sel.disabled = true; return; }
-        if (!_cnState.managers) return;
-        sel.disabled = false;
-        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}</option>`).join('');
-    }
-    function _cnKeydown(e) {
-        if (e.key === 'Escape') { e.preventDefault(); _cnClose(); return; }
-        if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') { e.preventDefault(); _cnCreate(); }
-    }
-    function _cnInput(el) {
-        const k = el && el.getAttribute('data-cn');
-        if (!k || _cnState.busy) return;
-        _cnState[k] = el.value;
-        _cnState.error = '';
-        _cnPaintPreview();
-        if (_cnTimer) clearTimeout(_cnTimer);
-        _cnTimer = setTimeout(_cnCheck, 350);
-    }
-    async function _cnCheck() {
-        _cnTimer = 0;
-        if (!_cnState.open || !_cnState.name.trim() || !_cnState.manager) { _cnState.preview = null; _cnPaintPreview(); return; }
-        const key = _cnKey(), seq = ++_cnState.seq;
-        _cnState.checking = true; _cnPaintPreview();
-        let out;
-        try { out = await _cbPost(CB_URL, { action: 'create_preview', display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, false); }
-        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
-        if (!_cnState.open || seq !== _cnState.seq) return;
-        _cnState.checking = false;
-        if (out.resp.status === 200 && out.json.ok) { _cnState.preview = out.json; _cnState.previewKey = key; }
-        else if (out.resp.status === 400 && out.json.error) { _cnState.preview = { ready: false, blockers: [out.json.error] }; _cnState.previewKey = key; }
-        else { _cnState.preview = null; _cnState.error = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not check the name (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').'; }
-        _cnPaintPreview();
-    }
-    function _cnSlugFor(name) {
-        let t = String(name || '').trim().toLowerCase();
-        try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
-        return t.replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, '');
-    }
-    function _cnPaintPreview() {
-        const slugEl = document.getElementById('cnSlug');
-        const slug = _cnSlugFor(_cnState.name);
-        const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
-        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet</span>' : ''}` : '';
-        const box = document.getElementById('cnPreview');
-        const btn = document.getElementById('cnCreateBtn');
-        const p = _cnState.preview;
-        const fresh = p && _cnState.previewKey === _cnKey();
-        const ready = !!(fresh && p.ready && !_cnState.checking);
-        if (btn) { btn.disabled = !ready || _cnState.busy; btn.textContent = _cnState.busy ? 'Creating…' : 'Create client'; }
-        if (!box) return;
-        if (_cnState.error) { box.innerHTML = `<div class="ca-msg is-error" role="alert">${_calEsc(_cnState.error)}</div>`; return; }
-        if (!_cnState.name.trim() || !_cnState.manager) { box.innerHTML = `<div class="cn-hint">Type a name and pick a manager. SyncView checks it before anything is made.</div>`; return; }
-        if (!fresh || _cnState.checking) { box.innerHTML = `<div class="cn-hint">Checking…</div>`; return; }
-        if (!p.ready) {
-            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span></div>`;
-            return;
-        }
-        const items = (p.will_create || []).map(t => `<li>${_calEsc(t)}</li>`).join('');
-        box.innerHTML = `<div class="cn-ready">
-                <div class="cn-ready-title"><span class="cn-dot" aria-hidden="true"></span>Ready. This will make:</div>
-                <ul class="cn-list">${items}</ul>
-                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>. ' : ''}Slack channels are not made here: the finalizer makes them later, once the onboarding form and filming plan are in.${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and can be removed completely.' : ''}</div>
-            </div>`;
-    }
-    async function _cnCreate() {
-        const p = _cnState.preview;
-        if (_cnState.busy || !p || !p.ready || _cnState.previewKey !== _cnKey() || _cnState.checking) return;
-        _cnState.busy = true; _cnState.error = ''; _cnPaintPreview();
-        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = true; }
-        let out;
-        try { out = await _cbPost(CB_URL, { action: 'create', request_id: _cnState.requestId, display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, true); }
-        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
-        _cnState.busy = false;
-        if (!_cnState.open) return;
-        const j = out.json;
-        if (out.resp.status === 200 && j.ok) {
-            const slug = j.client_slug, name = p.display_name;
-            _cnClose(true);
-            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.`);
-            try { if (typeof window._caLoad === 'function') await window._caLoad(true); } catch (e) {}
-            try { if (typeof window._caLoadManagers === 'function') window._caLoadManagers(); } catch (e) {}
-            try { if (typeof window._caSelect === 'function') window._caSelect(slug); } catch (e) {}
-            return;
-        }
-        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = false; }
-        const code = j.error || ('HTTP ' + out.resp.status);
-        _cnState.error = (CN_BLOCKERS[code] || (out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not create the client (' + code + ').')) + ' Nothing was made.';
-        // A refusal from the database means the live roster moved: check again.
-        if (out.resp.status === 409) { _cnState.preview = null; _cnState.previewKey = ''; }
-        _cnPaintPreview();
-    }
-
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional, _cnClose,
-        _cnCreate, _cnInput, _cnKeydown, _cnOpen
+        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional
     });
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
@@ -88188,4 +88183,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-9720e2ddda94.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-3db31cd6db32.js");

@@ -31058,3 +31058,18 @@ Fixed in `tiktok-upload` (no n8n workflow edited):
 - Admin actions `webhook_status`, `webhook_register`, `webhook_remove` and `scripts/tiktok-pfm-webhook.js` to point Post For Me at the function. They never show a secret.
 Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
 Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
+
+2026-10-08, Prism batch 4: PR #1994's final head passed both previously red
+hosted jobs and was independently merged; Prism did not merge it. The owner
+narrowed future acceptance to 1440 desktop, 393 x 852 iPhone and 412 x 915
+Android on the approved priority screens. The coverage inventory is rewritten
+for that scope, retaining historical galleries and legacy CI guards. An empty
+Today phone view now skips five zero-item job tiles. Native Notes has readable
+labels and a compact unavailable Samples state without a contradictory typing
+prompt. Drafts, native choices, the refusal gate and desktop presentation are
+preserved. The Today harness now applies empty/error/loading fixtures before
+boot instead of capturing cached normal data. Batch 4 publishes 18 reviewed
+fixture pairs, with exact source/PNG hashes and explicit remaining OPEN work.
+The full clean round, fresh review, hosted batch checks and deployment remain
+pending. Filming, Quiz, Save problems and unlisted tabs are excluded by the
+owner's revised scope. No database/n8n changes or live mutations were made.

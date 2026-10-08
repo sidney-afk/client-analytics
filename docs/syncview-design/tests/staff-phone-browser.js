@@ -298,13 +298,21 @@ state('submit-banner', async p => { await p.evaluate(() => { _linearSetJustCreat
 state('today-rings', async p => { await go(p, 'today'); await settle(p, 1500); });
 state('today-ring-open', async p => { await go(p, 'today'); await settle(p, 1500); await p.locator('.tdy-rg').nth(1).click().catch(() => {}); await settle(p, 400); });
 state('today-walk', async p => { await go(p, 'today'); await settle(p, 1500); await p.locator('.tdy-vw button').nth(1).click(); await settle(p, 500); });
-state('today-all-clear', async p => { scenario.today = 'empty'; await go(p, 'today'); await settle(p, 1500); });
-state('today-error', async p => { scenario.today = 'error'; await go(p, 'today'); await settle(p, 1500); });
-state('today-loading', async p => { await holdThen(async () => { await go(p, 'today'); }, 'today'); });
+// Today prefetches at boot and keeps a fresh answer for twenty seconds. Configure
+// its transport before navigation, rather than relabelling a cached normal page.
+const todayBeforeBoot = mode => () => { scenario.today = mode; if (mode === 'slow') scenario.gate = new Promise(() => {}); };
+const todayEmpty = async p => {
+  await go(p, 'today');
+  await p.waitForFunction(() => tdyState.data && !tdyState.data.open.length && !tdyState.data.done.length && !(tdyState.data.posts || []).length);
+  await p.locator('#tdyRoot .tdy-win h2').filter({hasText:'All clear'}).waitFor();
+};
+state('today-all-clear', todayEmpty, {beforeBoot:todayBeforeBoot('empty')});
+state('today-error', async p => { await go(p, 'today'); await p.locator('#tdyRoot [role=alert]').filter({hasText:'Today could not load'}).waitFor(); }, {beforeBoot:todayBeforeBoot('error')});
+state('today-loading', async p => { await go(p, 'today'); await p.waitForFunction(() => !tdyState.data && !tdyState.error && !!document.querySelector('#tdyRoot .sv-skeleton')); }, {beforeBoot:todayBeforeBoot('slow')});
 /* Today: editor */
 state('today-editor-list', async p => { await go(p, 'today'); await settle(p, 1500); }, { editor: true });
 state('today-editor-deck', async p => { await go(p, 'today'); await settle(p, 1500); await p.locator('.tdy-vw button').nth(1).click(); await settle(p, 500); }, { editor: true });
-state('today-editor-all-clear', async p => { scenario.today = 'empty'; await go(p, 'today'); await settle(p, 1500); }, { editor: true });
+state('today-editor-all-clear', todayEmpty, { editor: true, beforeBoot:todayBeforeBoot('empty') });
 
 /* Phone bar sheets (after the bar exists) */
 state('sheet-tabs', async p => { await go(p, 'today'); await settle(p, 1200); await openSheet(p, 'tabs'); });
@@ -364,6 +372,7 @@ if (require.main === module) (async () => {
     for (const theme of THEMES) for (const width of WIDTHS) for (const st of S) {
       if (ONLY && !ONLY.test(st.name)) continue;
       resetScenario();
+      if (st.beforeBoot) st.beforeBoot();
       const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
       await installBackend(ctx, !!st.editor);
       await seedStaffGate(ctx);

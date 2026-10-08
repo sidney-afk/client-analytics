@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7252 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7263 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2080 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -25,7 +25,7 @@
 | 17 | `080-workload-render.js.part` | 3469 | Smart default: a creative lands on their own work (see |
 | 18 | `090-workload-popovers.js.part` | 1017 | Sub-issue popover |
 | 19 | `092-core-submit-form-navigation.js.part` | 899 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
-| 20 | `095-shared-client.js.part` | 565 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
+| 20 | `095-shared-client.js.part` | 586 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 22 | `097-today.js.part` | 841 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
@@ -49,7 +49,7 @@
 | 41 | `180-calendar-native-post-media.js.part` | 2942 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 462 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 44 | `190-calendar-approval-comments.js.part` | 3211 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 44 | `190-calendar-approval-comments.js.part` | 3213 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 45 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 46 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 47 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
@@ -58,7 +58,7 @@
 | 50 | `250-production-controls-data.js.part` | 3093 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3058 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 53 | `280-samples-cards-notes.js.part` | 2946 | SURFACE 3: the save engine |
+| 53 | `280-samples-cards-notes.js.part` | 2947 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 55 | `299-instagram-upload.js.part` | 696 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
 | 56 | `300-tiktok-upload.js.part` | 2356 | TIKTOK UPLOAD MODULE |

@@ -530,6 +530,26 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         }
         _svClientPhoneMount(root, 'Analytics', 'analytics', '.detail-info-btn', wrapper);
     }
+    const _svPhoneNotesOriginal = new WeakMap();
+    function _svPhoneNotesPresentation() {
+        const phone = window.matchMedia('(max-width: 767px)').matches;
+        document.querySelectorAll('.cal-comments-modal').forEach(modal => {
+            modal.querySelectorAll('[data-cm-toggle="comp"] .cal-cm-audience-cap, [data-cm-toggle="tweak"] .cal-cm-audience-cap').forEach(label => {
+                if (phone && !_svPhoneNotesOriginal.has(label)) _svPhoneNotesOriginal.set(label, label.textContent);
+                if (_svPhoneNotesOriginal.has(label)) label.textContent = phone
+                    ? (label.closest('[data-cm-toggle]').dataset.cmToggle === 'comp' ? 'About' : 'Type')
+                    : _svPhoneNotesOriginal.get(label);
+            });
+            const blocked = modal.querySelector(':scope > .cal-comments-empty');
+            if (!blocked) { modal.removeAttribute('data-phone-notes-unavailable'); return; }
+            const message = Array.from(blocked.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim() === 'This sample component is not linked to an exact Production deliverable.');
+            if (phone && message && !_svPhoneNotesOriginal.has(blocked)) _svPhoneNotesOriginal.set(blocked, { node: message, text: message.textContent });
+            const original = _svPhoneNotesOriginal.get(blocked);
+            if (!original) { modal.removeAttribute('data-phone-notes-unavailable'); return; }
+            original.node.textContent = phone ? 'Your team needs to finish setting up notes for this card.' : original.text;
+            modal.toggleAttribute('data-phone-notes-unavailable', phone);
+        });
+    }
     function _svClientPhoneWatch() {
         const content = document.getElementById('content');
         if (!content) return;
@@ -541,6 +561,7 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         window.addEventListener('resize', () => {
             if (innerWidth < 5 || innerHeight < 5 || visualViewport && (visualViewport.width < 5 || visualViewport.height < 5)) return;
             const next = window.matchMedia('(max-width: 767px)').matches;
+            _svPhoneNotesPresentation();
             if (next === _svClientPhoneWidth) return;
             _svClientPhoneWidth = next;
             if (!next) for (const root of Array.from(_svClientPhoneRoots.keys())) _svClientPhoneRestore(root);
@@ -560,6 +581,6 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         svOpenAnalytics
     });
 export {
-  SV_CLIENT_FOLLOW_TABS, _svClientHue, _svClientPhoneActive, _svClientPhoneMount, _svClientPhoneRestore, _svClientPhoneRegisterSamplesRefresh, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
+  SV_CLIENT_FOLLOW_TABS, _svClientHue, _svClientPhoneActive, _svClientPhoneMount, _svClientPhoneRestore, _svClientPhoneRegisterSamplesRefresh, _svPhoneNotesPresentation, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
   svSharedClientGet, svSharedClientNote
 };

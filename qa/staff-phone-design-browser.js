@@ -5,6 +5,7 @@ const {chromium}=require('playwright');
 const staff=require('../docs/syncview-design/tests/staff-phone-browser');
 const {seedStaffGate}=require('./staff-gate-seed');
 const rules=require('./staff-phone-rule-checks');
+const {heightFor}=require('./client-phone/profiles');
 const arg=(k,d)=>process.argv.find(x=>x.startsWith('--'+k+'='))?.slice(k.length+3)||d;
 const out=arg('out',''),before=!!arg('before-root','');
 const widths=arg('widths','390,430').split(',').map(Number),rows=[];
@@ -12,7 +13,7 @@ async function main(){
  const server=await staff.serve(),origin='http://127.0.0.1:'+server.address().port;
  const browser=await chromium.launch();
  try{for(const route of ['calendar','sample-reviews'])for(const width of widths)for(const theme of ['light','dark'])for(const missing of [true,false]){
-  const ctx=await browser.newContext({viewport:{width,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+  const ctx=await browser.newContext({viewport:{width,height:heightFor(width,arg('height'))},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   await staff.installBackend(ctx,false);await seedStaffGate(ctx);
   await ctx.route('**/*',r=>r.request().resourceType()==='image'?r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400"><rect width="720" height="400" fill="#b5c5b5"/><path d="M0 320 200 90 430 350 570 190 720 340V400H0Z" fill="#708b79"/><circle cx="550" cy="90" r="38" fill="#f0dfb8"/></svg>'}):r.fallback());
   await ctx.addInitScript(theme=>localStorage.setItem('syncview_theme',theme),theme);

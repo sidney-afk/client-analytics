@@ -13,7 +13,7 @@ import {
   _writeUiSourceClientSlug, _writeUiSourceEditsOnly
 } from './120-calendar-flags-write-repair.js';
 import { _calShouldBumpThumbRevForGraphicStatus } from './130-calendar-model-cache.js';
-import { _svClientPhoneActive, _svClientPhoneRegisterSamplesRefresh } from './095-shared-client.js';
+import { _svClientPhoneActive, _svClientPhoneRegisterSamplesRefresh, _svPhoneNotesPresentation } from './095-shared-client.js';
 import { _writeUiLegacyWithoutRetired } from './134-calendar-prefs-mount.js';
 import {
   _writeUiApplyOverallStatus, _writeUiApplySupersededTeamDelivery,
@@ -1954,6 +1954,7 @@ import {
             ${actionFailure}
             <div class="cal-comments-feed" id="sxrCommentsFeed"><div class="cal-comments-feed-inner">${feedHtml}</div></div>
             ${_sxrComposerHtml(post, videoComments)}`;
+        _svPhoneNotesPresentation();
         const ta = document.getElementById('sxrCommentComposer');
         if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
     }

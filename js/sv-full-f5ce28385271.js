@@ -1378,7 +1378,12 @@
         if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
         const started = performance.now();
         const promise = (async () => {
-            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
+            // The roster switch follows the staff path: with "roster": "database" a
+            // link the numbers read is not on for still asks for its own row only,
+            // so its client list never comes from the Clients Info tab.
+            const flagValue = await _analyticsMirrorFlagShared();
+            const numbersOn = _analyticsMirrorOnFor(flagValue, cap.slug);
+            if (!numbersOn && !_analyticsRosterOn(flagValue)) return null;
             const token = _syncviewClientWriteToken();
             if (!token) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -1391,7 +1396,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
                     cache: 'no-store',
                     signal: controller ? controller.signal : undefined,
-                    body: JSON.stringify({ slug: cap.slug })
+                    body: JSON.stringify(numbersOn ? { slug: cap.slug } : { slug: cap.slug, datasets: ['client_profile'] })
                 });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
@@ -1399,13 +1404,17 @@
                 const d = json.data, rc = json.receipts || {};
                 const covered = (rows, receipt) => (Array.isArray(rows) && rows.length > 0) || !!rc[receipt];
                 const profile = d.client_profile;
-                const ess = (profile && profile.display_name && covered(d.metrics, 'metrics')) ? {
+                // The client's own Clients Info row, kept even when the numbers
+                // are not covered: with the roster switch on, the Metrics Sheet
+                // fallback still needs it and the Sheet's Clients Info is never read.
+                const clients = (profile && profile.display_name) ? [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
+                    tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
+                    content_description: _analyticsMirrorText(profile.content_description) }] : null;
+                const ess = (numbersOn && clients && covered(d.metrics, 'metrics')) ? {
                     metrics: _analyticsMirrorRows(d.metrics),
-                    clients: [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
-                        tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
-                        content_description: _analyticsMirrorText(profile.content_description) }]
+                    clients
                 } : null;
-                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                const ext = (numbersOn && covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
                     && covered(d.content_summaries, 'content_summaries')) ? {
                     topvids: _analyticsMirrorRows(d.top_videos),
                     mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
@@ -1413,7 +1422,7 @@
                 } : null;
                 console.log('[SyncView] analytics database read in ' + Math.round(performance.now() - started) + ' ms'
                     + (ess ? '' : '; no copy of the numbers yet, using the Sheets') + (ext ? '' : '; no copy of videos/briefs yet, using the Sheets'));
-                return { ess, ext };
+                return { ess, ext, clients };
             } finally {
                 if (timer) clearTimeout(timer);
                 if (clientEntryRun.signal) clientEntryRun.signal.removeEventListener('abort', onAbort);
@@ -1437,6 +1446,21 @@
     }
     function _analyticsMirrorStaffOn(value){
         return !!value && typeof value === 'object' && (value.enabled === true || value.staff === true);
+    }
+    /* THE ROSTER SWITCH (Sheets move, slice 1: docs/plans/2026-10-03-sheets-remaining-map.md).
+       Since 2026-10-02 the database is the main copy of Clients Info and Social
+       Media Managers; the two Sheet tabs are a mirror the database keeps. With
+       "roster": "database" in the analytics read switch, the page never reads
+       those two tabs: the client list comes from analytics-read (staff: every
+       client; a client link: its own row) or this browser's saved copy, and the
+       review queue's manager map from smm-weekly-reports. Missing or anything
+       else: exactly as before. One switch row, read once per load (it is
+       already in the boot batch). Way back: remove the "roster" key. */
+    function _analyticsRosterOn(value){
+        return !!value && typeof value === 'object' && value.roster === 'database';
+    }
+    function _analyticsRosterFromDatabase(){
+        return _analyticsMirrorFlagShared().then(_analyticsRosterOn, () => false);
     }
     // Rows back into the Sheet's CSV shape, so the database answer goes
     // through the same parse, fingerprint and saved-copy path as a Sheet.
@@ -1467,7 +1491,9 @@
         if (_analyticsStaffMirror[scope]) return _analyticsStaffMirror[scope];
         const started = performance.now();
         const promise = (async () => {
-            if (!_analyticsMirrorStaffOn(await _analyticsMirrorFlagShared())) return null;
+            const flagValue = await _analyticsMirrorFlagShared();
+            const rosterOn = _analyticsRosterOn(flagValue);
+            if (!_analyticsMirrorStaffOn(flagValue) && !(rosterOn && scope === 'overview')) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
             const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_STAFF_TIMEOUT_MS[scope]) : null;
             try {
@@ -1491,7 +1517,17 @@
                     const m = d.metrics || {}, profiles = Array.isArray(d.client_profiles) ? d.client_profiles : [];
                     const latest = String(json.latest_metrics_date || '');
                     const oldest = new Date(Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
-                    if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
+                    if (rosterOn && profiles.length) {
+                        // The profiles ARE the main copy: no Sheet copy receipt
+                        // vouches for them. The numbers keep their freshness rule;
+                        // when it fails, metrics is null and only Metrics uses the Sheet.
+                        out = { metrics: null, clients: profiles.map(_analyticsMirrorProfileRow) };
+                        if (!Array.isArray(m.rows) || !m.rows.length) why = 'no copy of the numbers yet';
+                        else if (!fresh('metrics')) why = 'no complete copy of the numbers in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                        else if (latest < oldest) why = 'numbers are older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                        else out.metrics = _analyticsMirrorCsv(m.columns, m.rows);
+                    }
+                    else if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
                     else if (!fresh('metrics') || !fresh('client_profiles')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else if (latest < oldest) why = 'copy is older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else out = { metrics: _analyticsMirrorCsv(m.columns, m.rows), clients: profiles.map(_analyticsMirrorProfileRow) };
@@ -1506,7 +1542,7 @@
                     };
                 }
                 console.log('[SyncView] analytics database ' + scope + ' read in ' + Math.round(performance.now() - started) + ' ms'
-                    + (out ? '' : '; ' + why + ', using the Sheets'));
+                    + (why ? '; ' + why + (out ? ', numbers from the Metrics Sheet, clients from the database' : ', using the Sheets') : ''));
                 return out;
             } finally {
                 if (timer) clearTimeout(timer);
@@ -1517,7 +1553,7 @@
         });
         // A failed or refused read is not remembered: the next load tries again.
         _analyticsStaffMirror[scope] = promise;
-        promise.then(r => { if (!r) _analyticsStaffMirror[scope] = null; });
+        promise.then(r => { if (!r || r.metrics === null) _analyticsStaffMirror[scope] = null; });
         return promise;
     }
 
@@ -1530,13 +1566,29 @@
             return;   // a client link never saves a copy
         }
         const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('overview');
-        if(staff){
+        if(staff&&staff.metrics!=null){
             _analyticsLiveEssentials = true;
             const publicClientRows = _applyEssentialTexts(staff.metrics, staff.clients);
             _analyticsCacheWrite({ metrics: staff.metrics, clients: publicClientRows });
             return;
         }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
+        if(await _analyticsRosterFromDatabase()){
+            // Roster switch on: the client list never comes from the Sheet.
+            // Staff: the database answer, else this browser's saved copy of it.
+            // A client link: its own row from the database, nothing else.
+            let clients=clientEntryRun?(mirror&&mirror.clients):(staff&&staff.clients);
+            if(!clients&&!clientEntryRun){const saved=_analyticsCacheRead();clients=saved&&Array.isArray(saved.clients)&&saved.clients.length?saved.clients:null;}
+            if(!clients)throw new Error('analytics_roster_unavailable');
+            const mr=await fetch(METRICS_URL,requestOpts);
+            if(!mr.ok)throw new Error('analytics_essentials_http');
+            const metricsText=await mr.text();
+            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+            _analyticsLiveEssentials = true;
+            const publicClientRows = _applyEssentialTexts(metricsText, clients);
+            if(!clientEntryRun)_analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
+            return;
+        }
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
         if(!mr.ok||!cr.ok)throw new Error('analytics_essentials_http');
         const metricsText=await mr.text(), clientsText=await cr.text();
@@ -16778,16 +16830,7 @@
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
             if (!list.length) return head + scope + _tdyClientsHtml(d) + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>`;
-            /* The walk keeps its place by POST, not by position. The list is
-               rebuilt on every live re-read, and with a bare index a post
-               leaving the list earlier in date order (a teammate added its
-               link) silently swapped the card under "Post 3 of 5" for the next
-               one, possibly another client's, with "Open card" following the
-               swap. If the post being shown is gone, the position is kept. */
-            let i = tdyState.walkId ? list.findIndex(x => x.id === tdyState.walkId) : -1;
-            if (i < 0) i = ((tdyState.walk % list.length) + list.length) % list.length;
-            tdyState.walk = i;
-            tdyState.walkId = list[i].id;
+            const i = ((tdyState.walk % list.length) + list.length) % list.length;
             const p = list[i], name = d.names[p.client] || p.client || '';
             const gap = _calSmmMediaGap(p) || {};
             const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
@@ -16995,7 +17038,7 @@
     }
     function _tdyPurgeSensitiveState() {
         tdyState.gen++; tdyState.purges++; tdyState.freshAt = 0; tdyState.fromSaved = false; _tdyInflight = null;
-        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0; tdyState.walkId = '';
+        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0;
         _tdyClientRows = null;
         _tdyAlsoSees = null;
         _tdyCacheClear();
@@ -17104,7 +17147,7 @@
         _tdyPaint();
     }
     function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
-    function _tdyWalkNext() { tdyState.walk++; tdyState.walkId = ''; _tdyPaint(); }
+    function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
     function _tdyOpenSync(id) {
         try { window.open(svRoute.fast('/synclinear/' + encodeURIComponent(id)), '_blank', 'noopener'); } catch (e) {}
@@ -17145,20 +17188,6 @@
         if (!r) return;
         const name = d.names[r.client_slug] || r.client_slug;
         try { svSharedClientNote(name); } catch (e) {}
-        /* A work item that knows its card opens it the way a post row does.
-           The other road names only the work item, and the Calendar lets a
-           card past its saved month and status filter only when it is asked
-           for by card id, so "Open card" from "To approve" or "Dates to move"
-           ended on "Card not shown" whenever that client's filter hid the
-           card, and the address never carried the card either. Measured
-           2026-10-08: all 261 open calendar-origin items carry a card id that
-           is a card of their own client. */
-        if (r.card_id) {
-            _calSetFocusRequest({ client: name, cardId: String(r.card_id) });
-            navTo('calendar');
-            _tdyCardInAddress(r.client_slug, String(r.card_id));
-            return;
-        }
         wlOpenInContentCalendar(name, '', r.id);
     }
     function _tdyTeardown() { tdyState.gen++; _tdyStopLive(); }
@@ -32012,19 +32041,11 @@
             showNotify('Not waiting on Kasper', 'Nothing on this card is at Kasper Approval right now, so there is nothing to ping him about.');
             return;
         }
-        /* The client this card belongs to, fixed now. The marker is saved after
-           the confirm, two flag reads and the Slack call, and it used to read
-           the client on screen at THAT moment: after a quick client switch the
-           "sent" marker went to the other client with this card's id, was
-           refused, and the ping (already delivered) left no trace, so Kasper's
-           Urgent list missed the card and the button was live for a second
-           ping. The editor ping already pins its client the same way. */
-        const sourceClient = calState.client;
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(calState.client || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('calendar'), surface: 'calendar', component: comp },
-            persist: (ping) => _calPersistKasperUrgentForPost(sourceClient, post, comp, ping),
-            preflight: () => _calAssertSavingOn(sourceClient)
+            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping),
+            preflight: () => _calAssertSavingOn(calState.client)
         });
     }
     /* Which component the ping is recorded against. The button can be clicked
@@ -43455,18 +43476,7 @@
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', (e) => {
-            card.classList.remove('dragging');
-            /* A drag that ended with no drop (Escape, or released outside the
-               strip) saved nothing, but the cards had already been moved on
-               screen as the pointer passed over them and nothing put them
-               back. The strip showed an order that did not exist, and the next
-               real drop read the order from the screen and saved the abandoned
-               move with it. Redraw from what is actually stored. */
-            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
-                try { _calRenderBody({ preserveScroll: true }); } catch (err) {}
-            }
-        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');
@@ -44890,13 +44900,7 @@
                 items.push({ component, name: component === 'video' ? 'Video work item' : k.second + ' work item', read, plan });
             }
             const slot = _arxOrderSlot(fresh, _arxLive(kind));
-            /* "Has passed" means before today on this person's calendar. Parsing
-               the date as an instant read it as midnight UTC, so west of UTC
-               the note came on during the evening of the scheduled day itself
-               (from 6 pm in Guatemala). Compare the two days as days. */
-            const nowDay = new Date();
-            const todayIso = nowDay.getFullYear() + '-' + String(nowDay.getMonth() + 1).padStart(2, '0') + '-' + String(nowDay.getDate()).padStart(2, '0');
-            const past = kind === 'cal' && !!fresh.scheduled_date && String(fresh.scheduled_date).slice(0, 10) < todayIso;
+            const past = kind === 'cal' && fresh.scheduled_date && Date.parse(String(fresh.scheduled_date).slice(0, 10)) < Date.now() - 86400000;
             const ok = await _arxDialog({
                 title: 'Restore “' + _arxNameOf(fresh) + '”?',
                 msg: 'It goes back to ' + k.where + ' exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be ' + status + '.',
@@ -46338,15 +46342,13 @@
        "ready only" filter (or an active month filter) would otherwise hide an
        in-review post; the focus clears when the user leaves the Sheet. */
     function _calReviewOpenInSheet(pid) {
-        /* Through the one road every other view change takes. This used to
-           switch the view by hand, which skipped what onCalViewChange also
-           does: the Sheet came up with no Organize menu (so an active month
-           filter could be neither seen nor changed), no Select buttons and no
-           zoom, until "Sheet" was clicked again. The focus is set after, since
-           it is what lets the card past the filters. */
         calState.focusPid = pid;
-        if (calState.view !== 'organizer') onCalViewChange('organizer');
-        else _calRenderBody();
+        if (calState.view !== 'organizer') {
+            calState.view = 'organizer';
+            _calSavePrefs();
+            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
+        }
+        _calRenderBody();
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
             if (!card) return;
@@ -46368,13 +46370,12 @@
 
     function editInOrganizerFromPreview(id) {
         closeCalPreview();
-        // Same road as _calReviewOpenInSheet, and the same focus: without it a
-        // card the saved month or status filter hides (every card from the
-        // Unscheduled tray under a month filter) was never rendered, and the
-        // button did nothing at all.
-        calState.focusPid = id;
-        if (calState.view !== 'organizer') onCalViewChange('organizer');
-        else _calRenderBody({ preserveScroll: true });
+        if (calState.view !== 'organizer') {
+            calState.view = 'organizer';
+            _calSavePrefs();
+            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
+            _calRenderBody();
+        }
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
             if (card) {
@@ -58918,15 +58919,7 @@
             return _prodCancelDescriptionEdit(id);
         }
         function _prodCaptureDescriptionFocus(root) {
-            /* The ROW id, not the raw open id. A card opened by a pasted link
-               or through its batch is open under its identifier, while the
-               description is read and kept under the row id (the comments had
-               the same split and were fixed with _prodOpenRowId; see
-               test/prod-deep-link-open-id-key.js). With the raw id the
-               description never repainted when its read landed, so it sat on
-               the loading bar, and the caret jumped to the start of the text on
-               any re-render while editing. */
-            const id = _prodOpenRowId();
+            const id = String(_prodState.openId || '');
             const state = id && _prodState.descriptions.get(id);
             if (!root || !state || !state.editing) return null;
             const panel = root.querySelector('[data-prod-description="' + CSS.escape(id) + '"]');
@@ -59418,7 +59411,7 @@
                         _prodAdoptDescriptionValue(id, loadedRow.description, loadedRow.updated_at);
                         const reconciled = _prodState.descriptions.get(id);
                         if (reconciled) reconciled.scopeSignature = _prodIssueScopeSignature(issue);
-                        if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                        if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                         return state;
                     }
                 }
@@ -59443,7 +59436,7 @@
                 state.refreshError = '';
                 state.refreshSilent = !force;
                 state.status = state.hasValue ? 'stale' : 'loading';
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 // The owner reads, guards and records. It never throws.
                 await _prodEnsureBatchDescription(batchId, force);
                 if (!panelStillCurrent()) {
@@ -59482,7 +59475,7 @@
                     state.refreshError = '';
                     state.status = state.hasValue ? 'stale' : 'idle';
                 }
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             }
             if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
@@ -59492,7 +59485,7 @@
                 state.status = state.hasValue ? 'stale' : 'error';
                 state.error = state.hasValue ? state.error : 'Staff sign-in is required to load this description.';
                 state.refreshError = state.hasValue ? 'Staff sign-in is required to refresh this description.' : '';
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return null;
             }
             const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
@@ -59516,7 +59509,7 @@
             state.refreshSilent = !force;
             if (state.hasValue) state.status = 'stale';
             else state.status = 'loading';
-            if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+            if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
             try {
                 const response = await fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
@@ -59585,7 +59578,7 @@
                     adopted.renderValue = renderBrief;
                     adopted.renderExpiresAt = renderExpiresAt;
                 }
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             } catch (error) {
                 if (!requestStillCurrent()) return null;
@@ -59597,7 +59590,7 @@
                     state.status = 'error';
                     state.error = 'Description could not load.';
                 }
-                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return null;
             }
         }
@@ -69975,13 +69968,11 @@
         if (!post) return;
         const comp = _sxrKasperUrgentPingComp(post);
         if (!comp) { if (typeof showNotify === 'function') showNotify('Not waiting on Kasper', 'Nothing on this sample is at Kasper Approval right now, so there is nothing to ping him about.'); return; }
-        // The sample's own client, fixed now: the marker is saved seconds later (see _calSendKasperUrgentSlack).
-        const sourceClient = sxrState.client;
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
-            persist: (ping) => _sxrPersistKasperUrgentForPost(sourceClient, post, comp, ping),
-            preflight: () => _sxrAssertSavingOn(sourceClient)
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping),
+            preflight: () => _sxrAssertSavingOn(sxrState.client)
         });
     }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
@@ -70396,13 +70387,7 @@
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', (e) => {
-            card.classList.remove('dragging');
-            // A drag with no drop saved nothing: redraw the stored order (see the Calendar's twin).
-            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
-                try { _sxrRenderBody({ preserveScroll: true }); } catch (err) {}
-            }
-        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');
@@ -75540,7 +75525,7 @@
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
@@ -75820,21 +75805,7 @@
     function mountInstagramPanel(deps) {
         _igDeps = deps;
         const shared = svSharedClientFor('tiktok-upload');
-        /* Follow the client in the top bar unless a post is already being put
-           together, as the TikTok side does. This only took the top-bar client
-           when the form had none, so after its first client the Instagram form
-           kept that one for the whole session: pick another client in the top
-           bar and the top bar and the TikTok side said B while this form, empty,
-           still said A, and a video attached then went to A's Instagram. */
-        const igIdle = !igState.file && !String(igState.title || '').trim() && !igState.submitting;
-        if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
-            if (igState.client && igState.client !== shared) {
-                igState.error = null; igState.notice = null;
-                if (igState.cover.source === 'calendar') _igCoverClear(true);
-                igState.cover.cardId = ''; igState.cover.note = '';
-            }
-            igState.client = shared;
-        }
+        if (!igState.client && shared && (WL_CLIENT_NAMES || []).includes(shared)) igState.client = shared;
         _igMounted = true;
         const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');
         if (form) form.hidden = false;
@@ -78393,7 +78364,44 @@
         try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
         return subs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
     }
+    /* Roster switch on (see _analyticsRosterOn): the managers come from the
+       database through the staff door smm-weekly-reports already serves
+       (?action=options, Admin/SMM keys), one row per manager with the clients
+       it owns. The queues show only the manager's name, so only the name is kept. No staff key, a refused key or a failure: an empty map, the
+       same answer a failed Sheet read gave (the queue shows no manager). */
+    async function _kasperLoadSMMMapFromDatabase() {
+        try {
+            const ident = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+            if (!ident || !ident.key) return new Map();
+            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                headers: {
+                    Accept: 'application/json',
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    'X-Syncview-Key': ident.key
+                },
+                cache: 'no-store'
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            const map = new Map();
+            for (const m of (data && Array.isArray(data.managers) ? data.managers : [])) {
+                if (!m || m.active === false) continue;
+                const name = String(m.name || '').trim();
+                for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) {
+                    const slug = wlNormalizeClient(String(c || '').trim());
+                    if (!slug || map.has(slug)) continue;
+                    map.set(slug, { name });
+                }
+            }
+            return map;
+        } catch (e) {
+            console.warn('[Kasper] manager list (database) load failed:', e);
+            return new Map();
+        }
+    }
     async function _kasperLoadSMMMap() {
+        if (await _analyticsRosterFromDatabase()) return _kasperLoadSMMMapFromDatabase();
         // The "Social Media Managers" tab: client_name, social_media_manager,
         // optional slack_user_id / slack_team_id (the script ignores anything
         // it doesn't recognise so adding columns later is non-breaking).
@@ -83586,16 +83594,8 @@
         const rows = (_caState.rows || []).filter(r => {
             if (r.archived_at && !_caState.showArchived) return false;
             if (!q) return true;
-            /* The profile shows handles as "@name", and they are stored
-               without the "@" (all 32 Instagram and 18 TikTok handles on
-               2026-10-08), so a handle typed the way it is shown matched
-               nobody. A leading "@" is ignored on both sides for the three
-               handle fields; a bare "@" is not a search. */
-            const bare = q.replace(/^@+/, '');
-            if ([r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
-                .some(v => String(v || '').toLowerCase().includes(q))) return true;
-            return bare !== q && !!bare && [r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
-                .some(v => String(v || '').toLowerCase().replace(/^@+/, '').includes(bare));
+            return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().includes(q));
         });
         const recent = _caRecentMap();
         return rows.slice().sort((a, b) => {
@@ -88699,4 +88699,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-3818b58cbf0c.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-f5ce28385271.js");

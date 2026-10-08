@@ -12,7 +12,8 @@
  *   --skip-database-owned                               leave out a dataset whose daily job
  *        writes the database itself (its flag analytics_metrics_collect or
  *        analytics_top_videos_collect says "live"; plan section 8b of
- *        docs/plans/2026-10-01-n8n-off-analytics.md). The daily lane passes it. Needs
+ *        docs/plans/2026-10-01-n8n-off-analytics.md), and client_profiles once
+ *        client_profiles_authority says "syncview". The daily lane passes it. Needs
  *        SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to read the two switches; a failed
  *        read stops the copy rather than guess.
  *
@@ -93,7 +94,7 @@ async function send(key, body) {
       const at = wanted.indexOf(d);
       if (at >= 0) {
         wanted.splice(at, 1);
-        console.log(`  ${d.padEnd(24)} skipped: its daily job writes the database itself (switch "live"); the Sheet tab is no longer copied`);
+        console.log(`  ${d.padEnd(24)} skipped: ${d === 'client_profiles' ? 'the database is its main copy (client_profiles_authority)' : 'its daily job writes the database itself (switch "live")'}; the Sheet tab is no longer copied`);
       }
     }
   }

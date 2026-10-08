@@ -80,6 +80,12 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; console.log('  ok  ' + ms
   ok(owned.size === 1 && owned.has('metrics'), 'only a job whose switch is exactly "live" owns its dataset');
   ok(parity.databaseOwnedDatasets([{ key: 'analytics_top_videos_collect', value: { mode: 'Live' } }]).size === 0, 'anything but "live" owns nothing');
   {
+    const prof = parity.databaseOwnedDatasets([{ key: 'client_profiles_authority', value: { source: 'syncview' } }]);
+    ok(prof.size === 1 && prof.has('client_profiles'), 'Clients Info is left out of the copy once the database is its main copy');
+    ok(parity.databaseOwnedDatasets([{ key: 'client_profiles_authority', value: { source: 'sheet' } }]).size === 0, 'while the Sheet is the main copy, Clients Info is still copied');
+    ok(parity.databaseOwnedDatasets([{ key: 'client_profiles_authority', value: null }]).size === 0, 'a missing or malformed authority value owns nothing');
+  }
+  {
     const urls = [];
     const realFetch = global.fetch, env = { ...process.env };
     process.env.SUPABASE_URL = 'https://example.invalid'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic';
@@ -95,10 +101,11 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; console.log('  ok  ' + ms
     global.fetch = realFetch; process.env.SUPABASE_URL = env.SUPABASE_URL; process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
     if (env.SUPABASE_URL === undefined) delete process.env.SUPABASE_URL;
     if (env.SUPABASE_SERVICE_ROLE_KEY === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    ok(flagsSeen[0].includes('client_profiles_authority'), 'the switch read also asks for the Clients Info authority');
     ok(urls[0].includes('/analytics_metrics?') && urls[0].includes('&source=neq.edge'), 'the metrics read asks the database to leave out source edge');
     ok(urls[1].includes('/analytics_top_videos?') && urls[1].includes('scraped_date=gte.2026-07-01&source=neq.edge'), 'so does the top videos read, inside its 90 days');
     ok(!urls[2].includes('source='), 'the content summaries read is unchanged');
-    ok(flagsSeen[0].includes('key=in.(analytics_metrics_collect,analytics_top_videos_collect)') && flagsSeen[1] === 'top_videos', 'the two switches are read and a live one is owned');
+    ok(flagsSeen[0].includes('key=in.(analytics_metrics_collect,analytics_top_videos_collect,client_profiles_authority)') && flagsSeen[1] === 'top_videos', 'the two switches and the Clients Info authority are read and a live one is owned');
     ok(refused, 'a failed switch read is an error, never "nothing owned"');
   }
   const wf = fs.readFileSync(path.join(__dirname, '..', '.github/workflows/sheets-mirror-daily.yml'), 'utf8');

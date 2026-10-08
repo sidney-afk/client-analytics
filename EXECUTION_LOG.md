@@ -4,6 +4,15 @@
 
 All times are UTC unless noted.
 
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 2 (batch 5) and the cycle 2 tally
+
+Nine of the fifteen candidates batch 4 left unverified were verified (two
+against live counts) and fixed in one stacked PR; six remain unverified and are
+listed in OPEN_REPAIRS 375. Cycle 2 in all: 28 candidates, 22 confirmed and
+fixed across two PRs, 6 open. The stop rule (two cycles in a row with nothing)
+has not been met. Browser changes only. No live write, deploy, merge, flag or
+n8n edit.
+
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 2 (batch 4)
 
 Cycle 2 was not dry: 28 new candidates from two sweeps with different lenses

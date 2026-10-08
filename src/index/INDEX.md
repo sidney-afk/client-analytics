@@ -27,7 +27,7 @@
 | 19 | `092-core-submit-form-navigation.js.part` | 899 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 20 | `095-shared-client.js.part` | 565 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 22 | `097-today.js.part` | 854 | TODAY (owner design , session Compass). |
+| 22 | `097-today.js.part` | 877 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `099-phone-staff-shell.js.part` | 225 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
 | 25 | `099-staff-phone-bar.js.part` | 464 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
@@ -42,32 +42,32 @@
 | 34 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 35 | `133-core-loading-skeletons.js.part` | 378 | Modern animated loader — a single rotating ring with a subtle label. |
 | 36 | `134-calendar-prefs-mount.js.part` | 1091 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
-| 37 | `140-calendar-legacy-outbox.js.part` | 3497 | Shed the retired legacy rows from storage, under the surface mutation |
+| 37 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 38 | `150-calendar-hydration-import.js.part` | 2289 | For a card linked to a real sub-issue (not a parent), return which of |
 | 39 | `160-calendar-organize-ui.js.part` | 3142 | Lighter path for the Order switch: update the chrome in place so the |
 | 40 | `170-calendar-links-status.js.part` | 3423 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 41 | `180-calendar-native-post-media.js.part` | 2942 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 41 | `180-calendar-native-post-media.js.part` | 2953 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
-| 43 | `186-archived-restore.js.part` | 462 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 44 | `190-calendar-approval-comments.js.part` | 3240 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
+| 44 | `190-calendar-approval-comments.js.part` | 3242 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 45 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 46 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 47 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
 | 48 | `230-production-create-comments.js.part` | 2759 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
-| 49 | `240-production-description.js.part` | 2709 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
+| 49 | `240-production-description.js.part` | 2717 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 52 | `270-samples-model.js.part` | 3096 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 53 | `280-samples-cards-notes.js.part` | 3004 | SURFACE 3: the save engine |
+| 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 53 | `280-samples-cards-notes.js.part` | 3010 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 55 | `299-instagram-upload.js.part` | 715 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
+| 55 | `299-instagram-upload.js.part` | 729 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
 | 56 | `300-tiktok-upload.js.part` | 2397 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 752 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 59 | `320-core-kasper-subtabs.js.part` | 20 | — |
 | 60 | `321-kasper-dashboard-replies.js.part` | 3048 | The Samples subtab was folded into Review (samples are listed in the |
 | 61 | `322-core-kasper-tab-counts.js.part` | 34 | — |
-| 62 | `323-kasper-dashboard-tail.js.part` | 919 | Review Session |
+| 62 | `323-kasper-dashboard-tail.js.part` | 927 | Review Session |
 | 63 | `324-client-onboarding-panel.js.part` | 507 | talking to the functions (admin only; the server checks the key and the member again) |
 | 64 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 65 | `340-kasper-editors-board.js.part` | 734 | Editor work model |

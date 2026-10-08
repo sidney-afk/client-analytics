@@ -12,7 +12,6 @@ import {
 } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg, _svDraftClear, _svDraftClearIf, _svDraftNoteHtml, _svDraftNorm, _svDraftRead, _svDraftSave } from './131-core-html.js';
 import { _calParseIso } from './132-calendar-dates-ids.js';
-import { _calSavePrefs } from './134-calendar-prefs-mount.js';
 import {
   _calApplyUrgentButtonState, _calPostLinearComment, _calShowKasperUrgent, _calUrgentButtonHtml,
   _writeUiApplySupersededTeamDelivery, _writeUiCommentActionFailureHtml,
@@ -30,7 +29,7 @@ import {
   _calPhoneClient, _calPhoneSectionHtml,
   _calFolderOpenUrl, _calFrameOpenUrl, _calIsFolderLink, _calIsFrameLink, _calMiniLinkBadgeHtml,
   _calRenderBody, _calReviewFrameHtml, _calStaffPhoneActive, _calStatusLabel, _calThumbIconSvg, _calThumbImgTag,
-  _kcardReuseThumbInto, _thumbCompareSlotHtml
+  _kcardReuseThumbInto, _thumbCompareSlotHtml, onCalViewChange
 } from './160-calendar-organize-ui.js';
 import {
   _calAutoResolveDestStatus, _calFlushCardSave, _calReviewBlockReason, _calSmmApproveTo,
@@ -1418,13 +1417,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        "ready only" filter (or an active month filter) would otherwise hide an
        in-review post; the focus clears when the user leaves the Sheet. */
     function _calReviewOpenInSheet(pid) {
+        /* Through the one road every other view change takes. This used to
+           switch the view by hand, which skipped what onCalViewChange also
+           does: the Sheet came up with no Organize menu (so an active month
+           filter could be neither seen nor changed), no Select buttons and no
+           zoom, until "Sheet" was clicked again. The focus is set after, since
+           it is what lets the card past the filters. */
         calState.focusPid = pid;
-        if (calState.view !== 'organizer') {
-            calState.view = 'organizer';
-            _calSavePrefs();
-            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
-        }
-        _calRenderBody();
+        if (calState.view !== 'organizer') onCalViewChange('organizer');
+        else _calRenderBody();
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
             if (!card) return;
@@ -1446,12 +1447,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     function editInOrganizerFromPreview(id) {
         closeCalPreview();
-        if (calState.view !== 'organizer') {
-            calState.view = 'organizer';
-            _calSavePrefs();
-            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
-            _calRenderBody();
-        }
+        // Same road as _calReviewOpenInSheet, and the same focus: without it a
+        // card the saved month or status filter hides (every card from the
+        // Unscheduled tray under a month filter) was never rendered, and the
+        // button did nothing at all.
+        calState.focusPid = id;
+        if (calState.view !== 'organizer') onCalViewChange('organizer');
+        else _calRenderBody({ preserveScroll: true });
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
             if (card) {

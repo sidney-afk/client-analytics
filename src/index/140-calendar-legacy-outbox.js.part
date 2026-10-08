@@ -2900,11 +2900,19 @@ import {
             showNotify('Not waiting on Kasper', 'Nothing on this card is at Kasper Approval right now, so there is nothing to ping him about.');
             return;
         }
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(calState.client || '').trim(), post.name, {
+        /* The client this card belongs to, fixed now. The marker is saved after
+           the confirm, two flag reads and the Slack call, and it used to read
+           the client on screen at THAT moment: after a quick client switch the
+           "sent" marker went to the other client with this card's id, was
+           refused, and the ping (already delivered) left no trace, so Kasper's
+           Urgent list missed the card and the button was live for a second
+           ping. The editor ping already pins its client the same way. */
+        const sourceClient = calState.client;
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('calendar'), surface: 'calendar', component: comp },
-            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping),
-            preflight: () => _calAssertSavingOn(calState.client)
+            persist: (ping) => _calPersistKasperUrgentForPost(sourceClient, post, comp, ping),
+            preflight: () => _calAssertSavingOn(sourceClient)
         });
     }
     /* Which component the ping is recorded against. The button can be clicked

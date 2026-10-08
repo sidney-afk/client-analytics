@@ -471,7 +471,16 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
             if (!list.length) return head + scope + _tdyClientsHtml(d) + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>`;
-            const i = ((tdyState.walk % list.length) + list.length) % list.length;
+            /* The walk keeps its place by POST, not by position. The list is
+               rebuilt on every live re-read, and with a bare index a post
+               leaving the list earlier in date order (a teammate added its
+               link) silently swapped the card under "Post 3 of 5" for the next
+               one, possibly another client's, with "Open card" following the
+               swap. If the post being shown is gone, the position is kept. */
+            let i = tdyState.walkId ? list.findIndex(x => x.id === tdyState.walkId) : -1;
+            if (i < 0) i = ((tdyState.walk % list.length) + list.length) % list.length;
+            tdyState.walk = i;
+            tdyState.walkId = list[i].id;
             const p = list[i], name = d.names[p.client] || p.client || '';
             const gap = _calSmmMediaGap(p) || {};
             const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
@@ -679,7 +688,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyPurgeSensitiveState() {
         tdyState.gen++; tdyState.purges++; tdyState.freshAt = 0; tdyState.fromSaved = false; _tdyInflight = null;
-        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0;
+        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0; tdyState.walkId = '';
         _tdyClientRows = null;
         _tdyAlsoSees = null;
         _tdyCacheClear();
@@ -788,7 +797,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         _tdyPaint();
     }
     function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
-    function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
+    function _tdyWalkNext() { tdyState.walk++; tdyState.walkId = ''; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
     function _tdyOpenSync(id) {
         try { window.open(svRoute.fast('/synclinear/' + encodeURIComponent(id)), '_blank', 'noopener'); } catch (e) {}
@@ -829,6 +838,20 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (!r) return;
         const name = d.names[r.client_slug] || r.client_slug;
         try { svSharedClientNote(name); } catch (e) {}
+        /* A work item that knows its card opens it the way a post row does.
+           The other road names only the work item, and the Calendar lets a
+           card past its saved month and status filter only when it is asked
+           for by card id, so "Open card" from "To approve" or "Dates to move"
+           ended on "Card not shown" whenever that client's filter hid the
+           card, and the address never carried the card either. Measured
+           2026-10-08: all 261 open calendar-origin items carry a card id that
+           is a card of their own client. */
+        if (r.card_id) {
+            _calSetFocusRequest({ client: name, cardId: String(r.card_id) });
+            navTo('calendar');
+            _tdyCardInAddress(r.client_slug, String(r.card_id));
+            return;
+        }
         wlOpenInContentCalendar(name, '', r.id);
     }
     function _tdyTeardown() { tdyState.gen++; _tdyStopLive(); }

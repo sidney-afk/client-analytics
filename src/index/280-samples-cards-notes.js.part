@@ -129,7 +129,13 @@ import {
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragend', (e) => {
+            card.classList.remove('dragging');
+            // A drag with no drop saved nothing: redraw the stored order (see the Calendar's twin).
+            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
+                try { _sxrRenderBody({ preserveScroll: true }); } catch (err) {}
+            }
+        });
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');

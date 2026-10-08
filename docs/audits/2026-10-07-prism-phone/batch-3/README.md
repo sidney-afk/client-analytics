@@ -1,4 +1,4 @@
-# Batch 3 — client Calendar loading (in progress)
+# Batch 3 — client Calendar loading
 
 Branch: `codex/prism-phone-batch-3`. Parent: batch 2,
 `8361c27b8f2ac9b7434e6799fc76502d92e0bd80`. Batch 2 remains open for
@@ -58,9 +58,9 @@ client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width:
 PHONE_COVERAGE: 334 native states; 2004 width/theme cells; 280 discovery obligations; 12 clean cells
 ```
 
-The links/basic tails above precede the product change and need their final
-source rerun. The final Calendar run exercises native view buttons while
-loading. Against the parent source the added regression guard fails with:
+Final source client reruns have completed. The Calendar run exercises native
+view buttons while loading. Against the parent source the added regression
+guard fails with:
 
 ```text
 AssertionError [ERR_ASSERTION]: month: skeleton paints over the Calendar heading
@@ -92,7 +92,7 @@ The index SHA256 is
 (1,314,399 bytes). The identity guard was run after staging all new generated
 assets and evidence. Desktop 72-cell parity against the parent, final staff
 checks, final source client reruns, and focused 32-state desktop loading
-comparisons are running. Hosted batch 3 checks and PR publication remain
+comparisons have completed. Hosted batch 3 checks and PR publication remain
 pending. No deployment or finish-line claim is made.
 
 Focused desktop loading follow-through has completed:
@@ -106,10 +106,50 @@ loading views at 1024/1280/1440/1920 with both preferences, against batch 2.
 Raw desktop pictures stay private. The initial private reference invocation
 aborted because its Windows path was not normalized before the containment
 check; that failed invocation remains retained. The normalized reference and
-after captures match exactly. Broad 72-cell parity remains in progress.
+after captures match exactly. Broad 72-cell parity has also completed with exact PNG and style matches.
 
 Further work remains on staff screens, Filming help/copy, Notes wording and
 small supporting labels, long/many-item and refused-save states, and complete
 personal review of client captures beyond these loading panels. None is an
 accepted exception. A complete clean round and a separate fresh review are
 still required.
+
+Final frozen-source follow-through:
+
+```text
+STAFF_PHONE_RULES: 240 states; 0 failures; 375/390/430 touch; synthetic transports; no live writes
+STAFF_PHONE_DESIGN: 24 native card states; 0 failures; fictional intercepted transports
+72/72 desktop shots identical to 8361c27b8f2ac9b7434e6799fc76502d92e0bd80
+```
+
+The exact terminal tails are also retained in [check tails](checks.json). [Desktop hashes](desktop.json)
+prove every broad comparison and preserve the gate's attempt counts. No pixel
+tolerance, exclusion or gate weakening was used. The 32 additional loading
+pairs compare native markup and computed styles as well as exact PNG bytes.
+
+The expanded all-state staff capture is still running independently of these
+completed checks. Screenshots alone do not mark coverage clean. Personal review
+of all 48 new card/action captures (six width/theme cells for each of eight
+states) leaves them OPEN: light placeholders and the alternate-caption action
+look too faint; the gap between media actions and card title needs native
+geometry/context verification; icon-only destinations need first-time-user
+review. These are observations to investigate, not accepted exceptions or
+unverified claims of broken behavior. Admin Filming/Clients review also remains
+OPEN, including help copy, supporting-label contrast and unlisted disclosures.
+Only the twelve repaired client loading cells are currently accepted.
+[Source-bound open observations](open-review-observations.json) also record
+eighteen Notes/refused-save viewport reviews. Tiny incomplete Notes selector
+labels and internal refusal wording need repair; the refusal capture's missing
+header needs independent settled geometry proof before becoming a finding.
+
+A separate 375/light probe held the same native refusal state for another
+700 milliseconds. Its modal header and 44-pixel Close button are on screen
+(header y=84.40625; Close y=100.40625). The missing-header candidate is refuted
+at that cell; the earlier screenshot remains retained as a capture artifact,
+not product layout proof. The settled picture still shows “Start the
+conversation — type below” above “Notes are not available”, so the contradictory
+empty/refusal copy remains OPEN. The probe's actual tail is:
+
+```text
+client-links-expanded: OK (494 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 375; requested light, effective client light).
+```

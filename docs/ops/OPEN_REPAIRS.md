@@ -30995,3 +30995,14 @@ parity, remaining existing phone reruns, final source/identity/HEAD checks and
 PR publication are pending. No database, workflow, live write, deployment or
 merge was performed. Lighthouse owns review and merge. Rollback: revert this
 batch and rebuild the generated index/assets.
+
+Batch 3 frozen-source follow-through: all 72/72 broad desktop PNG/style pairs
+match the exact batch 2 parent; 32 additional native loading PNG/markup/style
+pairs also match. Final source checks pass staff rules at 240 states, card
+design at 24 states, basic client review at 20 journeys, detailed Calendar at
+4,500 assertions, detailed Samples/Analytics at 2,964 assertions and admin at
+420 states/8,892 checks. Safe receipts and actual tails are in the Prism audit's
+`batch-3/` directory. The expanded all-state staff capture is still running.
+Twelve client loading cells remain accepted; 66 further source-bound visual
+observations remain OPEN. Full clean and fresh-review rounds, hosted batch 3
+checks, publication and deployment remain separate pending gates.

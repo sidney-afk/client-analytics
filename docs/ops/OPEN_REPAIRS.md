@@ -30962,3 +30962,11 @@ No database, Edge Function, n8n workflow, authorization, live client mutation or
 deployment change was made. Browser checks use headless Chrome with no foreground
 calls, per the owner's request. Lighthouse reviews/merges; Prism does not merge.
 Rollback: revert this batch and rebuild the index/assets.
+
+Batch 2 desktop follow-through: the final frozen-source invocation passes all
+72/72 exact PNG/computed-style pairs, and filled Ads passes eight additional
+pairs across four desktop widths and both themes. Public safe hashes are in
+`batch-2/desktop.json` under the Prism audit; raw live TEST captures remain
+private. The rebuilt index passes assembled == working tree == committed HEAD.
+The original failed/superseded invocations are retained. The batch is ready for
+Lighthouse's PR review, not deployed; the full phone finish line remains OPEN.

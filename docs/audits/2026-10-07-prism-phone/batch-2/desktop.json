@@ -755,6 +755,731 @@
     ]
   },
   "finalBroadComparison": {
-    "status": "PENDING"
-  }
+    "status": "PASS",
+    "matched": 72,
+    "total": 72,
+    "rows": [
+      {
+        "page": "staff-navToday",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f2430429b6a1",
+        "attempts": 1,
+        "beforePngSha256": "f2430429b6a1bd959d62ae6dc1560a6faf6dd9892e9fa012f8bb16a56ffa50c5",
+        "afterPngSha256": "f2430429b6a1bd959d62ae6dc1560a6faf6dd9892e9fa012f8bb16a56ffa50c5"
+      },
+      {
+        "page": "staff-navToday",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "456cb4cc0a25",
+        "attempts": 1,
+        "beforePngSha256": "456cb4cc0a25f2d16be36cf4f2bc826d85b15dbe0a1c2b52f2adae24fa5ed584",
+        "afterPngSha256": "456cb4cc0a25f2d16be36cf4f2bc826d85b15dbe0a1c2b52f2adae24fa5ed584"
+      },
+      {
+        "page": "staff-navToday",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "4512f2058946",
+        "attempts": 1,
+        "beforePngSha256": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8",
+        "afterPngSha256": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8"
+      },
+      {
+        "page": "staff-navToday",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a37a63080053",
+        "attempts": 1,
+        "beforePngSha256": "a37a63080053d60ec84809249159a69336d879da12f008244e60f1ffd60a5102",
+        "afterPngSha256": "a37a63080053d60ec84809249159a69336d879da12f008244e60f1ffd60a5102"
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "c24bc837d3ad",
+        "attempts": 1,
+        "beforePngSha256": "c24bc837d3ad2130a1b582612997f37c2f6f27f1435d7fd2f982cb3121e9edf5",
+        "afterPngSha256": "c24bc837d3ad2130a1b582612997f37c2f6f27f1435d7fd2f982cb3121e9edf5"
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "41db5959cf56",
+        "attempts": 1,
+        "beforePngSha256": "41db5959cf5663115869ca6c762e2d55f67df20a328090328df618199753c123",
+        "afterPngSha256": "41db5959cf5663115869ca6c762e2d55f67df20a328090328df618199753c123"
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "2740b18921a4",
+        "attempts": 1,
+        "beforePngSha256": "2740b18921a40f1de6d221fab1a9a94a8963d41af71deaefc1ebae3972d534f8",
+        "afterPngSha256": "2740b18921a40f1de6d221fab1a9a94a8963d41af71deaefc1ebae3972d534f8"
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "bcdb6892e876",
+        "attempts": 1,
+        "beforePngSha256": "bcdb6892e87663e3783e00806c9d4b531fae83604353819ed3cd7528da33c083",
+        "afterPngSha256": "bcdb6892e87663e3783e00806c9d4b531fae83604353819ed3cd7528da33c083"
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "0090c094baf7",
+        "attempts": 1,
+        "beforePngSha256": "0090c094baf74f7011c28388cc2992b5a652e6bf3aa03014edc6f2c4805093ff",
+        "afterPngSha256": "0090c094baf74f7011c28388cc2992b5a652e6bf3aa03014edc6f2c4805093ff"
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "77ab3e402be0",
+        "attempts": 1,
+        "beforePngSha256": "77ab3e402be0e022861e11878ff700a432f4eb0639b1895ce0e232b1884d9c66",
+        "afterPngSha256": "77ab3e402be0e022861e11878ff700a432f4eb0639b1895ce0e232b1884d9c66"
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "37e81180f578",
+        "attempts": 1,
+        "beforePngSha256": "37e81180f578ef9c64d66115c24f3bc5fa550ed9a4fbe9673fd655f077a5849a",
+        "afterPngSha256": "37e81180f578ef9c64d66115c24f3bc5fa550ed9a4fbe9673fd655f077a5849a"
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "1ca68ce4949d",
+        "attempts": 1,
+        "beforePngSha256": "1ca68ce4949d2aa7c023f75be25a20a50563fdbace76f5a9f83376f39658648c",
+        "afterPngSha256": "1ca68ce4949d2aa7c023f75be25a20a50563fdbace76f5a9f83376f39658648c"
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "08dd5da79092",
+        "attempts": 1,
+        "beforePngSha256": "08dd5da790921194dff5194cf07438251763fc2ebf3d97e0b58e9f432e918d8d",
+        "afterPngSha256": "08dd5da790921194dff5194cf07438251763fc2ebf3d97e0b58e9f432e918d8d"
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a802498da2ae",
+        "attempts": 1,
+        "beforePngSha256": "a802498da2ae367ee63e8e3011d2bcd6588f0f0e3270c2eefa2551fd3b7d38f6",
+        "afterPngSha256": "a802498da2ae367ee63e8e3011d2bcd6588f0f0e3270c2eefa2551fd3b7d38f6"
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "2076657a5ad8",
+        "attempts": 1,
+        "beforePngSha256": "2076657a5ad86317bbce19c86757697c65f0d09e486ec474c58156535e575e26",
+        "afterPngSha256": "2076657a5ad86317bbce19c86757697c65f0d09e486ec474c58156535e575e26"
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "35a20f2d3f0a",
+        "attempts": 1,
+        "beforePngSha256": "35a20f2d3f0a81b79b22bef46d3b73eb0f729c5e61c1ce642558a3131353deae",
+        "afterPngSha256": "35a20f2d3f0a81b79b22bef46d3b73eb0f729c5e61c1ce642558a3131353deae"
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "2c13f229b28e",
+        "attempts": 1,
+        "beforePngSha256": "2c13f229b28ea8799a089dfd24c706fd326b02700234a3f54452ff5080ea98b4",
+        "afterPngSha256": "2c13f229b28ea8799a089dfd24c706fd326b02700234a3f54452ff5080ea98b4"
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "89301be37a63",
+        "attempts": 1,
+        "beforePngSha256": "89301be37a639f126f5f81437371949ff9f8aaa713c8f1021fff703107da0cdf",
+        "afterPngSha256": "89301be37a639f126f5f81437371949ff9f8aaa713c8f1021fff703107da0cdf"
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "aebfdd6e67fb",
+        "attempts": 1,
+        "beforePngSha256": "aebfdd6e67fbbc5e833d86f91f39ba209a76cf6259dfb4f6c7428ad6b37022fa",
+        "afterPngSha256": "aebfdd6e67fbbc5e833d86f91f39ba209a76cf6259dfb4f6c7428ad6b37022fa"
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "86ed4bdd89e3",
+        "attempts": 1,
+        "beforePngSha256": "86ed4bdd89e3153701d001d866469458f320ce09c81cde4f1563a1b5b3625ce6",
+        "afterPngSha256": "86ed4bdd89e3153701d001d866469458f320ce09c81cde4f1563a1b5b3625ce6"
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d0b2181d39d3",
+        "attempts": 1,
+        "beforePngSha256": "d0b2181d39d34b198ea3b4661624a022f8a10a129e9040ed04f74e656d20de07",
+        "afterPngSha256": "d0b2181d39d34b198ea3b4661624a022f8a10a129e9040ed04f74e656d20de07"
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a9e3f35d2d1b",
+        "attempts": 1,
+        "beforePngSha256": "a9e3f35d2d1b75f123885b12e93a647c347f4cb9a04128202013dc4b7f434923",
+        "afterPngSha256": "a9e3f35d2d1b75f123885b12e93a647c347f4cb9a04128202013dc4b7f434923"
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "c7ad056f886a",
+        "attempts": 1,
+        "beforePngSha256": "c7ad056f886a93933b646c70c80c7bdd36538208600082d4784205522eab43c3",
+        "afterPngSha256": "c7ad056f886a93933b646c70c80c7bdd36538208600082d4784205522eab43c3"
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "21b612d2e7ca",
+        "attempts": 1,
+        "beforePngSha256": "21b612d2e7cacc33b8d037bd5e0ef723b0910228593fed2ebc01db66df11a0f0",
+        "afterPngSha256": "21b612d2e7cacc33b8d037bd5e0ef723b0910228593fed2ebc01db66df11a0f0"
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f2430429b6a1",
+        "attempts": 1,
+        "beforePngSha256": "f2430429b6a1bd959d62ae6dc1560a6faf6dd9892e9fa012f8bb16a56ffa50c5",
+        "afterPngSha256": "f2430429b6a1bd959d62ae6dc1560a6faf6dd9892e9fa012f8bb16a56ffa50c5"
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "456cb4cc0a25",
+        "attempts": 1,
+        "beforePngSha256": "456cb4cc0a25f2d16be36cf4f2bc826d85b15dbe0a1c2b52f2adae24fa5ed584",
+        "afterPngSha256": "456cb4cc0a25f2d16be36cf4f2bc826d85b15dbe0a1c2b52f2adae24fa5ed584"
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "4512f2058946",
+        "attempts": 1,
+        "beforePngSha256": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8",
+        "afterPngSha256": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8"
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a37a63080053",
+        "attempts": 1,
+        "beforePngSha256": "a37a63080053d60ec84809249159a69336d879da12f008244e60f1ffd60a5102",
+        "afterPngSha256": "a37a63080053d60ec84809249159a69336d879da12f008244e60f1ffd60a5102"
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "24d8f57c6351",
+        "attempts": 1,
+        "beforePngSha256": "24d8f57c6351ad104ba0afd1b5221440577b035442b732913cf6f76c8ef0b7d3",
+        "afterPngSha256": "24d8f57c6351ad104ba0afd1b5221440577b035442b732913cf6f76c8ef0b7d3"
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "8e1b8a149f14",
+        "attempts": 1,
+        "beforePngSha256": "8e1b8a149f14316ac21bbe9d5e63e94c81b16a70841c8ee7d72765ff9d88e016",
+        "afterPngSha256": "8e1b8a149f14316ac21bbe9d5e63e94c81b16a70841c8ee7d72765ff9d88e016"
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "200aeda246a1",
+        "attempts": 1,
+        "beforePngSha256": "200aeda246a16d7bc1a980a3b6a646af68dbdef6ba1e1dda911768c24c2b7d28",
+        "afterPngSha256": "200aeda246a16d7bc1a980a3b6a646af68dbdef6ba1e1dda911768c24c2b7d28"
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d9f8ac663468",
+        "attempts": 1,
+        "beforePngSha256": "d9f8ac663468845c27b873f290fe3556625a56d0ae763b8f7eba227b8ba15356",
+        "afterPngSha256": "d9f8ac663468845c27b873f290fe3556625a56d0ae763b8f7eba227b8ba15356"
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "68aecaafb5d5",
+        "attempts": 1,
+        "beforePngSha256": "68aecaafb5d52b6f3d19b41333ec77263962deb9b365bdfc0c93612a18e20693",
+        "afterPngSha256": "68aecaafb5d52b6f3d19b41333ec77263962deb9b365bdfc0c93612a18e20693"
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "9d58adb9cf69",
+        "attempts": 1,
+        "beforePngSha256": "9d58adb9cf6943acf3b414257cc02afae18566a0d993b2d3fcc9881f8b518a13",
+        "afterPngSha256": "9d58adb9cf6943acf3b414257cc02afae18566a0d993b2d3fcc9881f8b518a13"
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "ba027fc42813",
+        "attempts": 1,
+        "beforePngSha256": "ba027fc42813cfd35775dfc6778821e48eddb071ddb8728597eaac922ebf38ab",
+        "afterPngSha256": "ba027fc42813cfd35775dfc6778821e48eddb071ddb8728597eaac922ebf38ab"
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "b72c638ea00d",
+        "attempts": 1,
+        "beforePngSha256": "b72c638ea00d511a0c049579e1e47d99c7a4652d279de8abf467e4bdd34a5f98",
+        "afterPngSha256": "b72c638ea00d511a0c049579e1e47d99c7a4652d279de8abf467e4bdd34a5f98"
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "65e99d69feb2",
+        "attempts": 1,
+        "beforePngSha256": "65e99d69feb2920dd2d6f89702e4ee11db9506c39c9b41192da17dccefad66bd",
+        "afterPngSha256": "65e99d69feb2920dd2d6f89702e4ee11db9506c39c9b41192da17dccefad66bd"
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "998032b37f33",
+        "attempts": 1,
+        "beforePngSha256": "998032b37f33153c483065a58ec3f01acec581bed4f6d121435c4a020dad42f3",
+        "afterPngSha256": "998032b37f33153c483065a58ec3f01acec581bed4f6d121435c4a020dad42f3"
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "2a3a2b965395",
+        "attempts": 1,
+        "beforePngSha256": "2a3a2b965395054ee30df9abb4d97a6c0e512dbd5aa3f43879ef768b6afbb524",
+        "afterPngSha256": "2a3a2b965395054ee30df9abb4d97a6c0e512dbd5aa3f43879ef768b6afbb524"
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "024d2565235f",
+        "attempts": 1,
+        "beforePngSha256": "024d2565235f4245758391de3e9e6ae0136f18ff6221c2a2cce351aaff713fb8",
+        "afterPngSha256": "024d2565235f4245758391de3e9e6ae0136f18ff6221c2a2cce351aaff713fb8"
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "bf79cd086729",
+        "attempts": 1,
+        "beforePngSha256": "bf79cd0867292a68bf777e93912d018ce40f0865ef8d6751df9318aecef0350b",
+        "afterPngSha256": "bf79cd0867292a68bf777e93912d018ce40f0865ef8d6751df9318aecef0350b"
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "6d9986ed793f",
+        "attempts": 1,
+        "beforePngSha256": "6d9986ed793fd18a1cc6a686ba8a4db211c819b865b41351898f4b1102262c09",
+        "afterPngSha256": "6d9986ed793fd18a1cc6a686ba8a4db211c819b865b41351898f4b1102262c09"
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f0b8d476dac6",
+        "attempts": 1,
+        "beforePngSha256": "f0b8d476dac6d5fe326938d34091d91ee460751122ba6e7fa132a8b7f5149c6d",
+        "afterPngSha256": "f0b8d476dac6d5fe326938d34091d91ee460751122ba6e7fa132a8b7f5149c6d"
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "340517597a26",
+        "attempts": 2,
+        "beforePngSha256": "340517597a26fdf0f510adf1c4e0d898dd1fc981fb5efcf40b8983a5db3427e6",
+        "afterPngSha256": "340517597a26fdf0f510adf1c4e0d898dd1fc981fb5efcf40b8983a5db3427e6"
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a3038827111f",
+        "attempts": 1,
+        "beforePngSha256": "a3038827111f319cfeeea3a0540aa6815d1f776c07a1bfef02772842e2e088dc",
+        "afterPngSha256": "a3038827111f319cfeeea3a0540aa6815d1f776c07a1bfef02772842e2e088dc"
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "69fa0605fd03",
+        "attempts": 1,
+        "beforePngSha256": "69fa0605fd03167318e4c865047561a321a40fa7b492b6e5d21181385b4b9951",
+        "afterPngSha256": "69fa0605fd03167318e4c865047561a321a40fa7b492b6e5d21181385b4b9951"
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "79e48f1e84df",
+        "attempts": 1,
+        "beforePngSha256": "79e48f1e84df770329a91ec25e2725adbe330d5b682ebd1a180d7516b5198eb7",
+        "afterPngSha256": "79e48f1e84df770329a91ec25e2725adbe330d5b682ebd1a180d7516b5198eb7"
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "2dbc4af2b0b3",
+        "attempts": 1,
+        "beforePngSha256": "2dbc4af2b0b320619c72e6f57cac6864a5ee14ba7160116aee196f9f8b3fb85b",
+        "afterPngSha256": "2dbc4af2b0b320619c72e6f57cac6864a5ee14ba7160116aee196f9f8b3fb85b"
+      },
+      {
+        "page": "client-analytics",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "d00d70d8e182",
+        "attempts": 1,
+        "beforePngSha256": "d00d70d8e182a7060e4ef188837f6fc70a40814af5e4ac1f611518d6ca74d1b2",
+        "afterPngSha256": "d00d70d8e182a7060e4ef188837f6fc70a40814af5e4ac1f611518d6ca74d1b2"
+      },
+      {
+        "page": "client-analytics",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "275ee9a12953",
+        "attempts": 1,
+        "beforePngSha256": "275ee9a129532f883a2d134c2d505f059e4b61cbd042c2d05efeb799d7e77ba9",
+        "afterPngSha256": "275ee9a129532f883a2d134c2d505f059e4b61cbd042c2d05efeb799d7e77ba9"
+      },
+      {
+        "page": "client-analytics",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "85eeebeb0820",
+        "attempts": 1,
+        "beforePngSha256": "85eeebeb08202b0b239084f185b4e8f4b26e7e421e206bd588ba0a73d9cfbe35",
+        "afterPngSha256": "85eeebeb08202b0b239084f185b4e8f4b26e7e421e206bd588ba0a73d9cfbe35"
+      },
+      {
+        "page": "client-analytics",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a7aa0bafaca2",
+        "attempts": 1,
+        "beforePngSha256": "a7aa0bafaca2e7b26fec50755164fa25adde2734fd3c2f3bee8b2d119ff1d63f",
+        "afterPngSha256": "a7aa0bafaca2e7b26fec50755164fa25adde2734fd3c2f3bee8b2d119ff1d63f"
+      },
+      {
+        "page": "client-calendar",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "242f1f3e4b3d",
+        "attempts": 1,
+        "beforePngSha256": "242f1f3e4b3d8c74a56209dde88661279b7180ea8432f2233452de35301c47b7",
+        "afterPngSha256": "242f1f3e4b3d8c74a56209dde88661279b7180ea8432f2233452de35301c47b7"
+      },
+      {
+        "page": "client-calendar",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "9352c5de1444",
+        "attempts": 1,
+        "beforePngSha256": "9352c5de144421734265c7793aa559d202bc243b267d5267889292a5825b5718",
+        "afterPngSha256": "9352c5de144421734265c7793aa559d202bc243b267d5267889292a5825b5718"
+      },
+      {
+        "page": "client-calendar",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "eb9c15c3143e",
+        "attempts": 1,
+        "beforePngSha256": "eb9c15c3143e35ed1bddde3ff6d4a916724c7a555169e0c1f4ab45847856540a",
+        "afterPngSha256": "eb9c15c3143e35ed1bddde3ff6d4a916724c7a555169e0c1f4ab45847856540a"
+      },
+      {
+        "page": "client-calendar",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "1ac4c1dfd592",
+        "attempts": 1,
+        "beforePngSha256": "1ac4c1dfd5920662dd5fdb756a712763200500a8c033f5d558d5f8df634c1396",
+        "afterPngSha256": "1ac4c1dfd5920662dd5fdb756a712763200500a8c033f5d558d5f8df634c1396"
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "9524f8a11d03",
+        "attempts": 1,
+        "beforePngSha256": "9524f8a11d03f53860a8a836c2a6ecaa31ff3997f6a1d73b9e3a6fb9b4aec057",
+        "afterPngSha256": "9524f8a11d03f53860a8a836c2a6ecaa31ff3997f6a1d73b9e3a6fb9b4aec057"
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "ffb779934cf1",
+        "attempts": 1,
+        "beforePngSha256": "ffb779934cf1ed7244166f6b7da9c86836a934820f5b8ba29cbc0966e220b3e5",
+        "afterPngSha256": "ffb779934cf1ed7244166f6b7da9c86836a934820f5b8ba29cbc0966e220b3e5"
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "dd4b15201ffb",
+        "attempts": 1,
+        "beforePngSha256": "dd4b15201ffbea77708d1d06d858f3154a02c83f82596b580335fcff54870fec",
+        "afterPngSha256": "dd4b15201ffbea77708d1d06d858f3154a02c83f82596b580335fcff54870fec"
+      },
+      {
+        "page": "client-calendar-month",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "589997bd001f",
+        "attempts": 1,
+        "beforePngSha256": "589997bd001f824e66967b07147618797955880035cd03b0e05de6cba8516efc",
+        "afterPngSha256": "589997bd001f824e66967b07147618797955880035cd03b0e05de6cba8516efc"
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "3564746b92e0",
+        "attempts": 1,
+        "beforePngSha256": "3564746b92e0c93c95f667523a6a48d7ddabf1b85300bd8927ef0e42526582af",
+        "afterPngSha256": "3564746b92e0c93c95f667523a6a48d7ddabf1b85300bd8927ef0e42526582af"
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "61c8d99089ef",
+        "attempts": 1,
+        "beforePngSha256": "61c8d99089ef7ee624ef911c2373759027e48064b9a63c88fa6bd73f6bb09ab8",
+        "afterPngSha256": "61c8d99089ef7ee624ef911c2373759027e48064b9a63c88fa6bd73f6bb09ab8"
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "0e818662160e",
+        "attempts": 1,
+        "beforePngSha256": "0e818662160e10beba18ae4911cbe2636404c9b5579f2d155f399e30af24f0bd",
+        "afterPngSha256": "0e818662160e10beba18ae4911cbe2636404c9b5579f2d155f399e30af24f0bd"
+      },
+      {
+        "page": "client-calendar-week",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "a444bf7f7ef3",
+        "attempts": 1,
+        "beforePngSha256": "a444bf7f7ef34ddbe4f16f6c66dd360e15f943e7e60a9d18f9904a79ba0187a7",
+        "afterPngSha256": "a444bf7f7ef34ddbe4f16f6c66dd360e15f943e7e60a9d18f9904a79ba0187a7"
+      },
+      {
+        "page": "client-brief",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "242f1f3e4b3d",
+        "attempts": 1,
+        "beforePngSha256": "242f1f3e4b3d8c74a56209dde88661279b7180ea8432f2233452de35301c47b7",
+        "afterPngSha256": "242f1f3e4b3d8c74a56209dde88661279b7180ea8432f2233452de35301c47b7"
+      },
+      {
+        "page": "client-brief",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "9352c5de1444",
+        "attempts": 1,
+        "beforePngSha256": "9352c5de144421734265c7793aa559d202bc243b267d5267889292a5825b5718",
+        "afterPngSha256": "9352c5de144421734265c7793aa559d202bc243b267d5267889292a5825b5718"
+      },
+      {
+        "page": "client-brief",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "eb9c15c3143e",
+        "attempts": 1,
+        "beforePngSha256": "eb9c15c3143e35ed1bddde3ff6d4a916724c7a555169e0c1f4ab45847856540a",
+        "afterPngSha256": "eb9c15c3143e35ed1bddde3ff6d4a916724c7a555169e0c1f4ab45847856540a"
+      },
+      {
+        "page": "client-brief",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "1ac4c1dfd592",
+        "attempts": 1,
+        "beforePngSha256": "1ac4c1dfd5920662dd5fdb756a712763200500a8c033f5d558d5f8df634c1396",
+        "afterPngSha256": "1ac4c1dfd5920662dd5fdb756a712763200500a8c033f5d558d5f8df634c1396"
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1024,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "e05ce30d75e1",
+        "attempts": 1,
+        "beforePngSha256": "e05ce30d75e185bda9a6dabf9fa4bd07ed76f347ec94300cd22f3ee3c0d722a8",
+        "afterPngSha256": "e05ce30d75e185bda9a6dabf9fa4bd07ed76f347ec94300cd22f3ee3c0d722a8"
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1280,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "192ebb3a4b3c",
+        "attempts": 1,
+        "beforePngSha256": "192ebb3a4b3c3afda4346699f2eba2a6848d8922c28bd22971ee3bf8c7a80927",
+        "afterPngSha256": "192ebb3a4b3c3afda4346699f2eba2a6848d8922c28bd22971ee3bf8c7a80927"
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "7946014bb0e8",
+        "attempts": 1,
+        "beforePngSha256": "7946014bb0e879d3d053808d3d720b51812f89461a0b37bee7b2a562566fe9c5",
+        "afterPngSha256": "7946014bb0e879d3d053808d3d720b51812f89461a0b37bee7b2a562566fe9c5"
+      },
+      {
+        "page": "client-sample-reviews",
+        "width": 1920,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "8efa8351f7c9",
+        "attempts": 1,
+        "beforePngSha256": "8efa8351f7c95ef9d5544fc0e95904a0770f1b1ae65bc04be58de379cef20d9a",
+        "afterPngSha256": "8efa8351f7c95ef9d5544fc0e95904a0770f1b1ae65bc04be58de379cef20d9a"
+      }
+    ]
+  },
+  "indexSha256": "ebd981a6347f9783d3086c4a4bd083b3c9d2818dbbe6e95556679de083505ddd"
 }

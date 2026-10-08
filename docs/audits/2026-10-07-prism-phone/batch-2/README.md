@@ -82,8 +82,9 @@ Batch 1's historical Save problems reviews do not automatically carry into a
 new source round: none of the current replay PNGs matched their earlier hashes.
 They require current visual receipts despite passing regression guards.
 
-Desktop's current broad comparison is a required gate before this batch is
-published. Filled Ads already matches eight exact PNG/style pairs. Raw live TEST
-captures remain private; only safe comparison metadata is published.
+Desktop's final frozen-source broad comparison matches all 72 exact PNG/style
+pairs; filled Ads matches eight additional pairs. Original failures remain
+recorded. [Safe desktop receipts](desktop.json) bind the comparisons to the
+source and built index. Raw live TEST captures remain private.
 
 Rollback: revert this batch and run `npm run build:index`. Prism does not merge.

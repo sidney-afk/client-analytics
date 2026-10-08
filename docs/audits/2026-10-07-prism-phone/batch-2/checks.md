@@ -77,7 +77,53 @@ FILLED_ADS_DESKTOP: 8/8 exact PNG and computed-style pairs
 
 ## Broad desktop comparison
 
-PENDING until the current 72-pair invocation finishes. Its original gate and exact-match threshold are unchanged.
+The final frozen-source invocation passed all 72 exact PNG/computed-style pairs.
+Its original gate and exact-match threshold are unchanged. The eight filled Ads
+comparisons also match. Safe hashes and the retained superseded failures are in
+`desktop.json`; raw live TEST images remain private.
+
+```text
+ok   client-sample-reviews @1920: pixels identical, computed styles identical (8efa8351f7c9)
+
+72/72 desktop shots identical to 1770cc7104ac4fc7de5eeef7decc75e8c287550a
+```
+
+## Committed index
+
+```text
+check-index: working-tree index.html — sha256=ebd981a6347f9783d3086c4a4bd083b3c9d2818dbbe6e95556679de083505ddd bytes=1313427
+check-index: committed index.html (HEAD) — sha256=ebd981a6347f9783d3086c4a4bd083b3c9d2818dbbe6e95556679de083505ddd bytes=1313427
+
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
+## Phone CSS and source ownership
+
+All eight existing CSS ownership suites and the staff artifact transplant guard
+passed. The last lines were:
+
+```text
+staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped
+```
+
+The expanded admin guard also reports:
+
+```text
+KASPER_ADMIN_SCOPE: 283 rules; all capped at 767px and owned marker; widened/unscoped rules rejected.
+```
+
+## Identity exposure after staging all assets
+
+```text
+  roster terms checked             53   (client slugs + staff full names)
+  terms this change adds           0   (0 client slugs, 0 staff names)
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+```
 
 ## Retained failures and superseded invocations
 
@@ -85,6 +131,7 @@ PENDING until the current 72-pair invocation finishes. Its original gate and exa
 - The first chart smoke raised a guard error when an optional desktop font field was absent. The guard now uses Chart.js defaults and always restores the viewport in `finally`; its corrected smoke passed.
 - Browser launch attempts failed to locate an adapter/dependency; one adapter invocation loaded the runner without calling its entrypoint. None executed a valid gate. The current headless preload runs the real entrypoint and checks.
 - An attempted CSS command named a nonexistent test; the actual scope suites subsequently passed. A later passing shell command does not turn the earlier attempt into a pass.
+- A later scope invocation ran all suites successfully but its PowerShell redirection failed. The corrected script-block invocation also passed and saved the complete scope log.
 - The initial module guard lacked its parser dependencies; a temporary dependency install also warned that Node 22.12 was below one parser package engine range. The final guard uses checksum-verified Node 22.13 and temporary dependencies, with no repository or global runtime installation.
 - The initial desktop process was stopped when product source changed. Its partial output is not a pass.
 - The superseded broad desktop invocation finished 71/72: staff Analytics at 1024 had different PNGs and identical styles. It predates the final date/copy changes and is retained separately.

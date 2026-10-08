@@ -252,7 +252,7 @@ ok(/_calReplyDraftsLoad\(pid\)/.test(bodyOf('openCalComments')),
 ok(bodyOf('openCalComments').indexOf('delete _calReplyDrafts[k]')
   < bodyOf('openCalComments').indexOf('_calReplyDraftsLoad(pid)'),
 'and restores AFTER the wipe, not before it, or the wipe would undo the restore');
-ok(/if \(parentId\) \{ delete _calReplyDrafts\[parentId\]; _calReplyDraftsPersist\(pid\); \}/.test(bodyOf('_calSubmitComposer')),
+ok(/if \(parentId\) \{ delete _calReplyDrafts\[parentId\]; _calReplyDraftsPersist\(pid\); \}/.test(bodyOf('_calSubmitComposerNow')),
 'a sent reply clears the stored draft; the early return above it is what keeps a refused one');
 
 /* ---- THE SAMPLES TWIN, which the first version of this shipped without ----

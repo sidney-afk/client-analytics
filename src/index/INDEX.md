@@ -61,7 +61,7 @@
 | 53 | `280-samples-cards-notes.js.part` | 3004 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 55 | `299-instagram-upload.js.part` | 715 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
-| 56 | `300-tiktok-upload.js.part` | 2395 | TIKTOK UPLOAD MODULE |
+| 56 | `300-tiktok-upload.js.part` | 2397 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 752 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 59 | `320-core-kasper-subtabs.js.part` | 20 | — |

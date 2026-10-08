@@ -1894,10 +1894,12 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             tkState.progress = 0;
             tkState.retryCreate = ambiguous;
             if (e && e.name === 'AbortError') {
-                /* Cancel at this point only stops the browser waiting. The
-                   request to create the post may already be with the server,
-                   so "Upload cancelled." was not something this page could
-                   know, and a changed re-submit then made a second post. */
+                // Cancel at this point only stops the browser waiting. The
+                // request to create the post may already be with the server,
+                // so "Upload cancelled." was not something this page could
+                // know, and a changed re-submit then made a second post.
+                // (Line comments on purpose: test/comment-strip-is-honest.js
+                // measures a region of this file that a block comment here would end early.)
                 tkState.error = 'Cancelled while the post was being created, so it may already exist. Check the queue on the right before posting again. To finish this same post, press Submit again without changing anything: it cannot post twice.';
                 _tkRenderForm();
                 try { Promise.resolve(_tkFetchQueue()).catch(() => {}); } catch (err) {}

@@ -22,12 +22,14 @@ function fakeDb(state) {
     const api = {
       select(cols) { q.cols = cols; return api; },
       eq(col, val) { q.filters.push([col, val]); return api; },
+      in(col, vals) { q.ins = (q.ins || []).concat([[col, vals]]); return api; },
       order(col, opts) { q.order = [col, opts]; return api; },
       maybeSingle() { q.single = true; return api; },
       then(resolve, reject) {
         calls.selects.push(q);
         let rows = (state.tables[table] || []).slice();
         for (const [c, v] of q.filters) rows = rows.filter((r) => r[c] === v);
+        for (const [c, vs] of q.ins || []) rows = rows.filter((r) => vs.includes(r[c]));
         if (q.order) rows.sort((a, b) => (a[q.order[0]] > b[q.order[0]] ? 1 : -1));
         const res = state.failTable === table ? { data: null, error: { message: 'boom secret detail' } } : { data: q.single ? (rows[0] || null) : rows, error: null };
         return Promise.resolve(res).then(resolve, reject);
@@ -158,6 +160,85 @@ function makeReq(method, headers, body, spy) {
     const st = baseState(); st.rpc.client_onboarding_set_step = () => ({ data: null, error: { message: msg } });
     h = harness(st); res = await post(h, 'admin-key', good); out = await j(res);
     ok(res.status === status && out.error === code && !JSON.stringify(out).includes('internal detail'), 'set_step: database error "' + msg + '" maps to ' + status + ' ' + code + ' and leaks nothing');
+  }
+
+  // ---- create client (step 2.5): preview writes nothing; create goes through one RPC
+  const createState = () => {
+    const st = baseState();
+    Object.assign(st.tables, {
+      social_media_managers: [
+        { slug: 'managera', name: 'Manager A', active: true, source_clients: ['Alpha Client'] },
+        { slug: 'managerb', name: 'Manager B', active: true, source_clients: ['Listed Only'] },
+        { slug: 'managergone', name: 'Gone', active: false, source_clients: [] },
+      ],
+      syncview_runtime_flags: [
+        { key: 'client_profiles_authority', value: { source: 'syncview' } },
+        { key: 'prod_authority', value: { video: 'syncview', graphics: 'syncview' } },
+        ...['calendar_upsert_ef_clients', 'sample_review_ef_clients', 'settings_ef_clients', 'write_ui_reroute_clients'].map((key) => ({ key, value: { clients: ['alphaclient'] } })),
+        { key: 'unrelated_flag', value: { secret: 'never-read' } },
+      ],
+      clients: [{ slug: 'alphaclient', display_name: 'Alpha Client' }],
+      client_profiles: [{ slug: 'alphaclient', display_name: 'Alpha Client' }],
+    });
+    return st;
+  };
+  for (const action of ['create_preview', 'create']) {
+    let hh = harness(createState()); let spy = {};
+    let r = await post(hh, 'smm-key', { action, member_id: 'm-smm', display_name: 'New Person', manager_slug: 'managera' }, spy);
+    ok(r.status === 403 && !spy.read && hh.made.n === 0, action + ': a non-admin key is refused before the body is read');
+    hh = harness(createState());
+    r = await post(hh, 'admin-key', { action, member_id: 'm-smm', display_name: 'New Person', manager_slug: 'managera', request_id: 'req-create-1' });
+    ok(r.status === 403 && hh.db.calls.rpcs.length === 0, action + ': an SMM member under the admin key is refused');
+  }
+  h = harness(createState());
+  res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin' }); out = await j(res);
+  ok(res.status === 200 && out.ready === false && out.managers.map((m) => m.slug).join() === 'managera,managerb', 'create_preview with no name only lists the active managers');
+  h = harness(createState());
+  res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: '  New   Person ', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(res.status === 200 && out.ready === true && out.slug === 'newperson' && out.display_name === 'New Person' && out.mode === 'client' && out.manager.name === 'Manager B' && out.slack === 'not_queued' && out.will_create.length === 6, 'create_preview: a clean new client is ready, with its slug, manager and what will be made');
+  ok(h.db.calls.rpcs.length === 0, 'create_preview writes nothing (no RPC at all)');
+  ok(h.db.calls.selects.find((q) => q.table === 'syncview_runtime_flags').ins[0][1].every((k) => /authority|_clients$/.test(k)), 'create_preview reads only the switches it checks');
+  for (const [body, code, label] of [
+    [{ display_name: 'alpha client', manager_slug: 'managera' }, 'name_taken', 'a name already in use (any case)'],
+    [{ display_name: 'Listed Only', manager_slug: 'managera' }, 'name_on_a_manager_list', 'a name already on a manager list'],
+    [{ display_name: 'New Person', manager_slug: 'managergone' }, 'manager_unknown', 'an inactive manager'],
+    [{ display_name: 'Alpha-Client!', manager_slug: 'managera' }, 'slug_taken', 'a different name with the same slug'],
+  ]) {
+    h = harness(createState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', ...body }); out = await j(res);
+    ok(res.status === 200 && out.ready === false && out.blockers.includes(code), 'create_preview: ' + label + ' is a blocker (' + code + ')');
+  }
+  const sheetMode = createState(); sheetMode.tables.syncview_runtime_flags[0].value = { source: 'sheet' };
+  h = harness(sheetMode); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managera' }); out = await j(res);
+  ok(out.ready === false && out.blockers.includes('authority_not_syncview'), 'create_preview: the Sheet still being the main copy is a blocker');
+  for (const [body, code] of [[{ display_name: '', manager_slug: 'managera' }, 'name_invalid'], [{ display_name: 'New Person', manager_slug: 'Bad Slug' }, 'manager_unknown'], [{ display_name: 'New Person', manager_slug: 'managera', email: 'nope' }, 'email_invalid'], [{ display_name: 'zz throwaway lower', manager_slug: 'managera' }, 'throwaway_name_needs_test_mode'], [{ display_name: '!!!', manager_slug: 'managera' }, 'slug_invalid']]) {
+    h = harness(createState()); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-1', ...body }); out = await j(res);
+    ok(res.status === 400 && out.error === code && h.db.calls.rpcs.length === 0, 'create: ' + code + ' is refused before the database is called');
+  }
+  h = harness(createState()); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managera' }); out = await j(res);
+  ok(res.status === 400 && out.error === 'request_id_required' && h.db.calls.rpcs.length === 0, 'create: a request id (for a safe retry) is required');
+  const created = createState(); let copied = 0;
+  created.rpc.client_create_native = (a) => ({ data: { ok: true, outcome: 'created', mode: a.p_mode, client_slug: a.p_client_slug, slack: 'not_queued' }, error: null });
+  const mkCreate = (st) => { const db = fakeDb(st); return { db, made: { n: 0 }, handler: mod.buildHandler({ authorize: (k) => (k === 'admin-key' ? { ok: true, role: 'admin' } : { ok: false, role: null }), makeClient: () => db, newId: () => 'x', copyToSheet: async () => { copied++; return { ok: true }; } }) }; };
+  h = mkCreate(created);
+  res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-1', display_name: 'New Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  const cc = h.db.calls.rpcs.find((c) => c.name === 'client_create_native');
+  ok(res.status === 200 && out.ok && out.client_slug === 'newperson' && out.mode === 'client' && h.db.calls.rpcs.length === 1, 'create: one RPC makes the whole client');
+  ok(cc.args.p_actor === 'Fixture Admin' && cc.args.p_mode === 'client' && cc.args.p_request_id === 'req-create-1' && cc.args.p_manager_slug === 'managerb' && cc.args.p_email === 'new@example.test' && cc.args.p_display_name === 'New Person', 'create: the RPC gets the admin\'s real name, the request id, the manager and the email');
+  ok(copied === 1, 'create: a real client is pushed to the read-only Sheet copy (best effort)');
+  copied = 0; h = mkCreate(created);
+  res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-2', display_name: 'ZZ THROWAWAY Proof', manager_slug: 'managera' }); out = await j(res);
+  ok(res.status === 200 && out.mode === 'test' && h.db.calls.rpcs[0].args.p_mode === 'test' && h.db.calls.rpcs[0].args.p_client_slug === 'zzthrowawayproof' && copied === 0, 'create: a "ZZ THROWAWAY" name takes the test path and never reaches the Sheet copy');
+  for (const [msg, errCode, status, code] of [
+    ['Could not find the function public.client_create_native', 'PGRST202', 503, 'create_not_installed'],
+    ['client_create_name_taken', '', 409, 'name_taken'],
+    ['roster_authority_not_syncview', '', 409, 'authority_not_syncview'],
+    ['native_client_provision_authority_unavailable', '', 409, 'production_authority_unavailable'],
+    ['native_client_provision_idempotency_conflict', '', 409, 'request_reused'],
+    ['some internal detail', '', 500, 'create_failed'],
+  ]) {
+    const st = createState(); st.rpc.client_create_native = () => ({ data: null, error: { message: msg, code: errCode } });
+    copied = 0; h = mkCreate(st); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-3', display_name: 'New Person', manager_slug: 'managera' }); out = await j(res);
+    ok(res.status === status && out.error === code && !JSON.stringify(out).includes('internal detail') && copied === 0, 'create: "' + msg + '" maps to ' + status + ' ' + code + ', leaks nothing and copies nothing');
   }
 
   // ---- source wiring

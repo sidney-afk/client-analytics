@@ -84,6 +84,8 @@ sent and the social posting ids. Each shows "owner" as responsible unless change
 the session): brain folder and Editor brief, keyword and description research, filming plan Doc
 creation, ideas pipeline set up. Everything else defaults to the owner.
 
+**Step 2.5 built (2026-10-08, OPEN_REPAIRS 369, NOT applied or deployed):** "New client" in the Clients tab header (admin only) and its dialog in fragment 324; `create_preview` and `create` on `client-onboarding`; `migrations/2026-10-08-create-client.sql` (`client_create_native`, one transaction: real provisioning or the throwaway path, Roster's profile write, the manager, the checklist with 4 steps ticked; never Slack). Proofs: `scripts/client-create-proof.sql` (disposable Postgres, `test/client-create-migration.js`), `test/client-onboarding-handler.js`, `docs/syncview-design/tests/clients-create-browser.js`. Lighthouse's steps: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. Slack is not queued at create time (reason and the open owner decision in that file).
+
 ## Stage 3: backfill for the current 35 clients
 
 Principle: **find, propose, wait, then save.** Nothing is written to a resource, step or sales row
@@ -93,7 +95,8 @@ then HubSpot, Drive and Slack to fill what the brain does not say.
 | Step | PR | What | Proof |
 |---|---|---|---|
 | 3.1 | Script | `scripts/client-resource-match.js`: read only. For each active client, in order: (1) the brain folder (facts, brief and any input files that name a Drive folder, Doc, Slack channel or HubSpot record); (2) HubSpot (match by the email on the profile, then name; one deal and contact per client; stage; contract and payment flags); (3) Drive (client folder under Clients and the filming plan folder, by name with duplicate detection); (4) Slack (creative and client channel by name pattern). Output: a proposal per client per resource with source, how sure, and the evidence kind. Written to the private `client_backfill_proposals` table (or a local file kept out of git), never to the repo. | Dry run on the test client against known truth first |
-| 3.2 | Run | Proposals for all 35, read only. The owner sees counts by source and how sure, and the list of ambiguous matches (duplicate Drive folders, a client with two channels, a contact with two deals). | Report of counts only; no names in any committed file |
+| 3.2 | Run | **Dry run done 2026-10-08:** `scripts/client-resource-match.js` built (3.1), counts in `docs/audits/2026-10-08-stage3-matching-dry-run.md`; nothing saved. |
+| 3.2 (detail) | Run | Proposals for all 35, read only. The owner sees counts by source and how sure, and the list of ambiguous matches (duplicate Drive folders, a client with two channels, a contact with two deals). | Report of counts only; no names in any committed file |
 | 3.3 | Page and function | An approvals screen in the Clients tab: approve or reject a proposal, or a whole batch of high-confidence ones; only approved proposals are applied, each with an event. | Test client first; owner approves the real batch |
 | 3.4 | Data | Mark the 26 hand-imported customers `unknown` for contract and payment; set all other sales fields from HubSpot as approved; run the census again. | Census before and after, counts only |
 

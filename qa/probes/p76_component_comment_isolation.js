@@ -33,6 +33,7 @@ const post = async (page, pid, comp, body) => {
   const S = Q.makeOk('P76 component comment isolation');
   const browser = await Q.launch();
   const smm = await Q.smmPage(browser);
+  const retired = await NW.captureRetiredWebhooks(smm.context());
   const gateway = await NW.stubNativeGateway(smm.context());
   try {
     await Q.up({ id: PID, name: 'COMPISO ' + TS, platforms: 'instagram', scheduled_date: '2026-06-29',
@@ -57,6 +58,7 @@ const post = async (page, pid, comp, body) => {
     S.ok(vidCalls.length === 1 && String(vidCalls[0].comment && vidCalls[0].comment.body || '').includes(VID)
       && vidCalls[0].comment.component === 'video', 'video note went to the VIDEO work item, filed against video');
     S.ok(gateway.every(c => !String(c && c.comment && c.comment.body || '').includes(CAP)), 'no work item received the caption note');
+    S.ok(NW.retiredCallCount(retired) === 0, 'the retired Linear webhooks received nothing');
     S.ok(!(r.video_tweaks || '').includes(CAP), 'video_tweaks does NOT contain the caption note');
 
     // app-level: _calCommentsFor keeps them separate

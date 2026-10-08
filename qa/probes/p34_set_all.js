@@ -16,6 +16,7 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
   // identity, as a signed-in SMM's do. Without both, the invented key was
   // refused and the linked card could never move (OPEN_REPAIRS 373).
   const NW = require('../native_work_item_fixture.js');
+  const retired = await NW.captureRetiredWebhooks(smm.context());
   const gateway = await NW.stubNativeGateway(smm.context());
   try {
     await Q.up({ id: NOLINK, name: 'SA-NL ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
@@ -57,6 +58,8 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
     S.ok(r.caption_status === 'Approved', '3: after confirm, caption moves to Approved');
     S.ok(r.video_status === 'In Progress', '3: video unchanged (no Linear)');
 
+    S.ok(gateway.length >= 1, '2: the linked card moved through the native gateway (calls ' + gateway.length + ')');
+    S.ok(NW.retiredCallCount(retired) === 0, 'the retired Linear webhooks received nothing');
     S.ok(smm._errs.length === 0, 'SMM: 0 JS errors (' + JSON.stringify(smm._errs.slice(0, 3)) + ')');
   } finally {
     for (const id of [NOLINK, LINK, TERM]) { try { await Q.up({ id, status: 'Archived' }); } catch (e) {} }

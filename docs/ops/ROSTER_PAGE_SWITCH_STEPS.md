@@ -2,7 +2,7 @@
 
 Session Quarry, 2026-10-08. Sheets move (STATE_OF_THINGS item A), slice 1 of
 [the remaining map](../plans/2026-10-03-sheets-remaining-map.md): the page's own two Sheet reads.
-Ledger: OPEN_REPAIRS 369. Nothing below has been done; every step needs the owner's go.
+Ledger: OPEN_REPAIRS 370. Nothing below has been done; every step needs the owner's go.
 
 ## What changes, in plain words
 

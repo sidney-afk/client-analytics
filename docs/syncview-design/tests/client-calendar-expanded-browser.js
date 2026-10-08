@@ -12,20 +12,50 @@ const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
-const widths = [360, 390, 430];
 const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.split('=').slice(1).join('=');
+const widths = (arg('widths') || '360,390,430').split(',').map(Number);
+const themes = (arg('themes') || 'light,dark').split(',');
+assert(widths.every(w => Number.isInteger(w) && w > 0), 'Invalid widths');
+assert(themes.every(t => ['light', 'dark'].includes(t)), 'Invalid themes');
+let requestedTheme = 'light';
+const captures = [];
 const before = process.argv.includes('--capture-before');
 const headed = process.argv.includes('--headed');
 const shots = process.env.POCKET_PHONE_SHOTS;
 const out = [];
 let checks = 0;
 if (process.argv.includes('--list')) {
-  const names = ['review-queue','review','thumbnail','lightbox','caption','save-error','sending','tabs','organizer','month','week','month-post','week-post','date-picker','notes','sheet-cta','more','organize','suggest-post','loading','error','empty',
+  const names = ['review-queue','review','thumbnail','lightbox','caption','caption-draft','save-error','sending','tabs','organizer','month','week','month-post','week-post','month-empty-today','week-empty-today','date-picker','notes','sheet-cta','more','organize','suggest-post','loading','loading-review','loading-organizer','loading-month','error','empty',
     ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state => 'comparison-' + state)];
   console.log(JSON.stringify(names.map(name => ({lane:'client-calendar-expanded',name,tab:'calendar'}))));
   process.exit(0);
 }
 function ok(value, message) { assert(value, message); checks++; }
+async function measureLoading(page, view) {
+  const m = await page.evaluate(() => {
+    const loader = document.querySelector('.cal-skeleton-loader');
+    const rect = loader.getBoundingClientRect();
+    const heading = document.querySelector('.pocket-client-calendar h1').getBoundingClientRect();
+    return { height: rect.height, top: rect.top, headingBottom: heading.bottom,
+      coversHeading: [...loader.querySelectorAll('.sv-skeleton')].filter(n => n.checkVisibility()).some(n => {
+        const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.top < heading.bottom;
+      }),
+      outside: [...loader.querySelectorAll('.sv-skeleton')].filter(n => n.checkVisibility()).filter(n => {
+        const r = n.getBoundingClientRect();
+        return r.top < rect.top - 1 || r.bottom > rect.bottom + 1 || r.left < rect.left - 1 || r.right > rect.right + 1;
+      }).map(n => n.className),
+      label: loader.querySelector('.pocket-cal-timeline-loading-label')?.textContent,
+      emptyClaims: [...loader.querySelectorAll('*')].filter(n => n.checkVisibility()).map(n => getComputedStyle(n, '::after').content).filter(text => /nothing scheduled/i.test(text)) };
+  });
+  ok(m.top >= m.headingBottom, view + ': loading panel overlaps Calendar heading');
+  ok(!m.coversHeading, view + ': skeleton paints over the Calendar heading');
+  ok(m.emptyClaims.length === 0, view + ': loading incorrectly claims nothing is scheduled');
+  if (['month', 'week'].includes(view)) {
+    ok(m.outside.length === 0, view + ': timeline skeleton escapes its loading panel: ' + m.outside.slice(0, 3).join(', '));
+    ok(m.height <= 250, view + ': timeline loading is oversized');
+    ok(m.label === 'Loading your calendar', view + ': visible loading label missing');
+  }
+}
 
 async function measure(page, label) {
   const m = await page.evaluate(() => {
@@ -42,7 +72,7 @@ async function measure(page, label) {
   ok(m.scrollWidth <= m.width + 1, label + ': page overflows');
   for (const c of m.controls) ok(c.w >= 43.5 && c.h >= 43.5, label + ': target below 44px: ' + JSON.stringify(c));
   for (const size of m.fields) ok(size >= 16, label + ': editable text below 16px');
-  out.push({ label, width: m.width, scrollWidth: m.scrollWidth, controls: m.controls.length, fields: m.fields.length });
+  out.push({ label, requestedTheme, effectiveTheme: await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light'), width: m.width, scrollWidth: m.scrollWidth, controls: m.controls.length, fields: m.fields.length });
 }
 async function shot(page, label) {
   if (!shots) return;
@@ -50,18 +80,27 @@ async function shot(page, label) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(() => [...document.images].every(i => i.complete), null, { timeout: 4000 }).catch(() => {});
   const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-preview-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, .dp-popup').count();
-  await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const name = label + '-' + requestedTheme;
+  const dimensions = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, fullHeight: document.documentElement.scrollHeight }));
+  await page.screenshot({ path: path.join(shots, name + '-viewport.png'), animations: 'disabled' });
+  await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: !overlay && dimensions.fullHeight > dimensions.height, animations: 'disabled' });
+  captures.push({ label, requestedTheme, effectiveTheme: await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light'), ...dimensions, file: name + '.png', viewportFile: name + '-viewport.png' });
 }
 async function run(browser, origin, width) {
-  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
-  const now = new Date();
-  const fixtureDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+  const timezoneId = 'America/Guatemala';
+  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId });
+  // The CI host can already be tomorrow while this browser is still today.
+  // Use the browser's zone for the populated fixture; empty Today is exercised
+  // separately below, so neither state depends on when CI happens to run.
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: timezoneId, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  const fixtureDate = [parts.year, parts.month, parts.day].join('-');
   const row = { ...BASE_ROW, id: 'p_phone_fixture_1', name: 'A little change. A better day.', scheduled_date: fixtureDate, cta: 'Save this for later.', thumbnail_url: 'https://drive.google.com/file/d/fixture_thumbnail_asset/view', video_deliverable_id: '00000000-0000-4000-a000-000000000001', graphic_deliverable_id: '00000000-0000-4000-a000-000000000002' };
   const finished = { ...row, id: 'p_phone_fixture_2', name: 'Make room for what matters.', thumbnail_url: origin + '/__fixture_unavailable.png', order_index: 2, status: 'Approved', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved' };
   const settings = { id: 'p_cal_settings', client: row.client, caption: JSON.stringify({ collab_mode: true }) };
   const writes = [];
   await installFixture(ctx, origin, row, writes, 'calendar');
-  await ctx.addInitScript(() => localStorage.setItem('syncview_theme', 'dark'));
+  await ctx.addInitScript(theme => localStorage.setItem('syncview_theme', theme), requestedTheme);
   await ctx.route('**/__fixture_unavailable.png', route => route.abort());
   // This existing POST is a read, not a card mutation. Keep it separate from
   // the writer receipt while loading a synthetic Drive thumbnail.
@@ -75,13 +114,14 @@ async function run(browser, origin, width) {
     }).join('\n');
     await ctx.route('https://fonts.googleapis.com/**', route => route.fulfill({ status: 200, contentType: 'text/css', body: css }));
   }
-  if (before) {
+  if (arg('before-root')) {
     const root = path.resolve(arg('before-root'));
     await ctx.route(origin + '/**', route => {
       const u = new URL(route.request().url());
       if (u.pathname.includes('__fixture')) return route.fallback();
       const file = path.join(root, decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname));
       if (!file.startsWith(root + path.sep)) return route.abort();
+      if (!fs.existsSync(file)) return /\.(html|js)$/.test(file) ? route.fulfill({ status: 404, body: 'Reference asset not found' }) : route.fallback();
       return route.fulfill({ status: 200, contentType: file.endsWith('.html') ? 'text/html' : 'text/javascript', body: fs.readFileSync(file) });
     });
   }
@@ -108,6 +148,11 @@ async function run(browser, origin, width) {
     ok(!await caption.locator('.cal-review-tweak-btn').isDisabled(), 'draft must enable Request change');
     ok(await caption.isVisible(), 'caption must stay visible beside the other decisions');
     ok((await caption.locator('.pocket-cal-section-status').innerText()).includes('Note not sent'), 'draft must stay visibly unsent');
+    await measure(page, 'caption-draft-' + width);
+    await shot(page, 'caption-draft-' + width);
+    const thumbnail = page.locator('.cal-review-preview-thumb-btn');
+    await thumbnail.scrollIntoViewIfNeeded();
+    ok(await thumbnail.locator('img').evaluate(img => img.decode().then(() => img.naturalWidth > 0, () => false)), 'thumbnail must display a decoded fixture image');
     await measure(page, 'thumbnail-' + width);
     await shot(page, 'thumbnail-' + width);
     await page.locator('.cal-review-preview-thumb-btn').click();
@@ -156,8 +201,9 @@ async function run(browser, origin, width) {
         .filter(e => !e.classList.contains('out') && e.checkVisibility({ checkVisibilityCSS: true }))
         .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', posts: e.querySelectorAll('.cal-month-pill, .cal-week-card').length, run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
       // Today is one black circle, the same in Month and Week; the few thumbnails are fetched at once and have loaded.
+      ok(await page.locator(view === 'month' ? '.cal-month-cell.today .cal-month-pill' : '.cal-week-col.today .cal-week-card').count() > 0, view + ': populated Today fixture must use the browser date');
       const todayMark = await page.evaluate(v => { const e = document.querySelector(v === 'month' ? '.cal-month-cell.today .cal-month-num' : '.cal-week-col.today .cal-week-num'); if (!e) return null; const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), radius: cs.borderTopLeftRadius, bg: cs.backgroundColor, fg: cs.color }; }, view);
-      if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle');
+      if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle ' + JSON.stringify(todayMark));
       await page.waitForFunction(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.complete), null, { timeout: 4000 });
       ok(await page.evaluate(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.loading === 'eager')), view + ': thumbnails must be fetched at once on a phone');
       ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
@@ -169,6 +215,25 @@ async function run(browser, origin, width) {
       await measure(page, view + '-post-' + width);
       await shot(page, view + '-post-' + width);
       await page.locator('.cal-preview-foot button').first().click();
+      // An empty Today uses the native compact day row. Check it explicitly;
+      // the host's timezone must not decide whether this regression is tested.
+      await page.evaluate(() => {
+        window._phoneTodayPosts = calState.posts;
+        const next = new Date(); next.setDate(next.getDate() + 1);
+        const iso = [next.getFullYear(), String(next.getMonth()+1).padStart(2,'0'), String(next.getDate()).padStart(2,'0')].join('-');
+        calState.posts = calState.posts.map(post=>post.scheduled_date ? {...post,scheduled_date:iso} : post);
+        _calRenderBody();
+      });
+      const emptyToday = await page.evaluate(v => {
+        const day = document.querySelector(v==='month' ? '.cal-month-cell.today' : '.cal-week-col.today');
+        const marker = day?.querySelector(v==='month' ? '.cal-month-num' : '.cal-week-num');
+        if (!marker) return null;
+        const r=marker.getBoundingClientRect(); return {w:r.width,h:r.height,posts:day.querySelectorAll('.cal-month-pill,.cal-week-card').length};
+      }, view);
+      ok(emptyToday && emptyToday.posts===0 && emptyToday.w===36 && emptyToday.h===36, view+': empty Today keeps a circular marker '+JSON.stringify(emptyToday));
+      await measure(page, view+'-empty-today-'+width);
+      await shot(page, view+'-empty-today-'+width);
+      await page.evaluate(() => {calState.posts=window._phoneTodayPosts;delete window._phoneTodayPosts;_calRenderBody();});
     }
     if (!before && view === 'organizer') {
       await page.locator('.cal-date-chip').first().click();
@@ -186,6 +251,8 @@ async function run(browser, origin, width) {
       const cta = page.locator('.cal-card').first().locator('.pocket-cal-section:has(.cal-fld-cta)');
       ok(await cta.isVisible() && await page.locator('.cal-card').first().locator('.cal-capblock').isVisible(), 'Sheet Caption and Call to action must both be visible');
       await measure(page, 'sheet-cta-' + width);
+      await cta.scrollIntoViewIfNeeded();
+      await shot(page, 'sheet-cta-' + width);
       await page.locator('[aria-controls=pocketCalMore]').click();
       ok(await page.locator('#pocketCalMore #calOrganizeBtn').count() === 1, 'Organize must be inside More');
       ok(await page.locator('#pocketCalMore #calZoomIn').count() === 1, 'card size must be inside More');
@@ -224,9 +291,14 @@ async function run(browser, origin, width) {
     await page.locator('.pocket-client-calendar').waitFor();
     ok(await page.locator('.pocket-client-calendar').count() === 1, 'phone header not restored');
     // Held loading and failure paints remain recognisable, then recovery.
-    await page.evaluate(() => { calState.loading = true; _calRenderBody(); });
-    ok(await page.locator('.cal-skeleton-loader').count() > 0, 'loading skeleton removed');
-    await shot(page, 'loading-' + width);
+    for (const view of ['review', 'organizer', 'month', 'week']) {
+      await page.evaluate(() => { calState.loading = true; });
+      await page.locator('[data-cal-view="' + view + '"]').click();
+      await page.evaluate(() => { _calRenderBody(); window.scrollTo(0, 0); });
+      ok(await page.locator('.cal-skeleton-loader').count() > 0, 'loading skeleton removed');
+      await measureLoading(page, view);
+      await shot(page, (view === 'week' ? 'loading' : 'loading-' + view) + '-' + width);
+    }
     await page.evaluate(() => { calState.loading = false; calState.error = 'Synthetic read failure'; _calRenderBody(); });
     ok(await page.locator('.cal-error').count() === 1, 'failure became an empty state');
     await measure(page, 'error-' + width);
@@ -243,8 +315,9 @@ async function run(browser, origin, width) {
   const server = await serve();
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch({ headless: !headed, ...(headed ? { channel: 'chrome' } : {}) });
-  try { for (const width of widths) await run(browser, origin, width); }
+  try { for (const theme of themes) { requestedTheme = theme; for (const width of widths) await run(browser, origin, width); } }
   finally { await browser.close(); server.close(); }
   if (shots) fs.writeFileSync(path.join(shots, 'measurements.json'), JSON.stringify({ checks, before, cases: out }, null, 2));
-  console.log(before ? 'client-calendar-expanded: BEFORE screenshots recorded at 360, 390, 430; no Expanded pass claimed.' : `client-calendar-expanded: OK (${checks} assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/430).`);
+  if (shots) fs.writeFileSync(path.join(shots, 'captures.json'), JSON.stringify(captures, null, 2));
+  console.log(before ? 'client-calendar-expanded: BEFORE screenshots recorded; no Expanded pass claimed.' : `client-calendar-expanded: OK (${checks} assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; ${widths.join('/')}; requested ${themes.join('/')}, effective client light).`);
 })().catch(e => { console.error(e); process.exitCode = 1; });

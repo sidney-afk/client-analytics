@@ -1,0 +1,362 @@
+[
+  {
+    "state": "loading-month",
+    "width": 375,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-month-375-light.png",
+      "sha256": "ee2ce1954ee7651a77f7fa7c74983afbeb5fffa6f07b1bef3e8720c8e7d38ad1"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-month-375-light.png",
+      "sha256": "0be28ea4374da04add3d4d1031d5945417ee76080e5a835ee5efdbf320be9d6e"
+    }
+  },
+  {
+    "state": "loading-month",
+    "width": 375,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-month-375-dark.png",
+      "sha256": "ee2ce1954ee7651a77f7fa7c74983afbeb5fffa6f07b1bef3e8720c8e7d38ad1"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-month-375-dark.png",
+      "sha256": "0be28ea4374da04add3d4d1031d5945417ee76080e5a835ee5efdbf320be9d6e"
+    }
+  },
+  {
+    "state": "loading-month",
+    "width": 390,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-month-390-light.png",
+      "sha256": "f0ad4c898f63b3f073216b931541fa5ee0631cf9d8d3a91fe157d96a28be02f5"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-month-390-light.png",
+      "sha256": "d3117027e136be72e909e6c7bfa8f68dbcec867f4dd7ebadf62cd8a653563a19"
+    }
+  },
+  {
+    "state": "loading-month",
+    "width": 390,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-month-390-dark.png",
+      "sha256": "f0ad4c898f63b3f073216b931541fa5ee0631cf9d8d3a91fe157d96a28be02f5"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-month-390-dark.png",
+      "sha256": "d3117027e136be72e909e6c7bfa8f68dbcec867f4dd7ebadf62cd8a653563a19"
+    }
+  },
+  {
+    "state": "loading-month",
+    "width": 430,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-month-430-light.png",
+      "sha256": "a0ea3424a54687d8f31b80ce7b8426d0f4cc7054b6c3b302a2abec7fa7c998aa"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-month-430-light.png",
+      "sha256": "67bea01efe120ece41c7e6465df6e7d7679a2beb07f070531b9e9b2936e67e7c"
+    }
+  },
+  {
+    "state": "loading-month",
+    "width": 430,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-month-430-dark.png",
+      "sha256": "a0ea3424a54687d8f31b80ce7b8426d0f4cc7054b6c3b302a2abec7fa7c998aa"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-month-430-dark.png",
+      "sha256": "67bea01efe120ece41c7e6465df6e7d7679a2beb07f070531b9e9b2936e67e7c"
+    }
+  },
+  {
+    "state": "loading",
+    "width": 375,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-375-light.png",
+      "sha256": "d9fe2eb1545fab8eb48257b68e90b322829f0bc8b7f47debb501f8882c08d539"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-375-light.png",
+      "sha256": "1de33237081dd14ab1a859ebb534b92dcfce900b040f78ed23a36f81c28745f6"
+    }
+  },
+  {
+    "state": "loading",
+    "width": 375,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-375-dark.png",
+      "sha256": "d9fe2eb1545fab8eb48257b68e90b322829f0bc8b7f47debb501f8882c08d539"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-375-dark.png",
+      "sha256": "1de33237081dd14ab1a859ebb534b92dcfce900b040f78ed23a36f81c28745f6"
+    }
+  },
+  {
+    "state": "loading",
+    "width": 390,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-390-light.png",
+      "sha256": "42cdcb6b54238ea0c287ce93e2a8102e66e7a64aae0f3d69afb9a5e588b1c5ea"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-390-light.png",
+      "sha256": "bbb1d417321f31cb14d3d2262986029dcb4d30034a2d77de548ce76d0d5d72a5"
+    }
+  },
+  {
+    "state": "loading",
+    "width": 390,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-390-dark.png",
+      "sha256": "42cdcb6b54238ea0c287ce93e2a8102e66e7a64aae0f3d69afb9a5e588b1c5ea"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-390-dark.png",
+      "sha256": "bbb1d417321f31cb14d3d2262986029dcb4d30034a2d77de548ce76d0d5d72a5"
+    }
+  },
+  {
+    "state": "loading",
+    "width": 430,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-430-light.png",
+      "sha256": "4646a7630a6c986a6c71535f5c39a132cc320dda8e0a4db34146f43c8970b0af"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-430-light.png",
+      "sha256": "37cf3347269449000c720a6bb0e20057a02ea5f223d38e7ff44ca864e1c284d8"
+    }
+  },
+  {
+    "state": "loading",
+    "width": 430,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/before/loading-430-dark.png",
+      "sha256": "4646a7630a6c986a6c71535f5c39a132cc320dda8e0a4db34146f43c8970b0af"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/loading-430-dark.png",
+      "sha256": "37cf3347269449000c720a6bb0e20057a02ea5f223d38e7ff44ca864e1c284d8"
+    }
+  },
+  {
+    "state": "month-empty-today",
+    "width": 375,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/month-empty-today-375-light.png",
+      "sha256": "f8c64122bcc5cd1bea2410062161d340895eba9ec3647833606091f129f4e08e"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/month-empty-today-375-light.png",
+      "sha256": "3c75b84fb51e095fcc6ca1729b41a228f32ce5d3aea60dd13ecc672c9a5028f6"
+    }
+  },
+  {
+    "state": "month-empty-today",
+    "width": 375,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/month-empty-today-375-dark.png",
+      "sha256": "f8c64122bcc5cd1bea2410062161d340895eba9ec3647833606091f129f4e08e"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/month-empty-today-375-dark.png",
+      "sha256": "3c75b84fb51e095fcc6ca1729b41a228f32ce5d3aea60dd13ecc672c9a5028f6"
+    }
+  },
+  {
+    "state": "month-empty-today",
+    "width": 390,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/month-empty-today-390-light.png",
+      "sha256": "79243ff260e611271c4c143c2ceee20a76e41017a9ad182c88033effeb41ecff"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/month-empty-today-390-light.png",
+      "sha256": "be815bfd1bf106d6d0f50819d3ab2497f97ae2400b1585c4398f9734876b4293"
+    }
+  },
+  {
+    "state": "month-empty-today",
+    "width": 390,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/month-empty-today-390-dark.png",
+      "sha256": "79243ff260e611271c4c143c2ceee20a76e41017a9ad182c88033effeb41ecff"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/month-empty-today-390-dark.png",
+      "sha256": "be815bfd1bf106d6d0f50819d3ab2497f97ae2400b1585c4398f9734876b4293"
+    }
+  },
+  {
+    "state": "month-empty-today",
+    "width": 430,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/month-empty-today-430-light.png",
+      "sha256": "39d3f91448d3625ec9f216c70a269ff1faf0d968538c532842a2f6e04e8b635a"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/month-empty-today-430-light.png",
+      "sha256": "e78d1d38556b919c4c4c536ab9b77f4ca682c9e0f1fbe1d25197e978ff9065e6"
+    }
+  },
+  {
+    "state": "month-empty-today",
+    "width": 430,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/month-empty-today-430-dark.png",
+      "sha256": "39d3f91448d3625ec9f216c70a269ff1faf0d968538c532842a2f6e04e8b635a"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/month-empty-today-430-dark.png",
+      "sha256": "e78d1d38556b919c4c4c536ab9b77f4ca682c9e0f1fbe1d25197e978ff9065e6"
+    }
+  },
+  {
+    "state": "week-empty-today",
+    "width": 375,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/week-empty-today-375-light.png",
+      "sha256": "5b53c1eac94b8784a8d100b69b3838349d05f74875ced0f36c984ff6f99d362a"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/week-empty-today-375-light.png",
+      "sha256": "5b53c1eac94b8784a8d100b69b3838349d05f74875ced0f36c984ff6f99d362a"
+    }
+  },
+  {
+    "state": "week-empty-today",
+    "width": 375,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/week-empty-today-375-dark.png",
+      "sha256": "5b53c1eac94b8784a8d100b69b3838349d05f74875ced0f36c984ff6f99d362a"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/week-empty-today-375-dark.png",
+      "sha256": "5b53c1eac94b8784a8d100b69b3838349d05f74875ced0f36c984ff6f99d362a"
+    }
+  },
+  {
+    "state": "week-empty-today",
+    "width": 390,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/week-empty-today-390-light.png",
+      "sha256": "c1570ccec506591b043586c2b904e992f9b14d38eacc248a3798560d9e51805c"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/week-empty-today-390-light.png",
+      "sha256": "c1570ccec506591b043586c2b904e992f9b14d38eacc248a3798560d9e51805c"
+    }
+  },
+  {
+    "state": "week-empty-today",
+    "width": 390,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/week-empty-today-390-dark.png",
+      "sha256": "c1570ccec506591b043586c2b904e992f9b14d38eacc248a3798560d9e51805c"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/week-empty-today-390-dark.png",
+      "sha256": "c1570ccec506591b043586c2b904e992f9b14d38eacc248a3798560d9e51805c"
+    }
+  },
+  {
+    "state": "week-empty-today",
+    "width": 430,
+    "requestedTheme": "light",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/week-empty-today-430-light.png",
+      "sha256": "ef378531b7631d96aefe7c332a74d6a86f9a786bc3bef8737ec4ff2d78975458"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/week-empty-today-430-light.png",
+      "sha256": "ef378531b7631d96aefe7c332a74d6a86f9a786bc3bef8737ec4ff2d78975458"
+    }
+  },
+  {
+    "state": "week-empty-today",
+    "width": 430,
+    "requestedTheme": "dark",
+    "effectiveTheme": "light",
+    "sourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+    "before": {
+      "file": "batch-3/ci-followup/before/week-empty-today-430-dark.png",
+      "sha256": "ef378531b7631d96aefe7c332a74d6a86f9a786bc3bef8737ec4ff2d78975458"
+    },
+    "after": {
+      "file": "batch-3/ci-followup/after/week-empty-today-430-dark.png",
+      "sha256": "ef378531b7631d96aefe7c332a74d6a86f9a786bc3bef8737ec4ff2d78975458"
+    }
+  }
+]

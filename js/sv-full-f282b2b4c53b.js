@@ -27803,7 +27803,17 @@
             </div>
         </div>`;
     }
+    function _svCalendarPhoneTimelineSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader pocket-cal-timeline-loading" role="status" aria-label="${_calEscAttr(label || 'Loading your calendar')}">
+            <span class="pocket-cal-timeline-loading-label">${_calEsc(label || 'Loading your calendar')}</span>
+            <div class="pocket-cal-timeline-loading-rows" aria-hidden="true">${[0, 1, 2].map(i => `<div class="pocket-cal-timeline-loading-row">
+                ${_svSkel('pocket-cal-timeline-loading-day')}
+                <div class="pocket-cal-timeline-loading-lines">${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '64%' : '82%') + ';')}${_svSkel('sv-skeleton-line', 'width:46%;')}</div>
+            </div>`).join('')}</div>
+        </div>`;
+    }
     function _svCalendarMonthSkeletonHtml(label) {
+        if (document.documentElement.classList.contains('boot-client') && window.matchMedia('(max-width: 767px)').matches) return _svCalendarPhoneTimelineSkeletonHtml(label);
         const cells = Array.from({ length: 42 }, (_, i) => `<div class="cal-month-cell${i < 3 || i > 36 ? ' out' : ''}">
             <div class="cal-month-cellhead">
                 ${_svSkel('sv-skeleton-line', 'width:28px;height:10px;')}
@@ -27828,6 +27838,7 @@
         </div>`;
     }
     function _svCalendarWeekSkeletonHtml(label) {
+        if (document.documentElement.classList.contains('boot-client') && window.matchMedia('(max-width: 767px)').matches) return _svCalendarPhoneTimelineSkeletonHtml(label);
         return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
             <div class="cal-week-wrap">
                 <div class="cal-month-header">
@@ -87966,4 +87977,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-57c9ac578b0e.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-f282b2b4c53b.js");

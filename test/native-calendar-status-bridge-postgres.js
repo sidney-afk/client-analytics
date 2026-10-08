@@ -371,7 +371,7 @@ try {
    * What IS proved here is the consequence a stale apply would break: the
    * reported `applied` flag is read back from what the UPDATE returned, and the
    * ledger is written from the same place. */
-  /* ---- N/A wins + the one-client backfill (2026-10-08, OPEN_REPAIRS 369) */
+  /* ---- N/A wins + the one-client backfill (2026-10-08, OPEN_REPAIRS 373) */
   // The 2026-10-08 bodies are built on the live 2026-10-01 trigger, so that
   // lands first, exactly as the install order has it.
   cluster.runFile(path.join(MIGRATIONS, '2026-10-01-calendar-overall-status-bridge.sql'));

@@ -37,7 +37,7 @@ const seed = (id) => Q.up({ id, name: 'CR ' + id.slice(-6), platforms: 'youtube'
   // (cancel_requested among them). This probe used to fake the two retired
   // n8n webhooks, so the page's cancel reached the live function instead and
   // the late caption landed: G went red on a robot that no longer modelled
-  // the product (OPEN_REPAIRS 369). Same contract, new address.
+  // the product (OPEN_REPAIRS 373). Same contract, new address.
   const jobs = new Map();   // jobId -> { jobId, postId, client }
   await ctx.route('**/webhook/generate-caption', async (r) => {
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}

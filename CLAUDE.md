@@ -128,7 +128,7 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 - **Mutate only the test client `sidneylaruel`** unless the owner names another.
   Never seed calendar statuses with raw SQL on a card linked to Production work
   items: the status sync never sees it and the drift robot goes red for days
-  (OPEN_REPAIRS 369). Use a throwaway unlinked card, or move the work item.
+  (OPEN_REPAIRS 373). Use a throwaway unlinked card, or move the work item.
 - **A prompt handed to an executor session must SAY, in a sentence, which session
   it is for.** Write `You are the session named Mirror.` — not `Mirror:` and not
   `Mirror <instruction>`. A bare name followed by a colon reads as punctuation,

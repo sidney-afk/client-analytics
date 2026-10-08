@@ -14,7 +14,7 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
   // The linked card's video and graphic now move through the native gateway
   // (mocked here, see qa/native_work_item_fixture.js) under a verified staff
   // identity, as a signed-in SMM's do. Without both, the invented key was
-  // refused and the linked card could never move (OPEN_REPAIRS 369).
+  // refused and the linked card could never move (OPEN_REPAIRS 373).
   const NW = require('../native_work_item_fixture.js');
   const gateway = await NW.stubNativeGateway(smm.context());
   try {

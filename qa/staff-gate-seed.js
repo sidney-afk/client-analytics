@@ -151,7 +151,7 @@ function isStubKeyProductionWrite(request) {
 // was not enough: Playwright tries the NEWEST route first, and #1644 made
 // seedVerifiedProbeStaff register this refusal AFTER every probe's gateway
 // stub, so from 2026-09-25 the refusal answered first and the Calendar nightly
-// lost every native status and note write (OPEN_REPAIRS 369).
+// lost every native status and note write (OPEN_REPAIRS 373).
 const PRODUCTION_WRITE_MOCKED = new WeakSet();
 function markProductionWriteMocked(context) {
   if (context) PRODUCTION_WRITE_MOCKED.add(context);
@@ -225,7 +225,7 @@ async function answerStubKeyAnalyticsRead(target) {
 // 2026-09-26) a signed-out page is also moved off Kasper to Home, so from
 // 2026-09-27 every Kasper verb in the Samples nightly found no card, and the
 // Calendar nightly's Kasper probes lost their verified identity mid-run
-// (OPEN_REPAIRS 369). Measured 2026-10-08: these six are every 401 a stub-key
+// (OPEN_REPAIRS 373). Measured 2026-10-08: these six are every 401 a stub-key
 // staff or Kasper page draws. Each is answered here as refused but NOT 401, the
 // way answerStubKeyAnalyticsRead does, so the page stays signed in and the
 // suite exercises what a real reviewer does. Only these names and only an

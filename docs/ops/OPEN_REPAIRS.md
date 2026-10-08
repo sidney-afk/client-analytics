@@ -30971,7 +30971,95 @@ private. The rebuilt index passes assembled == working tree == committed HEAD.
 The original failed/superseded invocations are retained. The batch is ready for
 Lighthouse's PR review, not deployed; the full phone finish line remains OPEN.
 
-## 369. [2026-10-08, BUILT, NOT MERGED; migration NOT APPLIED] Three red monitoring robots: Calendar E2E, Samples E2E, card vs calendar drift (session Mend)
+## 369. [2026-10-07, BUILT, NOT DEPLOYED, FINAL BATCH GATES PENDING] Prism phone batch 3: client Calendar loading covers its own heading
+
+Confirmed with fictional client data at 375/390/430 and both theme preferences,
+then reproduced in a separate 24-state browser probe after settling. Client
+Month/Week skeleton elements escaped their loading container and painted over
+the Calendar heading; Month also said “Nothing scheduled” during loading.
+The new regression check rejects parent source with “month: skeleton paints
+over the Calendar heading”.
+
+Client phone Month/Week now render a compact, visibly labelled timeline loading
+panel. Desktop uses the original skeleton branch. Phone CSS remains owned by
+`html.boot-client` and capped at 767 pixels. Native view navigation and all
+4,500 expanded Calendar assertions pass. Twelve exact before/after pairs and
+personal receipts are in the Prism audit's `batch-3` directory; its current
+coverage still leaves the complete phone round and fresh review OPEN.
+
+Detailed client tooling now captures every requested width/theme preference,
+records the effective client light theme, proves a decoded supported thumbnail,
+and distinguishes linked Notes from a safe unlinked refusal. Reference-route
+and fixture-binding failures are retained in the batch notes. Final desktop
+parity, remaining existing phone reruns, final source/identity/HEAD checks and
+PR publication are pending. No database, workflow, live write, deployment or
+merge was performed. Lighthouse owns review and merge. Rollback: revert this
+batch and rebuild the generated index/assets.
+
+Batch 3 frozen-source follow-through: all 72/72 broad desktop PNG/style pairs
+match the exact batch 2 parent; 32 additional native loading PNG/markup/style
+pairs also match. Final source checks pass staff rules at 240 states, card
+design at 24 states, basic client review at 20 journeys, detailed Calendar at
+4,500 assertions, detailed Samples/Analytics at 2,964 assertions and admin at
+420 states/8,892 checks. Safe receipts and actual tails are in the Prism audit's
+`batch-3/` directory. The expanded all-state staff capture is still running.
+Twelve client loading cells remain accepted; 66 further source-bound visual
+observations remain OPEN. Full clean and fresh-review rounds, hosted batch 3
+checks, publication and deployment remain separate pending gates.
+
+Batch 3 further discovery: a native Filming month disclosure was missing from
+coverage and is now listed, bringing the matrix to 335 states/2,010 cells.
+Its fixture now uses production's Set of months and native count refresh.
+The complete 426-state admin rerun passes 9,012 checks with the intended fonts
+and pinned Chart.js bytes. Independent settled six-cell measurements confirm
+an ignored grid-column rule on a flex container, uneven month tiles/label
+centers, 1.89:1 light label contrast and an unlabeled keyboard-unreachable
+row disclosure. Those product repairs remain OPEN for the next batch. The
+branch has uploaded; Lighthouse still owns PR review/merge. The full phone
+round and separate fresh review remain OPEN.
+
+Batch 3 hosted-check follow-up (same PR #1994): entry-links-boot and split-preview
+exposed an existing empty Today circle squeezed to 34 x 36 px at 360 px. It was
+independently reproduced on the prior batch with a UTC host and Guatemala
+browser. The shared client-only phone marker now refuses flex shrink; the
+runner checks empty Today in Month and Week independently of the host date.
+The current source has 24 reviewed clean matrix cells and two extra 360 px
+Month reviews. Its native Calendar run passes 6,208 assertions at
+360/375/390/430. All 72 new desktop PNG/style pairs match the exact pre-follow-up
+head; modules, seven phone scope guards, map, truth, index and identity-exposure
+checks pass. Safe receipts and the before/after gallery live in
+`docs/audits/2026-10-07-prism-phone/batch-3/ci-followup/`.
+The 696-render staff sweep completed with zero reported problems on the initial
+source; those captures still require personal review and do not certify the
+changed source. Current coverage is 337 states/2,022 cells, 24 clean, with all
+other cells and 280 discovery obligations OPEN. Hosted rechecks, the full clean
+round, fresh review and deployment remain pending. Prism has not merged.
+
+2026-10-08, same PR #1994, root-cause clarification: main's original runner
+used the host's timezone for both browser and fixture. Batch 3 changed the
+browser to Guatemala while retaining a host-local fixture date. Around
+02:10 UTC that scheduled the fixture tomorrow and exposed the empty Today
+shrink defect. The prior-source reproduction used the new runner; it was not
+a failing run of main's original CI. The populated fixture now uses the
+browser's zone, with a new assertion that Today contains fixture posts, while
+the unchanged 36 px circle requirement and explicit empty Today checks remain.
+UTC-host verification passes 4,668 assertions at 360/390/430, requested
+light/dark. Product source and all gallery/desktop receipts are unchanged.
+The owner also narrowed future acceptance to 1440 desktop, 393 x 852 iPhone
+and 412 x 915 Android, on the specified priority screens; historical galleries
+do not certify those new device sizes. Hosted checks remain pending.
+
+## 370. [2026-10-08, BUILT, NOT DEPLOYED, WEBHOOK NOT REGISTERED] TikTok queue table learns when posts go live, without n8n
+
+Source: owner, 2026-10-08. After the cut-over (362) Post For Me's result webhook still pointed at the n8n workflow "SyncView TikTok Upload — Result" (`1qZmOQPtG6rKYlK7`), which writes only to the Sheet, so `tiktok_uploads` never heard results. Measured live: 3 rows past their scheduled time still `scheduled`, `last_checked_at` empty on every open row. Cause of the second part: the list's refresh only looked at the newest 100 rows of the queue, and the overdue rows are older (May to September). Of the 3 overdue rows, 2 have no Post For Me post id at all (from before Post For Me), so no lookup can settle them; they now get `last_checked_at` and stay as they are.
+Fixed in `tiktok-upload` (no n8n workflow edited):
+- Result webhook: `POST .../functions/v1/tiktok-upload?pfm_webhook=1`, no staff key. Post For Me proves itself with the header `Post-For-Me-Webhook-Secret` (its docs: a shared secret, no HMAC). The function compares it, in constant time, with `TIKTOK_PFM_WEBHOOK_SECRET` if set, otherwise with the secret Post For Me holds for this URL (read with the key the function already has), so no secret is copied by hand. `social.post.result.created` updates the row by `upload_post_id` (posted with link, or failed with TikTok's reason); other events and posts not in the queue are acknowledged and ignored; a bad secret is 401.
+- Safety net: every list (and the new staff action `refresh_due`) asks Post For Me about open rows whose time has come, least recently asked first, anywhere in the table. A row with no post id is looked up by `external_id` first.
+- Admin actions `webhook_status`, `webhook_register`, `webhook_remove` and `scripts/tiktok-pfm-webhook.js` to point Post For Me at the function. They never show a secret.
+Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
+Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
+
+## 373. [2026-10-08, BUILT, NOT MERGED; migration NOT APPLIED] Three red monitoring robots: Calendar E2E, Samples E2E, card vs calendar drift (session Mend)
 
 All three fed the `monitoring_heartbeat_stale` alert. Each was traced to its cause; no check was skipped or loosened.
 

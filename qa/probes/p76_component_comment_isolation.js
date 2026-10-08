@@ -4,7 +4,7 @@
 // component's own messages. (Cross-component bleed would show a client the wrong
 // feedback under the wrong asset.)
 //
-// THE VIDEO SIDE MOVED (OPEN_REPAIRS 369). Since the 2026-08-28 video flip a
+// THE VIDEO SIDE MOVED (OPEN_REPAIRS 373). Since the 2026-08-28 video flip a
 // video note lives on the card's native video work item, and a card with no
 // work item refuses one (native_link_required) -- so this probe, which seeded
 // a card with none, had its video note refused and went red. The card now

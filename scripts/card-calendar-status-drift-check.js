@@ -69,7 +69,7 @@ require('../test/helpers/single-file-index.js'); // split switch on (plan step 4
  *   unresolved      the card names a deliverable id that did not read back.
  *   agree           the slot already holds the mapped value.
  *   opted_out       the SMM set the slot to N/A: this post does not need that
- *                   piece. Owner decision 2026-10-08 (OPEN_REPAIRS 369): N/A
+ *                   piece. Owner decision 2026-10-08 (OPEN_REPAIRS 373): N/A
  *                   WINS. The trigger and both backfills leave an N/A slot
  *                   alone (migrations/2026-10-08-native-calendar-na-wins-one-client.sql),
  *                   so the card holding N/A is the rule, not drift. Counted

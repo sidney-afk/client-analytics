@@ -266,7 +266,7 @@ const cleanReport = classify(
 ok(cleanReport.totals.drift === 0 && cleanReport.totals.agree === 1 && cleanReport.drift.length === 0,
   'a world where the bridge is holding reports zero drift (the gate can actually go green)');
 
-/* ---- N/A wins (owner, 2026-10-08, OPEN_REPAIRS 369) ---- */
+/* ---- N/A wins (owner, 2026-10-08, OPEN_REPAIRS 373) ---- */
 const naDlv = (id, status, at) => ({ id, status, origin: 'calendar', card_id: 'post-na', client_slug: 'sidneylaruel', status_at: at });
 const naReport = classify(
   [{ id: 'post-na', client: 'sidneylaruel', status: 'active', video_status: ' N/A ', graphic_status: 'Approved',

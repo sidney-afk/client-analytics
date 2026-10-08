@@ -622,6 +622,7 @@
     "tiktok-carousel-transport.js",
     "tiktok-size-label.js",
     "tiktok-upload-cancel-source.js",
+    "tiktok-upload-results.js",
     "tiktok-upload-source.js",
     "title-name-rule-drift.js",
     "title-review-lifecycle.js",

@@ -1,6 +1,6 @@
 -- ============================================================
 -- Native calendar status bridge: N/A wins, and a one-client backfill.
--- (OPEN_REPAIRS 369; written 2026-10-08, NOT APPLIED. Owner applies.)
+-- (OPEN_REPAIRS 373; written 2026-10-08, NOT APPLIED. Owner applies.)
 -- ============================================================
 --
 -- WHY. The card-vs-calendar drift gate has been red since 2026-10-01 16:48Z on

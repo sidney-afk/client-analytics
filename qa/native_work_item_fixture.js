@@ -89,7 +89,7 @@ function crosswalkRowFor(cardId, component, slug) {
  * note on a linked component waits for its canonical thread before it is sent,
  * and the live production-comments cannot know an id this fixture minted (it
  * refuses the probe's invented key with 401 besides), so the note never left
- * the page and p28/p60/p76 went red (OPEN_REPAIRS 369). A minted work item has
+ * the page and p28/p60/p76 went red (OPEN_REPAIRS 373). A minted work item has
  * no comments yet: answer the empty canonical thread a new deliverable really
  * has. Every other deliverable's read is left live.
  */
@@ -269,7 +269,7 @@ async function seedVerifiedProbeStaff(page, options) {
   // after this: it marks the context and the refusal falls back to it.
   await require('./staff-gate-seed.js').refuseStubKeyProductionWrite(page.context());
   // The staff reads that refuse this invented key with 401 would sign the
-  // page straight back out (OPEN_REPAIRS 369); answer them as refused, not 401.
+  // page straight back out (OPEN_REPAIRS 373); answer them as refused, not 401.
   await require('./staff-gate-seed.js').answerStubKeyStaffReads(page.context());
   return page.evaluate((identity) => {
     try {
@@ -293,7 +293,7 @@ async function seedVerifiedProbeStaff(page, options) {
  * "Notes are still loading" until its canonical thread has been read, exactly
  * as a person cannot post into a thread that is still loading. A probe that
  * submits in the same tick as openCalComments therefore had its note dropped
- * (OPEN_REPAIRS 369). Resolves 'ready', 'unlinked' (nothing to wait for) or
+ * (OPEN_REPAIRS 373). Resolves 'ready', 'unlinked' (nothing to wait for) or
  * the last gate status seen when the time runs out, so a probe can assert it.
  */
 async function waitForNoteThread(page, pid, component, ms) {

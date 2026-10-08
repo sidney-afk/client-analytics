@@ -134,7 +134,7 @@ async function callFrom(page, key) {
     assert.ok(!/analytics_mirror_read_enabled/.test(asked[1]), 'the single mirror-flag read never asks for the real flag');
     assert.equal(asked[2], 'eq.pto_v1', 'an unrelated single-flag read is untouched');
     await flagCtx.close();
-    // Case 6 (OPEN_REPAIRS 369): the probes' native gateway stub is registered
+    // Case 6 (OPEN_REPAIRS 373): the probes' native gateway stub is registered
     // FIRST and seedVerifiedProbeStaff registers the refusal again AFTER it,
     // on the context and on the page. The newest route runs first, so before
     // the fix the refusal answered every probe-key write and the stub never

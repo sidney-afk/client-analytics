@@ -36,10 +36,10 @@ here with where it stopped, so it can be restarted.
   the two tabs in Google; the Finalizer's first real client is its end to end proof;
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
-  **Slice 1, the page's own two reads (session Quarry, 2026-10-08, OPEN_REPAIRS 370): BUILT, in PR, switch not flipped.** With
+  **Slice 1, the page's own two reads (session Quarry, 2026-10-08, OPEN_REPAIRS 374): BUILT, in PR, switch not flipped.** With
   `"roster": "database"` in `analytics_mirror_read_enabled` the page never downloads Clients Info or Social Media Managers (client
-  list from `analytics-read`, review queue managers from `smm-weekly-reports`); merging deploys `smm-weekly-reports` by itself (one
-  added field). Parity measured 2026-10-08 (read only): Clients Info 36 of 36 rows equal, all columns; manager assignments 41 and
+  list from `analytics-read`, review queue managers from `smm-weekly-reports`); merging deploys nothing (`analytics-read` gains a
+  client-row-only read for links the numbers read is not on for, deployed by hand). Parity measured 2026-10-08 (read only): Clients Info 36 of 36 rows equal, all columns; manager assignments 41 and
   41, 0 differences. The daily copy job failed every day from 2026-10-03 (it tried to copy Clients Info, which the database now owns,
   and stopped before Metrics); this PR makes it skip Clients Info and adds the manager comparison. Steps:
   `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`.

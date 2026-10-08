@@ -2,7 +2,7 @@
 
 Session Quarry, 2026-10-08. Sheets move (STATE_OF_THINGS item A), slice 1 of
 [the remaining map](../plans/2026-10-03-sheets-remaining-map.md): the page's own two Sheet reads.
-Ledger: OPEN_REPAIRS 370. Nothing below has been done; every step needs the owner's go.
+Ledger: OPEN_REPAIRS 374. Nothing below has been done; every step needs the owner's go.
 
 ## What changes, in plain words
 
@@ -13,22 +13,26 @@ The page still downloaded both tabs itself. After the switch below it never does
 - **Client list.** Staff get it from `analytics-read` (the same call that already brings the numbers).
   If that call fails, this browser's saved copy is used; if there is none, the page shows its
   "could not load" state instead of reading the Sheet. A client link gets only its own row from the
-  database (before, its fallback downloaded the whole Clients Info tab into the client's browser).
+  database (before, its fallback downloaded the whole Clients Info tab into the client's browser),
+  also when the numbers read is not on for that link (it then asks for its own row only).
 - **Numbers.** Unchanged rule: if the database copy of the numbers is missing or older than 3 days,
   only the Metrics tab is read from the Sheet. Clients Info is not read with it any more.
 - **Review queue managers.** Kasper's queue and the Samples queue read the manager list from
-  `smm-weekly-reports` (the door Today and the weekly reports already use), which now also returns
-  each manager's Slack link. No staff key, or a refused key: no manager shown, the same thing a
+  `smm-weekly-reports` (the door Today and the weekly reports already use, unchanged); the queues
+  show the manager's name only. No staff key, or a refused key: no manager shown, the same thing a
   failed Sheet read did.
 
 Without the switch the page behaves exactly as today.
 
 ## Steps
 
-1. **Merge (Lighthouse).** Merging deploys `smm-weekly-reports` by itself: the "Deploy
-   staff-sensitive edge functions" lane runs on any change to that function on main (it waits for
-   the `production` environment approval if one is set). The change is one extra field in its
-   answer; nothing reads it until step 3. If the owner wants the deploy held, do not merge yet.
+1. **Merge (Lighthouse).** Merging deploys nothing.
+   **Deploy `analytics-read` (owner's go)** from
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml
+   (function `analytics-read`, commit = main's tip after the merge). It adds one thing: under the
+   switch, a client link may read its own profile row even when the numbers read is not on for it.
+   Today the numbers read is on for everyone (`"enabled": true`), so this matters only if that is
+   ever narrowed; deploy it before step 3 all the same.
 2. **Check both copies match (read only).** The daily lane "Sheets mirror daily copy and parity" now
    compares both: `sheets-mirror-parity.js` (Clients Info, all columns) and
    `roster-managers-parity.js` (manager assignments). Both must end `PARITY: clean`. Run it by hand

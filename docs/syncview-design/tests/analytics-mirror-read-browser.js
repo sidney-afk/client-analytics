@@ -20,7 +20,8 @@
  * And the ROSTER SWITCH ("roster": "database", Sheets move slice 1): the
  * Clients Info tab is never downloaded, by a client link or by staff, whether
  * the numbers come from the database, from the Metrics tab or not at all; the
- * client list comes from the database; the review queue's manager map comes
+ * client list comes from the database (a client link the numbers read is not
+ * on for asks for its own row only); the review queue's manager map comes
  * from smm-weekly-reports, never from the Social Media Managers tab.
  * No request leaves the machine.
  */
@@ -72,7 +73,7 @@ function dbAnswer(kind) {
 }
 
 async function scenario(browser, origin, name, flag, efMode) {
-  const seen = { sheets: [], ef: 0, efToken: '', efSlug: '' };
+  const seen = { sheets: [], ef: 0, efToken: '', efSlug: '', efDatasets: null };
   const ctx = await browser.newContext();
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
@@ -87,9 +88,14 @@ async function scenario(browser, origin, name, flag, efMode) {
     if (u.pathname === '/functions/v1/analytics-read') {
       seen.ef++;
       seen.efToken = r.headers()['x-syncview-client-token'] || '';
-      try { seen.efSlug = JSON.parse(r.postData() || '{}').slug; } catch (e) {}
+      let asked = null;
+      try { const b = JSON.parse(r.postData() || '{}'); seen.efSlug = b.slug; asked = Array.isArray(b.datasets) ? b.datasets : null; } catch (e) {}
+      seen.efDatasets = asked;
       if (efMode === 'fail') return json({ ok: false, error: 'read_failed' }, 500);
-      return json(dbAnswer(efMode));
+      const answer = dbAnswer(efMode);
+      // Like analytics-read: only the datasets asked for come back (receipts still do).
+      if (asked) answer.data = Object.fromEntries(asked.map(k => [k, answer.data[k]]));
+      return json(answer);
     }
     if (u.pathname === '/rest/v1/syncview_runtime_flags') {
       const rows = [];
@@ -159,7 +165,7 @@ async function staffScenario(browser, origin, name, flag, efMode, opts = {}) {
     }
     if (u.pathname === '/functions/v1/smm-weekly-reports' && u.searchParams.get('action') === 'options') {
       seen.options++;
-      return json({ ok: true, managers: [{ slug: 'fixture-manager', name: 'Fixture Manager', active: true, source_clients: [CLIENT], slack_profile_url: 'U0FIXTURE1' }], also_sees: [] });
+      return json({ ok: true, managers: [{ slug: 'fixture-manager', name: 'Fixture Manager', active: true, source_clients: [CLIENT] }], also_sees: [] });
     }
     if (u.pathname === '/rest/v1/syncview_runtime_flags') {
       const rows = [];
@@ -199,7 +205,7 @@ async function staffScenario(browser, origin, name, flag, efMode, opts = {}) {
       if (typeof _kasperLoadSMMMap !== 'function') return { missing: true };
       const map = await _kasperLoadSMMMap();
       const first = [...map.values()][0] || {};
-      return { size: map.size, name: first.name || '', slack: first.slack_profile_url || '' };
+      return { size: map.size, name: first.name || '', keys: Object.keys(first).join(',') };
     });
   }
   await ctx.close();
@@ -274,13 +280,20 @@ async function staffScenario(browser, origin, name, flag, efMode, opts = {}) {
     expect(rNo.got.followers === SHEET_FOLLOWERS && rNo.got.desc === 'Database description', 'roster on: the client\'s own row comes from the database');
     const rFail = await scenario(browser, origin, 'roster on, read fails', ROSTER, 'fail');
     expect(!rFail.seen.sheets.includes('Clients Info'), 'roster on, client link read failure: Clients Info is still not downloaded');
+    const rOnly = await scenario(browser, origin, 'roster on, numbers read off', { enabled: false, roster: 'database' }, 'full');
+    expect(rOnly.seen.ef === 1 && JSON.stringify(rOnly.seen.efDatasets) === '["client_profile"]',
+      'roster on, numbers read not on for this link: one analytics-read call asking for its own row only (got ' + rOnly.seen.ef + ' ' + JSON.stringify(rOnly.seen.efDatasets) + ')');
+    expect(rOnly.seen.sheets.includes('Metrics') && !rOnly.seen.sheets.includes('Clients Info'),
+      'roster on, numbers read off: Metrics from the Sheet as before, Clients Info never (got ' + rOnly.seen.sheets.join(',') + ')');
+    expect(rOnly.got.followers === SHEET_FOLLOWERS && rOnly.got.desc === 'Database description',
+      'roster on, numbers read off: the numbers stay the Sheet ones, the client row is the database one');
     const rOff = await scenario(browser, origin, 'roster key absent', { enabled: true }, 'nocopy');
     expect(rOff.seen.sheets.includes('Clients Info'), 'without the roster key the client link fallback is unchanged');
 
     const rsOn = await staffScenario(browser, origin, 'staff roster on', ROSTER, 'full', { managers: true });
     expect(rsOn.seen.allSheets.length === 0, 'staff roster on: no Sheet tab at all (got ' + rsOn.seen.allSheets.join(',') + ')');
     expect(rsOn.got.managers && !rsOn.got.managers.missing && rsOn.got.managers.size === 1 && rsOn.got.managers.name === 'Fixture Manager'
-      && rsOn.got.managers.slack === 'U0FIXTURE1', 'staff roster on: the manager map comes from smm-weekly-reports with its Slack link (got ' + JSON.stringify(rsOn.got.managers) + ')');
+      && rsOn.got.managers.keys === 'name', 'staff roster on: the manager map comes from smm-weekly-reports and holds the name only (got ' + JSON.stringify(rsOn.got.managers) + ')');
     const rsStale = await staffScenario(browser, origin, 'staff roster on, stale numbers', ROSTER, 'stale');
     expect(rsStale.seen.sheets.includes('Metrics') && !rsStale.seen.sheets.includes('Clients Info'),
       'staff roster on, stale numbers: Metrics from the Sheet, Clients Info never (got ' + rsStale.seen.sheets.join(',') + ')');
@@ -291,7 +304,7 @@ async function staffScenario(browser, origin, name, flag, efMode, opts = {}) {
     expect(rsSheet.seen.allSheets.includes('Social Media Managers') && rsSheet.got.managers && rsSheet.got.managers.size === 0,
       'without the roster key the manager map still reads the Sheet tab (Today asks the door on its own, so its calls are not counted here)');
 
-    for (const s of [rNo, rFail, rOff]) {
+    for (const s of [rNo, rFail, rOnly, rOff]) {
       console.log(`  ${s.name.padEnd(28)} analytics-read=${s.seen.ef} sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);
       if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
     }

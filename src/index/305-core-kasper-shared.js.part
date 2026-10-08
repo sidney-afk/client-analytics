@@ -175,7 +175,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
     /* Roster switch on (see _analyticsRosterOn): the managers come from the
        database through the staff door smm-weekly-reports already serves
        (?action=options, Admin/SMM keys), one row per manager with the clients
-       it owns. No staff key, a refused key or a failure: an empty map, the
+       it owns. The queues show only the manager's name, so only the name is kept. No staff key, a refused key or a failure: an empty map, the
        same answer a failed Sheet read gave (the queue shows no manager). */
     async function _kasperLoadSMMMapFromDatabase() {
         try {
@@ -199,12 +199,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
                 for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) {
                     const slug = wlNormalizeClient(String(c || '').trim());
                     if (!slug || map.has(slug)) continue;
-                    map.set(slug, {
-                        name,
-                        slack_profile_url: String(m.slack_profile_url || '').trim(),
-                        slack_user_id: '',
-                        slack_team_id: '',
-                    });
+                    map.set(slug, { name });
                 }
             }
             return map;

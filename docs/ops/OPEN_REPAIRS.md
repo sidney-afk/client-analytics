@@ -31049,7 +31049,17 @@ The owner also narrowed future acceptance to 1440 desktop, 393 x 852 iPhone
 and 412 x 915 Android, on the specified priority screens; historical galleries
 do not certify those new device sizes. Hosted checks remain pending.
 
-## 370. [2026-10-08, BUILT, NOT DEPLOYED, SWITCH NOT FLIPPED] The page stops reading Clients Info and Social Media Managers from the Sheet; the daily copy job stops failing
+## 370. [2026-10-08, BUILT, NOT DEPLOYED, WEBHOOK NOT REGISTERED] TikTok queue table learns when posts go live, without n8n
+
+Source: owner, 2026-10-08. After the cut-over (362) Post For Me's result webhook still pointed at the n8n workflow "SyncView TikTok Upload — Result" (`1qZmOQPtG6rKYlK7`), which writes only to the Sheet, so `tiktok_uploads` never heard results. Measured live: 3 rows past their scheduled time still `scheduled`, `last_checked_at` empty on every open row. Cause of the second part: the list's refresh only looked at the newest 100 rows of the queue, and the overdue rows are older (May to September). Of the 3 overdue rows, 2 have no Post For Me post id at all (from before Post For Me), so no lookup can settle them; they now get `last_checked_at` and stay as they are.
+Fixed in `tiktok-upload` (no n8n workflow edited):
+- Result webhook: `POST .../functions/v1/tiktok-upload?pfm_webhook=1`, no staff key. Post For Me proves itself with the header `Post-For-Me-Webhook-Secret` (its docs: a shared secret, no HMAC). The function compares it, in constant time, with `TIKTOK_PFM_WEBHOOK_SECRET` if set, otherwise with the secret Post For Me holds for this URL (read with the key the function already has), so no secret is copied by hand. `social.post.result.created` updates the row by `upload_post_id` (posted with link, or failed with TikTok's reason); other events and posts not in the queue are acknowledged and ignored; a bad secret is 401.
+- Safety net: every list (and the new staff action `refresh_due`) asks Post For Me about open rows whose time has come, least recently asked first, anywhere in the table. A row with no post id is looked up by `external_id` first.
+- Admin actions `webhook_status`, `webhook_register`, `webhook_remove` and `scripts/tiktok-pfm-webhook.js` to point Post For Me at the function. They never show a secret.
+Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
+Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
+
+## 374. [2026-10-08, BUILT, NOT DEPLOYED, SWITCH NOT FLIPPED] The page stops reading Clients Info and Social Media Managers from the Sheet; the daily copy job stops failing
 
 Session Quarry. Sheets move (STATE_OF_THINGS item A), slice 1 of
 `docs/plans/2026-10-03-sheets-remaining-map.md`: the page's own two Sheet reads.
@@ -31059,9 +31069,12 @@ Session Quarry. Sheets move (STATE_OF_THINGS item A), slice 1 of
 tab. Staff get the client list from `analytics-read` (the profiles are the main copy, so no Sheet copy
 receipt has to vouch for them), then this browser's saved copy, then the page's "could not load"
 state. A client link gets only its own row from the database; its old fallback downloaded the whole
-Clients Info tab into the client's browser. The numbers keep their rule (stale or missing database
-copy: the Metrics tab only). The review queues build their manager map from `smm-weekly-reports`
-`?action=options`, which now also returns `slack_profile_url`. Without the key: unchanged.
+Clients Info tab into the client's browser. A link the numbers read is not on for (`enabled` false,
+its slug not in `clients`) asks `analytics-read` for `client_profile` alone, and `analytics-read`
+allows exactly that call under the switch, link token still checked. The numbers keep their rule
+(stale or missing database copy: the Metrics tab only). The review queues build their manager map
+(name only, all they show) from `smm-weekly-reports` `?action=options`, unchanged on the server.
+Without the key: unchanged.
 
 **Daily copy job.** "Sheets mirror daily copy and parity" failed on every scheduled run from
 2026-10-03 to 2026-10-07: the copy sent Clients Info first, `analytics-write` refused it with 409
@@ -31075,13 +31088,15 @@ manager assignments.
 fingerprints (all columns), 0 differences. Social Media Managers: 41 Sheet rows, 41 database rows,
 41 clients, 0 differences, `PARITY: clean`.
 
-**Proof.** `docs/syncview-design/tests/analytics-mirror-read-browser.js` gains seven roster scenarios
-(client link with and without a numbers copy, read failure, staff fresh, staff stale, staff failure,
-managers from the door and, without the key, from the Sheet as before): `ANALYTICS_MIRROR_READ_OK`.
+**Proof.** `docs/syncview-design/tests/analytics-mirror-read-browser.js` gains eight roster scenarios
+(client link with and without a numbers copy, read failure, `roster` set with `enabled` false, staff
+fresh, staff stale, staff failure, managers from the door and, without the key, from the Sheet as
+before): `ANALYTICS_MIRROR_READ_OK`.
 `test/sheets-mirror-parity-catchup.js` 27 checks, `test/roster-managers-parity.js` 8 checks.
 
-**Not done (owner's go each).** Merge deploys `smm-weekly-reports` through the staff-sensitive lane
-(push trigger). The switch flip, the test-client proof and the way back are in
+**Not done (owner's go each).** Merging deploys nothing: `analytics-read` deploys only by a manual
+run of the single-function lane, needed before the switch for a link the numbers read is not on for.
+The switch flip, the test-client proof and the way back are in
 `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`. The two tabs stay until `clients-roster-sync` and Weekly
 Backup no longer read them (and CLIENTS METRICS / TOP VIDEOS, if analytics resume).
 

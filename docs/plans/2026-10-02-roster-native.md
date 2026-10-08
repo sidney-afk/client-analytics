@@ -58,7 +58,7 @@ service key" (header `X-Roster-Key`).
 Not covered here: the **page** still reads both tabs itself (`CLIENTS_URL` for the
 client list and allowlist, `KASPER_SMM_URL` for the review queue's manager map).
 That is its own step (a staff-key read for the page), so Step 1 stays
-server-only. **Built 2026-10-08 (session Quarry, OPEN_REPAIRS 370), behind the switch
+server-only. **Built 2026-10-08 (session Quarry, OPEN_REPAIRS 374), behind the switch
 `"roster": "database"`; steps in `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`.** The Video Editors tab is a separate move.
 
 ## Step 3: the switch (DONE 2026-10-02 20:00 UTC, clean parity before and after; steps 1 to 5 below ran in that order; step 6 is the owner's)

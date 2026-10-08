@@ -1398,7 +1398,12 @@ import {
         if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
         const started = performance.now();
         const promise = (async () => {
-            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
+            // The roster switch follows the staff path: with "roster": "database" a
+            // link the numbers read is not on for still asks for its own row only,
+            // so its client list never comes from the Clients Info tab.
+            const flagValue = await _analyticsMirrorFlagShared();
+            const numbersOn = _analyticsMirrorOnFor(flagValue, cap.slug);
+            if (!numbersOn && !_analyticsRosterOn(flagValue)) return null;
             const token = _syncviewClientWriteToken();
             if (!token) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -1411,7 +1416,7 @@ import {
                     headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
                     cache: 'no-store',
                     signal: controller ? controller.signal : undefined,
-                    body: JSON.stringify({ slug: cap.slug })
+                    body: JSON.stringify(numbersOn ? { slug: cap.slug } : { slug: cap.slug, datasets: ['client_profile'] })
                 });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
@@ -1425,11 +1430,11 @@ import {
                 const clients = (profile && profile.display_name) ? [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
                     tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
                     content_description: _analyticsMirrorText(profile.content_description) }] : null;
-                const ess = (clients && covered(d.metrics, 'metrics')) ? {
+                const ess = (numbersOn && clients && covered(d.metrics, 'metrics')) ? {
                     metrics: _analyticsMirrorRows(d.metrics),
                     clients
                 } : null;
-                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                const ext = (numbersOn && covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
                     && covered(d.content_summaries, 'content_summaries')) ? {
                     topvids: _analyticsMirrorRows(d.top_videos),
                     mrbriefs: _analyticsMirrorRows(d.market_research_briefs),

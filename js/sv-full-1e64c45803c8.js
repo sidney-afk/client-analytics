@@ -1378,7 +1378,12 @@
         if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
         const started = performance.now();
         const promise = (async () => {
-            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
+            // The roster switch follows the staff path: with "roster": "database" a
+            // link the numbers read is not on for still asks for its own row only,
+            // so its client list never comes from the Clients Info tab.
+            const flagValue = await _analyticsMirrorFlagShared();
+            const numbersOn = _analyticsMirrorOnFor(flagValue, cap.slug);
+            if (!numbersOn && !_analyticsRosterOn(flagValue)) return null;
             const token = _syncviewClientWriteToken();
             if (!token) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -1391,7 +1396,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
                     cache: 'no-store',
                     signal: controller ? controller.signal : undefined,
-                    body: JSON.stringify({ slug: cap.slug })
+                    body: JSON.stringify(numbersOn ? { slug: cap.slug } : { slug: cap.slug, datasets: ['client_profile'] })
                 });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
@@ -1405,11 +1410,11 @@
                 const clients = (profile && profile.display_name) ? [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
                     tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
                     content_description: _analyticsMirrorText(profile.content_description) }] : null;
-                const ess = (clients && covered(d.metrics, 'metrics')) ? {
+                const ess = (numbersOn && clients && covered(d.metrics, 'metrics')) ? {
                     metrics: _analyticsMirrorRows(d.metrics),
                     clients
                 } : null;
-                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                const ext = (numbersOn && covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
                     && covered(d.content_summaries, 'content_summaries')) ? {
                     topvids: _analyticsMirrorRows(d.top_videos),
                     mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
@@ -77865,7 +77870,7 @@
     /* Roster switch on (see _analyticsRosterOn): the managers come from the
        database through the staff door smm-weekly-reports already serves
        (?action=options, Admin/SMM keys), one row per manager with the clients
-       it owns. No staff key, a refused key or a failure: an empty map, the
+       it owns. The queues show only the manager's name, so only the name is kept. No staff key, a refused key or a failure: an empty map, the
        same answer a failed Sheet read gave (the queue shows no manager). */
     async function _kasperLoadSMMMapFromDatabase() {
         try {
@@ -77889,12 +77894,7 @@
                 for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) {
                     const slug = wlNormalizeClient(String(c || '').trim());
                     if (!slug || map.has(slug)) continue;
-                    map.set(slug, {
-                        name,
-                        slack_profile_url: String(m.slack_profile_url || '').trim(),
-                        slack_user_id: '',
-                        slack_team_id: '',
-                    });
+                    map.set(slug, { name });
                 }
             }
             return map;
@@ -87977,4 +87977,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-f282b2b4c53b.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-1e64c45803c8.js");

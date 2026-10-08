@@ -6,8 +6,9 @@
 const OPEN = ['queued', 'uploading', 'processing', 'scheduled'];
 
 // accounts: { spc_id: platform }. Knobs on the returned function (fn.mode, fn.createError) switch failures on.
-function fakePostForMe({ accounts = {}, posts = {}, results = {} } = {}) {
+function fakePostForMe({ accounts = {}, posts = {}, results = {}, webhooks = [] } = {}) {
   const calls = [];
+  let hooks = 0;
   let mints = 0, made = 0;
   const fn = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -17,6 +18,19 @@ function fakePostForMe({ accounts = {}, posts = {}, results = {} } = {}) {
       if (fn.mode === 'mint_fails') return { ok: false, status: 500, data: { message: 'boom' } };
       mints++;
       return { ok: true, status: 200, data: { upload_url: 'https://storage.postforme.test/upload-' + mints, media_url: 'https://data.postforme.dev/fixture/media-' + mints } };
+    }
+    if (path === '/webhooks' && method === 'GET') return { ok: true, status: 200, data: { data: webhooks.map((w) => ({ ...w })) } };
+    if (path === '/webhooks' && method === 'POST') {
+      hooks++;
+      const w = { id: 'wh_fixture_' + hooks, url: body.url, event_types: body.event_types, secret: 'whsec_fixture_' + hooks };
+      webhooks.push(w);
+      return { ok: true, status: 200, data: { ...w } };
+    }
+    if ((m = /^\/webhooks\/(.+)$/.exec(path)) && method === 'DELETE') {
+      const i = webhooks.findIndex((w) => w.id === decodeURIComponent(m[1]));
+      if (i < 0) return { ok: false, status: 404, data: {} };
+      webhooks.splice(i, 1);
+      return { ok: true, status: 200, data: { success: true } };
     }
     if ((m = /^\/social-accounts\/(.+)$/.exec(path))) {
       const id = decodeURIComponent(m[1]);
@@ -52,6 +66,7 @@ function fakePostForMe({ accounts = {}, posts = {}, results = {} } = {}) {
   fn.calls = calls;
   fn.posts = posts;
   fn.results = results;
+  fn.webhooks = webhooks;
   fn.mode = '';
   fn.createError = '';
   return fn;
@@ -75,6 +90,13 @@ function fakeQueueTable({ rows = [], profiles = [] } = {}) {
     },
     async list(limit) { return [...table.values()].sort((a, b) => sortAt(b) - sortAt(a)).slice(0, limit).map((r) => ({ ...r })); },
     async profiles() { return profiles.map((p) => ({ ...p })); },
+    async dueOpen(limit) {
+      const now = Date.now();
+      const asked = (r) => (r.last_checked_at ? Date.parse(r.last_checked_at) || 0 : 0);
+      return [...table.values()].filter((r) => OPEN.includes(r.status) && (!r.scheduled_for || Date.parse(r.scheduled_for) <= now))
+        .sort((a, b) => asked(a) - asked(b)).slice(0, limit).map((r) => ({ ...r }));
+    },
+    async byPostId(postId) { const r = [...table.values()].find((x) => x.upload_post_id === postId); return r ? { ...r } : null; },
     async copy(list) {
       let added = 0;
       for (const r of list) if (!table.has(r.id)) { table.set(r.id, { ...r }); added++; }

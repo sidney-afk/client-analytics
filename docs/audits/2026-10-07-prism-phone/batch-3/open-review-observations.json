@@ -613,6 +613,60 @@
       "sha256": "23e5f24001b5bd778aaecd231fa1dd467de76cf01a1ed5f666ef9307834ddf9a",
       "status": "OPEN",
       "review": "Tiny incomplete selector labels (About the\u2026 / This is a\u2026) feel unclear; supporting labels and composer need revision and complete action/state review."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "c5345a7df36bdd2ea12d5809a6f9dfba70199934e43413917e8373be28716d8f",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "3e961633fdbd55b67b73db4fb9745713c4f37095e0b83368f721c3e0e2e17b4b",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "606f9b2d9f7b872d9d63578c3143a7395e9251d90d9147de94327adcd41341c6",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "c1d87ee3452f3c4fc52df1279a020ce0624f345cfe90e6e91a58acddc5a6a582",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "e0b4968ea0611e0a65ecf505ba4efdc92c6947cf43270dd2c0f2884957c973f3",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "d6528b76ef0e7f227594316ce4c59b7f2d8cc8bd4994d283b00192660a78abf0",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
     }
   ]
 }

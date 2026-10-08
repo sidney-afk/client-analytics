@@ -140,6 +140,7 @@ Widths: 375, 390, 430. Themes: light, dark. All data is fictional; requests are 
 | admin | editor-info | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | filming-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | filming | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| admin | filming-details | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | filming-info | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | time-off-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | time-off | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |

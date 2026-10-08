@@ -54,6 +54,17 @@
     "exposure-staged": [
       "  WHERE (counts only \u2014 this tool never prints what it matched):",
       "This change adds no client slug and no colleague's name \u2705"
+    ],
+    "admin-final": [
+      "KASPER_ADMIN_CHART: pinned production 4.4.0 bytes; 6 phone chart action/theme/desktop-restore states checked.",
+      "KASPER_ADMIN_EXPANDED: 426 native states; 9012 checks; 0 failures; fictional data; no live writes."
+    ],
+    "filming-disclosure-probe": [
+      "KASPER_ADMIN_EXPANDED: 6 native states; 126 checks; 0 failures; fictional data; no live writes."
+    ],
+    "coverage-final": [
+      "PHONE_COVERAGE: 335 native states; 2010 width/theme cells; 280 discovery obligations; 12 clean cells"
     ]
-  }
+  },
+  "adminFixtureFollowThrough": "The original 420-state suite is retained. The final 426-state suite uses a valid Set of months, native count refresh and the new disclosure journey, with intended fonts and pinned Chart.js bytes."
 }

@@ -1,8 +1,9 @@
 # Batch 3 — client Calendar loading
 
 Branch: `codex/prism-phone-batch-3`. Parent: batch 2,
-`8361c27b8f2ac9b7434e6799fc76502d92e0bd80`. Batch 2 remains open for
-Lighthouse; Prism has not merged anything. No batch 3 PR has been published yet.
+`8361c27b8f2ac9b7434e6799fc76502d92e0bd80`. Lighthouse merged batch 2
+as `79a0dd143cd7c16517256f78790c8cf7a530f315` while batch 3 was being
+prepared; Prism has not merged anything. Batch 3 targets main directly.
 
 Current source hash:
 `35a319476117fffce2e2be7b75d34b338a7538ed6fa6fd54820d71d200d17865`.
@@ -27,8 +28,8 @@ reviewed PNG bytes. Requested dark preference is recorded separately from the
 effective light theme: client links intentionally force light in
 `_syncviewThemeAllowed()` / `_syncviewApplyTheme()`.
 
-The original full goal remains open. [Coverage](../COVERAGE.md) contains 334
-native states, 2,004 cells and 280 discovery obligations. Only these twelve
+The original full goal remains open. [Coverage](../COVERAGE.md) contains 335
+native states, 2,010 cells and 280 discovery obligations. Only these twelve
 current loading cells are accepted. Changing source invalidated previous
 batch acceptance; their historical receipts remain intact.
 
@@ -46,6 +47,9 @@ Tooling repairs in this batch:
   using an exact fictional crosswalk and canonical read. Binding is confined
   to that state so it does not alter the separate approval journey's route.
 - Recovery screenshots are captured after restoring each client entry.
+- Filming's newly discovered native month disclosure is now inventoried.
+  Its fixture uses production's `Set` of months and native tab-count refresh,
+  with checks for six cells, the covered-month document link and correct count.
 
 Actual completed check tails:
 
@@ -92,8 +96,8 @@ The index SHA256 is
 (1,314,399 bytes). The identity guard was run after staging all new generated
 assets and evidence. Desktop 72-cell parity against the parent, final staff
 checks, final source client reruns, and focused 32-state desktop loading
-comparisons have completed. Hosted batch 3 checks and PR publication remain
-pending. No deployment or finish-line claim is made.
+comparisons have completed. The branch has uploaded; hosted checks will be
+tracked on this batch's PR. No deployment or finish-line claim is made.
 
 Focused desktop loading follow-through has completed:
 
@@ -153,3 +157,32 @@ empty/refusal copy remains OPEN. The probe's actual tail is:
 ```text
 client-links-expanded: OK (494 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 375; requested light, effective client light).
 ```
+
+The added Filming disclosure and three existing Filming states pass a focused
+six-cell rerun:
+
+```text
+KASPER_ADMIN_EXPANDED: 24 native states; 396 checks; 0 failures; fictional data; no live writes.
+PHONE_COVERAGE: 335 native states; 2010 width/theme cells; 280 discovery obligations; 12 clean cells
+```
+
+That first focused rerun used fallback fonts and is retained for native-action
+proof only. The complete admin rerun with the intended local fonts and pinned
+Chart.js bytes has now completed:
+
+```text
+KASPER_ADMIN_CHART: pinned production 4.4.0 bytes; 6 phone chart action/theme/desktop-restore states checked.
+KASPER_ADMIN_EXPANDED: 426 native states; 9012 checks; 0 failures; fictional data; no live writes.
+```
+
+[Independent settled disclosure measurements](filming-disclosure.json) bind
+all six personally viewed captures to this source. The container is flex even
+though its phone rule sets three grid columns. Tiles wrap 4+2 at 375/390 and
+5+1 at 430; mixed 58/44-pixel heights and up to 14.5-pixel label offsets look
+uneven. Uncovered month labels have 1.89:1 contrast in light. The row has no
+keyboard role/tab stop, and the disclosure's only visible cue is a tiny caret.
+These remain OPEN product repairs for the next batch. No fixture correction
+is being called a product count/month bug. The first metadata printer expected
+an explicit light-theme attribute; light uses the default, so the retained
+failed print was corrected to record requested/effective themes separately.
+Seventy-two source-bound open visual observations are now recorded.

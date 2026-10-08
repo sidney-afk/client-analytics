@@ -31006,3 +31006,14 @@ design at 24 states, basic client review at 20 journeys, detailed Calendar at
 Twelve client loading cells remain accepted; 66 further source-bound visual
 observations remain OPEN. Full clean and fresh-review rounds, hosted batch 3
 checks, publication and deployment remain separate pending gates.
+
+Batch 3 further discovery: a native Filming month disclosure was missing from
+coverage and is now listed, bringing the matrix to 335 states/2,010 cells.
+Its fixture now uses production's Set of months and native count refresh.
+The complete 426-state admin rerun passes 9,012 checks with the intended fonts
+and pinned Chart.js bytes. Independent settled six-cell measurements confirm
+an ignored grid-column rule on a flex container, uneven month tiles/label
+centers, 1.89:1 light label contrast and an unlabeled keyboard-unreachable
+row disclosure. Those product repairs remain OPEN for the next batch. The
+branch has uploaded; Lighthouse still owns PR review/merge. The full phone
+round and separate fresh review remain OPEN.

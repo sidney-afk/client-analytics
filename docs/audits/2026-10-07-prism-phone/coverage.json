@@ -6363,6 +6363,55 @@
       ]
     },
     {
+      "name": "filming-details",
+      "tab": "filming",
+      "lane": "admin",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
       "name": "filming-info",
       "tab": "filming",
       "lane": "admin",

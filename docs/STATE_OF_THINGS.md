@@ -242,6 +242,13 @@ hiring senders when the editor hire closes.
   **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
   calendar drift check had causes found and fixed (test code and test-client data only); confirm
   they are green on main after the merge.** The other lanes were not re-checked.
+  **2026-10-08 (OPEN_REPAIRS 369, session Mend): Calendar E2E, Samples E2E and the drift check.** Robot causes
+  fixed in test code (fake-key refusal shadowing the fake gateway; fake-key 401s on staff reads signing the robot
+  out, which since admin-only Kasper sends it to Home; notes sent before their thread loads; two probes on
+  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Owner steps left:
+  apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
+  test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
+  preflight's two pins at that migration before the next Section 4 dispatch.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

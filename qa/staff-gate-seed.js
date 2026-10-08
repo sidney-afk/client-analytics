@@ -145,9 +145,26 @@ function isStubKeyProductionWrite(request) {
   return request.method() === 'POST' && isFakeStaffKey(headers['x-syncview-key']);
 }
 
+// A suite that mocks production-write itself (qa/native_work_item_fixture.js
+// stubNativeGateway) marks its context here, and the refusal below then steps
+// aside for it whatever order the two routes were registered in. Order alone
+// was not enough: Playwright tries the NEWEST route first, and #1644 made
+// seedVerifiedProbeStaff register this refusal AFTER every probe's gateway
+// stub, so from 2026-09-25 the refusal answered first and the Calendar nightly
+// lost every native status and note write (OPEN_REPAIRS 369).
+const PRODUCTION_WRITE_MOCKED = new WeakSet();
+function markProductionWriteMocked(context) {
+  if (context) PRODUCTION_WRITE_MOCKED.add(context);
+}
+function ownerContext(target) {
+  return target && typeof target.context === 'function' ? target.context() : target;
+}
+
 async function refuseStubKeyProductionWrite(target) {
+  const owner = ownerContext(target);
   await target.route('**/functions/v1/production-write', route => {
     const request = route.request();
+    if (PRODUCTION_WRITE_MOCKED.has(owner)) return route.fallback();
     if (!isStubKeyProductionWrite(request)) return route.fallback();
     return route.fulfill({
       status: 401,
@@ -200,6 +217,41 @@ async function answerStubKeyAnalyticsRead(target) {
   });
 }
 
+// LIVE-BACKEND HARNESSES ONLY (opt in: seedStaffGate(ctx, { answerStaffReads: true })).
+// A staff page reads a handful of staff-only functions on boot and on Kasper.
+// The live functions refuse a stub key with 401, and the app answers a 401 the
+// way it must for a real person: it signs the page out
+// (_syncviewStaffIdentityClear). Since Kasper became admin-only (#1672,
+// 2026-09-26) a signed-out page is also moved off Kasper to Home, so from
+// 2026-09-27 every Kasper verb in the Samples nightly found no card, and the
+// Calendar nightly's Kasper probes lost their verified identity mid-run
+// (OPEN_REPAIRS 369). Measured 2026-10-08: these six are every 401 a stub-key
+// staff or Kasper page draws. Each is answered here as refused but NOT 401, the
+// way answerStubKeyAnalyticsRead does, so the page stays signed in and the
+// suite exercises what a real reviewer does. Only these names and only an
+// invented key: the ungated writers (calendar-upsert, sample-review-upsert)
+// and every real key go to the network as before. Offline suites keep the
+// live-shaped 401, so this is not on by default.
+const STAFF_READ_FUNCTIONS = ['pto', 'filming-plans', 'onboarding-full', 'smm-weekly-reports', 'brain', 'thumbnail-revision-read'];
+const STAFF_READ_PATH = new RegExp('/functions/v1/(?:' + STAFF_READ_FUNCTIONS.join('|') + ')(?:[/?]|$)');
+async function answerStubKeyStaffReads(target) {
+  await target.route(url => STAFF_READ_PATH.test(url.toString()), route => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS' || !isFakeStaffKey(request.headers()['x-syncview-key'])) return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'access-control-allow-origin': request.headers().origin || '*',
+        'access-control-expose-headers': 'x-write-diagnostic-status',
+        'x-write-diagnostic-status': 'headless-stub',
+        'cache-control': 'no-store'
+      },
+      body: JSON.stringify({ ok: false, error: 'invalid_staff_key' })
+    });
+  });
+}
+
 // The answer above still counts as a request: prod-structure-subset and
 // prod-comments-browser fail on ANY write-like request, and a POST to
 // functions/v1/analytics-read is one even when answered locally (diagnosed
@@ -234,6 +286,7 @@ async function seedStaffGate(target, options) {
   await target.addInitScript(staffGateInit, staffGateIdentityJson());
   if (options && options.dropVerificationAfterBoot) await dropVerificationAfterBoot(target);
   await refuseStubKeyProductionWrite(target);
+  if (options && options.answerStaffReads) await answerStubKeyStaffReads(target);
   if (!(options && options.keepAnalyticsRead)) {
     await answerStubKeyAnalyticsRead(target);
     await hideAnalyticsMirrorFlag(target);
@@ -245,4 +298,4 @@ async function seedStaffGate(target, options) {
   }));
 }
 
-module.exports = { seedStaffGate, refuseStubKeyProductionWrite, answerStubKeyAnalyticsRead, hideAnalyticsMirrorFlag, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, refuseStubKeyProductionWrite, markProductionWriteMocked, answerStubKeyStaffReads, STAFF_READ_FUNCTIONS, answerStubKeyAnalyticsRead, hideAnalyticsMirrorFlag, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

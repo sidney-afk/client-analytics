@@ -43,12 +43,7 @@ here with where it stopped, so it can be restarted.
   41, 0 differences. The daily copy job failed every day from 2026-10-03 (it tried to copy Clients Info, which the database now owns,
   and stopped before Metrics); this PR makes it skip Clients Info and adds the manager comparison. Steps:
   `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`.
-  **Found 2026-10-08, needs the owner now: no analytics numbers since 2026-10-06.** n8n CLIENTS METRICS and TOP VIDEOS are switched
-  off (last runs 2026-10-06; no entry in `docs/ops/N8N_EDIT_LOG.md`), and our own two jobs were set to `"mode":"off"` at 20:47 UTC
-  that day with their "live" migrations not applied. Staff pages also read the Sheet for the numbers since about 2026-10-05,
-  because the newest whole-copy receipt is from 2026-10-02. Practice runs were not clean enough to go live (metrics 35 of 36 clients
-  matched on 2026-10-06, top videos 32 of 36 each day). Fastest way back: switch the two n8n workflows on again (an n8n edit, owner's
-  go). Details in OPEN_REPAIRS 369.
+  Analytics are paused by owner decision (2026-10-06): CLIENTS METRICS, TOP VIDEOS and their replacement jobs are off on purpose.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
   TikTok Upload (Courier, 2026-10-07, OPEN_REPAIRS 362): built behind the switch `tiktok_upload_source`, still on n8n.
   Owner steps: approve and apply `migrations/2026-10-07-tiktok-uploads.sql`, deploy `tiktok-upload` and `tiktok-upload-cancel`,

@@ -57,8 +57,8 @@ Without the switch the page behaves exactly as today.
 
 ## What still reads the two tabs after the switch (so they cannot be retired yet)
 
-- n8n CLIENTS METRICS and TOP VIDEOS read Clients Info. They leave with Harbor's switch to our own
-  jobs (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`, "Going live").
+- n8n CLIENTS METRICS and TOP VIDEOS read Clients Info when they run. Analytics are paused by owner
+  decision (2026-10-06), so they are off.
 - `clients-roster-sync` (daily GitHub lane) reads Clients Info; moving it to the database is its own step.
 - The daily parity above reads both tabs on purpose, to prove the copy.
 - Weekly Backup copies the whole workbook.

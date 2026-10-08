@@ -31004,19 +31004,7 @@ managers from the door and, without the key, from the Sheet as before): `ANALYTI
 
 **Not done (owner's go each).** Merge deploys `smm-weekly-reports` through the staff-sensitive lane
 (push trigger). The switch flip, the test-client proof and the way back are in
-`docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`. The two tabs stay until n8n CLIENTS METRICS / TOP VIDEOS,
-`clients-roster-sync` and Weekly Backup no longer read them.
+`docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`. The two tabs stay until `clients-roster-sync` and Weekly
+Backup no longer read them (and CLIENTS METRICS / TOP VIDEOS, if analytics resume).
 
-**Found while measuring: no analytics numbers since 2026-10-06.** n8n CLIENTS METRICS and TOP VIDEOS
-are inactive (last runs 2026-10-06 04:00 and 08:00 UTC; nothing in `docs/ops/N8N_EDIT_LOG.md`). Our own
-`analytics-metrics-collect` (v6) and `analytics-top-videos-collect` (v3) were redeployed at about 20:44
-UTC on 2026-10-06 and both switches set to `"mode":"off"` at 20:47; the "Going live" migrations are
-not applied (`analytics_collect_daily_checks` does not exist). So nothing has collected for
-2026-10-07 and 2026-10-08: the newest Metrics and TopVideos rows are 2026-10-06. Practice runs
-(`analytics_*_shadow_compare`): metrics matched 16, 33 and 35 of 36 clients on 2026-10-04 to 10-06;
-top videos 32 of 36 each day, with 3 clients missing from the practice copy. Not clean enough to go
-live. Also, staff Analytics has read the numbers from the Sheet since about 2026-10-05, because the
-newest whole-copy receipt is from 2026-10-02 (the failing copy job above).
-Fastest way back (n8n edit, owner's go): activate the two workflows again; the next runs are 04:00
-and 08:00 UTC. The two missing days cannot be filled in afterwards for "gained today". Then the
-fixed copy job writes fresh receipts and staff pages read the database again.
+**Analytics are paused by owner decision (2026-10-06):** CLIENTS METRICS, TOP VIDEOS and their replacement jobs are off on purpose.

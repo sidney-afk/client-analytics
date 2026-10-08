@@ -31034,3 +31034,17 @@ source; those captures still require personal review and do not certify the
 changed source. Current coverage is 337 states/2,022 cells, 24 clean, with all
 other cells and 280 discovery obligations OPEN. Hosted rechecks, the full clean
 round, fresh review and deployment remain pending. Prism has not merged.
+
+2026-10-08, same PR #1994, root-cause clarification: main's original runner
+used the host's timezone for both browser and fixture. Batch 3 changed the
+browser to Guatemala while retaining a host-local fixture date. Around
+02:10 UTC that scheduled the fixture tomorrow and exposed the empty Today
+shrink defect. The prior-source reproduction used the new runner; it was not
+a failing run of main's original CI. The populated fixture now uses the
+browser's zone, with a new assertion that Today contains fixture posts, while
+the unchanged 36 px circle requirement and explicit empty Today checks remain.
+UTC-host verification passes 4,668 assertions at 360/390/430, requested
+light/dark. Product source and all gallery/desktop receipts are unchanged.
+The owner also narrowed future acceptance to 1440 desktop, 393 x 852 iPhone
+and 412 x 915 Android, on the specified priority screens; historical galleries
+do not certify those new device sizes. Hosted checks remain pending.

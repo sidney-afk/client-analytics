@@ -19,12 +19,12 @@
       "repo-map-sync: 1118 passed, 0 failed"
     ],
     "ci-index-head": [
-      "check-index: committed index.html (HEAD) \u2014 sha256=77ddae125eb67370d185c7a0d0bcd31bdc1105471fad109335ffe41da52b4b8e bytes=1314415",
-      "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+      "check-index: committed index.html (HEAD) — sha256=77ddae125eb67370d185c7a0d0bcd31bdc1105471fad109335ffe41da52b4b8e bytes=1314415",
+      "check-index: OK — assembled == working tree == committed (HEAD)"
     ],
     "ci-exposure-staged": [
-      "  WHERE (counts only \u2014 this tool never prints what it matched):",
-      "This change adds no client slug and no colleague's name \u2705"
+      "  WHERE (counts only — this tool never prints what it matched):",
+      "This change adds no client slug and no colleague's name ✅"
     ],
     "scope-guards": [
       "client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width: <=767px) and html.boot-client)",
@@ -37,6 +37,9 @@
     ],
     "truth": [
       "truth-sync: 515 passed, 0 failed"
+    ],
+    "ci-zone-fixture-native": [
+      "client-calendar-expanded: OK (4668 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/430; requested light/dark, effective client light)."
     ]
   }
 }

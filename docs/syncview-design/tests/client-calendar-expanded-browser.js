@@ -88,9 +88,13 @@ async function shot(page, label) {
   captures.push({ label, requestedTheme, effectiveTheme: await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light'), ...dimensions, file: name + '.png', viewportFile: name + '-viewport.png' });
 }
 async function run(browser, origin, width) {
-  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId: 'America/Guatemala' });
-  const now = new Date();
-  const fixtureDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+  const timezoneId = 'America/Guatemala';
+  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId });
+  // The CI host can already be tomorrow while this browser is still today.
+  // Use the browser's zone for the populated fixture; empty Today is exercised
+  // separately below, so neither state depends on when CI happens to run.
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: timezoneId, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  const fixtureDate = [parts.year, parts.month, parts.day].join('-');
   const row = { ...BASE_ROW, id: 'p_phone_fixture_1', name: 'A little change. A better day.', scheduled_date: fixtureDate, cta: 'Save this for later.', thumbnail_url: 'https://drive.google.com/file/d/fixture_thumbnail_asset/view', video_deliverable_id: '00000000-0000-4000-a000-000000000001', graphic_deliverable_id: '00000000-0000-4000-a000-000000000002' };
   const finished = { ...row, id: 'p_phone_fixture_2', name: 'Make room for what matters.', thumbnail_url: origin + '/__fixture_unavailable.png', order_index: 2, status: 'Approved', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved' };
   const settings = { id: 'p_cal_settings', client: row.client, caption: JSON.stringify({ collab_mode: true }) };
@@ -197,6 +201,7 @@ async function run(browser, origin, width) {
         .filter(e => !e.classList.contains('out') && e.checkVisibility({ checkVisibilityCSS: true }))
         .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', posts: e.querySelectorAll('.cal-month-pill, .cal-week-card').length, run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
       // Today is one black circle, the same in Month and Week; the few thumbnails are fetched at once and have loaded.
+      ok(await page.locator(view === 'month' ? '.cal-month-cell.today .cal-month-pill' : '.cal-week-col.today .cal-week-card').count() > 0, view + ': populated Today fixture must use the browser date');
       const todayMark = await page.evaluate(v => { const e = document.querySelector(v === 'month' ? '.cal-month-cell.today .cal-month-num' : '.cal-week-col.today .cal-week-num'); if (!e) return null; const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), radius: cs.borderTopLeftRadius, bg: cs.backgroundColor, fg: cs.color }; }, view);
       if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle ' + JSON.stringify(todayMark));
       await page.waitForFunction(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.complete), null, { timeout: 4000 });

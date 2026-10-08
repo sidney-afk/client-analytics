@@ -3047,12 +3047,12 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         _sxrArchiveSelected, _sxrAutosize, _sxrCardSelectClick, _sxrCloseKebab, _sxrCopyCardLink,
         _sxrCopyShareLink, _sxrEditLink, _sxrFillComponent, _sxrLinearClear, _sxrLinearCommit, _sxrLinearEdit,
         _sxrLinearKey, _sxrLinkConflictCancel, _sxrMoveLinkConfirm, _sxrOnLinkBlur, _sxrOnLinkInput,
-        _sxrOnTextEditBlur, _sxrOnTextEditFocus, _sxrOnTextEditKey, _sxrOpenLink, _sxrOpenSetAllMenu,
-        _sxrOpenThumbLightbox, _sxrOpenThumbnailFolder, _sxrSendKasperUrgentSlack, _sxrSendUrgentSlack,
-        _sxrSetAllStatus, _sxrStatusPick, _sxrStatusToggleMenu, _sxrTabScrollBy, _sxrThumbClick,
-        _sxrToggleCreativeVisibility, _sxrToggleKebab, _sxrToggleSelectMode, _sxrUpdateTabScroll,
-        addSxrBlankCard, archiveSxrCard, closeSxrLightbox, loadSxrCards, onSxrPickClient, onSxrTabAddClick,
-        onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
+        _sxrOnLinkKey, _sxrOnTextEditBlur, _sxrOnTextEditFocus, _sxrOnTextEditKey, _sxrOpenLink,
+        _sxrOpenSetAllMenu, _sxrOpenThumbLightbox, _sxrOpenThumbnailFolder, _sxrSendKasperUrgentSlack,
+        _sxrSendUrgentSlack, _sxrSetAllStatus, _sxrStatusPick, _sxrStatusToggleMenu, _sxrTabScrollBy,
+        _sxrThumbClick, _sxrToggleCreativeVisibility, _sxrToggleKebab, _sxrToggleSelectMode,
+        _sxrUpdateTabScroll, addSxrBlankCard, archiveSxrCard, closeSxrLightbox, loadSxrCards, onSxrPickClient,
+        onSxrTabAddClick, onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
     });
 export {
   _sxrStaffPhoneActive, SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,

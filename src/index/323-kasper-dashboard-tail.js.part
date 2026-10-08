@@ -749,6 +749,20 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         } catch (e) {
             out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } };
         }
+        /* The save landed even if the person has moved on. Opening another
+           client while "Saving…" was showing discarded the edit form, and this
+           then returned before taking the saved row: no "Saved", the old
+           values and old version stayed in the list for the rest of the
+           session, and the next edit of that client was refused with "Someone
+           else saved this client a moment ago" (it was them). Adopt the saved
+           row first; only the form handling below needs the form to be there. */
+        if (generation === _caGeneration && _caState.edit !== ed
+            && out.resp.status === 200 && out.json && out.json.ok && out.json.row) {
+            _caReplaceRow(out.json.row);
+            _caPaint();
+            if (typeof showToast === 'function') showToast('Saved');
+            return;
+        }
         if (generation !== _caGeneration || _caState.edit !== ed) return;
         ed.saving = false;
         const { resp, json } = out;

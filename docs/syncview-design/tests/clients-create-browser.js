@@ -225,6 +225,8 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       await s.page.waitForSelector('.cn-dialog');
       const note = await s.page.$eval('#cnEmailNote', e => e.innerText).catch(() => '');
       if (note !== 'needed for Slack') failures.push(`${label}: the email is not marked as needed for Slack (${note})`);
+      // The managers load after the dialog opens; read the picker only once they are in.
+      await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1, null, { timeout: 15000 }).catch(() => {});
       const opts = await s.page.$$eval('#cnManager option', os => os.map(o => o.textContent)).catch(() => []);
       if (!opts.some(t => /Manager One \(no Slack id yet\)/.test(t)) || opts.some(t => /Manager Two \(/.test(t))) failures.push(`${label}: the picker does not flag the manager without a Slack id (${opts.join(' | ')})`);
       await fill(s, 'Qx newclient');

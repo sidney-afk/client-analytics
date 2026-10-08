@@ -1,4 +1,158 @@
 {
+  "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
   "status": "RUNNING",
-  "reason": "Final legacy staff, Clients desktop and committed build/identity gates are still running. Completed tails will be recorded before PR readiness."
+  "checks": [
+    {
+      "check": "after-clients-final",
+      "status": "PASS",
+      "logHash": "3abb089c3e59a01d8d6c1a9b33f70c31632ad3fcb84a3bb0272080256353fcbc",
+      "lastLines": "KASPER_ADMIN_EXPANDED: 48 native states; 1948 checks; 0 failures; fictional data; no live writes."
+    },
+    {
+      "check": "after-native-6",
+      "status": "PASS",
+      "logHash": "1037c180bd2beab2ff1e5e81e9ea3bdb27ef020f561f6766ce933082e6107abb",
+      "lastLines": "ok workload-loading 412 light\nok workload-loading 412 dark\nstaff-phone-final-pass: 12 renders, 0 problems"
+    },
+    {
+      "check": "client-calendar-final",
+      "status": "PASS",
+      "logHash": "a7da21172b5ed8e4be78ce643115f6b272421b1404ee3ae04e1c15d6563ef12e",
+      "lastLines": "client-calendar-expanded: OK (7830 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/393/412/430; requested light/dark, effective client light)."
+    },
+    {
+      "check": "client-links-final",
+      "status": "PASS",
+      "logHash": "4ffa8e0130d6e18ae57ac3a24bb5aeec40ef4e7e394e92e2ef0b977bb8703077",
+      "lastLines": "client-links-expanded: OK (5110 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 360/390/393/412/430; requested light/dark, effective client light)."
+    },
+    {
+      "check": "legacy-rules-final",
+      "status": "PASS",
+      "logHash": "04d2e426d5d5e06aee7d0d8cf684fd5019f085d04ba14f9c279e2e48bb58c59d",
+      "lastLines": "ok time-off-light-430 screen, menus, layout and scroll lock\nok time-off-dark-430 screen, menus, layout and scroll lock\nSTAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes"
+    },
+    {
+      "check": "design-final",
+      "status": "PASS",
+      "logHash": "146bee6cb92a90f1707ab472cfa96b69dcb6e8b539b7c313a5f0a340ca502049",
+      "lastLines": "ok sample-reviews-430-dark-missing-media\nok sample-reviews-430-dark-linked\nSTAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports"
+    },
+    {
+      "check": "desktop-native-final",
+      "status": "PASS",
+      "logHash": "acdd4530b398e85756c9d703f2614204b83bd0bfaf1954f412f295889bfb917e",
+      "lastLines": "ok tiktok-client-ready-dark-cold: desktop pixels and computed styles identical\nok tiktok-client-ready-dark-warm: desktop pixels and computed styles identical\nFIXTURE_DESKTOP_PARITY: 26/26 exact 1440 desktop pairs; native Today/Notes/Analytics/Workload/TikTok fixtures; cold and phone-to-desktop; no live writes."
+    },
+    {
+      "check": "desktop-clients-recovered",
+      "status": "PASS",
+      "logHash": "2ba607a1ba275f3295a3fc5b19a0a9ba83f859630e9d48ce55a3b187b158c949",
+      "lastLines": "KASPER_ADMIN_EXPANDED: 20 native states; 28 checks; 0 failures; fictional data; no live writes."
+    },
+    {
+      "check": "desktop-broad-staff-final",
+      "status": "PASS",
+      "logHash": "a715e7fdc9b52f4937889fa54283b2fa9ebbf0dedaebf10679c319fa937cc414",
+      "lastLines": "ok   staff-time-off @1440: pixels identical, computed styles identical (79e48f1e84df)\n\n12/12 desktop shots identical to 2020d9f59565b03680cfcb103657918e1d33c594"
+    },
+    {
+      "check": "modules-final",
+      "status": "PASS",
+      "logHash": "93a48dc11665b225db70b63ee8b666a15e4912b9498324c35851c61e33f36dbd",
+      "lastLines": "minified parts: 19 files, 2659 KB, 5219 top-level names, 0 lost, 0 changed kind\n\ncheck-modules: all checks passed"
+    },
+    {
+      "check": "repo-map-final",
+      "status": "PASS",
+      "logHash": "08dcaf27122ce72c64035470f94f7bf2f3cb09c697583cc1667a68606baebc5c",
+      "lastLines": "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists\n\nrepo-map-sync: 1124 passed, 0 failed"
+    },
+    {
+      "check": "truth-final",
+      "status": "PASS",
+      "logHash": "f553c14b610dd9941807e8830bdca3c295d1591c971c30e210d085c3d1489294",
+      "lastLines": "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction\n\ntruth-sync: 515 passed, 0 failed"
+    },
+    {
+      "check": "index-final",
+      "status": "PASS",
+      "logHash": "a22f0db8d1cbd62482e1af297b0021520bcfb450a888eee256beb82bd38759f3",
+      "lastLines": "check-index: committed index.html (HEAD) \u2014 sha256=0d7db964ef9ca8e45eb49e58c8ed180d22121be8fbc6951677e4028cb717a361 bytes=1319326\n\ncheck-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    },
+    {
+      "check": "exposure-committed-final",
+      "status": "PASS",
+      "logHash": "4a1559ec6dbe1dd92441002df97cbee85ff2ec7ea285ab4c3ac10d65228af072",
+      "lastLines": "  WHERE (counts only \u2014 this tool never prints what it matched):\n\nThis change adds no client slug and no colleague's name \u2705"
+    },
+    {
+      "check": "byte-committed-final",
+      "status": "PASS",
+      "logHash": "3eb764cc20a5f649057235742189fd12d6aae43ed779d49d8ad278f98daba698",
+      "lastLines": "byte-pinned line endings vs 2020d9f59565b03680cfcb103657918e1d33c594: 106 pinned, 0 touched by this change\n  OK    no byte-pinned file changed its line-ending composition"
+    },
+    {
+      "check": "staff-phone-rules-source-final",
+      "status": "PASS",
+      "logHash": "2d3ededbffa5c7991abd846c785938e4a383f2d803aed99d86ac2162d3a2981f",
+      "lastLines": "staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped"
+    },
+    {
+      "check": "staff-phone-css-scope-final",
+      "status": "PASS",
+      "logHash": "17cf4eeecb60fd2138ff89839f8df2ec4bbd8596240fb53fd14b3518a548c749",
+      "lastLines": "staff-phone-css-scope: OK (1 block(s), 368 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))"
+    },
+    {
+      "check": "staff-calendar-phone-css-scope-final",
+      "status": "PASS",
+      "logHash": "c170a5038eb6da90d17f2a512aa488fae7c02fc71899572a4bfd935e458dbd15",
+      "lastLines": "staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+    },
+    {
+      "check": "staff-samples-phone-css-scope-final",
+      "status": "PASS",
+      "logHash": "4205a249ea5e9837948382395bbfdbe662f4d1637ec2e5a75602080530e761c9",
+      "lastLines": "staff-samples-phone-css-scope: OK (1 block(s), 344 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])"
+    },
+    {
+      "check": "staff-selection-phone-css-scope-final",
+      "status": "PASS",
+      "logHash": "8e6833452b73d0c6773589674162e6dd2c934097689f8f575219407b5cee6efb",
+      "lastLines": "staff-selection-phone-css-scope: OK (1 block(s), 30 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+    },
+    {
+      "check": "client-phone-css-scope-final",
+      "status": "PASS",
+      "logHash": "8406a46e77e6737792eacb1cb10782095db2bc20217067780a0ca718109401a6",
+      "lastLines": "client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width: <=767px) and html.boot-client)"
+    },
+    {
+      "check": "finch-phone-css-scope-final",
+      "status": "PASS",
+      "logHash": "3786af98bcb24c691bac563ac5e6e0a002fd162a72909ae085b9043f2a30e24e",
+      "lastLines": "finch-phone-css-scope: OK (1 block(s), 387 braces, all under @media (max-width: <=767px) and html.fph-on)"
+    },
+    {
+      "check": "kasper-phone-css-scope-final",
+      "status": "PASS",
+      "logHash": "acdad20225873965ae428950f1554dcaf525be840a5711855671d2022367a3be",
+      "lastLines": "kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)"
+    },
+    {
+      "check": "legacy-staff-final",
+      "status": "RUNNING",
+      "logHash": "c5c8492eb3b835d4e643c41ea55c96a632ea97bf3bd0d468c37f15d43c8ddf38",
+      "lastLines": "ok linear-search 430 dark\nok linear-status-picker 390 light\nok linear-status-picker 390 dark"
+    },
+    {
+      "check": "before-clients-final",
+      "status": "EXPECTED_BEFORE_FAILURE",
+      "reason": "Eight unchanged native assertions reproduce manager focus failing after Escape/backdrop. The final phone run passes these assertions.",
+      "lastLines": "FAIL Clients: backdrop dismissal restores the current manager trigger\nFAIL Clients: closing the manager menu restores focus {\"restored\":false,\"active\":\"kasper-subtab kasper-more-trigger active\"}\nFAIL Clients: backdrop dismissal restores the current manager trigger"
+    }
+  ],
+  "hosted": "PENDING; local proof does not imply hosted/deployed acceptance",
+  "finishLine": "OPEN: full narrowed round and separate fresh-eyes round are pending"
 }

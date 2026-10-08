@@ -76,7 +76,7 @@ function context(authority, mutate) {
     vm.createContext(ctx);
     if (SOURCE_ONLY_DECL) vm.runInContext(SOURCE_ONLY_DECL[0], ctx);
     for (const name of ['_writeUiComponentHasWorkItem', '_writeUiGatewayError', '_writeUiTeam',
-                        '_writeUiNativeId', '_calLinearUrlFor', '_writeUiClassifyTargetless',
+                        '_writeUiNativeId', '_writeUiCommentRound', '_calLinearUrlFor', '_writeUiClassifyTargetless',
                         '_calPostLinearComment']) {
         loadFn(ctx, name);
     }

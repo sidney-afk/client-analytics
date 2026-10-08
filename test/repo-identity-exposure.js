@@ -77,7 +77,7 @@ const allowed = [
   // new in a regenerated generated script. Three uses, all a yes/no lookup that
   // returns a boolean; none of them can put the term in an output.
   /function baseGeneratedScriptsContain\(term, base\) \{/,
-  /return baseScriptText\.includes\(term\);/,
+  /return baseScriptTexts\.some\(text => text\.includes\(term\)\);/,
   /if \(isGeneratedScriptDestination && baseGeneratedScriptsContain\(term, base\)\) continue;/,
 ];
 const unexpected = termUses.filter(u => !allowed.some(re => re.test(u.line)));

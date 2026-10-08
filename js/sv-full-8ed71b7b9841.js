@@ -23306,6 +23306,17 @@
             throw _writeUiGatewayError(503, 'client_scope_unavailable');
         }
     }
+    /* A comment's change-request round, as the canonical table accepts it:
+       a whole number of 1 or more, otherwise no round at all. Older calendar
+       comments were stored with round 0, and a reply inherits its thread
+       root's round, so a reply under one of them sent round 0; the server
+       let it through and production_comments' CHECK (round > 0) threw, a 500
+       the page retried about 520 times (OPEN_REPAIRS 382). Every comment
+       write, and every queued retry of one, goes through this. */
+    function _writeUiCommentRound(value) {
+        const round = Number(value);
+        return value != null && value !== '' && Number.isInteger(round) && round > 0 ? round : null;
+    }
     function _writeUiNativeId(post, component) {
         if (!post) return '';
         // A component with no work item has no deliverable id -- least of all
@@ -25075,7 +25086,7 @@
                 parent_id: String(meta && meta.parentId || meta && meta.comment && meta.comment.parent_id || ''),
                 audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                 is_tweak: !!(meta && meta.isTweak),
-                round: meta && Number.isInteger(meta.round) ? meta.round : null
+                round: _writeUiCommentRound(meta && meta.round)
             } : null,
             attempted: false,
             native_committed: false
@@ -31494,7 +31505,7 @@
                         audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                         component,
                         is_tweak: !!(meta && meta.isTweak),
-                        round: meta && Number.isInteger(meta.round) ? meta.round : null,
+                        round: _writeUiCommentRound(meta && meta.round),
                         // The card the client link presents; the server matches
                         // it against the row card binding when one exists.
                         ...(clientGatewaySurface ? { card_id: clientGatewaySurface.card_id } : {})
@@ -57562,7 +57573,9 @@
                 attachments,
                 component: String(row.component || '').trim(),
                 is_tweak: _prodCommentTruthy(row.is_tweak),
-                round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+                // Number(null) is 0, which made every canonical comment with no
+                // round read back as round 0 (OPEN_REPAIRS 382).
+                round: _writeUiCommentRound(row.round),
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),
@@ -73420,7 +73433,7 @@
                     nativeId,
                     sourceEditedAt: comment && (comment.updated_at || comment.created_at),
                     requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
-                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: _writeUiCommentRound(meta && meta.round), ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
                 }, repair);
     }
     function _writeUiApplyJournalEdits(post, edits, surface) {
@@ -73597,7 +73610,7 @@
             created_at: String(row.source_created_at || fallback.created_at || row.created_at || lifecycleAt),
             updated_at: lifecycleAt,
             is_tweak: row.is_tweak === true || fallback.is_tweak === true,
-            round: Number.isInteger(row.round) ? row.round : (Number.isInteger(fallback.round) ? fallback.round : null),
+            round: _writeUiCommentRound(row.round) || _writeUiCommentRound(fallback.round),
             deleted: !!String(row.deleted_at || ''),
             done: !!String(row.resolved_at || ''),
             done_at: String(row.resolved_at || ''),
@@ -73765,7 +73778,7 @@
                 meta.parentId = intent.comment_meta && intent.comment_meta.parent_id;
                 meta.audience = intent.comment_meta && intent.comment_meta.audience;
                 meta.isTweak = !!(intent.comment_meta && intent.comment_meta.is_tweak);
-                meta.round = intent.comment_meta && Number.isInteger(intent.comment_meta.round) ? intent.comment_meta.round : null;
+                meta.round = _writeUiCommentRound(intent.comment_meta && intent.comment_meta.round);
                 acknowledgement = group.surface === 'sxr'
                     ? await _sxrPostLinearComment(_sxrLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta)
                     : await _calPostLinearComment(_calLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta);
@@ -84584,10 +84597,7 @@
     const CN_BLOCKERS = {
         name_invalid: 'Type the client\'s name.',
         slug_invalid: 'That name has no letters or numbers to make a link name from.',
-        email_invalid: 'That email does not look right.',
-        email_required: 'Add the client\'s email. The Slack channels are only made when it matches the onboarding form.',
-        name_differs_from_form: 'The onboarding form is already in under a different spelling of this name. The Slack channels are only made when the two match exactly.',
-        email_differs_from_form: 'The onboarding form for this client has a different email. The Slack channels are only made when the two match.',
+        email_invalid: 'That email does not look right. Leave it empty if you do not have it yet.',
         manager_unknown: 'Pick a social media manager.',
         name_taken: 'A client with this name already exists. Open it from the search instead.',
         name_on_a_manager_list: 'This name is already on a manager\'s client list. Use a different name, or take it off that list first.',
@@ -84650,7 +84660,7 @@
                 <label class="cn-field"><span class="cn-label">Social media manager</span>
                     <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
                 </label>
-                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">needed for Slack</span></span>
+                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt">optional</span></span>
                     <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
                 </label>
                 <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
@@ -84668,7 +84678,7 @@
         if (_cnState.managersError) { sel.innerHTML = `<option value="">${_calEsc(_cnState.managersError)}</option>`; sel.disabled = true; return; }
         if (!_cnState.managers) return;
         sel.disabled = false;
-        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}${m.slack_id === false ? ' (no Slack id yet)' : ''}</option>`).join('');
+        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}</option>`).join('');
     }
     function _cnKeydown(e) {
         if (e.key === 'Escape') { e.preventDefault(); _cnClose(); return; }
@@ -84707,9 +84717,7 @@
         const slugEl = document.getElementById('cnSlug');
         const slug = _cnSlugFor(_cnState.name);
         const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
-        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet or Slack</span>' : ''}` : '';
-        const emailNote = document.getElementById('cnEmailNote');
-        if (emailNote) emailNote.textContent = test ? 'optional' : 'needed for Slack';
+        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet</span>' : ''}` : '';
         const box = document.getElementById('cnPreview');
         const btn = document.getElementById('cnCreateBtn');
         const p = _cnState.preview;
@@ -84721,43 +84729,15 @@
         if (!_cnState.name.trim() || !_cnState.manager) { box.innerHTML = `<div class="cn-hint">Type a name and pick a manager. SyncView checks it before anything is made.</div>`; return; }
         if (!fresh || _cnState.checking) { box.innerHTML = `<div class="cn-hint">Checking…</div>`; return; }
         if (!p.ready) {
-            const sl = p.slack || {};
-            const fixes = [];
-            if ((p.blockers || []).includes('name_differs_from_form') && sl.form_name) fixes.push(`<button type="button" class="cc-btn" data-cn-use="name" onclick="_cnUseForm('name')">Use the form's name: ${_calEsc(sl.form_name)}</button>`);
-            if ((p.blockers || []).includes('email_differs_from_form') && sl.form_email) fixes.push(`<button type="button" class="cc-btn" data-cn-use="email" onclick="_cnUseForm('email')">Use the form's email: ${_calEsc(sl.form_email)}</button>`);
-            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span>${fixes.length ? `<span class="cn-fixes">${fixes.join('')}</span>` : ''}</div>`;
+            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span></div>`;
             return;
         }
         const items = (p.will_create || []).map(t => `<li>${_calEsc(t)}</li>`).join('');
         box.innerHTML = `<div class="cn-ready">
                 <div class="cn-ready-title"><span class="cn-dot" aria-hidden="true"></span>Ready. This will make:</div>
                 <ul class="cn-list">${items}</ul>
-                ${_cnSlackHtml(p)}
-                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>.' : ''}${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and Slack, and can be removed completely.' : ''}</div>
+                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>. ' : ''}Slack channels are not made here: the finalizer makes them later, once the onboarding form and filming plan are in.${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and can be removed completely.' : ''}</div>
             </div>`;
-    }
-    // Slack (real clients): the finalizer makes both channels by itself once its
-    // three pieces are in; this create asks it to look right away, and saving the
-    // filming plan link asks again.
-    function _cnSlackHtml(p) {
-        const sl = p.slack || {};
-        if (sl.mode !== 'finalizer') return '';
-        const row = (done, text) => `<li class="${done ? 'is-done' : ''}"><span class="cn-tick" aria-hidden="true">${done ? '✓' : '○'}</span>${_calEsc(text)}<span class="cn-sr">${done ? ' (in)' : ' (still missing)'}</span></li>`;
-        const all = sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
-        return `<div class="cn-slack"><div class="cn-slack-title">Slack channels: ${all ? 'made right after you create' : 'made automatically once these are in'}</div>
-                <ul class="cn-checks">
-                    ${row(sl.form_received, 'Onboarding form from the client, same name and email')}
-                    ${row(sl.manager_slack_id, 'The manager\'s Slack id')}
-                    ${row(sl.filming_plan_linked, 'Filming plan link')}
-                </ul></div>`;
-    }
-    function _cnUseForm(field) {
-        const sl = (_cnState.preview && _cnState.preview.slack) || {};
-        const value = field === 'name' ? sl.form_name : sl.form_email;
-        const el = document.getElementById(field === 'name' ? 'cnName' : 'cnEmail');
-        if (!value || !el || _cnState.busy) return;
-        el.value = value;
-        _cnInput(el);
     }
     async function _cnCreate() {
         const p = _cnState.preview;
@@ -84773,8 +84753,7 @@
         if (out.resp.status === 200 && j.ok) {
             const slug = j.client_slug, name = p.display_name;
             _cnClose(true);
-            const slackNote = j.result && j.result.slack === 'finalizer_nudged' ? ' Slack channels follow once the form and filming plan are in.' : '';
-            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.${slackNote}`);
+            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.`);
             try { if (typeof window._caLoad === 'function') await window._caLoad(true); } catch (e) {}
             try { if (typeof window._caLoadManagers === 'function') window._caLoadManagers(); } catch (e) {}
             try { if (typeof window._caSelect === 'function') window._caSelect(slug); } catch (e) {}
@@ -84791,7 +84770,7 @@
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional, _cnClose,
-        _cnCreate, _cnInput, _cnKeydown, _cnOpen, _cnUseForm
+        _cnCreate, _cnInput, _cnKeydown, _cnOpen
     });
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
@@ -88733,4 +88712,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-5cff46310fde.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-8ed71b7b9841.js");

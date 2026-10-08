@@ -162,6 +162,7 @@ async function runCase({ gateway, saveOk }) {
 
   vm.createContext(context);
   vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
+  vm.runInContext(extract('_writeUiCommentRound'), context);
   vm.runInContext(extract('_sxrPushStatusToLinear'), context);
   vm.runInContext(extract('_writeUiApplyOverallStatus'), context);
   // The save chip's error text now reads the shipped failure-message table
@@ -342,6 +343,7 @@ async function runReviewTweakCase({
   // The writer answers source-only for a component with no work item of its
   // own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
   vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
+  vm.runInContext(extract('_writeUiCommentRound'), context);
   // The review pane's error text reads the shipped failure-message table now.
   loadFailureSentence(context);
   vm.runInContext(extract('_sxrPostLinearComment'), context);
@@ -439,10 +441,12 @@ async function runKasperTweakCase({ gateway, saveOk }) {
 
   vm.createContext(context);
   vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
+  vm.runInContext(extract('_writeUiCommentRound'), context);
   vm.runInContext(extract('_sxrPushStatusToLinear'), context);
   // The writer answers source-only for a component with no work item of its
   // own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
   vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
+  vm.runInContext(extract('_writeUiCommentRound'), context);
   loadFailureSentence(context);
   vm.runInContext(extract('_sxrPostLinearComment'), context);
   // 290 is a module: it stamps 280's self-echo time through this setter.

@@ -31175,3 +31175,25 @@ then the same with `true`. (3) Re-point the two pins in `scripts/linear-exit-dep
 two-argument backfill) at the new migration, in the next PR, before any Section 4 dispatch. (4) Set
 `SYNCVIEW_STAFF_KEY` as above.
 **Way back:** revert the PR; the migration's header names its inverse.
+
+## 374. [2026-10-08, BUILT, NOT MERGED] Follow-up to 373: deploy preflight pins re-pointed; live bodies carry Windows line endings (session Mend)
+
+**Done.** The owner applied `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and ran the one-client repair
+for the test client (2 rows applied). `scripts/linear-exit-deploy-preflight.js` now pins
+`production_native_calendar_status_project()` and the two-argument `production_native_calendar_status_backfill` to that
+file. No other pin, threshold or check changed.
+
+**Read-only check, 2026-10-08: the md5s do NOT match yet.** The preflight compares `md5(prosrc)` with the md5 of the
+body in the file. Repository bodies (LF): project `0bba613424a49ebad9aab831115668a6`, backfill
+`0633f083cf5222750510819a141750d4`. Live bodies: `e62ec093e64270a3cdc228ff875ae1da` and
+`6e00d65eae5aa2bd373dc3336b60da2c`. The only difference is line endings: the live bodies hold CRLF (127 and 153 lines,
+lengths 6671 and 8449 against 6544 and 8296), and the repository bodies converted to CRLF hash exactly to the live
+values (the three-argument backfill too: `8d1d93c2eea9715f013e0a51b361174f`). The logic live is the file's logic; the
+text was applied from a copy with Windows line breaks. `.gitattributes` keeps `*.sql` LF, and every other pinned body
+hashes LF, so the pin stays on the LF file and the preflight is not loosened.
+
+**Owner step.** Re-apply the same migration from an LF copy (for example the raw file from GitHub pasted into the SQL
+editor without a Windows round trip, or let a session apply it with your go). It is `create or replace` with the same
+logic, so nothing behaves differently; afterwards both live md5s must equal the two LF values above. Until then the
+preflight refuses a Section 4 dispatch on these two routines (as it already did with the previous pins, since the
+bodies changed when the migration was applied).

@@ -71,8 +71,10 @@ async function scenario(name, fn) {
       const dbStamp = S.card('p_t1').video_status_at;
       check(entry && Date.parse(sentStamp(entry)) === Date.parse(dbStamp), 'the request carries the stamp the database holds (' + (entry && sentStamp(entry)) + ' vs ' + dbStamp + ')');
       check(entry && /http 202/.test(entry.outcome), 'the gateway accepted it: ' + (entry && entry.outcome));
-      const shown = await see(page, { btn: CARD + ' .cal-urgent-btn' });
-      check(shown.modal && /queued/i.test(shown.modal.title || ''), 'the person is told the ping is queued: ' + JSON.stringify(shown.modal));
+      // The queued message opens after the gateway answers; on a loaded runner it was read before it appeared.
+      let shown = null;
+      await waitFor(async () => { shown = await see(page, { btn: CARD + ' .cal-urgent-btn' }); return !!(shown.modal && /queued/i.test(shown.modal.title || '')); }, 6000);
+      check(shown && shown.modal && /queued/i.test(shown.modal.title || ''), 'the person is told the ping is queued: ' + JSON.stringify(shown && shown.modal));
     });
   }
 

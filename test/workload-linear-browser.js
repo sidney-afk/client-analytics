@@ -551,7 +551,9 @@ async function run() {
       && /data-prod-day="' \+ _calEscAttr\(dayIso\)/.test(dueBuilder)
       && /const selected = selectedIso === dayIso/.test(dueBuilder),
     'quick choices, mouse cells, and selection state all carry canonical ISO years');
-    assert(/const selected = view === 'calendar' \? focusDay : _prodParseDue\(inp\.value\)/.test(dueBuilder)
+    // A typed date wins in both views; an empty box in the calendar view takes the
+    // highlighted day (behaviour pinned in test/prod-due-typed-date.js).
+    assert(/const selected = typed \? _prodParseDue\(typed\) : \(view === 'calendar' \? focusDay : ''\)/.test(dueBuilder)
       && /_prodRunPickerWrite\('due', ids, _prodDueIso\(value\)\)/.test(dueBuilder),
     'keyboard, mouse, and bulk selections converge through the same canonical converter');
     assert(/\['Today', _prodPolicyTodayISO\(\)\]/.test(pickerSpec)

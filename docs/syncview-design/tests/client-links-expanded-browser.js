@@ -212,6 +212,22 @@ async function samples(browser, origin, width) {
     ok((await page.locator('#sxrCommentsModal').innerText()).includes('Production deliverable'), 'desktop Notes copy must restore');
     await page.setViewportSize({width,height:heightFor(width,arg('height'))});
     await page.waitForFunction(() => !!document.querySelector('#sxrCommentsModal[data-phone-notes-unavailable]'));
+    // A native copy change must not disable the phone presentation. A fresh
+    // marked element avoids relying on an earlier cached English text node.
+    await page.evaluate(() => {
+      const blocked = document.querySelector('#sxrCommentsModal > [data-notes-unavailable]');
+      const replacement = blocked.cloneNode(true);
+      [...replacement.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim()).textContent = 'This fictional thread is still being prepared.';
+      blocked.replaceWith(replacement);
+      _svPhoneNotesPresentation();
+    });
+    ok((await page.locator('#sxrCommentsModal > [data-notes-unavailable]').innerText()).includes('Your team needs to finish setting up notes for this card.'), 'marked unavailable Notes works with changed native wording');
+    ok(await page.locator('#sxrCommentsModal .cal-comments-feed').isHidden(), 'changed unavailable wording retains the compact phone state');
+    await page.setViewportSize({width:1440,height:900});
+    await page.waitForFunction(() => !document.querySelector('#sxrCommentsModal[data-phone-notes-unavailable]'));
+    ok((await page.locator('#sxrCommentsModal > [data-notes-unavailable]').innerText()).includes('This fictional thread is still being prepared.'), 'desktop restores the actual native wording after a copy change');
+    await page.setViewportSize({width,height:heightFor(width,arg('height'))});
+    await page.waitForFunction(() => !!document.querySelector('#sxrCommentsModal[data-phone-notes-unavailable]'));
     await page.locator('.cal-comments-close').click();
     await page.evaluate(id => {
       const post = sxrState.posts.find(post => post.id === id);

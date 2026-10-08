@@ -756,7 +756,7 @@ async function _ctx(browser, opts) {
   });
   // After the catch-all: Playwright tries the most recent route first, so a
   // catch-all registered later would swallow the key-verify stub this needs.
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { answerStaffReads: true });
   // Probe-registered native work items (qa/native_work_item_fixture.js), also
   // after the catch-all so their calendar/samples reads are answered first.
   await require('./native_work_item_fixture.js').applyProbeWorkItems(ctx);
@@ -913,8 +913,11 @@ async function kasper(browser, opts) {
   const page = await ctx.newPage();
   _capture(page);
   await page.goto(ORIGIN + '/index.html?Kasper=1&sxr=1&v2debug=1#kasper', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  // Wait for the Kasper view + the samples sub-tab handler to be wired.
-  await page.waitForFunction(() => typeof window._kasperGotoTab === 'function' && typeof window._kasperRenderSamples === 'function', { timeout: 20000 }).catch(() => {});
+  // Wait for the Kasper view + the samples queue loader to be wired.
+  // _kasperRenderSamples went with the Samples subtab (#1676), so waiting for
+  // it burned the full 20 s on every Kasper open and pushed the tree lane past
+  // its 30-minute budget.
+  await page.waitForFunction(() => typeof window._kasperGotoTab === 'function' && typeof window._sxrKasperLoadQueue === 'function', { timeout: 20000 }).catch(() => {});
   // Samples are listed in the Review tab (the Samples subtab was removed).
   await page.evaluate(() => { try { window._kasperGotoTab('review'); } catch (e) {} });
   await page.waitForTimeout(800);

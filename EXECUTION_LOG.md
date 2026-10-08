@@ -4,6 +4,18 @@
 
 All times are UTC unless noted.
 
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 1)
+
+Mandate: the site-assurance loop on the six riskiest desktop screens (Calendar,
+Samples, Today, SyncLinear cards, Clients, TikTok upload), test client only,
+fixes as PRs the owner merges. Cycle 1: 24 candidates from three pattern sweeps
+plus a signed-in walk of the live site; batch 1 took the SyncLinear, upload and
+link-box group. Nine confirmed and fixed in the browser, each with a guard that
+fails on the previous main; one confirmed and left for the owner because it
+needs a database change and a deploy (OPEN_REPAIRS 371). The Calendar and
+Samples save-engine group and the Today and Clients group are verified and
+shipped in later batches. No live write beyond one unchanged-value save on a
+test-client card, no deploy, no merge, no flag, no n8n edit.
 ## 2026-10-02 — Digger preventive bug archaeology over September 19 to October 2
 
 Three bounded cycles: 22 candidates, four confirmed, 16 refuted, two undecidable;

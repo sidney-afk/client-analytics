@@ -47,6 +47,11 @@ here with where it stopped, so it can be restarted.
   shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
   27-step checklist (admin only; OPEN_REPAIRS 332). Next, each with the owner's go: "Create client" (step 2.5),
   then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
+  **2026-10-08 (Beacon): "Create client" is BUILT, not applied or deployed** (OPEN_REPAIRS 372): owner steps, in order, in
+  `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` (apply the 2026-10-03 test path, apply `2026-10-08-create-client.sql`, deploy
+  `client-onboarding`, throwaway proof and teardown). **Stage 3 dry run done**, nothing saved:
+  `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
+  confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
@@ -244,6 +249,13 @@ hiring senders when the editor hire closes.
   **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
   calendar drift check had causes found and fixed (test code and test-client data only); confirm
   they are green on main after the merge.** The other lanes were not re-checked.
+  **2026-10-08 (OPEN_REPAIRS 373, session Mend): Calendar E2E, Samples E2E and the drift check.** Robot causes
+  fixed in test code (fake-key refusal shadowing the fake gateway; fake-key 401s on staff reads signing the robot
+  out, which since admin-only Kasper sends it to Home; notes sent before their thread loads; two probes on
+  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Owner steps left:
+  apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
+  test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
+  preflight's two pins at that migration before the next Section 4 dispatch.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

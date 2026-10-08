@@ -157,19 +157,23 @@ Widths: 375, 390, 430. Themes: light, dark. All data is fictional; requests are 
 | admin | clients | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | client-detail | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | clients-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | quiz-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | quiz | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | quiz-detail | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | quiz-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | ads-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | ads | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | ads-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | save-problems-empty | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
-| admin | save-problems | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
-| admin | save-problems-error | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
-| admin | save-problems-long | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | quiz-empty | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | quiz | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | quiz-detail | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | quiz-error | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | ads-empty | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | ads | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | ads-error | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | ads-range-actions | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | quiz-search-actions | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | ads-refresh-actions | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | quiz-refresh-actions | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | save-problems-empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| admin | save-problems | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| admin | save-problems-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| admin | save-problems-long | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | save-problems-many | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | save-problems-filter-actions | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | save-problems-filter-actions | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | more | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | tabs | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | tabs-client-picker | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -182,9 +186,9 @@ Widths: 375, 390, 430. Themes: light, dark. All data is fictional; requests are 
 | admin | review-note | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | review-lightbox | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | credentials-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | quiz-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | ads-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| admin | save-problems-loading | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | quiz-loading | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | ads-loading | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN | CLEAN |
+| admin | save-problems-loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | onboarding | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | onboarding-detail | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | admin | onboarding-error | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -360,7 +364,7 @@ A screen with no meaningful instance of a state needs an explicit source-backed 
 | Kasper Onboarding | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Kasper Credentials | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Kasper Clients | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Kasper Save problems | OPEN | NOT_APPLICABLE | CLEAN | CLEAN | CLEAN | NOT_APPLICABLE | CLEAN | OPEN | CLEAN | CLEAN |
+| Kasper Save problems | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Kasper Ads | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Kasper Quiz | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Personal Time Off | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |

@@ -2707,6 +2707,83 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         // Same icon geometry as the approved Calendar phone header.
         const moreSvg = '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>';
         const stopCardToggleBubble = event => event.stopPropagation();
+        // Own the phone presentation of the native chart. Keep its original
+        // options/attributes so crossing back to desktop restores them exactly.
+        const chartPresentations = new WeakMap();
+        const syncChart = active => {
+            const chart = _kadState.chart;
+            if (!chart || !chart.canvas?.isConnected) return;
+            let saved = chartPresentations.get(chart);
+            if (!active) {
+                if (!saved) return;
+                saved.legend.remove();
+                for (const [name, value] of Object.entries(saved.attributes)) {
+                    if (value === null) chart.canvas.removeAttribute(name);
+                    else chart.canvas.setAttribute(name, value);
+                }
+                chart.config.options = saved.options;
+                chartPresentations.delete(chart);
+                chart.update('none');
+                return;
+            }
+            const color = _svCss('--text-secondary'), grid = _svCss('--border');
+            const family = getComputedStyle(document.body).fontFamily;
+            const signature = [color, grid, family, document.fonts.status].join('|');
+            if (saved?.signature === signature) return;
+            if (!saved) {
+                const legend = document.createElement('div');
+                legend.className = 'pocket-admin-chart-legend';
+                legend.setAttribute('aria-label', 'Chart series');
+                chart.canvas.closest('.chart-wrap').before(legend);
+                saved = { options: chart.config.options, onClick: chart.options.plugins.legend.onClick, legend, attributes: {
+                    role: chart.canvas.getAttribute('role'), 'aria-label': chart.canvas.getAttribute('aria-label')
+                } };
+                chartPresentations.set(chart, saved);
+            }
+            saved.signature = signature;
+            const original = saved.options;
+            const scales = Object.fromEntries(Object.entries(original.scales || {}).map(([axis, options]) => [axis, {
+                ...options,
+                ticks: { ...options.ticks, color, font: { ...options.ticks?.font, size: 12, family },
+                    ...(axis === 'x' ? { callback(value) {
+                        const label = this.getLabelForValue(value);
+                        const date = new Date(label + 'T00:00:00Z');
+                        return isNaN(date) ? label : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                    } } : {}) },
+                title: { ...options.title, color, font: { ...options.title?.font, size: 12, family } },
+                grid: { ...options.grid, color: grid }
+            }]));
+            chart.config.options = {
+                ...original, scales, animation: false,
+                interaction: { ...original.interaction, mode: 'index', intersect: false },
+                plugins: { ...original.plugins, legend: { ...original.plugins?.legend, display: false } }
+            };
+            chart.canvas.setAttribute('role', 'img');
+            chart.canvas.setAttribute('aria-label', 'Spend and bookings by day');
+            chart.update('none');
+            const items = chart.legend.legendItems;
+            if (saved.legend.childElementCount === items.length) {
+                [...saved.legend.children].forEach((button, index) => {
+                    button.firstElementChild.style.backgroundColor = items[index].fillStyle;
+                    button.setAttribute('aria-pressed', String(chart.isDatasetVisible(items[index].datasetIndex)));
+                });
+                return;
+            }
+            saved.legend.replaceChildren(...items.map(item => {
+                const button = document.createElement('button'); button.type = 'button';
+                const swatch = document.createElement('span'); swatch.className = 'pocket-admin-chart-swatch';
+                swatch.style.backgroundColor = item.fillStyle; swatch.setAttribute('aria-hidden', 'true');
+                const label = document.createElement('span'); label.textContent = item.text;
+                button.append(swatch, label);
+                const updatePressed = () => button.setAttribute('aria-pressed', String(chart.isDatasetVisible(item.datasetIndex)));
+                updatePressed();
+                button.addEventListener('click', () => {
+                    saved.onClick.call(chart.legend, null, item, chart.legend);
+                    updatePressed();
+                });
+                return button;
+            }));
+        };
         let tabs = null, home = null, clientHome = null, returnFocus = null;
         const closeTabs = () => {
             if (!tabs) return;
@@ -2763,8 +2840,12 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
             const wrap = main.querySelector('.kasper-wrap');
             const active = media.matches && !!wrap;
             document.documentElement.classList.toggle('pocket-admin-phone', active);
+            syncChart(active);
             if (!active) {
                 closeTabs();
+                main.querySelectorAll('.pocket-admin-empty-copy').forEach(node => {
+                    node.textContent = node._pocketEmptyText; node.classList.remove('pocket-admin-empty-copy');
+                });
                 main.querySelectorAll('[data-pocket-reviewer]').forEach(node => node.removeAttribute('data-pocket-reviewer'));
                 main.querySelectorAll('.pocket-admin-more-icon').forEach(node => node.remove());
                 main.querySelectorAll('.pocket-admin-no-password').forEach(node => {
@@ -2811,6 +2892,16 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                 return;
             }
             wrap.toggleAttribute('data-pocket-reviewer', ['review', 'replies', 'filming'].includes(_kasperState.tab));
+            for (const [selector, text] of [
+                ['#kadBody > .kasper-empty .kasper-empty-sub', 'Ad results update twice daily. Check back after the next update.'],
+                ['#kqlBody > .kasper-empty .kasper-empty-sub', 'New quiz submissions will appear here.']
+            ]) {
+                const node = main.querySelector(selector);
+                const title = node?.parentElement.querySelector('.kasper-empty-title')?.textContent;
+                if (!node || !['No data yet', 'No quiz leads yet'].includes(title) || node.classList.contains('pocket-admin-empty-copy')) continue;
+                node._pocketEmptyText = node.textContent;
+                node.classList.add('pocket-admin-empty-copy'); node.textContent = text;
+            }
             let heading = wrap.querySelector('.pocket-admin-heading');
             if (!heading) {
                 heading = document.createElement('div'); heading.className = 'pocket-admin-heading';
@@ -2922,6 +3013,8 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         };
         new MutationObserver(sync).observe(main, { childList: true, subtree: true });
         media.addEventListener('change', sync);
+        new MutationObserver(() => syncChart(media.matches && !!main.querySelector('.kasper-wrap'))).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        document.fonts.addEventListener('loadingdone', () => syncChart(media.matches && !!main.querySelector('.kasper-wrap')));
         document.addEventListener('keydown', event => {
             if (event.key !== 'Escape' || !media.matches || !main.querySelector('.kasper-wrap')) return;
             const account = document.getElementById('staffAccountPopover');

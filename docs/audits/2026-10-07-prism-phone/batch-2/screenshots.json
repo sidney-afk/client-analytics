@@ -1,0 +1,2814 @@
+{
+  "afterSourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96",
+  "beforeCommit": "d4410a8449a848085b8a63dec05ef09cd8c7fb39",
+  "images": [
+    {
+      "file": "before/ads-light-375.png",
+      "sha256": "f2a93941fff59c6c8432004489f611219ae084a93e1fbb2661b39e3321ddd9ba",
+      "state": "ads",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-light-375-viewport.png",
+      "sha256": "756b56761f4d8e024f8a84eb3f6cfea6291e63e710dc685ac9bdca7e72c76bf7",
+      "state": "ads",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-light-375.png",
+      "sha256": "de1c5b9d4f39225c0b8cb6f947c6f931780fda5ae46902482cc843f38e7524ae",
+      "state": "ads",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-light-375-viewport.png",
+      "sha256": "f7ea19668b943a395b060b21dfc4a96209469e8e00c01bb764d7502880a029ec",
+      "state": "ads",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-dark-375.png",
+      "sha256": "6b6b9b93574075077b7205ddbcbeeccb3d9383105e7955a0e56ff1eeb40a7378",
+      "state": "ads",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-dark-375-viewport.png",
+      "sha256": "6d1d74640dfccad24a3bbc29621d75d1261189683a68d74762c3abc54b0f3a9a",
+      "state": "ads",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-dark-375.png",
+      "sha256": "5ef93f7d14f65787f12b229275aca2428ded9aeafa522958ab4a763906d73160",
+      "state": "ads",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-dark-375-viewport.png",
+      "sha256": "62ece64ed1276f9166a538ecbdfb94636617f697e9397449b9dfc2526b73d930",
+      "state": "ads",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-light-390.png",
+      "sha256": "e40a619d248834c22c14ec78c06c99426c9b1ff159c0e53e7536b65a4895e42c",
+      "state": "ads",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-light-390-viewport.png",
+      "sha256": "a356ed7c4b97344a1eb07660c94e5ba07853158e03155f14caac9811b10254f0",
+      "state": "ads",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-light-390.png",
+      "sha256": "8968f50824af0aa094a3a8ab81ad229ed034d1f574bb1f9a0cbe6e779891d7ab",
+      "state": "ads",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-light-390-viewport.png",
+      "sha256": "53e3f4e020ebf86755ca4a91fb12a48dba7a5d371dc3f18a4ca11d41e4c0556b",
+      "state": "ads",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-dark-390.png",
+      "sha256": "b94e7a5b3e30c057d77d92c9249ada59a271302004241b7d71eecdb240601adc",
+      "state": "ads",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-dark-390-viewport.png",
+      "sha256": "19cb8044b8a46865f3cddfb0136e95a295ad4c2a47b62fa45288e58dba402865",
+      "state": "ads",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-dark-390.png",
+      "sha256": "1bd75dae16e30c60dbc9ac8c7b2ed8274dd3dc8a646472f3a66b9230d308169a",
+      "state": "ads",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-dark-390-viewport.png",
+      "sha256": "79457e005db1e693e30d5a03928c1fba8e611098bc5c58d4b1c32326280c2d0b",
+      "state": "ads",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-light-430.png",
+      "sha256": "bd84dc949840e4b98a6b5eb3034aebb022ad2cb0bac2bd5397f1b8fdd8ee1fb8",
+      "state": "ads",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-light-430-viewport.png",
+      "sha256": "e936a75ac7a0e9eb3c226a7933039e7ae93ae105d7ad62e0b13cbf69883f6fe0",
+      "state": "ads",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-light-430.png",
+      "sha256": "6d2bb5216e843312063be8bdd1e744ad51f9bf4fcb0d9c40f4fc93fd4b0f9fcd",
+      "state": "ads",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-light-430-viewport.png",
+      "sha256": "02a4cc6387dd272895ff9c151bb6534584e6d70de3cc62a38b945c855e7ab777",
+      "state": "ads",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-dark-430.png",
+      "sha256": "ad3613b2aa3fafe39e9869db5c45aeed28ad8068d7e20377a2a7af11cd5254ad",
+      "state": "ads",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-dark-430-viewport.png",
+      "sha256": "3b76ac81c363ce8f16c47ddded1f2705b7038cadf40e2dc426c8d6f406e4b4cb",
+      "state": "ads",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-dark-430.png",
+      "sha256": "452bbbd53d55f337280dd90bbbad8c66ba1ded3eb4712937337b26c3ddc3708b",
+      "state": "ads",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-dark-430-viewport.png",
+      "sha256": "a6b4ebc89de8d08d91675a1b4f6518a2b4e460aa9ef5d124f7756d203afa17ae",
+      "state": "ads",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-empty-light-375.png",
+      "sha256": "20e70eab8b77f27bfeafea64c7df51f6c5552b00c7f29ea269e7dea7a1d90312",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-empty-light-375-viewport.png",
+      "sha256": "20e70eab8b77f27bfeafea64c7df51f6c5552b00c7f29ea269e7dea7a1d90312",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-empty-light-375.png",
+      "sha256": "87657e2eda94d1fa42980cc01c7687c6a13010c04f4643b91871f982a75ca23c",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-empty-light-375-viewport.png",
+      "sha256": "87657e2eda94d1fa42980cc01c7687c6a13010c04f4643b91871f982a75ca23c",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-empty-dark-375.png",
+      "sha256": "3128732c7844419503a87d02d810518803f921c647243466fde16050b66d0952",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-empty-dark-375-viewport.png",
+      "sha256": "3128732c7844419503a87d02d810518803f921c647243466fde16050b66d0952",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-empty-dark-375.png",
+      "sha256": "a230b85e27022ccdbe55a868613a72fe26fdde4be35039926d3b197269565f72",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-empty-dark-375-viewport.png",
+      "sha256": "a230b85e27022ccdbe55a868613a72fe26fdde4be35039926d3b197269565f72",
+      "state": "ads-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-empty-light-390.png",
+      "sha256": "d9915caf429cad64d74cb3b1559ce254678db8350967dec6699aad94139b6ceb",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-empty-light-390-viewport.png",
+      "sha256": "d9915caf429cad64d74cb3b1559ce254678db8350967dec6699aad94139b6ceb",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-empty-light-390.png",
+      "sha256": "110c87cc46ac25775b019ae50b861c779c7dd3b802cc19fabb17179144a50451",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-empty-light-390-viewport.png",
+      "sha256": "110c87cc46ac25775b019ae50b861c779c7dd3b802cc19fabb17179144a50451",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-empty-dark-390.png",
+      "sha256": "ee55bb0e7f37f41d7b98fd7d3433c95eeae3738baae02a162b73e11d7e36b2da",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-empty-dark-390-viewport.png",
+      "sha256": "ee55bb0e7f37f41d7b98fd7d3433c95eeae3738baae02a162b73e11d7e36b2da",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-empty-dark-390.png",
+      "sha256": "833743f45a61a7c7b548c5354f4c58afb8f29a0b7157d9b096584bedc6a1f8ba",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-empty-dark-390-viewport.png",
+      "sha256": "833743f45a61a7c7b548c5354f4c58afb8f29a0b7157d9b096584bedc6a1f8ba",
+      "state": "ads-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-empty-light-430.png",
+      "sha256": "753ca4b606358c5fa24fa17a52e5dd6067eea6aa7776bb90f098ccf73860575a",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-empty-light-430-viewport.png",
+      "sha256": "753ca4b606358c5fa24fa17a52e5dd6067eea6aa7776bb90f098ccf73860575a",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-empty-light-430.png",
+      "sha256": "56c4b128d64545fc30d1b271cb726631f311b3cba7cc7a3609e81ebcf0ca8999",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-empty-light-430-viewport.png",
+      "sha256": "56c4b128d64545fc30d1b271cb726631f311b3cba7cc7a3609e81ebcf0ca8999",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-empty-dark-430.png",
+      "sha256": "003a08bc433e86c8d59a77d1db7be28218bff212480fe2902382094582e8e941",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-empty-dark-430-viewport.png",
+      "sha256": "003a08bc433e86c8d59a77d1db7be28218bff212480fe2902382094582e8e941",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-empty-dark-430.png",
+      "sha256": "b61d3f60970b5857fa91af7c2c0897b134bf8b2277f0015495433392ce571ad2",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-empty-dark-430-viewport.png",
+      "sha256": "b61d3f60970b5857fa91af7c2c0897b134bf8b2277f0015495433392ce571ad2",
+      "state": "ads-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-error-light-375.png",
+      "sha256": "2ba5df46676a3b4992466527de88632918840c8282e315e1e7479e03046783a7",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-error-light-375-viewport.png",
+      "sha256": "2ba5df46676a3b4992466527de88632918840c8282e315e1e7479e03046783a7",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-error-light-375.png",
+      "sha256": "f2b31c3d935686fb9fef90feec2380b6601019e630b8d8a96f4626f05444c282",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-error-light-375-viewport.png",
+      "sha256": "f2b31c3d935686fb9fef90feec2380b6601019e630b8d8a96f4626f05444c282",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-error-dark-375.png",
+      "sha256": "7d265a757fd9c66f988049adf5e0d4c839c80438b5fe0d691bf1a17f182aed03",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-error-dark-375-viewport.png",
+      "sha256": "7d265a757fd9c66f988049adf5e0d4c839c80438b5fe0d691bf1a17f182aed03",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-error-dark-375.png",
+      "sha256": "7b506939c635ac41f733ecce83e8a27d68d5e8b64c1128699497db7e32a8e57f",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-error-dark-375-viewport.png",
+      "sha256": "7b506939c635ac41f733ecce83e8a27d68d5e8b64c1128699497db7e32a8e57f",
+      "state": "ads-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-error-light-390.png",
+      "sha256": "85ca69e39a658392c3e31c0903d307feb423e76d9f1334b470137d5e60cf6196",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-error-light-390-viewport.png",
+      "sha256": "85ca69e39a658392c3e31c0903d307feb423e76d9f1334b470137d5e60cf6196",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-error-light-390.png",
+      "sha256": "a407159644e9697306565f396c201ba067abbfae57b2820ec15b55e94f23eb60",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-error-light-390-viewport.png",
+      "sha256": "a407159644e9697306565f396c201ba067abbfae57b2820ec15b55e94f23eb60",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-error-dark-390.png",
+      "sha256": "121aeffe7bea9c7db8b301957626a86202de4e19fe5b217fce74a6b93a47345c",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-error-dark-390-viewport.png",
+      "sha256": "121aeffe7bea9c7db8b301957626a86202de4e19fe5b217fce74a6b93a47345c",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-error-dark-390.png",
+      "sha256": "da5ac46bfce7f7c0abb7dcf455771850d6b7395aefe0e09483093b037d2a9ce5",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-error-dark-390-viewport.png",
+      "sha256": "da5ac46bfce7f7c0abb7dcf455771850d6b7395aefe0e09483093b037d2a9ce5",
+      "state": "ads-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-error-light-430.png",
+      "sha256": "811abb05be3e142bf9b1568b041a3ccd9ed01a38068eca8b6968636d33c7ed8b",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-error-light-430-viewport.png",
+      "sha256": "811abb05be3e142bf9b1568b041a3ccd9ed01a38068eca8b6968636d33c7ed8b",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-error-light-430.png",
+      "sha256": "6cf13861900210740fd64c2f71df6030b599442a509eb2d58e47c3e64bbf16d3",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-error-light-430-viewport.png",
+      "sha256": "6cf13861900210740fd64c2f71df6030b599442a509eb2d58e47c3e64bbf16d3",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-error-dark-430.png",
+      "sha256": "1447f3b42af0137a4ae83033ed3cd0b681df49b3c36236269cfcd76911d9faaa",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-error-dark-430-viewport.png",
+      "sha256": "1447f3b42af0137a4ae83033ed3cd0b681df49b3c36236269cfcd76911d9faaa",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-error-dark-430.png",
+      "sha256": "914b4d449ba32ab866ad6895ded7a1e57a576d5a871de45a68c0373c181b5632",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-error-dark-430-viewport.png",
+      "sha256": "914b4d449ba32ab866ad6895ded7a1e57a576d5a871de45a68c0373c181b5632",
+      "state": "ads-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-loading-light-375.png",
+      "sha256": "386957940a4a407d4a2ef5457c2926376e3d7e80814b75ce721ba61a487093b9",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-loading-light-375-viewport.png",
+      "sha256": "adf37603c3025162650b9d3c7e90ed4991e1d7a2ed83a734e2a51697943fc402",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-loading-light-375.png",
+      "sha256": "422022292be552ffb5369832f771143a018a588084044633e83b6ae51bc59038",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-loading-light-375-viewport.png",
+      "sha256": "422022292be552ffb5369832f771143a018a588084044633e83b6ae51bc59038",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-loading-dark-375.png",
+      "sha256": "2e4b3b50b02084b91acad763b310a4b2ea21ab3fd3c8f9f0f95dca422ab83265",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-loading-dark-375-viewport.png",
+      "sha256": "5b6eaa1d5d717640bdaab8d9f96c87f0ee7935ff5d42e6510cb194c27f59ea11",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-loading-dark-375.png",
+      "sha256": "77a8a365a1a29f42812f8bf2773220663ec6166c2fe8e3debc951ca2fd929e8f",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-loading-dark-375-viewport.png",
+      "sha256": "77a8a365a1a29f42812f8bf2773220663ec6166c2fe8e3debc951ca2fd929e8f",
+      "state": "ads-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-loading-light-390.png",
+      "sha256": "29458013b2b4d14165fff2521d0079b33e3810fc91dde3831ce34ee1068741cc",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-loading-light-390-viewport.png",
+      "sha256": "a307fd5c8e65e14139137d8ec6efe7ae9e67456dd1fad28c26463014430c1a10",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-loading-light-390.png",
+      "sha256": "65fb2edd80b2819e84dae2e17c1a2962ddca0af3820cd004c8b65ea0c29eebd3",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-loading-light-390-viewport.png",
+      "sha256": "65fb2edd80b2819e84dae2e17c1a2962ddca0af3820cd004c8b65ea0c29eebd3",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-loading-dark-390.png",
+      "sha256": "3bfbefadcd3f3f396c5399bac67055c092db3ce6f768cb4305d8e2efd3a4a0d4",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-loading-dark-390-viewport.png",
+      "sha256": "84e2188307801c875195787e7fedea82c7d6a35e81a96856996788868b40cd70",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-loading-dark-390.png",
+      "sha256": "80176e384f0ef1bdfb55a23ae6ef962854e738df50b5a1f96069749fa4935a89",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-loading-dark-390-viewport.png",
+      "sha256": "80176e384f0ef1bdfb55a23ae6ef962854e738df50b5a1f96069749fa4935a89",
+      "state": "ads-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-loading-light-430.png",
+      "sha256": "57cd675fb936d5de512dcdcb4cee85b2d25c70f34485e4ef50e7616386bdc08d",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-loading-light-430-viewport.png",
+      "sha256": "6cc2e11b3ded39203228f8d6a9525f1ad325c697a0a929445cee9f56e147f356",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-loading-light-430.png",
+      "sha256": "2a34e0a62fb081e84a381698b8bd15e4445b52c36ac8e9d76f73debd2cd5a23b",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-loading-light-430-viewport.png",
+      "sha256": "2a34e0a62fb081e84a381698b8bd15e4445b52c36ac8e9d76f73debd2cd5a23b",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-loading-dark-430.png",
+      "sha256": "ca37038e3e286f2edd4401a0226bd1694424f4acc811789eae59b30b376fdd30",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-loading-dark-430-viewport.png",
+      "sha256": "cef7b527e2a73054825757bc191a7b181129dc66db885fe176e2e5b47396fca4",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-loading-dark-430.png",
+      "sha256": "212a50517e9b21ca7ee98bde1e43f1528e2b44b8bd05d1aa9e0699ed9415be32",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-loading-dark-430-viewport.png",
+      "sha256": "212a50517e9b21ca7ee98bde1e43f1528e2b44b8bd05d1aa9e0699ed9415be32",
+      "state": "ads-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-refresh-actions-light-375.png",
+      "sha256": "f2a93941fff59c6c8432004489f611219ae084a93e1fbb2661b39e3321ddd9ba",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-refresh-actions-light-375-viewport.png",
+      "sha256": "756b56761f4d8e024f8a84eb3f6cfea6291e63e710dc685ac9bdca7e72c76bf7",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-refresh-actions-light-375.png",
+      "sha256": "de1c5b9d4f39225c0b8cb6f947c6f931780fda5ae46902482cc843f38e7524ae",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-refresh-actions-light-375-viewport.png",
+      "sha256": "f7ea19668b943a395b060b21dfc4a96209469e8e00c01bb764d7502880a029ec",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-refresh-actions-dark-375.png",
+      "sha256": "6b6b9b93574075077b7205ddbcbeeccb3d9383105e7955a0e56ff1eeb40a7378",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-refresh-actions-dark-375-viewport.png",
+      "sha256": "6d1d74640dfccad24a3bbc29621d75d1261189683a68d74762c3abc54b0f3a9a",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-refresh-actions-dark-375.png",
+      "sha256": "5ef93f7d14f65787f12b229275aca2428ded9aeafa522958ab4a763906d73160",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-refresh-actions-dark-375-viewport.png",
+      "sha256": "62ece64ed1276f9166a538ecbdfb94636617f697e9397449b9dfc2526b73d930",
+      "state": "ads-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-refresh-actions-light-390.png",
+      "sha256": "e40a619d248834c22c14ec78c06c99426c9b1ff159c0e53e7536b65a4895e42c",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-refresh-actions-light-390-viewport.png",
+      "sha256": "a356ed7c4b97344a1eb07660c94e5ba07853158e03155f14caac9811b10254f0",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-refresh-actions-light-390.png",
+      "sha256": "8968f50824af0aa094a3a8ab81ad229ed034d1f574bb1f9a0cbe6e779891d7ab",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-refresh-actions-light-390-viewport.png",
+      "sha256": "53e3f4e020ebf86755ca4a91fb12a48dba7a5d371dc3f18a4ca11d41e4c0556b",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-refresh-actions-dark-390.png",
+      "sha256": "b94e7a5b3e30c057d77d92c9249ada59a271302004241b7d71eecdb240601adc",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-refresh-actions-dark-390-viewport.png",
+      "sha256": "19cb8044b8a46865f3cddfb0136e95a295ad4c2a47b62fa45288e58dba402865",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-refresh-actions-dark-390.png",
+      "sha256": "1bd75dae16e30c60dbc9ac8c7b2ed8274dd3dc8a646472f3a66b9230d308169a",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-refresh-actions-dark-390-viewport.png",
+      "sha256": "79457e005db1e693e30d5a03928c1fba8e611098bc5c58d4b1c32326280c2d0b",
+      "state": "ads-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-refresh-actions-light-430.png",
+      "sha256": "bd84dc949840e4b98a6b5eb3034aebb022ad2cb0bac2bd5397f1b8fdd8ee1fb8",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-refresh-actions-light-430-viewport.png",
+      "sha256": "e936a75ac7a0e9eb3c226a7933039e7ae93ae105d7ad62e0b13cbf69883f6fe0",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-refresh-actions-light-430.png",
+      "sha256": "6d2bb5216e843312063be8bdd1e744ad51f9bf4fcb0d9c40f4fc93fd4b0f9fcd",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-refresh-actions-light-430-viewport.png",
+      "sha256": "02a4cc6387dd272895ff9c151bb6534584e6d70de3cc62a38b945c855e7ab777",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-refresh-actions-dark-430.png",
+      "sha256": "ad3613b2aa3fafe39e9869db5c45aeed28ad8068d7e20377a2a7af11cd5254ad",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-refresh-actions-dark-430-viewport.png",
+      "sha256": "3b76ac81c363ce8f16c47ddded1f2705b7038cadf40e2dc426c8d6f406e4b4cb",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-refresh-actions-dark-430.png",
+      "sha256": "452bbbd53d55f337280dd90bbbad8c66ba1ded3eb4712937337b26c3ddc3708b",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-refresh-actions-dark-430-viewport.png",
+      "sha256": "a6b4ebc89de8d08d91675a1b4f6518a2b4e460aa9ef5d124f7756d203afa17ae",
+      "state": "ads-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-range-actions-light-375.png",
+      "sha256": "bb038da8f011fdf3db12491075109e74055b4151c6b0cca501b610b1bb18674c",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-range-actions-light-375-viewport.png",
+      "sha256": "06c70d1bb61015d419f52076549f89d8895ee006d98c66b66285dd7d271a04b8",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-range-actions-light-375.png",
+      "sha256": "c1793c073d432bdcbbf4348fbadc51ab6df2c054644b1d3375b5c989e7537b27",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-range-actions-light-375-viewport.png",
+      "sha256": "ccfd0b227ac8a0ac4431bd84fb7331169b0e5b0789d54b5be340874ca63d9b33",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-range-actions-dark-375.png",
+      "sha256": "068f947170c6faf9f24f3ed5e48099a8396aabd639e2f2555b6038794d9df1cd",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-range-actions-dark-375-viewport.png",
+      "sha256": "02c7710760f12ae0118f278c5d9002475d64f5155f352e4ac36622c01972eeeb",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-range-actions-dark-375.png",
+      "sha256": "43534795f8fd52a2fe9d4774d82cce1935b9f0b79762c120f673e4afb5ffbc7c",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-range-actions-dark-375-viewport.png",
+      "sha256": "4263dc33b44d29cefe85d35aa1e6886607938984beca6b049fa9871a3283bee8",
+      "state": "ads-range-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-range-actions-light-390.png",
+      "sha256": "16c8e19cdfc9ab30062aac4dca5f6a6e3a1463d253509a4e77525f1faf6f904d",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-range-actions-light-390-viewport.png",
+      "sha256": "b5c2714bc09d995e70df45c8bd1943516bd245e4451a2319d3aec13faf497b32",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-range-actions-light-390.png",
+      "sha256": "3d313a54b35fca3b19a6d97f90b75d76c52dfcaa1bf77fab5e88deffa7bf7aae",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-range-actions-light-390-viewport.png",
+      "sha256": "9b42c6f17f6ebe48e5cfda1bec8d0cd98a693d9e31283e23dc68f0b55193c6da",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-range-actions-dark-390.png",
+      "sha256": "cefad0c17858a1f96ee7e2edb8aa8355ee6098cc46959d70aed3a909bde50f88",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-range-actions-dark-390-viewport.png",
+      "sha256": "3c57047b9384dc9036e3d859e4e74f8765f1dcc623d6d95e7b55e6bbc58072d3",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-range-actions-dark-390.png",
+      "sha256": "3a85e284a128453d90d349d64b94715f3ffe5e37c21f24cce8f9fb2844caeb62",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-range-actions-dark-390-viewport.png",
+      "sha256": "02bd64f6149e7cab3a8dd11f2f4ee5eeef50be2b0ff4133160368724662a064b",
+      "state": "ads-range-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-range-actions-light-430.png",
+      "sha256": "9a22ae4ad38b4831f6d4a02fd83ef560745123bc320889c8fb500f4bcf8c0aa5",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-range-actions-light-430-viewport.png",
+      "sha256": "135028ef085ba37184a2813a45e1a874d8d8bfd3e2a2af7af6f87a9a15d39f1b",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-range-actions-light-430.png",
+      "sha256": "186e876117d347c659cbdd1aeb8ea6f7a214996a790a63c946c17d13170edce1",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-range-actions-light-430-viewport.png",
+      "sha256": "e622389c8a71ae49cd1a26fab9189b0bf9b8786285c4c5629986476249814daf",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/ads-range-actions-dark-430.png",
+      "sha256": "09f46c351ed689d0f6471465ef7a8ca603e50efab5ebff766bbf784a7d7f1ecb",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/ads-range-actions-dark-430-viewport.png",
+      "sha256": "76115da6c07d986617b2320923eec5d00f02752b91ecf78b7972380aa327d2ca",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/ads-range-actions-dark-430.png",
+      "sha256": "c24553c81cf9da3dde3ed2ff632ef189dad6430fdc9c159596cc11cf327b8163",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/ads-range-actions-dark-430-viewport.png",
+      "sha256": "6118b6aab7dab3b3a3d0c62c4724c264c34888abe419a041483a782b91362b23",
+      "state": "ads-range-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-light-375.png",
+      "sha256": "c49b17146e4440739f00abe43c2351e3d8e99829421bd44769aecc7ac227543f",
+      "state": "quiz",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-light-375-viewport.png",
+      "sha256": "c49b17146e4440739f00abe43c2351e3d8e99829421bd44769aecc7ac227543f",
+      "state": "quiz",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-light-375.png",
+      "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
+      "state": "quiz",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-light-375-viewport.png",
+      "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
+      "state": "quiz",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-dark-375.png",
+      "sha256": "eab8f924cc6e1e2260d7a5196caa35a5028567c0fe20cccb8ec9dc3bc542b74e",
+      "state": "quiz",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-dark-375-viewport.png",
+      "sha256": "eab8f924cc6e1e2260d7a5196caa35a5028567c0fe20cccb8ec9dc3bc542b74e",
+      "state": "quiz",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-dark-375.png",
+      "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
+      "state": "quiz",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-dark-375-viewport.png",
+      "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
+      "state": "quiz",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-light-390.png",
+      "sha256": "4ab752461e63c18a9c5e5346a287aa1872b1c634c8a07953890977a914fdf23f",
+      "state": "quiz",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-light-390-viewport.png",
+      "sha256": "4ab752461e63c18a9c5e5346a287aa1872b1c634c8a07953890977a914fdf23f",
+      "state": "quiz",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-light-390.png",
+      "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
+      "state": "quiz",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-light-390-viewport.png",
+      "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
+      "state": "quiz",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-dark-390.png",
+      "sha256": "320e1c17ed64099bc2570be4dd4540884ffc10ebc9aa61dbbcdab6fa6ac51102",
+      "state": "quiz",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-dark-390-viewport.png",
+      "sha256": "320e1c17ed64099bc2570be4dd4540884ffc10ebc9aa61dbbcdab6fa6ac51102",
+      "state": "quiz",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-dark-390.png",
+      "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
+      "state": "quiz",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-dark-390-viewport.png",
+      "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
+      "state": "quiz",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-light-430.png",
+      "sha256": "be342551c0101e65d8814630f62e43d989b9ad50e2c66c098893732a27bf389e",
+      "state": "quiz",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-light-430-viewport.png",
+      "sha256": "be342551c0101e65d8814630f62e43d989b9ad50e2c66c098893732a27bf389e",
+      "state": "quiz",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-light-430.png",
+      "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
+      "state": "quiz",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-light-430-viewport.png",
+      "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
+      "state": "quiz",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-dark-430.png",
+      "sha256": "126d719b6b9425d0cdce9b33b4edfc9e9f358459bce45ad0006ae8c95fdd5943",
+      "state": "quiz",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-dark-430-viewport.png",
+      "sha256": "126d719b6b9425d0cdce9b33b4edfc9e9f358459bce45ad0006ae8c95fdd5943",
+      "state": "quiz",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-dark-430.png",
+      "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
+      "state": "quiz",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-dark-430-viewport.png",
+      "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
+      "state": "quiz",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-detail-light-375.png",
+      "sha256": "47399457c7129ffe5c477e66ac2c123467e6d85787378b7d8002a3824541529f",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-detail-light-375-viewport.png",
+      "sha256": "47399457c7129ffe5c477e66ac2c123467e6d85787378b7d8002a3824541529f",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-detail-light-375.png",
+      "sha256": "7fafbbd54f9cda22dda377a7e5919ccc2cb07e2570fed9c8948b471906d2f54d",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-detail-light-375-viewport.png",
+      "sha256": "7fafbbd54f9cda22dda377a7e5919ccc2cb07e2570fed9c8948b471906d2f54d",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-detail-dark-375.png",
+      "sha256": "70a479169fc849e3dadc4f13750e7ac42cdce98cffda26c7fda6a8bd046c9fca",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-detail-dark-375-viewport.png",
+      "sha256": "70a479169fc849e3dadc4f13750e7ac42cdce98cffda26c7fda6a8bd046c9fca",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-detail-dark-375.png",
+      "sha256": "fdb99022698a80747504216c8b2e05f26d08c564ad7a3049c933bba976172834",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-detail-dark-375-viewport.png",
+      "sha256": "fdb99022698a80747504216c8b2e05f26d08c564ad7a3049c933bba976172834",
+      "state": "quiz-detail",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-detail-light-390.png",
+      "sha256": "26abb4feb0669482efe769900ba841f216d5b5be8317aa01dea2d94a598b6c59",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-detail-light-390-viewport.png",
+      "sha256": "26abb4feb0669482efe769900ba841f216d5b5be8317aa01dea2d94a598b6c59",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-detail-light-390.png",
+      "sha256": "c5e62f90858fc99dadd215a145a7c993ad5bc4b434500ba1d7f79fe1c7d7a061",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-detail-light-390-viewport.png",
+      "sha256": "c5e62f90858fc99dadd215a145a7c993ad5bc4b434500ba1d7f79fe1c7d7a061",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-detail-dark-390.png",
+      "sha256": "0f43005d4def651ff2bbfd398321b9cf5983eb4e62abf218470e3d732cf93cb9",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-detail-dark-390-viewport.png",
+      "sha256": "0f43005d4def651ff2bbfd398321b9cf5983eb4e62abf218470e3d732cf93cb9",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-detail-dark-390.png",
+      "sha256": "ae0985aad2c1d53e593b1220df2d4cf475c0396843e0ec60e9d76d06d168fb8d",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-detail-dark-390-viewport.png",
+      "sha256": "ae0985aad2c1d53e593b1220df2d4cf475c0396843e0ec60e9d76d06d168fb8d",
+      "state": "quiz-detail",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-detail-light-430.png",
+      "sha256": "9bae2cb5e7b96a992d6d4709a4b982a4e8ab09c2cf1cd68355c3a1ab0f5b2867",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-detail-light-430-viewport.png",
+      "sha256": "9bae2cb5e7b96a992d6d4709a4b982a4e8ab09c2cf1cd68355c3a1ab0f5b2867",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-detail-light-430.png",
+      "sha256": "f1eda5ab862c2f841b86ae3852362b54e699b1137a7cf45a6658b5f756fa6df0",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-detail-light-430-viewport.png",
+      "sha256": "f1eda5ab862c2f841b86ae3852362b54e699b1137a7cf45a6658b5f756fa6df0",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-detail-dark-430.png",
+      "sha256": "3bfe502874c291bae6f0efbf22a1dd28fddfc6b9a56321a28fd1a0a59dfdd781",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-detail-dark-430-viewport.png",
+      "sha256": "3bfe502874c291bae6f0efbf22a1dd28fddfc6b9a56321a28fd1a0a59dfdd781",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-detail-dark-430.png",
+      "sha256": "6914be537d34e0dd33e5f62f77b1e0263cea5c22674d220deae97a901e8ddec2",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-detail-dark-430-viewport.png",
+      "sha256": "6914be537d34e0dd33e5f62f77b1e0263cea5c22674d220deae97a901e8ddec2",
+      "state": "quiz-detail",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-empty-light-375.png",
+      "sha256": "9820c4376e74902a287cdb8a26ff0353dc3862ec522e075a89dcccb3e68c7b61",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-empty-light-375-viewport.png",
+      "sha256": "9820c4376e74902a287cdb8a26ff0353dc3862ec522e075a89dcccb3e68c7b61",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-empty-light-375.png",
+      "sha256": "201a49eb8a535cc64c01a66119a1a69442339f3239336cf1a8cb38c6800af3df",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-empty-light-375-viewport.png",
+      "sha256": "201a49eb8a535cc64c01a66119a1a69442339f3239336cf1a8cb38c6800af3df",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-empty-dark-375.png",
+      "sha256": "7500c8d930bc99ac6185463595c6f3ab222317cbe8a6e7df27d208af9bcfba21",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-empty-dark-375-viewport.png",
+      "sha256": "7500c8d930bc99ac6185463595c6f3ab222317cbe8a6e7df27d208af9bcfba21",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-empty-dark-375.png",
+      "sha256": "4366a302f77f7e3ec9c495bc25c77f75b06dfaee07c55e0f4059e3bac884e5ab",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-empty-dark-375-viewport.png",
+      "sha256": "4366a302f77f7e3ec9c495bc25c77f75b06dfaee07c55e0f4059e3bac884e5ab",
+      "state": "quiz-empty",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-empty-light-390.png",
+      "sha256": "6c83062f87893e1e9c10e9fb845d66ca4ade73ca19f99d779074f9268e9e5809",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-empty-light-390-viewport.png",
+      "sha256": "6c83062f87893e1e9c10e9fb845d66ca4ade73ca19f99d779074f9268e9e5809",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-empty-light-390.png",
+      "sha256": "5c6d39e8e01b3ada762e82ef7b86af62aaf31f6e5c239a0626aff6231bcb74af",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-empty-light-390-viewport.png",
+      "sha256": "5c6d39e8e01b3ada762e82ef7b86af62aaf31f6e5c239a0626aff6231bcb74af",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-empty-dark-390.png",
+      "sha256": "f03ba789bee119baaa6b19d48e81ce63e8623dde7a93b03d3cbacd4fa92ac260",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-empty-dark-390-viewport.png",
+      "sha256": "f03ba789bee119baaa6b19d48e81ce63e8623dde7a93b03d3cbacd4fa92ac260",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-empty-dark-390.png",
+      "sha256": "68c69b5813395f3a1b2362a6a6340863cbeb142b29c8d823d009deb741920cbb",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-empty-dark-390-viewport.png",
+      "sha256": "68c69b5813395f3a1b2362a6a6340863cbeb142b29c8d823d009deb741920cbb",
+      "state": "quiz-empty",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-empty-light-430.png",
+      "sha256": "436444726d5fe95b76f361fa45afb0a8c98209fa083c4fff585538de10b084df",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-empty-light-430-viewport.png",
+      "sha256": "436444726d5fe95b76f361fa45afb0a8c98209fa083c4fff585538de10b084df",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-empty-light-430.png",
+      "sha256": "5cbb0562cae24aa697e7e36d2b833627cc0e4cbb431837bce961a72717683aad",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-empty-light-430-viewport.png",
+      "sha256": "5cbb0562cae24aa697e7e36d2b833627cc0e4cbb431837bce961a72717683aad",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-empty-dark-430.png",
+      "sha256": "1701f885f079a9c0abaed0f8a5c318947ea9af473f6c867e70c321e2580fbdc2",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-empty-dark-430-viewport.png",
+      "sha256": "1701f885f079a9c0abaed0f8a5c318947ea9af473f6c867e70c321e2580fbdc2",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-empty-dark-430.png",
+      "sha256": "892450dd366121635232595a0cad9ee891470bf1e7c678602d95aa586522dc71",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-empty-dark-430-viewport.png",
+      "sha256": "892450dd366121635232595a0cad9ee891470bf1e7c678602d95aa586522dc71",
+      "state": "quiz-empty",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-error-light-375.png",
+      "sha256": "4cdbfecfc97660e5660f92dd691d63916437a57171dd3382c418e7f468111486",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-error-light-375-viewport.png",
+      "sha256": "4cdbfecfc97660e5660f92dd691d63916437a57171dd3382c418e7f468111486",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-error-light-375.png",
+      "sha256": "62e146ed1e20dbea5a701b48079780b6a9b177e7941bca44f28e6975e3856542",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-error-light-375-viewport.png",
+      "sha256": "62e146ed1e20dbea5a701b48079780b6a9b177e7941bca44f28e6975e3856542",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-error-dark-375.png",
+      "sha256": "db96021514f64f34f8f45929c625dbda7d12917442ce9caed343a278640edc6f",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-error-dark-375-viewport.png",
+      "sha256": "db96021514f64f34f8f45929c625dbda7d12917442ce9caed343a278640edc6f",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-error-dark-375.png",
+      "sha256": "319587a375b73cf9373c10fe6c49f1dfe51abd35407839183dad524d321ab981",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-error-dark-375-viewport.png",
+      "sha256": "319587a375b73cf9373c10fe6c49f1dfe51abd35407839183dad524d321ab981",
+      "state": "quiz-error",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-error-light-390.png",
+      "sha256": "e97c94d03e955922368e985c7eaa2c000f847b73d15c0c80b65514f4a3bd5e9a",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-error-light-390-viewport.png",
+      "sha256": "e97c94d03e955922368e985c7eaa2c000f847b73d15c0c80b65514f4a3bd5e9a",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-error-light-390.png",
+      "sha256": "5fb8b3a64ad73768889591e55580dba8eca9a1210f5723a78978b989e9274482",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-error-light-390-viewport.png",
+      "sha256": "5fb8b3a64ad73768889591e55580dba8eca9a1210f5723a78978b989e9274482",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-error-dark-390.png",
+      "sha256": "feca8dae6a55117936f058f0c635db7382f4800a5628e485e2a2890be046dafa",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-error-dark-390-viewport.png",
+      "sha256": "feca8dae6a55117936f058f0c635db7382f4800a5628e485e2a2890be046dafa",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-error-dark-390.png",
+      "sha256": "544af9452de449ec4b997dd62f66c0b36c49985a9fb3f73cc8161ac29d504447",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-error-dark-390-viewport.png",
+      "sha256": "544af9452de449ec4b997dd62f66c0b36c49985a9fb3f73cc8161ac29d504447",
+      "state": "quiz-error",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-error-light-430.png",
+      "sha256": "9a11a70f5b3f4ad09706c0364416003d5efdd7a6362d53ae7af2596a1ece1047",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-error-light-430-viewport.png",
+      "sha256": "9a11a70f5b3f4ad09706c0364416003d5efdd7a6362d53ae7af2596a1ece1047",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-error-light-430.png",
+      "sha256": "00f916f4762a45618a1b3820e62b9ca0b12b033248e35cbc8296e011c93b3eb0",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-error-light-430-viewport.png",
+      "sha256": "00f916f4762a45618a1b3820e62b9ca0b12b033248e35cbc8296e011c93b3eb0",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-error-dark-430.png",
+      "sha256": "070ebc705ee00571a27e19986e75df5320e557bfbd97abceed7dfad21d418eb9",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-error-dark-430-viewport.png",
+      "sha256": "070ebc705ee00571a27e19986e75df5320e557bfbd97abceed7dfad21d418eb9",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-error-dark-430.png",
+      "sha256": "313d76a33b7aaec567dd46867fb2f4e4c6f6332007df19a381a1bb427c6cdb75",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-error-dark-430-viewport.png",
+      "sha256": "313d76a33b7aaec567dd46867fb2f4e4c6f6332007df19a381a1bb427c6cdb75",
+      "state": "quiz-error",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-loading-light-375.png",
+      "sha256": "83ec957f91ef132d20f193cf3bf7fb70d28c89290669e6a3d46840dfb800bbe4",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-loading-light-375-viewport.png",
+      "sha256": "c87f7b19ddf6df3b2be93b9a68a835e2b07b8091c4ff77d31c047cc75632d0e6",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-loading-light-375.png",
+      "sha256": "7b9e10ada91e03dd6b9afaeb661e3d8a66125c590c5eee49d7ff95175dc4e546",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-loading-light-375-viewport.png",
+      "sha256": "7b9e10ada91e03dd6b9afaeb661e3d8a66125c590c5eee49d7ff95175dc4e546",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-loading-dark-375.png",
+      "sha256": "84635106204d808cdc65ebe15ff303b783def5481f20863fd21213d876b54672",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-loading-dark-375-viewport.png",
+      "sha256": "6d56eeaa51058999b9b01b508cebb459c74f713fd8849d3514b3656caffed8c4",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-loading-dark-375.png",
+      "sha256": "76ea666ee2ffc24b1e2a903bd1effe15b9aa1225f99d35154af7b42bd35915f6",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-loading-dark-375-viewport.png",
+      "sha256": "76ea666ee2ffc24b1e2a903bd1effe15b9aa1225f99d35154af7b42bd35915f6",
+      "state": "quiz-loading",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-loading-light-390.png",
+      "sha256": "7b95847a2b69bcc1a44e75eddbece319c3baf298fc74dc20a740dd842c8b7584",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-loading-light-390-viewport.png",
+      "sha256": "3dc6054c52f71cc6d9c8678de098d220727ab41a2695d1d43811a0c5aec34116",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-loading-light-390.png",
+      "sha256": "f769171f4dcf9f208fec69fc344870560ca6798346c07040abc2040a861490da",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-loading-light-390-viewport.png",
+      "sha256": "f769171f4dcf9f208fec69fc344870560ca6798346c07040abc2040a861490da",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-loading-dark-390.png",
+      "sha256": "3790880ad2f24d241d55b570b188de00d6b0947ef0584cec510d2a47abec02fb",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-loading-dark-390-viewport.png",
+      "sha256": "9289dee47ee775077a75a907a8f9dbe57e505a659184a24912ed54a1d677f695",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-loading-dark-390.png",
+      "sha256": "5ac7335f4cf9cf95fa44c7fdaabf2eb2d72724006862be17716f30100be74130",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-loading-dark-390-viewport.png",
+      "sha256": "5ac7335f4cf9cf95fa44c7fdaabf2eb2d72724006862be17716f30100be74130",
+      "state": "quiz-loading",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-loading-light-430.png",
+      "sha256": "733d58fbf91fa40f0db4ee7f11599c8aa42eeeff74ea74a3ad24dd1bed7cb939",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-loading-light-430-viewport.png",
+      "sha256": "35eb970c4ee991d97ae48a76e055b857f7a5c71a3eca19f726e6232ab14c53b9",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-loading-light-430.png",
+      "sha256": "2bb27f946ab526155d966b6499c956e2f93b9009da4d9b7e16c9d33672386318",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-loading-light-430-viewport.png",
+      "sha256": "2bb27f946ab526155d966b6499c956e2f93b9009da4d9b7e16c9d33672386318",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-loading-dark-430.png",
+      "sha256": "29735461fefb46aff9a43c797b69ae8ca38b6ad5e17679f9051f13fe531dec40",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-loading-dark-430-viewport.png",
+      "sha256": "1cafb2d827f02e6b68c18c82d4622892f86179e536eeee093b36a432fa663b2d",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-loading-dark-430.png",
+      "sha256": "c066ad5055cbbc355c65b36a2b19386efdd52f36069985aec0af73f16acf3829",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-loading-dark-430-viewport.png",
+      "sha256": "c066ad5055cbbc355c65b36a2b19386efdd52f36069985aec0af73f16acf3829",
+      "state": "quiz-loading",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-refresh-actions-light-375.png",
+      "sha256": "c49b17146e4440739f00abe43c2351e3d8e99829421bd44769aecc7ac227543f",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-refresh-actions-light-375-viewport.png",
+      "sha256": "c49b17146e4440739f00abe43c2351e3d8e99829421bd44769aecc7ac227543f",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-refresh-actions-light-375.png",
+      "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-refresh-actions-light-375-viewport.png",
+      "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-refresh-actions-dark-375.png",
+      "sha256": "eab8f924cc6e1e2260d7a5196caa35a5028567c0fe20cccb8ec9dc3bc542b74e",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-refresh-actions-dark-375-viewport.png",
+      "sha256": "eab8f924cc6e1e2260d7a5196caa35a5028567c0fe20cccb8ec9dc3bc542b74e",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-refresh-actions-dark-375.png",
+      "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-refresh-actions-dark-375-viewport.png",
+      "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
+      "state": "quiz-refresh-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-refresh-actions-light-390.png",
+      "sha256": "4ab752461e63c18a9c5e5346a287aa1872b1c634c8a07953890977a914fdf23f",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-refresh-actions-light-390-viewport.png",
+      "sha256": "4ab752461e63c18a9c5e5346a287aa1872b1c634c8a07953890977a914fdf23f",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-refresh-actions-light-390.png",
+      "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-refresh-actions-light-390-viewport.png",
+      "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-refresh-actions-dark-390.png",
+      "sha256": "320e1c17ed64099bc2570be4dd4540884ffc10ebc9aa61dbbcdab6fa6ac51102",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-refresh-actions-dark-390-viewport.png",
+      "sha256": "320e1c17ed64099bc2570be4dd4540884ffc10ebc9aa61dbbcdab6fa6ac51102",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-refresh-actions-dark-390.png",
+      "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-refresh-actions-dark-390-viewport.png",
+      "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
+      "state": "quiz-refresh-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-refresh-actions-light-430.png",
+      "sha256": "be342551c0101e65d8814630f62e43d989b9ad50e2c66c098893732a27bf389e",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-refresh-actions-light-430-viewport.png",
+      "sha256": "be342551c0101e65d8814630f62e43d989b9ad50e2c66c098893732a27bf389e",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-refresh-actions-light-430.png",
+      "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-refresh-actions-light-430-viewport.png",
+      "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-refresh-actions-dark-430.png",
+      "sha256": "126d719b6b9425d0cdce9b33b4edfc9e9f358459bce45ad0006ae8c95fdd5943",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-refresh-actions-dark-430-viewport.png",
+      "sha256": "126d719b6b9425d0cdce9b33b4edfc9e9f358459bce45ad0006ae8c95fdd5943",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-refresh-actions-dark-430.png",
+      "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-refresh-actions-dark-430-viewport.png",
+      "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
+      "state": "quiz-refresh-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-search-actions-light-375.png",
+      "sha256": "c49b17146e4440739f00abe43c2351e3d8e99829421bd44769aecc7ac227543f",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-search-actions-light-375-viewport.png",
+      "sha256": "c49b17146e4440739f00abe43c2351e3d8e99829421bd44769aecc7ac227543f",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-search-actions-light-375.png",
+      "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-search-actions-light-375-viewport.png",
+      "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-search-actions-dark-375.png",
+      "sha256": "eab8f924cc6e1e2260d7a5196caa35a5028567c0fe20cccb8ec9dc3bc542b74e",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-search-actions-dark-375-viewport.png",
+      "sha256": "eab8f924cc6e1e2260d7a5196caa35a5028567c0fe20cccb8ec9dc3bc542b74e",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-search-actions-dark-375.png",
+      "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-search-actions-dark-375-viewport.png",
+      "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
+      "state": "quiz-search-actions",
+      "width": 375,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-search-actions-light-390.png",
+      "sha256": "4ab752461e63c18a9c5e5346a287aa1872b1c634c8a07953890977a914fdf23f",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-search-actions-light-390-viewport.png",
+      "sha256": "4ab752461e63c18a9c5e5346a287aa1872b1c634c8a07953890977a914fdf23f",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-search-actions-light-390.png",
+      "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-search-actions-light-390-viewport.png",
+      "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-search-actions-dark-390.png",
+      "sha256": "320e1c17ed64099bc2570be4dd4540884ffc10ebc9aa61dbbcdab6fa6ac51102",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-search-actions-dark-390-viewport.png",
+      "sha256": "320e1c17ed64099bc2570be4dd4540884ffc10ebc9aa61dbbcdab6fa6ac51102",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-search-actions-dark-390.png",
+      "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-search-actions-dark-390-viewport.png",
+      "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
+      "state": "quiz-search-actions",
+      "width": 390,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-search-actions-light-430.png",
+      "sha256": "be342551c0101e65d8814630f62e43d989b9ad50e2c66c098893732a27bf389e",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-search-actions-light-430-viewport.png",
+      "sha256": "be342551c0101e65d8814630f62e43d989b9ad50e2c66c098893732a27bf389e",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-search-actions-light-430.png",
+      "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-search-actions-light-430-viewport.png",
+      "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "light",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "before/quiz-search-actions-dark-430.png",
+      "sha256": "126d719b6b9425d0cdce9b33b4edfc9e9f358459bce45ad0006ae8c95fdd5943",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": null
+    },
+    {
+      "file": "before/quiz-search-actions-dark-430-viewport.png",
+      "sha256": "126d719b6b9425d0cdce9b33b4edfc9e9f358459bce45ad0006ae8c95fdd5943",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": null
+    },
+    {
+      "file": "after/quiz-search-actions-dark-430.png",
+      "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "full-content",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    },
+    {
+      "file": "after/quiz-search-actions-dark-430-viewport.png",
+      "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
+      "state": "quiz-search-actions",
+      "width": 430,
+      "theme": "dark",
+      "capture": "viewport",
+      "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
+    }
+  ]
+}

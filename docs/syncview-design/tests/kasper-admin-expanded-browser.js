@@ -1,6 +1,6 @@
 'use strict';
 // Native product renders, fictional data, and fully intercepted transports.
-// Run through the visible-Chrome adapter locally; CI may supply its own browser.
+// Local review uses headless Chrome per the owner's no-focus request; CI may supply its own browser.
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
@@ -18,9 +18,27 @@ const out = arg('out');
 const themes = arg('theme') ? [arg('theme')] : ['light','dark'];
 const only = arg('only');
 const failures = [], rows = [];
-let checks = 0;
+let checks = 0, chartStates = 0;
 const expect = (value, message) => { checks++; if (!value) failures.push(message); };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+let chartSource = null;
+async function loadChartSource() {
+  // The app's pinned public asset is the only optional network read. All
+  // staff/client data and actions remain answered by the local fixture.
+  const cache = path.join(require('node:os').tmpdir(),'syncview-chart-js-4.4.0.min.js');
+  const file = process.env.POCKET_CHART_FILE || cache;
+  const expected = '0e2326c6868072bec1592760c6729043caeea2960a2b46cee6a2192aac6abff0';
+  let bytes;
+  if(fs.existsSync(file)) bytes=fs.readFileSync(file);
+  else {
+    const response=await fetch('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',{signal:AbortSignal.timeout(20000)});
+    if(!response.ok) throw new Error('Pinned Chart.js asset HTTP '+response.status);
+    bytes=Buffer.from(await response.arrayBuffer());
+  }
+  if(require('node:crypto').createHash('sha256').update(bytes).digest('hex')!==expected) throw new Error('Chart.js asset differs from the app pinned 4.4.0 bytes');
+  if(!process.env.POCKET_CHART_FILE && !fs.existsSync(cache)) fs.writeFileSync(cache,bytes);
+  return bytes.toString('utf8');
+}
 const profile = { slug: 'phone-fixture', display_name: 'Example workspace', email: 'contact@example.invalid', instagram_handle: '@example', keywords: 'Daily routines', content_description: 'Useful practical advice.', source: 'sheet', extra: {}, updated_at: '2026-10-01T10:00:00Z', archived_at: null };
 const fixture = { ...BASE_ROW, id: 'p_phone_reviewer_fixture', name: 'Make room for a better day.', status: 'Kasper Approval', video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', caption_status: 'Kasper Approval', caption: 'A small habit can change the rest of your day. Start with one thing you can keep doing.', graphic_deliverable_id:'00000000-0000-4000-8000-000000000002', thumbnail_url: 'https://images.example.invalid/phone.png', asset_url: 'https://media.example.invalid/example-video', scheduled_date: '2026-10-12', tweaks: [] };
 const item = { client: 'Example workspace', slug: 'phone-fixture', post: fixture, _expanded: false, smm: { name: 'Team member' } };
@@ -67,10 +85,48 @@ add('clients-error', 'clients', () => { _caState.rows = []; _caState.loading = f
 add('quiz-empty', 'quiz-leads');
 add('quiz', 'quiz-leads', () => { _kqlState.leads = [{ response_id: 'fixture-lead', contact_name: 'Example lead', contact_email: 'lead@example.invalid', result_category: 'consistency', created_at: '2026-10-01T10:00:00Z', answers: { q1: 3, q2: 4 } }]; _kqlState.loaded = true; _kqlState.loading = false; _kqlState.error = null; _kqlPaint(); });
 add('quiz-detail', 'quiz-leads', () => { _kqlState.leads = [{ response_id: 'fixture-lead', contact_name: 'Example lead', contact_email: 'lead@example.invalid', result_category: 'consistency', created_at: '2026-10-01T10:00:00Z', answers: { q1: 3, q2: 4 } }]; _kqlState.loaded = true; _kqlState.loading = false; _kqlState.error = null; _kqlPaint(); _kqlToggle('fixture-lead'); });
-add('quiz-error', 'quiz-leads', () => { _kqlState.loading = false; _kqlState.error = 'Could not load quiz responses. Try again.'; _kqlPaint(); });
+add('quiz-error', 'quiz-leads', () => { _kqlState.loading = false; _kqlState.loaded = false; _kqlState.leads = []; _kqlState.error = 'Could not load quiz responses. Try again.'; _kqlPaint(); });
 add('ads-empty', 'ad-performance');
-add('ads', 'ad-performance', () => { _kadState.rows = [{ date: '2026-10-01', spend: 75, impressions: 1200, clicks: 38, bookings: 3 }]; _kadState.byAd = []; _kadState.loaded = true; _kadState.loading = false; _kadState.error = null; _kadPaint(); });
-add('ads-error', 'ad-performance', () => { _kadState.loading = false; _kadState.error = 'Ad performance could not load. Try again.'; _kadPaint(); });
+add('ads', 'ad-performance', () => { _kadState.rows = [{ date: '2026-10-01', spend: 75, impressions: 1200, clicks: 38, bookings_all: 3 }]; _kadState.byAd = []; _kadState.loaded = true; _kadState.loading = false; _kadState.error = null; _kadPaint(); });
+add('ads-error', 'ad-performance', () => { _kadState.loading = false; _kadState.loaded = false; _kadState.rows = []; _kadState.error = 'Ad performance could not load. Try again.'; _kadPaint(); });
+add('ads-range-actions','ad-performance',()=>{
+ _kadState.rows=['2026-08-01','2026-09-22','2026-10-01'].map((date,index)=>({date,spend:75+index*10,clicks:38,bookings_all:3}));
+ _kadState.byAd=[];_kadState.loaded=true;_kadState.loading=false;_kadState.error=null;_kadState.range='all';_kadPaint();
+},async page=>{
+ for(const [label,count] of [['7d',1],['14d',2],['30d',2],['All',3]]) {
+  await page.locator('.kad-range-toggle').getByRole('button',{name:label,exact:true}).tap();
+  await page.waitForFunction(count=>_kadState.chart?.data.labels.length===count,count);
+  expect(await page.locator('.kad-range-btn.active').innerText()===label,'Ads: native '+label+' control updates active range and expected filtered chart dates');
+  if(!before && !desktop) expect(await page.locator('.pocket-admin-chart-legend button').count()===2,'Ads: range repaint has exactly one phone series legend');
+ }
+});
+add('quiz-search-actions','quiz-leads',tests.find(t=>t.label==='quiz').setup,async page=>{
+ const search=page.getByPlaceholder('Search name or email');
+ for(const [value,count] of [['missing fixture',0],['lead@example.invalid',1],['EXAMPLE',1],['',1]]) {
+  await search.fill(value);
+  expect(await page.locator('[data-kql-row]:visible').count()===count,'Quiz: native name/email search shows expected result count for '+JSON.stringify(value));
+ }
+});
+
+for(const [name,tab] of [['ads','ad-performance'],['quiz','quiz-leads']]) add(name+'-refresh-actions',tab,tests.find(t=>t.label===name).setup,async page=>{
+ const ads=name==='ads',requests=[];
+ const endpoint=await page.evaluate(ads=>ads?KASPER_AD_PERF_EF_URL:KASPER_QUIZ_LEADS_EF_URL,ads);
+ const result=await page.evaluate(ads=>ads?{ok:true,rows:_kadState.rows}:{ok:true,leads:_kqlState.leads},ads);
+ let refuse=true;
+ const reader=route=>{requests.push(route.request().method());return route.fulfill({status:refuse?503:200,contentType:'application/json',body:JSON.stringify(refuse?{ok:false,error:'Fictional reader unavailable. Try again.'}:result)});};
+ await page.context().route(endpoint,reader);
+ try {
+  await page.evaluate(ads=>{if(ads){_kadState.loaded=false;_kadState.rows=[];_kadPaint();}else{_kqlState.loaded=false;_kqlState.leads=[];_kqlPaint();}},ads);
+  await page.getByRole('button',{name:'Refresh',exact:true}).tap();
+  await page.getByText(ads?'Could not load ad performance':'Could not load quiz leads',{exact:true}).waitFor();
+  expect(!(await page.locator(ads?'#kadBody':'#kqlBody').innerText()).includes(ads?'No data yet':'No quiz leads yet'),name+': refused read remains an error, not an empty screen');
+  refuse=false;
+  await page.getByRole('button',{name:'Try again',exact:true}).tap();
+  await page.waitForFunction(ads=>{const state=ads?_kadState:_kqlState;return state.loaded&&!state.loading&&!state.error;},ads);
+  expect(requests.length===2 && requests.every(method=>method==='GET'),name+': Refresh and retry use exactly two native reads');
+  expect(await page.evaluate(ads=>ads?_kadState.rows.length===1:_kqlState.leads.length===1,ads),name+': retry restores the returned native data');
+ } finally {await page.context().unroute(endpoint,reader);}
+});
 add('save-problems-empty', 'save-problems');
 add('save-problems', 'save-problems', () => { _spState.loaded = true; _spState.loading = false; _spState.error = null; _spState.data = { rows: [{ surface: 'calendar', ui_action: 'Approve', operation: 'review', code: 'network_failure', recorded_at: '2026-10-01T10:00:00Z', attempts: 2, page: 'staff_page', staff_role: 'admin', detail: 'The connection was interrupted. Your decision has not saved.', browser: 'Chrome', os: 'Fixture OS', card_ref: 'fixture-card' }], total: 1 }; _spPaint(); });
 add('save-problems-error', 'save-problems', () => { _spState.loading = false; _spState.error = 'Save problems could not load. Try again.'; _spPaint(); });
@@ -133,21 +189,33 @@ function serve() {
   return new Promise(resolve => server.listen(0,'127.0.0.1',() => resolve(server)));
 }
 async function capture(page,label,width,theme) {
+  // Native taps can scroll the main container. Start ordinary screen captures
+  // at its top; preserve the actual position of open sheets and pickers.
+  if(!(await page.locator('dialog[open], .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup, .kasper-more.open, #staffAccountPopover:not([hidden])').count())) {
+    await page.evaluate(()=>{scrollTo(0,0);document.getElementById('mainWrap')?.scrollTo(0,0);});
+  }
   await page.mouse.move(0,0);
   // Visible labels only, for public proof. Native controls/handlers stay intact.
   await page.evaluate(() => {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) { const n = walker.currentNode; if (!n.parentElement.closest('style,script')) n.textContent = n.textContent.replace(/\bKasper\b/g,'Reviewer'); }
+    while (walker.nextNode()) { const n = walker.currentNode; if (!n.parentElement.closest('style,script')) {const text=n.textContent.replace(/\bKasper\b/g,'Reviewer');if(text!==n.textContent)n.textContent=text;} }
     document.querySelectorAll('[aria-label],[title],[placeholder]').forEach(n => { for (const attr of ['aria-label','title','placeholder']) if (n.hasAttribute(attr)) n.setAttribute(attr,n.getAttribute(attr).replace(/\bKasper\b/g,'Reviewer')); });
     document.querySelectorAll('#kasperContent video').forEach(video => { video.pause();video.poster='https://images.example.invalid/phone.png'; });
     document.activeElement?.blur();
   });
   await page.evaluate(() => document.fonts.ready);
+  // Public-label substitution schedules the native header fit on animation
+  // frames. Measure its settled geometry, as the PNG capture does, rather
+  // than fingerprinting the old label's temporarily retained pill width.
+  await page.evaluate(() => new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const metrics = await page.evaluate(() => {
     const visible = n => n.checkVisibility({ checkVisibilityCSS: true }) && n.getBoundingClientRect().height > 0;
     const controls = [...document.querySelectorAll('button,a[href],[role=button],[role=option],summary,input:not([type=hidden]),select,textarea')].filter(visible).filter(n => !(n.getBoundingClientRect().width <= 1 && getComputedStyle(n).opacity === '0')).map(n => { const target = n.matches('input[type=radio],input[type=checkbox]') ? n.closest('label') || n : n; const r = target.getBoundingClientRect(); return { name: (n.id || n.className || n.tagName).toString().slice(0,90), w:r.width,h:r.height }; });
     const fields = [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]),textarea,select,[contenteditable=true]')].filter(visible).map(n => parseFloat(getComputedStyle(n).fontSize));
-    return { width:innerWidth, scrollWidth:document.documentElement.scrollWidth,controls,fields };
+    const heading=document.querySelector('.pocket-admin-heading');
+    const headingAncestors=[];
+    for(let node=heading;node;node=node.parentElement){const r=node.getBoundingClientRect();headingAncestors.push({tag:node.tagName,id:node.id,className:node.className,y:r.y,height:r.height,scrollTop:node.scrollTop});}
+    return { width:innerWidth, scrollWidth:document.documentElement.scrollWidth,controls,fields,scrollY,headingAncestors };
   });
   if (!before && !desktop) {
     const surface=await phoneRules.activeSurface(page);
@@ -161,14 +229,27 @@ async function capture(page,label,width,theme) {
   }
   rows.push({ label,width,theme,...metrics });
   if (out) {
-    if(desktop) { const styles=await page.evaluate(()=>[...document.querySelectorAll('body *')].map(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n);return [n.tagName,[...s].sort().map(k=>k+':'+s.getPropertyValue(k).replaceAll(location.origin,'__LOCAL_ORIGIN__')).join(';'),Math.round(r.x),Math.round(r.y),Math.round(r.width),Math.round(r.height)].join('|');}).join('\n'));rows[rows.length-1].styleHash=require('node:crypto').createHash('sha256').update(styles).digest('hex'); }
+    if(desktop) {
+      const styles=await page.evaluate(()=>[...document.querySelectorAll('body *')].map(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n);return [n.tagName,[...s].sort().map(k=>k+':'+s.getPropertyValue(k).replaceAll(location.origin,'__LOCAL_ORIGIN__')).join(';'),Math.round(r.x),Math.round(r.y),Math.round(r.width),Math.round(r.height)].join('|');}).join('\n'));
+      rows[rows.length-1].styleHash=require('node:crypto').createHash('sha256').update(styles).digest('hex');
+      if(process.argv.includes('--dump-styles')) {
+        fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,label+'-'+theme+'-'+width+'-styles.txt'),styles);
+        const elements=await page.evaluate(()=>[...document.querySelectorAll('body *')].map(node=>({tag:node.tagName,id:node.id,className:node.getAttribute('class')})));
+        fs.writeFileSync(path.join(out,label+'-'+theme+'-'+width+'-elements.json'),JSON.stringify(elements));
+      }
+    }
     fs.mkdirSync(out,{recursive:true});
     const overlay = await page.locator('dialog[open], .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup, .kasper-more.open, #staffAccountPopover:not([hidden])').count();
-    await page.screenshot({path:path.join(out,label+'-'+theme+'-'+width+'.png'),fullPage:!overlay,animations:'disabled'});
+    if(!desktop && !overlay) await page.screenshot({path:path.join(out,label+'-'+theme+'-'+width+'-viewport.png'),fullPage:false,animations:'disabled'});
+    // Chrome mobile fullPage clips short pages in the emulator. Use the real
+    // viewport for those; expand only when there is content below it.
+    const longPage=await page.evaluate(()=>Math.max(document.documentElement.scrollHeight,document.body.scrollHeight)>innerHeight+1);
+    const png=await page.screenshot({path:path.join(out,label+'-'+theme+'-'+width+'.png'),fullPage:!overlay&&longPage,animations:'disabled'});
+    if(!desktop && !overlay) expect(png.readUInt32BE(16)===width && png.readUInt32BE(20)>=844,label+': ordinary phone capture retains its full viewport dimensions');
   }
 }
 async function open(browser,origin,width,theme) {
-  const ctx = await browser.newContext({ viewport:{width,height:844},isMobile:width<768,hasTouch:width<768,reducedMotion:'reduce' });
+  const ctx = await browser.newContext({ viewport:{width,height:844},isMobile:width<768,hasTouch:width<768,reducedMotion:'reduce',locale:'en-US',timezoneId:'America/Guatemala' });
   await ctx.route(u => !u.toString().startsWith(origin), async route => {
     const q = route.request(),u = new URL(q.url());
     const json = body => route.fulfill({ status:200,headers:CORS,contentType:'application/json',body:JSON.stringify(body) });
@@ -211,7 +292,7 @@ async function open(browser,origin,width,theme) {
   // Same freeze as the desktop gate: a running placeholder pulse must not
   // masquerade as a computed-style change between identical product pages.
   await page.addStyleTag({content:'*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}'});
-  if(process.env.POCKET_CHART_FILE) { await page.addScriptTag({content:fs.readFileSync(process.env.POCKET_CHART_FILE,'utf8')});await page.evaluate(()=>{Chart.defaults.animation=false;}); }
+  if(chartSource) { await page.addScriptTag({content:chartSource});await page.evaluate(()=>{Chart.defaults.animation=false;}); }
   await page.evaluate(() => {
     WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,'Example workspace');
     WL_CLIENT_CANONICAL.clear(); WL_CLIENT_CANONICAL.set('phone-fixture','Example workspace');
@@ -223,11 +304,79 @@ async function open(browser,origin,width,theme) {
 async function measureSaveProblemsLoading(page) {
  return page.locator('#spBody .cal-loader').evaluate(el=>({height:el.getBoundingClientRect().height,label:el.getAttribute('aria-label'),calendarCards:[...el.querySelectorAll('.cal-skeleton-card')].filter(card=>card.checkVisibility({checkVisibilityCSS:true})).length}));
 }
+async function measureUtilityReadability(page) {
+ return page.locator('#kasperContent').evaluate(root=>{
+  const visible=node=>node.checkVisibility({checkVisibilityCSS:true});
+  const buttons=[...root.querySelectorAll('.kad-refresh,.kql-refresh')].filter(visible).map(node=>{
+   const box=node.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(node);
+   const text=range.getBoundingClientRect();
+   return {label:node.textContent.trim(),textFits:text.left>=box.left+7 && text.right<=box.right-7 && node.scrollWidth<=node.clientWidth+1};
+  });
+  const textMetrics=node=>{
+   const rgb=value=>value.match(/[\d.]+/g).map(Number);
+   const luminance=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+   let bg=[255,255,255,1];
+   for(let parent=node;parent;parent=parent.parentElement) {const c=rgb(getComputedStyle(parent).backgroundColor);if(c.length===3||c[3]===1){bg=c;break;}}
+   const style=getComputedStyle(node),fg=luminance(rgb(style.color)),back=luminance(bg);
+   return {contrast:(Math.max(fg,back)+.05)/(Math.min(fg,back)+.05),font:parseFloat(style.fontSize)};
+  };
+  const description=root.querySelector('.kad-card-sub');
+  const supporting=[...root.querySelectorAll('.kad-stat-label,.kad-stat-sub,.kad-section-sub')].filter(visible).map(textMetrics);
+  const nestedEmpty=[...root.querySelectorAll('#kadBody .kad-card > .kasper-empty')].filter(visible).map(node=>node.getBoundingClientRect().height);
+  const loader=root.querySelector('#kadBody .cal-loader,#kqlBody .cal-loader');
+  const quizRefresh=root.querySelector('.kql-card-head .kql-refresh'),quizSearch=root.querySelector('.kql-search');
+  const quizControlGap=quizRefresh&&quizSearch?quizSearch.getBoundingClientRect().top-quizRefresh.getBoundingClientRect().bottom:null;
+  return {buttons,description:description&&visible(description)?textMetrics(description):{contrast:null,font:null},supporting,nestedEmpty,quizControlGap,loader:loader?{height:loader.getBoundingClientRect().height,label:loader.getAttribute('aria-label'),calendarCards:[...loader.querySelectorAll('.cal-skeleton-card')].filter(visible).length}:null};
+ });
+}
+async function verifyAdsChart(page,width,theme) {
+ await page.locator('.pocket-admin-chart-legend').waitFor({state:'visible'});
+ const snapshot=()=>page.evaluate(()=>({
+  version:Chart.version,display:_kadState.chart.options.plugins.legend.display,
+  labels:_kadState.chart.data.labels,values:_kadState.chart.data.datasets.map(dataset=>dataset.data),
+  expectedLabels:_kadState.rows.map(row=>row.date),expectedValues:[_kadState.rows.map(row=>Number(row.spend||0)),_kadState.rows.map(row=>Number(row.bookings_all||0))],
+  axes:Object.values(_kadState.chart.scales).map(scale=>({color:scale.options.ticks.color,font:scale.options.ticks.font.size})),
+  wanted:_svCss('--text-secondary'),date:_kadState.chart.scales.x.ticks[0].label,
+  calendarDates:['2026-10-01','2026-03-08','2026-12-31'].map(label=>_kadState.chart.options.scales.x.ticks.callback.call({getLabelForValue:()=>label},0)),
+  visible:[0,1].map(index=>_kadState.chart.isDatasetVisible(index))
+ }));
+ try {
+ const first=await snapshot();
+ expect(first.version==='4.4.0' && !first.display,'Ads: actual production Chart.js and phone-owned accessible legend');
+ expect(JSON.stringify(first.labels)===JSON.stringify(first.expectedLabels) && JSON.stringify(first.values)===JSON.stringify(first.expectedValues),'Ads: phone presentation preserves every native chart date/value');
+ expect(first.axes.every(axis=>axis.font>=12 && axis.color===first.wanted) && first.date==='Oct 1','Ads: readable theme-colored axes and short phone dates');
+ expect(JSON.stringify(first.calendarDates)===JSON.stringify(['Oct 1','Mar 8','Dec 31']),'Ads: ISO calendar dates keep their day west of UTC, including DST and year-end dates');
+ const legend=page.locator('.pocket-admin-chart-legend');
+ const bookings=legend.getByRole('button',{name:'Bookings',exact:true}),spend=legend.getByRole('button',{name:'Spend',exact:true});
+ await bookings.tap();expect(await bookings.getAttribute('aria-pressed')==='false' && (await snapshot()).visible[1]===false,'Ads: Bookings tap invokes the native series toggle');
+ await bookings.tap();
+ await spend.focus();await spend.press('Enter');expect((await snapshot()).visible[0]===false,'Ads: legend works with Enter');
+ await spend.press('Space');expect((await snapshot()).visible.every(Boolean),'Ads: Space restores the native series');
+ const other=theme==='dark'?'light':'dark';
+ await page.evaluate(theme=>document.documentElement.setAttribute('data-theme',theme),other);
+ await page.waitForFunction(()=>_kadState.chart.options.scales.y.ticks.color===_svCss('--text-secondary'));
+ expect(await spend.evaluate(node=>node===document.activeElement),'Ads: theme refresh preserves legend keyboard focus');
+ await page.evaluate(theme=>document.documentElement.setAttribute('data-theme',theme),theme);
+ await page.waitForFunction(()=>_kadState.chart.options.scales.y.ticks.color===_svCss('--text-secondary'));
+ await page.setViewportSize({width:1280,height:844});
+ await page.waitForFunction(()=>!document.documentElement.classList.contains('pocket-admin-phone'));
+ const desktopState=await page.evaluate(()=>({legend:document.querySelectorAll('.pocket-admin-chart-legend').length,display:_kadState.chart.options.plugins.legend.display,color:_kadState.chart.options.scales.y.ticks.color,family:_kadState.chart.options.scales.y.ticks.font?.family||Chart.defaults.font.family,date:_kadState.chart.scales.x.ticks[0].label,defaultColor:Chart.defaults.color,defaultFamily:Chart.defaults.font.family,role:_kadState.chart.canvas.getAttribute('role'),label:_kadState.chart.canvas.getAttribute('aria-label')}));
+ expect(!desktopState.legend && desktopState.display && desktopState.color===desktopState.defaultColor && desktopState.family===desktopState.defaultFamily && desktopState.date===first.labels[0] && desktopState.role===null && desktopState.label===null,'Ads: desktop crossing restores original native chart options, dates and attributes '+JSON.stringify(desktopState));
+ await page.setViewportSize({width,height:844});
+ await page.locator('.pocket-admin-chart-legend').waitFor({state:'visible'});
+ expect(JSON.stringify((await snapshot()).values)===JSON.stringify(first.values),'Ads: crossing back keeps native chart data');
+ chartStates++;
+ } finally {
+  await page.setViewportSize({width,height:844});
+  await page.evaluate(theme=>{document.documentElement.setAttribute('data-theme',theme);if(_kadState.chart?.canvas?.isConnected){for(const index of [0,1])_kadState.chart.setDatasetVisibility(index,true);_kadState.chart.update('none');}},theme);
+ }
+}
 async function runMain() {
   if (process.argv.includes('--list')) {
     console.log(JSON.stringify(tests.map(t=>({name:t.label,tab:t.tab,lane:'admin'})),null,2));
     return;
   }
+  if(tests.some(t=>t.tab==='ad-performance' && (!only || only.split(',').some(label=>t.label.includes(label))))) chartSource=await loadChartSource();
   const server = await serve(); const origin = 'http://127.0.0.1:'+server.address().port;
   const browser = await chromium.launch({headless:!process.argv.includes('--headed')});
   try {
@@ -268,6 +417,29 @@ async function runMain() {
             }
             if (!before && !desktop) {
               await page.waitForTimeout(50);
+              if (['ad-performance','quiz-leads'].includes(t.tab)) {
+                if(t.label==='ads-empty' || t.label==='quiz-empty') {
+                  const selector=t.tab==='ad-performance'?'#kadBody':'#kqlBody';
+                  const copy=t.label==='ads-empty'?'Ad results update twice daily. Check back after the next update.':'New quiz submissions will appear here.';
+                  expect((await page.locator(selector+' > .kasper-empty .kasper-empty-sub').innerText())===copy,t.label+': plain phone empty copy explains the next useful state');
+                  await page.setViewportSize({width:1280,height:844});
+                  await page.waitForFunction(()=>!document.documentElement.classList.contains('pocket-admin-phone'));
+                  expect((await page.locator(selector+' > .kasper-empty .kasper-empty-sub').innerText())===(t.label==='ads-empty'?'The n8n pull writes here twice a day — check back after the next run.':'Submissions from /quiz will show up here once the funnel is live.'),t.label+': desktop crossing restores original empty copy');
+                  await page.setViewportSize({width,height:844});
+                  await page.waitForFunction(()=>document.documentElement.classList.contains('pocket-admin-phone'));
+                }
+                if(t.label.endsWith('-error')) expect(await page.getByText(t.tab==='ad-performance'?'Could not load ad performance':'Could not load quiz leads',{exact:true}).count()===1,t.label+': native error fixture renders an error, not cached/empty data');
+                const utility=await measureUtilityReadability(page);
+                expect(utility.buttons.length>0 && utility.buttons.every(button=>button.textFits),t.label+': Refresh/retry labels fit inside their buttons with visible padding '+JSON.stringify(utility.buttons));
+                if(t.tab==='ad-performance') expect(utility.description.font>=13 && utility.description.contrast>=4.5,t.label+': supporting description is readable '+JSON.stringify(utility.description));
+                if(t.tab==='ad-performance') {
+                  expect(utility.supporting.every(text=>text.font>=13 && text.contrast>=4.5),t.label+': metric/section captions are readable '+JSON.stringify(utility.supporting));
+                  expect(utility.nestedEmpty.every(height=>height<=120),t.label+': empty sections are compact instead of nested full-page empty panels '+JSON.stringify(utility.nestedEmpty));
+                }
+                if(t.tab==='quiz-leads') expect(utility.quizControlGap>=8 && utility.quizControlGap<=24,t.label+': related Refresh/search controls have a deliberate compact gap '+utility.quizControlGap);
+                if(t.label.endsWith('-loading')) expect(utility.loader?.height<=210 && utility.loader.label===(t.tab==='ad-performance'?'Loading ad performance':'Loading quiz leads') && !utility.loader.calendarCards,t.label+': compact labelled utility loader has no painted Calendar media/action placeholders '+JSON.stringify(utility.loader));
+                if(t.label==='ads') await verifyAdsChart(page,width,theme);
+              }
               if(t.label==='save-problems-loading') {
                 const loader=await measureSaveProblemsLoading(page);
                 expect(loader.height<=210 && loader.label==='Loading save problems' && !loader.calendarCards,'Save problems: a compact labelled loader never presents Calendar media/action placeholders');
@@ -393,6 +565,7 @@ async function runMain() {
   } finally { await browser.close();await new Promise(r => server.close(r)); }
   if (out) fs.writeFileSync(path.join(out,'measurements.json'),JSON.stringify({checks,rows,failures},null,2));
   failures.forEach(x => console.error('FAIL '+x));
+  if(chartSource) console.log('KASPER_ADMIN_CHART: pinned production 4.4.0 bytes; '+chartStates+' phone chart action/theme/desktop-restore states checked'+(before||desktop?'; capture/parity mode, no phone acceptance asserted.':'.'));
   console.log('KASPER_ADMIN_EXPANDED: '+rows.length+' native states; '+checks+' checks; '+failures.length+' failures; fictional data; no live writes.');
   if (failures.length) process.exitCode=1;
 }

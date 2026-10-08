@@ -52,6 +52,9 @@ here with where it stopped, so it can be restarted.
   `client-onboarding`, throwaway proof and teardown). **Stage 3 dry run done**, nothing saved:
   `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
   confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.
+  Same PR, 2026-10-08: Create client also gets the **Slack channels** made (real clients only, no n8n edit): the
+  database nudges the existing finalizer webhook after a create and when a filming plan link is saved. Clients who
+  never fill the form would need an n8n change, written out for the owner's go in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03

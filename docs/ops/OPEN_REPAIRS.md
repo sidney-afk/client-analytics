@@ -31069,8 +31069,7 @@ clients). The dialog takes a name, a social media manager and an optional email;
 will be made; "Create client" calls `create`, which runs `client_create_native()` from
 `migrations/2026-10-08-create-client.sql`: real provisioning (or the throwaway test path for names
 starting `ZZ THROWAWAY`), Roster's profile write, the manager assignment and the 27-step checklist with 4
-steps ticked, in one transaction. The new profile opens afterwards. Slack is never queued (reason in
-`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`; an open owner decision).
+steps ticked, in one transaction. The new profile opens afterwards. Slack: see the follow-up below.
 
 **Proof.** `scripts/client-create-proof.sql` on a disposable PostgreSQL ends `CLIENT_CREATE_PROOF_OK`
 (refusals leave nothing behind, a refusal deep inside rolls the whole create back, replay writes nothing,
@@ -31086,6 +31085,16 @@ and readbacks: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. No n8n change.
 **Stage 3.** `scripts/client-resource-match.js` (read only, local files, counts on stdout, detail only
 outside git) ran for the 35 clients: `docs/audits/2026-10-08-stage3-matching-dry-run.md`. Nothing saved.
 Rollback: revert the PR; once applied, drop the two functions.
+
+**Slack follow-up (2026-10-08, same PR, owner request).** Create client now also gets the client's Slack
+channels made, real clients only, with no n8n edit: the database nudges the existing finalizer webhook after a
+real create and whenever a filming plan link is saved (`slack_finalizer_nudge()`, trigger on `filming_plans`),
+never for a test client. A real client needs an email, and the preview blocks a name or email that differs from
+an onboarding form on file (the finalizer matches both exactly). Proof: `CLIENT_CREATE_PROOF_OK` now also checks
+one nudge per real create and per changed link, none for test clients, none once a channel exists, and that a
+failed web call never fails the save. The no-form case needs an n8n change, written out (not made) in
+`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. Rollback adds: drop the trigger `filming_plans_slack_finalizer_nudge` and
+its two functions.
 
 ## 371. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 1: nine desktop defects on SyncLinear cards, TikTok and Instagram upload, and Calendar and Samples link boxes
 

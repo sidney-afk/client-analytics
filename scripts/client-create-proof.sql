@@ -59,6 +59,13 @@ begin
   return jsonb_build_object('created', made);
 end $$;
 
+-- pg_net, reduced: every nudge is recorded instead of sent.
+create schema if not exists net;
+create table net.sent (id bigint generated always as identity primary key, url text, body jsonb);
+create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds integer default 5000) returns bigint
+  language sql as $$ insert into net.sent (url, body) values (url, body) returning id $$;
+alter table public.filming_plans add column if not exists doc_id text;
+
 \i migrations/2026-10-08-create-client.sql
 \i migrations/2026-10-08-create-client.sql
 
@@ -70,33 +77,36 @@ begin
     if sqlerrm <> 'client_create_bad_mode' then raise; end if; end;
   begin perform public.client_create_native('req-c0', 'newone', 'New One', 'managera', '', ' ', 'client'); raise exception 'no actor'; exception when others then
     if sqlerrm <> 'client_create_actor_required' then raise; end if; end;
-  begin perform public.client_create_native('bad request', 'newone', 'New One', 'managera', '', 'Admin', 'client'); raise exception 'bad request'; exception when others then
+  begin perform public.client_create_native('bad request', 'newone', 'New One', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'bad request'; exception when others then
     if sqlerrm <> 'client_create_request_invalid' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'new-one', 'New One', 'managera', '', 'Admin', 'client'); raise exception 'dash slug'; exception when others then
+  begin perform public.client_create_native('req-c0', 'new-one', 'New One', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'dash slug'; exception when others then
     if sqlerrm <> 'client_create_slug_invalid' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'newone', E'New\nOne', 'managera', '', 'Admin', 'client'); raise exception 'newline name'; exception when others then
+  begin perform public.client_create_native('req-c0', 'newone', E'New\nOne', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'newline name'; exception when others then
     if sqlerrm <> 'client_create_name_invalid' then raise; end if; end;
   begin perform public.client_create_native('req-c0', 'newone', 'New One', 'managera', 'not an email', 'Admin', 'client'); raise exception 'bad email'; exception when others then
     if sqlerrm <> 'client_create_email_invalid' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'newone', 'New One', 'nobody', '', 'Admin', 'client'); raise exception 'unknown manager'; exception when others then
+  begin perform public.client_create_native('req-c0', 'newone', 'New One', 'nobody', 'x@example.com', 'Admin', 'client'); raise exception 'unknown manager'; exception when others then
     if sqlerrm <> 'client_create_manager_unknown' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'newone', 'New One', 'managergone', '', 'Admin', 'client'); raise exception 'inactive manager'; exception when others then
+  begin perform public.client_create_native('req-c0', 'newone', 'New One', 'managergone', 'x@example.com', 'Admin', 'client'); raise exception 'inactive manager'; exception when others then
     if sqlerrm <> 'client_create_manager_unknown' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'realonetwo', 'real one', 'managera', '', 'Admin', 'client'); raise exception 'name reused'; exception when others then
+  begin perform public.client_create_native('req-c0', 'realonetwo', 'real one', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'name reused'; exception when others then
     if sqlerrm <> 'client_create_name_taken' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'someonelisted', 'Someone Listed', 'managera', '', 'Admin', 'client'); raise exception 'listed name'; exception when others then
+  begin perform public.client_create_native('req-c0', 'someonelisted', 'Someone Listed', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'listed name'; exception when others then
     if sqlerrm <> 'client_create_name_on_a_manager_list' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'realone', 'Brand New Name', 'managera', '', 'Admin', 'client'); raise exception 'slug reused'; exception when others then
+  begin perform public.client_create_native('req-c0', 'realone', 'Brand New Name', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'slug reused'; exception when others then
     if sqlerrm <> 'client_create_slug_taken' then raise; end if; end;
   begin perform public.client_create_native('req-c0', 'newone', 'New One', 'managera', '', 'Admin', 'test'); raise exception 'test with a real name'; exception when others then
     if sqlerrm <> 'client_create_test_needs_throwaway_name' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'zzthrowawayx', 'ZZ THROWAWAY X', 'managera', '', 'Admin', 'client'); raise exception 'throwaway as real'; exception when others then
+  begin perform public.client_create_native('req-c0', 'zzthrowawayx', 'ZZ THROWAWAY X', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'throwaway as real'; exception when others then
     if sqlerrm <> 'client_create_throwaway_name_needs_test_mode' then raise; end if; end;
+  begin perform public.client_create_native('req-c0', 'newone', 'New One', 'managera', '', 'Admin', 'client'); raise exception 'real client without email'; exception when others then
+    if sqlerrm <> 'client_create_email_required' then raise; end if; end;
   if exists (select 1 from public.clients where slug in ('newone', 'zzthrowawayx', 'someonelisted', 'realonetwo')) then raise exception 'a refusal left a row'; end if;
+  if (select count(*) from net.sent) <> 0 then raise exception 'a refusal sent a nudge'; end if;
 
   -- a refusal deep inside (switch flipped back to the Sheet) rolls back the whole create
   create or replace function public.roster_authority() returns text language sql as $f$ select 'sheet' $f$;
-  begin perform public.client_create_native('req-c1', 'newone', 'New One', 'managera', '', 'Admin', 'client'); raise exception 'sheet mode allowed'; exception when others then
+  begin perform public.client_create_native('req-c1', 'newone', 'New One', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'sheet mode allowed'; exception when others then
     if sqlerrm <> 'roster_authority_not_syncview' then raise; end if; end;
   create or replace function public.roster_authority() returns text language sql as $f$ select 'syncview' $f$;
   if exists (select 1 from public.clients where slug = 'newone') or exists (select 1 from public.production_native_client_provisions where client_slug = 'newone')
@@ -105,7 +115,7 @@ begin
 
   -- the real create
   r := public.client_create_native('req-c1', 'newone', 'New One', 'managera', 'new@example.com', 'Admin', 'client');
-  if r->>'outcome' <> 'created' or r->>'kind' <> 'client' or r->>'slack' <> 'not_queued' or (r->>'checklist_steps')::int <> 27 or (r->>'checklist_ticked')::int <> 4 then raise exception 'create %', r; end if;
+  if r->>'outcome' <> 'created' or r->>'kind' <> 'client' or (r->>'checklist_steps')::int <> 27 or (r->>'checklist_ticked')::int <> 4 then raise exception 'create %', r; end if;
   select * into v from public.clients where slug = 'newone';
   if v.kind <> 'client' or v.source <> 'syncview_native' or not v.active then raise exception 'roster row %', v; end if;
   if (select count(*) from public.production_native_client_provisions where client_slug = 'newone') <> 1 then raise exception 'no receipt'; end if;
@@ -123,6 +133,23 @@ begin
   if (select source from public.client_onboarding_progress where client_slug = 'newone' and step_key = 'smm_assigned') <> 'manual'
      or (select source from public.client_onboarding_progress where client_slug = 'newone' and step_key = 'routing_enrolled') <> 'detected' then raise exception 'tick sources'; end if;
   if (select count(*) from public.client_onboarding_events where client_slug = 'newone' and action = 'create_client') <> 4 then raise exception 'tick history'; end if;
+  -- Slack: one nudge to the finalizer's webhook, with the profile's name, for the real client
+  if r->>'slack' <> 'finalizer_nudged' then raise exception 'real create did not nudge: %', r; end if;
+  if (select count(*) from net.sent) <> 1 or (select body->>'client_name' from net.sent) <> 'New One'
+     or (select url from net.sent) <> 'https://synchrosocial.app.n8n.cloud/webhook/slack-creative-finalize' then raise exception 'nudge %', (select json_agg(s) from net.sent s); end if;
+  -- a filming plan link saved later nudges again; a save that does not change the link does not
+  insert into public.filming_plans (client_slug, doc_url, doc_id) values ('newone', 'https://docs.google.com/document/d/abc', 'abc');
+  if (select count(*) from net.sent) <> 2 then raise exception 'filming plan link did not nudge'; end if;
+  update public.filming_plans set doc_url = doc_url where client_slug = 'newone';
+  if (select count(*) from net.sent) <> 2 then raise exception 'an unchanged link nudged'; end if;
+  -- once the finalizer has written the channel, nothing nudges any more
+  update public.client_profiles set creative_channel_id = 'C0FAKE0001' where slug = 'newone';
+  update public.filming_plans set doc_url = 'https://docs.google.com/document/d/def', doc_id = 'def' where client_slug = 'newone';
+  if (select count(*) from net.sent) <> 2 then raise exception 'a client with a channel was nudged'; end if;
+  update public.client_profiles set creative_channel_id = null where slug = 'newone';
+  -- a link for something that is not a real active client never nudges
+  insert into public.filming_plans (client_slug, doc_url, doc_id) values ('nosuchclient', 'https://docs.google.com/document/d/x', 'x');
+  if (select count(*) from net.sent) <> 2 then raise exception 'an unknown slug was nudged'; end if;
 
   -- replay writes nothing new; a different name under the same request is refused by the provisioning function
   select count(*) into n from public.client_onboarding_events where client_slug = 'newone';
@@ -130,15 +157,19 @@ begin
   if r->>'outcome' <> 'replayed' then raise exception 'replay %', r; end if;
   if (select count(*) from public.client_onboarding_events where client_slug = 'newone') <> n then raise exception 'replay wrote history'; end if;
   if (select count(*) from public.smm_assignment_edits where client_name = 'New One') <> 1 then raise exception 'replay reassigned'; end if;
-  begin perform public.client_create_native('req-c1', 'newone', 'New One Changed', 'managera', '', 'Admin', 'client'); raise exception 'conflict allowed'; exception when others then
+  begin perform public.client_create_native('req-c1', 'newone', 'New One Changed', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'conflict allowed'; exception when others then
     if sqlerrm <> 'native_client_provision_idempotency_conflict' then raise; end if; end;
-  begin perform public.client_create_native('req-c2', 'newonetoo', 'New One', 'managerb', '', 'Admin', 'client'); raise exception 'second client same name'; exception when others then
+  begin perform public.client_create_native('req-c2', 'newonetoo', 'New One', 'managerb', 'x@example.com', 'Admin', 'client'); raise exception 'second client same name'; exception when others then
     if sqlerrm <> 'client_create_name_taken' then raise; end if; end;
 
   -- the throwaway (test mode): created, never on the Sheet copy, then removed completely
   r := public.client_create_native('req-t9', 'zzthrowawaynine', 'ZZ THROWAWAY Nine', 'managerb', 'zz@example.com', 'Admin', 'test');
   if r->>'outcome' <> 'created' or r->>'kind' <> 'test' or r->>'slack' <> 'not_queued' or (r->>'checklist_ticked')::int <> 4 then raise exception 'test create %', r; end if;
   if (select kind from public.clients where slug = 'zzthrowawaynine') <> 'test' then raise exception 'test kind'; end if;
+  if r->>'slack' <> 'not_queued' or (select count(*) from net.sent) <> 2 then raise exception 'a test client was nudged'; end if;
+  insert into public.filming_plans (client_slug, doc_url, doc_id) values ('zzthrowawaynine', 'https://docs.google.com/document/d/t', 't');
+  if (select count(*) from net.sent) <> 2 then raise exception 'a test client filming plan nudged'; end if;
+  delete from public.filming_plans where client_slug = 'zzthrowawaynine';
   if (select count(*) from public.production_native_client_provisions where client_slug = 'zzthrowawaynine') <> 0 then raise exception 'real receipt for a throwaway'; end if;
   if (select count(*) from public.roster_sheet_outbox where client_slug = 'zzthrowawaynine') <> 0 then raise exception 'throwaway reached the Sheet outbox'; end if;
   if (select email from public.client_profiles where slug = 'zzthrowawaynine') is distinct from 'zz@example.com' then raise exception 'throwaway email'; end if;
@@ -159,6 +190,11 @@ begin
     union all select 1 from public.roster_sheet_outbox where client_slug = 'zzthrowawaynine') z;
   if n <> 0 then raise exception 'teardown left % rows', n; end if;
   if not exists (select 1 from public.clients where slug = 'newone') then raise exception 'the real client was touched'; end if;
+  -- a broken web call never fails the write it rides on
+  create or replace function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds integer default 5000) returns bigint
+    language plpgsql as $f$ begin raise exception 'net down'; end $f$;
+  update public.filming_plans set doc_url = 'https://docs.google.com/document/d/ghi', doc_id = 'ghi' where client_slug = 'newone';
+  if (select doc_id from public.filming_plans where client_slug = 'newone') <> 'ghi' then raise exception 'the save was lost'; end if;
 end $$;
 
 -- roles: service_role alone may execute; nobody else
@@ -171,6 +207,9 @@ begin
   end loop;
   if exists (select 1 from information_schema.routine_privileges where routine_name in ('client_create_native', 'client_create_native_test_teardown') and grantee = 'PUBLIC') then
     raise exception 'PUBLIC can execute'; end if;
+  if has_function_privilege('service_role', 'public.slack_finalizer_nudge(text)', 'execute')
+     or has_function_privilege('anon', 'public.slack_finalizer_nudge(text)', 'execute')
+     or has_function_privilege('authenticated', 'public.slack_finalizer_nudge(text)', 'execute') then raise exception 'someone may call the nudge directly'; end if;
   if not has_function_privilege('service_role', 'public.client_create_native(text,text,text,text,text,text,text)', 'execute')
      or not has_function_privilege('service_role', 'public.client_create_native_test_teardown(text,text)', 'execute') then raise exception 'service_role cannot execute'; end if;
 end $$;

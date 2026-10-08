@@ -5590,6 +5590,11 @@
             html.fph-on .tk-card .tpl-input { font-size: 16px; min-height: 46px; box-sizing: border-box; }
             html.fph-on .confirm-overlay .brief-action-btn { min-height: 44px; min-width: 88px; font-size: 15px; border-radius: 12px; }
             html.fph-on .tk-counter { font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
+            html.fph-on .tk-card textarea::placeholder,
+            html.fph-on .tk-card input::placeholder { color:var(--text-secondary); opacity:1; }
+            html.fph-on .tk-queue-empty,
+            html.fph-on .tk-preview-card h3 { font-size:13px; line-height:1.5; color:var(--text-secondary); }
+            html.fph-on .tk-preview-card h3 span { font-size:13px!important; }
             html.fph-on .tk-grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
             html.fph-on .tk-opts-head { min-height: 48px; align-items: center; }
             html.fph-on .tk-toggle { min-height: 44px; font-size: 13px; }
@@ -5617,6 +5622,7 @@
             html.fph-on .tk-file-actions { width: 100%; }
             html.fph-on .tk-file-actions .tk-mini-btn { flex: 1; }
             html.fph-on .tk-warn-chip { display: flex; gap: 0; padding: 0; margin-bottom: 6px; background: transparent; font-size: 12px; font-weight: 700; }
+            html.fph-on .tk-profile-chip { font-family: inherit; font-size: 13px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
             html.fph-on .tk-warn-chip::before { content: ''; flex: none; width: 17px; height: 17px; margin-right: 8px; background: currentColor; -webkit-mask: var(--fph-ico-alert) center / contain no-repeat; mask: var(--fph-ico-alert) center / contain no-repeat; }
             /* Post now: pinned to the bottom of the screen, full width. */
             html.fph-on .tk-submit-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; box-sizing: border-box; margin: 0; padding: 10px max(18px, env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); gap: 10px; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: var(--white); box-shadow: none; }
@@ -5646,6 +5652,25 @@
             html.fph-on[data-fph="home"] .overview-table tbody td:nth-child(2) { width: 84px; min-width: 84px; padding-left: 4px; padding-right: 8px; white-space: normal; font-size: 12px; line-height: 1.35; }
             html.fph-on[data-fph="home"] .overview-table thead th:nth-child(2) { width: 84px; min-width: 84px; }
             html.fph-on[data-fph="home"] .overview-table tbody td:nth-child(1) { min-width: 340px; }
+            /* Loading uses the native table cells as phone card placeholders.
+               It keeps the desktop DOM and yields to the real metrics paint. */
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton { margin: 16px 0 0; overflow: visible; }
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton::before { content: 'Loading analytics…'; display: block; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); }
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton .overview-controls,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton colgroup,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton thead,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton .top-rank-badge,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton .client-view-btn { display: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table { display: block; width: 100%; min-width: 0; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody { display: grid; gap: 14px; width: 100%; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody tr { display: grid; grid-template-columns: minmax(0,1fr); padding: 18px 16px; border: 1px solid var(--border); border-radius: 22px; background: var(--white); filter: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td { display: none; width: auto; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:nth-child(1) { display: block; min-width: 0; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:first-child .cell-inner { min-height: 24px; }
+            html.fph-on[data-fph="home"] .analytics-overview-table td:first-child::after { content: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:nth-child(2) { display: block; width: auto; min-width: 0; padding: 8px 0 4px; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:nth-child(4n+3) { display: block; padding: 20px 16px; margin-top: 10px; border-radius: 14px; background: var(--field-bg); }
+            html.fph-on[data-fph="home"] .analytics-overview-table .sv-skeleton { margin: 0; --sv-skel-base: var(--border); --sv-skel-sheen: var(--field-bg-hover); }
             html.fph-on[data-fph="home"] .overview-wrap a,
             html.fph-on[data-fph="home"] .overview-wrap button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
             html.fph-on[data-fph="home"] .overview-wrap a.client-name-link,
@@ -5722,7 +5747,10 @@
             html.fph-on[data-fph="workload"] .workload-overview-status { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--border-light); background: transparent; }
             html.fph-on[data-fph="workload"] .workload-overview-status::before { grid-column: 1 / -1; font-size: 12px; letter-spacing: 0.04em; }
             html.fph-on[data-fph="workload"] .workload-overview-status.is-empty { display: none; }
-            html.fph-on[data-fph="workload"] .workload-overview-row:not(:has(.workload-overview-status:not(.is-empty)))::after { content: 'Nothing overdue, in progress or waiting on tweaks.'; grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--border-light); font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+            html.fph-on[data-fph="workload"] .workload-overview-row:not(.is-skeleton):not(:has(.workload-overview-status:not(.is-empty)))::after { content: 'Nothing overdue, in progress or waiting on tweaks.'; grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--border-light); font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+            html.fph-on[data-fph="workload"] .workload-overview-row.is-skeleton .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--field-bg-hover); }
+            html.fph-on[data-fph="workload"] .workload-skeleton-grid .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--field-bg-hover); }
+            html.fph-on[data-fph="workload"] .workload-skeleton-day { background:var(--field-bg); }
             html.fph-on[data-fph="workload"] .workload-overview-status-clients { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; min-width: 0; }
             html.fph-on[data-fph="workload"] .wl-now-client-chip { font-size: 14px; gap: 8px; padding: 0 14px; justify-content: flex-start; }
             html.fph-on[data-fph="workload"] .wl-now-client-chip-count { font-size: 13px; }
@@ -7046,6 +7074,7 @@
  html.pocket-admin-phone #kasperContent > .pto-admin > .pto-card-head .pto-card-title { display:none; }
  html.pocket-admin-phone #kasperContent .ca-detail { font-size:14px; line-height:1.65; }
  html.pocket-admin-phone #kasperContent :is(.ca-resource-title,.ca-resource-sub,.ca-label,.cb-resource-label,.cb-resource-sub) { font-size:12px; line-height:1.6; }
+ html.pocket-admin-phone #kasperContent :is(.ca-field dt,.ca-field dt label,.ca-empty,.ca-mgr-count,.ca-mgr-foot,.ca-drop-head>span,.ca-opt-sub,.ca-row-sub,.ca-fold-tag,.ca-prov,.ca-hist-when,.ca-status,.ca-land-label,.ca-hs-band .cb-lead) { font-size:13px; line-height:1.6; color:var(--text-secondary); }
  html.pocket-admin-phone #kasperContent .kad-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
  html.pocket-admin-phone #kasperContent .kad-stat { margin:0; }
 }

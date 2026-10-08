@@ -6,11 +6,16 @@ device/theme review cells and outstanding state/action
 discovery in `docs/audits/2026-10-07-prism-phone/`. Its coverage statuses remain
 open until individual visual review and interaction evidence are recorded.
 `qa/client-phone/fixture-desktop-parity.js` reuses the native staff/client
-fixtures for exact 1440 px Today and Notes comparisons, including Notes after
-a phone-to-desktop resize. It complements the broad desktop parity runner.
+fixtures for exact 1440 px Today, Notes, Analytics loading, Workload loading
+and TikTok comparisons, including cold and phone-to-desktop cases. Finch's
+harness accepts a separate source root and desktop context for these pairs.
+It complements the broad desktop parity runner.
 `docs/audits/2026-10-07-prism-phone/batch-4/` contains the narrowed-device
 Today/Notes gallery, personal reviews, source binding, check tails and desktop
 hash receipts. The complete review and fresh-eyes round remain open.
+`docs/audits/2026-10-07-prism-phone/batch-5/` records Clients supporting text
+and picker focus, Analytics/Workload loading and TikTok account wording,
+with complete before/after pages, native action receipts and open findings.
 
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,

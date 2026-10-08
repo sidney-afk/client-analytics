@@ -31073,3 +31073,16 @@ fixture pairs, with exact source/PNG hashes and explicit remaining OPEN work.
 The full clean round, fresh review, hosted batch checks and deployment remain
 pending. Filming, Quiz, Save problems and unlisted tabs are excluded by the
 owner's revised scope. No database/n8n changes or live mutations were made.
+
+2026-10-08, Prism batch 5: reproduced and repaired unreadable Clients supporting
+text and manager-menu focus returning to More after a native trigger repaint;
+clipped Analytics loading rows; false-empty Workload loading copy and invisible
+dark placeholders; opaque TikTok provider wording and pale instructions. Changes
+are phone-scoped. Existing native fixtures now exercise actual picker, search,
+fold, manager assignment and edit/save actions with intercepted fictional replies.
+The gallery preserves 44 complete before/after pairs and source/PNG hashes;
+60 phone cells were personally reviewed, 56 CLEAN and four empty Clients cells
+OPEN. Empty Clients guidance needs review with main's new Create client flow.
+The full narrowed round, separate fresh-eyes acceptance, hosted checks and live
+deployment remain separate unfinished gates. No live mutations, database or n8n
+changes, or merge by Prism. See docs/audits/2026-10-07-prism-phone/batch-5/.

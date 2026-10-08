@@ -6,6 +6,8 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const staff = require('../../docs/syncview-design/tests/staff-phone-browser');
 const client = require('../../docs/syncview-design/tests/client-phone-review-browser');
+const finch = require('../finch-phone/harness');
+const { SCENARIOS } = require('../finch-phone/scenarios');
 const { seedStaffGate, seedStaffIdentity } = require('../staff-gate-seed');
 const root = path.resolve(__dirname, '../..');
 const arg = key => process.argv.find(a => a.startsWith('--'+key+'='))?.slice(key.length+3);
@@ -19,9 +21,38 @@ const fixtureNow = new Date();
 const cases = [
   ...['today-rings','today-all-clear','today-loading','today-editor-all-clear'].flatMap(name => ['light','dark'].map(theme=>({name,theme}))),
   ...['calendar-notes','samples-notes','samples-notes-unlinked'].flatMap(name => [false,true].map(warm=>({name,theme:'light',warm}))),
+  ...['analytics-loading','workload-loading','tiktok-client-ready'].flatMap(name=>['light','dark'].flatMap(theme=>[false,true].map(warm=>({name,theme,warm,finch:true})))),
 ].filter(test => !arg('only') || new RegExp(arg('only')).test(test.name));
 assert(cases.length, 'No native parity cases selected');
+async function renderFinch(build,test) {
+  const trace=step=>{if(process.argv.includes('--diagnostic')) console.log('Finch parity '+test.name+' '+build+' '+(test.warm?'warm':'cold')+': '+step);};
+  const scenario=SCENARIOS.find(s=>s.id===test.name);
+  trace('opening');
+  const run=await finch.open({...scenario.open,sourceRoot:build==='before'?reference:root,
+    width:test.warm?393:1440,height:test.warm?852:900,theme:test.theme,dsf:1,desktop:!test.warm,
+    vendor:process.env.POCKET_FONT_DIR});
+  const {page,state}=run;
+  trace('booted');
+  try {
+    await page.waitForTimeout(scenario.settle||2000);
+    trace('settled');
+    if(scenario.steps) await scenario.steps(page);
+    if(test.warm) await page.setViewportSize({width:1440,height:900});
+    await page.addStyleTag({content:freeze});
+    trace('waiting for fonts');
+    await page.waitForFunction(()=>document.fonts.status==='loaded',null,{timeout:10000});
+    trace('fonts ready');
+    await page.waitForTimeout(850);await page.evaluate(()=>document.activeElement?.blur());
+    assert.deepEqual(state.errors,[],'Finch native fixture page error');
+    assert.equal(state.writes.length,0,'Finch parity must not send a write');
+    const png=await page.screenshot({animations:'disabled',fullPage:true});
+    trace('captured');
+    const styles=await page.evaluate(()=>Array.from(document.body.querySelectorAll('*')).map(n=>{const s=getComputedStyle(n);return [n.tagName,n.id,n.className,Array.from(s).sort().map(p=>[p,s.getPropertyValue(p).replaceAll(location.origin,'__FIXTURE_ORIGIN__')])];}));
+    return {png,styles,styleHash:digest(JSON.stringify(styles))};
+  } finally {await run.close();}
+}
 async function render(browser, origin, build, test) {
+  if(test.finch) return renderFinch(build,test);
   staff.resetScenario();
   const st = staff.S.find(s=>s.name===test.name);
   if(st?.beforeBoot) st.beforeBoot();
@@ -105,5 +136,5 @@ async function render(browser, origin, build, test) {
     assert(row.pixels && row.styles,label+': desktop differs');
     console.log('ok '+label+': desktop pixels and computed styles identical');
   }} finally {await browser.close();server.close();}
-  console.log('FIXTURE_DESKTOP_PARITY: '+rows.length+'/'+cases.length+' exact 1440 desktop pairs; native Today/Notes fixtures; cold and phone-to-desktop Notes; no live writes.');
+  console.log('FIXTURE_DESKTOP_PARITY: '+rows.length+'/'+cases.length+' exact 1440 desktop pairs; native Today/Notes/Analytics/Workload/TikTok fixtures; cold and phone-to-desktop; no live writes.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

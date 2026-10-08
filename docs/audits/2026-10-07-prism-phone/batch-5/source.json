@@ -1,0 +1,10 @@
+{
+  "sourceHash": "621f6419d04e9e1f827dd04d7e3d5f32c7b48688c1149b27463132aed786250f",
+  "generatedIndexHash": "0d7db964ef9ca8e45eb49e58c8ed180d22121be8fbc6951677e4028cb717a361",
+  "beforeSourceHash": "64f9edea37ec2c428cd82be3b794f0944c4f62f7839f69714029f9352eabbb17",
+  "beforeRef": "2020d9f59565b03680cfcb103657918e1d33c594",
+  "pairs": 44,
+  "reviewedCells": 60,
+  "cleanCells": 56,
+  "safety": "Fictional identities and intercepted transports only. No live writes, database or n8n changes."
+}

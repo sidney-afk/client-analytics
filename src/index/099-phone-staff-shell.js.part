@@ -1,5 +1,6 @@
 import { currentNav } from './065-core-nav-intake-state.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
+import { clientMap } from './040-shared-briefs.js';
     /* PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload,
        Analytics, Workload, SyncLinear; approved mock-up, layout A).
        On a phone these screens drop the logo header and nav row and show a
@@ -167,6 +168,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (label && val && positive && /views last 30d/i.test(label.textContent) && val.textContent.trim() === '0') dash(val, label.textContent.trim());
         });
     }
+    const _fphAccountCopy = new WeakMap();
     function _fphBrowseWords(on) {
         const pattern = on ? /\bclick to (browse|add)\b/g : /\btap to (browse|add)\b/g;
         const replacement = on ? 'tap to $1' : 'click to $1';
@@ -176,6 +178,23 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 const text = node.nodeValue.replace(pattern, replacement);
                 if (text !== node.nodeValue) node.nodeValue = text;
             });
+        });
+        document.querySelectorAll('.tk-profile-line').forEach(line => {
+            const chip = line.querySelector('.tk-profile-chip'), label = line.firstChild;
+            if (!chip || label?.nodeType !== 3) return;
+            if (!_fphAccountCopy.has(line)) {
+                if (!/^Posts to Post For Me account\s*$/.test(label.nodeValue)) return;
+                _fphAccountCopy.set(line, { label: label.nodeValue, chip: chip.textContent });
+            }
+            const original = _fphAccountCopy.get(line);
+            const client = document.getElementById('tkClientInput')?.value || '';
+            const handle = String(clientMap[client]?.tiktok_handle || '').trim().replace(/^@+/, '');
+            const phoneAccount = on && currentNav === 'tiktok-upload'
+                && !document.getElementById('tkPlatInstagram')?.classList.contains('on') && client;
+            const text = phoneAccount ? (handle ? 'Posting to ' : 'Posting for ') : original.label;
+            const account = phoneAccount ? (handle ? '@' + handle : client) : original.chip;
+            if (label.nodeValue !== text) label.nodeValue = text;
+            if (chip.textContent !== account) chip.textContent = account;
         });
     }
     function _fphSync() {

@@ -14,7 +14,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 
 | Screen | Audience / lane | State | Kind | desktop light | desktop dark | iphone-pro light | iphone-pro dark | android light | android dark |
 |---|---|---|---|---|---|---|---|---|---|
-| Today | staff / staff | today-all-clear | empty | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Today | staff / staff | today-all-clear | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Today | staff / staff | today-cleared | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Today | staff / staff | today-editor-all-clear | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Today | staff / staff | today-editor-deck | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -53,7 +53,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Calendar | client / client-calendar-expanded | week-empty-today | empty | OPEN | not used | OPEN | not used | OPEN | not used |
 | Calendar | staff / rules | calendar-caption-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / staff | calendar-card-detail | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Calendar | staff / staff | calendar-card-notes | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Calendar | staff / staff | calendar-card-notes | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / rules | calendar-color | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / staff | calendar-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / rules | calendar-empty-caption | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -66,7 +66,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Calendar | staff / staff | calendar-month | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / staff | calendar-more | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / rules | calendar-more | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Calendar | staff / staff | calendar-no-posts | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Calendar | staff / staff | calendar-no-posts | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / staff | calendar-review | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / rules | calendar-screen | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Calendar | staff / rules | calendar-set-all | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -98,13 +98,13 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Samples | staff / rules | sample-reviews-more | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / rules | sample-reviews-screen | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / rules | sample-reviews-tabs | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Samples | staff / staff | samples-card-notes | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Samples | staff / staff | samples-card-notes | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-long-content | long names/captions | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-many | many items | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-more | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Samples | staff / staff | samples-no-posts | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Samples | staff / staff | samples-no-posts | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-review | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-sheet | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Samples | staff / staff | samples-tabs | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -115,27 +115,34 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Card detail sheet | client / client-calendar-expanded | comparison-retry-loading | loading | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-calendar-expanded | lightbox | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-calendar-expanded | month-post | normal | OPEN | not used | OPEN | not used | OPEN | not used |
-| Card detail sheet | client / client-calendar-expanded | notes | menus/sheets open | OPEN | not used | CLEAN | not used | CLEAN | not used |
+| Card detail sheet | client / client-calendar-expanded | notes | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-links-expanded | samples-comparison-empty | empty | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-links-expanded | samples-comparison-loading | loading | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-links-expanded | samples-comparison-pending | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-links-expanded | samples-comparison-ready | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-links-expanded | samples-comparison-retry-loading | loading | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-links-expanded | samples-lightbox | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
-| Card detail sheet | client / client-links-expanded | samples-notes | menus/sheets open | OPEN | not used | CLEAN | not used | CLEAN | not used |
-| Card detail sheet | client / client-links-expanded | samples-notes-unlinked | menus/sheets open | OPEN | not used | CLEAN | not used | CLEAN | not used |
+| Card detail sheet | client / client-links-expanded | samples-notes | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
+| Card detail sheet | client / client-links-expanded | samples-notes-unlinked | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | client / client-calendar-expanded | week-post | normal | OPEN | not used | OPEN | not used | OPEN | not used |
 | Card detail sheet | staff / discovery | card-detail-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Card detail sheet | staff / discovery | card-detail-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Card detail sheet | staff / discovery | card-detail-menus | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Card detail sheet | staff / finch | linear-detail | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | client-detail | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | client-edit | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | client-detail | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | client-edit | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | client-edit-save-actions | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | client-history-open | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | client-manager-change-actions | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | client-manager-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | client-research-open | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients | normal | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | Clients | staff / admin | clients-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | clients-list-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-search-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | TikTok upload | staff / finch | tiktok-cancel-confirm | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| TikTok upload | staff / finch | tiktok-client-ready | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| TikTok upload | staff / finch | tiktok-client-ready | normal | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | TikTok upload | staff / finch | tiktok-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-no-account | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-options | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -162,7 +169,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Analytics | staff / finch | analytics-detail-dash | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-grid | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Analytics | staff / finch | analytics-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Analytics | staff / finch | analytics-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | Analytics | staff / finch | analytics-overview | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-pin | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-search | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -174,7 +181,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Workload | staff / finch | workload-clients-search | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / finch | workload-editors-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / finch | workload-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Workload | staff / finch | workload-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Workload | staff / finch | workload-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | Workload | staff / finch | workload-month | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / rules | workload-more | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Workload | staff / finch | workload-plan-due | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -254,7 +261,7 @@ Missing setups stay OPEN. Sheet-view names do not prove a card detail overlay. E
 | Clients | staff | empty | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Clients | staff | loading | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Clients | staff | main actions | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
-| TikTok upload | staff | normal | OPEN | Prior native baseline displays an opaque upload-provider account ID. Verify supported account metadata and review the full native form; OPEN. |
+| TikTok upload | staff | normal | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | TikTok upload | staff | menus/sheets open | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | TikTok upload | staff | empty | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | TikTok upload | staff | loading | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
@@ -262,7 +269,7 @@ Missing setups stay OPEN. Sheet-view names do not prove a card detail overlay. E
 | Analytics | staff | normal | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | staff | menus/sheets open | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | staff | empty | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
-| Analytics | staff | loading | OPEN | Prior native baseline captures raised an unfinished skeleton-layout candidate. Current native bounds verification and complete review remain OPEN. |
+| Analytics | staff | loading | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | staff | main actions | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | client | normal | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |
 | Analytics | client | menus/sheets open | OPEN | Native setup, actions and personal review pending; nonexistent states need source-backed reasons |

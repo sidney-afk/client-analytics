@@ -5,8 +5,12 @@ round and a separate fresh-review round are both still required. Lighthouse
 reviews and merges; Prism does not merge.
 
 [Batch 4](batch-4/README.md) records the narrowed-device Today/Notes slice with
-18 native before/after pairs. Its reviewed cells are explicitly marked in the
-current coverage; the complete round and fresh review remain OPEN.
+18 native before/after pairs. That source-bound gallery remains historical;
+changed source invalidates its current acceptance. The full round remains OPEN.
+
+[Batch 5](batch-5/README.md) records Clients focus/supporting text, Analytics and
+Workload loading, and TikTok wording with 44 full-page before/after pairs.
+Its reviews mark 56 cells CLEAN and four empty Clients cells OPEN on this source.
 
 Browser execution preference (owner, 2026-10-07): use headless Chrome with no
 foreground calls, so screenshot checks do not interrupt other applications.

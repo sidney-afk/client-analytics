@@ -1,4 +1,4 @@
-import { svArea, svAreaApi } from './040-shared-briefs.js';
+import { showConfirm, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
   CAL_SUPABASE_ANON_KEY, _syncviewOpenStaffIdentity, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch
@@ -710,13 +710,23 @@ import {
             }
             try {
                 for (const issue of issues) {
-                    await _prodGatewayWrite(issue, operation, fieldsFor());
+                    /* null means an earlier change to this same field on this
+                       issue is still saving, so nothing was sent. Counting it
+                       as written toasted "Status updated" for a value the
+                       server never saw, and the first change's receipt then
+                       put the old value back. Same answer as the rename path
+                       (_prodCommitTitle): say so, and let the catch below put
+                       the row back to what is actually being saved. */
+                    const receipt = await _prodGatewayWrite(issue, operation, fieldsFor());
+                    if (!receipt) throw Object.assign(new Error('write_pending'), { code: 'write_pending' });
                     completed++;
                 }
                 _prodToast(completed > 1 ? completed + ' issues updated' : (kind === 'status' ? 'Status updated' : kind === 'assign' ? 'Assignee updated' : 'Due date updated'));
             } catch (error) {
+                const pendingOnly = !!error && error.code === 'write_pending';
                 // OPEN_REPAIRS 101: leave a server record of the refusal (no UI).
-                _writeUiRecordFailure('production', kind, error, { id: String(issues[completed] && issues[completed].id || '') });
+                // A change held back by this tab's own in-flight write was never sent, so it is not one.
+                if (!pendingOnly) _writeUiRecordFailure('production', kind, error, { id: String(issues[completed] && issues[completed].id || '') });
                 let rolledBack = false;
                 optimistic.slice(completed).forEach(entry => {
                     if (!entry) return;
@@ -741,7 +751,9 @@ import {
                     _prodRender();
                 }
                 const current = issues[Math.min(completed, issues.length - 1)];
-                _prodToast(_prodWriteErrorText(error, current, operation));
+                _prodToast(pendingOnly
+                    ? 'Another change to this sub-issue is still saving. Try again in a moment.'
+                    : _prodWriteErrorText(error, current, operation));
             }
         }
         function _prodLabelColorStyle(label) {
@@ -1022,14 +1034,26 @@ import {
             draft.error = '';
             _prodCommentDraftKeep(id, draft);
         }
-        function _prodCommentBegin(id, action, commentId) {
+        function _prodCommentBegin(id, action, commentId, discardUnsent) {
             const draft = _prodCommentDraftFor(id);
             const comment = _prodComments.find(id, commentId);
             action = action === 'edit' ? 'edit' : 'add';
+            /* There is one composer per card. A comment typed and not yet sent
+               used to be wiped the moment Reply or Edit was clicked on another
+               comment, with no warning. Reply now carries the typed text into
+               the reply; Edit has to put the old comment's text in the box, so
+               it asks first. */
+            const unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            if (action === 'edit' && comment && unsent && !discardUnsent) {
+                showConfirm('Discard your unsent comment?',
+                    'You typed a comment that is not sent yet. Editing another comment replaces it in the box.',
+                    () => { _prodCommentBegin(id, 'edit', commentId, true); }, 'Discard and edit');
+                return false;
+            }
             draft.action = action;
             draft.commentId = action === 'edit' && comment ? comment.id : '';
             draft.parentId = action === 'add' && comment ? (comment.parent_id || comment.id) : '';
-            draft.body = action === 'edit' && comment ? comment.body : '';
+            draft.body = action === 'edit' && comment ? comment.body : unsent;
             draft.audience = comment ? comment.audience : 'internal';
             draft.expectedVersion = comment ? comment.version : null;
             draft.expectedUpdatedAt = comment ? comment.row_updated_at : '';
@@ -1038,6 +1062,8 @@ import {
             draft.rebased = false;
             draft.requestId = '';
             draft.error = '';
+            // The stored copy follows the carried text to its new thread.
+            if (unsent && action === 'add') _prodCommentDraftKeep(id, draft);
             _prodRender();
             setTimeout(() => {
                 const form = document.querySelector('[data-prod-comment-form="' + CSS.escape(String(id || '')) + '"]');
@@ -1495,6 +1521,13 @@ import {
             if (days < 7) return { text: days + 'd ago', raw };
             return { text: new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), raw };
         }
+        /* "Resolved 2h ago", in the reader's own time like every other comment
+           stamp. The line used to print the stored value as it came, a raw UTC
+           timestamp. A value that is not a date is shown as it is. */
+        function _prodCommentResolvedWhen(resolvedAt) {
+            const when = _prodCommentTime({ created_at: resolvedAt });
+            return when.raw ? when.text : String(resolvedAt || '');
+        }
         function _prodCommentHTML(comment) {
             const c = _prodCommentNormalize(comment);
             if (c.hidden) return '';
@@ -1526,7 +1559,7 @@ import {
                 + '<div class="prod-comment-main"><div class="prod-comment-meta"><span class="prod-comment-author">' + _calEsc(c.author) + '</span>'
                 + '<span aria-hidden="true">·</span><time' + (time.raw ? ' datetime="' + _calEscAttr(time.raw) + '" title="' + _calEscAttr(time.raw) + '"' : '') + '>' + _calEsc(time.text) + '</time>'
                 + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments
-                + (c.done && c.resolved_at ? '<div class="prod-feedback-context">Resolved ' + _calEsc(c.resolved_at) + (c.resolved_by_name ? ' by ' + _calEsc(c.resolved_by_name) : '') + '</div>' : '')
+                + (c.done && c.resolved_at ? '<div class="prod-feedback-context" title="' + _calEscAttr(c.resolved_at) + '">Resolved ' + _calEsc(_prodCommentResolvedWhen(c.resolved_at)) + (c.resolved_by_name ? ' by ' + _calEsc(c.resolved_by_name) : '') + '</div>' : '')
                 + (c.source_only ? '<div class="prod-feedback-context">Read-only here; manage on the original ' + (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' card.'
                     + (c.parent_unavailable ? ' Original reply parent is unavailable.' : '') + '</div>' : '')
                 + actions + '</div></div>';

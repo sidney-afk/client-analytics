@@ -304,7 +304,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (!igState.schedule.postNow) {
             const at = _igAt();
             if (!at) return 'Pick a schedule date and time, or switch on "Post immediately".';
-            const t = new Date(at).getTime();
+            // Wall clock in the picked timezone, not the browser's (see _tkValidate).
+            const t = Date.parse(_igDeps.wallClockToUTC(at, igState.schedule.tz) || '');
             if (!Number.isFinite(t)) return 'That schedule time is not valid.';
             if (t < Date.now() - 60000) return 'The schedule time is in the past.';
         }

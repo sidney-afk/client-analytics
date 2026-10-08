@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7291 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7301 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -68,7 +68,7 @@
 | 60 | `321-kasper-dashboard-replies.js.part` | 3048 | The Samples subtab was folded into Review (samples are listed in the |
 | 61 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 62 | `323-kasper-dashboard-tail.js.part` | 931 | Review Session |
-| 63 | `324-client-onboarding-panel.js.part` | 696 | talking to the functions (admin only; the server checks the key and the member again) |
+| 63 | `324-client-onboarding-panel.js.part` | 730 | talking to the functions (admin only; the server checks the key and the member again) |
 | 64 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 65 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 66 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |

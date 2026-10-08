@@ -24,6 +24,7 @@ function fakeDb(state) {
       eq(col, val) { q.filters.push([col, val]); return api; },
       in(col, vals) { q.ins = (q.ins || []).concat([[col, vals]]); return api; },
       order(col, opts) { q.order = [col, opts]; return api; },
+      limit() { return api; },
       maybeSingle() { q.single = true; return api; },
       then(resolve, reject) {
         calls.selects.push(q);
@@ -184,10 +185,10 @@ function makeReq(method, headers, body, spy) {
   };
   for (const action of ['create_preview', 'create']) {
     let hh = harness(createState()); let spy = {};
-    let r = await post(hh, 'smm-key', { action, member_id: 'm-smm', display_name: 'New Person', manager_slug: 'managera' }, spy);
+    let r = await post(hh, 'smm-key', { action, member_id: 'm-smm', display_name: 'New Person', manager_slug: 'managera', email: 'new@example.test' }, spy);
     ok(r.status === 403 && !spy.read && hh.made.n === 0, action + ': a non-admin key is refused before the body is read');
     hh = harness(createState());
-    r = await post(hh, 'admin-key', { action, member_id: 'm-smm', display_name: 'New Person', manager_slug: 'managera', request_id: 'req-create-1' });
+    r = await post(hh, 'admin-key', { action, member_id: 'm-smm', display_name: 'New Person', manager_slug: 'managera', email: 'new@example.test', request_id: 'req-create-1' });
     ok(r.status === 403 && hh.db.calls.rpcs.length === 0, action + ': an SMM member under the admin key is refused');
   }
   h = harness(createState());
@@ -195,26 +196,26 @@ function makeReq(method, headers, body, spy) {
   ok(res.status === 200 && out.ready === false && out.managers.map((m) => m.slug).join() === 'managera,managerb', 'create_preview with no name only lists the active managers');
   h = harness(createState());
   res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: '  New   Person ', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
-  ok(res.status === 200 && out.ready === true && out.slug === 'newperson' && out.display_name === 'New Person' && out.mode === 'client' && out.manager.name === 'Manager B' && out.slack === 'not_queued' && out.will_create.length === 6, 'create_preview: a clean new client is ready, with its slug, manager and what will be made');
+  ok(res.status === 200 && out.ready === true && out.slug === 'newperson' && out.display_name === 'New Person' && out.mode === 'client' && out.manager.name === 'Manager B' && out.slack.mode === 'finalizer' && out.will_create.length === 6, 'create_preview: a clean new client is ready, with its slug, manager and what will be made');
   ok(h.db.calls.rpcs.length === 0, 'create_preview writes nothing (no RPC at all)');
   ok(h.db.calls.selects.find((q) => q.table === 'syncview_runtime_flags').ins[0][1].every((k) => /authority|_clients$/.test(k)), 'create_preview reads only the switches it checks');
   for (const [body, code, label] of [
-    [{ display_name: 'alpha client', manager_slug: 'managera' }, 'name_taken', 'a name already in use (any case)'],
-    [{ display_name: 'Listed Only', manager_slug: 'managera' }, 'name_on_a_manager_list', 'a name already on a manager list'],
-    [{ display_name: 'New Person', manager_slug: 'managergone' }, 'manager_unknown', 'an inactive manager'],
-    [{ display_name: 'Alpha-Client!', manager_slug: 'managera' }, 'slug_taken', 'a different name with the same slug'],
+    [{ display_name: 'alpha client', manager_slug: 'managera', email: 'new@example.test' }, 'name_taken', 'a name already in use (any case)'],
+    [{ display_name: 'Listed Only', manager_slug: 'managera', email: 'new@example.test' }, 'name_on_a_manager_list', 'a name already on a manager list'],
+    [{ display_name: 'New Person', manager_slug: 'managergone', email: 'new@example.test' }, 'manager_unknown', 'an inactive manager'],
+    [{ display_name: 'Alpha-Client!', manager_slug: 'managera', email: 'new@example.test' }, 'slug_taken', 'a different name with the same slug'],
   ]) {
     h = harness(createState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', ...body }); out = await j(res);
     ok(res.status === 200 && out.ready === false && out.blockers.includes(code), 'create_preview: ' + label + ' is a blocker (' + code + ')');
   }
   const sheetMode = createState(); sheetMode.tables.syncview_runtime_flags[0].value = { source: 'sheet' };
-  h = harness(sheetMode); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managera' }); out = await j(res);
+  h = harness(sheetMode); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managera', email: 'new@example.test' }); out = await j(res);
   ok(out.ready === false && out.blockers.includes('authority_not_syncview'), 'create_preview: the Sheet still being the main copy is a blocker');
-  for (const [body, code] of [[{ display_name: '', manager_slug: 'managera' }, 'name_invalid'], [{ display_name: 'New Person', manager_slug: 'Bad Slug' }, 'manager_unknown'], [{ display_name: 'New Person', manager_slug: 'managera', email: 'nope' }, 'email_invalid'], [{ display_name: 'zz throwaway lower', manager_slug: 'managera' }, 'throwaway_name_needs_test_mode'], [{ display_name: '!!!', manager_slug: 'managera' }, 'slug_invalid']]) {
+  for (const [body, code] of [[{ display_name: '', manager_slug: 'managera' }, 'name_invalid'], [{ display_name: 'New Person', manager_slug: 'Bad Slug', email: 'new@example.test' }, 'manager_unknown'], [{ display_name: 'New Person', manager_slug: 'managera', email: 'nope' }, 'email_invalid'], [{ display_name: 'zz throwaway lower', manager_slug: 'managera', email: 'new@example.test' }, 'throwaway_name_needs_test_mode'], [{ display_name: '!!!', manager_slug: 'managera' }, 'slug_invalid']]) {
     h = harness(createState()); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-1', ...body }); out = await j(res);
     ok(res.status === 400 && out.error === code && h.db.calls.rpcs.length === 0, 'create: ' + code + ' is refused before the database is called');
   }
-  h = harness(createState()); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managera' }); out = await j(res);
+  h = harness(createState()); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managera', email: 'new@example.test' }); out = await j(res);
   ok(res.status === 400 && out.error === 'request_id_required' && h.db.calls.rpcs.length === 0, 'create: a request id (for a safe retry) is required');
   const created = createState(); let copied = 0;
   created.rpc.client_create_native = (a) => ({ data: { ok: true, outcome: 'created', mode: a.p_mode, client_slug: a.p_client_slug, slack: 'not_queued' }, error: null });
@@ -237,9 +238,46 @@ function makeReq(method, headers, body, spy) {
     ['some internal detail', '', 500, 'create_failed'],
   ]) {
     const st = createState(); st.rpc.client_create_native = () => ({ data: null, error: { message: msg, code: errCode } });
-    copied = 0; h = mkCreate(st); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-3', display_name: 'New Person', manager_slug: 'managera' }); out = await j(res);
+    copied = 0; h = mkCreate(st); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-3', display_name: 'New Person', manager_slug: 'managera', email: 'new@example.test' }); out = await j(res);
     ok(res.status === status && out.error === code && !JSON.stringify(out).includes('internal detail') && copied === 0, 'create: "' + msg + '" maps to ' + status + ' ' + code + ', leaks nothing and copies nothing');
   }
+
+  // ---- Slack: what the finalizer will still wait for (real clients only)
+  const slackState = () => {
+    const st = createState();
+    st.tables.social_media_managers[1].slack_profile_url = 'U0FIXTURE1';
+    st.tables.social_media_managers[0].slack_profile_url = 'https://not-a-user-id.example';
+    st.tables.client_onboarding = [{ first_name: 'New', last_name: 'Person', email: 'New@Example.test', created_at: '2026-10-08T00:00:00Z' }];
+    return st;
+  };
+  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === true && out.slack.mode === 'finalizer' && out.slack.form_received === true && out.slack.manager_slack_id === true && out.slack.filming_plan_linked === false, 'slack: a form under the same name and email, a manager with a Slack id, no filming plan yet: ready, and says what is still missing');
+  ok(out.managers.find((m) => m.slug === 'managerb').slack_id === true && out.managers.find((m) => m.slug === 'managera').slack_id === false && !JSON.stringify(out).includes('U0FIXTURE1'), 'slack: the picker says whether a manager has a Slack id, never the id');
+  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === false && out.blockers.includes('name_differs_from_form') && out.slack.form_name === 'New Person', 'slack: a name that differs from the form only in case is a blocker, with the form\'s exact name to use');
+  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'other@example.test' }); out = await j(res);
+  ok(out.ready === false && out.blockers.includes('email_differs_from_form'), 'slack: a form under the same name with another email is a blocker');
+  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-9', display_name: 'New Person', manager_slug: 'managerb' }); out = await j(res);
+  ok(res.status === 400 && out.error === 'email_required' && h.db.calls.rpcs.length === 0, 'slack: a real client needs an email (the finalizer sends an empty one to manual)');
+  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'ZZ THROWAWAY Slack', manager_slug: 'managerb' }); out = await j(res);
+  ok(out.ready === true && out.slack.mode === 'never' && !h.db.calls.selects.some((q) => q.table === 'client_onboarding'), 'slack: a test client never reaches Slack and needs no email');
+  // an AI-funnel form (ai_client_onboarding) counts as the form too
+  const aiState = slackState(); aiState.tables.client_onboarding = [];
+  aiState.tables.ai_client_onboarding = [{ first_name: 'New', last_name: 'Person', email: 'new@example.test', created_at: '2026-10-08T01:00:00Z' }];
+  h = harness(aiState); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === true && out.slack.form_received === true && h.db.calls.selects.some((q) => q.table === 'ai_client_onboarding'), 'slack: an AI-funnel client\'s form (ai_client_onboarding) is found, not shown as missing');
+  aiState.tables.ai_client_onboarding[0].first_name = 'new';
+  h = harness(aiState); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === false && out.blockers.includes('name_differs_from_form') && out.slack.form_name === 'new Person', 'slack: an AI-funnel form under another spelling is a blocker too');
+  // double spaces collapse on both sides, the same way validateCreate does
+  const spaced = slackState(); spaced.tables.client_onboarding[0].first_name = 'New ';
+  spaced.tables.client_onboarding[0].last_name = '  Person';
+  h = harness(spaced); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New  Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.ready === true && !out.blockers.includes('name_differs_from_form') && out.slack.form_name === 'New Person', 'slack: extra spaces in the form name or the typed name do not count as a difference');
+  const inner = slackState(); inner.tables.client_onboarding[0].first_name = 'New  Middle';
+  h = harness(inner); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Middle Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(!out.blockers.includes('name_differs_from_form'), 'slack: a double space inside the form\'s first name collapses too');
+  ok(mod.mapCreateError('client_create_email_required').code === 'email_required', 'slack: the database refusal for a missing email maps to email_required');
 
   // ---- source wiring
   const index = fs.readFileSync(path.join(ROOT, 'supabase/functions/client-onboarding/index.ts'), 'utf8');

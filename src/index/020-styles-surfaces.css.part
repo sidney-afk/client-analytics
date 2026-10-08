@@ -4416,6 +4416,12 @@
             html.boot-client .cal-tab-view .cal-empty { border: 1px solid var(--border-light); border-radius: 18px; background: var(--white); color: var(--text-secondary); padding: 28px 20px; font-size: 14px; line-height: 1.65; }
             html.boot-client .cal-tab-view .cal-empty .cal-link { min-width: 44px; min-height: 44px; }
             html.boot-client .cal-tab-view .cal-month-label { color: var(--text-primary); font-size: 17px; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading { min-height: 0; padding: 20px; display: flex; flex-direction: column; gap: 18px; background: var(--white); border: 1px solid var(--border-light); border-radius: 18px; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-label { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-rows { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-day { width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
             html.boot-client .cal-tab-view .cal-month-grid,
             html.boot-client .cal-tab-view .cal-week-grid { border: 0; background: transparent; border-radius: 18px; overflow: visible; gap: 16px; }
             html.boot-client .cal-tab-view .cal-month-dow,

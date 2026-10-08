@@ -30970,3 +30970,28 @@ pairs across four desktop widths and both themes. Public safe hashes are in
 private. The rebuilt index passes assembled == working tree == committed HEAD.
 The original failed/superseded invocations are retained. The batch is ready for
 Lighthouse's PR review, not deployed; the full phone finish line remains OPEN.
+
+## 369. [2026-10-07, BUILT, NOT DEPLOYED, FINAL BATCH GATES PENDING] Prism phone batch 3: client Calendar loading covers its own heading
+
+Confirmed with fictional client data at 375/390/430 and both theme preferences,
+then reproduced in a separate 24-state browser probe after settling. Client
+Month/Week skeleton elements escaped their loading container and painted over
+the Calendar heading; Month also said “Nothing scheduled” during loading.
+The new regression check rejects parent source with “month: skeleton paints
+over the Calendar heading”.
+
+Client phone Month/Week now render a compact, visibly labelled timeline loading
+panel. Desktop uses the original skeleton branch. Phone CSS remains owned by
+`html.boot-client` and capped at 767 pixels. Native view navigation and all
+4,500 expanded Calendar assertions pass. Twelve exact before/after pairs and
+personal receipts are in the Prism audit's `batch-3` directory; its current
+coverage still leaves the complete phone round and fresh review OPEN.
+
+Detailed client tooling now captures every requested width/theme preference,
+records the effective client light theme, proves a decoded supported thumbnail,
+and distinguishes linked Notes from a safe unlinked refusal. Reference-route
+and fixture-binding failures are retained in the batch notes. Final desktop
+parity, remaining existing phone reruns, final source/identity/HEAD checks and
+PR publication are pending. No database, workflow, live write, deployment or
+merge was performed. Lighthouse owns review and merge. Rollback: revert this
+batch and rebuild the generated index/assets.

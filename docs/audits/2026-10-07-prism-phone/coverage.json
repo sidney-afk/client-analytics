@@ -1,5 +1,5 @@
 {
-  "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96",
+  "sourceHash": "35a319476117fffce2e2be7b75d34b338a7538ed6fa6fd54820d71d200d17865",
   "widths": [
     375,
     390,
@@ -7203,74 +7203,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-empty-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "201a49eb8a535cc64c01a66119a1a69442339f3239336cf1a8cb38c6800af3df",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-empty-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "4366a302f77f7e3ec9c495bc25c77f75b06dfaee07c55e0f4059e3bac884e5ab",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-empty-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "5c6d39e8e01b3ada762e82ef7b86af62aaf31f6e5c239a0626aff6231bcb74af",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-empty-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "68c69b5813395f3a1b2362a6a6340863cbeb142b29c8d823d009deb741920cbb",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-empty-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "5cbb0562cae24aa697e7e36d2b833627cc0e4cbb431837bce961a72717683aad",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-empty-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "892450dd366121635232595a0cad9ee891470bf1e7c678602d95aa586522dc71",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7282,74 +7252,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7361,74 +7301,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-detail-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "7fafbbd54f9cda22dda377a7e5919ccc2cb07e2570fed9c8948b471906d2f54d",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-detail-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "fdb99022698a80747504216c8b2e05f26d08c564ad7a3049c933bba976172834",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-detail-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "c5e62f90858fc99dadd215a145a7c993ad5bc4b434500ba1d7f79fe1c7d7a061",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-detail-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "ae0985aad2c1d53e593b1220df2d4cf475c0396843e0ec60e9d76d06d168fb8d",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-detail-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "f1eda5ab862c2f841b86ae3852362b54e699b1137a7cf45a6658b5f756fa6df0",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-detail-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "6914be537d34e0dd33e5f62f77b1e0263cea5c22674d220deae97a901e8ddec2",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7440,74 +7350,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-error-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "62e146ed1e20dbea5a701b48079780b6a9b177e7941bca44f28e6975e3856542",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-error-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "319587a375b73cf9373c10fe6c49f1dfe51abd35407839183dad524d321ab981",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-error-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "5fb8b3a64ad73768889591e55580dba8eca9a1210f5723a78978b989e9274482",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-error-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "544af9452de449ec4b997dd62f66c0b36c49985a9fb3f73cc8161ac29d504447",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-error-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "00f916f4762a45618a1b3820e62b9ca0b12b033248e35cbc8296e011c93b3eb0",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-error-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "313d76a33b7aaec567dd46867fb2f4e4c6f6332007df19a381a1bb427c6cdb75",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7519,74 +7399,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-empty-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "87657e2eda94d1fa42980cc01c7687c6a13010c04f4643b91871f982a75ca23c",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-empty-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "a230b85e27022ccdbe55a868613a72fe26fdde4be35039926d3b197269565f72",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-empty-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "110c87cc46ac25775b019ae50b861c779c7dd3b802cc19fabb17179144a50451",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-empty-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "833743f45a61a7c7b548c5354f4c58afb8f29a0b7157d9b096584bedc6a1f8ba",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-empty-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "56c4b128d64545fc30d1b271cb726631f311b3cba7cc7a3609e81ebcf0ca8999",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-empty-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "b61d3f60970b5857fa91af7c2c0897b134bf8b2277f0015495433392ce571ad2",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7598,74 +7448,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "de1c5b9d4f39225c0b8cb6f947c6f931780fda5ae46902482cc843f38e7524ae",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "5ef93f7d14f65787f12b229275aca2428ded9aeafa522958ab4a763906d73160",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "8968f50824af0aa094a3a8ab81ad229ed034d1f574bb1f9a0cbe6e779891d7ab",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "1bd75dae16e30c60dbc9ac8c7b2ed8274dd3dc8a646472f3a66b9230d308169a",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "6d2bb5216e843312063be8bdd1e744ad51f9bf4fcb0d9c40f4fc93fd4b0f9fcd",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "452bbbd53d55f337280dd90bbbad8c66ba1ded3eb4712937337b26c3ddc3708b",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7677,74 +7497,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-error-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "f2b31c3d935686fb9fef90feec2380b6601019e630b8d8a96f4626f05444c282",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-error-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "7b506939c635ac41f733ecce83e8a27d68d5e8b64c1128699497db7e32a8e57f",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-error-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "a407159644e9697306565f396c201ba067abbfae57b2820ec15b55e94f23eb60",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-error-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "da5ac46bfce7f7c0abb7dcf455771850d6b7395aefe0e09483093b037d2a9ce5",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-error-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "6cf13861900210740fd64c2f71df6030b599442a509eb2d58e47c3e64bbf16d3",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-error-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "914b4d449ba32ab866ad6895ded7a1e57a576d5a871de45a68c0373c181b5632",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7756,74 +7546,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-range-actions-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "c1793c073d432bdcbbf4348fbadc51ab6df2c054644b1d3375b5c989e7537b27",
-            "note": "Personally inspected this complete three-point chart at native pixels. Native 7d/14d/30d/All filtering, unique series legend and layout guards pass; mixed-year and longer timelines remain separate open work.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-range-actions-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "43534795f8fd52a2fe9d4774d82cce1935b9f0b79762c120f673e4afb5ffbc7c",
-            "note": "Personally inspected this complete three-point chart at native pixels. Native 7d/14d/30d/All filtering, unique series legend and layout guards pass; mixed-year and longer timelines remain separate open work.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-range-actions-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "3d313a54b35fca3b19a6d97f90b75d76c52dfcaa1bf77fab5e88deffa7bf7aae",
-            "note": "Personally inspected this complete three-point chart at native pixels. Native 7d/14d/30d/All filtering, unique series legend and layout guards pass; mixed-year and longer timelines remain separate open work.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-range-actions-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "3a85e284a128453d90d349d64b94715f3ffe5e37c21f24cce8f9fb2844caeb62",
-            "note": "Personally inspected this complete three-point chart at native pixels. Native 7d/14d/30d/All filtering, unique series legend and layout guards pass; mixed-year and longer timelines remain separate open work.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-range-actions-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "186e876117d347c659cbdd1aeb8ea6f7a214996a790a63c946c17d13170edce1",
-            "note": "Personally inspected this complete three-point chart at native pixels. Native 7d/14d/30d/All filtering, unique series legend and layout guards pass; mixed-year and longer timelines remain separate open work.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-range-actions-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "c24553c81cf9da3dde3ed2ff632ef189dad6430fdc9c159596cc11cf327b8163",
-            "note": "Personally inspected this complete three-point chart at native pixels. Native 7d/14d/30d/All filtering, unique series legend and layout guards pass; mixed-year and longer timelines remain separate open work.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7835,74 +7595,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-search-actions-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-search-actions-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-search-actions-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-search-actions-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-search-actions-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-search-actions-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7914,74 +7644,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-refresh-actions-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "de1c5b9d4f39225c0b8cb6f947c6f931780fda5ae46902482cc843f38e7524ae",
-            "note": "Exact PNG match to personally inspected ads at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-refresh-actions-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "5ef93f7d14f65787f12b229275aca2428ded9aeafa522958ab4a763906d73160",
-            "note": "Exact PNG match to personally inspected ads at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-refresh-actions-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "8968f50824af0aa094a3a8ab81ad229ed034d1f574bb1f9a0cbe6e779891d7ab",
-            "note": "Exact PNG match to personally inspected ads at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-refresh-actions-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "1bd75dae16e30c60dbc9ac8c7b2ed8274dd3dc8a646472f3a66b9230d308169a",
-            "note": "Exact PNG match to personally inspected ads at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-refresh-actions-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "6d2bb5216e843312063be8bdd1e744ad51f9bf4fcb0d9c40f4fc93fd4b0f9fcd",
-            "note": "Exact PNG match to personally inspected ads at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-refresh-actions-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "452bbbd53d55f337280dd90bbbad8c66ba1ded3eb4712937337b26c3ddc3708b",
-            "note": "Exact PNG match to personally inspected ads at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -7993,74 +7693,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-refresh-actions-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "1c2b5382525efbe2abfb00dae802d6c58df7f63341dc644b29d23301feab3184",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-refresh-actions-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "ef9bbb35c02dd47a289708c28996b8409cfe28e99165ee2d2d9f95e4c292e9ab",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-refresh-actions-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "e8fdc206113f6fd86a168ec07fb14231fe840d124d569cf3604a92d9f4ad1054",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-refresh-actions-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "9b41c000d6382d8adf8a41edf9481a12d90d8792cce74c7558cfefc935509a6f",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-refresh-actions-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "670db6a7475d5dcc78578c8272bb56eee8f0b57118381cf6efa45a82fb93e423",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-refresh-actions-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "a8b84347b160ac4264e350398857cc14b7fc51463db34ecdcf4ca8039032ef5c",
-            "note": "Exact PNG match to personally inspected quiz at this width/theme; the named native read/filter action journey passes.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -8954,74 +8624,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-loading-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "7b9e10ada91e03dd6b9afaeb661e3d8a66125c590c5eee49d7ff95175dc4e546",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-loading-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "76ea666ee2ffc24b1e2a903bd1effe15b9aa1225f99d35154af7b42bd35915f6",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-loading-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "f769171f4dcf9f208fec69fc344870560ca6798346c07040abc2040a861490da",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-loading-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "5ac7335f4cf9cf95fa44c7fdaabf2eb2d72724006862be17716f30100be74130",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-loading-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "2bb27f946ab526155d966b6499c956e2f93b9009da4d9b7e16c9d33672386318",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/quiz-loading-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "c066ad5055cbbc355c65b36a2b19386efdd52f36069985aec0af73f16acf3829",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -9033,74 +8673,44 @@
         {
           "width": 375,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-loading-light-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "422022292be552ffb5369832f771143a018a588084044633e83b6ae51bc59038",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 375,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-loading-dark-375.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "77a8a365a1a29f42812f8bf2773220663ec6166c2fe8e3debc951ca2fd929e8f",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-loading-light-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "65fb2edd80b2819e84dae2e17c1a2962ddca0af3820cd004c8b65ea0c29eebd3",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 390,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-loading-dark-390.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "80176e384f0ef1bdfb55a23ae6ef962854e738df50b5a1f96069749fa4935a89",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-loading-light-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "2a34e0a62fb081e84a381698b8bd15e4445b52c36ac8e9d76f73debd2cd5a23b",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "width": 430,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": "batch-2/after/ads-loading-dark-430.png",
-          "review": {
-            "reviewer": "Prism",
-            "sha256": "212a50517e9b21ca7ee98bde1e43f1528e2b44b8bd05d1aa9e0699ed9415be32",
-            "note": "Personally inspected this named state at native pixels. Native read/filter/chart actions and phone layout guards pass; this does not accept other states on the screen.",
-            "sourceHash": "7e94758fe7a6ba0f0b8dfe33ce152606f443c8b6461fc2855e0538cfa7273a96"
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -9597,6 +9207,55 @@
     {
       "lane": "client-calendar-expanded",
       "name": "caption",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "caption-draft",
       "tab": "calendar",
       "cells": [
         {
@@ -10337,6 +9996,103 @@
         {
           "width": 375,
           "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-375-light.png",
+            "sha256": "1de33237081dd14ab1a859ebb534b92dcfce900b040f78ed23a36f81c28745f6"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "1de33237081dd14ab1a859ebb534b92dcfce900b040f78ed23a36f81c28745f6",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-375-dark.png",
+            "sha256": "1de33237081dd14ab1a859ebb534b92dcfce900b040f78ed23a36f81c28745f6"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "1de33237081dd14ab1a859ebb534b92dcfce900b040f78ed23a36f81c28745f6",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-390-light.png",
+            "sha256": "bbb1d417321f31cb14d3d2262986029dcb4d30034a2d77de548ce76d0d5d72a5"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "bbb1d417321f31cb14d3d2262986029dcb4d30034a2d77de548ce76d0d5d72a5",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-390-dark.png",
+            "sha256": "bbb1d417321f31cb14d3d2262986029dcb4d30034a2d77de548ce76d0d5d72a5"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "bbb1d417321f31cb14d3d2262986029dcb4d30034a2d77de548ce76d0d5d72a5",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-430-light.png",
+            "sha256": "37cf3347269449000c720a6bb0e20057a02ea5f223d38e7ff44ca864e1c284d8"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "37cf3347269449000c720a6bb0e20057a02ea5f223d38e7ff44ca864e1c284d8",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-430-dark.png",
+            "sha256": "37cf3347269449000c720a6bb0e20057a02ea5f223d38e7ff44ca864e1c284d8"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "37cf3347269449000c720a6bb0e20057a02ea5f223d38e7ff44ca864e1c284d8",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "loading-review",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
           "status": "OPEN",
           "capture": null,
           "review": null
@@ -10375,6 +10131,152 @@
           "status": "OPEN",
           "capture": null,
           "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "loading-organizer",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-calendar-expanded",
+      "name": "loading-month",
+      "tab": "calendar",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-month-375-light.png",
+            "sha256": "0be28ea4374da04add3d4d1031d5945417ee76080e5a835ee5efdbf320be9d6e"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "0be28ea4374da04add3d4d1031d5945417ee76080e5a835ee5efdbf320be9d6e",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-month-375-dark.png",
+            "sha256": "0be28ea4374da04add3d4d1031d5945417ee76080e5a835ee5efdbf320be9d6e"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "0be28ea4374da04add3d4d1031d5945417ee76080e5a835ee5efdbf320be9d6e",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-month-390-light.png",
+            "sha256": "d3117027e136be72e909e6c7bfa8f68dbcec867f4dd7ebadf62cd8a653563a19"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "d3117027e136be72e909e6c7bfa8f68dbcec867f4dd7ebadf62cd8a653563a19",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-month-390-dark.png",
+            "sha256": "d3117027e136be72e909e6c7bfa8f68dbcec867f4dd7ebadf62cd8a653563a19"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "d3117027e136be72e909e6c7bfa8f68dbcec867f4dd7ebadf62cd8a653563a19",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-month-430-light.png",
+            "sha256": "67bea01efe120ece41c7e6465df6e7d7679a2beb07f070531b9e9b2936e67e7c"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "67bea01efe120ece41c7e6465df6e7d7679a2beb07f070531b9e9b2936e67e7c",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-3/after/loading-month-430-dark.png",
+            "sha256": "67bea01efe120ece41c7e6465df6e7d7679a2beb07f070531b9e9b2936e67e7c"
+          },
+          "review": {
+            "file": "batch-3/reviews.json",
+            "sha256": "67bea01efe120ece41c7e6465df6e7d7679a2beb07f070531b9e9b2936e67e7c",
+            "reviewer": "Prism"
+          },
+          "effectiveTheme": "light"
         }
       ]
     },
@@ -11263,6 +11165,55 @@
     {
       "lane": "client-links-expanded",
       "name": "samples-notes",
+      "tab": "samples",
+      "cells": [
+        {
+          "width": 375,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 375,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "width": 430,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "client-links-expanded",
+      "name": "samples-notes-unlinked",
       "tab": "samples",
       "cells": [
         {

@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7246 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7252 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2080 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -40,7 +40,7 @@
 | 32 | `130-calendar-model-cache.js.part` | 1406 | Returns the comments array for a given component. Falls back to the |
 | 33 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 34 | `132-calendar-dates-ids.js.part` | 14 | — |
-| 35 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
+| 35 | `133-core-loading-skeletons.js.part` | 378 | Modern animated loader — a single rotating ring with a subtle label. |
 | 36 | `134-calendar-prefs-mount.js.part` | 1081 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 37 | `140-calendar-legacy-outbox.js.part` | 3497 | Shed the retired legacy rows from storage, under the surface mutation |
 | 38 | `150-calendar-hydration-import.js.part` | 2284 | For a card linked to a real sub-issue (not a parent), return which of |

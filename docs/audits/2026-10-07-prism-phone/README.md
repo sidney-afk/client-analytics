@@ -9,6 +9,10 @@ foreground calls, so screenshot checks do not interrupt other applications.
 This supersedes the earlier visible-browser setup for Prism's ongoing review.
 Retain the same native product fixtures, action assertions and screenshot review.
 
+[Batch 3 in progress](batch-3/README.md) records the client Calendar loading
+repair and twelve personally reviewed before/after pairs. Final batch gates
+and PR publication are pending; the full phone finish line remains OPEN.
+
 [Coverage](COVERAGE.md) lists the native scenarios and all width/theme cells.
 [Machine-readable coverage](coverage.json) also tracks ten discovery obligations
 for every staff tab, reviewer/admin subtab, personal Time Off and client review

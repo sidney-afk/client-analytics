@@ -30,6 +30,43 @@
       "status": "PASS",
       "logHash": "93a48dc11665b225db70b63ee8b666a15e4912b9498324c35851c61e33f36dbd",
       "lastLines": "minified parts: 19 files, 2659 KB, 5219 top-level names, 0 lost, 0 changed kind\n\ncheck-modules: all checks passed"
+    },
+    {
+      "check": "map-final",
+      "status": "PASS",
+      "logHash": "d3ec31d117f2a0e7a949749adb15b4819bca499e6c0990615a535c7e0ce2ec5f",
+      "lastLines": "\nrepo-map-sync: 1125 passed, 0 failed"
+    },
+    {
+      "check": "truth",
+      "status": "PASS",
+      "logHash": "f553c14b610dd9941807e8830bdca3c295d1591c971c30e210d085c3d1489294",
+      "lastLines": "\ntruth-sync: 515 passed, 0 failed"
+    },
+    {
+      "check": "index",
+      "status": "PASS",
+      "logHash": "0826c45075b6927965d1550acc2612b50b7201bf9b36b8a2e66ab4ea9572cf7d",
+      "lastLines": "\ncheck-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    },
+    {
+      "check": "exposure",
+      "status": "PASS",
+      "logHash": "4a1559ec6dbe1dd92441002df97cbee85ff2ec7ea285ab4c3ac10d65228af072",
+      "lastLines": "\nThis change adds no client slug and no colleague's name \u2705"
+    },
+    {
+      "check": "byte",
+      "status": "PASS",
+      "logHash": "f7a57513322a1afd8eeb0f6c7284f619d1d87a24e14cd204b19a7a78bcbfe80b",
+      "lastLines": "byte-pinned line endings vs origin/main: 106 pinned, 0 touched by this change\n  OK    no byte-pinned file changed its line-ending composition"
+    },
+    {
+      "check": "map-initial",
+      "status": "SUPERSEDED_FAILURE",
+      "logHash": "79f02fd255df3ccaa237e316a400794309ad6e740ea33a2a9a78d3289a71218f",
+      "lastLines": "repo-map-sync: 1124 passed, 1 failed",
+      "reason": "Abbreviated documentation path was incorrectly relative to repo root. Fixed the map to the complete existing path; 1125 passed, zero failed."
     }
   ],
   "desktopBaseline": "59a2158ce53f1d28ea6415a5c496cc80a0af5e60; branch 4 updated product",

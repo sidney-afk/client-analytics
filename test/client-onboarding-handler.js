@@ -257,8 +257,18 @@ function makeReq(method, headers, body, spy) {
   ok(out.ready === false && out.blockers.includes('name_differs_from_form') && out.slack.form_name === 'New Person', 'slack: a name that differs from the form only in case is a blocker, with the form\'s exact name to use');
   h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'other@example.test' }); out = await j(res);
   ok(out.ready === false && out.blockers.includes('email_differs_from_form'), 'slack: a form under the same name with another email is a blocker');
-  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-9', display_name: 'New Person', manager_slug: 'managerb' }); out = await j(res);
-  ok(res.status === 400 && out.error === 'email_required' && h.db.calls.rpcs.length === 0, 'slack: a real client needs an email (the finalizer sends an empty one to manual)');
+  // owner decision 2026-10-10: a real client may be created without an email
+  const noEmail = slackState(); noEmail.tables.client_onboarding = [];
+  noEmail.rpc.client_create_native = (a) => ({ data: { ok: true, outcome: 'created', mode: a.p_mode, client_slug: a.p_client_slug, slack: 'finalizer_nudged' }, error: null });
+  h = harness(noEmail); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb' }); out = await j(res);
+  ok(res.status === 200 && out.ready === true && out.mode === 'client' && out.slack.mode === 'finalizer' && out.slack.client_email === false, 'no email: the preview is ready and the Slack checklist shows the client email as missing');
+  h = harness(noEmail); res = await post(h, 'admin-key', { action: 'create', member_id: 'm-admin', request_id: 'req-create-9', display_name: 'New Person', manager_slug: 'managerb' }); out = await j(res);
+  const ne = h.db.calls.rpcs.find((c) => c.name === 'client_create_native');
+  ok(res.status === 200 && out.ok && out.mode === 'client' && ne && ne.args.p_email === '' && ne.args.p_mode === 'client', 'no email: a real client is created, with an empty email sent to the database');
+  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb', email: 'new@example.test' }); out = await j(res);
+  ok(out.slack.client_email === true, 'with an email: the checklist shows the client email as in');
+  h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'New Person', manager_slug: 'managerb' }); out = await j(res);
+  ok(out.ready === true && !out.blockers.includes('email_differs_from_form') && out.slack.form_received === true && out.slack.client_email === false && out.slack.form_email === 'New@Example.test', 'no email but a form on file: not a blocker; the form\'s email is offered and the email shows as missing');
   h = harness(slackState()); res = await post(h, 'admin-key', { action: 'create_preview', member_id: 'm-admin', display_name: 'ZZ THROWAWAY Slack', manager_slug: 'managerb' }); out = await j(res);
   ok(out.ready === true && out.slack.mode === 'never' && !h.db.calls.selects.some((q) => q.table === 'client_onboarding'), 'slack: a test client never reaches Slack and needs no email');
   // an AI-funnel form (ai_client_onboarding) counts as the form too

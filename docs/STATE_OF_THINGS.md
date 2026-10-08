@@ -56,11 +56,14 @@ here with where it stopped, so it can be restarted.
   27-step checklist (admin only; OPEN_REPAIRS 332). Next, each with the owner's go: "Create client" (step 2.5),
   then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
   **"Create client" is LIVE since 2026-10-08** (OPEN_REPAIRS 372): both migrations applied, `client-onboarding`
-  deployed, throwaway create and teardown passed (Lighthouse). **Its Slack nudge is built, not applied** (PR 2011):
+  deployed, throwaway create and teardown passed (Lighthouse). **Its Slack nudge is applied** (PR 2011, live database checked 2026-10-10):
   real clients only, no n8n edit; the database nudges the existing finalizer webhook after a create and when a filming
   plan link is saved, the 15 minute timer covers the rest. Owner steps in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 6
   (apply `2026-10-09-create-client-slack-nudge.sql`, redeploy `client-onboarding`). Clients who never fill the form
-  would need an n8n change, written out there for the owner's go. **Stage 3 dry run done**, nothing saved:
+  would need an n8n change, written out there for the owner's go.
+  **2026-10-10 (owner decision): a real client no longer needs an email** (OPEN_REPAIRS 384): built, owner pastes
+  `2026-10-10-create-client-email-optional.sql` and redeploys `client-onboarding` (step 7 of the same file).
+  **Stage 3 dry run done**, nothing saved:
   `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
   confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.
   The measured picture of how a client is onboarded today (every step, every per-client resource with

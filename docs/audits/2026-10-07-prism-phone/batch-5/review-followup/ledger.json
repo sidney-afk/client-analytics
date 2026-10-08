@@ -1,0 +1,15 @@
+{
+  "entry380": "unique, last; owns batches 4 and 5",
+  "existingMainDuplicateNumbers": [
+    "13",
+    "14",
+    "22",
+    "23",
+    "175",
+    "176",
+    "177",
+    "180"
+  ],
+  "newDuplicateNumbers": [],
+  "historicalRecords": "retained; no speculative renumbering"
+}

@@ -21,6 +21,10 @@ const shots = arg('shots', ''), receipts = [], failures = [];
 const allStates = process.argv.includes('--all-states');
 const settle = p => p.waitForTimeout(850);
 const core = SCENARIOS.filter(s => ['analytics-overview','analytics-detail','workload-week','linear-list','linear-detail','tiktok-client-ready','instagram-client-ready','menu-tabs','menu-more','menu-client'].includes(s.id)).map(s => ({ ...s, name: s.id }));
+core.push({...SCENARIOS.find(s=>s.id==='tiktok-client-ready'),name:'tiktok-client-search',steps:async p=>{
+  await SCENARIOS.find(s=>s.id==='tiktok-client-ready').steps(p);
+  await p.locator('#tkClientInput').fill('Client B');await settle(p);
+}});
 core.push({...SCENARIOS.find(s=>s.id==='linear-list'),name:'linear-project',steps:async p=>{
   await p.evaluate(()=>{const id=Object.keys(_prodProjects()).find(k=>_prodIssues().some(i=>i.project===k));if(!id)throw new Error('Missing fictional project fixture');_prodOpenProject(id);});
   await p.waitForSelector('[data-prod-project-detail]');await settle(p);
@@ -66,9 +70,45 @@ async function phoneMeasure(page) {
 }
 async function verify(page, name, width, theme) {
   await settle(page); await page.evaluate(() => document.fonts.ready);
+  let fonts;
+  if(shots) {
+    fonts=await page.evaluate(async()=>{
+      const weights=[400,500,600,700,800];
+      for(const weight of weights) await document.fonts.load(weight+' 16px "Plus Jakarta Sans"');
+      return weights.map(weight=>({weight,loaded:[...document.fonts].some(face=>face.family.replace(/["']/g,'')==='Plus Jakarta Sans' && Number(face.weight)===weight && face.status==='loaded')}));
+    });
+    assert.ok(fonts.every(face=>face.loaded),'Native screenshot requires every fixture font weight; fallback typography is not acceptance proof');
+  }
   const m = await phoneMeasure(page);
   const faults = [];
   if (!before) {
+    if(name==='workload-loading') {
+      const loading=await page.locator('.workload-overview-row.is-skeleton').evaluateAll(rows=>rows.map(row=>({empty:getComputedStyle(row,'::after').content,shape:getComputedStyle(row.querySelector('.sv-skeleton')).backgroundColor,card:getComputedStyle(row).backgroundColor})));
+      assert.ok(loading.length && loading.every(row=>!row.empty.includes('Nothing overdue') && row.shape!==row.card),'Unknown workload must not claim empty work; loading shapes must remain visible in both themes');
+      assert.ok(await page.locator('.workload-skeleton-card .sv-skeleton').evaluateAll(shapes=>shapes.length>0&&shapes.every(shape=>getComputedStyle(shape).backgroundColor!==getComputedStyle(shape.parentElement).backgroundColor)),'Workload calendar loading shapes remain visible against their cards in both themes');
+    }
+    if(name==='tiktok-client-ready') {
+      const text=await page.evaluate(()=>{
+        const rgb=value=>value.match(/[\d.]+/g).map(Number);
+        const luminance=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        const nodes=[...document.querySelectorAll('.tk-queue-empty,.tk-preview-card h3,.tk-preview-card h3 span,.tk-card textarea[placeholder],.tk-card input[placeholder]')].filter(node=>node.checkVisibility({checkVisibilityCSS:true}));
+        return nodes.map(node=>{
+          const placeholder=node.matches('textarea,input'),style=getComputedStyle(node,placeholder?'::placeholder':null);
+          let background=[255,255,255,1];
+          for(let parent=node;parent;parent=parent.parentElement){const color=rgb(getComputedStyle(parent).backgroundColor);if(color.length===3||color[3]===1){background=color;break;}}
+          const foreground=luminance(rgb(style.color)),back=luminance(background);
+          return {selector:node.id||node.className,font:parseFloat(style.fontSize),opacity:Number(style.opacity),contrast:(Math.max(foreground,back)+.05)/(Math.min(foreground,back)+.05)};
+        });
+      });
+      assert.ok(text.length&&text.every(node=>node.font>=13&&node.opacity===1&&node.contrast>=4.5),'TikTok supporting text and placeholders are readable: '+JSON.stringify(text));
+    }
+    if(name==='workload-empty') assert.ok(await page.locator('.workload-overview-row:not(.is-skeleton)').evaluateAll(rows=>rows.length>0 && rows.every(row=>getComputedStyle(row,'::after').content.includes('Nothing overdue'))),'Loaded empty workload keeps its truthful empty explanation');
+    if(name==='analytics-loading') {
+      const loader=await page.locator('.analytics-overview-skeleton').evaluate(node=>({gap:node.getBoundingClientRect().top-document.getElementById('pageTop').getBoundingClientRect().bottom,label:getComputedStyle(node,'::before').content,rows:[...node.querySelectorAll('tbody tr')].map(row=>{const box=row.getBoundingClientRect();return {left:box.left,right:box.right,height:box.height,radius:parseFloat(getComputedStyle(row).borderRadius)};})}));
+      assert.ok(loader.label.includes('Loading analytics') && loader.gap>=8 && loader.gap<=32,'Analytics loading identifies its state with a compact gap after search');
+      assert.ok(loader.rows.length && loader.rows.every(row=>row.left>=15 && row.right<=width-15 && row.height>=200 && row.height<=350 && row.radius>=20),'Analytics loading cards are complete, rounded and contained in the phone');
+      assert.ok(await page.locator('.analytics-overview-skeleton tbody td').evaluateAll(cells=>cells.filter(cell=>cell.checkVisibility({checkVisibilityCSS:true})).every(cell=>['Top','Right','Bottom','Left'].every(side=>parseFloat(getComputedStyle(cell)['border'+side+'Width'])===0))),'Analytics loading bars must not inherit colored metric-cell borders');
+    }
     if (name === 'today-all-clear') {
       assert.ok(await page.locator('.tdy-rings').isHidden(), 'empty day must not repeat five zero-item job tiles');
       const heading = await page.locator('.tdy-win h2').boundingBox();
@@ -135,14 +175,39 @@ async function verify(page, name, width, theme) {
     assert.equal(await page.locator('.overview-table').count(),0,'phone card choice did not survive resize');
     assert.equal(await page.evaluate(()=>localStorage.getItem('syncview_viewMode')),saved,'desktop saved preference changed');
   }
-  if (!before && /^(tiktok|instagram)-client-ready$/.test(name) && [390,393,412].includes(width)) {
+  if (!before && /^(tiktok-client-(ready|search)|instagram-client-ready)$/.test(name)) {
     const label=page.locator('.tk-drop-title').first();
+    const account=page.locator('.tk-profile-chip').first();
+    let humanAccount;
+    if(name.startsWith('tiktok-client-')) {
+      humanAccount='@client_a';
+      assert.equal(await account.textContent(),humanAccount,'TikTok phone account uses the human-readable handle or selected name');
+      assert.match(await page.locator('.tk-profile-line').first().textContent(),/^Posting (to|for) /,'TikTok account wording explains the destination without a provider identifier');
+      if(name==='tiktok-client-ready') {
+        const input=page.locator('#tkClientInput');
+        for(const query of ['Client B','Cli','']) {
+          await input.fill(query);await settle(page);
+          assert.equal(await account.textContent(),humanAccount,'Typing '+JSON.stringify(query)+' must not change the picked TikTok destination');
+        }
+        await input.fill('Client B');
+        await page.locator('[data-tk-client-pick="Client B"]').tap();await settle(page);
+        assert.equal(await account.textContent(),'@client_b','Choosing another client updates the destination');
+        await page.evaluate(()=>{clientMap['Client C'].tiktok_handle='';});
+        await page.locator('#tkClientInput').fill('Client C');
+        await page.locator('[data-tk-client-pick="Client C"]').tap();await settle(page);
+        assert.equal(await account.textContent(),'Client C','A picked client without a handle uses its selected name');
+        await page.locator('#tkClientInput').fill('Client A');
+        await page.locator('[data-tk-client-pick="Client A"]').tap();await settle(page);
+      }
+    }
     await page.evaluate(()=>window.__phoneDropTitle=document.querySelector('.tk-drop-title'));
     assert.match(await label.textContent(),/tap to (browse|add)/,'phone browse copy is missing');
     await page.setViewportSize({width:1024,height:844});await settle(page);
+    if(name.startsWith('tiktok-client-')) assert.match(await page.locator('.tk-profile-line').first().textContent(),/^Posts to Post For Me account\s+spc_example_0/,'TikTok desktop restores the original provider account wording and id');
     assert.match(await label.textContent(),/click to (browse|add)/,'phone browse copy remained on desktop');
     assert.ok(await page.evaluate(()=>window.__phoneDropTitle===document.querySelector('.tk-drop-title')),'resize rebuilt the file chooser');
     await page.setViewportSize({width,height:heightFor(width,arg('height'))});await settle(page);
+    if(name.startsWith('tiktok-client-')) assert.equal(await account.textContent(),humanAccount,'TikTok human-readable phone destination returns after resize');
     assert.match(await label.textContent(),/tap to (browse|add)/,'phone browse copy did not return');
   }
   if (!before && name === 'linear-detail' && width === 390) {
@@ -176,7 +241,7 @@ async function verify(page, name, width, theme) {
     await selected.click();
     assert.ok(!await page.evaluate(id => _prodState.selected.has(id), id), 'native row selection did not clear');
   }
-  receipts.push({name,width,theme,...m,problems:faults});
+  receipts.push({name,width,theme,...m,fonts,problems:faults});
   failures.push(...faults.map(x => `${name} ${width} ${theme}: ${x}`));
   console.log((faults.length ? 'FAIL ' : 'ok ') + name + ' ' + width + ' ' + theme + (faults.length ? ': ' + faults.join('; ') : ''));
 }

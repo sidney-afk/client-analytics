@@ -1,0 +1,74 @@
+{
+  "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+  "checks": [
+    {
+      "check": "before",
+      "status": "EXPECTED_BEFORE_FAILURE",
+      "logHash": "ae9953bfc5df65f317ff647b00091f8c7dc00144a607d36359ee0fd4ddfd43fd",
+      "lastLines": "FAIL tiktok-client-search 412 light: TikTok phone account uses the human-readable handle or selected name\nFAIL tiktok-client-search 412 dark: TikTok phone account uses the human-readable handle or selected name\nstaff-phone-final-pass: 0 renders, 8 problems"
+    },
+    {
+      "check": "pre-main-after",
+      "status": "PASS",
+      "logHash": "2ff0e6a125296ab16df8e32d2eb5230f0cec75b63fb1af48616faa3ab822891f",
+      "lastLines": "ok tiktok-client-search 412 light\nok tiktok-client-search 412 dark\nstaff-phone-final-pass: 8 renders, 0 problems"
+    },
+    {
+      "check": "legacy-tiktok",
+      "status": "PASS",
+      "logHash": "964913f0535aaa401b4a2d93e59215aa247423b674843a140504043c67e2cc4c",
+      "lastLines": "ok tiktok-client-search 430 light\nok tiktok-client-search 430 dark\nstaff-phone-final-pass: 18 renders, 0 problems"
+    },
+    {
+      "check": "desktop",
+      "status": "PASS",
+      "logHash": "fce9982a1542c6a4b1ca49c35064973d5a583880b4b0cd49da2a7bebbee657f0",
+      "lastLines": "ok tiktok-client-ready-dark-cold: desktop pixels and computed styles identical\nok tiktok-client-ready-dark-warm: desktop pixels and computed styles identical\nFIXTURE_DESKTOP_PARITY: 4/4 exact 1440 desktop pairs; native Today/Notes/Analytics/Workload/TikTok fixtures; cold and phone-to-desktop; no live writes."
+    },
+    {
+      "check": "modules",
+      "status": "PASS",
+      "logHash": "93a48dc11665b225db70b63ee8b666a15e4912b9498324c35851c61e33f36dbd",
+      "lastLines": "minified parts: 19 files, 2659 KB, 5219 top-level names, 0 lost, 0 changed kind\n\ncheck-modules: all checks passed"
+    },
+    {
+      "check": "map-final",
+      "status": "PASS",
+      "logHash": "d3ec31d117f2a0e7a949749adb15b4819bca499e6c0990615a535c7e0ce2ec5f",
+      "lastLines": "\nrepo-map-sync: 1125 passed, 0 failed"
+    },
+    {
+      "check": "truth",
+      "status": "PASS",
+      "logHash": "f553c14b610dd9941807e8830bdca3c295d1591c971c30e210d085c3d1489294",
+      "lastLines": "\ntruth-sync: 515 passed, 0 failed"
+    },
+    {
+      "check": "index",
+      "status": "PASS",
+      "logHash": "0826c45075b6927965d1550acc2612b50b7201bf9b36b8a2e66ab4ea9572cf7d",
+      "lastLines": "\ncheck-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    },
+    {
+      "check": "exposure",
+      "status": "PASS",
+      "logHash": "4a1559ec6dbe1dd92441002df97cbee85ff2ec7ea285ab4c3ac10d65228af072",
+      "lastLines": "\nThis change adds no client slug and no colleague's name \u2705"
+    },
+    {
+      "check": "byte",
+      "status": "PASS",
+      "logHash": "f7a57513322a1afd8eeb0f6c7284f619d1d87a24e14cd204b19a7a78bcbfe80b",
+      "lastLines": "byte-pinned line endings vs origin/main: 106 pinned, 0 touched by this change\n  OK    no byte-pinned file changed its line-ending composition"
+    },
+    {
+      "check": "map-initial",
+      "status": "SUPERSEDED_FAILURE",
+      "logHash": "79f02fd255df3ccaa237e316a400794309ad6e740ea33a2a9a78d3289a71218f",
+      "lastLines": "repo-map-sync: 1124 passed, 1 failed",
+      "reason": "Abbreviated documentation path was incorrectly relative to repo root. Fixed the map to the complete existing path; 1125 passed, zero failed."
+    }
+  ],
+  "desktopBaseline": "59a2158ce53f1d28ea6415a5c496cc80a0af5e60; branch 4 updated product",
+  "hosted": "PENDING on new push; no deployed claim"
+}

@@ -94,6 +94,99 @@ add('clients-empty', 'clients', () => { _caState.rows = []; _caState.loaded = tr
 add('clients-loading', 'clients', () => { _caState.rows = []; _caState.loaded = false; _caState.loading = true; _caState.error = null; _caState.selected = null; _caPaint(); });
 add('client-detail', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = row.slug; _caPaint(); });
 add('clients-error', 'clients', () => { _caState.rows = []; _caState.loading = false; _caState.loaded = false; _caState.error = 'The client list could not load. Refresh to try again.'; _caPaint(); });
+// Every menu starts from its own native state; preceding Edit/History cases
+// must not silently change which controls the next screenshot can reach.
+const clientMenus = (data, row) => {
+  Object.assign(_caState, { rows:[row],loaded:true,loading:false,error:null,
+    selected:row.slug,search:'',searchOpen:false,listOpen:false,showArchived:false,
+    edit:null,folds:{},picker:false,pickerBusy:false,history:null,historyOpen:false,
+    managers:[{slug:'fixture-manager',name:'Example manager'},{slug:'fixture-manager-two',name:'Another manager'}],
+    assignments:{[row.slug]:'fixture-manager'},managersError:null,managersLoading:false });
+  _caRender();
+};
+add('clients-list-menu','clients',clientMenus,async page=>{
+  await page.locator('#caAllBtn').click();
+  expect(await page.locator('#caDrop .ca-row').count()===1,'Clients: All clients opens the native fixture list');
+  await page.locator('#caDrop .ca-row').click();
+  expect(await page.locator('#caDrop').isHidden(),'Clients: selecting a native list row closes the list');
+  expect(await page.evaluate(()=>_caState.selected==='phone-fixture'),'Clients: list selection reaches the correct fixture profile');
+  await page.locator('#caAllBtn').click();
+});
+add('clients-search-menu','clients',clientMenus,async page=>{
+  await page.locator('#caSearch').fill('example');
+  expect(await page.locator('#caSearchPop .ca-opt').count()===1,'Clients: native search filters the fixture name');
+  await page.locator('#caSearch').press('ArrowDown');
+  await page.locator('#caSearch').press('Enter');
+  expect(await page.locator('#caSearchPop').isHidden(),'Clients: keyboard selection closes the search results');
+  expect(await page.evaluate(()=>_caState.selected==='phone-fixture'),'Clients: keyboard selection reaches the matching fixture');
+  await page.locator('#caSearch').fill('example');
+});
+add('client-manager-menu','clients',clientMenus,async page=>{
+  await page.locator('#caMgrBtn').click();
+  expect(await page.locator('#caMgrPop .ca-mgr-opt').count()===2,'Clients: native manager menu contains the fictional roster');
+  await page.keyboard.press('Escape');
+  expect(await page.locator('#caMgrPop').count()===0,'Clients: Escape closes the manager menu');
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const focus=await page.locator('#caMgrBtn').evaluate(node=>({restored:node===document.activeElement,active:document.activeElement?.id||document.activeElement?.className}));
+  expect(focus.restored,'Clients: closing the manager menu restores focus '+JSON.stringify(focus));
+  await page.locator('#caMgrBtn').click();
+  if(!desktop) {
+    await page.locator('.ca-scrim').tap({position:{x:10,y:10}});
+    expect(await page.locator('#caMgrPop').count()===0,'Clients: tapping the backdrop closes the manager sheet');
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    expect(await page.locator('#caMgrBtn').evaluate(node=>node===document.activeElement),'Clients: backdrop dismissal restores the current manager trigger');
+    await page.locator('#caMgrBtn').tap();
+  }
+});
+// These native saves never leave the browser fixture. Verify optimistic
+// concurrency and the rendered result, rather than merely clicking a button.
+async function clientWrite(page,action,response,run) {
+  const requests=[];
+  const handler=async route=>{
+    if(route.request().method()==='OPTIONS') return route.fulfill({status:204,headers:CORS,body:''});
+    const payload=route.request().postDataJSON();requests.push(payload);
+    expect(payload.action===action,'Clients: expected native write action '+action);
+    return route.fulfill({status:200,headers:CORS,json:response(payload)});
+  };
+  await page.route('**/functions/v1/client-profile-write',handler);
+  try {await run(requests);} finally {await page.unroute('**/functions/v1/client-profile-write',handler);}
+}
+add('client-manager-change-actions','clients',clientMenus,async page=>{
+  await clientWrite(page,'assign_manager',payload=>({ok:true,manager_slug:payload.manager_slug}),async requests=>{
+    await page.locator('#caMgrBtn').click();
+    await page.locator('#caMgrPop .ca-mgr-opt').filter({hasText:'Another manager'}).click();
+    await page.waitForFunction(()=>!_caState.pickerBusy&&!_caState.picker&&_caState.assignments['phone-fixture']==='fixture-manager-two');
+    expect(requests.length===1&&requests[0].slug==='phone-fixture'&&requests[0].expected_manager_slug==='fixture-manager'&&requests[0].manager_slug==='fixture-manager-two','Clients: one fixture manager write retains the expected previous assignment');
+    expect((await page.locator('#caMgrBtn').innerText()).includes('Another manager'),'Clients: successful native assignment renders the new manager');
+  });
+});
+add('client-edit-save-actions','clients',clientMenus,async page=>{
+  await page.evaluate(()=>{_caState.authority={source:'syncview'};});
+  await clientWrite(page,'update_client_profile',payload=>({ok:true,native:true,row:{...profile,...payload.changes}}),async requests=>{
+    await page.locator('.ca-edit-btn').click();
+    await page.locator('#caIn_email').fill('updated@example.invalid');
+    await page.locator('.ca-save').click();
+    await page.waitForFunction(()=>!_caState.edit&&_caState.rows[0].email==='updated@example.invalid');
+    expect(requests.length===1&&requests[0].slug==='phone-fixture'&&requests[0].expected_updated_at===profile.updated_at&&JSON.stringify(requests[0].changes)===JSON.stringify({email:'updated@example.invalid'}),'Clients: one native fixture save retains the expected version and exact edited field');
+    expect(await page.locator('.ca-edit-btn').count()===1,'Clients: successful save returns to the native read-only profile');
+  });
+});
+add('client-history-open','clients',clientMenus,async page=>{
+  await page.evaluate(()=>{_caState.history={edits:[{edited_at:'2026-10-04T14:00:00Z',edited_by:'Example manager',field:'keywords',old_value:'Daily habits',new_value:'Daily routines'}],moves:[]};});
+  await page.locator('#caHistBtn').click();
+  expect(await page.locator('.ca-hist-row').count()===1,'Clients: history disclosure shows the native fixture change');
+  await page.locator('#caHistBtn').click();
+  expect(await page.locator('.ca-hist').count()===0,'Clients: history disclosure closes');
+  await page.locator('#caHistBtn').click();
+});
+add('client-research-open','clients',clientMenus,async page=>{
+  const fold=page.locator('details[data-ca-fold="research"]');
+  await fold.locator('summary').click();
+  expect(await fold.evaluate(node=>node.open),'Clients: native research disclosure opens');
+  await fold.locator('summary').click();
+  expect(!(await fold.evaluate(node=>node.open)),'Clients: native research disclosure closes');
+  await fold.locator('summary').click();
+});
 add('quiz-empty', 'quiz-leads');
 add('quiz', 'quiz-leads', () => { _kqlState.leads = [{ response_id: 'fixture-lead', contact_name: 'Example lead', contact_email: 'lead@example.invalid', result_category: 'consistency', created_at: '2026-10-01T10:00:00Z', answers: { q1: 3, q2: 4 } }]; _kqlState.loaded = true; _kqlState.loading = false; _kqlState.error = null; _kqlPaint(); });
 add('quiz-detail', 'quiz-leads', () => { _kqlState.leads = [{ response_id: 'fixture-lead', contact_name: 'Example lead', contact_email: 'lead@example.invalid', result_category: 'consistency', created_at: '2026-10-01T10:00:00Z', answers: { q1: 3, q2: 4 } }]; _kqlState.loaded = true; _kqlState.loading = false; _kqlState.error = null; _kqlPaint(); _kqlToggle('fixture-lead'); });
@@ -227,7 +320,15 @@ async function capture(page,label,width,theme) {
     const heading=document.querySelector('.pocket-admin-heading');
     const headingAncestors=[];
     for(let node=heading;node;node=node.parentElement){const r=node.getBoundingClientRect();headingAncestors.push({tag:node.tagName,id:node.id,className:node.className,y:r.y,height:r.height,scrollTop:node.scrollTop});}
-    return { width:innerWidth, scrollWidth:document.documentElement.scrollWidth,controls,fields,scrollY,headingAncestors };
+    const rgb=value=>value.match(/[\d.]+/g).map(Number);
+    const luminance=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+    const clientsSupporting=[...document.querySelectorAll('.ca-field dt,.ca-field dt label,.ca-empty,.ca-mgr-count,.ca-mgr-foot,.ca-drop-head>span,.ca-opt-sub,.ca-row-sub,.ca-fold-tag,.ca-prov,.ca-hist-when,.ca-status,.ca-land-label,.ca-hs-band .cb-lead')].filter(visible).map(node=>{
+      let background=[255,255,255,1];
+      for(let parent=node;parent;parent=parent.parentElement){const color=rgb(getComputedStyle(parent).backgroundColor);if(color.length===3||color[3]===1){background=color;break;}}
+      const style=getComputedStyle(node),foreground=luminance(rgb(style.color)),back=luminance(background);
+      return {className:node.className||node.tagName,font:parseFloat(style.fontSize),contrast:(Math.max(foreground,back)+.05)/(Math.min(foreground,back)+.05)};
+    });
+    return { width:innerWidth, scrollWidth:document.documentElement.scrollWidth,controls,fields,scrollY,headingAncestors,clientsSupporting };
   });
   if (!before && !desktop) {
     const surface=await phoneRules.activeSurface(page);
@@ -238,6 +339,7 @@ async function capture(page,label,width,theme) {
     expect(metrics.scrollWidth <= width + 1,label + ': sideways page scroll ' + metrics.scrollWidth);
     for (const c of metrics.controls) expect(c.w >= 43.5 && c.h >= 43.5,label + ': target below 44px ' + JSON.stringify(c));
     for (const f of metrics.fields) expect(f >= 16,label + ': text field below 16px');
+    for (const text of metrics.clientsSupporting) expect(text.font>=13 && text.contrast>=4.5,label+': Clients supporting text is readable '+JSON.stringify(text));
   }
   rows.push({ label,width,theme,...metrics });
   if (out) {
@@ -251,7 +353,7 @@ async function capture(page,label,width,theme) {
       }
     }
     fs.mkdirSync(out,{recursive:true});
-    const overlay = await page.locator('dialog[open], .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup, .kasper-more.open, #staffAccountPopover:not([hidden])').count();
+    const overlay = await page.locator('dialog[open], .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup, .kasper-more.open, #staffAccountPopover:not([hidden]), .ca-scrim').count();
     if(!desktop && !overlay) await page.screenshot({path:path.join(out,label+'-'+theme+'-'+width+'-viewport.png'),fullPage:false,animations:'disabled'});
     // Chrome mobile fullPage clips short pages in the emulator. Use the real
     // viewport for those; expand only when there is content below it.
@@ -398,6 +500,7 @@ async function runMain() {
         for (const t of tests.filter(t => selected(t) && (!desktop || (exactStates && ['clients','ad-performance'].includes(t.tab)) || ['review-empty','review-open','review-single','messages','editors','filming','time-off','sales-intake','hiring-detail','onboarding','onboarding-detail','credentials','client-detail','quiz-detail','ads','save-problems','credential-add','account'].includes(t.label)))) {
           try {
             await page.evaluate(tab => {
+              hideToast(); // A preceding fictional save is not this state's status.
               document.activeElement?.blur(); _syncviewCloseStaffAccount(); _kasperSetMoreOpen(false,false,false);
               document.querySelector('dialog.pocket-admin-tabs')?.dispatchEvent(new Event('cancel',{cancelable:true}));
               _ccCloseModal();

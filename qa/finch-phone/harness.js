@@ -13,7 +13,7 @@ const { seedStaffIdentity } = require('../staff-gate-seed.js');
 /* FINCH_ROOT serves another checkout (the "before" pictures use a clean copy of the base branch). */
 const root = process.env.FINCH_ROOT ? path.resolve(process.env.FINCH_ROOT) : path.resolve(__dirname, '..', '..');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
-function serve() {
+function serve(sourceRoot = root) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
     if (url.pathname.startsWith('/__vendor/') && global.__finchVendor) {
@@ -22,8 +22,8 @@ function serve() {
     }
     let file = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
     file = path.normalize(file).replace(/^([.][\\/])+/, '');
-    const full = path.join(root, file);
-    if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) { res.writeHead(404); res.end('not found'); return; }
+    const full = path.join(sourceRoot, file);
+    if (!full.startsWith(sourceRoot) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) { res.writeHead(404); res.end('not found'); return; }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream' });
     fs.createReadStream(full).pipe(res);
   });
@@ -37,12 +37,12 @@ async function open(opts) {
   const role = o.role || 'admin';
   const member = { id: 'qa_staff', name: 'QA Staff', role, team: null };
   const state = { blocked: [], writes: [], errors: [] };
-  const server = await serve();
+  const server = await serve(o.sourceRoot ? path.resolve(o.sourceRoot) : root);
   global.__finchVendor = o.vendor || process.env.FINCH_VENDOR;
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PW_CHROMIUM || undefined });
   const context = await browser.newContext({
     viewport: { width: o.width || 390, height: o.height || 844 },
-    deviceScaleFactor: o.dsf || 2, isMobile: true, hasTouch: true,
+    deviceScaleFactor: o.dsf || 2, isMobile: !o.desktop, hasTouch: !o.desktop,
     colorScheme: o.theme === 'dark' ? 'dark' : 'light',
   });
   /* Pin the clock so dates in the screenshots are the same on every run. */

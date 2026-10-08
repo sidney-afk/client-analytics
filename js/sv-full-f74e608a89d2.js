@@ -17510,6 +17510,7 @@
             if (label && val && positive && /views last 30d/i.test(label.textContent) && val.textContent.trim() === '0') dash(val, label.textContent.trim());
         });
     }
+    const _fphAccountCopy = new WeakMap();
     function _fphBrowseWords(on) {
         const pattern = on ? /\bclick to (browse|add)\b/g : /\btap to (browse|add)\b/g;
         const replacement = on ? 'tap to $1' : 'click to $1';
@@ -17519,6 +17520,23 @@
                 const text = node.nodeValue.replace(pattern, replacement);
                 if (text !== node.nodeValue) node.nodeValue = text;
             });
+        });
+        document.querySelectorAll('.tk-profile-line').forEach(line => {
+            const chip = line.querySelector('.tk-profile-chip'), label = line.firstChild;
+            if (!chip || label?.nodeType !== 3) return;
+            if (!_fphAccountCopy.has(line)) {
+                if (!/^Posts to Post For Me account\s*$/.test(label.nodeValue)) return;
+                _fphAccountCopy.set(line, { label: label.nodeValue, chip: chip.textContent });
+            }
+            const original = _fphAccountCopy.get(line);
+            const client = line.getAttribute('data-tk-picked-client') || '';
+            const handle = String(clientMap[client]?.tiktok_handle || '').trim().replace(/^@+/, '');
+            const phoneAccount = on && currentNav === 'tiktok-upload'
+                && !document.getElementById('tkPlatInstagram')?.classList.contains('on') && client;
+            const text = phoneAccount ? (handle ? 'Posting to ' : 'Posting for ') : original.label;
+            const account = phoneAccount ? (handle ? '@' + handle : client) : original.chip;
+            if (label.nodeValue !== text) label.nodeValue = text;
+            if (chip.textContent !== account) chip.textContent = account;
         });
     }
     function _fphSync() {
@@ -17910,14 +17928,22 @@
             }
             active.forEach(el => {
                 if (!overlays.has(el)) {
-                    const trigger = lastTrigger?.isConnected && lastTrigger.checkVisibility() ? lastTrigger
-                        : document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
+                    const trigger = liveTrigger(lastTrigger)
+                        || document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
                     overlays.set(el, trigger);
                 }
             });
             if (active.length) lock(); else unlock();
-            if (returnTo?.isConnected && returnTo.checkVisibility()
+            returnTo = liveTrigger(returnTo);
+            if (returnTo
                 && (!active.length || active.some(el => el.contains(returnTo)))) returnTo.focus({ preventScroll: true });
+        }
+        function liveTrigger(trigger) {
+            // Native pickers can repaint their trigger on opening and closing.
+            // Follow its stable id so a disconnected old node cannot redirect
+            // focus to the page's unrelated More button after native restore.
+            const current = trigger?.isConnected ? trigger : trigger?.id ? document.getElementById(trigger.id) : null;
+            return current?.checkVisibility() ? current : null;
         }
         function schedule() {
             if (!queued) { queued = true; queueMicrotask(sync); }
@@ -76684,7 +76710,7 @@
         let profileLine = '';
         if (tkState.client) {
             if (tkState.profileSource === 'sheet') {
-                profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
+                profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
                 profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Ask an admin to add this client's Post For Me <strong>Connection ID</strong> (<code>spc_…</code>) under Kasper, Clients, Publishing, "Post for Me" before uploading. The Clients Info sheet is now a copy of the database, so an id typed into the sheet does not reach it.</div>`;
             }
@@ -88835,4 +88861,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-c53060a4cc42.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-f74e608a89d2.js");

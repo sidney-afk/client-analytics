@@ -31307,3 +31307,10 @@ stored round-0 comments are left as they are: the page now reads them as no roun
 
 **Owner step.** Merge (the page fix goes live with Pages), then deploy production-write through the Section 4 lane with
 a fresh capture, at the main SHA of that moment. **Way back:** revert the PR; the previous pin is in the workflow comment.
+
+**Found on the way, fixed here because it blocked this change.** `scripts/repo-identity-exposure-check.js` joined every
+base `js/sv-*.js` bundle into one string to ask "is this name already public there". Base `js/` reached 551 MB, past
+V8's maximum string length, so the check crashed ("Invalid string length") on any change that touches `js/`, as every
+page rebuild does. It now asks each file in turn; the answer is the same (a name never spans two files), and its
+term-use audit in `test/repo-identity-exposure.js` lists the new line. Separately, the 551 MB of retained old bundles
+deserves its own decision (they keep cached tabs working; how many to keep is the owner's call).

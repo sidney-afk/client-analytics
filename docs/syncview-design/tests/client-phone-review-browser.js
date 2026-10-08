@@ -50,7 +50,7 @@ const CAPTION = 'A synthetic caption long enough to wrap across several lines on
 const BASE_ROW = {
   id: '', client: SLUG, name: 'Phone fixture post', status: 'In Progress',
   scheduled_date: null, order_index: 1, updated_at: '2026-09-20T12:00:00.000Z',
-  asset_url: 'https://example.invalid/video.mp4', thumbnail_url: 'http://127.0.0.1/__fixture_thumb.svg',
+  asset_url: 'https://example.invalid/video.mp4', thumbnail_url: 'https://drive.google.com/file/d/phone_fixture_thumbnail/view',
   video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval',
   caption: CAPTION, comments: [], graphic_comments: [], caption_comments: [],
 };
@@ -67,6 +67,7 @@ async function installFixture(ctx, origin, ROW, writes, surfaceName) {
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (u.pathname === '/__fixture_thumb.svg') return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: THUMB });
+    if (u.hostname === 'lh3.googleusercontent.com' && u.pathname.startsWith('/d/phone_fixture_thumbnail')) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: THUMB });
     if (r.url().startsWith(origin)) return route.continue();
     if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
     const json = body => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
@@ -120,6 +121,12 @@ async function run(browser, origin, [vpLabel, width, height], surfaceName, theme
   const card = `.kcard[data-cal-review-pid="${CARD}"]`;
   const drew = await page.waitForSelector(card, { timeout: CAP_MS }).then(() => true, () => false);
   if (!drew) { await ctx.close(); return [`${label}: review card never drew`]; }
+  const thumbnail = page.locator(`${card} .kcard-thumb img`).first();
+  await thumbnail.waitFor({ timeout: CAP_MS }).catch(() => failures.push(`${label}: valid fixture thumbnail never rendered`));
+  if (await thumbnail.count()) {
+    const loaded = await thumbnail.evaluate(img => img.decode().then(() => img.naturalWidth > 0, () => false));
+    if (!loaded) failures.push(`${label}: fixture thumbnail failed to decode`);
+  }
   await page.waitForTimeout(600);
   await capture('single');
   await page.tap(`${card} .kcard-expand-btn`);

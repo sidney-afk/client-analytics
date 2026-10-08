@@ -8979,6 +8979,12 @@
             html.boot-client .cal-tab-view .cal-empty { border: 1px solid var(--border-light); border-radius: 18px; background: var(--white); color: var(--text-secondary); padding: 28px 20px; font-size: 14px; line-height: 1.65; }
             html.boot-client .cal-tab-view .cal-empty .cal-link { min-width: 44px; min-height: 44px; }
             html.boot-client .cal-tab-view .cal-month-label { color: var(--text-primary); font-size: 17px; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading { min-height: 0; padding: 20px; display: flex; flex-direction: column; gap: 18px; background: var(--white); border: 1px solid var(--border-light); border-radius: 18px; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-label { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-rows { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-day { width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0; }
+            html.boot-client .cal-tab-view .pocket-cal-timeline-loading-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
             html.boot-client .cal-tab-view .cal-month-grid,
             html.boot-client .cal-tab-view .cal-week-grid { border: 0; background: transparent; border-radius: 18px; overflow: visible; gap: 16px; }
             html.boot-client .cal-tab-view .cal-month-dow,
@@ -9088,7 +9094,7 @@
             html.boot-client [data-pocket-client-phone=analytics] .chart-empty-note { color: var(--text-secondary); font-size: 0.86rem; line-height: 1.5; text-align: center; }
             /* Even spacing in Month and Week, and one Today marker: the black circle. */
             html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num,
-            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 1.05rem; font-weight: 800; line-height: 1; }
+            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 1.05rem; font-weight: 800; line-height: 1; }
             html.boot-client .cal-tab-view .cal-month-cell.today,
             html.boot-client .cal-tab-view .cal-month-cell.today:hover { background: var(--white); }
             html.boot-client .cal-tab-view .cal-week-col.today { border-color: var(--border); }
@@ -12401,8 +12407,8 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-5d22248d7e78.js";
-        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-d02717a5c726.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-5a8de0e5d2a4.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-6f46224ed096.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-0ab732bdc253.js";
+        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-d02717a5c726.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d5b7a638eace.js","js/sv-12-synclinear-693043680b97.js","js/sv-13-core-6f46224ed096.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-120e08ae3620.js","kasper":"js/sv-16-kasper-85e8a54729d4.js"};
         var FORCE = null;
         var CLIENTS = true;

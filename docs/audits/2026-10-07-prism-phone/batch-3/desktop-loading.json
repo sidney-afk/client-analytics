@@ -1,0 +1,326 @@
+{
+  "before": "8361c27b8f2ac9b7434e6799fc76502d92e0bd80",
+  "afterIndexHash": "05ef2a5c25a1b3e20bfcd9996aac3faf8baa161ab0301c31f0361e72b5d2a4aa",
+  "rows": [
+    {
+      "name": "review-1024-light",
+      "beforePng": "aa5ce139364815f4e969cca6da5393697bd3443996b7d37ed616abc14f1bcdc4",
+      "afterPng": "aa5ce139364815f4e969cca6da5393697bd3443996b7d37ed616abc14f1bcdc4",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "54ddce096bb3c38f80008fbd6f295c63e3d841e64c0d822508fd92bb72dbbaa9",
+      "afterStyles": "54ddce096bb3c38f80008fbd6f295c63e3d841e64c0d822508fd92bb72dbbaa9",
+      "identical": true
+    },
+    {
+      "name": "organizer-1024-light",
+      "beforePng": "4d65428f8ae6da01a2b7de8b46520e6870bed69933f1b2bc00186702d8b88aa9",
+      "afterPng": "4d65428f8ae6da01a2b7de8b46520e6870bed69933f1b2bc00186702d8b88aa9",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "37b01456b3d47b60994c9f85c46efdd2175bfac387b666fa0a16cd7ee796042a",
+      "afterStyles": "37b01456b3d47b60994c9f85c46efdd2175bfac387b666fa0a16cd7ee796042a",
+      "identical": true
+    },
+    {
+      "name": "month-1024-light",
+      "beforePng": "f67917ab9ca9a5159d133c28696e4eb7b9230d92e6417d422a68ac29a881e5bb",
+      "afterPng": "f67917ab9ca9a5159d133c28696e4eb7b9230d92e6417d422a68ac29a881e5bb",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "20e28f2ab37f19149318b8ae70db6d8c78e27a5856f68f3e50c5af2e644bd37a",
+      "afterStyles": "20e28f2ab37f19149318b8ae70db6d8c78e27a5856f68f3e50c5af2e644bd37a",
+      "identical": true
+    },
+    {
+      "name": "week-1024-light",
+      "beforePng": "f9b96e6a33bd8a1a80bd60f869c9973541ccb1f3ed6a456ec615533fe049f37e",
+      "afterPng": "f9b96e6a33bd8a1a80bd60f869c9973541ccb1f3ed6a456ec615533fe049f37e",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "d549a387fdde4dd0e1e0e962c0f7b12f5fc9c35ad48f2a3af3d145cac2893052",
+      "afterStyles": "d549a387fdde4dd0e1e0e962c0f7b12f5fc9c35ad48f2a3af3d145cac2893052",
+      "identical": true
+    },
+    {
+      "name": "review-1280-light",
+      "beforePng": "6a41216ab05f1eee80af539b6dc904e7237d9769b257144bf8cf0c6d4a853a6f",
+      "afterPng": "6a41216ab05f1eee80af539b6dc904e7237d9769b257144bf8cf0c6d4a853a6f",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "34755d7a3a0246abf8a75d5f92f41342ef3f69541a9ce56821242445abd00ce9",
+      "afterStyles": "34755d7a3a0246abf8a75d5f92f41342ef3f69541a9ce56821242445abd00ce9",
+      "identical": true
+    },
+    {
+      "name": "organizer-1280-light",
+      "beforePng": "65e1b798d97af221f70877df138ea4c58eb82a8612391e35f36c6cd30b992233",
+      "afterPng": "65e1b798d97af221f70877df138ea4c58eb82a8612391e35f36c6cd30b992233",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "8864745ba0198f7a4d42c0a92304f274c6645f6ec101ce082b2ca5e70286b267",
+      "afterStyles": "8864745ba0198f7a4d42c0a92304f274c6645f6ec101ce082b2ca5e70286b267",
+      "identical": true
+    },
+    {
+      "name": "month-1280-light",
+      "beforePng": "5266fc25cdf98029772ef310542d9ab46b09a2011c43e7d32575f1bc681ecb5b",
+      "afterPng": "5266fc25cdf98029772ef310542d9ab46b09a2011c43e7d32575f1bc681ecb5b",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "2c5df87795f653bea77696bcffe74728e4bbf320c12f3508fd3eeee107fe9b42",
+      "afterStyles": "2c5df87795f653bea77696bcffe74728e4bbf320c12f3508fd3eeee107fe9b42",
+      "identical": true
+    },
+    {
+      "name": "week-1280-light",
+      "beforePng": "6d096266e7927dd8cc8a3a08607f74edaa9c384cd9ab17bdb4eb779044c41762",
+      "afterPng": "6d096266e7927dd8cc8a3a08607f74edaa9c384cd9ab17bdb4eb779044c41762",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "02cee5b32352a36266776933ebcee676a1698ba79cfea2b762331935109b817c",
+      "afterStyles": "02cee5b32352a36266776933ebcee676a1698ba79cfea2b762331935109b817c",
+      "identical": true
+    },
+    {
+      "name": "review-1440-light",
+      "beforePng": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305",
+      "afterPng": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "cf165e8d2965aa0f3bbd1fa9a091c73d64fb5873ffb95f961390f3601cc150c0",
+      "afterStyles": "cf165e8d2965aa0f3bbd1fa9a091c73d64fb5873ffb95f961390f3601cc150c0",
+      "identical": true
+    },
+    {
+      "name": "organizer-1440-light",
+      "beforePng": "d3619d0ef792bcefc99292925868da9145f58960a8bc163d9d76064e7c747d54",
+      "afterPng": "d3619d0ef792bcefc99292925868da9145f58960a8bc163d9d76064e7c747d54",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "62342429ef345d2e7fe1eee03df021af472785687d833d219f7d1d75870f356c",
+      "afterStyles": "62342429ef345d2e7fe1eee03df021af472785687d833d219f7d1d75870f356c",
+      "identical": true
+    },
+    {
+      "name": "month-1440-light",
+      "beforePng": "6623eff2844353514f97dbd4c18fbe5f5209aab09ca4eb74c1613ea9dcb900da",
+      "afterPng": "6623eff2844353514f97dbd4c18fbe5f5209aab09ca4eb74c1613ea9dcb900da",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "efe744bcc98caacdc8dc9ed2a90934459ae45bddcbcc7a2939e5d8f2f0772cf2",
+      "afterStyles": "efe744bcc98caacdc8dc9ed2a90934459ae45bddcbcc7a2939e5d8f2f0772cf2",
+      "identical": true
+    },
+    {
+      "name": "week-1440-light",
+      "beforePng": "6989e1daf382303d60030e2949d4c9adcfd26bc6ad7e4466e6f1bd0989a4c2ae",
+      "afterPng": "6989e1daf382303d60030e2949d4c9adcfd26bc6ad7e4466e6f1bd0989a4c2ae",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "e63e51e1641e9e71194bcbca43d5c7beeb5ffa4ceac97b4020b316ae47fe3c6b",
+      "afterStyles": "e63e51e1641e9e71194bcbca43d5c7beeb5ffa4ceac97b4020b316ae47fe3c6b",
+      "identical": true
+    },
+    {
+      "name": "review-1920-light",
+      "beforePng": "22d7079487e22942b45e5d364ca38446ae44b63bf5a341b28ab17eeb5ce6401d",
+      "afterPng": "22d7079487e22942b45e5d364ca38446ae44b63bf5a341b28ab17eeb5ce6401d",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "3a3dfc0977c36bc58fb1a7a4aa0cdd93aa7ec96e3ab62d463161e6e9f3d111ba",
+      "afterStyles": "3a3dfc0977c36bc58fb1a7a4aa0cdd93aa7ec96e3ab62d463161e6e9f3d111ba",
+      "identical": true
+    },
+    {
+      "name": "organizer-1920-light",
+      "beforePng": "e41d8571c781207aa8cb0205cc4509ec17d094dc3f6290c37d8b581f1f74fa81",
+      "afterPng": "e41d8571c781207aa8cb0205cc4509ec17d094dc3f6290c37d8b581f1f74fa81",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "4f386313570d73be708001018a0c51ed46c0898129435f2b1be9ae3ab2e53157",
+      "afterStyles": "4f386313570d73be708001018a0c51ed46c0898129435f2b1be9ae3ab2e53157",
+      "identical": true
+    },
+    {
+      "name": "month-1920-light",
+      "beforePng": "4ca6857bc32a7f4ccc7e7cfe5c1e665ef94322b0e93dfb4841826062c09acfdf",
+      "afterPng": "4ca6857bc32a7f4ccc7e7cfe5c1e665ef94322b0e93dfb4841826062c09acfdf",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "9b7db4ca2b7456d02bc0fa4e9b06eeecb033983d3fbfc40f0f7ae24318b05137",
+      "afterStyles": "9b7db4ca2b7456d02bc0fa4e9b06eeecb033983d3fbfc40f0f7ae24318b05137",
+      "identical": true
+    },
+    {
+      "name": "week-1920-light",
+      "beforePng": "5a7007cd063f5c1b120aaa68fb4a6a03cbba7a333cf3385034e06901562bdcb4",
+      "afterPng": "5a7007cd063f5c1b120aaa68fb4a6a03cbba7a333cf3385034e06901562bdcb4",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "1ab78370d50cbb934f618cd7d1fc2e75ada82e667c27599749bf545801eac0c0",
+      "afterStyles": "1ab78370d50cbb934f618cd7d1fc2e75ada82e667c27599749bf545801eac0c0",
+      "identical": true
+    },
+    {
+      "name": "review-1024-dark",
+      "beforePng": "aa5ce139364815f4e969cca6da5393697bd3443996b7d37ed616abc14f1bcdc4",
+      "afterPng": "aa5ce139364815f4e969cca6da5393697bd3443996b7d37ed616abc14f1bcdc4",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "54ddce096bb3c38f80008fbd6f295c63e3d841e64c0d822508fd92bb72dbbaa9",
+      "afterStyles": "54ddce096bb3c38f80008fbd6f295c63e3d841e64c0d822508fd92bb72dbbaa9",
+      "identical": true
+    },
+    {
+      "name": "organizer-1024-dark",
+      "beforePng": "4d65428f8ae6da01a2b7de8b46520e6870bed69933f1b2bc00186702d8b88aa9",
+      "afterPng": "4d65428f8ae6da01a2b7de8b46520e6870bed69933f1b2bc00186702d8b88aa9",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "37b01456b3d47b60994c9f85c46efdd2175bfac387b666fa0a16cd7ee796042a",
+      "afterStyles": "37b01456b3d47b60994c9f85c46efdd2175bfac387b666fa0a16cd7ee796042a",
+      "identical": true
+    },
+    {
+      "name": "month-1024-dark",
+      "beforePng": "f67917ab9ca9a5159d133c28696e4eb7b9230d92e6417d422a68ac29a881e5bb",
+      "afterPng": "f67917ab9ca9a5159d133c28696e4eb7b9230d92e6417d422a68ac29a881e5bb",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "20e28f2ab37f19149318b8ae70db6d8c78e27a5856f68f3e50c5af2e644bd37a",
+      "afterStyles": "20e28f2ab37f19149318b8ae70db6d8c78e27a5856f68f3e50c5af2e644bd37a",
+      "identical": true
+    },
+    {
+      "name": "week-1024-dark",
+      "beforePng": "f9b96e6a33bd8a1a80bd60f869c9973541ccb1f3ed6a456ec615533fe049f37e",
+      "afterPng": "f9b96e6a33bd8a1a80bd60f869c9973541ccb1f3ed6a456ec615533fe049f37e",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "d549a387fdde4dd0e1e0e962c0f7b12f5fc9c35ad48f2a3af3d145cac2893052",
+      "afterStyles": "d549a387fdde4dd0e1e0e962c0f7b12f5fc9c35ad48f2a3af3d145cac2893052",
+      "identical": true
+    },
+    {
+      "name": "review-1280-dark",
+      "beforePng": "6a41216ab05f1eee80af539b6dc904e7237d9769b257144bf8cf0c6d4a853a6f",
+      "afterPng": "6a41216ab05f1eee80af539b6dc904e7237d9769b257144bf8cf0c6d4a853a6f",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "34755d7a3a0246abf8a75d5f92f41342ef3f69541a9ce56821242445abd00ce9",
+      "afterStyles": "34755d7a3a0246abf8a75d5f92f41342ef3f69541a9ce56821242445abd00ce9",
+      "identical": true
+    },
+    {
+      "name": "organizer-1280-dark",
+      "beforePng": "65e1b798d97af221f70877df138ea4c58eb82a8612391e35f36c6cd30b992233",
+      "afterPng": "65e1b798d97af221f70877df138ea4c58eb82a8612391e35f36c6cd30b992233",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "8864745ba0198f7a4d42c0a92304f274c6645f6ec101ce082b2ca5e70286b267",
+      "afterStyles": "8864745ba0198f7a4d42c0a92304f274c6645f6ec101ce082b2ca5e70286b267",
+      "identical": true
+    },
+    {
+      "name": "month-1280-dark",
+      "beforePng": "5266fc25cdf98029772ef310542d9ab46b09a2011c43e7d32575f1bc681ecb5b",
+      "afterPng": "5266fc25cdf98029772ef310542d9ab46b09a2011c43e7d32575f1bc681ecb5b",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "2c5df87795f653bea77696bcffe74728e4bbf320c12f3508fd3eeee107fe9b42",
+      "afterStyles": "2c5df87795f653bea77696bcffe74728e4bbf320c12f3508fd3eeee107fe9b42",
+      "identical": true
+    },
+    {
+      "name": "week-1280-dark",
+      "beforePng": "6d096266e7927dd8cc8a3a08607f74edaa9c384cd9ab17bdb4eb779044c41762",
+      "afterPng": "6d096266e7927dd8cc8a3a08607f74edaa9c384cd9ab17bdb4eb779044c41762",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "02cee5b32352a36266776933ebcee676a1698ba79cfea2b762331935109b817c",
+      "afterStyles": "02cee5b32352a36266776933ebcee676a1698ba79cfea2b762331935109b817c",
+      "identical": true
+    },
+    {
+      "name": "review-1440-dark",
+      "beforePng": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305",
+      "afterPng": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "cf165e8d2965aa0f3bbd1fa9a091c73d64fb5873ffb95f961390f3601cc150c0",
+      "afterStyles": "cf165e8d2965aa0f3bbd1fa9a091c73d64fb5873ffb95f961390f3601cc150c0",
+      "identical": true
+    },
+    {
+      "name": "organizer-1440-dark",
+      "beforePng": "d3619d0ef792bcefc99292925868da9145f58960a8bc163d9d76064e7c747d54",
+      "afterPng": "d3619d0ef792bcefc99292925868da9145f58960a8bc163d9d76064e7c747d54",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "62342429ef345d2e7fe1eee03df021af472785687d833d219f7d1d75870f356c",
+      "afterStyles": "62342429ef345d2e7fe1eee03df021af472785687d833d219f7d1d75870f356c",
+      "identical": true
+    },
+    {
+      "name": "month-1440-dark",
+      "beforePng": "6623eff2844353514f97dbd4c18fbe5f5209aab09ca4eb74c1613ea9dcb900da",
+      "afterPng": "6623eff2844353514f97dbd4c18fbe5f5209aab09ca4eb74c1613ea9dcb900da",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "efe744bcc98caacdc8dc9ed2a90934459ae45bddcbcc7a2939e5d8f2f0772cf2",
+      "afterStyles": "efe744bcc98caacdc8dc9ed2a90934459ae45bddcbcc7a2939e5d8f2f0772cf2",
+      "identical": true
+    },
+    {
+      "name": "week-1440-dark",
+      "beforePng": "6989e1daf382303d60030e2949d4c9adcfd26bc6ad7e4466e6f1bd0989a4c2ae",
+      "afterPng": "6989e1daf382303d60030e2949d4c9adcfd26bc6ad7e4466e6f1bd0989a4c2ae",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "e63e51e1641e9e71194bcbca43d5c7beeb5ffa4ceac97b4020b316ae47fe3c6b",
+      "afterStyles": "e63e51e1641e9e71194bcbca43d5c7beeb5ffa4ceac97b4020b316ae47fe3c6b",
+      "identical": true
+    },
+    {
+      "name": "review-1920-dark",
+      "beforePng": "22d7079487e22942b45e5d364ca38446ae44b63bf5a341b28ab17eeb5ce6401d",
+      "afterPng": "22d7079487e22942b45e5d364ca38446ae44b63bf5a341b28ab17eeb5ce6401d",
+      "beforeHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "afterHtml": "101072654a535ca938eb24bf1f60e1421dba5aa756966fbdbf58ad2b4876d3a4",
+      "beforeStyles": "3a3dfc0977c36bc58fb1a7a4aa0cdd93aa7ec96e3ab62d463161e6e9f3d111ba",
+      "afterStyles": "3a3dfc0977c36bc58fb1a7a4aa0cdd93aa7ec96e3ab62d463161e6e9f3d111ba",
+      "identical": true
+    },
+    {
+      "name": "organizer-1920-dark",
+      "beforePng": "e41d8571c781207aa8cb0205cc4509ec17d094dc3f6290c37d8b581f1f74fa81",
+      "afterPng": "e41d8571c781207aa8cb0205cc4509ec17d094dc3f6290c37d8b581f1f74fa81",
+      "beforeHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "afterHtml": "d0c4acaa547e5a986f107f3480555681671a697553b027d59028cfb8be6df4c0",
+      "beforeStyles": "4f386313570d73be708001018a0c51ed46c0898129435f2b1be9ae3ab2e53157",
+      "afterStyles": "4f386313570d73be708001018a0c51ed46c0898129435f2b1be9ae3ab2e53157",
+      "identical": true
+    },
+    {
+      "name": "month-1920-dark",
+      "beforePng": "4ca6857bc32a7f4ccc7e7cfe5c1e665ef94322b0e93dfb4841826062c09acfdf",
+      "afterPng": "4ca6857bc32a7f4ccc7e7cfe5c1e665ef94322b0e93dfb4841826062c09acfdf",
+      "beforeHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "afterHtml": "833ec8d185f01c147b649c4757869c85b3347b2c0190786f0cfb2fdbe400ac40",
+      "beforeStyles": "9b7db4ca2b7456d02bc0fa4e9b06eeecb033983d3fbfc40f0f7ae24318b05137",
+      "afterStyles": "9b7db4ca2b7456d02bc0fa4e9b06eeecb033983d3fbfc40f0f7ae24318b05137",
+      "identical": true
+    },
+    {
+      "name": "week-1920-dark",
+      "beforePng": "5a7007cd063f5c1b120aaa68fb4a6a03cbba7a333cf3385034e06901562bdcb4",
+      "afterPng": "5a7007cd063f5c1b120aaa68fb4a6a03cbba7a333cf3385034e06901562bdcb4",
+      "beforeHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "afterHtml": "a2a3f0805f96df336063c214c47358357e0c1108a7aa5a8152103c5f15926f58",
+      "beforeStyles": "1ab78370d50cbb934f618cd7d1fc2e75ada82e667c27599749bf545801eac0c0",
+      "afterStyles": "1ab78370d50cbb934f618cd7d1fc2e75ada82e667c27599749bf545801eac0c0",
+      "identical": true
+    }
+  ]
+}

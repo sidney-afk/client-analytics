@@ -31059,6 +31059,34 @@ Fixed in `tiktok-upload` (no n8n workflow edited):
 Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
 Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
 
+## 372. [2026-10-08, BUILT, NOT APPLIED, NOT DEPLOYED] "Create client" (onboarding step 2.5) and the Stage 3 matching dry run
+
+Session Beacon. Priority C in `docs/STATE_OF_THINGS.md`.
+
+**Built.** "New client" in the Kasper › Clients header, admin only (a square + on phones beside All
+clients). The dialog takes a name, a social media manager and an optional email; while typing,
+`client-onboarding` `create_preview` checks the name against the live roster (reads only) and lists what
+will be made; "Create client" calls `create`, which runs `client_create_native()` from
+`migrations/2026-10-08-create-client.sql`: real provisioning (or the throwaway test path for names
+starting `ZZ THROWAWAY`), Roster's profile write, the manager assignment and the 27-step checklist with 4
+steps ticked, in one transaction. The new profile opens afterwards. Slack is never queued (reason in
+`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`; an open owner decision).
+
+**Proof.** `scripts/client-create-proof.sql` on a disposable PostgreSQL ends `CLIENT_CREATE_PROOF_OK`
+(refusals leave nothing behind, a refusal deep inside rolls the whole create back, replay writes nothing,
+the throwaway never reaches the Sheet outbox and tears down to zero rows, only service_role may execute);
+`test/client-create-migration.js`, `test/client-onboarding-handler.js` (79 checks),
+`docs/syncview-design/tests/clients-create-browser.js` (desktop and two phones, mocked, test client
+only; screenshots in `docs/syncview-design/screenshots/clients-create/`).
+
+**Owner steps, in order, each with a go:** apply `2026-10-03-native-client-test-provision.sql`, apply
+`2026-10-08-create-client.sql`, deploy `client-onboarding`, then the throwaway proof and teardown. Exact SQL
+and readbacks: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. No n8n change.
+
+**Stage 3.** `scripts/client-resource-match.js` (read only, local files, counts on stdout, detail only
+outside git) ran for the 35 clients: `docs/audits/2026-10-08-stage3-matching-dry-run.md`. Nothing saved.
+Rollback: revert the PR; once applied, drop the two functions.
+
 ## 374. [2026-10-08, BUILT, NOT DEPLOYED, SWITCH NOT FLIPPED] The page stops reading Clients Info and Social Media Managers from the Sheet; the daily copy job stops failing
 
 Session Quarry. Sheets move (STATE_OF_THINGS item A), slice 1 of

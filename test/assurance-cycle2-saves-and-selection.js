@@ -28,8 +28,10 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
   // --- 1. Instagram: a definite refusal is not "could not confirm" ---
   try {
     const isFinal = new Function(`${lift('_igCreateAnswerIsFinal')}\nreturn _igCreateAnswerIsFinal;`)();
-    ok(isFinal({ status: 200, json: { ok: false, error: 'Caption is too long', row: { id: 'r1', status: 'failed' } } }) === true,
-      'Instagram: HTTP 200 with ok:false and a failed row is a definite refusal');
+    // Corrected after review (test/assurance-review-corrections.js): this shape shows its
+    // reason but is NOT final, because the same shape can mean the post exists.
+    ok(isFinal({ status: 200, json: { ok: false, error: 'Caption is too long', row: { id: 'r1', status: 'failed' } } }) === false,
+      'Instagram: HTTP 200 with ok:false and a failed row keeps the attempt (its reason is shown by _igCreateRefusalReason)');
     ok(isFinal({ status: 403, json: { ok: false, error: 'not allowed' } }) === true, 'Instagram: a 4xx is still a definite refusal');
     ok(isFinal({ status: 200, json: { ok: false, error: 'Post For Me answered 0', row: { id: 'r1', status: 'failed' } } }) === false,
       'Instagram: Post For Me not answering stays unknown (the post may exist)');
@@ -38,7 +40,8 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
     ok(isFinal({ status: 500, json: { ok: false } }) === false && isFinal({ status: 0, json: null }) === false,
       'Instagram: a server error or no answer stays unknown');
     const submit = code('_igSubmit');
-    ok(/_igCreateAnswerIsFinal\(created\)/.test(submit) && /igUnknown: !final/.test(submit), 'Instagram: the submit path uses that rule');
+    ok(/_igCreateAnswerIsFinal\(created\)/.test(submit) && /igUnknown: !final/.test(submit) && /_igCreateRefusalReason\(created\)/.test(submit),
+      'Instagram: the submit path uses that rule, and shows a refusal\'s reason');
   } catch (e) { ok(false, 'this block could not run: ' + String(e && e.message || e).slice(0, 120)); }
 
   // --- 2. TikTok: the whole form is locked while an upload is out ---
@@ -171,11 +174,11 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
   try {
     const merge = new Function(`
       const sxrState = { posts: [
-        { id: 's1', name: 'Typed but not saved', video_status: 'In Progress', updated_at: 'T0', _saveError: 'save failed', _writeUiRetryEdits: { name: 'Typed but not saved', video_status: 'Approved' } },
+        { id: 's1', name: 'Typed but not saved', video_status: 'In Progress', updated_at: 'T0', _saveError: 'save failed', _saveErrorAt: Date.now(), _writeUiRetryEdits: { name: 'Typed but not saved', video_status: 'Approved' } },
         { id: 's2', name: 'Untouched', updated_at: 'T0' } ] };
       const _sxrPendingEdits = {}, _sxrSaveInFlight = {}, _sxrFailedNewCards = new Set(), _sxrReorderOptimistic = new Map();
       const _SXR_ROLLBACK_FIELDS = ['video_status', 'graphic_status', 'status', 'order_index'];
-      const SXR_REORDER_GUARD_MS = 12000;
+      const SXR_REORDER_GUARD_MS = 12000, SXR_FAILED_TEXT_KEEP_MS = 30 * 60 * 1000;
       const _sxrIsLocalStatusFresh = () => false, _sxrIsBlankId = () => false;
       const _sxrRecentSaveFields = new Map(), _sxrRecentSaveReconcile = () => null;
       const _thumbAdoptPersistedRevision = p => p, _writeUiSnapshotRepairRefs = () => [];

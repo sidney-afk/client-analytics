@@ -523,7 +523,7 @@ import {
                     wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
                     wirePost.tweaks = wirePost.video_tweaks;
                     delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
-                    delete wirePost._baseAt; delete wirePost._saveError;
+                    delete wirePost._baseAt; delete wirePost._saveError; delete wirePost._saveErrorAt;
                     delete wirePost._writeUiRetryEdits; delete wirePost._writeUiHeldSourceEdits; delete wirePost._writeUiRetrySourceAt;
                     delete wirePost._writeUiRetryPrincipal;
                     delete wirePost._writeUiPrecommittedNative;
@@ -567,6 +567,7 @@ import {
                 const _okPost = sxrState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;
+                    delete _okPost._saveErrorAt;
                     delete _okPost._writeUiRetryEdits; delete _okPost._writeUiHeldSourceEdits; delete _okPost._writeUiRetrySourceAt;
                     delete _okPost._writeUiRetryPrincipal;
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
@@ -602,6 +603,7 @@ import {
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                     cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    cur._saveErrorAt = Date.now();   // how long _sxrMergeServerRows keeps the unsaved text
                     // Retry the failed field set, never an old whole-card snapshot.
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     if (gatewayCommitted) {
@@ -2510,6 +2512,7 @@ import {
         if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
         return fc.some(c => c && c.id && _sxrMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
     }
+    const SXR_FAILED_TEXT_KEEP_MS = 30 * 60 * 1000;
     function _sxrMergeServerRows(server) {
         const local = sxrState.posts || [];
         const localById = new Map(local.map(p => [p.id, p]));
@@ -2581,12 +2584,18 @@ import {
                else, but keep the unsaved text and its Retry until it is retried
                or the person edits again. Statuses are not kept: the save engine
                already put those back when the save failed. */
-            if (loc && loc._saveError && loc._writeUiRetryEdits) {
+            /* For half an hour, not for ever (independent review, 2026-10-08):
+               kept without limit, an ignored Retry would mask a teammate's
+               later change to the same field indefinitely and then send the
+               stale text along with the next unrelated edit to the card. */
+            if (loc && loc._saveError && loc._writeUiRetryEdits
+                && Date.now() - Number(loc._saveErrorAt || 0) < SXR_FAILED_TEXT_KEEP_MS) {
                 const kept = Object.assign({}, carrySourceRepair(srv, loc));
                 Object.keys(loc._writeUiRetryEdits).forEach(k => {
                     if (k.charAt(0) !== '_' && _SXR_ROLLBACK_FIELDS.indexOf(k) < 0 && k in loc) kept[k] = loc[k];
                 });
                 kept._saveError = loc._saveError;
+                kept._saveErrorAt = loc._saveErrorAt;
                 kept._writeUiRetryEdits = loc._writeUiRetryEdits;
                 _sxrMergePostComments(kept, loc);
                 out.push(kept);

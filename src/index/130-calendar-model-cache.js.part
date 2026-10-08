@@ -622,7 +622,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
            so this said "Color updated" for colours that were not saved. Count
            the cards the save marked as failed as well. */
         const failed = results.filter(r => r.status === 'rejected').length
-            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError); }).length;
+            // ("Not saved yet: ..." is an older change still waiting on the card, put back
+            // after a save that worked; it does not mean this colour failed.)
+            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError && !/^Not saved yet: /.test(String(p._saveError))); }).length;
         if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
         else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
     }

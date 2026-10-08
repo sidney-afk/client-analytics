@@ -4,6 +4,19 @@
 
 All times are UTC unless noted.
 
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 3 (batch 6)
+
+Cycle 3 was an independent review of everything batches 1 to 5 changed, plus a
+sweep following whole journeys across screens. The review found seven problems
+in those changes before any was merged; six are corrected here (two serious: an
+unsent internal comment could have been carried into a client-visible reply, and
+an Instagram answer that can mean "posted" was treated as a final refusal), one
+is recorded as a known residual. The journey sweep found three: one confirmed
+against a live count and fixed (a Calendar address for a client whose slug has
+"&" fell through to Home), two put to the owner as questions. The stop rule has
+not been met. Browser changes only. No live write, deploy, merge, flag or n8n
+edit. Detail: OPEN_REPAIRS 376.
+
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 2 (batch 5) and the cycle 2 tally
 
 Nine of the fifteen candidates batch 4 left unverified were verified (two

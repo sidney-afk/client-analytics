@@ -9,6 +9,14 @@ foreground calls, so screenshot checks do not interrupt other applications.
 This supersedes the earlier visible-browser setup for Prism's ongoing review.
 Retain the same native product fixtures, action assertions and screenshot review.
 
+[Batch 3](batch-3/README.md) records the client Calendar loading and empty Today
+marker repairs. Its [CI follow-up](batch-3/ci-followup/README.md) has 24 personally
+reviewed matrix pairs on the current source, plus two 360 px Month comparisons.
+The original 72 broad desktop and 32 focused loading proofs remain historical;
+the changed source now has 72/72 additional exact desktop pairs. Hosted rechecks
+remain a separate pending gate.
+The full phone finish line remains OPEN.
+
 [Coverage](COVERAGE.md) lists the native scenarios and all width/theme cells.
 [Machine-readable coverage](coverage.json) also tracks ten discovery obligations
 for every staff tab, reviewer/admin subtab, personal Time Off and client review
@@ -22,10 +30,10 @@ Changing source fragments invalidates previously clean cells in the generator.
 PNG hash. This is bounded state evidence, not a clean full round.
 
 [Batch 2 before/after gallery](batch-2/gallery.md) contains 78 matched Ads/Quiz
-pairs, with [78 current visual receipts](batch-2/reviews.json). Its
+pairs, with [78 historical visual receipts](batch-2/reviews.json). Its
 [repair and evidence notes](batch-2/README.md) identify the exact source and
-remaining work. The current matrix accepts only these named cells; batch 1's
-historical reviews remain available separately.
+remaining work. Current source invalidated earlier batch acceptance. The matrix
+accepts twelve batch 3 loading cells; earlier reviews remain available separately.
 
 ## Batch 1: Save problems and coverage tooling
 
@@ -73,9 +81,8 @@ the Ads/Quiz Calendar loading placeholders, Ads' narrowed Refresh control and
 faint captions, and Quiz's excessive control spacing. The populated tables,
 longer timelines and detailed stress states remain separate OPEN work.
 Client captures requested with dark preferences currently paint light; this
-must be recorded as the effective theme. The client review fixture also needs
-verification that its supplied thumbnail actually paints, rather than accepting
-the visible media fallback as proof of linked-media coverage.
+must be recorded as the effective theme. Batch 3 repairs the supported thumbnail
+fixture and verifies image decoding; valid embedded-video coverage remains OPEN.
 
 Initial staff captures used fallback fonts; final accepted captures must use the
 intended local font assets. Raw broad captures remain private until visually

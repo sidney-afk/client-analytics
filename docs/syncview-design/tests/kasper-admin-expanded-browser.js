@@ -64,7 +64,14 @@ add('editors-empty', 'editors');
 add('editors', 'editors', () => { _kasperState.editorsData = { weekStart: '2026-09-28T05:00:00Z', weekLabel: 'Last week', editors: [{ key: 'fixture-editor', id: 'fixture-editor', name: 'Example editor', videos: [], perDay: {}, finished: 0, stillOpen: 2 }], unattributedTransitions: 0 }; _kedPaint(); });
 add('editor-info', 'editors', null, p => p.locator('#kedInfoBtn').click());
 add('filming-empty', 'filming');
-add('filming', 'filming', () => { _kasperState.filmingData = { rows: [{ client: 'Example workspace', slug: 'phone-fixture', status: 'amber', contentTotal: 12, docUrl: 'https://docs.example.invalid/plan', latestPlanMonth: '2026-09', tabTitles: ['September plan'], months: ['2026-09'], nextDue: '2026-10-15', reason: 'A new plan is due soon.' }] }; _filmsPaint(); });
+add('filming', 'filming', () => { _kasperState.filmingData = { rows: [{ client: 'Example workspace', slug: 'phone-fixture', status: 'amber', contentTotal: 12, docUrl: 'https://docs.example.invalid/plan', latestPlanMonth: '2026-09', tabTitles: ['September plan'], months: new Set(['2026-09']), nextDue: '2026-10-15', reason: 'A new plan is due soon.' }] }; _filmsPaint(); _kasperRefreshTabCounts(); });
+add('filming-details', 'filming', tests.find(test => test.label === 'filming').setup, async page => {
+  expect(await page.locator('[data-kasper-count="filming"]').innerText() === '1', 'Filming: native count matches the one uncovered client');
+  await page.locator('.kfilm-name').tap();
+  await page.locator('.kfilm-row.open .kfilm-strip').waitFor({state:'visible'});
+  expect(await page.locator('.kfilm-row.open .kfilm-cell').count() === 6, 'Filming: native disclosure contains six month cells');
+  expect(await page.locator('.kfilm-cell--on a').count() === 1, 'Filming: covered fixture month retains its document link');
+});
 add('filming-info', 'filming', null, p => p.locator('#kfilmInfoBtn').click());
 add('time-off-empty', 'time-off', () => { _ptoAdminState.overview = { admin_members: [], pending_requests: [], as_of_date: '2026-10-05' }; _ptoAdminState.loading = false; _ptoAdminState.error = ''; _ptoRenderAdmin(); });
 add('time-off', 'time-off', () => { _ptoAdminState.overview = { as_of_date: '2026-10-05', admin_members: [{ member_id: 'fixture-member', name: 'Example team member', role: 'creative', team: 'video', pto_enabled: true, pto_start_date: '2026-01-01', wellness_granted: 10, wellness_available: 7, sick_available: 5 }], pending_requests: [{ id: 'fixture-request', member_id: 'fixture-member', member_name: 'Example team member', type: 'wellness', start_date: '2026-10-14', end_date: '2026-10-16', days: 3, note: 'A few days away to recharge.', status: 'pending' }], upcoming_approved_requests: [], recent_requests: [], absences: [], holidays: [] }; _ptoAdminState.loading = false; _ptoAdminState.error = ''; _ptoRenderAdmin(); });

@@ -8,7 +8,13 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
-const widths = [360, 390, 430];
+const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.slice(key.length + 3);
+const widths = (arg('widths') || '360,390,430').split(',').map(Number);
+const themes = (arg('themes') || 'light,dark').split(',');
+assert(widths.every(w => Number.isInteger(w) && w > 0), 'Invalid widths');
+assert(themes.every(t => ['light', 'dark'].includes(t)), 'Invalid themes');
+let requestedTheme = 'light';
+const captures = [];
 const before = process.argv.includes('--capture-before');
 const headed = process.argv.includes('--headed');
 const beforeRoot = process.argv.find(a => a.startsWith('--before-root='))?.slice(14);
@@ -17,7 +23,7 @@ const measurements = [];
 let checks = 0;
 if (process.argv.includes('--list')) {
   const names = [
-    ...['list','review','tabs','lightbox','save-error','sending','approve-sending','sheet','notes','more','confirm','queue','loading','read-error','invalid-link','verify-error','retry-restored',
+    ...['list','review','tabs','lightbox','save-error','sending','approve-sending','sheet','notes','notes-unlinked','more','confirm','queue','loading','read-error','invalid-link','verify-error','retry-restored',
       ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state => 'comparison-' + state)].map(state => ({lane:'client-links-expanded',name:'samples-'+state,tab:'samples'})),
     ...['single','tabs','more','about','empty','loading','read-error','invalid-link','verify-error','retry-restored'].map(state => ({lane:'client-links-expanded',name:'analytics-'+state,tab:'analytics'})),
   ];
@@ -41,7 +47,7 @@ async function measure(page, label) {
   ok(m.scrollWidth <= m.width + 1, label + ': sideways page scroll');
   for (const c of m.controls) ok(c.w >= 43.5 && c.h >= 43.5, label + ': target under 44px: ' + JSON.stringify(c));
   for (const font of m.fields) ok(font >= 16, label + ': editable field under 16px');
-  measurements.push({ label, width: m.width, scrollWidth: m.scrollWidth, controls: m.controls.length, fields: m.fields.length });
+  measurements.push({ label, requestedTheme, effectiveTheme: await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light'), width: m.width, scrollWidth: m.scrollWidth, controls: m.controls.length, fields: m.fields.length });
 }
 async function shot(page, label) {
   if (!shots) return;
@@ -49,7 +55,12 @@ async function shot(page, label) {
   await page.evaluate(() => document.fonts.ready);
   await page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
   const overlay = await page.locator('dialog[open], .cal-comments-overlay.open, .cal-lightbox.open, .thumb-compare-overlay.open, #confirmOverlay.active, .detail-info-overlay.open').count();
-  await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay, animations: 'disabled' });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const name = label + '-' + requestedTheme;
+  const dimensions = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, fullHeight: document.documentElement.scrollHeight }));
+  await page.screenshot({ path: path.join(shots, name + '-viewport.png'), animations: 'disabled' });
+  await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: !overlay && dimensions.fullHeight > dimensions.height, animations: 'disabled' });
+  captures.push({ label, requestedTheme, effectiveTheme: await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light'), ...dimensions, file: name + '.png', viewportFile: name + '-viewport.png' });
 }
 async function entryErrors(page, width, prefix) {
   await page.evaluate(() => _syncviewInvalidClientLinkScreen());
@@ -70,14 +81,26 @@ async function entryErrors(page, width, prefix) {
     await page.locator('[data-pocket-client-phone]').waitFor();
     await measure(page, prefix + '-retry-restored-' + width);
   }
+  await shot(page, prefix + '-retry-restored-' + width);
 }
 async function fixture(browser, origin, width) {
-  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId: 'America/Guatemala' });
   const writes = [];
   const row = { ...BASE_ROW, id: 's_phone_fixture_1', name: 'Make room for a better day.', thumbnail_url: 'https://drive.google.com/file/d/pocket_fixture_thumb/view' };
+  const videoId = '00000000-0000-4000-a000-000000000001', graphicId = '00000000-0000-4000-a000-000000000002';
   await installFixture(ctx, origin, row, writes, 'samples');
-  await ctx.addInitScript(() => localStorage.setItem('syncview_theme', 'dark'));
+  await ctx.addInitScript(theme => localStorage.setItem('syncview_theme', theme), requestedTheme);
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+  await ctx.route('**/rest/v1/deliverables?**', route => route.fulfill({ status: 200, headers: cors, json: [
+    { id: videoId, card_id: row.id, client_slug: row.client, team: 'video', origin: 'samples' },
+    { id: graphicId, card_id: row.id, client_slug: row.client, team: 'graphics', origin: 'samples' },
+  ] }));
+  await ctx.route('**/functions/v1/production-comments', route => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const body = route.request().postDataJSON();
+    assert(body.source_surface === 'sxr' && body.card_id === row.id && [videoId, graphicId].includes(body.deliverable_id), 'canonical Notes read must bind to the exact fictional sample');
+    return route.fulfill({ status: 200, headers: cors, json: { ok: true, canonical_thread: true, audience_scope: 'client', comments: [], next_cursor: null } });
+  });
   await ctx.route('**/functions/v1/thumbnail-revision-read', route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: '{"ok":true,"items":[]}' }));
   await ctx.route('https://lh3.googleusercontent.com/d/pocket_fixture_thumb*', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200"><rect width="900" height="1200" fill="#dedccf"/><circle cx="480" cy="500" r="260" fill="#aaa88d"/><text x="80" y="1030" font-size="54" fill="#32352c" font-family="sans-serif">A better day.</text></svg>' }));
   // Use the production chart implementation, never a chart-shaped test stub.
@@ -174,9 +197,25 @@ async function samples(browser, origin, width) {
     ok(await page.locator('.cal-card input:not([readonly]):not([type=hidden]), .cal-card textarea:not([readonly])').count() === 0, 'client sample fields became editable');
     await page.locator('.cal-comments-btn').first().click();
     await page.locator('#sxrCommentsModal').waitFor({ state: 'visible' });
+    ok((await page.locator('#sxrCommentsModal').innerText()).includes('Notes are not available'), 'unlinked Notes must refuse safely');
+    await measure(page, 'samples-notes-unlinked-' + width);
+    await shot(page, 'samples-notes-unlinked-' + width);
+    await page.locator('.cal-comments-close').click();
+    await page.evaluate(id => {
+      const post = sxrState.posts.find(post => post.id === id);
+      post.video_deliverable_id = '00000000-0000-4000-a000-000000000001';
+      post.graphic_deliverable_id = '00000000-0000-4000-a000-000000000002';
+    }, row.id);
+    await page.locator('.cal-comments-btn').first().click();
+    await page.locator('#sxrCommentsModal .cal-cm-composer textarea').waitFor({ state: 'visible' });
+    ok(!(await page.locator('#sxrCommentsModal').innerText()).includes('Notes are not available'), 'linked sample must show the normal Notes composer');
     await measure(page, 'samples-notes-' + width);
     await shot(page, 'samples-notes-' + width);
     await page.locator('.cal-comments-close').click();
+    await page.evaluate(id => {
+      const post = sxrState.posts.find(post => post.id === id);
+      delete post.video_deliverable_id; delete post.graphic_deliverable_id;
+    }, row.id);
     await page.locator('[data-pocket-open=more]').click();
     ok(await page.locator('[data-pocket-menu=more] #sxrZoomCtl').count() === 1, 'card size is outside More');
     ok((await page.locator('[data-pocket-menu=more]').innerText()).includes('All available actions'), 'More opened an empty sheet for unavailable card sizing');
@@ -241,7 +280,7 @@ async function analytics(browser, origin, width, emptyCase = false) {
   if (!emptyCase) {
   await page.locator('.platform-section').first().waitFor();
   await page.waitForFunction(() => _analyticsExtrasApplied);
-  await shot(page, 'analytics-' + width);
+  await shot(page, 'analytics-single-' + width);
   if (!before) {
     await page.locator('[data-pocket-client-phone=analytics]').waitFor();
     await measure(page, 'analytics-' + width);
@@ -307,17 +346,15 @@ async function analytics(browser, origin, width, emptyCase = false) {
   const server = await serve();
   const browser = await chromium.launch({ headless: !headed, ...(headed ? { channel: 'chrome' } : {}) });
   const origin = 'http://127.0.0.1:' + server.address().port;
-  // Widths have independent contexts and fictional backend state. Wait for
-  // every context to finish before closing the shared visible browser.
+  // Serial contexts keep the review quiet while the owner uses other apps.
   try {
-    const results = await Promise.allSettled(widths.map(async width => {
+    for (const theme of themes) { requestedTheme = theme; for (const width of widths) {
       await samples(browser, origin, width);
       await analytics(browser, origin, width);
-    }));
-    const failures = results.filter(result => result.status === 'rejected');
-    if (failures.length) throw new AggregateError(failures.map(result => result.reason), 'Phone checks failed');
+    } }
   }
   finally { await browser.close(); server.close(); }
   if (shots) fs.writeFileSync(path.join(shots, 'measurements.json'), JSON.stringify(measurements, null, 2) + '\n');
-  console.log(before ? 'client-links-expanded: BEFORE screenshots recorded; no Expanded acceptance claimed.' : `client-links-expanded: OK (${checks} assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 360/390/430).`);
+  if (shots) fs.writeFileSync(path.join(shots, 'captures.json'), JSON.stringify(captures, null, 2) + '\n');
+  console.log(before ? 'client-links-expanded: BEFORE screenshots recorded; no Expanded acceptance claimed.' : `client-links-expanded: OK (${checks} assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; ${widths.join('/')}; requested ${themes.join('/')}, effective client light).`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

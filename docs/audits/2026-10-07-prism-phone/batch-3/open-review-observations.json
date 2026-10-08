@@ -1,0 +1,672 @@
+{
+  "sourceHash": "35a319476117fffce2e2be7b75d34b338a7538ed6fa6fd54820d71d200d17865",
+  "scope": "Personal visual observations tied to exact images. OPEN observations are not adversarially verified product findings and do not mark cells clean. Private fixture-only originals retained.",
+  "rows": [
+    {
+      "lane": "design",
+      "state": "calendar-warning-card",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "96aa93b316981a857d812dfb1afb408484d39f692c356980014e830ba5233488",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-card",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "b01e48699310158b6662b802db2ac7fa7919dc3b4a941b189534be10066ad6b4",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-card",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "7f8870ad100b5918a4b7a5902c753ee7d75983ab4a7e8630e16d2682410f2f5f",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-card",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "2a799938d00803e48cdfd852f4d8a78c621dde6a64f8c1a84cd16db1b2ed2cd4",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-card",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "33ad4b5e01fc329067359953a8d9c5767e06b91cecf46707184cd1970280888b",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-card",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "044388d07a92c30e1a5c3e6c38d1415b7978c45804bd8ade765d7bc30b858300",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-actions",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "c7fd3bd13b63a73b74c1d54d354b22cc577f6459985ca353bc4d56e4f810e935",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-actions",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "7a220446c964201f811e01c3b20a034f302715583171577e750494d1ac480ad1",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-actions",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "bea348b58a72900347294800a5b94173ec4da7dc2b7c844dcffa77a0a15a7a21",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-actions",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "251e8a9f6f637fa94811868ebd3a2e76d36df1007cff75e4fa67508bf42ae7c1",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-actions",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "c16dd622698926fe88f128070cff5c3b0e21aef52eacbfb219ede5f6262050f1",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-warning-actions",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "accb31274751f52238017774f5b5581b51ea11adb9834e6c2778f59fa91d3830",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-card",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "c968cbd2f310eba1fab286a06187c21da5e60c8b23a4cf8c7b3e1bfe86f5821e",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-card",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "0a50b692d74978cd148c3408ce80790d8d528ec61fec9af6b9cf1a722c4f55ef",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-card",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "cfa6cc65ce374af3ced111dc26288dbb1a8248af1c381d1673596ddb0089de6d",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-card",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "797e5db49a025c8fdd83909ac442731da1b658c67302ad18fa87050655a77e03",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-card",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "49608ec701ae2e2b9a87e225eafe414a411f679c68fb0dcb6b8cc3937422a4d5",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-card",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "8353caf4d9f43b115d01099b8ee32645d156b9d37499582a9a6251f0d8b753ab",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-actions",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "37ae84089c363fefae07934aeabb24e1243ffe39200a9f025bebe196cfa2491c",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-actions",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "2b148903d54cd362e4808a60992c293cb16eff944f79aeb85b1b50f77bacdd91",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-actions",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "73f417f893d5ea2c7de69e965fba33be49a60e78e2a0616e277a5e3a6632d872",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-actions",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "40f3236f1bb1802fe90a7465821e810e8f0ff5ec0a0d1e7f8c93ab3568e28812",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-actions",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "6a681800ec8185a95b8359a4d968e5102921ae5a9a072b964cdcccb133bdc7cc",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "calendar-linked-actions",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "f33904637adb537ba0313fa9e69d12f26eb8bf577a7e94776420a4d4f97658ad",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-card",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "489d519a7ae7e004fe1a35459b77dda37074203ddfe1f1057f03ba5b212f5d9b",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-card",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "f785bd31901d910a54585d48dec31724b4d3d1ddf016f3575dee660709c9d6ba",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-card",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "af789f8ed7a1582ce6a5aa5c61370980b571dc79a19f51dcbd7fdc6e933d6669",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-card",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "90c24cd73fca5fc865074d3ae4852f0ed5ca8f985d518ae3539a3ae4fd1dcb38",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-card",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "4b4cf4ec1954281cca0b0227b79a344bebbf375c2e73db860ca32cf63c729432",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-card",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "332868360f1df5c470514b2d6080a2fab2cc3f24ca1f6f0662f1edeb8e930e64",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-actions",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "e20b2085f8907da9c1e9cb3fdb6164866d940c3095cc2c3abd7129326d555e72",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-actions",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "286f517400cf1e996836c687c7f388d5ca1e4b5a83aab7fe91c0a3f5d0fce489",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-actions",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "311b5e135f08eb3813961dc3df7601ec0673c39d3f301c49fd6b7b4155f1d5da",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-actions",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "6b82bb8d690ac9c015ceac07dfe22ff93c3899f0cc04f0983adb81ae968814e1",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-actions",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "f0085c484191f47fb0a4fed45f7ccc781e680ba4fa47f42efa7bbe8863e414a9",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-missing-media-actions",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "cc75f4b51e707e4c7747724f4773a24c8737af0fe280fb9cbe2ae032d4f6dbe2",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-card",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "112e52c88c73d08cd128d1029a9c56ebad7a74c8ff96a51e32f026c262ea9762",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-card",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "333ee532e44555ded4e298e70c2a55ad61bf5b8c0ec2ce7b6bb1b01db20257a8",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-card",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "21548bee1177d7910386b333d0a0e6daf9ff8fc677ba650367bb5e56c5a4c7ff",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-card",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "4b80c74c36837c419bfa43662bcb8e7941c383ade8abcfa4ea711501ac374880",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-card",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "5a9f7d74660bd5dc074dd41ad9a2ccebfb486527de6dfe9c866844eb9a6eb86d",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-card",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "1ae9604993418668eae1443fa2b9240bc5737b62a485097bb0191cd439ffa150",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-actions",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "3b6229a67e8a74d08b600b5218144c96de3127497a303434d16c36e109202ad9",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-actions",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "d88308178195adeb0b49e3bc498a6b21b06df53e1614a574e15d8ecdafc90d34",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-actions",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "d447312dc9ca1e60606c52be764070c25454d3a83402eb40c4bda22d6a7bff86",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-actions",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "2a475e4a5019d58c2336b5f4e92be42d27f9086f5bdce9ee9ffa53d571039747",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-actions",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "5297faae3c6a361e8fe20474b2bd619269349fb5bce99e7299350d58a5283cfc",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "design",
+      "state": "sample-reviews-linked-actions",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "f2a12ce85ca338f7b8c73979d5ef1dae9ac279c73dd2e9e2fa6739639f48b23d",
+      "status": "OPEN",
+      "review": "Viewed at original pixels, including every full-card chunk. Card supporting placeholders/alternate-caption text look faint; card title spacing and icon-only destinations need native context checks. Action sheet itself fits, but related card and complete actions are not accepted yet."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-save-error",
+      "width": 375,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "50a633b9e9233351daa7c606cd0fcc429f90d7404647682a8e58ecc6ed069577",
+      "status": "OPEN",
+      "review": "Refusal message is small and gives no next step. Full content above this scrolled viewport still needs review; no clean acceptance."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes-unlinked",
+      "width": 375,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "920b05683ee009259b7bb5fa37b9c511d18db727557f9c44c3b2227f7d541e60",
+      "status": "OPEN",
+      "review": "Internal Production-deliverable wording is unhelpful. This capture shows only the refusal area; independently verify whether header/close are actually outside the viewport before calling it a layout finding."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes",
+      "width": 375,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "7e47966a640036219ae3c08887e8273bd1e707f30bce63632b8b6759a254dc72",
+      "status": "OPEN",
+      "review": "Tiny incomplete selector labels (About the\u2026 / This is a\u2026) feel unclear; supporting labels and composer need revision and complete action/state review."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-save-error",
+      "width": 390,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "04ceb31941299cb2ffa3119b0e723fddbd14b993184c36fc97334323274ccc7b",
+      "status": "OPEN",
+      "review": "Refusal message is small and gives no next step. Full content above this scrolled viewport still needs review; no clean acceptance."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes-unlinked",
+      "width": 390,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "57344d40d4b4353cd2ffaa82357a663b1c7641ab8d6a9db474e4808bd9818e86",
+      "status": "OPEN",
+      "review": "Internal Production-deliverable wording is unhelpful. This capture shows only the refusal area; independently verify whether header/close are actually outside the viewport before calling it a layout finding."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes",
+      "width": 390,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "b07febe9033ef06e20f3aae7a55a76b737fcaa0eee80635bd5eb87664a6cda22",
+      "status": "OPEN",
+      "review": "Tiny incomplete selector labels (About the\u2026 / This is a\u2026) feel unclear; supporting labels and composer need revision and complete action/state review."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-save-error",
+      "width": 430,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "a71bd87195dca56690460978a30517d647690116f7866aabf518db0c65f388db",
+      "status": "OPEN",
+      "review": "Refusal message is small and gives no next step. Full content above this scrolled viewport still needs review; no clean acceptance."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes-unlinked",
+      "width": 430,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "60402b299f69e49dad6d2f9c88c9724bb658090db6c9aac2242b131947d74c5a",
+      "status": "OPEN",
+      "review": "Internal Production-deliverable wording is unhelpful. This capture shows only the refusal area; independently verify whether header/close are actually outside the viewport before calling it a layout finding."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes",
+      "width": 430,
+      "requestedTheme": "light",
+      "effectiveTheme": "light",
+      "sha256": "23e5f24001b5bd778aaecd231fa1dd467de76cf01a1ed5f666ef9307834ddf9a",
+      "status": "OPEN",
+      "review": "Tiny incomplete selector labels (About the\u2026 / This is a\u2026) feel unclear; supporting labels and composer need revision and complete action/state review."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-save-error",
+      "width": 375,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "50a633b9e9233351daa7c606cd0fcc429f90d7404647682a8e58ecc6ed069577",
+      "status": "OPEN",
+      "review": "Refusal message is small and gives no next step. Full content above this scrolled viewport still needs review; no clean acceptance."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes-unlinked",
+      "width": 375,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "920b05683ee009259b7bb5fa37b9c511d18db727557f9c44c3b2227f7d541e60",
+      "status": "OPEN",
+      "review": "Internal Production-deliverable wording is unhelpful. This capture shows only the refusal area; independently verify whether header/close are actually outside the viewport before calling it a layout finding."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes",
+      "width": 375,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "7e47966a640036219ae3c08887e8273bd1e707f30bce63632b8b6759a254dc72",
+      "status": "OPEN",
+      "review": "Tiny incomplete selector labels (About the\u2026 / This is a\u2026) feel unclear; supporting labels and composer need revision and complete action/state review."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-save-error",
+      "width": 390,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "04ceb31941299cb2ffa3119b0e723fddbd14b993184c36fc97334323274ccc7b",
+      "status": "OPEN",
+      "review": "Refusal message is small and gives no next step. Full content above this scrolled viewport still needs review; no clean acceptance."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes-unlinked",
+      "width": 390,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "57344d40d4b4353cd2ffaa82357a663b1c7641ab8d6a9db474e4808bd9818e86",
+      "status": "OPEN",
+      "review": "Internal Production-deliverable wording is unhelpful. This capture shows only the refusal area; independently verify whether header/close are actually outside the viewport before calling it a layout finding."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes",
+      "width": 390,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "b07febe9033ef06e20f3aae7a55a76b737fcaa0eee80635bd5eb87664a6cda22",
+      "status": "OPEN",
+      "review": "Tiny incomplete selector labels (About the\u2026 / This is a\u2026) feel unclear; supporting labels and composer need revision and complete action/state review."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-save-error",
+      "width": 430,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "a71bd87195dca56690460978a30517d647690116f7866aabf518db0c65f388db",
+      "status": "OPEN",
+      "review": "Refusal message is small and gives no next step. Full content above this scrolled viewport still needs review; no clean acceptance."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes-unlinked",
+      "width": 430,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "60402b299f69e49dad6d2f9c88c9724bb658090db6c9aac2242b131947d74c5a",
+      "status": "OPEN",
+      "review": "Internal Production-deliverable wording is unhelpful. This capture shows only the refusal area; independently verify whether header/close are actually outside the viewport before calling it a layout finding."
+    },
+    {
+      "lane": "client-links-expanded",
+      "state": "samples-notes",
+      "width": 430,
+      "requestedTheme": "dark",
+      "effectiveTheme": "light",
+      "sha256": "23e5f24001b5bd778aaecd231fa1dd467de76cf01a1ed5f666ef9307834ddf9a",
+      "status": "OPEN",
+      "review": "Tiny incomplete selector labels (About the\u2026 / This is a\u2026) feel unclear; supporting labels and composer need revision and complete action/state review."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 375,
+      "requestedTheme": "light",
+      "sha256": "c5345a7df36bdd2ea12d5809a6f9dfba70199934e43413917e8373be28716d8f",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 390,
+      "requestedTheme": "light",
+      "sha256": "3e961633fdbd55b67b73db4fb9745713c4f37095e0b83368f721c3e0e2e17b4b",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 430,
+      "requestedTheme": "light",
+      "sha256": "606f9b2d9f7b872d9d63578c3143a7395e9251d90d9147de94327adcd41341c6",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 375,
+      "requestedTheme": "dark",
+      "sha256": "c1d87ee3452f3c4fc52df1279a020ce0624f345cfe90e6e91a58acddc5a6a582",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 390,
+      "requestedTheme": "dark",
+      "sha256": "e0b4968ea0611e0a65ecf505ba4efdc92c6947cf43270dd2c0f2884957c973f3",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    },
+    {
+      "lane": "admin",
+      "state": "filming-details",
+      "width": 430,
+      "requestedTheme": "dark",
+      "sha256": "d6528b76ef0e7f227594316ce4c59b7f2d8cc8bd4994d283b00192660a78abf0",
+      "status": "OPEN",
+      "review": "Viewed every original-pixel viewport. Uneven flex wrapping and tile heights; uncovered labels sit above covered labels. Light uncovered-month contrast fails 4.5. Row disclosure has no keyboard role/tab stop and only a tiny caret. Native geometry probe independently confirms these observations; product repair remains open."
+    }
+  ]
+}

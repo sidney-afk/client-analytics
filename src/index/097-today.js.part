@@ -378,9 +378,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdyEditorQueue(d) {
         const due = r => r.due_date || '9999';
         const rank = r => (r.status === 'tweak' ? 0 : 2) - (d.urgent.includes(r.id) ? 1 : 0);
-        return d.open.filter(r => !tdyState.skipped.includes(r.id))
-            .concat(d.open.filter(r => tdyState.skipped.includes(r.id)))
-            .sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+        /* Sort first, THEN move the skipped cards to the back, in the order
+           they were skipped. The sort used to run last, so "Skip for now" only
+           moved a card behind others of the very same rank and due date: any
+           tweak, urgent or earlier-due card came straight back to the top and
+           the button looked dead. */
+        const sorted = d.open.slice().sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+        const skipped = tdyState.skipped.map(id => sorted.find(r => r.id === id)).filter(Boolean);
+        return sorted.filter(r => !tdyState.skipped.includes(r.id)).concat(skipped);
     }
     function _tdyEditorRow(r, d) {
         const name = d.names[r.client_slug] || r.client_slug || '';

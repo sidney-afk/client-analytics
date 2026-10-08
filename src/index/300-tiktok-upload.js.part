@@ -1006,7 +1006,20 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         `;
 
         _tkWireFormEvents();
+        _tkLockWhileSending();
         _tkRenderPreview();
+    }
+    /* What is being sent was frozen when Post was pressed. The client, caption
+       and media boxes were locked for the upload, but privacy, post mode, the
+       toggles, the cover and the schedule stayed live: changing one moved the
+       form and the preview ("Private") while the frozen value (public) was the
+       one posted. Every field in the form is locked until the upload ends;
+       Cancel is a button and stays. */
+    function _tkLockWhileSending() {
+        if (!tkState.submitting) return;
+        const col = document.getElementById('tkFormCol');
+        if (!col) return;
+        col.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
     }
 
     // Client search: the Analytics client picker's own search (same markup,
@@ -1204,6 +1217,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
 
     function _tkHandleFile(file) {
         if (!file) return;
+        if (tkState.submitting) return;   // a drop during an upload is not part of what is being sent
         if (!/^video\//.test(file.type) && !/\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
             tkState.error = 'That file does not look like a video.';
             _tkRenderForm();
@@ -1257,6 +1271,8 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     // helpers above but keyed by index since order defines the carousel. ----
     function _tkHandlePhotoFiles(fileList) {
         if (!fileList || !fileList.length) return;
+        // An image dropped during an upload showed in the strip, was never sent, and vanished on success.
+        if (tkState.submitting) return;
         const room = TIKTOK_MAX_PHOTOS - tkState.photos.length;
         const incoming = Array.from(fileList);
         const overflow = incoming.length > room;
@@ -1877,7 +1893,18 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             tkState.submitting = false;
             tkState.progress = 0;
             tkState.retryCreate = ambiguous;
-            if (e && e.name === 'AbortError') { tkState.error = 'Upload cancelled.'; _tkRenderForm(); return; }
+            if (e && e.name === 'AbortError') {
+                // Cancel at this point only stops the browser waiting. The
+                // request to create the post may already be with the server,
+                // so "Upload cancelled." was not something this page could
+                // know, and a changed re-submit then made a second post.
+                // (Line comments on purpose: test/comment-strip-is-honest.js
+                // measures a region of this file that a block comment here would end early.)
+                tkState.error = 'Cancelled while the post was being created, so it may already exist. Check the queue on the right before posting again. To finish this same post, press Submit again without changing anything: it cannot post twice.';
+                _tkRenderForm();
+                try { Promise.resolve(_tkFetchQueue()).catch(() => {}); } catch (err) {}
+                return;
+            }
             _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = `The ${what} finished uploading to storage, but the server could not be reached to finish creating the post. Press Submit again without changing anything: it finishes this same post and cannot post it twice.`;
             _tkRenderForm();

@@ -1115,6 +1115,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 if (stripNow) stripNow.scrollLeft = scrollLeft0;
             }
             wireCalOrganizerDrag(preserveScroll);
+            _calSelectionFollowsTheSheet();
         } else if (calState.view === 'month') {
             body.innerHTML = viewHtml;
             _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
@@ -1403,6 +1404,30 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        changes) — otherwise select-mode + a stale `selected` Set holding the
        previous client's ids survives the switch, and a later bulk-archive could
        act on cards from the wrong client / cards the user never saw. */
+    /* After every Sheet render, the selection is what is ticked ON SCREEN.
+     *
+     * Two defects met here. The select bar is rebuilt on each render with
+     * "0 selected" and its buttons disabled, while the cards were re-rendered
+     * still ticked, so any background repaint left five ticked cards under a
+     * bar that said none. And changing the month or status filter kept cards
+     * the filter had just hidden in the selection: tick three, change month,
+     * tick one more, and Archive asked about "4 posts" and archived three that
+     * were not on screen. A card the Sheet does not show is no longer selected,
+     * and the bar says how many are. */
+    function _calSelectionFollowsTheSheet() {
+        const strip = document.getElementById('calStrip');
+        if (!strip || !calState.selected) return;
+        if (calState.selected.size) {
+            const shown = new Set(Array.from(strip.querySelectorAll('.cal-card[data-pid]')).map(card => card.getAttribute('data-pid')));
+            calState.selected = new Set(Array.from(calState.selected).filter(id => shown.has(id)));
+        }
+        const n = calState.selected.size;
+        const count = document.getElementById('calSelectCount');
+        if (count) count.textContent = n + ' selected';
+        const action = document.getElementById('calSelectArchive');
+        if (action) action.disabled = n === 0;
+        document.querySelectorAll('#calSelectBar [data-bulk-color]').forEach(b => { b.disabled = n === 0; });
+    }
     function _calResetSelection() {
         calState.selectMode = false;
         calState.selectAction = 'archive';
@@ -2667,6 +2692,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const json = await response.json().catch(() => ({}));
         if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
         const saved = Object.assign({}, post, json.post && typeof json.post === 'object' ? json.post : {});
+        // The card is saved. If the view moved to another client meanwhile,
+        // the list on screen is not this client's: writing it under this
+        // client's saved copy put the other client's cards there (the Samples
+        // twin, _sxrFillComponent, already stops here).
+        if (calClientSlug(calState.client) !== clientSlug) return;
         const index = calState.posts.findIndex(item => item && item.id === pid);
         if (index >= 0) calState.posts[index] = Object.assign({}, calState.posts[index], saved);
         try { _calCacheWrite(clientSlug, calState.posts); } catch (e) {}

@@ -518,6 +518,8 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        // A selection belongs to the client it was made on (see _calSetClient).
+        if (sxrState.client !== initial) _sxrResetSelection();
         sxrState.client = initial;
         if (initial) { svSharedClientNote(initial); _sxrPinClient(initial); }
         sxrState.embedded = false;
@@ -2669,7 +2671,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             ? (canAddCard ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}<span>Add the first sample</span></button>` : `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No samples to show yet</div><div class="cal-filter-empty-sub">Finished samples will appear here.</div></div>`)
             : (canAddCard ? `<button class="cal-card-add" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}</button>` : '');
         const selectBar = (sxrState.selectMode && !_isClientLink)
-            ? `<div class="cal-select-bar" id="sxrSelectBar"><span class="cal-select-count" id="sxrSelectCount">0 selected</span><button type="button" class="cal-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()" disabled>Archive</button><button type="button" class="cal-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`
+            ? `<div class="cal-select-bar" id="sxrSelectBar"><span class="cal-select-count" id="sxrSelectCount">${sxrState.selected ? sxrState.selected.size : 0} selected</span><button type="button" class="cal-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()"${sxrState.selected && sxrState.selected.size ? '' : ' disabled'}>Archive</button><button type="button" class="cal-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`
             : '';
         return `<div class="cal-organizer-wrap"><div class="cal-organizer-strip${empty ? ' is-empty' : ''}${sxrState.selectMode ? ' cal-selecting' : ''}" id="sxrStrip">${posts.map(p => _sxrRenderInlineCard(p, false, false)).join('')}${addBtn}</div>${selectBar}</div>`;
     }

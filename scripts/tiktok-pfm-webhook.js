@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * Points Post For Me's result webhook at the tiktok-upload function (OPEN_REPAIRS 369), through the function
+ * Points Post For Me's result webhook at the tiktok-upload function (OPEN_REPAIRS 370), through the function
  * itself, which holds the Post For Me key. Nothing here sees or prints a secret: Post For Me gives the
  * webhook's secret to the function, and the function checks every delivery against it.
  *

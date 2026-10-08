@@ -217,7 +217,7 @@ export function refreshCandidates(rows, nowMs, limit) {
   return (rows || []).filter((r) => needsRefresh(r) && due(r)).sort((a, b) => asked(a) - asked(b)).slice(0, limit);
 }
 
-// The safety net (OPEN_REPAIRS 369): every open row whose time has come, not only the newest page the queue
+// The safety net (OPEN_REPAIRS 370): every open row whose time has come, not only the newest page the queue
 // shows. A row without a post id is included too, so its post can be found by external_id. Never-asked rows
 // first, then the longest unasked, so a row Post For Me never answers for cannot starve the others.
 export function sweepCandidates(rows, nowMs, limit) {

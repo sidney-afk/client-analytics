@@ -17,7 +17,7 @@
 //   POST { action: "webhook_status" | "webhook_register" | "webhook_remove", id? }   ADMIN key only: Post For Me's
 //                                                   webhooks (ids, urls, events; never secrets)
 //   POST ?pfm_webhook=1  { event_type, data }       Post For Me's result webhook: NO staff key; the header
-//                                                   Post-For-Me-Webhook-Secret must match (OPEN_REPAIRS 369)
+//                                                   Post-For-Me-Webhook-Secret must match (OPEN_REPAIRS 370)
 //   POST { action: "import_sheet", dry_run? }       { ok, counts }  ADMIN key only: the one-time copy of the
 //                                                                   TikTokUpload tab; rows already here are kept
 //
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
   const webhookUrl = supabaseUrl.replace(/\/+$/, "") + "/functions/v1/tiktok-upload?pfm_webhook=1";
   const store = () => tableStore(createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } }));
 
-  // Post For Me's result webhook: no staff key, its own secret instead (OPEN_REPAIRS 369).
+  // Post For Me's result webhook: no staff key, its own secret instead (OPEN_REPAIRS 370).
   const reqUrl = new URL(req.url);
   const webhookSecret = req.headers.get(WEBHOOK_HEADER);
   if (reqUrl.searchParams.get("pfm_webhook") === "1" || webhookSecret !== null) {

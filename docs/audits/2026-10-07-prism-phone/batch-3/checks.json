@@ -1,0 +1,70 @@
+{
+  "sourceHash": "35a319476117fffce2e2be7b75d34b338a7538ed6fa6fd54820d71d200d17865",
+  "scope": "Completed local checks; hosted checks, deployment, full phone clean round and fresh review remain separate gates.",
+  "actualTails": {
+    "staff-rules-fonts-all": [
+      "ok time-off-dark-430 screen, menus, layout and scroll lock",
+      "STAFF_PHONE_RULES: 240 states; 0 failures; 375/390/430 touch; synthetic transports; no live writes"
+    ],
+    "staff-design-fonts-all": [
+      "ok sample-reviews-430-dark-linked",
+      "STAFF_PHONE_DESIGN: 24 native card states; 0 failures; fictional intercepted transports"
+    ],
+    "client-basic-final": [
+      "ok   samples iPhone SE landscape 667x375 dark",
+      "client-phone-review: OK (calendar + samples, 5 phone sizes each, light + dark, approve + request change)"
+    ],
+    "client-links-final": [
+      "client-links-expanded: OK (2964 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 375/390/430; requested light/dark, effective client light)."
+    ],
+    "client-calendar-native-actions": [
+      "client-calendar-expanded: OK (4500 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 375/390/430; requested light/dark, effective client light)."
+    ],
+    "admin": [
+      "KASPER_ADMIN_CHART: pinned production 4.4.0 bytes; 6 phone chart action/theme/desktop-restore states checked.",
+      "KASPER_ADMIN_EXPANDED: 420 native states; 8892 checks; 0 failures; fictional data; no live writes."
+    ],
+    "modules": [
+      "minified parts: 19 files, 2657 KB, 5216 top-level names, 0 lost, 0 changed kind",
+      "check-modules: all checks passed"
+    ],
+    "all-scope": [
+      "staff-samples-phone-css-scope: OK (1 block(s), 344 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])",
+      "KASPER_ADMIN_SCOPE: 283 rules; all capped at 767px and owned marker; widened/unscoped rules rejected."
+    ],
+    "desktop-loading-comparison": [
+      "CLIENT_LOADING_DESKTOP: 32/32 exact PNG, native markup and computed-style pairs"
+    ],
+    "desktop": [
+      "ok   client-sample-reviews @1920: pixels identical, computed styles identical (8efa8351f7c9)",
+      "72/72 desktop shots identical to 8361c27b8f2ac9b7434e6799fc76502d92e0bd80"
+    ],
+    "index-head": [
+      "check-index: committed index.html (HEAD) \u2014 sha256=05ef2a5c25a1b3e20bfcd9996aac3faf8baa161ab0301c31f0361e72b5d2a4aa bytes=1314399",
+      "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    ],
+    "repo-map": [
+      "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
+      "repo-map-sync: 1118 passed, 0 failed"
+    ],
+    "truth": [
+      "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",
+      "truth-sync: 515 passed, 0 failed"
+    ],
+    "exposure-staged": [
+      "  WHERE (counts only \u2014 this tool never prints what it matched):",
+      "This change adds no client slug and no colleague's name \u2705"
+    ],
+    "admin-final": [
+      "KASPER_ADMIN_CHART: pinned production 4.4.0 bytes; 6 phone chart action/theme/desktop-restore states checked.",
+      "KASPER_ADMIN_EXPANDED: 426 native states; 9012 checks; 0 failures; fictional data; no live writes."
+    ],
+    "filming-disclosure-probe": [
+      "KASPER_ADMIN_EXPANDED: 6 native states; 126 checks; 0 failures; fictional data; no live writes."
+    ],
+    "coverage-final": [
+      "PHONE_COVERAGE: 335 native states; 2010 width/theme cells; 280 discovery obligations; 12 clean cells"
+    ]
+  },
+  "adminFixtureFollowThrough": "The original 420-state suite is retained. The final 426-state suite uses a valid Set of months, native count refresh and the new disclosure journey, with intended fonts and pinned Chart.js bytes."
+}

@@ -16545,15 +16545,7 @@
         return { id: me.id, names: await _tdySmmClients(me) };
     }
     async function _tdyLoad(me) {
-        /* `order=id.asc`: these reads are fetched 1,000 rows at a time, and
-           without a stable order the database may hand a row out on two pages
-           or on none, so past 1,000 open items an approval could be missing
-           from Today on one load and back on the next (945 open rows on
-           2026-10-08). Workload and SyncLinear page the same way and already
-           sort. The head script starts the same reads early and is matched by
-           exact address, so tdSel in 005-head-boot.html.part must stay
-           character for character the same as this. */
-        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
         const monday = _tdyMonday().toISOString();
         _tdyClientRows = null;   // one fresh read per load
         const clientsP = _tdyClients();
@@ -16566,7 +16558,7 @@
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
                 _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc')
+                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
             ]);
             reads.catch(() => {});
             const parentsP = reads.then(([o, d]) => _tdyParentIds(o.filter(_tdyFresh).concat(d)));
@@ -34242,10 +34234,6 @@
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
             ok = true;
-            // Edits typed on this client while the view was elsewhere, held by
-            // _calParkEditsForClient. calState describes this client now, so
-            // the normal engine can have them.
-            try { _calRestoreParkedEdits(slug); } catch (e) {}
         } catch (e) {
             if (!_calLoadRunCurrent(loadRun)) return;
             const isAbort = e && (e.name === 'AbortError' || /aborted|timed out/i.test(String(e.message || '')));
@@ -35933,17 +35921,6 @@
         const post = calState.posts.find(p => p.id === id);
         if (!post || !iso) return;
         if (String(post.scheduled_date || '').slice(0,10) === iso) return;
-        /* Remember the day the post was on. The move is painted before the
-           save, so by the time the engine takes its own "before" copy the post
-           already holds the new day, and a failed save rolled back to the day
-           it had just failed to save: the post stayed on the new day with no
-           sign anything was wrong (Month and Week cards have no save chip) and
-           was back on the old day after a reload. */
-        const priorDate = post.scheduled_date;
-        if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
-        const moveBucket = _calPendingEdits[id];
-        moveBucket._calPriorStatus = moveBucket._calPriorStatus || {};
-        if (!('scheduled_date' in moveBucket._calPriorStatus)) moveBucket._calPriorStatus.scheduled_date = priorDate;
         post.scheduled_date = iso;
         post.updated_at = new Date().toISOString();
         // Route the reschedule through the same per-card save funnel as every
@@ -38887,109 +38864,6 @@
         });
     }
 
-    /* AN EDIT BELONGS TO THE CLIENT IT WAS TYPED ON.
-     *
-     * The save engine reads `calState` when a flush STARTS. `onCalClientChange`
-     * flushes everything pending before it switches, but a flush for a card
-     * whose earlier save is still in flight defers behind that save's lock and
-     * wakes after the switch. It then read the slug of the client now on
-     * screen, did not find the card there, took it for a new row and sent a
-     * blank card carrying the edit: a new post in the wrong client's calendar,
-     * visible on that client's link, while the card it was typed on never got
-     * it and showed no error. Samples met the same thing in its fill path
-     * (`_sxrParkEditsForClient`); this is the Calendar's copy of that answer.
-     *
-     * So an edit that cannot be written under its own client is PARKED against
-     * that client and card, said out loud, and handed back to the normal engine
-     * by `_calRestoreParkedEdits` the next time that client loads. Held in this
-     * tab only: one bucket per card per client, capped. Nothing here writes. */
-    const _calParkedEdits = Object.create(null);
-    const CAL_PARKED_EDIT_MAX_CARDS = 50;
-    function _calParkEditsForClient(slug, pid) {
-        const edits = _calPendingEdits[pid];
-        delete _calPendingEdits[pid];
-        if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
-        const key = String(slug || '');
-        if (!key || !edits || !Object.keys(edits).length) return;
-        const forClient = _calParkedEdits[key] || (_calParkedEdits[key] = Object.create(null));
-        if (!forClient[pid] && Object.keys(forClient).length >= CAL_PARKED_EDIT_MAX_CARDS) {
-            _writeUiQueueDiagnostic('calendar', 'parked_edit_capacity_dropped',
-                { kind: 'card_save' }, { code: 'parked_edit_cap' });
-            showNotify('That edit was not saved',
-                'This tab is already holding unsaved edits for ' + CAL_PARKED_EDIT_MAX_CARDS
-                + ' other cards on ' + key + ', so this one could not be held as well. It was not'
-                + ' written anywhere and cannot be brought back. Open ' + key + ' again to save the'
-                + ' edits being held, then retype this one.');
-            return;
-        }
-        // Whose edit it is goes with it: the account can change before that
-        // client is opened again, and a restored bucket is sent by whoever is
-        // signed in then.
-        const previous = forClient[pid];
-        forClient[pid] = {
-            principal: _writeUiPrincipalKey(),
-            edits: Object.assign({}, previous && previous.edits, edits)
-        };
-        _writeUiQueueDiagnostic('calendar', 'queued_edit_parked_off_client',
-            { kind: 'card_save' }, { code: 'client_changed_during_save' });
-        showNotify('That edit is not saved yet',
-            'A change you typed could not be saved while the client changed, so nothing was written to the wrong one. Open ' + key + ' again in this tab and it will save. If you reload first, retype it.');
-    }
-    /* Called after a successful load for `slug`, when `calState` describes the
-       client these edits belong to. A card the load did not return is NOT
-       restored: re-queuing it would make the engine insert it as a new row,
-       which is the defect this exists to avoid. */
-    function _calRestoreParkedEdits(slug) {
-        const key = String(slug || '');
-        const forClient = key && _calParkedEdits[key];
-        if (!forClient) return 0;
-        if (calClientSlug(calState.client) !== key) return 0;
-        let restored = 0;
-        const principalNow = _writeUiPrincipalKey();
-        for (const pid of Object.keys(forClient)) {
-            const entry = forClient[pid] || {};
-            if (!(calState.posts || []).some(post => post && post.id === pid)) {
-                delete forClient[pid];
-                _writeUiQueueDiagnostic('calendar', 'parked_edit_card_gone',
-                    { kind: 'card_save' }, { code: 'card_absent_on_restore' });
-                showNotify('An unsaved edit was discarded',
-                    'A change typed on a card of ' + key + ' was still waiting to be saved, and that'
-                    + ' card is no longer in this client — archived, moved or removed while it'
-                    + ' waited. Nothing was written, and the change is gone.');
-                continue;
-            }
-            if (!principalNow || entry.principal !== principalNow) {
-                delete forClient[pid];
-                _writeUiQueueDiagnostic('calendar', 'parked_edit_principal_changed',
-                    { kind: 'card_save' }, { code: 'principal_changed_before_restore' });
-                showNotify('An unsaved edit was discarded',
-                    'A change typed here before the signed-in account changed was not saved, because it is not this account’s to send. Nothing was written.');
-                continue;
-            }
-            // Newer input wins: somebody may already be typing in this card
-            // again while the load that triggers this restore was in flight.
-            _calPendingEdits[pid] = Object.assign({}, entry.edits, _calPendingEdits[pid] || {});
-            delete forClient[pid];
-            restored += 1;
-            _calFlushCardSave(pid);
-        }
-        if (!Object.keys(forClient).length) delete _calParkedEdits[key];
-        return restored;
-    }
-    window.peekCalParkedEdits = function () {
-        const out = {};
-        for (const slug of Object.keys(_calParkedEdits)) out[slug] = Object.keys(_calParkedEdits[slug]);
-        return out;
-    };
-    /* A save that finishes after the view moved to another client must not
-       write the list now on screen under the client it started on: that put one
-       client's cards into another's saved copy, which the next visit paints
-       before the network answers. True when the write was made or rightly
-       skipped; false only when storage refused a write that was due. */
-    function _calCacheWriteIfCurrent(slug, options) {
-        if (calClientSlug(calState.client) !== slug) return true;
-        return _calCacheWrite(slug, calState.posts, options);
-    }
     async function _calAwaitCardSave(pid) {
         for (;;) {
             const active = _calSaveInFlight[pid];
@@ -39057,8 +38931,7 @@
         if (retryPost && retryPost._writeUiRetrySourceAt) {
             _writeUiSnapshotRepairRefs(retryPost).forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
         }
-        const bucketPrecommitted = edits._writeUiPrecommittedNative === true;
-        const precommittedForWrite = bucketPrecommitted
+        const precommittedForWrite = edits._writeUiPrecommittedNative === true
             || !!(retryPost && retryPost._writeUiRetrySourceAt);
         const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
         const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
@@ -39102,21 +38975,6 @@
             const hadKeys = Object.keys(edits).length;
             await _calConflictGate(realId, _saveSlug, edits);
             if (hadKeys && !Object.keys(edits).length) return;
-            /* The view moved to another client during that read. The card is no
-               longer in `calState.posts`, so carrying on would treat it as a new
-               row: a blank card pushed into the list now on screen and a blank
-               whole-card write sent over the real one. Put the bucket back
-               whole; the finally below parks it for its own client. */
-            if (calClientSlug(calState.client) !== _saveSlug) {
-                const held = Object.assign({}, edits, _calPendingEdits[realId] || {});
-                if (Object.keys(priorStatusForWrite).length) held._calPriorStatus = Object.assign({}, priorStatusForWrite, held._calPriorStatus || {});
-                if (sourceRepairRefsForWrite.length) held._writeUiRepairRefs = sourceRepairRefsForWrite.slice();
-                if (bucketPrecommitted) held._writeUiPrecommittedNative = true;
-                if (companionRepairsForWrite.length) held._writeUiCompanionRepairs = companionRepairsForWrite.slice();
-                if (pinnedSourceTransportForWrite) held._writeUiPinnedSourceTransport = pinnedSourceTransportForWrite;
-                _calPendingEdits[realId] = held;
-                return;
-            }
         }
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
@@ -39175,7 +39033,7 @@
             post._writeUiRetryEdits = Object.assign({}, edits);
             post._writeUiRetrySourceAt = writeUiSourceAt;
             post._writeUiRetryPrincipal = _writeUiPrincipalKey();
-            if (!_calCacheWriteIfCurrent(_saveSlug)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+            if (!_calCacheWrite(_saveSlug, calState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
         };
         try {
             checkpointCommittedSource();
@@ -39473,7 +39331,7 @@
                It fired only AFTER the upsert above, so removing it changes no
                card state and no save ordering -- only the outbound copy to
                Linear is gone. */
-            _calCacheWriteIfCurrent(_saveSlug, { clearRepairIds: [realId] });
+            _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
             // An earlier change that failed and is still unsent keeps its Retry chip.
             if (_okPost && _okPost._saveError) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
@@ -39593,17 +39451,10 @@
                     cur._writeUiRetrySourceAt = writeUiSourceAt;
                     cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                     delete cur._writeUiPrecommittedNative;
-                    _calCacheWriteIfCurrent(_saveSlug);
+                    _calCacheWrite(_saveSlug, calState.posts);
                 }
             }
             try { _calRenderBody({ preserveScroll: true }); } catch {}
-            /* A date that did not save is put back above. Only the Sheet card
-               ('organizer') carries the "Save failed" chip, so in Month and Week (where a
-               post is rescheduled by dragging) the person is told here; a
-               gateway refusal has already raised its own notice. */
-            if ('scheduled_date' in edits && !wasNewRow && !gatewayAttempted && calState.view !== 'organizer') {
-                showNotify('Date not saved', 'The post could not be moved to that day and is back where it was. ' + _writeUiFailureSentence(e, 'Try again in a moment.'));
-            }
             if (gatewayCommitted && !wasNewRow) _calScheduleSyncRetry(realId);
         }
         } finally {
@@ -39615,14 +39466,8 @@
             delete _calSaveInFlight[pid];
             delete _calSaveInFlight[realId];
             if (_releaseSave) _releaseSave();
-            // Only while the view is still on the client this save belongs to.
-            // After a client switch the queued edits are parked for their own
-            // client instead (see _calParkEditsForClient).
-            const queuedId = _calPendingEdits[realId] ? realId : (realId !== pid && _calPendingEdits[pid] ? pid : '');
-            if (queuedId) {
-                if (calClientSlug(calState.client) === _saveSlug) _calFlushCardSave(queuedId);
-                else _calParkEditsForClient(_saveSlug, queuedId);
-            }
+            if (_calPendingEdits[realId]) _calFlushCardSave(realId);
+            else if (realId !== pid && _calPendingEdits[pid]) _calFlushCardSave(pid);
         }
     }
 
@@ -44862,12 +44707,7 @@
         // matching media URL must already be linked, so warn while it's empty.
         // The video sub-status governs the video URL; the thumbnail (graphic)
         // sub-status governs the thumbnail URL — each is independent.
-        // N/A is not "past In Progress": it says the post will never have this
-        // part, which is exactly what the warning itself tells people to set
-        // ("If this post will never have one, set it to N/A"). Counting it kept
-        // the warning on the card, and the post in Today's "Missing links",
-        // with no way to clear either short of adding a link.
-        const beyondProgress = s => { const st = _calNormStatus(s || ''); return st !== 'In Progress' && st !== 'N/A'; };
+        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
         const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
         const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;
@@ -47249,17 +47089,7 @@
         _calRenderCommentsModal();
         return false;
     }
-    /* One send at a time. The box keeps its text and stays live while a note
-       is on its way, so a second Enter (or Enter then Send) used to post the
-       same note twice, each copy overwriting the other's view of the thread. */
-    let _calComposerSending = false;
     async function _calSubmitComposer() {
-        if (_calComposerSending) return;
-        _calComposerSending = true;
-        try { return await _calSubmitComposerNow(); }
-        finally { _calComposerSending = false; }
-    }
-    async function _calSubmitComposerNow() {
         const pid = _calOpenCommentsPid;
         if (!pid) return;
         _calCaptureModalDrafts();
@@ -47283,13 +47113,10 @@
         if (!saved) { if (!parentId) _calNoteDraftSet(pid, body); return; }
         if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
         else {
-            // The box on screen is only this card's while its Notes are still open.
-            if (_calOpenCommentsPid === pid) { _calRootDraft = ''; _calRootDraftRestored = ''; }
+            _calRootDraft = '';
+            _calRootDraftRestored = '';
             _calNoteDraftSet(pid, '');
         }
-        // Notes closed, or another card's opened, while this one was sending:
-        // what is typed there now is not this note's to clear.
-        if (_calOpenCommentsPid !== pid) return;
         _calReplyTarget = null;
         _calRenderCommentsModal();
         setTimeout(() => {
@@ -56979,7 +56806,24 @@
                comment, with no warning. Reply now carries the typed text into
                the reply; Edit has to put the old comment's text in the box, so
                it asks first. */
-            const unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            let unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            /* NEVER ACROSS AUDIENCES. A reply takes its thread's audience and
+               the composer shows no audience switch for a reply. Carrying an
+               unsent INTERNAL comment into a reply on a client-visible thread
+               would post staff-only words where the client reads them (found by
+               an independent review of the first version of this change). Text
+               is carried only into a thread of the audience it was typed for;
+               otherwise the person is asked, as for Edit. */
+            const crossesAudience = action === 'add' && comment && unsent
+                && String(comment.audience || 'internal') !== String(draft.audience || 'internal');
+            if (crossesAudience && !discardUnsent) {
+                showConfirm('Discard your unsent comment?',
+                    'You typed a comment marked ' + (draft.audience === 'client' ? 'client-visible' : 'internal') + ', and this thread is '
+                    + (comment.audience === 'client' ? 'client-visible' : 'internal') + '. It will not be moved into the reply. Send it first, or discard it and reply.',
+                    () => { _prodCommentBegin(id, 'add', commentId, true); }, 'Discard and reply');
+                return false;
+            }
+            if (crossesAudience) unsent = '';
             if (action === 'edit' && comment && unsent && !discardUnsent) {
                 showConfirm('Discard your unsent comment?',
                     'You typed a comment that is not sent yet. Editing another comment replaces it in the box.',
@@ -69971,18 +69815,7 @@
             _sxrRenderBody();
             try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
             if (!_sxrIsBlankId(pid)) {
-                /* A failed archive says so, like the Calendar's (archiveCalPost).
-                   It used to put the sample back with no message at all, and it
-                   put the list back even after the view had moved to another
-                   client, which flashed one client's samples under another. */
-                _sxrArchiveOne(pid, slug, post || null).catch(e => {
-                    console.warn('[Samples] archive failed', e);
-                    _sxrArchivedRemove(slug, refs);
-                    const stillHere = sxrClientSlug(sxrState.client) === slug;
-                    if (stillHere) { sxrState.posts = snapshot; _sxrRenderBody(); }
-                    showNotify('Archive failed', 'The sample was not archived, so it is back in the list. ' + ((e && e.message) || 'Try again in a moment.'));
-                    if (stillHere) loadSxrCards({ skipCache: true });
-                });
+                _sxrArchiveOne(pid, slug, post || null).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
             }
         }, 'Archive');
     }
@@ -69993,15 +69826,8 @@
         const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
         const archivedAt = new Date().toISOString();
-        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'), { requireOk: true });
+        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
-        // The function can refuse with HTTP 200 and {"ok":false} (a failed read
-        // of the stored row). That is not an archive: without this the sample
-        // stayed hidden and its work items were parked in Backlog while the
-        // sample itself was still live. The Calendar checks the same thing.
-        let json = null;
-        try { json = await resp.json(); } catch (e) {}
-        if (!json || json.ok !== true) throw new Error((json && json.error) || 'archive was not confirmed');
         // Same rule as the Calendar (owner ruling 2026-08-17, extended to
         // samples 2026-09-28): archiving parks the sample's work items in
         // Backlog through the same guarded status write a person's status
@@ -70118,13 +69944,7 @@
                 Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug, postById.get(id) || null))).then(results => {
                     const failedRefs = [];
                     results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(ids[i]); if (refs) refs.forEach(x => failedRefs.push(x)); } });
-                    if (failedRefs.length) _sxrArchivedRemove(slug, failedRefs);
-                    const failedCount = results.filter(r => r.status === 'rejected').length;
-                    if (failedCount) {
-                        // Said out loud, as the Calendar's bulk archive does.
-                        showNotify('Some samples were not archived', failedCount + ' of ' + ids.length + ' could not be archived. Reloading the list.');
-                        if (sxrClientSlug(sxrState.client) === slug) loadSxrCards({ skipCache: true });
-                    }
+                    if (failedRefs.length) { _sxrArchivedRemove(slug, failedRefs); loadSxrCards({ skipCache: true }); }
                 });
             }, 'Archive');
     }
@@ -70416,13 +70236,6 @@
             return;
         }
     }
-    /* A save that finishes after the view moved to another client must not
-       write the list now on screen under the client it started on (twin of
-       _calCacheWriteIfCurrent). True when written or rightly skipped. */
-    function _sxrCacheWriteIfCurrent(slug, options) {
-        if (sxrClientSlug(sxrState.client) !== slug) return true;
-        return _sxrCacheWrite(slug, sxrState.posts, options);
-    }
     async function _sxrFlushCardSave(pid) {
         let edits = _sxrPendingEdits[pid];
         if (!edits) return;
@@ -70521,7 +70334,7 @@
                 post._writeUiRetryEdits = Object.assign({}, edits);
                 post._writeUiRetrySourceAt = writeUiSourceAt;
                 post._writeUiRetryPrincipal = _writeUiPrincipalKey();
-                if (!_sxrCacheWriteIfCurrent(_saveSlug)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+                if (!_sxrCacheWrite(_saveSlug, sxrState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
             };
             try {
                 checkpointCommittedSource();
@@ -70661,7 +70474,7 @@
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                     else delete _okPost._writeUiPrecommittedNative;
                 }
-                _sxrCacheWriteIfCurrent(_saveSlug, { clearRepairIds: [realId] });
+                _sxrCacheWrite(_saveSlug, sxrState.posts, { clearRepairIds: [realId] });
                 _sxrSetCardStatus(realId, 'saved');
                 // The database stamped a new round on any status this save changed; the echo never says so.
                 _urgentAdoptStampsAfterSave('samples', _saveSlug, realId, edits);
@@ -70697,7 +70510,7 @@
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
                         cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                         delete cur._writeUiPrecommittedNative;
-                        _sxrCacheWriteIfCurrent(_saveSlug);
+                        _sxrCacheWrite(_saveSlug, sxrState.posts);
                     }
                 }
                 try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
@@ -70706,18 +70519,8 @@
             delete _sxrSaveInFlight[pid];
             delete _sxrSaveInFlight[realId];
             if (_releaseSave) _releaseSave();
-            /* Only while the view is still on the client this save belongs to.
-               A flush reads the client at the moment it starts, and a sample
-               absent from the list on screen is inserted as a new row, so a
-               re-flush that wakes after a client switch wrote one client's
-               edit as a new sample under another. The fill path already parks
-               such an edit for its own client (_sxrParkEditsForClient); the
-               general engine now does the same. */
-            const queuedId = _sxrPendingEdits[realId] ? realId : (realId !== pid && _sxrPendingEdits[pid] ? pid : '');
-            if (queuedId) {
-                if (sxrClientSlug(sxrState.client) === _saveSlug) _sxrFlushCardSave(queuedId);
-                else _sxrParkEditsForClient(_saveSlug, queuedId);
-            }
+            if (_sxrPendingEdits[realId]) _sxrFlushCardSave(realId);
+            else if (realId !== pid && _sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
         }
     }
 
@@ -72157,15 +71960,7 @@
         _sxrRenderCommentsModal();
         return false;
     }
-    // One send at a time (twin of _calSubmitComposer; see the note there).
-    let _sxrComposerSending = false;
     async function _sxrSubmitComposer() {
-        if (_sxrComposerSending) return;
-        _sxrComposerSending = true;
-        try { return await _sxrSubmitComposerNow(); }
-        finally { _sxrComposerSending = false; }
-    }
-    async function _sxrSubmitComposerNow() {
         const pid = _sxrOpenCommentsPid; if (!pid) return;
         _sxrCaptureModalDrafts();
         const body = (_sxrEditTarget
@@ -72184,8 +71979,7 @@
         const saved = await _sxrAppendComment(pid, parentId, body);
         if (!saved) return;
         if (parentId) { delete _sxrReplyDrafts[parentId]; _sxrReplyDraftsPersist(pid); }
-        else { if (_sxrOpenCommentsPid === pid) _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
-        if (_sxrOpenCommentsPid !== pid) return;
+        else { _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
         _sxrReplyTarget = null;
         _sxrRenderCommentsModal();
         setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);
@@ -83517,7 +83311,6 @@
             _caState.assignments = Object.assign({}, _caState.assignments, { [r.slug]: j.manager_slug || managerSlug });
             _caState.picker = false;
             _caState.history = null;
-            _caLoadHistory();
             const m = _caManager(r.slug);
             if (typeof showToast === 'function') showToast(`${m ? m.name : 'The new manager'} now manages ${_caName(r)}`);
         } else if (j.error === 'manager_changed') {
@@ -83537,13 +83330,6 @@
     async function _caToggleHistory() {
         _caState.historyOpen = !_caState.historyOpen;
         _caPaint();
-        return _caLoadHistory();
-    }
-    /* Reads the history when it is open and not loaded. A save or a manager
-       change clears the loaded history so the new entry shows; with the panel
-       open that used to leave "Loading the history…" on screen for good,
-       because only the toggle ever fetched. Both now call this. */
-    async function _caLoadHistory() {
         if (!_caState.historyOpen || _caState.history) return;
         const slug = _caState.selected, generation = _caGeneration;
         let out;
@@ -83632,7 +83418,6 @@
             _caState.edit = null;
             _caState.history = null;
             _caPaint();
-            _caLoadHistory();
             if (typeof showToast === 'function') showToast(json.native ? 'Saved' : 'Saved to the sheet and SyncView');
             return;
         }
@@ -84025,19 +83810,9 @@
         const r = row || {};
         const handle = v => String(v || '').trim().replace(/^@/, '');
         if (key === 'email_present' && String(r.email || '').trim()) return { href: 'mailto:' + String(r.email).trim(), text: 'Email' };
-        /* The social rows must open the same address as the profile card above
-           them (_caLinkFor in 323, whose rules these mirror). This list got two
-           shapes wrong: a YouTube "@handle" went to /channel/%40handle, and a
-           value saved as a full address was wrapped in a second one. Both
-           answer "not found". */
-        const social = { instagram_present: 'instagram_handle', tiktok_present: 'tiktok_handle', youtube_present: 'youtube_channel_id' }[key];
-        const raw = social ? String(r[social] || '').trim() : '';
-        if (raw && /^https?:\/\//i.test(raw)) return { href: raw, text: 'Open' };
-        if (key === 'instagram_present' && handle(raw)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(raw)) + '/', text: 'Open' };
-        if (key === 'tiktok_present' && handle(raw)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(raw)), text: 'Open' };
-        if (key === 'youtube_present' && raw) {
-            return { href: /^@/.test(raw) ? 'https://www.youtube.com/' + encodeURIComponent(raw).replace('%40', '@') : 'https://www.youtube.com/channel/' + encodeURIComponent(raw), text: 'Open' };
-        }
+        if (key === 'instagram_present' && handle(r.instagram_handle)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(r.instagram_handle)) + '/', text: 'Open' };
+        if (key === 'tiktok_present' && handle(r.tiktok_handle)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(r.tiktok_handle)), text: 'Open' };
+        if (key === 'youtube_present' && String(r.youtube_channel_id || '').trim()) return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(String(r.youtube_channel_id).trim()), text: 'Open' };
         // Pages inside SyncView that show this client's own data (clean addresses, docs/features/CLEAN_URLS.md).
         const slug = encodeURIComponent(String(r.slug || '').trim());
         if (slug) {
@@ -88407,4 +88182,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-75d07f6e4f3b.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-835bee4f9f97.js");

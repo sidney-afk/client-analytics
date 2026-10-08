@@ -16545,15 +16545,7 @@
         return { id: me.id, names: await _tdySmmClients(me) };
     }
     async function _tdyLoad(me) {
-        /* `order=id.asc`: these reads are fetched 1,000 rows at a time, and
-           without a stable order the database may hand a row out on two pages
-           or on none, so past 1,000 open items an approval could be missing
-           from Today on one load and back on the next (945 open rows on
-           2026-10-08). Workload and SyncLinear page the same way and already
-           sort. The head script starts the same reads early and is matched by
-           exact address, so tdSel in 005-head-boot.html.part must stay
-           character for character the same as this. */
-        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
         const monday = _tdyMonday().toISOString();
         _tdyClientRows = null;   // one fresh read per load
         const clientsP = _tdyClients();
@@ -16566,7 +16558,7 @@
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
                 _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc')
+                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
             ]);
             reads.catch(() => {});
             const parentsP = reads.then(([o, d]) => _tdyParentIds(o.filter(_tdyFresh).concat(d)));
@@ -44862,12 +44854,7 @@
         // matching media URL must already be linked, so warn while it's empty.
         // The video sub-status governs the video URL; the thumbnail (graphic)
         // sub-status governs the thumbnail URL — each is independent.
-        // N/A is not "past In Progress": it says the post will never have this
-        // part, which is exactly what the warning itself tells people to set
-        // ("If this post will never have one, set it to N/A"). Counting it kept
-        // the warning on the card, and the post in Today's "Missing links",
-        // with no way to clear either short of adding a link.
-        const beyondProgress = s => { const st = _calNormStatus(s || ''); return st !== 'In Progress' && st !== 'N/A'; };
+        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
         const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
         const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;
@@ -56979,7 +56966,24 @@
                comment, with no warning. Reply now carries the typed text into
                the reply; Edit has to put the old comment's text in the box, so
                it asks first. */
-            const unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            let unsent = draft.action === 'add' && String(draft.body || '').trim() ? draft.body : '';
+            /* NEVER ACROSS AUDIENCES. A reply takes its thread's audience and
+               the composer shows no audience switch for a reply. Carrying an
+               unsent INTERNAL comment into a reply on a client-visible thread
+               would post staff-only words where the client reads them (found by
+               an independent review of the first version of this change). Text
+               is carried only into a thread of the audience it was typed for;
+               otherwise the person is asked, as for Edit. */
+            const crossesAudience = action === 'add' && comment && unsent
+                && String(comment.audience || 'internal') !== String(draft.audience || 'internal');
+            if (crossesAudience && !discardUnsent) {
+                showConfirm('Discard your unsent comment?',
+                    'You typed a comment marked ' + (draft.audience === 'client' ? 'client-visible' : 'internal') + ', and this thread is '
+                    + (comment.audience === 'client' ? 'client-visible' : 'internal') + '. It will not be moved into the reply. Send it first, or discard it and reply.',
+                    () => { _prodCommentBegin(id, 'add', commentId, true); }, 'Discard and reply');
+                return false;
+            }
+            if (crossesAudience) unsent = '';
             if (action === 'edit' && comment && unsent && !discardUnsent) {
                 showConfirm('Discard your unsent comment?',
                     'You typed a comment that is not sent yet. Editing another comment replaces it in the box.',
@@ -83164,6 +83168,7 @@
         pen: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/></svg>',
         chev: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>',
         x: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
+        plus: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
     };
 
     // ---- Links: every value that has a stable address opens it ----
@@ -83230,7 +83235,7 @@
                 <div class="search-bar-wrap ca-search" id="caSearchWrap">
                     <div class="search-bar-pill">
                         <input class="search-bar-input" id="caSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
-                            placeholder="${_caPhone() ? 'Search clients' : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
+                            placeholder="${_caPhone() ? (_syncviewStaffCan('clients-admin') ? 'Search' : 'Search clients') : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
                             oninput="_caSetSearch(this.value)" onfocus="_caSearchFocus()" onkeydown="_caSearchKey(event)">
                         <button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById('caSearch')?.focus()">${CA_ICONS.search}</button>
                     </div>
@@ -83238,10 +83243,13 @@
                 </div>
                 <button type="button" class="ca-allbtn" id="caAllBtn" aria-expanded="${_caState.listOpen}" aria-controls="caDrop" onclick="_caToggleList()" title="All clients">${CA_ICONS.list}<span>All clients</span></button>
                 <div class="ca-drop" id="caDrop" role="dialog" aria-label="All clients" hidden></div>
+                ${_syncviewStaffCan('clients-admin') ? `<button type="button" class="ca-allbtn ca-newbtn" id="caNewBtn" onclick="_cnOpen()" title="New client" aria-label="New client">${CA_ICONS.plus}<span>New client</span></button>` : ''}
             </div>
+            <div class="ca-create" id="caCreate"></div>
             <div class="ca-body" id="caBody"></div>
         </div>`;
         _caPaint();
+        _cnRender();
         if (!_caState.loaded && !_caState.loading) _caLoad(false);
         // A manager list that failed to load is asked for again on the next visit.
         else if (_caState.loaded && !_caState.managers && !_caState.managersLoading) _caLoadManagers();
@@ -83513,7 +83521,6 @@
             _caState.assignments = Object.assign({}, _caState.assignments, { [r.slug]: j.manager_slug || managerSlug });
             _caState.picker = false;
             _caState.history = null;
-            _caLoadHistory();
             const m = _caManager(r.slug);
             if (typeof showToast === 'function') showToast(`${m ? m.name : 'The new manager'} now manages ${_caName(r)}`);
         } else if (j.error === 'manager_changed') {
@@ -83533,13 +83540,6 @@
     async function _caToggleHistory() {
         _caState.historyOpen = !_caState.historyOpen;
         _caPaint();
-        return _caLoadHistory();
-    }
-    /* Reads the history when it is open and not loaded. A save or a manager
-       change clears the loaded history so the new entry shows; with the panel
-       open that used to leave "Loading the history…" on screen for good,
-       because only the toggle ever fetched. Both now call this. */
-    async function _caLoadHistory() {
         if (!_caState.historyOpen || _caState.history) return;
         const slug = _caState.selected, generation = _caGeneration;
         let out;
@@ -83628,7 +83628,6 @@
             _caState.edit = null;
             _caState.history = null;
             _caPaint();
-            _caLoadHistory();
             if (typeof showToast === 'function') showToast(json.native ? 'Saved' : 'Saved to the sheet and SyncView');
             return;
         }
@@ -83839,6 +83838,11 @@
         _cbGeneration++;
         Object.assign(_cbState, { slug: '', row: null, stamp: '', seq: 0, loading: false, error: null, data: null, hs: { kind: 'idle' }, open: null, draft: {}, busy: '', notice: {} });
         for (const id of ['caOnboarding', 'caHubspot', 'caOnbSummary']) { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
+        // A sign-out or role change also closes an open "New client" dialog.
+        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
+        Object.assign(_cnState, _cnFresh());
+        const create = document.getElementById('caCreate');
+        if (create) create.innerHTML = '';
     }
 
     function _cbWhen(iso) {
@@ -84016,19 +84020,9 @@
         const r = row || {};
         const handle = v => String(v || '').trim().replace(/^@/, '');
         if (key === 'email_present' && String(r.email || '').trim()) return { href: 'mailto:' + String(r.email).trim(), text: 'Email' };
-        /* The social rows must open the same address as the profile card above
-           them (_caLinkFor in 323, whose rules these mirror). This list got two
-           shapes wrong: a YouTube "@handle" went to /channel/%40handle, and a
-           value saved as a full address was wrapped in a second one. Both
-           answer "not found". */
-        const social = { instagram_present: 'instagram_handle', tiktok_present: 'tiktok_handle', youtube_present: 'youtube_channel_id' }[key];
-        const raw = social ? String(r[social] || '').trim() : '';
-        if (raw && /^https?:\/\//i.test(raw)) return { href: raw, text: 'Open' };
-        if (key === 'instagram_present' && handle(raw)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(raw)) + '/', text: 'Open' };
-        if (key === 'tiktok_present' && handle(raw)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(raw)), text: 'Open' };
-        if (key === 'youtube_present' && raw) {
-            return { href: /^@/.test(raw) ? 'https://www.youtube.com/' + encodeURIComponent(raw).replace('%40', '@') : 'https://www.youtube.com/channel/' + encodeURIComponent(raw), text: 'Open' };
-        }
+        if (key === 'instagram_present' && handle(r.instagram_handle)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(r.instagram_handle)) + '/', text: 'Open' };
+        if (key === 'tiktok_present' && handle(r.tiktok_handle)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(r.tiktok_handle)), text: 'Open' };
+        if (key === 'youtube_present' && String(r.youtube_channel_id || '').trim()) return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(String(r.youtube_channel_id).trim()), text: 'Open' };
         // Pages inside SyncView that show this client's own data (clean addresses, docs/features/CLEAN_URLS.md).
         const slug = encodeURIComponent(String(r.slug || '').trim());
         if (slug) {
@@ -84271,9 +84265,192 @@
         _cbPaint();
     }
 
+    // ── Create client (step 2.5 of docs/plans/2026-10-01-onboarding-checklist-and-profile.md) ──
+    // "New client" in the Clients tab header, ADMIN ONLY. One dialog: name, social
+    // media manager, optional email. While you type, client-onboarding's
+    // `create_preview` checks the name against the live roster and says exactly
+    // what would be made (it writes nothing). "Create client" then makes the
+    // roster row, review link, four save permissions, profile, manager and the
+    // 27-step checklist in one database transaction (client_create_native), and
+    // opens the new profile. A name that starts with "ZZ THROWAWAY" makes a
+    // removable test client instead. Slack is never touched here.
+    const CN_BLOCKERS = {
+        name_invalid: 'Type the client\'s name.',
+        slug_invalid: 'That name has no letters or numbers to make a link name from.',
+        email_invalid: 'That email does not look right. Leave it empty if you do not have it yet.',
+        manager_unknown: 'Pick a social media manager.',
+        name_taken: 'A client with this name already exists. Open it from the search instead.',
+        name_on_a_manager_list: 'This name is already on a manager\'s client list. Use a different name, or take it off that list first.',
+        slug_taken: 'Another client already uses this link name. Add something to the name to tell them apart.',
+        throwaway_name_needs_test_mode: 'Test clients must start with "ZZ THROWAWAY" in capitals.',
+        authority_not_syncview: 'SyncView is not the main copy of the client list yet, so clients cannot be created here.',
+        production_authority_unavailable: 'Production is not running on SyncView yet, so clients cannot be created here.',
+        routing_flag_invalid: 'One of the save-permission lists looks wrong. Nothing can be created until it is checked.',
+        create_not_installed: 'The database step for Create client is not installed yet. It waits for the owner\'s go.',
+        request_reused: 'This dialog was already used for a different client. Close it and start again.',
+    };
+    const _cnFresh = () => ({ open: false, managers: null, managersError: '', name: '', manager: '', email: '', preview: null, previewKey: '', checking: false, busy: false, error: '', requestId: '', seq: 0 });
+    const _cnState = _cnFresh();
+    let _cnTimer = 0;
+    const _cnKey = () => [_cnState.name.trim().replace(/\s+/g, ' '), _cnState.manager, _cnState.email.trim()].join('\u0001');
+    function _cnNewRequestId() {
+        try { if (crypto && crypto.randomUUID) return 'create-' + crypto.randomUUID(); } catch (e) {}
+        return 'create-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+    }
+
+    async function _cnOpen() {
+        if (!_syncviewStaffCan('clients-admin')) return;
+        Object.assign(_cnState, _cnFresh(), { open: true, requestId: _cnNewRequestId() });
+        _cnRender();
+        document.getElementById('cnName')?.focus({ preventScroll: true });
+        const seq = ++_cnState.seq;
+        let out;
+        try { out = await _cbPost(CB_URL, { action: 'create_preview' }, false); } catch (e) { out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } }; }
+        if (!_cnState.open || seq !== _cnState.seq) return;
+        if (out.resp.status === 200 && out.json.ok) _cnState.managers = Array.isArray(out.json.managers) ? out.json.managers : [];
+        else _cnState.managersError = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not load the managers (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').';
+        _cnPaintManagers();
+        _cnPaintPreview();
+    }
+    function _cnClose(keepFocus) {
+        if (_cnState.busy) return;
+        if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
+        Object.assign(_cnState, _cnFresh());
+        const el = document.getElementById('caCreate');
+        if (el) el.innerHTML = '';
+        if (keepFocus !== true) document.getElementById('caNewBtn')?.focus({ preventScroll: true });
+    }
+    function _cnRender() {
+        const el = document.getElementById('caCreate');
+        if (!el) return;
+        if (!_cnState.open) { el.innerHTML = ''; return; }
+        el.innerHTML = `<div class="cn-scrim" onclick="_cnClose()"></div>
+            <div class="cn-dialog" role="dialog" aria-modal="true" aria-labelledby="cnTitle" onkeydown="_cnKeydown(event)">
+                <div class="cn-head">
+                    <h3 id="cnTitle">New client</h3>
+                    <button type="button" class="ca-iconbtn" onclick="_cnClose()" aria-label="Close">
+                        <svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>
+                    </button>
+                </div>
+                <p class="cn-lead">Sets the client up everywhere SyncView needs it, in one step. Nothing is made until you press Create client.</p>
+                <label class="cn-field"><span class="cn-label">Client name</span>
+                    <input class="ca-input" id="cnName" type="text" autocomplete="off" spellcheck="false" maxlength="160" placeholder="First and last name, as the team writes it" value="${_calEscAttr(_cnState.name)}" data-cn="name" oninput="_cnInput(this)">
+                </label>
+                <div class="cn-slug" id="cnSlug" aria-live="polite"></div>
+                <label class="cn-field"><span class="cn-label">Social media manager</span>
+                    <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
+                </label>
+                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt">optional</span></span>
+                    <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
+                </label>
+                <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
+                <div class="cn-actions">
+                    <button type="button" class="cc-btn" onclick="_cnClose()">Cancel</button>
+                    <button type="button" class="cc-btn primary" id="cnCreateBtn" onclick="_cnCreate()" disabled>Create client</button>
+                </div>
+            </div>`;
+        _cnPaintManagers();
+        _cnPaintPreview();
+    }
+    function _cnPaintManagers() {
+        const sel = document.getElementById('cnManager');
+        if (!sel) return;
+        if (_cnState.managersError) { sel.innerHTML = `<option value="">${_calEsc(_cnState.managersError)}</option>`; sel.disabled = true; return; }
+        if (!_cnState.managers) return;
+        sel.disabled = false;
+        sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}</option>`).join('');
+    }
+    function _cnKeydown(e) {
+        if (e.key === 'Escape') { e.preventDefault(); _cnClose(); return; }
+        if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') { e.preventDefault(); _cnCreate(); }
+    }
+    function _cnInput(el) {
+        const k = el && el.getAttribute('data-cn');
+        if (!k || _cnState.busy) return;
+        _cnState[k] = el.value;
+        _cnState.error = '';
+        _cnPaintPreview();
+        if (_cnTimer) clearTimeout(_cnTimer);
+        _cnTimer = setTimeout(_cnCheck, 350);
+    }
+    async function _cnCheck() {
+        _cnTimer = 0;
+        if (!_cnState.open || !_cnState.name.trim() || !_cnState.manager) { _cnState.preview = null; _cnPaintPreview(); return; }
+        const key = _cnKey(), seq = ++_cnState.seq;
+        _cnState.checking = true; _cnPaintPreview();
+        let out;
+        try { out = await _cbPost(CB_URL, { action: 'create_preview', display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, false); }
+        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
+        if (!_cnState.open || seq !== _cnState.seq) return;
+        _cnState.checking = false;
+        if (out.resp.status === 200 && out.json.ok) { _cnState.preview = out.json; _cnState.previewKey = key; }
+        else if (out.resp.status === 400 && out.json.error) { _cnState.preview = { ready: false, blockers: [out.json.error] }; _cnState.previewKey = key; }
+        else { _cnState.preview = null; _cnState.error = out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not check the name (' + (out.json.error || ('HTTP ' + out.resp.status)) + ').'; }
+        _cnPaintPreview();
+    }
+    function _cnSlugFor(name) {
+        let t = String(name || '').trim().toLowerCase();
+        try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
+        return t.replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, '');
+    }
+    function _cnPaintPreview() {
+        const slugEl = document.getElementById('cnSlug');
+        const slug = _cnSlugFor(_cnState.name);
+        const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
+        if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet</span>' : ''}` : '';
+        const box = document.getElementById('cnPreview');
+        const btn = document.getElementById('cnCreateBtn');
+        const p = _cnState.preview;
+        const fresh = p && _cnState.previewKey === _cnKey();
+        const ready = !!(fresh && p.ready && !_cnState.checking);
+        if (btn) { btn.disabled = !ready || _cnState.busy; btn.textContent = _cnState.busy ? 'Creating…' : 'Create client'; }
+        if (!box) return;
+        if (_cnState.error) { box.innerHTML = `<div class="ca-msg is-error" role="alert">${_calEsc(_cnState.error)}</div>`; return; }
+        if (!_cnState.name.trim() || !_cnState.manager) { box.innerHTML = `<div class="cn-hint">Type a name and pick a manager. SyncView checks it before anything is made.</div>`; return; }
+        if (!fresh || _cnState.checking) { box.innerHTML = `<div class="cn-hint">Checking…</div>`; return; }
+        if (!p.ready) {
+            box.innerHTML = `<div class="ca-msg is-error" role="alert"><span>${(p.blockers || []).map(b => _calEsc(CN_BLOCKERS[b] || ('Cannot create yet (' + b + ').'))).join('<br>')}</span></div>`;
+            return;
+        }
+        const items = (p.will_create || []).map(t => `<li>${_calEsc(t)}</li>`).join('');
+        box.innerHTML = `<div class="cn-ready">
+                <div class="cn-ready-title"><span class="cn-dot" aria-hidden="true"></span>Ready. This will make:</div>
+                <ul class="cn-list">${items}</ul>
+                <div class="cn-note">${p.manager ? 'Manager: <b>' + _calEsc(p.manager.name) + '</b>. ' : ''}Slack channels are not made here: the finalizer makes them later, once the onboarding form and filming plan are in.${p.mode === 'test' ? ' Test client: it stays off the Clients Info Sheet and can be removed completely.' : ''}</div>
+            </div>`;
+    }
+    async function _cnCreate() {
+        const p = _cnState.preview;
+        if (_cnState.busy || !p || !p.ready || _cnState.previewKey !== _cnKey() || _cnState.checking) return;
+        _cnState.busy = true; _cnState.error = ''; _cnPaintPreview();
+        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = true; }
+        let out;
+        try { out = await _cbPost(CB_URL, { action: 'create', request_id: _cnState.requestId, display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, true); }
+        catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
+        _cnState.busy = false;
+        if (!_cnState.open) return;
+        const j = out.json;
+        if (out.resp.status === 200 && j.ok) {
+            const slug = j.client_slug, name = p.display_name;
+            _cnClose(true);
+            if (typeof showToast === 'function') showToast(`${name} is created. The checklist is under Onboarding.`);
+            try { if (typeof window._caLoad === 'function') await window._caLoad(true); } catch (e) {}
+            try { if (typeof window._caLoadManagers === 'function') window._caLoadManagers(); } catch (e) {}
+            try { if (typeof window._caSelect === 'function') window._caSelect(slug); } catch (e) {}
+            return;
+        }
+        for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = false; }
+        const code = j.error || ('HTTP ' + out.resp.status);
+        _cnState.error = (CN_BLOCKERS[code] || (out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not create the client (' + code + ').')) + ' Nothing was made.';
+        // A refusal from the database means the live roster moved: check again.
+        if (out.resp.status === 409) { _cnState.preview = null; _cnState.previewKey = ''; }
+        _cnPaintPreview();
+    }
+
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional
+        _cbCancel, _cbConfirm, _cbDraftInput, _cbOpen, _cbReload, _cbReopen, _cbSkipOptional, _cnClose,
+        _cnCreate, _cnInput, _cnKeydown, _cnOpen
     });
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
@@ -88215,4 +88392,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-dac69c01b81d.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-27dcd6078476.js");

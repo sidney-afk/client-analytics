@@ -474,6 +474,7 @@
     "prod-client-composer-present.js",
 
     "prod-comment-unsent-and-resolved.js",
+    "prod-comment-reply-audience.js",
     "prod-comments-read-timeout.js",
     "prod-context-menu-pixel-contract.js",
     "prod-create-closed.js",

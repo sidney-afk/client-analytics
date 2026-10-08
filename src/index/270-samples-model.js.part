@@ -2896,7 +2896,18 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             _sxrRenderBody();
             try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
             if (!_sxrIsBlankId(pid)) {
-                _sxrArchiveOne(pid, slug, post || null).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
+                /* A failed archive says so, like the Calendar's (archiveCalPost).
+                   It used to put the sample back with no message at all, and it
+                   put the list back even after the view had moved to another
+                   client, which flashed one client's samples under another. */
+                _sxrArchiveOne(pid, slug, post || null).catch(e => {
+                    console.warn('[Samples] archive failed', e);
+                    _sxrArchivedRemove(slug, refs);
+                    const stillHere = sxrClientSlug(sxrState.client) === slug;
+                    if (stillHere) { sxrState.posts = snapshot; _sxrRenderBody(); }
+                    showNotify('Archive failed', 'The sample was not archived, so it is back in the list. ' + ((e && e.message) || 'Try again in a moment.'));
+                    if (stillHere) loadSxrCards({ skipCache: true });
+                });
             }
         }, 'Archive');
     }
@@ -2907,8 +2918,15 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
         const archivedAt = new Date().toISOString();
-        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
+        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'), { requireOk: true });
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
+        // The function can refuse with HTTP 200 and {"ok":false} (a failed read
+        // of the stored row). That is not an archive: without this the sample
+        // stayed hidden and its work items were parked in Backlog while the
+        // sample itself was still live. The Calendar checks the same thing.
+        let json = null;
+        try { json = await resp.json(); } catch (e) {}
+        if (!json || json.ok !== true) throw new Error((json && json.error) || 'archive was not confirmed');
         // Same rule as the Calendar (owner ruling 2026-08-17, extended to
         // samples 2026-09-28): archiving parks the sample's work items in
         // Backlog through the same guarded status write a person's status
@@ -3025,7 +3043,13 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                 Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug, postById.get(id) || null))).then(results => {
                     const failedRefs = [];
                     results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(ids[i]); if (refs) refs.forEach(x => failedRefs.push(x)); } });
-                    if (failedRefs.length) { _sxrArchivedRemove(slug, failedRefs); loadSxrCards({ skipCache: true }); }
+                    if (failedRefs.length) _sxrArchivedRemove(slug, failedRefs);
+                    const failedCount = results.filter(r => r.status === 'rejected').length;
+                    if (failedCount) {
+                        // Said out loud, as the Calendar's bulk archive does.
+                        showNotify('Some samples were not archived', failedCount + ' of ' + ids.length + ' could not be archived. Reloading the list.');
+                        if (sxrClientSlug(sxrState.client) === slug) loadSxrCards({ skipCache: true });
+                    }
                 });
             }, 'Archive');
     }

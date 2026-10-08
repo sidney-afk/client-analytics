@@ -321,6 +321,13 @@ import {
             return;
         }
     }
+    /* A save that finishes after the view moved to another client must not
+       write the list now on screen under the client it started on (twin of
+       _calCacheWriteIfCurrent). True when written or rightly skipped. */
+    function _sxrCacheWriteIfCurrent(slug, options) {
+        if (sxrClientSlug(sxrState.client) !== slug) return true;
+        return _sxrCacheWrite(slug, sxrState.posts, options);
+    }
     async function _sxrFlushCardSave(pid) {
         let edits = _sxrPendingEdits[pid];
         if (!edits) return;
@@ -419,7 +426,7 @@ import {
                 post._writeUiRetryEdits = Object.assign({}, edits);
                 post._writeUiRetrySourceAt = writeUiSourceAt;
                 post._writeUiRetryPrincipal = _writeUiPrincipalKey();
-                if (!_sxrCacheWrite(_saveSlug, sxrState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+                if (!_sxrCacheWriteIfCurrent(_saveSlug)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
             };
             try {
                 checkpointCommittedSource();
@@ -559,7 +566,7 @@ import {
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                     else delete _okPost._writeUiPrecommittedNative;
                 }
-                _sxrCacheWrite(_saveSlug, sxrState.posts, { clearRepairIds: [realId] });
+                _sxrCacheWriteIfCurrent(_saveSlug, { clearRepairIds: [realId] });
                 _sxrSetCardStatus(realId, 'saved');
                 // The database stamped a new round on any status this save changed; the echo never says so.
                 _urgentAdoptStampsAfterSave('samples', _saveSlug, realId, edits);
@@ -595,7 +602,7 @@ import {
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
                         cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                         delete cur._writeUiPrecommittedNative;
-                        _sxrCacheWrite(_saveSlug, sxrState.posts);
+                        _sxrCacheWriteIfCurrent(_saveSlug);
                     }
                 }
                 try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
@@ -604,8 +611,18 @@ import {
             delete _sxrSaveInFlight[pid];
             delete _sxrSaveInFlight[realId];
             if (_releaseSave) _releaseSave();
-            if (_sxrPendingEdits[realId]) _sxrFlushCardSave(realId);
-            else if (realId !== pid && _sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+            /* Only while the view is still on the client this save belongs to.
+               A flush reads the client at the moment it starts, and a sample
+               absent from the list on screen is inserted as a new row, so a
+               re-flush that wakes after a client switch wrote one client's
+               edit as a new sample under another. The fill path already parks
+               such an edit for its own client (_sxrParkEditsForClient); the
+               general engine now does the same. */
+            const queuedId = _sxrPendingEdits[realId] ? realId : (realId !== pid && _sxrPendingEdits[pid] ? pid : '');
+            if (queuedId) {
+                if (sxrClientSlug(sxrState.client) === _saveSlug) _sxrFlushCardSave(queuedId);
+                else _sxrParkEditsForClient(_saveSlug, queuedId);
+            }
         }
     }
 
@@ -2045,7 +2062,15 @@ import {
         _sxrRenderCommentsModal();
         return false;
     }
+    // One send at a time (twin of _calSubmitComposer; see the note there).
+    let _sxrComposerSending = false;
     async function _sxrSubmitComposer() {
+        if (_sxrComposerSending) return;
+        _sxrComposerSending = true;
+        try { return await _sxrSubmitComposerNow(); }
+        finally { _sxrComposerSending = false; }
+    }
+    async function _sxrSubmitComposerNow() {
         const pid = _sxrOpenCommentsPid; if (!pid) return;
         _sxrCaptureModalDrafts();
         const body = (_sxrEditTarget
@@ -2064,7 +2089,8 @@ import {
         const saved = await _sxrAppendComment(pid, parentId, body);
         if (!saved) return;
         if (parentId) { delete _sxrReplyDrafts[parentId]; _sxrReplyDraftsPersist(pid); }
-        else { _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        else { if (_sxrOpenCommentsPid === pid) _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        if (_sxrOpenCommentsPid !== pid) return;
         _sxrReplyTarget = null;
         _sxrRenderCommentsModal();
         setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);

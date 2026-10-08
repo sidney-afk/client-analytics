@@ -1226,6 +1226,17 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const post = calState.posts.find(p => p.id === id);
         if (!post || !iso) return;
         if (String(post.scheduled_date || '').slice(0,10) === iso) return;
+        /* Remember the day the post was on. The move is painted before the
+           save, so by the time the engine takes its own "before" copy the post
+           already holds the new day, and a failed save rolled back to the day
+           it had just failed to save: the post stayed on the new day with no
+           sign anything was wrong (Month and Week cards have no save chip) and
+           was back on the old day after a reload. */
+        const priorDate = post.scheduled_date;
+        if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
+        const moveBucket = _calPendingEdits[id];
+        moveBucket._calPriorStatus = moveBucket._calPriorStatus || {};
+        if (!('scheduled_date' in moveBucket._calPriorStatus)) moveBucket._calPriorStatus.scheduled_date = priorDate;
         post.scheduled_date = iso;
         post.updated_at = new Date().toISOString();
         // Route the reschedule through the same per-card save funnel as every

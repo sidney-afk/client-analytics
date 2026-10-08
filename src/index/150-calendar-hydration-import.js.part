@@ -1767,6 +1767,10 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
             ok = true;
+            // Edits typed on this client while the view was elsewhere, held by
+            // _calParkEditsForClient. calState describes this client now, so
+            // the normal engine can have them.
+            try { _calRestoreParkedEdits(slug); } catch (e) {}
         } catch (e) {
             if (!_calLoadRunCurrent(loadRun)) return;
             const isAbort = e && (e.name === 'AbortError' || /aborted|timed out/i.test(String(e.message || '')));

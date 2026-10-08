@@ -129,6 +129,7 @@
     "calendar-link-adoption-repaint.js",
 
     "calendar-link-box-keys.js",
+    "notes-composer-one-send.js",
     "calendar-native-link-gap-check.js",
     "calendar-organize-menu.js",
     "calendar-pinned-gate-migration.js",
@@ -1362,6 +1363,22 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Runs the tiktok-upload-cancel function's own logic against a fake Post For Me: success, already posted and failure.",
       "reproduce": "node test/tiktok-cancel-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "calendar-edit-stays-with-its-client-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/calendar-edit-stays-with-its-client-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "calendar-samples-save-honesty-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/calendar-samples-save-honesty-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

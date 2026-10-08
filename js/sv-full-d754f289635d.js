@@ -16545,7 +16545,15 @@
         return { id: me.id, names: await _tdySmmClients(me) };
     }
     async function _tdyLoad(me) {
-        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+        /* `order=id.asc`: these reads are fetched 1,000 rows at a time, and
+           without a stable order the database may hand a row out on two pages
+           or on none, so past 1,000 open items an approval could be missing
+           from Today on one load and back on the next (945 open rows on
+           2026-10-08). Workload and SyncLinear page the same way and already
+           sort. The head script starts the same reads early and is matched by
+           exact address, so tdSel in 005-head-boot.html.part must stay
+           character for character the same as this. */
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
         const monday = _tdyMonday().toISOString();
         _tdyClientRows = null;   // one fresh read per load
         const clientsP = _tdyClients();
@@ -16558,7 +16566,7 @@
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
                 _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
+                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc')
             ]);
             reads.catch(() => {});
             const parentsP = reads.then(([o, d]) => _tdyParentIds(o.filter(_tdyFresh).concat(d)));
@@ -44854,7 +44862,12 @@
         // matching media URL must already be linked, so warn while it's empty.
         // The video sub-status governs the video URL; the thumbnail (graphic)
         // sub-status governs the thumbnail URL — each is independent.
-        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
+        // N/A is not "past In Progress": it says the post will never have this
+        // part, which is exactly what the warning itself tells people to set
+        // ("If this post will never have one, set it to N/A"). Counting it kept
+        // the warning on the card, and the post in Today's "Missing links",
+        // with no way to clear either short of adding a link.
+        const beyondProgress = s => { const st = _calNormStatus(s || ''); return st !== 'In Progress' && st !== 'N/A'; };
         const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
         const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;
@@ -83521,6 +83534,7 @@
             _caState.assignments = Object.assign({}, _caState.assignments, { [r.slug]: j.manager_slug || managerSlug });
             _caState.picker = false;
             _caState.history = null;
+            _caLoadHistory();
             const m = _caManager(r.slug);
             if (typeof showToast === 'function') showToast(`${m ? m.name : 'The new manager'} now manages ${_caName(r)}`);
         } else if (j.error === 'manager_changed') {
@@ -83540,6 +83554,13 @@
     async function _caToggleHistory() {
         _caState.historyOpen = !_caState.historyOpen;
         _caPaint();
+        return _caLoadHistory();
+    }
+    /* Reads the history when it is open and not loaded. A save or a manager
+       change clears the loaded history so the new entry shows; with the panel
+       open that used to leave "Loading the history…" on screen for good,
+       because only the toggle ever fetched. Both now call this. */
+    async function _caLoadHistory() {
         if (!_caState.historyOpen || _caState.history) return;
         const slug = _caState.selected, generation = _caGeneration;
         let out;
@@ -83628,6 +83649,7 @@
             _caState.edit = null;
             _caState.history = null;
             _caPaint();
+            _caLoadHistory();
             if (typeof showToast === 'function') showToast(json.native ? 'Saved' : 'Saved to the sheet and SyncView');
             return;
         }
@@ -84020,9 +84042,19 @@
         const r = row || {};
         const handle = v => String(v || '').trim().replace(/^@/, '');
         if (key === 'email_present' && String(r.email || '').trim()) return { href: 'mailto:' + String(r.email).trim(), text: 'Email' };
-        if (key === 'instagram_present' && handle(r.instagram_handle)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(r.instagram_handle)) + '/', text: 'Open' };
-        if (key === 'tiktok_present' && handle(r.tiktok_handle)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(r.tiktok_handle)), text: 'Open' };
-        if (key === 'youtube_present' && String(r.youtube_channel_id || '').trim()) return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(String(r.youtube_channel_id).trim()), text: 'Open' };
+        /* The social rows must open the same address as the profile card above
+           them (_caLinkFor in 323, whose rules these mirror). This list got two
+           shapes wrong: a YouTube "@handle" went to /channel/%40handle, and a
+           value saved as a full address was wrapped in a second one. Both
+           answer "not found". */
+        const social = { instagram_present: 'instagram_handle', tiktok_present: 'tiktok_handle', youtube_present: 'youtube_channel_id' }[key];
+        const raw = social ? String(r[social] || '').trim() : '';
+        if (raw && /^https?:\/\//i.test(raw)) return { href: raw, text: 'Open' };
+        if (key === 'instagram_present' && handle(raw)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(raw)) + '/', text: 'Open' };
+        if (key === 'tiktok_present' && handle(raw)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(raw)), text: 'Open' };
+        if (key === 'youtube_present' && raw) {
+            return { href: /^@/.test(raw) ? 'https://www.youtube.com/' + encodeURIComponent(raw).replace('%40', '@') : 'https://www.youtube.com/channel/' + encodeURIComponent(raw), text: 'Open' };
+        }
         // Pages inside SyncView that show this client's own data (clean addresses, docs/features/CLEAN_URLS.md).
         const slug = encodeURIComponent(String(r.slug || '').trim());
         if (slug) {
@@ -88426,4 +88458,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-2b65137ee584.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-d754f289635d.js");

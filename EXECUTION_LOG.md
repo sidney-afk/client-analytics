@@ -8,7 +8,7 @@ All times are UTC unless noted.
 
 Nine of the fifteen candidates batch 4 left unverified were verified (two
 against live counts) and fixed in one stacked PR; six remain unverified and are
-listed in OPEN_REPAIRS 382. Cycle 2 in all: 28 candidates, 22 confirmed and
+listed in OPEN_REPAIRS 383. Cycle 2 in all: 28 candidates, 22 confirmed and
 fixed across two PRs, 6 open. The stop rule (two cycles in a row with nothing)
 has not been met. Browser changes only. No live write, deploy, merge, flag or
 n8n edit.

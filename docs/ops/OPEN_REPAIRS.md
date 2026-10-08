@@ -31321,7 +31321,7 @@ The full clean round, fresh review, hosted batch checks and deployment remain
 pending. Filming, Quiz, Save problems and unlisted tabs are excluded by the
 owner's revised scope. No database/n8n changes or live mutations were made.
 
-## 382. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 5 (cycle 2, second half): nine of the candidates entry 377 left unverified
+## 383. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 5 (cycle 2, second half): nine of the candidates entry 377 left unverified
 
 Session Sentinel. Entry 377 listed fifteen cycle 2 candidates it had not verified. Nine are verified in the code here (two of them against live counts) and fixed; six remain, listed at the end. Browser changes only. Stacked on batches 1 to 4. Pinned in `test/assurance-cycle2-remaining.js`, each block failing on the code before this change.
 

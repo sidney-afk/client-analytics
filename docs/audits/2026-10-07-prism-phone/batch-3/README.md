@@ -1,11 +1,13 @@
-# Batch 3 — client Calendar loading
+# Batch 3 — client Calendar loading and Today marker
+
+The current source and CI follow-up are recorded in [ci-followup](ci-followup/README.md). The evidence below retains the initial source snapshot; it does not certify the changed source.
 
 Branch: `codex/prism-phone-batch-3`. Parent: batch 2,
 `8361c27b8f2ac9b7434e6799fc76502d92e0bd80`. Lighthouse merged batch 2
 as `79a0dd143cd7c16517256f78790c8cf7a530f315` while batch 3 was being
 prepared; Prism has not merged anything. Batch 3 targets main directly.
 
-Current source hash:
+Initial source hash (historical):
 `35a319476117fffce2e2be7b75d34b338a7538ed6fa6fd54820d71d200d17865`.
 
 The client Calendar's Month and Week loading skeletons painted over its heading.

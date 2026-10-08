@@ -25,7 +25,7 @@ const shots = process.env.POCKET_PHONE_SHOTS;
 const out = [];
 let checks = 0;
 if (process.argv.includes('--list')) {
-  const names = ['review-queue','review','thumbnail','lightbox','caption','caption-draft','save-error','sending','tabs','organizer','month','week','month-post','week-post','date-picker','notes','sheet-cta','more','organize','suggest-post','loading','loading-review','loading-organizer','loading-month','error','empty',
+  const names = ['review-queue','review','thumbnail','lightbox','caption','caption-draft','save-error','sending','tabs','organizer','month','week','month-post','week-post','month-empty-today','week-empty-today','date-picker','notes','sheet-cta','more','organize','suggest-post','loading','loading-review','loading-organizer','loading-month','error','empty',
     ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state => 'comparison-' + state)];
   console.log(JSON.stringify(names.map(name => ({lane:'client-calendar-expanded',name,tab:'calendar'}))));
   process.exit(0);
@@ -198,7 +198,7 @@ async function run(browser, origin, width) {
         .map(e => ({ label: (e.querySelector('.pocket-run-label') || {}).textContent || '', posts: e.querySelectorAll('.cal-month-pill, .cal-week-card').length, run: e.classList.contains('pocket-run-head'), rest: e.classList.contains('pocket-run-rest') })), view);
       // Today is one black circle, the same in Month and Week; the few thumbnails are fetched at once and have loaded.
       const todayMark = await page.evaluate(v => { const e = document.querySelector(v === 'month' ? '.cal-month-cell.today .cal-month-num' : '.cal-week-col.today .cal-week-num'); if (!e) return null; const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), radius: cs.borderTopLeftRadius, bg: cs.backgroundColor, fg: cs.color }; }, view);
-      if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle');
+      if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle ' + JSON.stringify(todayMark));
       await page.waitForFunction(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.complete), null, { timeout: 4000 });
       ok(await page.evaluate(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.loading === 'eager')), view + ': thumbnails must be fetched at once on a phone');
       ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
@@ -210,6 +210,25 @@ async function run(browser, origin, width) {
       await measure(page, view + '-post-' + width);
       await shot(page, view + '-post-' + width);
       await page.locator('.cal-preview-foot button').first().click();
+      // An empty Today uses the native compact day row. Check it explicitly;
+      // the host's timezone must not decide whether this regression is tested.
+      await page.evaluate(() => {
+        window._phoneTodayPosts = calState.posts;
+        const next = new Date(); next.setDate(next.getDate() + 1);
+        const iso = [next.getFullYear(), String(next.getMonth()+1).padStart(2,'0'), String(next.getDate()).padStart(2,'0')].join('-');
+        calState.posts = calState.posts.map(post=>post.scheduled_date ? {...post,scheduled_date:iso} : post);
+        _calRenderBody();
+      });
+      const emptyToday = await page.evaluate(v => {
+        const day = document.querySelector(v==='month' ? '.cal-month-cell.today' : '.cal-week-col.today');
+        const marker = day?.querySelector(v==='month' ? '.cal-month-num' : '.cal-week-num');
+        if (!marker) return null;
+        const r=marker.getBoundingClientRect(); return {w:r.width,h:r.height,posts:day.querySelectorAll('.cal-month-pill,.cal-week-card').length};
+      }, view);
+      ok(emptyToday && emptyToday.posts===0 && emptyToday.w===36 && emptyToday.h===36, view+': empty Today keeps a circular marker '+JSON.stringify(emptyToday));
+      await measure(page, view+'-empty-today-'+width);
+      await shot(page, view+'-empty-today-'+width);
+      await page.evaluate(() => {calState.posts=window._phoneTodayPosts;delete window._phoneTodayPosts;_calRenderBody();});
     }
     if (!before && view === 'organizer') {
       await page.locator('.cal-date-chip').first().click();

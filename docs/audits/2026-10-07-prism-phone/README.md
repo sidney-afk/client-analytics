@@ -9,10 +9,12 @@ foreground calls, so screenshot checks do not interrupt other applications.
 This supersedes the earlier visible-browser setup for Prism's ongoing review.
 Retain the same native product fixtures, action assertions and screenshot review.
 
-[Batch 3](batch-3/README.md) records the client Calendar loading repair,
-twelve personally reviewed before/after pairs and completed local checks,
-including all 72 broad desktop pairs and 32 focused loading pairs. PR publication
-and hosted checks are separate gates; the full phone finish line remains OPEN.
+[Batch 3](batch-3/README.md) records the client Calendar loading and empty Today
+marker repairs. Its [CI follow-up](batch-3/ci-followup/README.md) has 24 personally
+reviewed matrix pairs on the current source, plus two 360 px Month comparisons.
+The original 72 broad desktop and 32 focused loading proofs remain historical;
+the changed source's desktop comparison and hosted rechecks are separate gates.
+The full phone finish line remains OPEN.
 
 [Coverage](COVERAGE.md) lists the native scenarios and all width/theme cells.
 [Machine-readable coverage](coverage.json) also tracks ten discovery obligations

@@ -21,6 +21,10 @@ const shots = arg('shots', ''), receipts = [], failures = [];
 const allStates = process.argv.includes('--all-states');
 const settle = p => p.waitForTimeout(850);
 const core = SCENARIOS.filter(s => ['analytics-overview','analytics-detail','workload-week','linear-list','linear-detail','tiktok-client-ready','instagram-client-ready','menu-tabs','menu-more','menu-client'].includes(s.id)).map(s => ({ ...s, name: s.id }));
+core.push({...SCENARIOS.find(s=>s.id==='tiktok-client-ready'),name:'tiktok-client-search',steps:async p=>{
+  await SCENARIOS.find(s=>s.id==='tiktok-client-ready').steps(p);
+  await p.locator('#tkClientInput').fill('Client B');await settle(p);
+}});
 core.push({...SCENARIOS.find(s=>s.id==='linear-list'),name:'linear-project',steps:async p=>{
   await p.evaluate(()=>{const id=Object.keys(_prodProjects()).find(k=>_prodIssues().some(i=>i.project===k));if(!id)throw new Error('Missing fictional project fixture');_prodOpenProject(id);});
   await p.waitForSelector('[data-prod-project-detail]');await settle(p);
@@ -171,23 +175,39 @@ async function verify(page, name, width, theme) {
     assert.equal(await page.locator('.overview-table').count(),0,'phone card choice did not survive resize');
     assert.equal(await page.evaluate(()=>localStorage.getItem('syncview_viewMode')),saved,'desktop saved preference changed');
   }
-  if (!before && /^(tiktok|instagram)-client-ready$/.test(name) && [390,393,412].includes(width)) {
+  if (!before && /^(tiktok-client-(ready|search)|instagram-client-ready)$/.test(name)) {
     const label=page.locator('.tk-drop-title').first();
     const account=page.locator('.tk-profile-chip').first();
     let humanAccount;
-    if(name==='tiktok-client-ready') {
-      humanAccount=await page.evaluate(()=>{const client=document.getElementById('tkClientInput').value;const handle=String(clientMap[client]?.tiktok_handle||'').trim().replace(/^@+/,'');return handle?'@'+handle:client;});
+    if(name.startsWith('tiktok-client-')) {
+      humanAccount='@client_a';
       assert.equal(await account.textContent(),humanAccount,'TikTok phone account uses the human-readable handle or selected name');
       assert.match(await page.locator('.tk-profile-line').first().textContent(),/^Posting (to|for) /,'TikTok account wording explains the destination without a provider identifier');
+      if(name==='tiktok-client-ready') {
+        const input=page.locator('#tkClientInput');
+        for(const query of ['Client B','Cli','']) {
+          await input.fill(query);await settle(page);
+          assert.equal(await account.textContent(),humanAccount,'Typing '+JSON.stringify(query)+' must not change the picked TikTok destination');
+        }
+        await input.fill('Client B');
+        await page.locator('[data-tk-client-pick="Client B"]').tap();await settle(page);
+        assert.equal(await account.textContent(),'@client_b','Choosing another client updates the destination');
+        await page.evaluate(()=>{clientMap['Client C'].tiktok_handle='';});
+        await page.locator('#tkClientInput').fill('Client C');
+        await page.locator('[data-tk-client-pick="Client C"]').tap();await settle(page);
+        assert.equal(await account.textContent(),'Client C','A picked client without a handle uses its selected name');
+        await page.locator('#tkClientInput').fill('Client A');
+        await page.locator('[data-tk-client-pick="Client A"]').tap();await settle(page);
+      }
     }
     await page.evaluate(()=>window.__phoneDropTitle=document.querySelector('.tk-drop-title'));
     assert.match(await label.textContent(),/tap to (browse|add)/,'phone browse copy is missing');
     await page.setViewportSize({width:1024,height:844});await settle(page);
-    if(name==='tiktok-client-ready') assert.match(await page.locator('.tk-profile-line').first().textContent(),/^Posts to Post For Me account\s+spc_example_0/,'TikTok desktop restores the original provider account wording and id');
+    if(name.startsWith('tiktok-client-')) assert.match(await page.locator('.tk-profile-line').first().textContent(),/^Posts to Post For Me account\s+spc_example_0/,'TikTok desktop restores the original provider account wording and id');
     assert.match(await label.textContent(),/click to (browse|add)/,'phone browse copy remained on desktop');
     assert.ok(await page.evaluate(()=>window.__phoneDropTitle===document.querySelector('.tk-drop-title')),'resize rebuilt the file chooser');
     await page.setViewportSize({width,height:heightFor(width,arg('height'))});await settle(page);
-    if(name==='tiktok-client-ready') assert.equal(await account.textContent(),humanAccount,'TikTok human-readable phone destination returns after resize');
+    if(name.startsWith('tiktok-client-')) assert.equal(await account.textContent(),humanAccount,'TikTok human-readable phone destination returns after resize');
     assert.match(await label.textContent(),/tap to (browse|add)/,'phone browse copy did not return');
   }
   if (!before && name === 'linear-detail' && width === 390) {

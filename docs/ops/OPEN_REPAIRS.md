@@ -31059,6 +31059,8 @@ Fixed in `tiktok-upload` (no n8n workflow edited):
 Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
 Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
 
+## 380. [2026-10-08, BUILT, NOT MERGED] Prism phone batches 4 and 5
+
 2026-10-08, Prism batch 4: PR #1994's final head passed both previously red
 hosted jobs and was independently merged; Prism did not merge it. The owner
 narrowed future acceptance to 1440 desktop, 393 x 852 iPhone and 412 x 915

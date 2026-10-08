@@ -187,7 +187,7 @@ import { clientMap } from './040-shared-briefs.js';
                 _fphAccountCopy.set(line, { label: label.nodeValue, chip: chip.textContent });
             }
             const original = _fphAccountCopy.get(line);
-            const client = document.getElementById('tkClientInput')?.value || '';
+            const client = line.getAttribute('data-tk-picked-client') || '';
             const handle = String(clientMap[client]?.tiktok_handle || '').trim().replace(/^@+/, '');
             const phoneAccount = on && currentNav === 'tiktok-upload'
                 && !document.getElementById('tkPlatInstagram')?.classList.contains('on') && client;

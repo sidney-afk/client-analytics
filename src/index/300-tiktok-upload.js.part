@@ -767,7 +767,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         let profileLine = '';
         if (tkState.client) {
             if (tkState.profileSource === 'sheet') {
-                profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
+                profileLine = `<div class="tk-profile-line" data-tk-picked-client="${_tkEscape(tkState.client || '')}">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
                 profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Add this client's <code>postforme_account_id</code> — the account's <strong>Connection ID</strong> (<code>spc_…</code>) from Post For Me — to the Clients Info sheet before uploading.</div>`;
             }

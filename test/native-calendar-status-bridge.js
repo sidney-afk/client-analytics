@@ -200,7 +200,7 @@ const BRIDGE = 'migrations/2026-09-18-native-calendar-status-bridge.sql';
 /* The projection was then re-defined by the 2026-10-01 overall-status bridge,
  * and both the projection and the two-argument backfill were last re-defined by
  * the 2026-10-08 "N/A wins" migration (applied live that day, OPEN_REPAIRS
- * 373/374), so both pins follow that file. */
+ * 373/381), so both pins follow that file. */
 const NA_WINS = 'migrations/2026-10-08-native-calendar-na-wins-one-client.sql';
 const expectedRoutines = [
   ['production_native_calendar_status_above(text)', BRIDGE],

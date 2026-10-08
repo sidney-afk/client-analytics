@@ -31176,7 +31176,7 @@ two-argument backfill) at the new migration, in the next PR, before any Section 
 `SYNCVIEW_STAFF_KEY` as above.
 **Way back:** revert the PR; the migration's header names its inverse.
 
-## 374. [2026-10-08, BUILT, NOT MERGED] Follow-up to 373: deploy preflight pins re-pointed; live bodies carry Windows line endings (session Mend)
+## 381. [2026-10-08, BUILT, NOT MERGED] Follow-up to 373: deploy preflight pins re-pointed; live bodies carry Windows line endings (session Mend)
 
 **Done.** The owner applied `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and ran the one-client repair
 for the test client (2 rows applied). `scripts/linear-exit-deploy-preflight.js` now pins

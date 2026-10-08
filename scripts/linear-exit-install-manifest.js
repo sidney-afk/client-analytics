@@ -110,7 +110,7 @@ const DEPENDENCIES={
  '2026-10-01-calendar-overall-status-bridge.sql':['2026-09-18-native-calendar-status-bridge.sql','2026-09-18-native-calendar-backfill-temp-table-clear.sql'],
  // Re-defines the projection (N/A wins) on top of the 2026-10-01 body and the
  // two-argument backfill on top of the 2026-09-18 repair, and adds the
- // one-client backfill, so it lands after both (OPEN_REPAIRS 373, 374).
+ // one-client backfill, so it lands after both (OPEN_REPAIRS 373, 381).
  '2026-10-08-native-calendar-na-wins-one-client.sql':['2026-10-01-calendar-overall-status-bridge.sql','2026-09-18-native-calendar-backfill-temp-table-clear.sql'],
 };
 function transactions(sql){

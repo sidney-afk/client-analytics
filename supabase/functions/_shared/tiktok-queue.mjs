@@ -217,6 +217,38 @@ export function refreshCandidates(rows, nowMs, limit) {
   return (rows || []).filter((r) => needsRefresh(r) && due(r)).sort((a, b) => asked(a) - asked(b)).slice(0, limit);
 }
 
+// The safety net (OPEN_REPAIRS 370): every open row whose time has come, not only the newest page the queue
+// shows. A row without a post id is included too, so its post can be found by external_id. Never-asked rows
+// first, then the longest unasked, so a row Post For Me never answers for cannot starve the others.
+export function sweepCandidates(rows, nowMs, limit) {
+  const due = (r) => !r.scheduled_for || Date.parse(r.scheduled_for) <= nowMs;
+  const asked = (r) => (r.last_checked_at ? Date.parse(r.last_checked_at) || 0 : 0);
+  const seen = new Set();
+  return (rows || []).filter((r) => r && OPEN.includes(r.status) && due(r) && !seen.has(r.id) && seen.add(r.id))
+    .sort((a, b) => asked(a) - asked(b)).slice(0, limit);
+}
+
+// ---- Post For Me's result webhook --------------------------------------------------------------------
+// Post For Me sends { event_type, data } with the webhook's secret in the header "Post-For-Me-Webhook-Secret"
+// (its docs, "Security"; there is no HMAC). Only social.post.result.created changes a row.
+export const WEBHOOK_EVENT = 'social.post.result.created';
+export const WEBHOOK_HEADER = 'post-for-me-webhook-secret';
+
+// Constant-time compare, so the secret cannot be guessed one character at a time from response timing.
+export function sameSecret(given, expected) {
+  const a = String(given == null ? '' : given), b = String(expected == null ? '' : expected);
+  if (!a || !b) return false;
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i % a.length) || 0) ^ (b.charCodeAt(i % b.length) || 0);
+  return diff === 0;
+}
+
+// The webhook Post For Me holds for this URL (GET /v1/webhooks answer), or null.
+export function webhookFor(listResp, url) {
+  const list = Array.isArray(listResp) ? listResp : Array.isArray(listResp && listResp.data) ? listResp.data : [];
+  return list.find((w) => w && clean(w.url) === url) || null;
+}
+
 const iso = (v) => (v ? new Date(v).toISOString() : '');
 
 // What the page sees: the Sheet row's fields, as strings, like the n8n list returned. The account id and the

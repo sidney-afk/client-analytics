@@ -101,7 +101,7 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
   });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { answerStaffReads: true });
   // Scripted backend: SMM sheet (empty), upsert (echo, no live write), calendar read (our rows).
   await ctx.route('**docs.google.com/spreadsheets/**', route =>
     route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS })

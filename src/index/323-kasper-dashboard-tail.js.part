@@ -18,7 +18,7 @@ import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCo
 import { _sxrKasperLoadQueue, _sxrKasperState } from './290-samples-writes-review.js';
 import { CA_RECENT_KEY, _kasperPersistPost, _kasperSamplesEnabled, _kasperState } from './305-core-kasper-shared.js';
 import { _ccEnsureIdentity, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
-import { _cbPurge, _cbSync } from './324-client-onboarding-panel.js';
+import { _cbPurge, _cbSync, _cnRender } from './324-client-onboarding-panel.js';
 import { _svClientHue } from './095-shared-client.js';
 import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-history.js';
     function _kasperEnsureAllTabCounts() {
@@ -290,6 +290,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         pen: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/></svg>',
         chev: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>',
         x: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
+        plus: '<svg class="ca-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
     };
 
     // ---- Links: every value that has a stable address opens it ----
@@ -356,7 +357,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 <div class="search-bar-wrap ca-search" id="caSearchWrap">
                     <div class="search-bar-pill">
                         <input class="search-bar-input" id="caSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
-                            placeholder="${_caPhone() ? 'Search clients' : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
+                            placeholder="${_caPhone() ? (_syncviewStaffCan('clients-admin') ? 'Search' : 'Search clients') : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
                             oninput="_caSetSearch(this.value)" onfocus="_caSearchFocus()" onkeydown="_caSearchKey(event)">
                         <button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById('caSearch')?.focus()">${CA_ICONS.search}</button>
                     </div>
@@ -364,10 +365,13 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 </div>
                 <button type="button" class="ca-allbtn" id="caAllBtn" aria-expanded="${_caState.listOpen}" aria-controls="caDrop" onclick="_caToggleList()" title="All clients">${CA_ICONS.list}<span>All clients</span></button>
                 <div class="ca-drop" id="caDrop" role="dialog" aria-label="All clients" hidden></div>
+                ${_syncviewStaffCan('clients-admin') ? `<button type="button" class="ca-allbtn ca-newbtn" id="caNewBtn" onclick="_cnOpen()" title="New client" aria-label="New client">${CA_ICONS.plus}<span>New client</span></button>` : ''}
             </div>
+            <div class="ca-create" id="caCreate"></div>
             <div class="ca-body" id="caBody"></div>
         </div>`;
         _caPaint();
+        _cnRender();
         if (!_caState.loaded && !_caState.loading) _caLoad(false);
         // A manager list that failed to load is asked for again on the next visit.
         else if (_caState.loaded && !_caState.managers && !_caState.managersLoading) _caLoadManagers();

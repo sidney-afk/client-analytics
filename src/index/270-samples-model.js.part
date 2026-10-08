@@ -1341,7 +1341,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
             return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}"><a class="cal-link-pill-open" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a></div>`;
         }
-        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_sxrEsc(v)}" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)">`;
+        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_sxrEsc(v)}" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)" onkeydown="_sxrOnLinkKey(event,this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
@@ -1369,6 +1369,18 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             const post = sxrState.posts.find(p => p.id === input.dataset.pid);
             field.outerHTML = _sxrLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, post);
         }
+    }
+    // Escape or Enter closes a link box; Escape first puts back the link it
+    // opened with (twin of _calOnLinkKey, see the note there).
+    function _sxrOnLinkKey(e, input) {
+        if (!e || !input || (e.key !== 'Escape' && e.key !== 'Enter')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape' && input.value !== input.defaultValue) {
+            input.value = input.defaultValue;
+            _sxrOnLinkInput(input);
+        }
+        input.blur();
     }
     function _sxrOpenLink(pid, fld) {
         const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
@@ -3035,12 +3047,12 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         _sxrArchiveSelected, _sxrAutosize, _sxrCardSelectClick, _sxrCloseKebab, _sxrCopyCardLink,
         _sxrCopyShareLink, _sxrEditLink, _sxrFillComponent, _sxrLinearClear, _sxrLinearCommit, _sxrLinearEdit,
         _sxrLinearKey, _sxrLinkConflictCancel, _sxrMoveLinkConfirm, _sxrOnLinkBlur, _sxrOnLinkInput,
-        _sxrOnTextEditBlur, _sxrOnTextEditFocus, _sxrOnTextEditKey, _sxrOpenLink, _sxrOpenSetAllMenu,
-        _sxrOpenThumbLightbox, _sxrOpenThumbnailFolder, _sxrSendKasperUrgentSlack, _sxrSendUrgentSlack,
-        _sxrSetAllStatus, _sxrStatusPick, _sxrStatusToggleMenu, _sxrTabScrollBy, _sxrThumbClick,
-        _sxrToggleCreativeVisibility, _sxrToggleKebab, _sxrToggleSelectMode, _sxrUpdateTabScroll,
-        addSxrBlankCard, archiveSxrCard, closeSxrLightbox, loadSxrCards, onSxrPickClient, onSxrTabAddClick,
-        onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
+        _sxrOnLinkKey, _sxrOnTextEditBlur, _sxrOnTextEditFocus, _sxrOnTextEditKey, _sxrOpenLink,
+        _sxrOpenSetAllMenu, _sxrOpenThumbLightbox, _sxrOpenThumbnailFolder, _sxrSendKasperUrgentSlack,
+        _sxrSendUrgentSlack, _sxrSetAllStatus, _sxrStatusPick, _sxrStatusToggleMenu, _sxrTabScrollBy,
+        _sxrThumbClick, _sxrToggleCreativeVisibility, _sxrToggleKebab, _sxrToggleSelectMode,
+        _sxrUpdateTabScroll, addSxrBlankCard, archiveSxrCard, closeSxrLightbox, loadSxrCards, onSxrPickClient,
+        onSxrTabAddClick, onSxrTabClick, onSxrTabRemove, onSxrViewChange, sxrZoom
     });
 export {
   _sxrStaffPhoneActive, SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,

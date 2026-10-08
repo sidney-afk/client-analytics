@@ -33,9 +33,17 @@ here with where it stopped, so it can be restarted.
   Media Managers (session Roster): DONE 2026-10-02, live.** The database is the main copy (`client_profiles_authority` =
   `{"source":"syncview"}` since 20:00 UTC); six n8n workflows read or write through `roster-read` / `roster-write`; Manager Sync is off;
   the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 331, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
-  the two tabs in Google; the Finalizer's first real client is its end to end proof; the page still reads both tabs itself (own step);
+  the two tabs in Google; the Finalizer's first real client is its end to end proof;
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
+  **Slice 1, the page's own two reads (session Quarry, 2026-10-08, OPEN_REPAIRS 374): BUILT, in PR, switch not flipped.** With
+  `"roster": "database"` in `analytics_mirror_read_enabled` the page never downloads Clients Info or Social Media Managers (client
+  list from `analytics-read`, review queue managers from `smm-weekly-reports`); merging deploys nothing (`analytics-read` gains a
+  client-row-only read for links the numbers read is not on for, deployed by hand). Parity measured 2026-10-08 (read only): Clients Info 36 of 36 rows equal, all columns; manager assignments 41 and
+  41, 0 differences. The daily copy job failed every day from 2026-10-03 (it tried to copy Clients Info, which the database now owns,
+  and stopped before Metrics); this PR makes it skip Clients Info and adds the manager comparison. Steps:
+  `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`.
+  Analytics are paused by owner decision (2026-10-06): CLIENTS METRICS, TOP VIDEOS and their replacement jobs are off on purpose.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
   TikTok Upload (Courier, OPEN_REPAIRS 362): LIVE on Supabase since 2026-10-07 17:42 UTC (`tiktok_upload_source` = `supabase`,
   sheet rows copied). Six n8n TikTok workflows switched off 2026-10-08 on the owner's go (`docs/ops/N8N_EDIT_LOG.md`). Still on:

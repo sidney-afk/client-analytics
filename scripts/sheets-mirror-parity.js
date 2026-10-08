@@ -46,11 +46,20 @@ const DATABASE_ONLY_SOURCE = 'edge';
 // an old Sheet copy can never vouch for days only the job wrote (whole-dataset receipts are
 // what the staff pages trust; in live mode the job writes its own).
 const COLLECT_FLAGS = Object.freeze({ analytics_metrics_collect: 'metrics', analytics_top_videos_collect: 'top_videos' });
+// Clients Info has had the database as its main copy since 2026-10-02 (client_profiles_authority
+// says "syncview"); analytics-write refuses a Sheet copy of it then (409), which stopped the whole
+// daily copy before Metrics on every run from 2026-10-03. The copy leaves it out; the parity still
+// compares it, because the Sheet tab is now the mirror the database keeps.
+const AUTHORITY_FLAGS = Object.freeze({ client_profiles_authority: 'client_profiles' });
 function databaseOwnedDatasets(flagRows) {
   const owned = new Set();
   for (const row of flagRows || []) {
-    const dataset = COLLECT_FLAGS[row && row.key];
-    if (dataset && row.value && typeof row.value === 'object' && row.value.mode === 'live') owned.add(dataset);
+    const value = row && row.value && typeof row.value === 'object' ? row.value : null;
+    if (!value) continue;
+    const dataset = COLLECT_FLAGS[row.key];
+    if (dataset && value.mode === 'live') owned.add(dataset);
+    const profiles = AUTHORITY_FLAGS[row.key];
+    if (profiles && value.source === 'syncview') owned.add(profiles);
   }
   return owned;
 }
@@ -60,7 +69,7 @@ function databaseOwnedDatasets(flagRows) {
 async function readDatabaseOwned(env = process.env, fetchImpl = fetch) {
   const url = env.SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to read the collect switches');
-  const r = await fetchImpl(`${url}/rest/v1/syncview_runtime_flags?select=key,value&key=in.(${Object.keys(COLLECT_FLAGS).join(',')})`,
+  const r = await fetchImpl(`${url}/rest/v1/syncview_runtime_flags?select=key,value&key=in.(${Object.keys(COLLECT_FLAGS).concat(Object.keys(AUTHORITY_FLAGS)).join(',')})`,
     { headers: { apikey: key, authorization: 'Bearer ' + key } });
   if (!r.ok) throw new Error('runtime flags read failed: HTTP ' + r.status);
   return databaseOwnedDatasets(await r.json());

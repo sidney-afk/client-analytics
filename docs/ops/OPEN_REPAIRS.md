@@ -31333,3 +31333,46 @@ fixture pairs, with exact source/PNG hashes and explicit remaining OPEN work.
 The full clean round, fresh review, hosted batch checks and deployment remain
 pending. Filming, Quiz, Save problems and unlisted tabs are excluded by the
 owner's revised scope. No database/n8n changes or live mutations were made.
+
+## 374. [2026-10-08, BUILT, NOT DEPLOYED, SWITCH NOT FLIPPED] The page stops reading Clients Info and Social Media Managers from the Sheet; the daily copy job stops failing
+
+Session Quarry. Sheets move (STATE_OF_THINGS item A), slice 1 of
+`docs/plans/2026-10-03-sheets-remaining-map.md`: the page's own two Sheet reads.
+
+**What was built.** A switch inside the existing `analytics_mirror_read_enabled` row:
+`"roster": "database"`. With it the page never downloads the Clients Info or Social Media Managers
+tab. Staff get the client list from `analytics-read` (the profiles are the main copy, so no Sheet copy
+receipt has to vouch for them), then this browser's saved copy, then the page's "could not load"
+state. A client link gets only its own row from the database; its old fallback downloaded the whole
+Clients Info tab into the client's browser. A link the numbers read is not on for (`enabled` false,
+its slug not in `clients`) asks `analytics-read` for `client_profile` alone, and `analytics-read`
+allows exactly that call under the switch, link token still checked. The numbers keep their rule
+(stale or missing database copy: the Metrics tab only). The review queues build their manager map
+(name only, all they show) from `smm-weekly-reports` `?action=options`, unchanged on the server.
+Without the key: unchanged.
+
+**Daily copy job.** "Sheets mirror daily copy and parity" failed on every scheduled run from
+2026-10-03 to 2026-10-07: the copy sent Clients Info first, `analytics-write` refused it with 409
+`client_profiles_owned_by_syncview` (the database owns it since 2026-10-02), and the job stopped
+before Metrics and the other tabs. `--skip-database-owned` now also leaves out Clients Info while
+`client_profiles_authority` says `syncview`. The parity step still compares Clients Info (the tab is
+the database's mirror), and a new step `scripts/roster-managers-parity.js --strict` compares the
+manager assignments.
+
+**Parity, measured 2026-10-08 (read only).** Clients Info: 36 Sheet rows, 36 database rows, 36 equal
+fingerprints (all columns), 0 differences. Social Media Managers: 41 Sheet rows, 41 database rows,
+41 clients, 0 differences, `PARITY: clean`.
+
+**Proof.** `docs/syncview-design/tests/analytics-mirror-read-browser.js` gains eight roster scenarios
+(client link with and without a numbers copy, read failure, `roster` set with `enabled` false, staff
+fresh, staff stale, staff failure, managers from the door and, without the key, from the Sheet as
+before): `ANALYTICS_MIRROR_READ_OK`.
+`test/sheets-mirror-parity-catchup.js` 27 checks, `test/roster-managers-parity.js` 8 checks.
+
+**Not done (owner's go each).** Merging deploys nothing: `analytics-read` deploys only by a manual
+run of the single-function lane, needed before the switch for a link the numbers read is not on for.
+The switch flip, the test-client proof and the way back are in
+`docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`. The two tabs stay until `clients-roster-sync` and Weekly
+Backup no longer read them (and CLIENTS METRICS / TOP VIDEOS, if analytics resume).
+
+**Analytics are paused by owner decision (2026-10-06):** CLIENTS METRICS, TOP VIDEOS and their replacement jobs are off on purpose.

@@ -101,6 +101,7 @@ async function runCase({ gateway, saveOk }) {
     _calShouldBumpThumbRevForGraphicStatus: () => false,
     _sxrSetCardStatus: () => {},
     _sxrCacheWrite: () => true,
+    _sxrCacheWriteIfCurrent: () => true,
     _sxrRenderBody: () => {},
     _sxrAwaitCardSave: async () => {},
     _sxrApplyClearSentinels: () => {},

@@ -73,4 +73,3 @@ Both theme preferences are exercised; client links render light by design. All d
 | Before | After |
 |---|---|
 | ![Before](before/loading-month-430-dark.png) | ![After](after/loading-month-430-dark.png) |
-

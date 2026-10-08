@@ -76,10 +76,37 @@ loading guard treated deliberately clipped organizer-strip elements as painted
 overflow; the final guard checks heading coverage for every view and full
 containment for the repaired timeline panel.
 
-Desktop 72-cell parity against the parent and the existing admin phone suite
-are running. Final staff checks, final source client reruns, focused desktop
-loading comparisons, identity guard, index/HEAD proof, hosted checks, and PR
-publication remain pending. No deployment or finish-line claim is made.
+The existing admin phone suite has now completed on this source:
+
+```text
+KASPER_ADMIN_CHART: pinned production 4.4.0 bytes; 6 phone chart action/theme/desktop-restore states checked.
+KASPER_ADMIN_EXPANDED: 420 native states; 8892 checks; 0 failures; fictional data; no live writes.
+check-index: OK — assembled == working tree == committed (HEAD)
+This change adds no client slug and no colleague's name ✅
+repo-map-sync: 1118 passed, 0 failed
+truth-sync: 515 passed, 0 failed
+```
+
+The index SHA256 is
+`05ef2a5c25a1b3e20bfcd9996aac3faf8baa161ab0301c31f0361e72b5d2a4aa`
+(1,314,399 bytes). The identity guard was run after staging all new generated
+assets and evidence. Desktop 72-cell parity against the parent, final staff
+checks, final source client reruns, and focused 32-state desktop loading
+comparisons are running. Hosted batch 3 checks and PR publication remain
+pending. No deployment or finish-line claim is made.
+
+Focused desktop loading follow-through has completed:
+
+```text
+CLIENT_LOADING_DESKTOP: 32/32 exact PNG, native markup and computed-style pairs
+```
+
+[Safe desktop hashes](desktop-loading.json) cover the four native Calendar
+loading views at 1024/1280/1440/1920 with both preferences, against batch 2.
+Raw desktop pictures stay private. The initial private reference invocation
+aborted because its Windows path was not normalized before the containment
+check; that failed invocation remains retained. The normalized reference and
+after captures match exactly. Broad 72-cell parity remains in progress.
 
 Further work remains on staff screens, Filming help/copy, Notes wording and
 small supporting labels, long/many-item and refused-save states, and complete

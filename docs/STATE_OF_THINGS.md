@@ -170,7 +170,9 @@ here with where it stopped, so it can be restarted.
      as a separate change: a warning when someone moves a work item whose card is
      archived (needs the sealed capture and an owner deploy).
    - **Escape does not close a Calendar card's thumbnail or video edit box**
-     (owner 2026-09-26). Last status: still broken. Re-check live first.
+     (owner 2026-09-26). Re-checked on the live site 2026-10-08 (session Sentinel, test client): still
+     broken. FIXED in PR #2000 (OPEN_REPAIRS 371), waiting for the merge: Escape puts back the link the
+     box opened with and closes it, Enter keeps what was typed; Samples too. Move to Done after the merge.
    - **Daily real-browser client check from a local session, Samples included,
      noting odd loads, pop-ups and delays** (owner 2026-09-22). The shipped
      morning check is headless on GitHub and has no Samples flow.

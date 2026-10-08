@@ -4,6 +4,18 @@
 
 All times are UTC unless noted.
 
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 3) and the cycle 1 tally
+
+The Today and Clients group: eight candidates, four confirmed and fixed, one
+confirmed and left for a server change, one put to the owner as a question, two
+not verified. Detail: OPEN_REPAIRS 373. Cycle 1 in all: 27 candidates (24 from
+three pattern sweeps, 3 from a signed-in walk of the live site on the test
+client); 18 of them confirmed and closed by 17 fixes across three stacked PRs,
+each with a guard that fails on the code before it; 3 left for the owner; 6 not
+verified, low, or duplicates, and recorded. No live write beyond one unchanged-value save on a
+test-client card; live reads were counts only. No deploy, merge, flag or n8n
+edit.
+
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 2)
 
 The Calendar and Samples save group from cycle 1: eight candidates, four

@@ -61,7 +61,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // matching media URL must already be linked, so warn while it's empty.
         // The video sub-status governs the video URL; the thumbnail (graphic)
         // sub-status governs the thumbnail URL — each is independent.
-        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
+        // N/A is not "past In Progress": it says the post will never have this
+        // part, which is exactly what the warning itself tells people to set
+        // ("If this post will never have one, set it to N/A"). Counting it kept
+        // the warning on the card, and the post in Today's "Missing links",
+        // with no way to clear either short of adding a link.
+        const beyondProgress = s => { const st = _calNormStatus(s || ''); return st !== 'In Progress' && st !== 'N/A'; };
         const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
         const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;

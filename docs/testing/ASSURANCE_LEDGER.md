@@ -142,6 +142,18 @@ still owner-gated, and it is the half that matters most.
 
 ## Run history
 
+### Run 2026-10-08 (Sentinel) — mandate: desktop, the six riskiest screens (Calendar, Samples, Today, SyncLinear cards, Clients, TikTok upload), loop until two cycles run dry; test client only; one PR per batch, no merge; phone layout and the three red nightly lanes excluded
+
+**No row above is restated by this run.** It was a defect hunt, not a re-proof: nothing here is a positive save proof on the live site, so every "Last proven" cell and State stands as it was. What the run can say:
+
+- **Opened on the live site, signed in as staff, 1440 wide, test client, zero page errors:** Today; Calendar in Sheet, Month, Week and Review; Samples; TikTok upload. A load proof only.
+- **Cycle 1:** 27 candidates (three pattern sweeps of the six screens, plus the walk). 18 confirmed and closed by 17 fixes in three stacked PRs (OPEN_REPAIRS 371, 372, 373), each with a guard that fails on the code before it. Refuted or left as low or duplicate: 6. Left for the owner: 3 (below).
+- **The one that matters most to the contract:** an edit typed on one client's Calendar card or sample could be written under another client, or as a blank card over the real one, after an ordinary quick client switch (Tier 0 and Tier 1; cross-tier invariant 2). Reproduced in a real browser against a local stand-in backend; the live database held no card with that damage's signature on the day.
+- **Provers added (permanent):** `test/calendar-edit-stays-with-its-client-browser.js`, `test/calendar-samples-save-honesty-browser.js`, `test/calendar-link-box-keys-browser.js` (real Chromium, every backend call answered locally), and six function-level suites.
+- **Not reached:** any authenticated write drill on the live site (the nightly probes need a staff key this session did not hold); the Clients tab on the live site (admin only; read from code and its mocked browser suites instead); SyncLinear card writes on the live site.
+- **Owner one-liners from this run:** (a) Instagram accounts can no longer be connected from the app since the database became the main copy of Clients Info: the form reads the sheet, the function checks the database, and nothing copies one to the other any more (OPEN_REPAIRS 371); it needs a field in the Clients tab, which is a database function change and a deploy. (b) Should an Approved post whose date has passed stay on Today? (c) "Managed by" in Clients matches names more strictly than Today does (server change).
+- **Process note:** scoring by tier and churn pointed at the right places. Every confirmed finding sat in code changed since 2026-09-24, and the most serious one came from two correct changes colliding (the pre-save re-read added on 2026-10-01 and the client switch), which is the first pattern in the bug-archaeology list.
+
 ### Run 2026-09-24 (Atlas, role key in env) — rename both ways, Kasper review save, Workload save; TEST client only
 - **Card → sub-issue rename:** dawn check 8/8 flows passed (includes the rename and its restore on card and sub-issue).
 - **Sub-issue → card rename:** `qa/probes/rename_subissue_to_card_live.js` 5/5 (card and sibling followed, all three restored). One earlier attempt aborted silently mid-flow; the probe now records any exception as a failure.

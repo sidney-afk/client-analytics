@@ -1,4 +1,4 @@
-import { svArea, svAreaApi } from './040-shared-briefs.js';
+import { showConfirm, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
   CAL_SUPABASE_ANON_KEY, _syncviewOpenStaffIdentity, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch

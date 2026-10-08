@@ -49,7 +49,7 @@ import {
   _sxrClientCompPillsHtml, _sxrDeriveThumbInfo, _sxrEnabled, _sxrEsc, _sxrEscAttr,
   _sxrForceThumbRefresh, _sxrIsBlankId, _sxrJsArg, _sxrLastNetworkLoadAt, _sxrLoadPrefs,
   _sxrLoaderHtml, _sxrMigrateShape, _sxrNormStatus, _sxrNormZoom, _sxrOpenStatusMenu,
-  _sxrPendingEdits, _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason,
+  _sxrParkEditsForClient, _sxrPendingEdits, _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason,
   _sxrSaveInFlight, _sxrSavePrefs, _sxrSaveTimers, _sxrUpdateCardStatusDisplay,
   _sxrUpsertFetchPinned, archiveSxrCard, computeSampleOverallStatus, loadSxrCards,
   renderSxrOrganizer, renderSxrView, sxrClientSlug, sxrState

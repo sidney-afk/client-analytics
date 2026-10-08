@@ -3417,7 +3417,7 @@ export {
   _calNativePostCountMax, _calNativePostNamesFor, _calNativePostNamesHtml, _calNativePostState,
   _calNativeReceiptHtml, _calNativeTitleOrdinal, _calNativeVideoEditorPool, _calOnCaptionInput,
   _calOnFieldBlur, _calOnFieldInput, _calOpenStatusMenu, _calRefreshCaption, _calRefreshCardThumb,
-  _calRefreshMediaWarning, _calRenderInlineCard, _calReviewBlockReason,
+  _calRefreshMediaWarning, _calRenderInlineCard, _calRestoreParkedEdits, _calReviewBlockReason,
   _calSetNativeBatchOptionsHtml, _calSetNativePostState, _calSetOpenStatusMenu, _calSmmApproveTo,
   _calStatusSlug, _calThumbSrcBase, _svSaveIndApply, _svSaveIndHtml
 };

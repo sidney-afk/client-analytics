@@ -31117,3 +31117,46 @@ Confirmed or likely, not fixed here (each needs the owner or a server change):
 - Not verified: the first-name fallback that matches a signed-in person to a manager's client list could match the wrong person when a non-manager shares a first name with exactly one manager; the HubSpot band drops its "no deal" reason for ten minutes after a lookup.
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 374. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 4 (cycle 2): thirteen places where the page said something untrue about a save, a send or a selection
+
+Session Sentinel, cycle 2. Two fresh sweeps with different lenses (the unfixed siblings of what cycle 1 confirmed, and the areas cycle 1 did not reach) returned 28 candidates. This batch takes the thirteen I verified in the code and judged most harmful. Browser changes only. Stacked on batches 1 to 3 (entries 371 to 373). All thirteen are pinned in `test/assurance-cycle2-saves-and-selection.js`, each block failing on the code before this change. None was reproduced on the live site: they are not deployed, and several need a failing save.
+
+Uploads:
+
+1. **Instagram: a post that Post For Me refused was reported as "could not confirm".** The function answers HTTP 200 with `{"ok":false}` and the reason; the page treated only a 4xx as a definite no. So the reason was never shown, the failed row never reached the queue, and each new press uploaded the whole video again to be refused again. A definite refusal now shows its reason and ends the attempt. Post For Me not answering at all stays "unknown", with the same key, because the post may exist.
+2. **TikTok: privacy, post mode, the toggles, the cover and the schedule stayed editable during an upload.** What is sent is frozen when Post is pressed, so picking "Private" mid-upload changed the form and the preview while a public post went out. An image dropped mid-upload showed in the strip, was never sent, and vanished on success. Every field is now locked until the upload ends.
+3. **TikTok: Cancel while the post was being created said "Upload cancelled."** Cancel at that point only stops the browser waiting; the request may already be with the server, and an edited re-submit then made a second post. The message now says the post may already exist, and the queue is read.
+
+Calendar and Samples:
+
+4. **Multi-select: cards a filter had hidden stayed selected and were archived.** Tick three, change the month filter, tick one more: Archive asked about "4 posts" and archived three that were not on screen. Bulk colour did the same. After every Sheet render the selection is now what is ticked on screen.
+5. **Multi-select: the bar reset to "0 selected" with its buttons disabled on any repaint,** while the cards stayed ticked. Samples had the same reset.
+6. **Coming back to the Calendar or Samples tab kept the previous client's selection and select mode** when the client had been changed in the top bar meanwhile.
+7. **Bulk colour always said "Color updated",** because the card save marks a failure instead of rejecting and the count looked only for rejections.
+8. **Review view: a plain Comment whose save failed showed nothing** (Calendar and Samples, staff and client link). The comment sat in the thread looking sent.
+9. **Samples Review: a failed Approve made the card vanish and the badge drop exactly as on success,** though nothing had reached Kasper. The Calendar already re-rendered the queue here; Samples now does too.
+10. **Samples: text from a save that failed was wiped by the next background refresh** (tab focus, a teammate's change, a reconnect), along with its "Save failed, Retry" chip. The unsaved text and its Retry now survive; statuses still follow the server.
+11. **Calendar "Add the missing video or thumbnail": finishing after a client switch wrote the list on screen into the first client's saved copy.** The same shape as entry 372, in a caller that fix missed; its Samples twin was already guarded.
+
+SyncLinear, Today, Clients:
+
+12. **SyncLinear: Resolve, Reopen or Delete on a comment was silently dropped while another comment write on the same card was still saving** (all comment writes on a card share one slot). It now says so. Sibling of entry 371 item 1.
+13. **Today, editor Deck: "Skip for now" did nothing for most cards.** The list was re-sorted after the skipped card was moved back, so any tweak, urgent or earlier-due card returned to the top.
+14. **Clients: a save that landed after another client was opened was applied nowhere.** No "Saved", old values in the list for the rest of the session, and the next edit refused with "Someone else saved this client a moment ago". The saved row is now taken.
+
+Also: the weekly Slack update's "no channel" notice told staff to add a column to the Clients Info sheet; it now points at the Clients tab (same reason as entry 371 item 8).
+
+(Fourteen numbered items because 4 and 5 are one fix; thirteen fixes.)
+
+**Cycle 2 candidates not taken in this batch.** Recorded so the next cycle starts from them, not from zero. None of these is verified by me yet:
+
+- Today: "Open card" on a work-item row does not get past a saved Calendar filter (post rows do); Walk-through keeps its place by position, so the card under the header can change when the list changes; the "cleared today" meter counts moves made by other people (may be intended).
+- Calendar: "Open in Sheet" and "Edit in Organizer" land on a Sheet with no Organize menu, Select buttons or zoom until Sheet is clicked again; a card opened by link stays pinned through filters chosen later; a cancelled drag leaves the strip reordered and the next drop saves it (Samples too); the restore dialog says a date "has passed" on the evening of that day; the Collaborative mode and Title review switches fail silently after three tries.
+- Samples and Calendar Review: after a plain Comment, Approve may stay greyed out on desktop until the card is re-expanded.
+- SyncLinear: a card opened by its identifier does not repaint its description when the read lands, and loses the caret while editing.
+- Kasper urgent ping: its "sent" marker is saved under whichever client is on screen when the ping returns.
+- Instagram: the form ignores a client picked in the top bar after its first client.
+- Clients: searching "@name" finds nothing when the handle is stored without "@"; the HubSpot band is not searched again for ten minutes after an email is fixed (server); an older checklist read can repaint a just-saved step.
+
+Way back: revert the PR. Not yet seen by the owner in his browser.

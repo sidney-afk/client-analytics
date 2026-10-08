@@ -360,6 +360,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calSetClient(name) {
         if (calState.client !== name) {
             calState.focusPid = null;
+            /* A selection belongs to the client it was made on. The switch
+               paths reset it themselves (_calResetSelection), but coming back
+               to the Calendar tab mounts through here, and a client picked in
+               the top bar meanwhile arrived with the old client's cards still
+               selected and select mode still on: one more tick and Archive
+               would send the old client's ids under the new client. */
+            calState.selectMode = false;
+            calState.selectAction = 'archive';
+            calState.selected = new Set();
+            calState.lastSel = null;
             /* Codex review, PR for item 176 (fifth pass): a pending card-link
              * request (and its toast) belongs to whichever client it names.
              * Switching to a DIFFERENT client abandons it, the exact same

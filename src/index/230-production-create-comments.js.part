@@ -1202,6 +1202,15 @@ import {
             }, state.lifecycleRequestId).then(result => {
                 state.lifecycleKey = '';
                 state.lifecycleRequestId = '';
+                /* Nothing came back: another comment write on this card was
+                   still saving, so this Resolve, Reopen or Delete was never
+                   sent (every comment write on a card shares one slot). It
+                   used to end here with no message and the thread unchanged. */
+                if (!result) {
+                    state.error = 'Another change to this card’s comments was still saving, so that one was not sent. Try it again.';
+                    _prodRender();
+                    return;
+                }
                 _prodComments.adopt(id, result && result.comment);
                 _prodComments.refresh(id);
             }).catch(error => {

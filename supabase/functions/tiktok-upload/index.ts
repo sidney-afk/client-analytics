@@ -13,6 +13,11 @@
 //   POST { action: "list" }                         { ok, rows }   newest first (scheduled time, else sent), 100
 //   POST { action: "status", id }                   { ok, row, pfm }   pfm: { state: posted|failed|none|unknown }
 //   POST { action: "retry", id }                    { ok, row }    a failed post, sent again from its kept request
+//   POST { action: "refresh_due" }                  { ok, checked, still_open, posted, failed }   the safety net, on demand
+//   POST { action: "webhook_status" | "webhook_register" | "webhook_remove", id? }   ADMIN key only: Post For Me's
+//                                                   webhooks (ids, urls, events; never secrets)
+//   POST ?pfm_webhook=1  { event_type, data }       Post For Me's result webhook: NO staff key; the header
+//                                                   Post-For-Me-Webhook-Secret must match (OPEN_REPAIRS 369)
 //   POST { action: "import_sheet", dry_run? }       { ok, counts }  ADMIN key only: the one-time copy of the
 //                                                                   TikTokUpload tab; rows already here are kept
 //
@@ -28,8 +33,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 import { googleToken, serviceAccount } from "../_shared/roster-sheet-copy.mjs";
 import { sheetRange } from "../_shared/roster-native.mjs";
-import { SHEET_TAB } from "../_shared/tiktok-queue.mjs";
-import { handleTiktokUpload } from "./handler.mjs";
+import { OPEN, SHEET_TAB, WEBHOOK_HEADER, webhookFor } from "../_shared/tiktok-queue.mjs";
+import { handleResultWebhook, handleTiktokUpload } from "./handler.mjs";
 
 const PFM = "https://api.postforme.dev/v1";
 const PFM_TIMEOUT_MS = 25000;
@@ -89,6 +94,19 @@ function tableStore(db: any) {
       fail(error);
       return data || [];
     },
+    async dueOpen(limit: number) {
+      // Open rows whose time has come (or that have no time), least recently asked first.
+      const { data, error } = await db.from("tiktok_uploads").select("*").in("status", OPEN)
+        .or("scheduled_for.is.null,scheduled_for.lte." + new Date().toISOString())
+        .order("last_checked_at", { ascending: true, nullsFirst: true }).limit(limit);
+      fail(error);
+      return data || [];
+    },
+    async byPostId(postId: string) {
+      const { data, error } = await db.from("tiktok_uploads").select("*").eq("upload_post_id", postId).limit(1);
+      fail(error);
+      return (data && data[0]) || null;
+    },
     async profiles() {
       const { data, error } = await db.from("client_profiles").select("slug,display_name,postforme_account_id").is("archived_at", null);
       fail(error);
@@ -103,6 +121,21 @@ function tableStore(db: any) {
   };
 }
 
+// The secret Post For Me holds for this function's webhook. TIKTOK_PFM_WEBHOOK_SECRET wins when set; otherwise
+// it is read from Post For Me (GET /v1/webhooks, the entry whose url is ours) with the key the function already
+// holds, so no secret has to be copied by hand. Kept for 10 minutes; a miss is retried after 1.
+let webhookSecretCache: { at: number; value: string | null } | null = null;
+async function expectedWebhookSecret(pfmKey: string, url: string): Promise<string | null> {
+  const fromEnv = clean(Deno.env.get("TIKTOK_PFM_WEBHOOK_SECRET"));
+  if (fromEnv) return fromEnv;
+  const ttl = webhookSecretCache && webhookSecretCache.value ? 600000 : 60000;
+  if (webhookSecretCache && Date.now() - webhookSecretCache.at < ttl) return webhookSecretCache.value;
+  const r = await pfmClient(pfmKey)("GET", "/webhooks");
+  const mine = r.ok ? webhookFor(r.data, url) : null;
+  webhookSecretCache = { at: Date.now(), value: mine && mine.secret ? String(mine.secret) : null };
+  return webhookSecretCache.value;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
@@ -111,6 +144,28 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   const pfmKey = Deno.env.get("POST_FOR_ME_API_KEY") || "";
   if (!supabaseUrl || !serviceKey) return json({ ok: false, error: "server not configured" }, 500);
+  // Where Post For Me sends results. The query string only routes; the secret is what proves the sender.
+  const webhookUrl = supabaseUrl.replace(/\/+$/, "") + "/functions/v1/tiktok-upload?pfm_webhook=1";
+  const store = () => tableStore(createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } }));
+
+  // Post For Me's result webhook: no staff key, its own secret instead (OPEN_REPAIRS 369).
+  const reqUrl = new URL(req.url);
+  const webhookSecret = req.headers.get(WEBHOOK_HEADER);
+  if (reqUrl.searchParams.get("pfm_webhook") === "1" || webhookSecret !== null) {
+    if (!pfmKey && !clean(Deno.env.get("TIKTOK_PFM_WEBHOOK_SECRET"))) return json({ ok: false, error: "webhook_not_configured" }, 503);
+    try {
+      const out = await handleResultWebhook({
+        secret: webhookSecret || "",
+        body: await req.json().catch(() => ({})),
+        expectedSecret: () => expectedWebhookSecret(pfmKey, webhookUrl),
+        store: store(),
+      });
+      return json(out.body, out.status);
+    } catch (e) {
+      // A 5xx makes Post For Me retry (about 8 times over a day), which is what a database hiccup needs.
+      return json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 500);
+    }
+  }
 
   const auth = authorizeStaffKey(clean(req.headers.get("x-syncview-key")), ["admin", "smm", "creative"]);
   if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
@@ -136,8 +191,9 @@ Deno.serve(async (req) => {
       role: auth.role,
       actor: clean(req.headers.get("x-syncview-actor")) || auth.role || "staff",
       pfm: pfmClient(pfmKey),
-      store: tableStore(createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })),
+      store: store(),
       readSheet,
+      webhookUrl,
     });
     return json(out.body, out.status);
   } catch (e) {

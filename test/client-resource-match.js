@@ -39,7 +39,7 @@ const drive = {
 };
 const slack = { channels: [{ id: 'C0FIXTURE01', name: 'qx-alphatest-creative' }, { id: 'C0NEWID0002', name: 'qx-bravotest-synchro', is_private: true }, { id: 'C0QXC000003', name: 'qx-charlietest-creative' }] };
 
-ok(m.norm('Dr. Qx Charlietest') === 'qxcharlietest' && m.norm('Eben and Annie') === 'eben&annie' && m.norm('Zoë Qxnaïve') === 'zoeqxnaive', 'names are normalised the way every client slug is');
+ok(m.norm('Dr. Qx Charlietest') === 'qxcharlietest' && m.norm('Qx and Qy') === 'qx&qy' && m.norm('Zoë Qxnaïve') === 'zoeqxnaive', 'names are normalised the way every client slug is');
 const src = { brain: m.readBrain(brainDir), hubspot, drive, slack };
 const rows = roster.flatMap((c) => m.matchClient(c, src));
 const get = (slug, res) => rows.filter((r) => r.client_slug === slug && r.resource === res);

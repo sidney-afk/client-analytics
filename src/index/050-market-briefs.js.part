@@ -837,7 +837,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             const info=clientMap[clientName]||{};
             const channelId=info.slack_channel_id||'';
             if(!_isClientLink&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied){showNotify('Still loading','Top videos are still loading. Try again in a moment.');if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
-            if(!channelId){showNotify('No Slack channel','Add a slack_channel_id column to Clients Info for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
+            if(!channelId){showNotify('No Slack channel','Ask an admin to add the Slack channel for '+clientName+' under Kasper, Clients, Contact and team. (The Clients Info sheet is now a copy of the database, so a channel typed into the sheet is not picked up.)');if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
             const clientVids=topVideos.filter(v=>v.client_name===clientName&&(v.period||'').toLowerCase().includes('week'));
             const latestDate=clientVids.reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
             const fresh=latestDate?clientVids.filter(v=>(v.scraped_date||'')===latestDate):clientVids;

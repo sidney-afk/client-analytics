@@ -13,7 +13,7 @@ import {
   _writeUiClassifyTargetless, _writeUiComponentHasWorkItem, _writeUiFailureText,
   _writeUiGatewayError, _writeUiGatewayPost, _writeUiGatewayWithRepair, _writeUiIntentId,
   _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner, _writeUiLegacyResumeOwnerCurrent,
-  _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom, _writeUiNativeId, _writeUiNativeStatus,
+  _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom, _writeUiCommentRound, _writeUiNativeId, _writeUiNativeStatus,
   _writeUiPrimeRerouteFlag, _writeUiPrincipalKey, _writeUiQueueDiagnostic,
   _writeUiRefreshAuthority, _writeUiReportFailure, _writeUiSourceClientSlug, _writeUiTeam,
   _writeUiUseGatewayWhenReady, computeOverallStatus
@@ -2353,7 +2353,7 @@ import {
                         audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                         component,
                         is_tweak: !!(meta && meta.isTweak),
-                        round: meta && Number.isInteger(meta.round) ? meta.round : null,
+                        round: _writeUiCommentRound(meta && meta.round),
                         // The card the client link presents; the server matches
                         // it against the row card binding when one exists.
                         ...(clientGatewaySurface ? { card_id: clientGatewaySurface.card_id } : {})

@@ -70,7 +70,7 @@ vm.createContext(context);
 // Both comment writers answer source-only for a component with no work item
 // of its own (caption/title), so the real predicate belongs in the sandbox --
 // stubbing it here would let the two drift. OPEN_REPAIRS 127.
-for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_calPostLinearComment', '_sxrPushStatusToLinear', '_sxrPostLinearComment']) {
+for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_calPushStatusToLinear', '_calPostLinearComment', '_sxrPushStatusToLinear', '_sxrPostLinearComment']) {
   try { vm.runInContext(extract(name), context); }
   catch (error) { console.error('failed to evaluate ' + name); throw error; }
 }
@@ -3741,6 +3741,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     Date, JSON, Object,
   };
   vm.createContext(builderContext);
+  vm.runInContext(extract('_writeUiCommentRound'), builderContext);
   vm.runInContext(extract('_writeUiBuildSourceRepair'), builderContext);
   const builtRepair = builderContext._writeUiBuildSourceRepair('calendar', 'comment', {
     post: { id: 'card-1', video_status: 'Tweaks Needed', status: 'Tweaks Needed', video_comments: [] },

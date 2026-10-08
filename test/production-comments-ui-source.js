@@ -52,6 +52,7 @@ const context = {
 vm.createContext(context);
 vm.runInContext([
   extract('_prodCommentTruthy'),
+  extract('_writeUiCommentRound'),
   extract('_prodCommentNormalize'),
   extract('_prodCommentMerge'),
   `result = _prodCommentMerge([

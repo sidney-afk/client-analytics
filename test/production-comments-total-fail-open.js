@@ -288,7 +288,7 @@ async function call(extra = {}) {
     assert.ok(moduleStart > 0 && apiLine > moduleStart && moduleEnd > apiLine, 'could not locate the comments module');
     const MODULE = INDEX.slice(moduleStart, moduleEnd + '})();'.length);
 
-    const helpers = ['_prodCommentTruthy', '_prodHashText', '_prodCommentNormalize', '_prodCommentMerge', '_prodFeedbackState']
+    const helpers = ['_prodCommentTruthy', '_prodHashText', '_writeUiCommentRound', '_prodCommentNormalize', '_prodCommentMerge', '_prodFeedbackState']
       .map(name => {
         const fn = extractFunction(INDEX, name);
         assert.ok(fn, 'could not extract ' + name);

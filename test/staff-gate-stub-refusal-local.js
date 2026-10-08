@@ -134,7 +134,32 @@ async function callFrom(page, key) {
     assert.ok(!/analytics_mirror_read_enabled/.test(asked[1]), 'the single mirror-flag read never asks for the real flag');
     assert.equal(asked[2], 'eq.pto_v1', 'an unrelated single-flag read is untouched');
     await flagCtx.close();
-    console.log('staff-gate-stub-refusal-local: 17 checks passed ✅');
+    // Case 6 (OPEN_REPAIRS 373): the probes' native gateway stub is registered
+    // FIRST and seedVerifiedProbeStaff registers the refusal again AFTER it,
+    // on the context and on the page. The newest route runs first, so before
+    // the fix the refusal answered every probe-key write and the stub never
+    // saw one. The stub must win in both orders.
+    const NW = require('../qa/native_work_item_fixture.js');
+    const order = await browser.newContext();
+    await seedStaffGate(order);
+    const gatewayCalls = await NW.stubNativeGateway(order);
+    const p6 = await order.newPage();
+    await p6.goto(`http://127.0.0.1:${server.address().port}/`);
+    // The blank page has no app to verify; only the route it registers matters.
+    assert.match(await NW.seedVerifiedProbeStaff(p6), /^seed-failed/);
+    await require('../qa/staff-gate-seed.js').refuseStubKeyProductionWrite(p6);
+    const viaStub = await callFrom(p6, 'probe-staff-key');
+    assert.equal(viaStub.status, 200, 'a refusal registered after the gateway stub must not shadow it');
+    assert.equal(viaStub.body.native_committed, true);
+    assert.equal(gatewayCalls.length, 1, 'the gateway stub sees the probe-key write');
+    await order.close();
+    const unstubbed = await browser.newContext();
+    await seedStaffGate(unstubbed);
+    const p7 = await unstubbed.newPage();
+    await p7.goto(`http://127.0.0.1:${server.address().port}/`);
+    assert.equal((await callFrom(p7, 'probe-staff-key')).diag, 'headless-stub', 'without a gateway stub the probe key is still refused locally');
+    await unstubbed.close();
+    console.log('staff-gate-stub-refusal-local: 21 checks passed ✅');
   } finally {
     await browser.close();
     server.close();

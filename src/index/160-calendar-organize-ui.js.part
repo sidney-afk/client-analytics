@@ -1115,6 +1115,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 if (stripNow) stripNow.scrollLeft = scrollLeft0;
             }
             wireCalOrganizerDrag(preserveScroll);
+            _calSelectionFollowsTheSheet();
         } else if (calState.view === 'month') {
             body.innerHTML = viewHtml;
             _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
@@ -1226,6 +1227,17 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const post = calState.posts.find(p => p.id === id);
         if (!post || !iso) return;
         if (String(post.scheduled_date || '').slice(0,10) === iso) return;
+        /* Remember the day the post was on. The move is painted before the
+           save, so by the time the engine takes its own "before" copy the post
+           already holds the new day, and a failed save rolled back to the day
+           it had just failed to save: the post stayed on the new day with no
+           sign anything was wrong (Month and Week cards have no save chip) and
+           was back on the old day after a reload. */
+        const priorDate = post.scheduled_date;
+        if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
+        const moveBucket = _calPendingEdits[id];
+        moveBucket._calPriorStatus = moveBucket._calPriorStatus || {};
+        if (!('scheduled_date' in moveBucket._calPriorStatus)) moveBucket._calPriorStatus.scheduled_date = priorDate;
         post.scheduled_date = iso;
         post.updated_at = new Date().toISOString();
         // Route the reschedule through the same per-card save funnel as every
@@ -1392,6 +1404,30 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        changes) — otherwise select-mode + a stale `selected` Set holding the
        previous client's ids survives the switch, and a later bulk-archive could
        act on cards from the wrong client / cards the user never saw. */
+    /* After every Sheet render, the selection is what is ticked ON SCREEN.
+     *
+     * Two defects met here. The select bar is rebuilt on each render with
+     * "0 selected" and its buttons disabled, while the cards were re-rendered
+     * still ticked, so any background repaint left five ticked cards under a
+     * bar that said none. And changing the month or status filter kept cards
+     * the filter had just hidden in the selection: tick three, change month,
+     * tick one more, and Archive asked about "4 posts" and archived three that
+     * were not on screen. A card the Sheet does not show is no longer selected,
+     * and the bar says how many are. */
+    function _calSelectionFollowsTheSheet() {
+        const strip = document.getElementById('calStrip');
+        if (!strip || !calState.selected) return;
+        if (calState.selected.size) {
+            const shown = new Set(Array.from(strip.querySelectorAll('.cal-card[data-pid]')).map(card => card.getAttribute('data-pid')));
+            calState.selected = new Set(Array.from(calState.selected).filter(id => shown.has(id)));
+        }
+        const n = calState.selected.size;
+        const count = document.getElementById('calSelectCount');
+        if (count) count.textContent = n + ' selected';
+        const action = document.getElementById('calSelectArchive');
+        if (action) action.disabled = n === 0;
+        document.querySelectorAll('#calSelectBar [data-bulk-color]').forEach(b => { b.disabled = n === 0; });
+    }
     function _calResetSelection() {
         calState.selectMode = false;
         calState.selectAction = 'archive';
@@ -2405,7 +2441,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
             </div>`;
         }
-        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)">`;
+        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)" onkeydown="_calOnLinkKey(event,this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
@@ -2444,6 +2480,24 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (!field) return;
         const post = calState.posts.find(p => p.id === input.dataset.pid);
         field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, false, post);
+    }
+    /* Escape and Enter close a thumbnail or video link box. The box had no key
+       handler at all, so Escape did nothing and the only way out was to click
+       somewhere else, which saved whatever was in the box (owner report,
+       2026-09-26). Enter keeps what was typed, like clicking away. Escape puts
+       back the link the box opened with: the box saves as you type, so the
+       old link goes back through the same input path before the blur, and a
+       half-typed link is never left on a card the client can see.
+       stopPropagation keeps this Escape from also leaving multi-select. */
+    function _calOnLinkKey(e, input) {
+        if (!e || !input || (e.key !== 'Escape' && e.key !== 'Enter')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape' && input.value !== input.defaultValue) {
+            input.value = input.defaultValue;
+            _calOnLinkInput(input);
+        }
+        input.blur();
     }
     function _calOpenLink(pid, fld) {
         const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
@@ -2638,6 +2692,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const json = await response.json().catch(() => ({}));
         if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
         const saved = Object.assign({}, post, json.post && typeof json.post === 'object' ? json.post : {});
+        // The card is saved. If the view moved to another client meanwhile,
+        // the list on screen is not this client's: writing it under this
+        // client's saved copy put the other client's cards there (the Samples
+        // twin, _sxrFillComponent, already stops here).
+        if (calClientSlug(calState.client) !== clientSlug) return;
         const index = calState.posts.findIndex(item => item && item.id === pid);
         if (index >= 0) calState.posts[index] = Object.assign({}, calState.posts[index], saved);
         try { _calCacheWrite(clientSlug, calState.posts); } catch (e) {}
@@ -3055,8 +3114,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     Object.assign(window, {
         _calCloseClientLinks, _calCloseKebab, _calEditLink, _calFillComponent, _calLinearClear,
         _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel, _calOnLinkBlur,
-        _calOnLinkInput, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError, _calOpenLink,
-        _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
+        _calOnLinkInput, _calOnLinkKey, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError,
+        _calOpenLink, _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
         _calToggleClientLinks, _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop,
         _calUpdateTabScroll, _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen,
         _thumbCompareSignIn, calZoom, onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle,

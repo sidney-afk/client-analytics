@@ -1,5 +1,9 @@
 # Today empty view and Notes
 
+The [main-integration follow-up](main-followup/README.md) refreshes the 18
+reviewed cells and current-main desktop proof after resolving PR #2002's
+conflicts. The original gallery and receipts below remain source-bound history.
+
 An empty Today view showed five zero-item job tiles before its All clear panel.
 Phone Notes used small, unfinished labels, and an unavailable Samples thread
 invited typing without a composer. This batch removes those distractions while

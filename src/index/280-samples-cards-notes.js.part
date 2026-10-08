@@ -49,7 +49,7 @@ import {
   _sxrClientCompPillsHtml, _sxrDeriveThumbInfo, _sxrEnabled, _sxrEsc, _sxrEscAttr,
   _sxrForceThumbRefresh, _sxrIsBlankId, _sxrJsArg, _sxrLastNetworkLoadAt, _sxrLoadPrefs,
   _sxrLoaderHtml, _sxrMigrateShape, _sxrNormStatus, _sxrNormZoom, _sxrOpenStatusMenu,
-  _sxrPendingEdits, _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason,
+  _sxrParkEditsForClient, _sxrPendingEdits, _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason,
   _sxrSaveInFlight, _sxrSavePrefs, _sxrSaveTimers, _sxrUpdateCardStatusDisplay,
   _sxrUpsertFetchPinned, archiveSxrCard, computeSampleOverallStatus, loadSxrCards,
   renderSxrOrganizer, renderSxrView, sxrClientSlug, sxrState
@@ -321,6 +321,13 @@ import {
             return;
         }
     }
+    /* A save that finishes after the view moved to another client must not
+       write the list now on screen under the client it started on (twin of
+       _calCacheWriteIfCurrent). True when written or rightly skipped. */
+    function _sxrCacheWriteIfCurrent(slug, options) {
+        if (sxrClientSlug(sxrState.client) !== slug) return true;
+        return _sxrCacheWrite(slug, sxrState.posts, options);
+    }
     async function _sxrFlushCardSave(pid) {
         let edits = _sxrPendingEdits[pid];
         if (!edits) return;
@@ -419,7 +426,7 @@ import {
                 post._writeUiRetryEdits = Object.assign({}, edits);
                 post._writeUiRetrySourceAt = writeUiSourceAt;
                 post._writeUiRetryPrincipal = _writeUiPrincipalKey();
-                if (!_sxrCacheWrite(_saveSlug, sxrState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+                if (!_sxrCacheWriteIfCurrent(_saveSlug)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
             };
             try {
                 checkpointCommittedSource();
@@ -559,7 +566,7 @@ import {
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                     else delete _okPost._writeUiPrecommittedNative;
                 }
-                _sxrCacheWrite(_saveSlug, sxrState.posts, { clearRepairIds: [realId] });
+                _sxrCacheWriteIfCurrent(_saveSlug, { clearRepairIds: [realId] });
                 _sxrSetCardStatus(realId, 'saved');
                 // The database stamped a new round on any status this save changed; the echo never says so.
                 _urgentAdoptStampsAfterSave('samples', _saveSlug, realId, edits);
@@ -595,7 +602,7 @@ import {
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
                         cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                         delete cur._writeUiPrecommittedNative;
-                        _sxrCacheWrite(_saveSlug, sxrState.posts);
+                        _sxrCacheWriteIfCurrent(_saveSlug);
                     }
                 }
                 try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
@@ -604,8 +611,18 @@ import {
             delete _sxrSaveInFlight[pid];
             delete _sxrSaveInFlight[realId];
             if (_releaseSave) _releaseSave();
-            if (_sxrPendingEdits[realId]) _sxrFlushCardSave(realId);
-            else if (realId !== pid && _sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+            /* Only while the view is still on the client this save belongs to.
+               A flush reads the client at the moment it starts, and a sample
+               absent from the list on screen is inserted as a new row, so a
+               re-flush that wakes after a client switch wrote one client's
+               edit as a new sample under another. The fill path already parks
+               such an edit for its own client (_sxrParkEditsForClient); the
+               general engine now does the same. */
+            const queuedId = _sxrPendingEdits[realId] ? realId : (realId !== pid && _sxrPendingEdits[pid] ? pid : '');
+            if (queuedId) {
+                if (sxrClientSlug(sxrState.client) === _saveSlug) _sxrFlushCardSave(queuedId);
+                else _sxrParkEditsForClient(_saveSlug, queuedId);
+            }
         }
     }
 
@@ -1310,7 +1327,13 @@ import {
             if (current._saveError) {
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
-                _sxrReviewRepaintCard(pid);
+                // A full render, not a repaint (the Calendar's _calReviewApplyApprove
+                // already does this): the failed save's own render can have dropped
+                // this card from the queue, and a repaint only replaces a card that
+                // is still on screen. With a repaint the card vanished and the badge
+                // dropped exactly as on success, though nothing had reached Kasper.
+                _sxrRenderBody({ preserveScroll: true });
+                if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
                 return;
             }
             if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
@@ -1333,7 +1356,12 @@ import {
         delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
         _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
-        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; if (_sxrStaffPhoneActive() || (_isClientLink && window.matchMedia('(max-width: 767px)').matches)) _sxrReviewRepaintCard(pid); }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
+            _sxrReviewState.saving[key] = false;
+            // The save marks the card instead of rejecting (see _calReviewComment): show a comment that did not save.
+            const current = sxrState.posts.find(p => p.id === pid);
+            if (current && current._saveError) { _sxrReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError; _sxrReviewRepaintCard(pid); return; }
+            if (_sxrStaffPhoneActive() || (_isClientLink && window.matchMedia('(max-width: 767px)').matches)) _sxrReviewRepaintCard(pid); }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
     }
     function _sxrReviewRequestTweak(pid, comp) {
         const initialPost = sxrState.posts.find(p => p.id === pid);
@@ -1996,7 +2024,7 @@ import {
         const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
         const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target ? _sxrFindCompForCommentId(post, target.id) : _sxrComposeComp);
         if (role === 'client' && !canonicalGate.linked) {
-            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
+            return '<div class="cal-comments-empty" data-notes-unavailable><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
         }
         if (canonicalGate.linked && (!canonicalGate.ready || (role === 'client' && !canonicalGate.client))) {
             return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
@@ -2046,7 +2074,15 @@ import {
         _sxrRenderCommentsModal();
         return false;
     }
+    // One send at a time (twin of _calSubmitComposer; see the note there).
+    let _sxrComposerSending = false;
     async function _sxrSubmitComposer() {
+        if (_sxrComposerSending) return;
+        _sxrComposerSending = true;
+        try { return await _sxrSubmitComposerNow(); }
+        finally { _sxrComposerSending = false; }
+    }
+    async function _sxrSubmitComposerNow() {
         const pid = _sxrOpenCommentsPid; if (!pid) return;
         _sxrCaptureModalDrafts();
         const body = (_sxrEditTarget
@@ -2065,7 +2101,8 @@ import {
         const saved = await _sxrAppendComment(pid, parentId, body);
         if (!saved) return;
         if (parentId) { delete _sxrReplyDrafts[parentId]; _sxrReplyDraftsPersist(pid); }
-        else { _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        else { if (_sxrOpenCommentsPid === pid) _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        if (_sxrOpenCommentsPid !== pid) return;
         _sxrReplyTarget = null;
         _sxrRenderCommentsModal();
         setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);
@@ -2527,6 +2564,27 @@ import {
                     const kept = carrySourceRepair(adoptThumbnailMeta(loc, srv), loc);
                     _sxrMergePostComments(kept, srv); out.push(kept);
                 }
+                continue;
+            }
+            /* A SAVE THAT FAILED IS STILL THE PERSON'S WORK. After a failed save
+               the typed text lives only on the local card (`_saveError` and
+               `_writeUiRetryEdits`; the pending bucket is gone), so the default
+               below replaced it with the server copy on the next background
+               refresh (tab focus, a teammate's change, a reconnect): the text
+               went back to the old value and the "Save failed · Retry" chip
+               disappeared, with no message. Take the server copy for everything
+               else, but keep the unsaved text and its Retry until it is retried
+               or the person edits again. Statuses are not kept: the save engine
+               already put those back when the save failed. */
+            if (loc && loc._saveError && loc._writeUiRetryEdits) {
+                const kept = Object.assign({}, carrySourceRepair(srv, loc));
+                Object.keys(loc._writeUiRetryEdits).forEach(k => {
+                    if (k.charAt(0) !== '_' && _SXR_ROLLBACK_FIELDS.indexOf(k) < 0 && k in loc) kept[k] = loc[k];
+                });
+                kept._saveError = loc._saveError;
+                kept._writeUiRetryEdits = loc._writeUiRetryEdits;
+                _sxrMergePostComments(kept, loc);
+                out.push(kept);
                 continue;
             }
             // Default: adopt the server copy (fold local comments in).

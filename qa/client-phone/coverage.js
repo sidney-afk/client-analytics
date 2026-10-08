@@ -39,6 +39,8 @@ const selected=inventory.map(classify).filter(Boolean);
 // The older calendar-sheet/samples-sheet names mean the Sheet *view*, not a
 // card detail overlay. Missing native setups must stay explicit discoveries.
 for(const name of ['card-detail-menus','card-detail-empty','card-detail-loading']) selected.push({lane:'discovery',name,screen:'Card detail sheet',ownerScreen:'Card detail sheet',audience:'staff',kind:name.endsWith('empty')?'empty':name.endsWith('loading')?'loading':'menus/sheets open',setup:'OPEN: reach the native deliverable detail sheet; the Sheet view is not a detail sheet'});
+// Main's newly reachable Create client dialog needs its own native captures.
+for(const name of ['clients-create-open','clients-create-manager-menu','clients-create-empty','clients-create-loading']) selected.push({lane:'discovery',name,screen:'Clients',ownerScreen:'Clients',audience:'staff',kind:name.endsWith('empty')?'empty':name.endsWith('loading')?'loading':'menus/sheets open',setup:'OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport'});
 const unique=[...new Map(selected.map(state=>[state.lane+':'+state.name,state])).values()].sort((a,b)=>priority.indexOf(a.screen)-priority.indexOf(b.screen)||a.audience.localeCompare(b.audience)||a.name.localeCompare(b.name));
 fs.mkdirSync(destination,{recursive:true});
 const file=path.join(destination,'coverage.json');

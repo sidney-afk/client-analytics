@@ -13,6 +13,9 @@ It complements the broad desktop parity runner.
 `docs/audits/2026-10-07-prism-phone/batch-4/` contains the narrowed-device
 Today/Notes gallery, personal reviews, source binding, check tails and desktop
 hash receipts. The complete review and fresh-eyes round remain open.
+`docs/audits/2026-10-07-prism-phone/batch-4/main-followup/` preserves the
+post-main-integration gallery, exact current-main desktop comparisons and
+the marker-based unavailable Notes regression receipts.
 `docs/audits/2026-10-07-prism-phone/batch-5/` records Clients supporting text
 and picker focus, Analytics/Workload loading and TikTok account wording,
 with complete before/after pages, native action receipts and open findings.
@@ -381,7 +384,7 @@ the whole repository; a new runtime folder must be added to it.
 
 - `test/linear-exit-upstream-ledger.js`: exact upstream Git-object ledger rehearsal wrapper for the portable isolated lane.
 
-- `scripts/linear-exit-install-manifest.js`, `test/linear-exit-install-manifest.js`, `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20261001.json`: non-executable source inventory, dependency/transaction validation, and dated generated hashes; installation and cumulative-prefix resume proof remain unresolved.
+- `scripts/linear-exit-install-manifest.js`, `test/linear-exit-install-manifest.js`, `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20261008.json`: non-executable source inventory, dependency/transaction validation, and dated generated hashes; installation and cumulative-prefix resume proof remain unresolved.
 
 - `test/linear-exit-install-order.js`: inventory-ordered disposable installation attempt with after-entry catalog fingerprints and explicit baseline/interruption limits.
 

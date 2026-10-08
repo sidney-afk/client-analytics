@@ -4,6 +4,50 @@
 
 All times are UTC unless noted.
 
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 2 (batch 4)
+
+Cycle 2 was not dry: 28 new candidates from two sweeps with different lenses
+(siblings of cycle 1's confirmed defects; the areas cycle 1 did not reach).
+Thirteen verified in the code and fixed in one stacked PR, pinned by a suite
+whose blocks each fail on the code before it; fifteen recorded unverified for
+the next cycle. The stop rule (two cycles in a row with nothing) has not been
+met. Browser changes only. No live write, deploy, merge, flag or n8n edit.
+Detail: OPEN_REPAIRS 377.
+
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 3) and the cycle 1 tally
+
+The Today and Clients group: eight candidates, four confirmed and fixed, one
+confirmed and left for a server change, one put to the owner as a question, two
+not verified. Detail: OPEN_REPAIRS 376. Cycle 1 in all: 27 candidates (24 from
+three pattern sweeps, 3 from a signed-in walk of the live site on the test
+client); 18 of them confirmed and closed by 17 fixes across three stacked PRs,
+each with a guard that fails on the code before it; 3 left for the owner; 6 not
+verified, low, or duplicates, and recorded. No live write beyond one unchanged-value save on a
+test-client card; live reads were counts only. No deploy, merge, flag or n8n
+edit.
+
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 2)
+
+The Calendar and Samples save group from cycle 1: eight candidates, four
+confirmed and fixed (one of them on both surfaces), three left unverified as low
+impact, one already covered by batch 1. The wrong-client save was reproduced in a
+real browser against a local stand-in backend before it was fixed, and the live
+database was read (counts only) for its signature: none found. Browser changes
+only; the two frozen client writers are untouched. No live write, deploy, merge,
+flag or n8n edit. Detail: OPEN_REPAIRS 375.
+
+## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 1)
+
+Mandate: the site-assurance loop on the six riskiest desktop screens (Calendar,
+Samples, Today, SyncLinear cards, Clients, TikTok upload), test client only,
+fixes as PRs the owner merges. Cycle 1: 24 candidates from three pattern sweeps
+plus a signed-in walk of the live site; batch 1 took the SyncLinear, upload and
+link-box group. Nine confirmed and fixed in the browser, each with a guard that
+fails on the previous main; one confirmed and left for the owner because it
+needs a database change and a deploy (OPEN_REPAIRS 371). The Calendar and
+Samples save-engine group and the Today and Clients group are verified and
+shipped in later batches. No live write beyond one unchanged-value save on a
+test-client card, no deploy, no merge, no flag, no n8n edit.
 ## 2026-10-02 — Digger preventive bug archaeology over September 19 to October 2
 
 Three bounded cycles: 22 candidates, four confirmed, 16 refuted, two undecidable;

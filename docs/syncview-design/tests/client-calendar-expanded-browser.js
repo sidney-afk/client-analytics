@@ -246,7 +246,11 @@ async function run(browser, origin, width) {
       await page.locator('#calCommentsModal').waitFor({ state: 'visible' });
       const labels = page.locator('#calCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap, #calCommentsModal [data-cm-toggle=tweak] .cal-cm-audience-cap');
       ok((await labels.allTextContents()).includes('About') && (await labels.allTextContents()).includes('Type'), 'phone Calendar Notes labels must be complete');
-      ok(await labels.evaluateAll(nodes => nodes.every(n => parseFloat(getComputedStyle(n).fontSize) >= 13)), 'Calendar Notes labels must be readable');
+      // Wait for the phone styles to settle before measuring; a loaded runner once read the size too early.
+      const labelSel = '#calCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap, #calCommentsModal [data-cm-toggle=tweak] .cal-cm-audience-cap';
+      await page.waitForFunction(sel => { const n = [...document.querySelectorAll(sel)]; return n.length > 0 && n.every(x => parseFloat(getComputedStyle(x).fontSize) >= 13); }, labelSel, { timeout: 5000 }).catch(() => {});
+      const labelSizes = await labels.evaluateAll(nodes => nodes.map(n => n.textContent.trim() + ':' + getComputedStyle(n).fontSize));
+      ok(labelSizes.every(t => parseFloat(t.split(':').pop()) >= 13), 'Calendar Notes labels must be readable ' + JSON.stringify(labelSizes));
       const composer = page.locator('#calCommentComposer');
       await composer.fill('Fictional Calendar Notes draft.');
       await page.locator('#calCommentsModal [data-comp=caption]').tap();

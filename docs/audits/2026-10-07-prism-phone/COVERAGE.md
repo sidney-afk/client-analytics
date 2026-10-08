@@ -137,6 +137,10 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Clients | staff / admin | client-manager-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | client-research-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-manager-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / discovery | clients-create-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-list-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |

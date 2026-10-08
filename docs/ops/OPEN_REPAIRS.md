@@ -31059,6 +31059,253 @@ Fixed in `tiktok-upload` (no n8n workflow edited):
 Steps (owner): deploy `tiktok-upload`; run `node scripts/tiktok-pfm-webhook.js --register`; once a result has arrived in the table, remove the n8n one with `--remove=<its id>` (that changes Post For Me's settings only, not the n8n workflow).
 Proof (offline): `test/tiktok-upload-results.js`. Not proven live: the test client has no TikTok account in Post For Me.
 
+## 372. [2026-10-08, BUILT, NOT APPLIED, NOT DEPLOYED] "Create client" (onboarding step 2.5) and the Stage 3 matching dry run
+
+Session Beacon. Priority C in `docs/STATE_OF_THINGS.md`.
+
+**Built.** "New client" in the Kasper › Clients header, admin only (a square + on phones beside All
+clients). The dialog takes a name, a social media manager and an optional email; while typing,
+`client-onboarding` `create_preview` checks the name against the live roster (reads only) and lists what
+will be made; "Create client" calls `create`, which runs `client_create_native()` from
+`migrations/2026-10-08-create-client.sql`: real provisioning (or the throwaway test path for names
+starting `ZZ THROWAWAY`), Roster's profile write, the manager assignment and the 27-step checklist with 4
+steps ticked, in one transaction. The new profile opens afterwards. Slack is never queued (reason in
+`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`; an open owner decision).
+
+**Proof.** `scripts/client-create-proof.sql` on a disposable PostgreSQL ends `CLIENT_CREATE_PROOF_OK`
+(refusals leave nothing behind, a refusal deep inside rolls the whole create back, replay writes nothing,
+the throwaway never reaches the Sheet outbox and tears down to zero rows, only service_role may execute);
+`test/client-create-migration.js`, `test/client-onboarding-handler.js` (79 checks),
+`docs/syncview-design/tests/clients-create-browser.js` (desktop and two phones, mocked, test client
+only; screenshots in `docs/syncview-design/screenshots/clients-create/`).
+
+**Owner steps, in order, each with a go:** apply `2026-10-03-native-client-test-provision.sql`, apply
+`2026-10-08-create-client.sql`, deploy `client-onboarding`, then the throwaway proof and teardown. Exact SQL
+and readbacks: `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md`. No n8n change.
+
+**Stage 3.** `scripts/client-resource-match.js` (read only, local files, counts on stdout, detail only
+outside git) ran for the 35 clients: `docs/audits/2026-10-08-stage3-matching-dry-run.md`. Nothing saved.
+Rollback: revert the PR; once applied, drop the two functions.
+
+## 371. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 1: nine desktop defects on SyncLinear cards, TikTok and Instagram upload, and Calendar and Samples link boxes
+
+Session Sentinel, site-assurance cycle 1 (desktop only; phone layout is Prism's, the three red nightly lanes are Mend's). Candidates came from a pattern sweep of the six riskiest screens and a walk of the live site as signed-in staff on the test client; each was then checked against the code, and where it could be, against the live site or live counts, before being called real. Browser changes only: no Edge Function, migration, flag or n8n workflow is touched, and nothing was written to any client but the test client.
+
+Fixed, each with a test that fails on the previous `main`:
+
+1. **SyncLinear: a second status, assignee or due change made while the first is still saving was dropped and reported as saved.** The gateway helper answers nothing (it does not throw) when a write for the same field is in flight; the picker counted that as done, toasted "Status updated", and the first change's receipt then put the old value back. It now says an earlier change is still saving and puts the row back. `test/prod-picker-pending-write.js`.
+2. **SyncLinear due picker, Custom view: a typed date was ignored.** The box says "Type a date", but Enter saved the highlighted day (the current due date, or today). The typed date now saves; text that is not a date saves nothing and says so. `test/prod-due-typed-date.js`.
+3. **SyncLinear comments: Reply or Edit wiped a comment that was typed and not yet sent.** Reply now carries the text into the reply; Edit asks first. `test/prod-comment-unsent-and-resolved.js`.
+4. **SyncLinear comments: a resolved thread showed a raw UTC timestamp.** It now reads like every other comment time. Same test.
+5. **TikTok and Instagram upload: the "schedule time is in the past" check read the time in the browser's timezone, not the picked one.** From a browser two hours behind the default zone, a time up to two hours gone was accepted and the whole video uploaded before anything refused it. `test/upload-schedule-zone-and-queue-guards.js`.
+6. **TikTok queue: Retry had no in-flight guard,** so a double click sent two retries for one row. Same test.
+7. **TikTok queue: the dismissed list kept its oldest 200 ids,** so once full, a row just dismissed came back. Same test.
+8. **TikTok "No account" help sent staff to the Clients Info sheet.** Since entry 331 the database is the main copy and the sheet is copied from it, so an id typed into the sheet never reaches the database (which the new `tiktok-upload` function and the onboarding checklist read). The text now points at Kasper, Clients, Publishing. Same test.
+9. **Calendar and Samples: Escape did nothing in a thumbnail or video link box** (the owner's 2026-09-26 report in `docs/STATE_OF_THINGS.md`; reproduced on the live site, test client, 2026-10-08). Escape now puts back the link the box opened with and closes; Enter keeps what was typed and closes. `test/calendar-link-box-keys.js` and, in a real browser, `test/calendar-link-box-keys-browser.js`.
+
+**Confirmed, not fixed here: Instagram accounts can no longer be connected from the app (needs the owner).** The Instagram upload form reads a client's Post For Me id from the Clients Info sheet and tells staff to put it there; the `instagram-upload` function checks the id against `client_profiles.extra` in the database. The sheet-to-database copy of client profiles is refused outright since the database became the main copy (last copy 2026-10-02 15:53 UTC, measured), the Clients tab has no Instagram field, and `client_profile_admin_edit` does not accept one. So for the next client connected, the form will show the account and the post will be refused with "It refreshes daily; run the Sheets copy lane", which no longer does that. Measured today: 1 active client has an Instagram id and it is in both copies, so nobody is stuck yet. Closing it needs a database function change and a `client-profile-write` deploy (a field in the Clients tab), which is the owner's call.
+
+Not a defect, noted: leaving the page mid-upload gives no warning (the draft keeps the caption, not the file).
+
+Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 373. [2026-10-08, BUILT, NOT MERGED; migration NOT APPLIED] Three red monitoring robots: Calendar E2E, Samples E2E, card vs calendar drift (session Mend)
+
+All three fed the `monitoring_heartbeat_stale` alert. Each was traced to its cause; no check was skipped or loosened.
+
+**Calendar E2E (nightly), 28 of 67 probes red.** Not one cause, four, all in the test harness:
+1. *Fake-key refusal shadowed the fake gateway.* #1644 (2026-09-25) made `seedVerifiedProbeStaff` register the
+   "answer invented keys with 401" route AFTER each probe's `stubNativeGateway`. Playwright tries the newest route
+   first, so every video and graphic status or note write got the refusal instead of the fake gateway (measured: the
+   app logged `invalid_staff_key` from the local stub, the fake gateway saw zero calls). Fix:
+   `stubNativeGateway` marks its context and the refusal steps aside for it in either order
+   (`qa/staff-gate-seed.js` `markProductionWriteMocked`). Guard: `test/staff-gate-stub-refusal-local.js` case 6
+   (fails on the old code).
+2. *Fake-key 401s signed the robot out.* Six staff reads (`pto`, `filming-plans`, `onboarding-full`,
+   `smm-weekly-reports`, `brain`, `thumbnail-revision-read`) refuse an invented key with 401, and the app rightly
+   signs a page out on a 401. Since Kasper became admin-only (#1672, 2026-09-26) a signed-out page is also sent to
+   Home, so Kasper probes lost their identity mid-run. Fix: live-backend harnesses opt in to
+   `seedStaffGate(ctx, { answerStaffReads: true })`, which answers those six, for invented keys only, as refused
+   but not 401. Offline suites keep the live-shaped 401. Real keys and the ungated writers are untouched.
+3. *Notes sent before their thread loaded.* Since #1642 (2026-09-25) a note on a linked piece is refused with
+   "Notes are still loading" until its thread is read; probes submitted in the same tick, and re-opened the thread
+   right before sending. Fix: the work-item fixture answers the thread read for the ids it mints (empty, as a new
+   work item has), and `NW.waitForNoteThread` waits on the app's own Send condition.
+4. *Probes on retired rules.* p32 faked the old n8n caption-job webhooks (moved to `caption-jobs` in #1889); p34's
+   linked card had no fake gateway, no verified identity and nothing to review (owner rule 2026-09-05); p76 posted a
+   video note on a card with no work item, which the app now correctly refuses (`native_link_required`). Each
+   now models the current product; their isolation and routing assertions are kept or strengthened.
+Local proof (test client only; this sandbox's realtime socket answers 500, so "0 JS errors" fails here and only
+here): p28 15/16, p29 6/7, p32 5/6, p34 7/8, p76 10/11, the one failure each being that socket. The probes that open
+a client link need the staff key and run only in the nightly; the branch run is the proof for those.
+
+*p96 and `invalid_staff_key` (owner step).* `description-image-upload` accepts only the three role keys
+(`ROLE_KEY_ADMIN/SMM/CREATIVE`, live source read 2026-10-08). The robot's `SYNCVIEW_STAFF_KEY` is accepted by
+`client-review-link` (role key OR the automation writer key) but refused here, so it is not a role key. Fix: set the
+repository secret `SYNCVIEW_STAFF_KEY` (GitHub, Settings, Secrets and variables, Actions) to the SMM role key, the same
+value as the Supabase Edge secret `ROLE_KEY_SMM`, and make sure `SYNCVIEW_STAFF_ACTOR` names one active SMM on the roster.
+p96 has failed this way since it was added on 2026-09-24.
+
+*Startup failure, run 110 (2026-10-07 15:15Z).* Zero jobs, no annotations; the workflow file is unchanged since
+`cab0229` and ran on 10-06; of 490 runs in the repository on 10-07 and 10-08 it is the only startup failure. A
+one-off on GitHub's side, not a file or secret problem; the next scheduled run is the check.
+
+**Samples E2E (nightly).** Robot bug, not an app bug: cause 2 above. The robot's Kasper tab drew a 401 from `pto`,
+was signed out, and was sent to Home, so no sample card existed and every Kasper verb reported "disabled" (the robot
+uses that word for "button not found" too). A real Kasper with a real admin key is not signed out. Red since
+2026-09-27 (first run after #1672). Also: `kasper()` waited 20 s per open for `_kasperRenderSamples`, removed in
+#1676, which pushed the tree lane past its 30-minute budget; it now waits for `_sxrKasperLoadQueue`.
+
+**Card vs calendar drift.** The 34 pre-bridge rows are the known backlog (212); of those, 30 hold N/A. The 4 gating
+rows are two posts:
+- *Test client card:* a direct database session (not the app, not a probe) set video and graphic to Approved on
+  2026-10-01 and again on 10-02, 57 minutes after the backfill had repaired them. The trigger only sees work-item
+  moves. Repair: the one-client backfill (below). Do not seed calendar statuses with raw SQL on a card linked to
+  work items; use a throwaway unlinked card.
+- *One active client's card:* the SMM set the whole card to N/A on 2026-10-07 while its work items stayed
+  approved / tweak. Owner decision 2026-10-08: **N/A wins.** The checker now lists N/A slots in their own
+  non-gating bucket; `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` makes the trigger and both
+  backfills leave N/A alone (it had already overwritten an N/A once, on 09-22), and adds a backfill that is bound to
+  one client. Proof: `test/native-calendar-status-bridge-postgres.js` (48 checks on PostgreSQL 16),
+  `test/card-calendar-status-drift-check.js`. The open thumbnail tweak under that N/A card is the SMM's to cancel.
+
+**Owner steps, in order.** (1) Apply the migration. (2) For the test client only:
+`select * from public.production_native_calendar_status_backfill('2026-09-18T22:38:14Z'::timestamptz, false, 'sidneylaruel');`
+then the same with `true`. (3) Re-point the two pins in `scripts/linear-exit-deploy-preflight.js` (project() and the
+two-argument backfill) at the new migration, in the next PR, before any Section 4 dispatch. (4) Set
+`SYNCVIEW_STAFF_KEY` as above.
+**Way back:** revert the PR; the migration's header names its inverse.
+
+## 381. [2026-10-08, BUILT, NOT MERGED] Follow-up to 373: deploy preflight pins re-pointed; live bodies carry Windows line endings (session Mend)
+
+**Done.** The owner applied `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and ran the one-client repair
+for the test client (2 rows applied). `scripts/linear-exit-deploy-preflight.js` now pins
+`production_native_calendar_status_project()` and the two-argument `production_native_calendar_status_backfill` to that
+file. No other pin, threshold or check changed.
+
+**Read-only check, 2026-10-08: the md5s do NOT match yet.** The preflight compares `md5(prosrc)` with the md5 of the
+body in the file. Repository bodies (LF): project `0bba613424a49ebad9aab831115668a6`, backfill
+`0633f083cf5222750510819a141750d4`. Live bodies: `e62ec093e64270a3cdc228ff875ae1da` and
+`6e00d65eae5aa2bd373dc3336b60da2c`. The only difference is line endings: the live bodies hold CRLF (127 and 153 lines,
+lengths 6671 and 8449 against 6544 and 8296), and the repository bodies converted to CRLF hash exactly to the live
+values (the three-argument backfill too: `8d1d93c2eea9715f013e0a51b361174f`). The logic live is the file's logic; the
+text was applied from a copy with Windows line breaks. `.gitattributes` keeps `*.sql` LF, and every other pinned body
+hashes LF, so the pin stays on the LF file and the preflight is not loosened.
+
+**Owner step.** Re-apply the same migration from an LF copy (for example the raw file from GitHub pasted into the SQL
+editor without a Windows round trip, or let a session apply it with your go). It is `create or replace` with the same
+logic, so nothing behaves differently; afterwards both live md5s must equal the two LF values above. Until then the
+preflight refuses a Section 4 dispatch on these two routines (as it already did with the previous pins, since the
+bodies changed when the migration was applied).
+
+**Companion changes the re-point requires (same as the 2026-10-01 re-point, #1915).** CI's `unit` job refused the
+first push in two suites: `test/linear-exit-preflight-latest-pin.js` ("cited but never installed by the integrated
+plan") and `test/native-calendar-status-bridge.js` (it mirrors each pin's file). So the migration is now a `CANDIDATE`
+in `scripts/linear-exit-install-manifest.js`, installed after the 2026-10-01 bridge and the 2026-09-18 repair; the
+strict install inventory is re-issued as `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20261008.json`
+(generated by `build()`, the older files kept) with its eight references re-pointed; and the bridge test expects the
+new file for those two routines. No pin, threshold or check logic changed.
+
+## 379. [2026-10-08, BUILT, NOT DEPLOYED] Correction to entry 371 item 3: Reply could carry an unsent internal comment into a client-visible thread
+
+Session Sentinel. Entry 371 (PR #2000, merged 2026-10-08) made Reply on a SyncLinear comment carry an unsent comment into the reply instead of wiping it. A reply takes its thread's audience, and the composer shows no audience switch for a reply. So an unsent comment typed as internal and then carried into a reply on a client-visible thread would be sent client-visible: staff-only words where the client reads them. An independent review of that change found it the same day. It is live from the merge of #2000 until this is merged; it needs a person to type an internal comment, not send it, click Reply on a client-visible thread, and send.
+
+Now: text is carried only into a thread of the audience it was typed for. Across audiences the person is asked ("It will not be moved into the reply. Send it first, or discard it and reply."), and nothing is moved. Edit is unchanged (it already asked).
+
+Browser only, one function. Pinned in `test/prod-comment-reply-audience.js`. The same correction is also in the Sentinel stack (the batch 6 PR), which will meet this one as an identical change. Way back: revert the PR, which restores the leak; revert #2000's Reply change with it if this is ever undone.
+
+## 375. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 2: an edit could be saved under the wrong client; silent Samples archive and Calendar reschedule failures; notes sent twice
+
+Session Sentinel, cycle 1, the Calendar and Samples save group. Browser changes only: no Edge Function (the two frozen writers are untouched), migration, flag or n8n workflow. Stacked on batch 1 (entry 371).
+
+**1. An edit typed on one client's card could be written under another client, or wipe the card it was typed on (Calendar and Samples).** The save engines read "which client" when a flush starts. Switching client flushes what is pending first, but two ordinary sequences let a flush wake after the switch:
+
+- *Type in a caption, click another client.* The click blurs the box, the save starts, and since #1915 (2026-10-01) it first re-reads the field to see whether someone else changed it. The view has moved by the time that read answers. The card is no longer in the list on screen, so the engine took it for a new row and sent a blank whole card carrying only the caption, to the right client, over the real card. `calendar-upsert` keeps a stored link when a blank one arrives but writes every other blank as sent, so the stored name, date and statuses would be replaced (read from the function's source; not exercised against the live function).
+- *A save in flight, more typed, then the switch.* The second flush waits behind the first one's lock, wakes after the switch, and reads the client now on screen: the edit is inserted as a new card (or sample) under that client, where its client link shows it.
+
+Both reproduced in a real browser against a local stand-in backend, on the code before this change. Measured on the live database the same day: no card carries the wipe's signature (blank name with a caption and no date; 0 of the 31 blank-named live cards), so this is a defect found before damage that I could see, not a clean-up. Samples met the second sequence once already, in its fill path, and answered it by parking the edit for its own client (`_sxrParkEditsForClient`); the two general engines never got that answer. They do now: an edit that cannot be written under its own client is held in the tab against that client and card, the person is told ("That edit is not saved yet"), and it is handed back to the normal engine when that client is opened again. A save that finishes after a switch also no longer writes the list on screen into the other client's saved copy (which the next visit painted before the network answered).
+
+Cost, stated plainly: in the first sequence the caption used to save (when it did not wipe); it now waits, with a notice, until the person returns to that client in the same tab. If that is too noisy, the next step is to let the engine finish a field-only save for a card that is no longer on screen; that is a larger change to the engine and was not attempted here.
+
+**2. Samples: a failed archive was silent, and a refused one counted as done.** The single-archive failure path put the sample back with no message and no check of which client was on screen; `sample-review-upsert` can refuse with HTTP 200 and `{"ok":false}`, which was read as success, so the sample stayed hidden and its work items were parked in Backlog while the sample was still live; bulk failures reloaded with no notice. All three now behave as the Calendar's archive already did.
+
+**3. Calendar Month and Week: a reschedule whose save failed left the post on the new day with no sign of trouble.** The move is painted before the save, so the engine's "before" copy already held the new day and the rollback restored the day it had just failed to save. Only Sheet cards carry the "Save failed" chip. The post now goes back to its day and a notice says "Date not saved".
+
+**4. Calendar and Samples Notes: Enter twice sent the note twice,** and an answer arriving after another card's Notes were opened cleared what was typed there. One send at a time; a late answer leaves the other card alone.
+
+Tests, each failing on the code before this change: `test/calendar-edit-stays-with-its-client-browser.js` and `test/calendar-samples-save-honesty-browser.js` (real Chromium, every backend call answered locally), `test/notes-composer-one-send.js`.
+
+Looked at and left: archived-restore reports "Restored" when the position write fails (low impact, not verified); the title approval stamp is not in the Calendar's rollback list (low, not verified); Escape does not close the status menu on desktop (not verified live).
+
+Unexplained, counts only: 31 live cards on real clients have a blank name and a caption, 28 of them with work items, 22 of them last changed today on one client. They do not match the wipe above (all have dates and thumbnails). Worth a look by whoever owns card creation.
+
+Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 376. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 3: Today's paged reads had no sort order; N/A lanes counted as missing links; Clients history stuck on "Loading"; Resources links
+
+Session Sentinel, cycle 1, the Today and Clients group. Browser changes only. Follows batches 1 and 2 (entries 371 and 375; batch 1 is merged).
+
+Fixed, each pinned in `test/today-clients-assurance.js` (which fails on the code before this change):
+
+1. **Today read its work items 1,000 rows at a time with no sort order.** Without one the database may hand a row out on two pages or on none, so past 1,000 open items an approval can be missing from Today on one load and back on the next. Measured the same day: 945 rows in the four open statuses that read fetches, so this was about 55 rows from starting. Both work-item reads now sort by id and the posts read by client and id, in the page and, character for character, in the head script that starts the same reads early (they are matched by exact address). The sorted addresses were tried against the live backend from the signed-in page first: both answered 200.
+2. **A lane set to N/A with no link still counted as missing media.** The Calendar's own warning says "If this post will never have one, set it to N/A", and doing so left the warning on the card and the post in Today's "Missing links" for good. Measured: no real client's live card is in that state today (only the test client's, where I saw it on the live site), so nobody has been caught by it yet.
+3. **Clients: with the history open, saving an edit or changing the manager left "Loading the history…" on screen** until the panel was closed and opened again. The history is read again after both.
+4. **Clients, Resources: "Open" on a YouTube @handle, or on a value saved as a full address, opened an address that does not exist** (the profile card above it already handled both). Measured: no active profile holds either shape today.
+
+Confirmed or likely, not fixed here (each needs the owner or a server change):
+
+- **"Managed by" matches the manager's client list more strictly than Today does.** `client-profile-write` compares exact lower-case names; Today and "My clients" use the looser name key. A client whose roster spelling differs only by punctuation would show "Nobody yet" in Clients while its manager sees it on Today, and assigning a new manager would leave it on both lists. Read from the code; not measured against the roster (it is behind the admin key). Server change and deploy.
+- **Owner one-liner: should an Approved post whose date has passed stay on Today?** Today reads posts from today forward, so an Approved, unscheduled post leaves "To schedule" at midnight of its own date and no ring shows it. Measured: 2 such posts in the last 30 days against 8 in the next 14.
+- **Today's "Captions to write" ignores a caption lane set to N/A and an alternate caption.** Measured: no live card is counted wrongly by it today. Left, because the fix widens the read in two places and nobody is affected yet.
+- Not verified: the first-name fallback that matches a signed-in person to a manager's client list could match the wrong person when a non-manager shares a first name with exactly one manager; the HubSpot band drops its "no deal" reason for ten minutes after a lookup.
+
+Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 377. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 4 (cycle 2): thirteen places where the page said something untrue about a save, a send or a selection
+
+Session Sentinel, cycle 2. Two fresh sweeps with different lenses (the unfixed siblings of what cycle 1 confirmed, and the areas cycle 1 did not reach) returned 28 candidates. This batch takes the thirteen I verified in the code and judged most harmful. Browser changes only. Follows batches 1 to 3 (entries 371, 375 and 376; batch 1 is merged). All thirteen are pinned in `test/assurance-cycle2-saves-and-selection.js`, each block failing on the code before this change. None was reproduced on the live site: they are not deployed, and several need a failing save.
+
+Uploads:
+
+1. **Instagram: a post that Post For Me refused was reported as "could not confirm".** The function answers HTTP 200 with `{"ok":false}` and the reason; the page treated only a 4xx as a definite no. So the reason was never shown, the failed row never reached the queue, and each new press uploaded the whole video again to be refused again. A definite refusal now shows its reason and ends the attempt. Post For Me not answering at all stays "unknown", with the same key, because the post may exist.
+2. **TikTok: privacy, post mode, the toggles, the cover and the schedule stayed editable during an upload.** What is sent is frozen when Post is pressed, so picking "Private" mid-upload changed the form and the preview while a public post went out. An image dropped mid-upload showed in the strip, was never sent, and vanished on success. Every field is now locked until the upload ends.
+3. **TikTok: Cancel while the post was being created said "Upload cancelled."** Cancel at that point only stops the browser waiting; the request may already be with the server, and an edited re-submit then made a second post. The message now says the post may already exist, and the queue is read.
+
+Calendar and Samples:
+
+4. **Multi-select: cards a filter had hidden stayed selected and were archived.** Tick three, change the month filter, tick one more: Archive asked about "4 posts" and archived three that were not on screen. Bulk colour did the same. After every Sheet render the selection is now what is ticked on screen.
+5. **Multi-select: the bar reset to "0 selected" with its buttons disabled on any repaint,** while the cards stayed ticked. Samples had the same reset.
+6. **Coming back to the Calendar or Samples tab kept the previous client's selection and select mode** when the client had been changed in the top bar meanwhile.
+7. **Bulk colour always said "Color updated",** because the card save marks a failure instead of rejecting and the count looked only for rejections.
+8. **Review view: a plain Comment whose save failed showed nothing** (Calendar and Samples, staff and client link). The comment sat in the thread looking sent.
+9. **Samples Review: a failed Approve made the card vanish and the badge drop exactly as on success,** though nothing had reached Kasper. The Calendar already re-rendered the queue here; Samples now does too.
+10. **Samples: text from a save that failed was wiped by the next background refresh** (tab focus, a teammate's change, a reconnect), along with its "Save failed, Retry" chip. The unsaved text and its Retry now survive; statuses still follow the server.
+11. **Calendar "Add the missing video or thumbnail": finishing after a client switch wrote the list on screen into the first client's saved copy.** The same shape as entry 375, in a caller that fix missed; its Samples twin was already guarded.
+
+SyncLinear, Today, Clients:
+
+12. **SyncLinear: Resolve, Reopen or Delete on a comment was silently dropped while another comment write on the same card was still saving** (all comment writes on a card share one slot). It now says so. Sibling of entry 371 item 1.
+13. **Today, editor Deck: "Skip for now" did nothing for most cards.** The list was re-sorted after the skipped card was moved back, so any tweak, urgent or earlier-due card returned to the top.
+14. **Clients: a save that landed after another client was opened was applied nowhere.** No "Saved", old values in the list for the rest of the session, and the next edit refused with "Someone else saved this client a moment ago". The saved row is now taken.
+
+Also: the weekly Slack update's "no channel" notice told staff to add a column to the Clients Info sheet; it now points at the Clients tab (same reason as entry 371 item 8).
+
+(Fourteen numbered items because 4 and 5 are one fix; thirteen fixes.)
+
+**Cycle 2 candidates not taken in this batch.** Recorded so the next cycle starts from them, not from zero. None of these is verified by me yet:
+
+- Today: "Open card" on a work-item row does not get past a saved Calendar filter (post rows do); Walk-through keeps its place by position, so the card under the header can change when the list changes; the "cleared today" meter counts moves made by other people (may be intended).
+- Calendar: "Open in Sheet" and "Edit in Organizer" land on a Sheet with no Organize menu, Select buttons or zoom until Sheet is clicked again; a card opened by link stays pinned through filters chosen later; a cancelled drag leaves the strip reordered and the next drop saves it (Samples too); the restore dialog says a date "has passed" on the evening of that day; the Collaborative mode and Title review switches fail silently after three tries.
+- Samples and Calendar Review: after a plain Comment, Approve may stay greyed out on desktop until the card is re-expanded.
+- SyncLinear: a card opened by its identifier does not repaint its description when the read lands, and loses the caret while editing.
+- Kasper urgent ping: its "sent" marker is saved under whichever client is on screen when the ping returns.
+- Instagram: the form ignores a client picked in the top bar after its first client.
+- Clients: searching "@name" finds nothing when the handle is stored without "@"; the HubSpot band is not searched again for ten minutes after an email is fixed (server); an older checklist read can repaint a just-saved step.
+
+Way back: revert the PR. Not yet seen by the owner in his browser.
+
+## 378. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 4: empty Today and native Notes
+
 ## 380. [2026-10-08, BUILT, NOT MERGED] Prism phone batches 4 and 5
 
 2026-10-08, Prism batch 4: PR #1994's final head passed both previously red

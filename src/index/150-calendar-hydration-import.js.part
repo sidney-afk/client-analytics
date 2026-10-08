@@ -43,6 +43,7 @@ import {
   _calRenderBody, _calStatusFilterLabel, _thumbAdoptPersistedRevision, _thumbRefreshChangedCards,
   onCalViewChange
 } from './160-calendar-organize-ui.js';
+import { _calRestoreParkedEdits } from './170-calendar-links-status.js';
 import { CAL_REORDER_GUARD_MS, _calCapJobsRestore, _calLoadCaptionPrompts, _calReorderOptimistic } from './180-calendar-native-post-media.js';
 import { _calMergePostComments, _calRefreshCommentsBtn } from './190-calendar-approval-comments.js';
 import { _isClientLink, _syncviewClientEntryDataRun, _syncviewClientEntryRunCurrent } from './260-production-refresh-boot.js';
@@ -1767,6 +1768,10 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
             ok = true;
+            // Edits typed on this client while the view was elsewhere, held by
+            // _calParkEditsForClient. calState describes this client now, so
+            // the normal engine can have them.
+            try { _calRestoreParkedEdits(slug); } catch (e) {}
         } catch (e) {
             if (!_calLoadRunCurrent(loadRun)) return;
             const isAbort = e && (e.name === 'AbortError' || /aborted|timed out/i.test(String(e.message || '')));

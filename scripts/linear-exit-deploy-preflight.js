@@ -76,11 +76,11 @@ const ROUTINES = Object.freeze([
   // fails the live gate on a database that matches the migration exactly.
   ['production_native_calendar_status_above(text)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_above', 'public, pg_temp', false],
   ['production_native_calendar_status_map(text,text)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_map', 'public, pg_temp', false],
-  ['production_native_calendar_status_project()', 'migrations/2026-10-01-calendar-overall-status-bridge.sql', 'production_native_calendar_status_project', 'public, pg_temp', false],
+  ['production_native_calendar_status_project()', 'migrations/2026-10-08-native-calendar-na-wins-one-client.sql', 'production_native_calendar_status_project', 'public, pg_temp', false],
   // Attributed to the repair, not to the migration that first defined it: the
   // bridge migration's version refuses on every API call with 21000, so the
   // body a live database must hold is the one in the file below.
-  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],
+  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-10-08-native-calendar-na-wins-one-client.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],
   // The intake open-work count. Not SECURITY DEFINER: service_role already
   // reads `deliverables` and the browser projection directly, so the aggregate
   // needs no elevation and is granted none.

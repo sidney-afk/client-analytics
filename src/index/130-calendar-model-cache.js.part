@@ -617,7 +617,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // Persist through the same per-card flush the picker uses, pooled.
         ids.forEach(pid => { if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; } });
         const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, pid => _calFlushCardSave(pid));
-        const failed = results.filter(r => r.status === 'rejected').length;
+        /* The card save never rejects: it catches its own failure and marks the
+           card (`_saveError`). Counting rejections therefore always found none,
+           so this said "Color updated" for colours that were not saved. Count
+           the cards the save marked as failed as well. */
+        const failed = results.filter(r => r.status === 'rejected').length
+            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError); }).length;
         if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
         else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
     }

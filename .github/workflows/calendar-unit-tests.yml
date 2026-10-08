@@ -235,8 +235,11 @@ jobs:
     # them modules (phase C) changes exactly that load order, so this runs on
     # every pull request. Fully offline: every backend call is answered empty.
     # package.json is content-pinned, so Playwright goes into a temp prefix.
+    # 40, not 25: the job grew to about 20 minutes on main by 2026-10-08 as
+    # suites were added, so an ordinary slow runner crossed 25 and was cancelled
+    # mid-suite with nothing failing (three times that day).
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -324,6 +327,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/clients-onboarding-browser.js
+      - name: Kasper Clients "New client" previews, creates and stays admin-only
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/clients-create-browser.js
       - name: Quick jump opens a client on a tab from the keyboard
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

@@ -294,7 +294,7 @@
                         // Editors have no rings: the grey shape drops them too (030 boot-skeleton-today).
                         try { if (tdEditor) document.documentElement.setAttribute('data-tdy-editor', '1'); } catch (e) {}
                         var tdIn = function (list) { return 'in.(' + list.join(',') + ')'; };
-                        var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+                        var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
                         var tdKv = window.__svEarlyKeyVerify;
                         var tdGate = tdKv && tdKv.response ? tdKv.response.then(function (r) {
                             if (!r.ok) throw new Error('verify');
@@ -322,7 +322,7 @@
                             tdRest(tdD, tdSel + '&status=' + tdIn(['todo', 'in_progress', 'tweak', 'smm_approval']));
                             tdRest(tdD, tdSel + '&status=' + tdIn(['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted']) + '&status_at=gte.' + tdMonday);
                             tdRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                                + '&scheduled_date=gte.' + tdIso(tdDay(0)) + '&scheduled_date=lte.' + tdIso(tdDay(14)) + '&status=not.in.(Archived,Posted)');
+                                + '&scheduled_date=gte.' + tdIso(tdDay(0)) + '&scheduled_date=lte.' + tdIso(tdDay(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc');
                             tdRest('team_members', 'select=email&id=eq.' + encodeURIComponent(String(tdId.member.id)));
                             var tdRosterUrl = tdBase + '/functions/v1/smm-weekly-reports?action=options';
                             var tdRoster = tdGate.then(function () { return fetch(tdRosterUrl, { headers: { Accept: 'application/json', apikey: tdKey, Authorization: 'Bearer ' + tdKey, 'X-Syncview-Key': String(tdId.key) } }); });

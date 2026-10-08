@@ -294,6 +294,14 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     }
     const _igItems = (pairs) => pairs.map(([value, label]) => ({ value: String(value), label: String(label) }));
 
+    // Did the create call get a definite "no"? See the note where it is used.
+    function _igCreateAnswerIsFinal(created) {
+        const j = created && created.json;
+        if (!j || typeof j !== 'object') return false;
+        if (created.status >= 400 && created.status < 500) return true;
+        if (created.status !== 200 || j.ok !== false || !j.row || j.row.status !== 'failed') return false;
+        return !/Post For Me answered (0|5\d\d)\b/.test(String(j.error || ''));
+    }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
         if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'This client has no Instagram account connected yet. Add its Post For Me connection id to the ' + IG_ACCOUNT_COLUMN + ' column of the Clients Info sheet.';
@@ -304,7 +312,8 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (!igState.schedule.postNow) {
             const at = _igAt();
             if (!at) return 'Pick a schedule date and time, or switch on "Post immediately".';
-            const t = new Date(at).getTime();
+            // Wall clock in the picked timezone, not the browser's (see _tkValidate).
+            const t = Date.parse(_igDeps.wallClockToUTC(at, igState.schedule.tz) || '');
             if (!Number.isFinite(t)) return 'That schedule time is not valid.';
             if (t < Date.now() - 60000) return 'The schedule time is in the past.';
         }
@@ -530,9 +539,19 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
-                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
-                if (created.json && created.status >= 400 && created.status < 500) igState.attempt = null;
-                throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !(created.json && created.status >= 400 && created.status < 500) });
+                // An answer that says no is final. A server error or an unreadable answer leaves the outcome unknown.
+                // "No" comes two ways: a 4xx, or HTTP 200 with {"ok":false} and a row marked failed, which is how
+                // the function reports that Post For Me itself refused the post. That second shape used to be read
+                // as "could not confirm": the reason was never shown, the row never reached the queue, and every
+                // new press uploaded the whole video again to be refused again. The one 200 that stays unknown is
+                // Post For Me not answering (status 0 or a 5xx of its own): the post may exist, so the same key is kept.
+                const final = _igCreateAnswerIsFinal(created);
+                if (final) {
+                    igState.attempt = null;
+                    const failedRow = created.json && created.json.row;
+                    if (failedRow && failedRow.id) { igState.uploads = [failedRow].concat(igState.uploads.filter(r => r.id !== failedRow.id)); _igRenderQueue(); }
+                }
+                throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
             }
             igState.attempt = null;
             const row = created.json.row;

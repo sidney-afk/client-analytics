@@ -512,7 +512,7 @@
                         // Editors have no rings: the grey shape drops them too (030 boot-skeleton-today).
                         try { if (tdEditor) document.documentElement.setAttribute('data-tdy-editor', '1'); } catch (e) {}
                         var tdIn = function (list) { return 'in.(' + list.join(',') + ')'; };
-                        var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+                        var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
                         var tdKv = window.__svEarlyKeyVerify;
                         var tdGate = tdKv && tdKv.response ? tdKv.response.then(function (r) {
                             if (!r.ok) throw new Error('verify');
@@ -540,7 +540,7 @@
                             tdRest(tdD, tdSel + '&status=' + tdIn(['todo', 'in_progress', 'tweak', 'smm_approval']));
                             tdRest(tdD, tdSel + '&status=' + tdIn(['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted']) + '&status_at=gte.' + tdMonday);
                             tdRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                                + '&scheduled_date=gte.' + tdIso(tdDay(0)) + '&scheduled_date=lte.' + tdIso(tdDay(14)) + '&status=not.in.(Archived,Posted)');
+                                + '&scheduled_date=gte.' + tdIso(tdDay(0)) + '&scheduled_date=lte.' + tdIso(tdDay(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc');
                             tdRest('team_members', 'select=email&id=eq.' + encodeURIComponent(String(tdId.member.id)));
                             var tdRosterUrl = tdBase + '/functions/v1/smm-weekly-reports?action=options';
                             var tdRoster = tdGate.then(function () { return fetch(tdRosterUrl, { headers: { Accept: 'application/json', apikey: tdKey, Authorization: 'Bearer ' + tdKey, 'X-Syncview-Key': String(tdId.key) } }); });
@@ -12407,9 +12407,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-27dcd6078476.js";
-        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-d02717a5c726.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-63316d00acda.js","js/sv-12-synclinear-587f5199b946.js","js/sv-13-core-8e922a66dff6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-e5a52adb64bf.js","kasper":"js/sv-16-kasper-85e8a54729d4.js"};
+        var FULL = "js/sv-full-64440123856d.js";
+        var PARTS = ["js/sv-01-core-9479afd021ba.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-e06d6e4159ab.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-9515ff63df6b.js","js/sv-12-synclinear-587f5199b946.js","js/sv-13-core-8e922a66dff6.js","js/sv-15-core-c1879a6da267.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-e5a52adb64bf.js","kasper":"js/sv-16-kasper-d68e42753ba0.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

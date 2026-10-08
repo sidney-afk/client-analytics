@@ -502,6 +502,7 @@
     "prod-optimistic-rollback.js",
 
     "prod-picker-pending-write.js",
+    "today-clients-assurance.js",
 
 
     "upload-schedule-zone-and-queue-guards.js",

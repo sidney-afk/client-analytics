@@ -14,7 +14,9 @@
     "legacy-staff-all": "RUNNING",
     "legacy-rules-final": "PASS",
     "map-final": "PASS",
-    "truth-final": "PASS"
+    "truth-final": "PASS",
+    "index-head": "PASS",
+    "exposure-head": "PASS"
   },
   "actualTails": {
     "after-staff-final": [
@@ -50,8 +52,8 @@
       "check-modules: all checks passed"
     ],
     "legacy-staff-all": [
-      "ok analytics-detail-dash 390 light",
-      "ok analytics-detail-dash 390 dark"
+      "ok analytics-grid 430 dark",
+      "ok analytics-loading 390 light"
     ],
     "legacy-rules-final": [
       "ok time-off-dark-430 screen, menus, layout and scroll lock",
@@ -64,6 +66,14 @@
     "truth-final": [
       "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",
       "truth-sync: 515 passed, 0 failed"
+    ],
+    "index-head": [
+      "check-index: committed index.html (HEAD) \u2014 sha256=16302629083da4d558dd5c4f38821e0457f2db6e19a0586fe39a9212ab927f84 bytes=1315579",
+      "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    ],
+    "exposure-head": [
+      "  WHERE (counts only \u2014 this tool never prints what it matched):",
+      "This change adds no client slug and no colleague's name \u2705"
     ]
   }
 }

@@ -31211,6 +31211,26 @@ Unexplained, counts only: 31 live cards on real clients have a blank name and a 
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
+## 376. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 3: Today's paged reads had no sort order; N/A lanes counted as missing links; Clients history stuck on "Loading"; Resources links
+
+Session Sentinel, cycle 1, the Today and Clients group. Browser changes only. Follows batches 1 and 2 (entries 371 and 375; batch 1 is merged).
+
+Fixed, each pinned in `test/today-clients-assurance.js` (which fails on the code before this change):
+
+1. **Today read its work items 1,000 rows at a time with no sort order.** Without one the database may hand a row out on two pages or on none, so past 1,000 open items an approval can be missing from Today on one load and back on the next. Measured the same day: 945 rows in the four open statuses that read fetches, so this was about 55 rows from starting. Both work-item reads now sort by id and the posts read by client and id, in the page and, character for character, in the head script that starts the same reads early (they are matched by exact address). The sorted addresses were tried against the live backend from the signed-in page first: both answered 200.
+2. **A lane set to N/A with no link still counted as missing media.** The Calendar's own warning says "If this post will never have one, set it to N/A", and doing so left the warning on the card and the post in Today's "Missing links" for good. Measured: no real client's live card is in that state today (only the test client's, where I saw it on the live site), so nobody has been caught by it yet.
+3. **Clients: with the history open, saving an edit or changing the manager left "Loading the history…" on screen** until the panel was closed and opened again. The history is read again after both.
+4. **Clients, Resources: "Open" on a YouTube @handle, or on a value saved as a full address, opened an address that does not exist** (the profile card above it already handled both). Measured: no active profile holds either shape today.
+
+Confirmed or likely, not fixed here (each needs the owner or a server change):
+
+- **"Managed by" matches the manager's client list more strictly than Today does.** `client-profile-write` compares exact lower-case names; Today and "My clients" use the looser name key. A client whose roster spelling differs only by punctuation would show "Nobody yet" in Clients while its manager sees it on Today, and assigning a new manager would leave it on both lists. Read from the code; not measured against the roster (it is behind the admin key). Server change and deploy.
+- **Owner one-liner: should an Approved post whose date has passed stay on Today?** Today reads posts from today forward, so an Approved, unscheduled post leaves "To schedule" at midnight of its own date and no ring shows it. Measured: 2 such posts in the last 30 days against 8 in the next 14.
+- **Today's "Captions to write" ignores a caption lane set to N/A and an alternate caption.** Measured: no live card is counted wrongly by it today. Left, because the fix widens the read in two places and nobody is affected yet.
+- Not verified: the first-name fallback that matches a signed-in person to a manager's client list could match the wrong person when a non-manager shares a first name with exactly one manager; the HubSpot band drops its "no deal" reason for ten minutes after a lookup.
+
+Way back: revert the PR. Not yet seen by the owner in his browser.
+
 ## 378. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 4: empty Today and native Notes
 
 2026-10-08, Prism batch 4: PR #1994's final head passed both previously red

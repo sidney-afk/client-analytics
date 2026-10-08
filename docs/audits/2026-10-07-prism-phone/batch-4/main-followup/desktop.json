@@ -1,0 +1,258 @@
+{
+  "status": "PASS",
+  "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
+  "generatedIndexHash": "377bc7081dcedfe20a27af66d689857097bb9b7eafcb55179b8cf408984bc530",
+  "mainRef": "83933a862720ad80785a4737d9fdedfbec3254fb",
+  "pairs": 26,
+  "native": [
+    {
+      "label": "today-rings-light-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "74d5b946126d048392b68a4c33186b517e0a8044b82a18506140ab774b7f5dfd",
+      "afterHash": "74d5b946126d048392b68a4c33186b517e0a8044b82a18506140ab774b7f5dfd"
+    },
+    {
+      "label": "today-rings-dark-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "680884c828601f0486c9f5347efa6009a335285af88ffecbaedd36b6678d6ad0",
+      "afterHash": "680884c828601f0486c9f5347efa6009a335285af88ffecbaedd36b6678d6ad0"
+    },
+    {
+      "label": "today-all-clear-light-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "36f3b5895fd8a7d1646449567f640b647205712e2620d158d34985bc1e17749f",
+      "afterHash": "36f3b5895fd8a7d1646449567f640b647205712e2620d158d34985bc1e17749f"
+    },
+    {
+      "label": "today-all-clear-dark-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "a8797b92a642a6d9690efd75277e22d5ccb4e7ae77442b4801d2c29dbffa336d",
+      "afterHash": "a8797b92a642a6d9690efd75277e22d5ccb4e7ae77442b4801d2c29dbffa336d"
+    },
+    {
+      "label": "today-loading-light-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "91b75de2d3df02ff8281ac947beb5698bcb7a99142b84d476029b86ae7a57a56",
+      "afterHash": "91b75de2d3df02ff8281ac947beb5698bcb7a99142b84d476029b86ae7a57a56"
+    },
+    {
+      "label": "today-loading-dark-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "13abdd3c9cd317f668fa3d5d5646d4361afed37f0bef449c6a22f04f52209811",
+      "afterHash": "13abdd3c9cd317f668fa3d5d5646d4361afed37f0bef449c6a22f04f52209811"
+    },
+    {
+      "label": "today-editor-all-clear-light-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "99993779fb6a4c387e29dc38e0299a0ea83082d1bf0c2a142826f6caef50f9bb",
+      "afterHash": "99993779fb6a4c387e29dc38e0299a0ea83082d1bf0c2a142826f6caef50f9bb"
+    },
+    {
+      "label": "today-editor-all-clear-dark-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "bb3d680c83e5abffea661193e883867988d243ba750b1f1e097635f012674e97",
+      "afterHash": "bb3d680c83e5abffea661193e883867988d243ba750b1f1e097635f012674e97"
+    },
+    {
+      "label": "calendar-notes-light-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "050f5e8fe8c8020357a8c652870eac22ccae75540b6b35a765e9546c7c82a2a5",
+      "afterHash": "050f5e8fe8c8020357a8c652870eac22ccae75540b6b35a765e9546c7c82a2a5"
+    },
+    {
+      "label": "calendar-notes-light-warm",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "2d6d3d42638dfad54178be3458d07c9ecf889037a0a29b9c3da96936786460fa",
+      "afterHash": "2d6d3d42638dfad54178be3458d07c9ecf889037a0a29b9c3da96936786460fa"
+    },
+    {
+      "label": "samples-notes-light-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "762ecd9cef5ae89495c4ac5f89bd6b34fc7e3dc3f0cb4065243ec9a4aa70cbaa",
+      "afterHash": "762ecd9cef5ae89495c4ac5f89bd6b34fc7e3dc3f0cb4065243ec9a4aa70cbaa"
+    },
+    {
+      "label": "samples-notes-light-warm",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "59ec1a268a016567d8755ba05a401d4b1d37c826b56435d2ab73d3321b535350",
+      "afterHash": "59ec1a268a016567d8755ba05a401d4b1d37c826b56435d2ab73d3321b535350"
+    },
+    {
+      "label": "samples-notes-unlinked-light-cold",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac",
+      "afterHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac"
+    },
+    {
+      "label": "samples-notes-unlinked-light-warm",
+      "width": 1440,
+      "height": 900,
+      "pixels": true,
+      "styles": true,
+      "beforeHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac",
+      "afterHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac"
+    }
+  ],
+  "broadStaff": [
+    {
+      "page": "staff-navToday",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "4512f2058946",
+      "attempts": 1,
+      "beforeHash": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8",
+      "afterHash": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8"
+    },
+    {
+      "page": "staff-navCalendar",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "2740b18921a4",
+      "attempts": 1,
+      "beforeHash": "2740b18921a40f1de6d221fab1a9a94a8963d41af71deaefc1ebae3972d534f8",
+      "afterHash": "2740b18921a40f1de6d221fab1a9a94a8963d41af71deaefc1ebae3972d534f8"
+    },
+    {
+      "page": "staff-navSxr",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "37e81180f578",
+      "attempts": 1,
+      "beforeHash": "37e81180f578ef9c64d66115c24f3bc5fa550ed9a4fbe9673fd655f077a5849a",
+      "afterHash": "37e81180f578ef9c64d66115c24f3bc5fa550ed9a4fbe9673fd655f077a5849a"
+    },
+    {
+      "page": "staff-navTemplates",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "2076657a5ad8",
+      "attempts": 1,
+      "beforeHash": "2076657a5ad86317bbce19c86757697c65f0d09e486ec474c58156535e575e26",
+      "afterHash": "2076657a5ad86317bbce19c86757697c65f0d09e486ec474c58156535e575e26"
+    },
+    {
+      "page": "staff-navFilmingPlans",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "aebfdd6e67fb",
+      "attempts": 1,
+      "beforeHash": "aebfdd6e67fbbc5e833d86f91f39ba209a76cf6259dfb4f6c7428ad6b37022fa",
+      "afterHash": "aebfdd6e67fbbc5e833d86f91f39ba209a76cf6259dfb4f6c7428ad6b37022fa"
+    },
+    {
+      "page": "staff-navTiktokUpload",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "c7ad056f886a",
+      "attempts": 1,
+      "beforeHash": "c7ad056f886a93933b646c70c80c7bdd36538208600082d4784205522eab43c3",
+      "afterHash": "c7ad056f886a93933b646c70c80c7bdd36538208600082d4784205522eab43c3"
+    },
+    {
+      "page": "staff-navHome",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "4512f2058946",
+      "attempts": 1,
+      "beforeHash": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8",
+      "afterHash": "4512f2058946fcce776976888f021711dac2a3ea7f4b1b41435ec81130cdcdd8"
+    },
+    {
+      "page": "staff-navWorkload",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "200aeda246a1",
+      "attempts": 1,
+      "beforeHash": "200aeda246a16d7bc1a980a3b6a646af68dbdef6ba1e1dda911768c24c2b7d28",
+      "afterHash": "200aeda246a16d7bc1a980a3b6a646af68dbdef6ba1e1dda911768c24c2b7d28"
+    },
+    {
+      "page": "staff-navProd",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "ba027fc42813",
+      "attempts": 1,
+      "beforeHash": "ba027fc42813cfd35775dfc6778821e48eddb071ddb8728597eaac922ebf38ab",
+      "afterHash": "ba027fc42813cfd35775dfc6778821e48eddb071ddb8728597eaac922ebf38ab"
+    },
+    {
+      "page": "staff-navLinear",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "2a3a2b965395",
+      "attempts": 1,
+      "beforeHash": "2a3a2b965395054ee30df9abb4d97a6c0e512dbd5aa3f43879ef768b6afbb524",
+      "afterHash": "2a3a2b965395054ee30df9abb4d97a6c0e512dbd5aa3f43879ef768b6afbb524"
+    },
+    {
+      "page": "staff-navKasper",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "e7bbcebbe98a",
+      "attempts": 1,
+      "beforeHash": "e7bbcebbe98ac138a93958cc2d91b4956ec639c36e4187caa986eb7ee53e6e60",
+      "afterHash": "e7bbcebbe98ac138a93958cc2d91b4956ec639c36e4187caa986eb7ee53e6e60"
+    },
+    {
+      "page": "staff-time-off",
+      "width": 1440,
+      "pixels": "identical",
+      "styles": "identical",
+      "sha": "79e48f1e84df",
+      "attempts": 1,
+      "beforeHash": "79e48f1e84df770329a91ec25e2725adbe330d5b682ebd1a180d7516b5198eb7",
+      "afterHash": "79e48f1e84df770329a91ec25e2725adbe330d5b682ebd1a180d7516b5198eb7"
+    }
+  ],
+  "limits": "Exact 1440 fixture pixels and computed styles; native Today/Notes includes cold and phone-to-desktop cases. No live writes or deployment claim."
+}

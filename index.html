@@ -512,7 +512,7 @@
                         // Editors have no rings: the grey shape drops them too (030 boot-skeleton-today).
                         try { if (tdEditor) document.documentElement.setAttribute('data-tdy-editor', '1'); } catch (e) {}
                         var tdIn = function (list) { return 'in.(' + list.join(',') + ')'; };
-                        var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+                        var tdSel = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
                         var tdKv = window.__svEarlyKeyVerify;
                         var tdGate = tdKv && tdKv.response ? tdKv.response.then(function (r) {
                             if (!r.ok) throw new Error('verify');
@@ -540,7 +540,7 @@
                             tdRest(tdD, tdSel + '&status=' + tdIn(['todo', 'in_progress', 'tweak', 'smm_approval']));
                             tdRest(tdD, tdSel + '&status=' + tdIn(['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted']) + '&status_at=gte.' + tdMonday);
                             tdRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                                + '&scheduled_date=gte.' + tdIso(tdDay(0)) + '&scheduled_date=lte.' + tdIso(tdDay(14)) + '&status=not.in.(Archived,Posted)');
+                                + '&scheduled_date=gte.' + tdIso(tdDay(0)) + '&scheduled_date=lte.' + tdIso(tdDay(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc');
                             tdRest('team_members', 'select=email&id=eq.' + encodeURIComponent(String(tdId.member.id)));
                             var tdRosterUrl = tdBase + '/functions/v1/smm-weekly-reports?action=options';
                             var tdRoster = tdGate.then(function () { return fetch(tdRosterUrl, { headers: { Accept: 'application/json', apikey: tdKey, Authorization: 'Bearer ' + tdKey, 'X-Syncview-Key': String(tdId.key) } }); });
@@ -7079,6 +7079,14 @@
         /* Audience picker — sits above the composer when starting a new thread. */
         .cal-cm-audience { display: flex; align-items: center; gap: 8px; padding: 0 4px 8px; flex-wrap: wrap; }
         .cal-cm-audience-cap { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; }
+        @media (max-width: 767px) {
+            .cal-comments-modal .cal-cm-audience-cap { font-size: 13px; color: var(--text-secondary); }
+            #sxrCommentsModal[data-phone-notes-unavailable]:has(.cal-comments-feed-inner > .cal-comments-empty):not(:has(.cal-cm-thread)) { height: auto; min-height: 280px; }
+            /* Collapse only an empty feed: existing notes must remain readable
+               even when this card's composer is unavailable. */
+            .cal-comments-modal[data-phone-notes-unavailable]:has(.cal-comments-feed-inner > .cal-comments-empty):not(:has(.cal-cm-thread)) .cal-comments-feed { display: none; }
+            .cal-comments-modal[data-phone-notes-unavailable]:has(.cal-comments-feed-inner > .cal-comments-empty):not(:has(.cal-cm-thread)) > .cal-comments-empty { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px; }
+        }
         /* Internal/Client tag shown on each thread root in the feed (team view). */
         .cal-cm-aud-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 5px; }
@@ -9639,6 +9647,9 @@
             body:has(.pocket-staff-bar) .tdy-cl { flex: none; min-height: 44px; font-size: 13px; }
             body:has(.pocket-staff-bar) .tdy-skel .tdy-clients .sv-skeleton-pill { height: 44px !important; }
             body:has(.pocket-staff-bar) .tdy-rings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+            /* An empty day already has an All clear panel. Keep the loading
+               skeleton and every nonempty job group visible. */
+            body:has(.pocket-staff-bar) .tdy-rings:has(> .tdy-rg.on):not(:has(.tdy-ring:not(.full))) { display: none; }
             body:has(.pocket-staff-bar) .tdy-rg { min-width: 0; min-height: 124px; padding: 16px 8px; border-radius: 20px; border: 1px solid var(--border); justify-content: center; gap: 12px; font-size: 13px; line-height: 1.4; }
             body:has(.pocket-staff-bar) .tdy-rg:nth-child(5):last-child { grid-column: 1 / -1; flex-direction: row; min-height: 88px; gap: 16px; }
             body:has(.pocket-staff-bar) .tdy-rg.on { border-color: var(--text-primary); box-shadow: none; border-width: 2px; }
@@ -12407,9 +12418,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-22192dabf82a.js";
-        var PARTS = ["js/sv-01-core-1f36cf2df707.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-af6a26575473.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-d02717a5c726.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-63316d00acda.js","js/sv-12-synclinear-587f5199b946.js","js/sv-13-core-8e922a66dff6.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-e5a52adb64bf.js","kasper":"js/sv-16-kasper-85e8a54729d4.js"};
+        var FULL = "js/sv-full-f5ce28385271.js";
+        var PARTS = ["js/sv-01-core-015efd824d0d.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-846ff6be7da2.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-248723e926a5.js","js/sv-12-synclinear-7cdd6479c161.js","js/sv-13-core-9b99ec345d4f.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-3b65fee9d55a.js","kasper":"js/sv-16-kasper-15810a75aa33.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

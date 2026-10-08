@@ -1378,12 +1378,7 @@
         if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
         const started = performance.now();
         const promise = (async () => {
-            // The roster switch follows the staff path: with "roster": "database" a
-            // link the numbers read is not on for still asks for its own row only,
-            // so its client list never comes from the Clients Info tab.
-            const flagValue = await _analyticsMirrorFlagShared();
-            const numbersOn = _analyticsMirrorOnFor(flagValue, cap.slug);
-            if (!numbersOn && !_analyticsRosterOn(flagValue)) return null;
+            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
             const token = _syncviewClientWriteToken();
             if (!token) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -1396,7 +1391,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
                     cache: 'no-store',
                     signal: controller ? controller.signal : undefined,
-                    body: JSON.stringify(numbersOn ? { slug: cap.slug } : { slug: cap.slug, datasets: ['client_profile'] })
+                    body: JSON.stringify({ slug: cap.slug })
                 });
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
@@ -1404,17 +1399,13 @@
                 const d = json.data, rc = json.receipts || {};
                 const covered = (rows, receipt) => (Array.isArray(rows) && rows.length > 0) || !!rc[receipt];
                 const profile = d.client_profile;
-                // The client's own Clients Info row, kept even when the numbers
-                // are not covered: with the roster switch on, the Metrics Sheet
-                // fallback still needs it and the Sheet's Clients Info is never read.
-                const clients = (profile && profile.display_name) ? [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
-                    tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
-                    content_description: _analyticsMirrorText(profile.content_description) }] : null;
-                const ess = (numbersOn && clients && covered(d.metrics, 'metrics')) ? {
+                const ess = (profile && profile.display_name && covered(d.metrics, 'metrics')) ? {
                     metrics: _analyticsMirrorRows(d.metrics),
-                    clients
+                    clients: [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
+                        tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
+                        content_description: _analyticsMirrorText(profile.content_description) }]
                 } : null;
-                const ext = (numbersOn && covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
                     && covered(d.content_summaries, 'content_summaries')) ? {
                     topvids: _analyticsMirrorRows(d.top_videos),
                     mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
@@ -1422,7 +1413,7 @@
                 } : null;
                 console.log('[SyncView] analytics database read in ' + Math.round(performance.now() - started) + ' ms'
                     + (ess ? '' : '; no copy of the numbers yet, using the Sheets') + (ext ? '' : '; no copy of videos/briefs yet, using the Sheets'));
-                return { ess, ext, clients };
+                return { ess, ext };
             } finally {
                 if (timer) clearTimeout(timer);
                 if (clientEntryRun.signal) clientEntryRun.signal.removeEventListener('abort', onAbort);
@@ -1446,21 +1437,6 @@
     }
     function _analyticsMirrorStaffOn(value){
         return !!value && typeof value === 'object' && (value.enabled === true || value.staff === true);
-    }
-    /* THE ROSTER SWITCH (Sheets move, slice 1: docs/plans/2026-10-03-sheets-remaining-map.md).
-       Since 2026-10-02 the database is the main copy of Clients Info and Social
-       Media Managers; the two Sheet tabs are a mirror the database keeps. With
-       "roster": "database" in the analytics read switch, the page never reads
-       those two tabs: the client list comes from analytics-read (staff: every
-       client; a client link: its own row) or this browser's saved copy, and the
-       review queue's manager map from smm-weekly-reports. Missing or anything
-       else: exactly as before. One switch row, read once per load (it is
-       already in the boot batch). Way back: remove the "roster" key. */
-    function _analyticsRosterOn(value){
-        return !!value && typeof value === 'object' && value.roster === 'database';
-    }
-    function _analyticsRosterFromDatabase(){
-        return _analyticsMirrorFlagShared().then(_analyticsRosterOn, () => false);
     }
     // Rows back into the Sheet's CSV shape, so the database answer goes
     // through the same parse, fingerprint and saved-copy path as a Sheet.
@@ -1491,9 +1467,7 @@
         if (_analyticsStaffMirror[scope]) return _analyticsStaffMirror[scope];
         const started = performance.now();
         const promise = (async () => {
-            const flagValue = await _analyticsMirrorFlagShared();
-            const rosterOn = _analyticsRosterOn(flagValue);
-            if (!_analyticsMirrorStaffOn(flagValue) && !(rosterOn && scope === 'overview')) return null;
+            if (!_analyticsMirrorStaffOn(await _analyticsMirrorFlagShared())) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
             const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_STAFF_TIMEOUT_MS[scope]) : null;
             try {
@@ -1517,17 +1491,7 @@
                     const m = d.metrics || {}, profiles = Array.isArray(d.client_profiles) ? d.client_profiles : [];
                     const latest = String(json.latest_metrics_date || '');
                     const oldest = new Date(Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
-                    if (rosterOn && profiles.length) {
-                        // The profiles ARE the main copy: no Sheet copy receipt
-                        // vouches for them. The numbers keep their freshness rule;
-                        // when it fails, metrics is null and only Metrics uses the Sheet.
-                        out = { metrics: null, clients: profiles.map(_analyticsMirrorProfileRow) };
-                        if (!Array.isArray(m.rows) || !m.rows.length) why = 'no copy of the numbers yet';
-                        else if (!fresh('metrics')) why = 'no complete copy of the numbers in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
-                        else if (latest < oldest) why = 'numbers are older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
-                        else out.metrics = _analyticsMirrorCsv(m.columns, m.rows);
-                    }
-                    else if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
+                    if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
                     else if (!fresh('metrics') || !fresh('client_profiles')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else if (latest < oldest) why = 'copy is older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else out = { metrics: _analyticsMirrorCsv(m.columns, m.rows), clients: profiles.map(_analyticsMirrorProfileRow) };
@@ -1542,7 +1506,7 @@
                     };
                 }
                 console.log('[SyncView] analytics database ' + scope + ' read in ' + Math.round(performance.now() - started) + ' ms'
-                    + (why ? '; ' + why + (out ? ', numbers from the Metrics Sheet, clients from the database' : ', using the Sheets') : ''));
+                    + (out ? '' : '; ' + why + ', using the Sheets'));
                 return out;
             } finally {
                 if (timer) clearTimeout(timer);
@@ -1553,7 +1517,7 @@
         });
         // A failed or refused read is not remembered: the next load tries again.
         _analyticsStaffMirror[scope] = promise;
-        promise.then(r => { if (!r || r.metrics === null) _analyticsStaffMirror[scope] = null; });
+        promise.then(r => { if (!r) _analyticsStaffMirror[scope] = null; });
         return promise;
     }
 
@@ -1566,29 +1530,13 @@
             return;   // a client link never saves a copy
         }
         const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('overview');
-        if(staff&&staff.metrics!=null){
+        if(staff){
             _analyticsLiveEssentials = true;
             const publicClientRows = _applyEssentialTexts(staff.metrics, staff.clients);
             _analyticsCacheWrite({ metrics: staff.metrics, clients: publicClientRows });
             return;
         }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
-        if(await _analyticsRosterFromDatabase()){
-            // Roster switch on: the client list never comes from the Sheet.
-            // Staff: the database answer, else this browser's saved copy of it.
-            // A client link: its own row from the database, nothing else.
-            let clients=clientEntryRun?(mirror&&mirror.clients):(staff&&staff.clients);
-            if(!clients&&!clientEntryRun){const saved=_analyticsCacheRead();clients=saved&&Array.isArray(saved.clients)&&saved.clients.length?saved.clients:null;}
-            if(!clients)throw new Error('analytics_roster_unavailable');
-            const mr=await fetch(METRICS_URL,requestOpts);
-            if(!mr.ok)throw new Error('analytics_essentials_http');
-            const metricsText=await mr.text();
-            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
-            _analyticsLiveEssentials = true;
-            const publicClientRows = _applyEssentialTexts(metricsText, clients);
-            if(!clientEntryRun)_analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
-            return;
-        }
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
         if(!mr.ok||!cr.ok)throw new Error('analytics_essentials_http');
         const metricsText=await mr.text(), clientsText=await cr.text();
@@ -2876,7 +2824,7 @@
             const info=clientMap[clientName]||{};
             const channelId=info.slack_channel_id||'';
             if(!_isClientLink&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied){showNotify('Still loading','Top videos are still loading. Try again in a moment.');if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
-            if(!channelId){showNotify('No Slack channel','Add a slack_channel_id column to Clients Info for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
+            if(!channelId){showNotify('No Slack channel','Ask an admin to add the Slack channel for '+clientName+' under Kasper, Clients, Contact and team. (The Clients Info sheet is now a copy of the database, so a channel typed into the sheet is not picked up.)');if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
             const clientVids=topVideos.filter(v=>v.client_name===clientName&&(v.period||'').toLowerCase().includes('week'));
             const latestDate=clientVids.reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
             const fresh=latestDate?clientVids.filter(v=>(v.scraped_date||'')===latestDate):clientVids;
@@ -16148,6 +16096,26 @@
         }
         _svClientPhoneMount(root, 'Analytics', 'analytics', '.detail-info-btn', wrapper);
     }
+    const _svPhoneNotesOriginal = new WeakMap();
+    function _svPhoneNotesPresentation() {
+        const phone = window.matchMedia('(max-width: 767px)').matches;
+        document.querySelectorAll('.cal-comments-modal').forEach(modal => {
+            modal.querySelectorAll('[data-cm-toggle="comp"] .cal-cm-audience-cap, [data-cm-toggle="tweak"] .cal-cm-audience-cap').forEach(label => {
+                if (phone && !_svPhoneNotesOriginal.has(label)) _svPhoneNotesOriginal.set(label, label.textContent);
+                if (_svPhoneNotesOriginal.has(label)) label.textContent = phone
+                    ? (label.closest('[data-cm-toggle]').dataset.cmToggle === 'comp' ? 'About' : 'Type')
+                    : _svPhoneNotesOriginal.get(label);
+            });
+            const blocked = modal.querySelector(':scope > .cal-comments-empty[data-notes-unavailable]');
+            if (!blocked) { modal.removeAttribute('data-phone-notes-unavailable'); return; }
+            const message = Array.from(blocked.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+            if (phone && message && !_svPhoneNotesOriginal.has(blocked)) _svPhoneNotesOriginal.set(blocked, { node: message, text: message.textContent });
+            const original = _svPhoneNotesOriginal.get(blocked);
+            if (!original) { modal.removeAttribute('data-phone-notes-unavailable'); return; }
+            original.node.textContent = phone ? 'Your team needs to finish setting up notes for this card.' : original.text;
+            modal.toggleAttribute('data-phone-notes-unavailable', phone);
+        });
+    }
     function _svClientPhoneWatch() {
         const content = document.getElementById('content');
         if (!content) return;
@@ -16159,6 +16127,7 @@
         window.addEventListener('resize', () => {
             if (innerWidth < 5 || innerHeight < 5 || visualViewport && (visualViewport.width < 5 || visualViewport.height < 5)) return;
             const next = window.matchMedia('(max-width: 767px)').matches;
+            _svPhoneNotesPresentation();
             if (next === _svClientPhoneWidth) return;
             _svClientPhoneWidth = next;
             if (!next) for (const root of Array.from(_svClientPhoneRoots.keys())) _svClientPhoneRestore(root);
@@ -16597,7 +16566,15 @@
         return { id: me.id, names: await _tdySmmClients(me) };
     }
     async function _tdyLoad(me) {
-        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+        /* `order=id.asc`: these reads are fetched 1,000 rows at a time, and
+           without a stable order the database may hand a row out on two pages
+           or on none, so past 1,000 open items an approval could be missing
+           from Today on one load and back on the next (945 open rows on
+           2026-10-08). Workload and SyncLinear page the same way and already
+           sort. The head script starts the same reads early and is matched by
+           exact address, so tdSel in 005-head-boot.html.part must stay
+           character for character the same as this. */
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
         const monday = _tdyMonday().toISOString();
         _tdyClientRows = null;   // one fresh read per load
         const clientsP = _tdyClients();
@@ -16610,7 +16587,7 @@
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
                 _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
+                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc')
             ]);
             reads.catch(() => {});
             const parentsP = reads.then(([o, d]) => _tdyParentIds(o.filter(_tdyFresh).concat(d)));
@@ -16708,9 +16685,14 @@
     function _tdyEditorQueue(d) {
         const due = r => r.due_date || '9999';
         const rank = r => (r.status === 'tweak' ? 0 : 2) - (d.urgent.includes(r.id) ? 1 : 0);
-        return d.open.filter(r => !tdyState.skipped.includes(r.id))
-            .concat(d.open.filter(r => tdyState.skipped.includes(r.id)))
-            .sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+        /* Sort first, THEN move the skipped cards to the back, in the order
+           they were skipped. The sort used to run last, so "Skip for now" only
+           moved a card behind others of the very same rank and due date: any
+           tweak, urgent or earlier-due card came straight back to the top and
+           the button looked dead. */
+        const sorted = d.open.slice().sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+        const skipped = tdyState.skipped.map(id => sorted.find(r => r.id === id)).filter(Boolean);
+        return sorted.filter(r => !tdyState.skipped.includes(r.id)).concat(skipped);
     }
     function _tdyEditorRow(r, d) {
         const name = d.names[r.client_slug] || r.client_slug || '';
@@ -26856,7 +26838,12 @@
         // Persist through the same per-card flush the picker uses, pooled.
         ids.forEach(pid => { if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; } });
         const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, pid => _calFlushCardSave(pid));
-        const failed = results.filter(r => r.status === 'rejected').length;
+        /* The card save never rejects: it catches its own failure and marks the
+           card (`_saveError`). Counting rejections therefore always found none,
+           so this said "Color updated" for colours that were not saved. Count
+           the cards the save marked as failed as well. */
+        const failed = results.filter(r => r.status === 'rejected').length
+            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError); }).length;
         if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
         else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
     }
@@ -28458,6 +28445,16 @@
     function _calSetClient(name) {
         if (calState.client !== name) {
             calState.focusPid = null;
+            /* A selection belongs to the client it was made on. The switch
+               paths reset it themselves (_calResetSelection), but coming back
+               to the Calendar tab mounts through here, and a client picked in
+               the top bar meanwhile arrived with the old client's cards still
+               selected and select mode still on: one more tick and Archive
+               would send the old client's ids under the new client. */
+            calState.selectMode = false;
+            calState.selectAction = 'archive';
+            calState.selected = new Set();
+            calState.lastSel = null;
             /* Codex review, PR for item 176 (fifth pass): a pending card-link
              * request (and its toast) belongs to whichever client it names.
              * Switching to a DIFFERENT client abandons it, the exact same
@@ -35866,6 +35863,7 @@
                 if (stripNow) stripNow.scrollLeft = scrollLeft0;
             }
             wireCalOrganizerDrag(preserveScroll);
+            _calSelectionFollowsTheSheet();
         } else if (calState.view === 'month') {
             body.innerHTML = viewHtml;
             _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
@@ -36154,6 +36152,30 @@
        changes) — otherwise select-mode + a stale `selected` Set holding the
        previous client's ids survives the switch, and a later bulk-archive could
        act on cards from the wrong client / cards the user never saw. */
+    /* After every Sheet render, the selection is what is ticked ON SCREEN.
+     *
+     * Two defects met here. The select bar is rebuilt on each render with
+     * "0 selected" and its buttons disabled, while the cards were re-rendered
+     * still ticked, so any background repaint left five ticked cards under a
+     * bar that said none. And changing the month or status filter kept cards
+     * the filter had just hidden in the selection: tick three, change month,
+     * tick one more, and Archive asked about "4 posts" and archived three that
+     * were not on screen. A card the Sheet does not show is no longer selected,
+     * and the bar says how many are. */
+    function _calSelectionFollowsTheSheet() {
+        const strip = document.getElementById('calStrip');
+        if (!strip || !calState.selected) return;
+        if (calState.selected.size) {
+            const shown = new Set(Array.from(strip.querySelectorAll('.cal-card[data-pid]')).map(card => card.getAttribute('data-pid')));
+            calState.selected = new Set(Array.from(calState.selected).filter(id => shown.has(id)));
+        }
+        const n = calState.selected.size;
+        const count = document.getElementById('calSelectCount');
+        if (count) count.textContent = n + ' selected';
+        const action = document.getElementById('calSelectArchive');
+        if (action) action.disabled = n === 0;
+        document.querySelectorAll('#calSelectBar [data-bulk-color]').forEach(b => { b.disabled = n === 0; });
+    }
     function _calResetSelection() {
         calState.selectMode = false;
         calState.selectAction = 'archive';
@@ -37418,6 +37440,11 @@
         const json = await response.json().catch(() => ({}));
         if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
         const saved = Object.assign({}, post, json.post && typeof json.post === 'object' ? json.post : {});
+        // The card is saved. If the view moved to another client meanwhile,
+        // the list on screen is not this client's: writing it under this
+        // client's saved copy put the other client's cards there (the Samples
+        // twin, _sxrFillComponent, already stops here).
+        if (calClientSlug(calState.client) !== clientSlug) return;
         const index = calState.posts.findIndex(item => item && item.id === pid);
         if (index >= 0) calState.posts[index] = Object.assign({}, calState.posts[index], saved);
         try { _calCacheWrite(clientSlug, calState.posts); } catch (e) {}
@@ -44906,7 +44933,12 @@
         // matching media URL must already be linked, so warn while it's empty.
         // The video sub-status governs the video URL; the thumbnail (graphic)
         // sub-status governs the thumbnail URL — each is independent.
-        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
+        // N/A is not "past In Progress": it says the post will never have this
+        // part, which is exactly what the warning itself tells people to set
+        // ("If this post will never have one, set it to N/A"). Counting it kept
+        // the warning on the card, and the post in Today's "Missing links",
+        // with no way to clear either short of adding a link.
+        const beyondProgress = s => { const st = _calNormStatus(s || ''); return st !== 'In Progress' && st !== 'N/A'; };
         const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
         const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;
@@ -45744,6 +45776,17 @@
         });
         Promise.resolve(_calFlushCardSave(pid)).then(() => {
             _calReviewState.saving[key] = false;
+            /* The card save does not reject: it catches its own failure and
+               marks the card. The .catch below therefore never ran, and a
+               comment that did not save sat in the thread looking sent, with
+               no error anywhere in the Review view (the "Save failed" chip is
+               only on Sheet cards). Read the mark, as Approve does. */
+            const current = calState.posts.find(p => p.id === pid);
+            if (current && current._saveError) {
+                _calReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError;
+                _calReviewRepaintCard(pid);
+                return;
+            }
             if (_calStaffPhoneActive()) _calReviewRepaintCard(pid);
         }).catch(e => {
             _calReviewState.saving[key] = false;
@@ -47069,6 +47112,7 @@
                 <div class="cal-comments-feed-inner">${feedHtml}</div>
             </div>
             ${_calComposerHtml(post, comments)}`;
+        _svPhoneNotesPresentation();
         const ta = document.getElementById('calCommentComposer');
         if (ta) {
             _calAutosizeComposer(ta);
@@ -57194,6 +57238,15 @@
             }, state.lifecycleRequestId).then(result => {
                 state.lifecycleKey = '';
                 state.lifecycleRequestId = '';
+                /* Nothing came back: another comment write on this card was
+                   still saving, so this Resolve, Reopen or Delete was never
+                   sent (every comment write on a card shares one slot). It
+                   used to end here with no message and the thread unchanged. */
+                if (!result) {
+                    state.error = 'Another change to this card’s comments was still saving, so that one was not sent. Try it again.';
+                    _prodRender();
+                    return;
+                }
                 _prodComments.adopt(id, result && result.comment);
                 _prodComments.refresh(id);
             }).catch(error => {
@@ -67649,6 +67702,8 @@
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        // A selection belongs to the client it was made on (see _calSetClient).
+        if (sxrState.client !== initial) _sxrResetSelection();
         sxrState.client = initial;
         if (initial) { svSharedClientNote(initial); _sxrPinClient(initial); }
         sxrState.embedded = false;
@@ -69800,7 +69855,7 @@
             ? (canAddCard ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}<span>Add the first sample</span></button>` : `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No samples to show yet</div><div class="cal-filter-empty-sub">Finished samples will appear here.</div></div>`)
             : (canAddCard ? `<button class="cal-card-add" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}</button>` : '');
         const selectBar = (sxrState.selectMode && !_isClientLink)
-            ? `<div class="cal-select-bar" id="sxrSelectBar"><span class="cal-select-count" id="sxrSelectCount">0 selected</span><button type="button" class="cal-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()" disabled>Archive</button><button type="button" class="cal-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`
+            ? `<div class="cal-select-bar" id="sxrSelectBar"><span class="cal-select-count" id="sxrSelectCount">${sxrState.selected ? sxrState.selected.size : 0} selected</span><button type="button" class="cal-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()"${sxrState.selected && sxrState.selected.size ? '' : ' disabled'}>Archive</button><button type="button" class="cal-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`
             : '';
         return `<div class="cal-organizer-wrap"><div class="cal-organizer-strip${empty ? ' is-empty' : ''}${sxrState.selectMode ? ' cal-selecting' : ''}" id="sxrStrip">${posts.map(p => _sxrRenderInlineCard(p, false, false)).join('')}${addBtn}</div>${selectBar}</div>`;
     }
@@ -71478,7 +71533,13 @@
             if (current._saveError) {
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
-                _sxrReviewRepaintCard(pid);
+                // A full render, not a repaint (the Calendar's _calReviewApplyApprove
+                // already does this): the failed save's own render can have dropped
+                // this card from the queue, and a repaint only replaces a card that
+                // is still on screen. With a repaint the card vanished and the badge
+                // dropped exactly as on success, though nothing had reached Kasper.
+                _sxrRenderBody({ preserveScroll: true });
+                if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
                 return;
             }
             if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
@@ -71501,7 +71562,12 @@
         delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
         _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
-        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; if (_sxrStaffPhoneActive() || (_isClientLink && window.matchMedia('(max-width: 767px)').matches)) _sxrReviewRepaintCard(pid); }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
+            _sxrReviewState.saving[key] = false;
+            // The save marks the card instead of rejecting (see _calReviewComment): show a comment that did not save.
+            const current = sxrState.posts.find(p => p.id === pid);
+            if (current && current._saveError) { _sxrReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError; _sxrReviewRepaintCard(pid); return; }
+            if (_sxrStaffPhoneActive() || (_isClientLink && window.matchMedia('(max-width: 767px)').matches)) _sxrReviewRepaintCard(pid); }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
     }
     function _sxrReviewRequestTweak(pid, comp) {
         const initialPost = sxrState.posts.find(p => p.id === pid);
@@ -72122,6 +72188,7 @@
             ${actionFailure}
             <div class="cal-comments-feed" id="sxrCommentsFeed"><div class="cal-comments-feed-inner">${feedHtml}</div></div>
             ${_sxrComposerHtml(post, videoComments)}`;
+        _svPhoneNotesPresentation();
         const ta = document.getElementById('sxrCommentComposer');
         if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
     }
@@ -72163,7 +72230,7 @@
         const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
         const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target ? _sxrFindCompForCommentId(post, target.id) : _sxrComposeComp);
         if (role === 'client' && !canonicalGate.linked) {
-            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
+            return '<div class="cal-comments-empty" data-notes-unavailable><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
         }
         if (canonicalGate.linked && (!canonicalGate.ready || (role === 'client' && !canonicalGate.client))) {
             return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
@@ -72703,6 +72770,27 @@
                     const kept = carrySourceRepair(adoptThumbnailMeta(loc, srv), loc);
                     _sxrMergePostComments(kept, srv); out.push(kept);
                 }
+                continue;
+            }
+            /* A SAVE THAT FAILED IS STILL THE PERSON'S WORK. After a failed save
+               the typed text lives only on the local card (`_saveError` and
+               `_writeUiRetryEdits`; the pending bucket is gone), so the default
+               below replaced it with the server copy on the next background
+               refresh (tab focus, a teammate's change, a reconnect): the text
+               went back to the old value and the "Save failed · Retry" chip
+               disappeared, with no message. Take the server copy for everything
+               else, but keep the unsaved text and its Retry until it is retried
+               or the person edits again. Statuses are not kept: the save engine
+               already put those back when the save failed. */
+            if (loc && loc._saveError && loc._writeUiRetryEdits) {
+                const kept = Object.assign({}, carrySourceRepair(srv, loc));
+                Object.keys(loc._writeUiRetryEdits).forEach(k => {
+                    if (k.charAt(0) !== '_' && _SXR_ROLLBACK_FIELDS.indexOf(k) < 0 && k in loc) kept[k] = loc[k];
+                });
+                kept._saveError = loc._saveError;
+                kept._writeUiRetryEdits = loc._writeUiRetryEdits;
+                _sxrMergePostComments(kept, loc);
+                out.push(kept);
                 continue;
             }
             // Default: adopt the server copy (fold local comments in).
@@ -75276,6 +75364,14 @@
     }
     const _igItems = (pairs) => pairs.map(([value, label]) => ({ value: String(value), label: String(label) }));
 
+    // Did the create call get a definite "no"? See the note where it is used.
+    function _igCreateAnswerIsFinal(created) {
+        const j = created && created.json;
+        if (!j || typeof j !== 'object') return false;
+        if (created.status >= 400 && created.status < 500) return true;
+        if (created.status !== 200 || j.ok !== false || !j.row || j.row.status !== 'failed') return false;
+        return !/Post For Me answered (0|5\d\d)\b/.test(String(j.error || ''));
+    }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
         if (!IG_ACCOUNT_RE.test(_igResolveAccount(igState.client))) return 'This client has no Instagram account connected yet. Add its Post For Me connection id to the ' + IG_ACCOUNT_COLUMN + ' column of the Clients Info sheet.';
@@ -75513,9 +75609,19 @@
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
-                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
-                if (created.json && created.status >= 400 && created.status < 500) igState.attempt = null;
-                throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !(created.json && created.status >= 400 && created.status < 500) });
+                // An answer that says no is final. A server error or an unreadable answer leaves the outcome unknown.
+                // "No" comes two ways: a 4xx, or HTTP 200 with {"ok":false} and a row marked failed, which is how
+                // the function reports that Post For Me itself refused the post. That second shape used to be read
+                // as "could not confirm": the reason was never shown, the row never reached the queue, and every
+                // new press uploaded the whole video again to be refused again. The one 200 that stays unknown is
+                // Post For Me not answering (status 0 or a 5xx of its own): the post may exist, so the same key is kept.
+                const final = _igCreateAnswerIsFinal(created);
+                if (final) {
+                    igState.attempt = null;
+                    const failedRow = created.json && created.json.row;
+                    if (failedRow && failedRow.id) { igState.uploads = [failedRow].concat(igState.uploads.filter(r => r.id !== failedRow.id)); _igRenderQueue(); }
+                }
+                throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
             }
             igState.attempt = null;
             const row = created.json.row;
@@ -76669,7 +76775,20 @@
         `;
 
         _tkWireFormEvents();
+        _tkLockWhileSending();
         _tkRenderPreview();
+    }
+    /* What is being sent was frozen when Post was pressed. The client, caption
+       and media boxes were locked for the upload, but privacy, post mode, the
+       toggles, the cover and the schedule stayed live: changing one moved the
+       form and the preview ("Private") while the frozen value (public) was the
+       one posted. Every field in the form is locked until the upload ends;
+       Cancel is a button and stays. */
+    function _tkLockWhileSending() {
+        if (!tkState.submitting) return;
+        const col = document.getElementById('tkFormCol');
+        if (!col) return;
+        col.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
     }
 
     // Client search: the Analytics client picker's own search (same markup,
@@ -76867,6 +76986,7 @@
 
     function _tkHandleFile(file) {
         if (!file) return;
+        if (tkState.submitting) return;   // a drop during an upload is not part of what is being sent
         if (!/^video\//.test(file.type) && !/\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
             tkState.error = 'That file does not look like a video.';
             _tkRenderForm();
@@ -76920,6 +77040,8 @@
     // helpers above but keyed by index since order defines the carousel. ----
     function _tkHandlePhotoFiles(fileList) {
         if (!fileList || !fileList.length) return;
+        // An image dropped during an upload showed in the strip, was never sent, and vanished on success.
+        if (tkState.submitting) return;
         const room = TIKTOK_MAX_PHOTOS - tkState.photos.length;
         const incoming = Array.from(fileList);
         const overflow = incoming.length > room;
@@ -77540,7 +77662,18 @@
             tkState.submitting = false;
             tkState.progress = 0;
             tkState.retryCreate = ambiguous;
-            if (e && e.name === 'AbortError') { tkState.error = 'Upload cancelled.'; _tkRenderForm(); return; }
+            if (e && e.name === 'AbortError') {
+                // Cancel at this point only stops the browser waiting. The
+                // request to create the post may already be with the server,
+                // so "Upload cancelled." was not something this page could
+                // know, and a changed re-submit then made a second post.
+                // (Line comments on purpose: test/comment-strip-is-honest.js
+                // measures a region of this file that a block comment here would end early.)
+                tkState.error = 'Cancelled while the post was being created, so it may already exist. Check the queue on the right before posting again. To finish this same post, press Submit again without changing anything: it cannot post twice.';
+                _tkRenderForm();
+                try { Promise.resolve(_tkFetchQueue()).catch(() => {}); } catch (err) {}
+                return;
+            }
             _tkRecordFailure('tiktok_upload', 0, true);
             tkState.error = `The ${what} finished uploading to storage, but the server could not be reached to finish creating the post. Press Submit again without changing anything: it finishes this same post and cannot post it twice.`;
             _tkRenderForm();
@@ -78179,44 +78312,7 @@
         try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
         return subs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
     }
-    /* Roster switch on (see _analyticsRosterOn): the managers come from the
-       database through the staff door smm-weekly-reports already serves
-       (?action=options, Admin/SMM keys), one row per manager with the clients
-       it owns. The queues show only the manager's name, so only the name is kept. No staff key, a refused key or a failure: an empty map, the
-       same answer a failed Sheet read gave (the queue shows no manager). */
-    async function _kasperLoadSMMMapFromDatabase() {
-        try {
-            const ident = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
-            if (!ident || !ident.key) return new Map();
-            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
-                headers: {
-                    Accept: 'application/json',
-                    apikey: CAL_SUPABASE_ANON_KEY,
-                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-                    'X-Syncview-Key': ident.key
-                },
-                cache: 'no-store'
-            });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
-            const map = new Map();
-            for (const m of (data && Array.isArray(data.managers) ? data.managers : [])) {
-                if (!m || m.active === false) continue;
-                const name = String(m.name || '').trim();
-                for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) {
-                    const slug = wlNormalizeClient(String(c || '').trim());
-                    if (!slug || map.has(slug)) continue;
-                    map.set(slug, { name });
-                }
-            }
-            return map;
-        } catch (e) {
-            console.warn('[Kasper] manager list (database) load failed:', e);
-            return new Map();
-        }
-    }
     async function _kasperLoadSMMMap() {
-        if (await _analyticsRosterFromDatabase()) return _kasperLoadSMMMapFromDatabase();
         // The "Social Media Managers" tab: client_name, social_media_manager,
         // optional slack_user_id / slack_team_id (the script ignores anything
         // it doesn't recognise so adding columns later is non-breaking).
@@ -83610,6 +83706,7 @@
             _caState.assignments = Object.assign({}, _caState.assignments, { [r.slug]: j.manager_slug || managerSlug });
             _caState.picker = false;
             _caState.history = null;
+            _caLoadHistory();
             const m = _caManager(r.slug);
             if (typeof showToast === 'function') showToast(`${m ? m.name : 'The new manager'} now manages ${_caName(r)}`);
         } else if (j.error === 'manager_changed') {
@@ -83629,6 +83726,13 @@
     async function _caToggleHistory() {
         _caState.historyOpen = !_caState.historyOpen;
         _caPaint();
+        return _caLoadHistory();
+    }
+    /* Reads the history when it is open and not loaded. A save or a manager
+       change clears the loaded history so the new entry shows; with the panel
+       open that used to leave "Loading the history…" on screen for good,
+       because only the toggle ever fetched. Both now call this. */
+    async function _caLoadHistory() {
         if (!_caState.historyOpen || _caState.history) return;
         const slug = _caState.selected, generation = _caGeneration;
         let out;
@@ -83708,6 +83812,20 @@
         } catch (e) {
             out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } };
         }
+        /* The save landed even if the person has moved on. Opening another
+           client while "Saving…" was showing discarded the edit form, and this
+           then returned before taking the saved row: no "Saved", the old
+           values and old version stayed in the list for the rest of the
+           session, and the next edit of that client was refused with "Someone
+           else saved this client a moment ago" (it was them). Adopt the saved
+           row first; only the form handling below needs the form to be there. */
+        if (generation === _caGeneration && _caState.edit !== ed
+            && out.resp.status === 200 && out.json && out.json.ok && out.json.row) {
+            _caReplaceRow(out.json.row);
+            _caPaint();
+            if (typeof showToast === 'function') showToast('Saved');
+            return;
+        }
         if (generation !== _caGeneration || _caState.edit !== ed) return;
         ed.saving = false;
         const { resp, json } = out;
@@ -83717,6 +83835,7 @@
             _caState.edit = null;
             _caState.history = null;
             _caPaint();
+            _caLoadHistory();
             if (typeof showToast === 'function') showToast(json.native ? 'Saved' : 'Saved to the sheet and SyncView');
             return;
         }
@@ -84109,9 +84228,19 @@
         const r = row || {};
         const handle = v => String(v || '').trim().replace(/^@/, '');
         if (key === 'email_present' && String(r.email || '').trim()) return { href: 'mailto:' + String(r.email).trim(), text: 'Email' };
-        if (key === 'instagram_present' && handle(r.instagram_handle)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(r.instagram_handle)) + '/', text: 'Open' };
-        if (key === 'tiktok_present' && handle(r.tiktok_handle)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(r.tiktok_handle)), text: 'Open' };
-        if (key === 'youtube_present' && String(r.youtube_channel_id || '').trim()) return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(String(r.youtube_channel_id).trim()), text: 'Open' };
+        /* The social rows must open the same address as the profile card above
+           them (_caLinkFor in 323, whose rules these mirror). This list got two
+           shapes wrong: a YouTube "@handle" went to /channel/%40handle, and a
+           value saved as a full address was wrapped in a second one. Both
+           answer "not found". */
+        const social = { instagram_present: 'instagram_handle', tiktok_present: 'tiktok_handle', youtube_present: 'youtube_channel_id' }[key];
+        const raw = social ? String(r[social] || '').trim() : '';
+        if (raw && /^https?:\/\//i.test(raw)) return { href: raw, text: 'Open' };
+        if (key === 'instagram_present' && handle(raw)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(raw)) + '/', text: 'Open' };
+        if (key === 'tiktok_present' && handle(raw)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(raw)), text: 'Open' };
+        if (key === 'youtube_present' && raw) {
+            return { href: /^@/.test(raw) ? 'https://www.youtube.com/' + encodeURIComponent(raw).replace('%40', '@') : 'https://www.youtube.com/channel/' + encodeURIComponent(raw), text: 'Open' };
+        }
         // Pages inside SyncView that show this client's own data (clean addresses, docs/features/CLEAN_URLS.md).
         const slug = encodeURIComponent(String(r.slug || '').trim());
         if (slug) {
@@ -88481,4 +88610,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-22192dabf82a.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-1ed65de2c59b.js");

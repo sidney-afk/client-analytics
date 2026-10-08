@@ -643,6 +643,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             _caState.assignments = Object.assign({}, _caState.assignments, { [r.slug]: j.manager_slug || managerSlug });
             _caState.picker = false;
             _caState.history = null;
+            _caLoadHistory();
             const m = _caManager(r.slug);
             if (typeof showToast === 'function') showToast(`${m ? m.name : 'The new manager'} now manages ${_caName(r)}`);
         } else if (j.error === 'manager_changed') {
@@ -662,6 +663,13 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     async function _caToggleHistory() {
         _caState.historyOpen = !_caState.historyOpen;
         _caPaint();
+        return _caLoadHistory();
+    }
+    /* Reads the history when it is open and not loaded. A save or a manager
+       change clears the loaded history so the new entry shows; with the panel
+       open that used to leave "Loading the history…" on screen for good,
+       because only the toggle ever fetched. Both now call this. */
+    async function _caLoadHistory() {
         if (!_caState.historyOpen || _caState.history) return;
         const slug = _caState.selected, generation = _caGeneration;
         let out;
@@ -741,6 +749,20 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         } catch (e) {
             out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } };
         }
+        /* The save landed even if the person has moved on. Opening another
+           client while "Saving…" was showing discarded the edit form, and this
+           then returned before taking the saved row: no "Saved", the old
+           values and old version stayed in the list for the rest of the
+           session, and the next edit of that client was refused with "Someone
+           else saved this client a moment ago" (it was them). Adopt the saved
+           row first; only the form handling below needs the form to be there. */
+        if (generation === _caGeneration && _caState.edit !== ed
+            && out.resp.status === 200 && out.json && out.json.ok && out.json.row) {
+            _caReplaceRow(out.json.row);
+            _caPaint();
+            if (typeof showToast === 'function') showToast('Saved');
+            return;
+        }
         if (generation !== _caGeneration || _caState.edit !== ed) return;
         ed.saving = false;
         const { resp, json } = out;
@@ -750,6 +772,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             _caState.edit = null;
             _caState.history = null;
             _caPaint();
+            _caLoadHistory();
             if (typeof showToast === 'function') showToast(json.native ? 'Saved' : 'Saved to the sheet and SyncView');
             return;
         }

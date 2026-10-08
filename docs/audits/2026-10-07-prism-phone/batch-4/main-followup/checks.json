@@ -1,0 +1,121 @@
+{
+  "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
+  "checks": [
+    {
+      "check": "pr-2002-byte",
+      "status": "PASS",
+      "logHash": "f7a57513322a1afd8eeb0f6c7284f619d1d87a24e14cd204b19a7a78bcbfe80b",
+      "lastLines": "byte-pinned line endings vs origin/main: 106 pinned, 0 touched by this change\n  OK    no byte-pinned file changed its line-ending composition"
+    },
+    {
+      "check": "pr-2002-client-calendar",
+      "status": "PASS",
+      "logHash": "a7da21172b5ed8e4be78ce643115f6b272421b1404ee3ae04e1c15d6563ef12e",
+      "lastLines": "client-calendar-expanded: OK (7830 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/393/412/430; requested light/dark, effective client light)."
+    },
+    {
+      "check": "pr-2002-client-links",
+      "status": "PASS",
+      "logHash": "109fa35908936635c233b7f6636a059f71ec95e72a9eabf838406aecfc989520",
+      "lastLines": "client-links-expanded: OK (5140 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 360/390/393/412/430; requested light/dark, effective client light)."
+    },
+    {
+      "check": "pr-2002-client-phone-css-scope",
+      "status": "PASS",
+      "logHash": "8406a46e77e6737792eacb1cb10782095db2bc20217067780a0ca718109401a6",
+      "lastLines": "client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width: <=767px) and html.boot-client)"
+    },
+    {
+      "check": "pr-2002-desktop-broad",
+      "status": "PASS",
+      "logHash": "37b873882106af28a85ef51f58372b8794d3cf60c8845bfe101f77155ede010f",
+      "lastLines": "ok   staff-time-off @1440: pixels identical, computed styles identical (79e48f1e84df)\n\n12/12 desktop shots identical to 83933a862720ad80785a4737d9fdedfbec3254fb"
+    },
+    {
+      "check": "pr-2002-desktop-native",
+      "status": "PASS",
+      "logHash": "593fb4a733033f68a63251114df58990726d61152fe770f2e4bf3d7276cd6dfd",
+      "lastLines": "ok samples-notes-unlinked-light-cold: desktop pixels and computed styles identical\nok samples-notes-unlinked-light-warm: desktop pixels and computed styles identical\nFIXTURE_DESKTOP_PARITY: 14/14 exact 1440 desktop pairs; native Today/Notes fixtures; cold and phone-to-desktop Notes; no live writes."
+    },
+    {
+      "check": "pr-2002-exposure",
+      "status": "PASS",
+      "logHash": "4a1559ec6dbe1dd92441002df97cbee85ff2ec7ea285ab4c3ac10d65228af072",
+      "lastLines": "  WHERE (counts only \u2014 this tool never prints what it matched):\n\nThis change adds no client slug and no colleague's name \u2705"
+    },
+    {
+      "check": "pr-2002-finch-phone-css-scope",
+      "status": "PASS",
+      "logHash": "41757aa27c7804a5fc19336edf71d85079d90fcbb63ff89d8f040428b6b6e56c",
+      "lastLines": "finch-phone-css-scope: OK (1 block(s), 367 braces, all under @media (max-width: <=767px) and html.fph-on)"
+    },
+    {
+      "check": "pr-2002-index",
+      "status": "PASS",
+      "logHash": "1d6c5a091b97bc77120e9dc90b45410d5c5e5893382348306f976bf5c16111f2",
+      "lastLines": "check-index: committed index.html (HEAD) \u2014 sha256=377bc7081dcedfe20a27af66d689857097bb9b7eafcb55179b8cf408984bc530 bytes=1318549\n\ncheck-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    },
+    {
+      "check": "pr-2002-kasper-phone-css-scope",
+      "status": "PASS",
+      "logHash": "acdad20225873965ae428950f1554dcaf525be840a5711855671d2022367a3be",
+      "lastLines": "kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)"
+    },
+    {
+      "check": "pr-2002-modules",
+      "status": "PASS",
+      "logHash": "a0e0786545ab4064333a26be1036adffabe1dde150c8a77ddbc380996be3c295",
+      "lastLines": "minified parts: 19 files, 2671 KB, 5238 top-level names, 0 lost, 0 changed kind\n\ncheck-modules: all checks passed"
+    },
+    {
+      "check": "pr-2002-repo-map-sync",
+      "status": "PASS",
+      "logHash": "794d8deb899e8db5a478f9ddd574a274bdae5fd9dbadc9b7053533a2857aa797",
+      "lastLines": "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists\n\nrepo-map-sync: 1123 passed, 0 failed"
+    },
+    {
+      "check": "pr-2002-staff-calendar-phone-css-scope",
+      "status": "PASS",
+      "logHash": "c170a5038eb6da90d17f2a512aa488fae7c02fc71899572a4bfd935e458dbd15",
+      "lastLines": "staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+    },
+    {
+      "check": "pr-2002-staff-phone-css-scope",
+      "status": "PASS",
+      "logHash": "17cf4eeecb60fd2138ff89839f8df2ec4bbd8596240fb53fd14b3518a548c749",
+      "lastLines": "staff-phone-css-scope: OK (1 block(s), 368 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))"
+    },
+    {
+      "check": "pr-2002-staff-phone-rules-source",
+      "status": "PASS",
+      "logHash": "2d3ededbffa5c7991abd846c785938e4a383f2d803aed99d86ac2162d3a2981f",
+      "lastLines": "staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped"
+    },
+    {
+      "check": "pr-2002-staff-samples-phone-css-scope",
+      "status": "PASS",
+      "logHash": "4205a249ea5e9837948382395bbfdbe662f4d1637ec2e5a75602080530e761c9",
+      "lastLines": "staff-samples-phone-css-scope: OK (1 block(s), 344 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])"
+    },
+    {
+      "check": "pr-2002-staff-selection-phone-css-scope",
+      "status": "PASS",
+      "logHash": "8e6833452b73d0c6773589674162e6dd2c934097689f8f575219407b5cee6efb",
+      "lastLines": "staff-selection-phone-css-scope: OK (1 block(s), 30 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+    },
+    {
+      "check": "pr-2002-staff",
+      "status": "PASS",
+      "logHash": "42d5d8dde06deeb12d804d9b717bf699348ac92e5face7d118b5a5b1452a8c76",
+      "lastLines": "ok samples-card-notes 412 light\nok samples-card-notes 412 dark\nstaff-phone-final-pass: 20 renders, 0 problems"
+    },
+    {
+      "check": "pr-2002-truth-sync",
+      "status": "PASS",
+      "logHash": "f553c14b610dd9941807e8830bdca3c295d1591c971c30e210d085c3d1489294",
+      "lastLines": "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction\n\ntruth-sync: 515 passed, 0 failed"
+    }
+  ],
+  "hosted": "PENDING for the updated PR head; previous green hosted proof remains historical",
+  "finishLine": "OPEN"
+}

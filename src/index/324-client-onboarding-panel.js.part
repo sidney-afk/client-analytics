@@ -251,9 +251,19 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         const r = row || {};
         const handle = v => String(v || '').trim().replace(/^@/, '');
         if (key === 'email_present' && String(r.email || '').trim()) return { href: 'mailto:' + String(r.email).trim(), text: 'Email' };
-        if (key === 'instagram_present' && handle(r.instagram_handle)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(r.instagram_handle)) + '/', text: 'Open' };
-        if (key === 'tiktok_present' && handle(r.tiktok_handle)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(r.tiktok_handle)), text: 'Open' };
-        if (key === 'youtube_present' && String(r.youtube_channel_id || '').trim()) return { href: 'https://www.youtube.com/channel/' + encodeURIComponent(String(r.youtube_channel_id).trim()), text: 'Open' };
+        /* The social rows must open the same address as the profile card above
+           them (_caLinkFor in 323, whose rules these mirror). This list got two
+           shapes wrong: a YouTube "@handle" went to /channel/%40handle, and a
+           value saved as a full address was wrapped in a second one. Both
+           answer "not found". */
+        const social = { instagram_present: 'instagram_handle', tiktok_present: 'tiktok_handle', youtube_present: 'youtube_channel_id' }[key];
+        const raw = social ? String(r[social] || '').trim() : '';
+        if (raw && /^https?:\/\//i.test(raw)) return { href: raw, text: 'Open' };
+        if (key === 'instagram_present' && handle(raw)) return { href: 'https://www.instagram.com/' + encodeURIComponent(handle(raw)) + '/', text: 'Open' };
+        if (key === 'tiktok_present' && handle(raw)) return { href: 'https://www.tiktok.com/@' + encodeURIComponent(handle(raw)), text: 'Open' };
+        if (key === 'youtube_present' && raw) {
+            return { href: /^@/.test(raw) ? 'https://www.youtube.com/' + encodeURIComponent(raw).replace('%40', '@') : 'https://www.youtube.com/channel/' + encodeURIComponent(raw), text: 'Open' };
+        }
         // Pages inside SyncView that show this client's own data (clean addresses, docs/features/CLEAN_URLS.md).
         const slug = encodeURIComponent(String(r.slug || '').trim());
         if (slug) {

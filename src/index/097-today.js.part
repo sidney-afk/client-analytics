@@ -259,7 +259,15 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         return { id: me.id, names: await _tdySmmClients(me) };
     }
     async function _tdyLoad(me) {
-        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+        /* `order=id.asc`: these reads are fetched 1,000 rows at a time, and
+           without a stable order the database may hand a row out on two pages
+           or on none, so past 1,000 open items an approval could be missing
+           from Today on one load and back on the next (945 open rows on
+           2026-10-08). Workload and SyncLinear page the same way and already
+           sort. The head script starts the same reads early and is matched by
+           exact address, so tdSel in 005-head-boot.html.part must stay
+           character for character the same as this. */
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid&order=id.asc';
         const monday = _tdyMonday().toISOString();
         _tdyClientRows = null;   // one fresh read per load
         const clientsP = _tdyClients();
@@ -272,7 +280,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
                 _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
+                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc')
             ]);
             reads.catch(() => {});
             const parentsP = reads.then(([o, d]) => _tdyParentIds(o.filter(_tdyFresh).concat(d)));
@@ -370,9 +378,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdyEditorQueue(d) {
         const due = r => r.due_date || '9999';
         const rank = r => (r.status === 'tweak' ? 0 : 2) - (d.urgent.includes(r.id) ? 1 : 0);
-        return d.open.filter(r => !tdyState.skipped.includes(r.id))
-            .concat(d.open.filter(r => tdyState.skipped.includes(r.id)))
-            .sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+        /* Sort first, THEN move the skipped cards to the back, in the order
+           they were skipped. The sort used to run last, so "Skip for now" only
+           moved a card behind others of the very same rank and due date: any
+           tweak, urgent or earlier-due card came straight back to the top and
+           the button looked dead. */
+        const sorted = d.open.slice().sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+        const skipped = tdyState.skipped.map(id => sorted.find(r => r.id === id)).filter(Boolean);
+        return sorted.filter(r => !tdyState.skipped.includes(r.id)).concat(skipped);
     }
     function _tdyEditorRow(r, d) {
         const name = d.names[r.client_slug] || r.client_slug || '';

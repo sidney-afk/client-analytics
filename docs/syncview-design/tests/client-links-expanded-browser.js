@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
+const { heightFor } = require('../../../qa/client-phone/profiles');
 const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.slice(key.length + 3);
 const widths = (arg('widths') || '360,390,430').split(',').map(Number);
 const themes = (arg('themes') || 'light,dark').split(',');
@@ -84,7 +85,7 @@ async function entryErrors(page, width, prefix) {
   await shot(page, prefix + '-retry-restored-' + width);
 }
 async function fixture(browser, origin, width) {
-  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId: 'America/Guatemala' });
+  const ctx = await browser.newContext({ viewport: { width, height: heightFor(width, arg('height')) }, isMobile: width < 768, hasTouch: width < 768, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId: 'America/Guatemala' });
   const writes = [];
   const row = { ...BASE_ROW, id: 's_phone_fixture_1', name: 'Make room for a better day.', thumbnail_url: 'https://drive.google.com/file/d/pocket_fixture_thumb/view' };
   const videoId = '00000000-0000-4000-a000-000000000001', graphicId = '00000000-0000-4000-a000-000000000002';
@@ -170,7 +171,7 @@ async function samples(browser, origin, width) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.locator('[data-pocket-client-phone]').waitFor({ state: 'detached' });
     ok(await page.locator('.pocket-client-phone-saving').count() === 0, 'phone saving label leaked to desktop');
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: heightFor(width, arg('height')) });
     await page.locator('[data-pocket-client-phone=samples]').waitFor();
     ok(await card.locator('[data-comp=graphic] .pocket-client-phone-saving').isVisible(), 'pending save lost its label on return to phone');
     await page.evaluate(id => { sxrState.posts.find(row => row.id === id).graphic_status = 'Approved'; _sxrReviewRepaintCard(id); }, row.id);
@@ -180,7 +181,7 @@ async function samples(browser, origin, width) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.locator('[data-pocket-client-phone]').waitFor({ state: 'detached' });
     ok((await card.locator('[data-comp-pill=graphic]').innerText()).toLowerCase().includes('approved'), 'desktop retained the phone saving pill');
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: heightFor(width, arg('height')) });
     await page.locator('[data-pocket-client-phone=samples]').waitFor();
     ok(await card.locator('[data-comp=graphic] .pocket-client-phone-saving').isVisible(), 'pending approval lost its phone label');
     await measure(page, 'samples-approve-sending-' + width);
@@ -198,8 +199,35 @@ async function samples(browser, origin, width) {
     await page.locator('.cal-comments-btn').first().click();
     await page.locator('#sxrCommentsModal').waitFor({ state: 'visible' });
     ok((await page.locator('#sxrCommentsModal').innerText()).includes('Notes are not available'), 'unlinked Notes must refuse safely');
+    ok(await page.locator('#sxrCommentsModal .cal-comments-feed').isHidden(), 'unavailable empty Notes must not invite typing');
+    const unavailableSheet = await page.locator('#sxrCommentsModal').boundingBox();
+    ok(unavailableSheet && unavailableSheet.height <= 360, 'unavailable empty Notes must fit its message instead of leaving a screen of blank space');
+    ok(await page.locator('#sxrCommentsModal textarea').count() === 0, 'unlinked Notes must not acquire a composer');
+    ok(!(await page.locator('#sxrCommentsModal').innerText()).includes('Production deliverable'), 'phone Notes must explain unavailable setup in plain language');
     await measure(page, 'samples-notes-unlinked-' + width);
     await shot(page, 'samples-notes-unlinked-' + width);
+    await page.setViewportSize({width:1440,height:900});
+    await page.waitForFunction(() => !document.querySelector('#sxrCommentsModal[data-phone-notes-unavailable]'));
+    ok(await page.locator('#sxrCommentsModal .cal-comments-feed').isVisible(), 'desktop Notes feed must restore');
+    ok((await page.locator('#sxrCommentsModal').innerText()).includes('Production deliverable'), 'desktop Notes copy must restore');
+    await page.setViewportSize({width,height:heightFor(width,arg('height'))});
+    await page.waitForFunction(() => !!document.querySelector('#sxrCommentsModal[data-phone-notes-unavailable]'));
+    // A native copy change must not disable the phone presentation. A fresh
+    // marked element avoids relying on an earlier cached English text node.
+    await page.evaluate(() => {
+      const blocked = document.querySelector('#sxrCommentsModal > [data-notes-unavailable]');
+      const replacement = blocked.cloneNode(true);
+      [...replacement.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim()).textContent = 'This fictional thread is still being prepared.';
+      blocked.replaceWith(replacement);
+      _svPhoneNotesPresentation();
+    });
+    ok((await page.locator('#sxrCommentsModal > [data-notes-unavailable]').innerText()).includes('Your team needs to finish setting up notes for this card.'), 'marked unavailable Notes works with changed native wording');
+    ok(await page.locator('#sxrCommentsModal .cal-comments-feed').isHidden(), 'changed unavailable wording retains the compact phone state');
+    await page.setViewportSize({width:1440,height:900});
+    await page.waitForFunction(() => !document.querySelector('#sxrCommentsModal[data-phone-notes-unavailable]'));
+    ok((await page.locator('#sxrCommentsModal > [data-notes-unavailable]').innerText()).includes('This fictional thread is still being prepared.'), 'desktop restores the actual native wording after a copy change');
+    await page.setViewportSize({width,height:heightFor(width,arg('height'))});
+    await page.waitForFunction(() => !!document.querySelector('#sxrCommentsModal[data-phone-notes-unavailable]'));
     await page.locator('.cal-comments-close').click();
     await page.evaluate(id => {
       const post = sxrState.posts.find(post => post.id === id);
@@ -209,6 +237,31 @@ async function samples(browser, origin, width) {
     await page.locator('.cal-comments-btn').first().click();
     await page.locator('#sxrCommentsModal .cal-cm-composer textarea').waitFor({ state: 'visible' });
     ok(!(await page.locator('#sxrCommentsModal').innerText()).includes('Notes are not available'), 'linked sample must show the normal Notes composer');
+    ok(await page.locator('#sxrCommentsModal .cal-comments-feed').isVisible(), 'opening linked Notes after an unavailable card must restore its feed');
+    ok((await page.locator('#sxrCommentsModal .cal-comments-feed').innerText()).includes('No notes yet'), 'available Notes must retain its empty conversation guidance');
+    const composer = page.locator('#sxrCommentComposer');
+    const labels = page.locator('#sxrCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap, #sxrCommentsModal [data-cm-toggle=tweak] .cal-cm-audience-cap');
+    ok(JSON.stringify(await labels.allTextContents()) === JSON.stringify(['About','Type']), 'phone Notes labels must be complete');
+    ok(await labels.evaluateAll(nodes => nodes.every(n => parseFloat(getComputedStyle(n).fontSize) >= 13)), 'Notes labels must be readable');
+    await composer.fill('Fixture draft survives a viewport change.');
+    await composer.evaluate(node => window.__notesComposer = node);
+    await page.setViewportSize({width:1440,height:900});
+    await page.waitForFunction(() => document.querySelector('#sxrCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap').textContent === 'About the…');
+    ok((await labels.allTextContents()).includes('This is a…'), 'desktop native label must restore');
+    await page.setViewportSize({width,height:heightFor(width,arg('height'))});
+    await page.waitForFunction(() => document.querySelector('#sxrCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap').textContent === 'About');
+    ok(await composer.evaluate(node => node === window.__notesComposer), 'Notes presentation must preserve the native composer node');
+    ok(await composer.inputValue() === 'Fixture draft survives a viewport change.', 'Notes draft lost during viewport change');
+    await page.locator('#sxrCommentsModal [data-comp=graphic]').tap();
+    await composer.waitFor({state:'visible'});
+    ok(await composer.inputValue() === 'Fixture draft survives a viewport change.', 'Notes component choice lost its draft');
+    await page.locator('#sxrCommentsModal [data-tweak="1"]').tap();
+    ok(await page.locator('#sxrCommentsModal [data-tweak="1"]').evaluate(n=>n.classList.contains('is-active')), 'native Notes change-request choice did not activate');
+    ok(await composer.inputValue() === 'Fixture draft survives a viewport change.', 'Notes type choice lost its draft');
+    await page.locator('#sxrCommentsModal [data-comp=video]').tap();
+    await page.locator('#sxrCommentsModal [data-tweak="0"]').tap();
+    ok(writes.length === 0, 'Notes presentation and choices must not send a write');
+    await composer.fill('');
     await measure(page, 'samples-notes-' + width);
     await shot(page, 'samples-notes-' + width);
     await page.locator('.cal-comments-close').click();
@@ -226,7 +279,7 @@ async function samples(browser, origin, width) {
     await page.locator('[data-pocket-client-phone]').waitFor({ state: 'detached' });
     ok(await page.locator('.pocket-client-phone-heading, .pocket-client-phone-menu, .pocket-client-phone-action, .pocket-client-phone-saving').count() === 0, 'phone nodes leaked to desktop');
     ok(await page.locator('.cal-toolbar-mid > #sxrZoomCtl').count() === 1, 'native card size was not restored');
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: heightFor(width, arg('height')) });
     await page.locator('[data-pocket-client-phone=samples]').waitFor();
     await page.locator('[data-cal-view=review]').click();
     if (await card.locator('.kcard-expand-btn').getAttribute('aria-expanded') !== 'true') await card.locator('.kcard-expand-btn').click();
@@ -313,7 +366,7 @@ async function analytics(browser, origin, width, emptyCase = false) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.locator('[data-pocket-client-phone]').waitFor({ state: 'detached' });
     ok(await page.locator('.client-view > .view-tab-toggle').count() === 1, 'desktop Analytics tabs were not restored');
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: heightFor(width, arg('height')) });
     await page.locator('[data-pocket-client-phone=analytics]').waitFor();
     ok(writes.length === 0, 'Analytics navigation wrote data');
     ok(errors.length === 0, 'Analytics page errors: ' + errors.join(' | '));

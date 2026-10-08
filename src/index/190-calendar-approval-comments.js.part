@@ -1,4 +1,5 @@
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor,
   _calIsYouTubeCard, _calNormStatus, _prodCommentAddRoutesLegacy, _writeUiBindRepairAck,
@@ -61,7 +62,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // matching media URL must already be linked, so warn while it's empty.
         // The video sub-status governs the video URL; the thumbnail (graphic)
         // sub-status governs the thumbnail URL — each is independent.
-        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
+        // N/A is not "past In Progress": it says the post will never have this
+        // part, which is exactly what the warning itself tells people to set
+        // ("If this post will never have one, set it to N/A"). Counting it kept
+        // the warning on the card, and the post in Today's "Missing links",
+        // with no way to clear either short of adding a link.
+        const beyondProgress = s => { const st = _calNormStatus(s || ''); return st !== 'In Progress' && st !== 'N/A'; };
         const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
         const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;
@@ -899,6 +905,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
         Promise.resolve(_calFlushCardSave(pid)).then(() => {
             _calReviewState.saving[key] = false;
+            /* The card save does not reject: it catches its own failure and
+               marks the card. The .catch below therefore never ran, and a
+               comment that did not save sat in the thread looking sent, with
+               no error anywhere in the Review view (the "Save failed" chip is
+               only on Sheet cards). Read the mark, as Approve does. */
+            const current = calState.posts.find(p => p.id === pid);
+            if (current && current._saveError) {
+                _calReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError;
+                _calReviewRepaintCard(pid);
+                return;
+            }
             if (_calStaffPhoneActive()) _calReviewRepaintCard(pid);
         }).catch(e => {
             _calReviewState.saving[key] = false;
@@ -2224,6 +2241,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 <div class="cal-comments-feed-inner">${feedHtml}</div>
             </div>
             ${_calComposerHtml(post, comments)}`;
+        _svPhoneNotesPresentation();
         const ta = document.getElementById('calCommentComposer');
         if (ta) {
             _calAutosizeComposer(ta);

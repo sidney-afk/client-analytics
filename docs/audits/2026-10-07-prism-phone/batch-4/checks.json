@@ -1,0 +1,83 @@
+{
+  "sourceHash": "64f9edea37ec2c428cd82be3b794f0944c4f62f7839f69714029f9352eabbb17",
+  "scope": "Local batch proof. Broad legacy inventories may still be running; hosted checks and complete phone acceptance are separate gates.",
+  "statuses": {
+    "after-staff-final": "PASS",
+    "after-notes-compact-fixed": "PASS",
+    "after-calendar-final": "PASS",
+    "notes-actions-final": "PASS",
+    "calendar-actions-final": "PASS",
+    "design-final": "PASS",
+    "focused-source-bound": "PASS",
+    "desktop-source-bound": "PASS",
+    "modules-final": "PASS",
+    "legacy-staff-all": "PASS",
+    "legacy-rules-final": "PASS",
+    "map-after-rebase": "PASS",
+    "truth-after-rebase": "PASS",
+    "client-links-after-rebase": "PASS",
+    "index-head": "PASS",
+    "exposure-head": "PASS"
+  },
+  "actualTails": {
+    "after-staff-final": [
+      "ok samples-card-notes 412 dark",
+      "staff-phone-final-pass: 24 renders, 0 problems"
+    ],
+    "after-notes-compact-fixed": [
+      "client-links-expanded: OK (1014 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 393/412; requested light, effective client light)."
+    ],
+    "after-calendar-final": [
+      "client-calendar-expanded: OK (1560 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 393/412; requested light, effective client light)."
+    ],
+    "notes-actions-final": [
+      "client-links-expanded: OK (5110 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 360/390/393/412/430; requested light/dark, effective client light)."
+    ],
+    "calendar-actions-final": [
+      "client-calendar-expanded: OK (7830 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360/390/393/412/430; requested light/dark, effective client light)."
+    ],
+    "design-final": [
+      "ok sample-reviews-412-dark-linked",
+      "STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports"
+    ],
+    "focused-source-bound": [
+      "ok samples-notes-unlinked-light-warm: desktop pixels and computed styles identical",
+      "FIXTURE_DESKTOP_PARITY: 14/14 exact 1440 desktop pairs; native Today/Notes fixtures; cold and phone-to-desktop Notes; no live writes."
+    ],
+    "desktop-source-bound": [
+      "ok   client-sample-reviews @1440: pixels identical, computed styles identical (7946014bb0e8)",
+      "18/18 desktop shots identical to 8eb01d9339b2f1af773723c8c090f0d77dd6c2df"
+    ],
+    "modules-final": [
+      "minified parts: 19 files, 2659 KB, 5218 top-level names, 0 lost, 0 changed kind",
+      "check-modules: all checks passed"
+    ],
+    "legacy-staff-all": [
+      "ok samples-card-notes 430 dark",
+      "staff-phone-final-pass: 524 renders, 0 problems"
+    ],
+    "legacy-rules-final": [
+      "ok time-off-dark-430 screen, menus, layout and scroll lock",
+      "STAFF_PHONE_RULES: 160 states; 0 failures; 390/430 touch; synthetic transports; no live writes"
+    ],
+    "map-after-rebase": [
+      "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
+      "repo-map-sync: 1123 passed, 0 failed"
+    ],
+    "truth-after-rebase": [
+      "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",
+      "truth-sync: 515 passed, 0 failed"
+    ],
+    "client-links-after-rebase": [
+      "client-links-expanded: OK (1022 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 393/412; requested light, effective client light)."
+    ],
+    "index-head": [
+      "check-index: committed index.html (HEAD) \u2014 sha256=16302629083da4d558dd5c4f38821e0457f2db6e19a0586fe39a9212ab927f84 bytes=1315579",
+      "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    ],
+    "exposure-head": [
+      "  WHERE (counts only \u2014 this tool never prints what it matched):",
+      "This change adds no client slug and no colleague's name \u2705"
+    ]
+  }
+}

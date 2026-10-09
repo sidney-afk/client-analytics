@@ -1052,6 +1052,94 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         }
     }
 
+    /* Background refreshes (realtime, the fallback poll, tab return) repaint
+       the whole body. Keeping the old pixel offsets was not enough: when a
+       teammate's card lands before the one on screen (or one is archived),
+       the same scrollLeft shows a different card and the board jumps by a
+       card width. So every scrolled box in the body, and the page itself,
+       remembers the first card or day in view and where it sat, and the
+       repaint puts that same card back in the same place. The pixel offset
+       stays the fallback when that card is gone. */
+    const CAL_SCROLL_KEYS = ['data-pid', 'data-cal-review-pid', 'data-iso', 'data-cal-move'];
+    const CAL_SCROLL_KEY_SEL = CAL_SCROLL_KEYS.map(a => '[' + a + ']').join(',');
+    function _calScrollKey(el) {
+        for (const attr of CAL_SCROLL_KEYS) { const v = el.getAttribute(attr); if (v) return { attr, value: v }; }
+        return null;
+    }
+    function _calScrollKeySel(key) {
+        const v = (window.CSS && CSS.escape) ? CSS.escape(key.value) : String(key.value).replace(/["\\]/g, '\\$&');
+        return '[' + key.attr + '="' + v + '"]';
+    }
+    // Where a scrolled box lives, so the same box can be found after the
+    // repaint: its id, or its first class and position inside the nearest card.
+    function _calScrollerPath(el, body) {
+        if (el.id) return { id: el.id };
+        const host = el.parentElement ? el.parentElement.closest(CAL_SCROLL_KEY_SEL) : null;
+        const cls = (typeof el.className === 'string' && el.className.trim()) ? el.className.trim().split(/\s+/)[0] : '';
+        if (!cls) return null;
+        const scope = (host && body.contains(host)) ? host : body;
+        return { host: scope === body ? null : _calScrollKey(scope), cls, n: Array.from(scope.getElementsByClassName(cls)).indexOf(el) };
+    }
+    function _calFindScroller(path, body) {
+        if (path.id) { const el = document.getElementById(path.id); return el && body.contains(el) ? el : null; }
+        const scope = path.host ? body.querySelector(_calScrollKeySel(path.host)) : body;
+        return scope ? (scope.getElementsByClassName(path.cls)[path.n] || null) : null;
+    }
+    function _calScrollBox(el) {
+        if (!el) return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+        const r = el.getBoundingClientRect();
+        return { left: r.left, top: r.top, right: r.left + el.clientWidth, bottom: r.top + el.clientHeight };
+    }
+    function _calScrollAnchor(scope, el) {
+        const box = _calScrollBox(el);
+        for (const item of scope.querySelectorAll(CAL_SCROLL_KEY_SEL)) {
+            const r = item.getBoundingClientRect();
+            if (!r.width && !r.height) continue;
+            if (r.right <= box.left + 1 || r.bottom <= box.top + 1 || r.left >= box.right || r.top >= box.bottom) continue;
+            const key = _calScrollKey(item);
+            if (key) return { key, dx: r.left - box.left, dy: r.top - box.top };
+        }
+        return null;
+    }
+    function _calCaptureScroll(body) {
+        const boxes = [];
+        body.querySelectorAll('*').forEach(el => {
+            if (!el.scrollLeft && !el.scrollTop) return;
+            const path = _calScrollerPath(el, body);
+            if (path) boxes.push({ path, x: el.scrollLeft, y: el.scrollTop, anchor: _calScrollAnchor(el, el) });
+        });
+        return { boxes, page: { x: window.scrollX, y: window.scrollY, anchor: _calScrollAnchor(body, null) } };
+    }
+    function _calRestoreScroll(body, snap) {
+        if (!snap) return;
+        const settle = (el, rec, again) => {
+            if (again) { if (el && !el.isConnected) return; }
+            else if (el) { el.scrollLeft = rec.x; el.scrollTop = rec.y; }
+            else window.scrollTo({ left: rec.x, top: rec.y, behavior: 'instant' });
+            if (!rec.anchor) return;
+            const item = (el || body).querySelector(_calScrollKeySel(rec.anchor.key));
+            if (!item) return;
+            const r = item.getBoundingClientRect(), box = _calScrollBox(el);
+            const dx = Math.round(r.left - box.left - rec.anchor.dx), dy = Math.round(r.top - box.top - rec.anchor.dy);
+            if (!dx && !dy) return;
+            // The page itself only follows its own vertical axis: a card's
+            // sideways move belongs to the strip around it, restored first.
+            if (el) { el.scrollLeft += dx; el.scrollTop += dy; }
+            else if (dy) window.scrollTo({ left: rec.x, top: window.scrollY + dy, behavior: 'instant' });
+        };
+        // Inner boxes first, outermost first, then the page last.
+        const found = snap.boxes.map(rec => ({ rec, el: _calFindScroller(rec.path, body) })).filter(b => b.el);
+        found.forEach(b => settle(b.el, b.rec));
+        settle(null, snap.page);
+        // A card that was not on screen before still settles its height in
+        // the next frame (its picture, its caption box), so look once more.
+        requestAnimationFrame(() => {
+            if (!body.isConnected) return;
+            found.forEach(b => settle(b.el, b.rec, true));
+            settle(null, snap.page, true);
+        });
+    }
+
     let _calLastBodyPaint = { el: null, view: null, html: null };
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
@@ -1060,8 +1148,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it
         const preserveScroll = !!(opts && opts.preserveScroll);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
-        const scrollLeft0 = stripBefore ? stripBefore.scrollLeft : null;
-        const scrollY0 = preserveScroll ? window.scrollY : null;
+        const scrollSnap = preserveScroll ? _calCaptureScroll(body) : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
             body.innerHTML = document.body.classList.contains('sv-shared-client')
@@ -1107,13 +1194,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             // (same pid + same src) so the browser doesn't have to repaint
             // thumbnails from the cache — no card-height shift on refresh.
             _calRestoreThumbs(harvestedThumbs);
-            // Restore the captured scroll synchronously, before the browser
-            // paints the new strip — eliminates the brief jump to zero that
-            // would otherwise be visible on every re-render.
-            if (preserveScroll && scrollLeft0 != null) {
-                const stripNow = document.getElementById('calStrip');
-                if (stripNow) stripNow.scrollLeft = scrollLeft0;
-            }
+            // The captured scroll is restored below, in this same task, so the
+            // browser never paints the new strip at zero.
             wireCalOrganizerDrag(preserveScroll);
             _calSelectionFollowsTheSheet();
         } else if (calState.view === 'month') {
@@ -1125,7 +1207,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
-        if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
+        if (preserveScroll) _calRestoreScroll(body, scrollSnap);
         _calUpdateReviewBadge();
         _calSyncMonthWarnIcon();
         _calSyncClientLinks();

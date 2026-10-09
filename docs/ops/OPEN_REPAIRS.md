@@ -31681,3 +31681,76 @@ answers and counts only. A session that builds something waiting on the owner ad
 the shelf in the same pull request. Not proven: its live mode (Management API reads) has never run
 against the real API, because this session had no token; today's table came from `--live-json`. A
 probe it cannot read prints `UNKNOWN`, never a pass.
+
+## 388. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, SWITCH OFF] Generate caption off n8n: the caption-generate function, a fixed writing rule set, and a transcript box (session Scribe)
+
+The Calendar's Generate caption ran on the n8n workflow "SyncView Calendar —
+Generate Caption" (Frame.io file, Replicate Whisper, Claude, then calendar-upsert;
+progress already in `caption-jobs`). The workflow was read, never edited, run or
+deactivated.
+
+Built: `supabase/functions/caption-generate/` does the same job step for step
+(same request keys, direct Frame.io lookup with the Apify scrape as fallback,
+same Whisper version and settings, same default prompt, model `claude-sonnet-4-6`
+and 1500 token cap, same `caption_jobs` stages and cancel checkpoints, same
+calendar-upsert body). It answers at once and works in the background (Supabase
+allows 400 s; the run stops itself at 370 s with an honest error), so the page's
+poller, cancel and refresh survival are unchanged. New:
+- the client's prompt is read from `caption_prompts` by the function;
+- the client's Brain `voice.md` is read the way the `brain` function reads it;
+  the `## Caption style` section is used when it has text, otherwise every
+  written voice section;
+- one fixed writing rule set for every client (`writing-rules.mjs`), adapted
+  from the MIT-licensed "avoid-ai-writing" skill (v3.37.0, notice kept), plus
+  one automatic revision when the draft has a mechanical tell (dashes, listed
+  words);
+- a transcript box: a card with no video opens it from Generate; a card with a
+  video gets an optional Transcript pill. Desktop and phone (bottom sheet).
+
+Switch: `syncview_runtime_flags` key `caption_generate_ef_clients`,
+`{"clients":["<slug>"]}` or `{"all":true}`. Missing, malformed or unreadable
+means n8n, so nothing changes until the owner sets it; measured 2026-10-09: the
+row does not exist. The transcript box only exists on the function path.
+
+Proof (offline only): `test/caption-generate-source.js` (logic and wiring),
+`qa/caption-generate/function-run.ts` (the function's own code under Deno with
+every outside service stood in), `test/caption-generate-browser.js` (desktop and
+iPhone size, switch off and on). Not proven live: the function is not deployed
+and the AI secrets were not available to this session.
+
+**Owner steps:**
+1. Merge.
+2. Supabase, Edge Functions, Secrets: add `REPLICATE_API_TOKEN` (new; from
+   replicate.com, Account, API tokens). Confirm `ANTHROPIC_API_KEY`,
+   `BRAIN_GITHUB_TOKEN` and `APIFY_TOKEN` are listed (the Frame.io fallback
+   uses `APIFY_TOKEN`; without it a link the direct lookup cannot read fails
+   instead of falling back).
+3. Deploy: https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml,
+   Run workflow, function `caption-generate`, commit SHA = main's tip right after
+   the merge.
+4. Switch on for the test client only (Supabase SQL editor):
+   ```sql
+   insert into public.syncview_runtime_flags (key, value, updated_by)
+   values ('caption_generate_ef_clients', '{"clients":["sidneylaruel"]}', 'owner')
+   on conflict (key) do update set value = excluded.value;
+   ```
+   Then generate one caption on a card with a video and one from a pasted
+   transcript.
+5. Rollback at any time (back to n8n at once):
+   `delete from public.syncview_runtime_flags where key = 'caption_generate_ef_clients';`
+
+The n8n workflow stays on until the switch has been on for every client for 30 days.
+
+**For whoever writes `voice.md` in the brain repository:** the function finds the
+section only if it is written the way every brain fact is, a `## Caption style`
+heading followed directly by a `<!-- brain ... -->` block (`brain/parse.mjs`
+skips a heading without one and folds its text into the section above). With
+the block present and text under it, only that section is sent; otherwise every
+written voice section is.
+
+Review follow-ups (2026-10-09, Lighthouse): an existing job id is refused (the
+first row is an insert, so a re-post cannot clear a cancel or start a second
+run); transcripts go to the model inside tags the system message calls data,
+not instructions; a non-Frame.io link is named as such in the box; the
+Transcript pill sits top right, clear of "Show more", and hides on a phone once
+a caption exists; closing the box with pasted text asks first.

@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 197 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7362 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7373 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -31,7 +31,7 @@
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `099-phone-staff-shell.js.part` | 291 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
 | 25 | `099-staff-phone-bar.js.part` | 472 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
-| 26 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 26 | `100-onboarding-staff-controls.js.part` | 2410 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 29 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
@@ -43,10 +43,10 @@
 | 35 | `133-core-loading-skeletons.js.part` | 378 | Modern animated loader — a single rotating ring with a subtle label. |
 | 36 | `134-calendar-prefs-mount.js.part` | 1091 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 37 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
-| 38 | `150-calendar-hydration-import.js.part` | 2289 | For a card linked to a real sub-issue (not a parent), return which of |
+| 38 | `150-calendar-hydration-import.js.part` | 2292 | For a card linked to a real sub-issue (not a parent), return which of |
 | 39 | `160-calendar-organize-ui.js.part` | 3142 | Lighter path for the Order switch: update the chrome in place so the |
 | 40 | `170-calendar-links-status.js.part` | 3442 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 41 | `180-calendar-native-post-media.js.part` | 2953 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 41 | `180-calendar-native-post-media.js.part` | 3132 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 44 | `190-calendar-approval-comments.js.part` | 3248 | Count of posts actually awaiting this surface's sign-off — i.e. at least |

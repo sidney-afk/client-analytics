@@ -155,6 +155,7 @@
     "calendar-whole-card-status-guard.js",
     "canonical-coverage-hold-routes-legacy.js",
     "caption-cancel-grace.js",
+    "caption-generate-source.js",
     "caption-has-no-work-item.js",
     "caption-jobs-page-wiring.js",
     "caption-jobs-source.js",
@@ -1612,6 +1613,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the staff Calendar write guard: fresh flag read per write, hold and pause, zero n8n requests, exact REST query parameters.",
       "reproduce": "node test/calendar-write-guard-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "caption-generate-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks Generate caption on desktop and phone size: switch off keeps the n8n call unchanged; switch on uses the caption-generate function and the transcript box.",
+      "reproduce": "node test/caption-generate-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

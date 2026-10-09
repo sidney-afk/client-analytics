@@ -262,3 +262,21 @@ Backup: the saved versions above stay in n8n (deactivated, not archived), and th
 the private Drive folder. The Upsert Post graph names a client in its code comments, so no copy is committed to this public repo.
 Undo: in n8n open the workflow and publish it again (the version above comes back). For TikTok, publish all six, then set
 `tiktok_upload_source` back to `n8n`. For Calendar, publish the helper first, then Upsert Post.
+
+## 2026-10-09 Five unused SyncView workflows switched off (owner's go, session Lighthouse)
+
+Workflows and the version that stays saved in each (unpublished only; no step, connection or credential touched):
+- SyncView Caption Prompts, Save (`RGkuE8d4uJg6CPde`): `9b750ccb-cdf5-43f0-a70b-c478ed73c62f`
+- SyncView Caption Jobs, Status (`5KnYvvZ33B78Khny`): `56879e80-1a36-4a71-a005-c2baa021e7d6`
+- SyncView Caption Jobs, Update (`vwRfBZsmUMtDqbYM`): `1af36f80-f31f-4314-bd12-4b4f84142678`
+- SyncView Calendar, Get (`KViFEOqSRBNdCJRk`): `51dcb7ec-f756-4d06-ac8f-39dbfc7b7b1d`
+- SyncView Kasper, Queue (batch) (`TcWOfnKd4Csdnnbv`): `6fd805a3-be1e-4cd7-ab44-906aa635de7c`
+Changed: unpublished (active true to false). Nothing deleted, nothing edited.
+Why: replaced by `caption-prompts-save` and the `caption_prompts` table (OPEN_REPAIRS 291), the `caption-jobs` function (303)
+and the page's own database reads (308). Listed as ready by session Shipwright (OPEN_REPAIRS 389, docs/ops/OWNER_SHIP_LIST.md).
+Evidence, checked immediately before switching off on 2026-10-09: zero runs of all five since 2026-10-02 00:00 UTC.
+Read back after: workflow details show `active: false` for all five.
+Left on, on purpose: `Caption Prompts, Get` (first-load fallback, 291), `Sample Review, Upsert` (still running, cause under
+investigation) and `TikTok Upload, Result` (until Post For Me's webhook is re-pointed, 370).
+Backup: the saved versions above stay in n8n (deactivated, not archived), and the Sunday weekly backup exports every workflow.
+Undo: in n8n open the workflow and publish it again.

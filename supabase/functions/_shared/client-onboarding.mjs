@@ -17,6 +17,19 @@
 // READS return presence and ids only: never a review token, a credential or a
 // password (client_resource_status_v1 holds booleans; client_credentials is
 // never read here).
+//
+// CREATE CLIENT (step 2.5): `create_preview` checks a new client against the
+// live roster and says exactly what would be made, writing nothing;
+// `create` makes it through client_create_native() (migration
+// 2026-10-08-create-client.sql): roster row, review link, four save
+// permissions, profile, manager and checklist in one transaction. A name that
+// starts with "ZZ THROWAWAY" uses the test path (kind 'test', never on the
+// Sheet, removable). For a REAL client the database also nudges the
+// Slack Creative Channel Finalizer once the create commits (and again when a
+// filming plan link is saved), so the preview reports what the finalizer will
+// still wait for: the onboarding form under the same name and email, the
+// manager's Slack id, and the filming plan link. A test client never reaches
+// Slack.
 import { clientSlug } from './sheets-mirror.mjs';
 
 export const CORS = Object.freeze({
@@ -25,7 +38,7 @@ export const CORS = Object.freeze({
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-syncview-key',
   'Cache-Control': 'no-store',
 });
-export const ACTIONS = Object.freeze(['get', 'set_step', 'summary']);
+export const ACTIONS = Object.freeze(['get', 'set_step', 'summary', 'create_preview', 'create']);
 export const STATUSES = Object.freeze(['todo', 'done', 'skipped', 'unknown']);
 export const MAX_BODY = 100000;
 export const MAX_TEXT = 2000;
@@ -47,6 +60,143 @@ const RPC_ERRORS = Object.freeze({
   client_onboarding_client_missing: [404, 'client_profile_missing'],
   client_onboarding_version_conflict: [409, 'version_conflict'],
 });
+// client_create_native() refusals -> HTTP status and a stable code.
+const CREATE_ERRORS = Object.freeze({
+  client_create_name_taken: [409, 'name_taken'],
+  client_create_name_on_a_manager_list: [409, 'name_on_a_manager_list'],
+  client_create_slug_taken: [409, 'slug_taken'],
+  client_create_slug_invalid: [400, 'slug_invalid'],
+  client_create_name_invalid: [400, 'name_invalid'],
+  client_create_email_invalid: [400, 'email_invalid'],
+  client_create_email_required: [400, 'email_required'],
+  client_create_manager_unknown: [400, 'manager_unknown'],
+  client_create_test_needs_throwaway_name: [400, 'test_needs_throwaway_name'],
+  client_create_throwaway_name_needs_test_mode: [400, 'throwaway_name_needs_test_mode'],
+  client_create_checklist_incomplete: [500, 'checklist_incomplete'],
+  roster_authority_not_syncview: [409, 'authority_not_syncview'],
+  native_client_provision_authority_unavailable: [409, 'production_authority_unavailable'],
+  native_client_test_provision_authority_unavailable: [409, 'production_authority_unavailable'],
+  native_client_provision_epochs_unavailable: [409, 'production_authority_unavailable'],
+  native_client_test_provision_epochs_unavailable: [409, 'production_authority_unavailable'],
+  native_client_provision_routing_flag_invalid: [409, 'routing_flag_invalid'],
+  native_client_test_provision_routing_flag_invalid: [409, 'routing_flag_invalid'],
+  native_client_provision_idempotency_conflict: [409, 'request_reused'],
+  native_client_test_provision_idempotency_conflict: [409, 'request_reused'],
+  native_client_provision_client_exists: [409, 'slug_taken'],
+  native_client_test_provision_client_exists: [409, 'slug_taken'],
+});
+export function mapCreateError(message, code) {
+  const m = clean(message);
+  // PostgREST answers PGRST202 when the function is not there: the migration is not applied yet.
+  if (clean(code) === 'PGRST202' || /could not find the function/i.test(m)) return { status: 503, code: 'create_not_installed' };
+  for (const [text, out] of Object.entries(CREATE_ERRORS)) if (m.includes(text)) return { status: out[0], code: out[1] };
+  return { status: 500, code: 'create_failed' };
+}
+
+export const THROWAWAY_NAME = /^ZZ THROWAWAY/;
+const ROUTING_KEYS = ['calendar_upsert_ef_clients', 'sample_review_ef_clients', 'settings_ef_clients', 'write_ui_reroute_clients'];
+// What a create makes, in plain words, for the preview. Counts only.
+export const WILL_CREATE = Object.freeze([
+  'Roster row (the client appears across SyncView)',
+  'Review link for the client',
+  'Save permissions in all four lists',
+  'Client profile (the Clients tab details)',
+  'Social media manager assignment',
+  '27-step onboarding checklist, with 4 steps ticked by this create',
+]);
+// A Slack user id, the only form the finalizer accepts in slack_profile_url.
+const SLACK_USER = /^U[A-Z0-9]{6,}$/i;
+
+// A manager for the picker: whether a Slack id is on file, never the id itself.
+const managerOut = (m) => ({ slug: m.slug, name: clean(m.name) || m.slug, slack_id: SLACK_USER.test(clean(m.slack_profile_url)) });
+
+// What the Slack finalizer will still wait for, for a real client. It matches
+// the onboarding form's name EXACTLY (case included) and its email (any case),
+// so a form already on file under a different name or email is a blocker: the
+// channels would never be made.
+export function slackReadiness(v, forms, manager, plan) {
+  const lower = (x) => clean(x).toLowerCase();
+  // Spaces collapsed exactly as validateCreate does for the typed name.
+  const nameOf = (f) => [clean(f.first_name), clean(f.last_name)].filter(Boolean).join(' ').replace(/\s+/g, ' ');
+  const byEmail = v.email ? (forms || []).filter((f) => lower(f.email) === lower(v.email)) : [];
+  const bySlug = (forms || []).filter((f) => clientSlug(nameOf(f)) === v.slug);
+  const form = byEmail[0] || bySlug[0] || null;
+  const blockers = [];
+  let formName = null; let formEmail = null;
+  if (form) {
+    formName = nameOf(form);
+    formEmail = clean(form.email);
+    if (formName !== v.name) blockers.push('name_differs_from_form');
+    if (lower(formEmail) !== lower(v.email)) blockers.push('email_differs_from_form');
+  }
+  return {
+    blockers,
+    slack: {
+      form_received: !!form, form_name: formName, form_email: formEmail,
+      manager_slack_id: !!(manager && SLACK_USER.test(clean(manager.slack_profile_url))),
+      filming_plan_linked: !!(plan && clean(plan.doc_url) && clean(plan.doc_id)),
+    },
+  };
+}
+
+export function validateCreate(body) {
+  const name = clean(body.display_name).replace(/\s+/g, ' ');
+  if (!name || name.length > 160) return { ok: false, error: 'name_invalid' };
+  const slug = clientSlug(name);
+  if (!slug || slug.length > 60) return { ok: false, error: 'slug_invalid' };
+  const managerSlug = clean(body.manager_slug);
+  if (!/^[a-z0-9&]{1,60}$/.test(managerSlug)) return { ok: false, error: 'manager_unknown' };
+  const email = clean(body.email);
+  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return { ok: false, error: 'email_invalid' };
+  const mode = THROWAWAY_NAME.test(name) ? 'test' : 'client';
+  if (mode === 'client' && (/^zzthrowaway/.test(slug) || /^zz throwaway/i.test(name))) return { ok: false, error: 'throwaway_name_needs_test_mode' };
+  // The Slack finalizer compares the email with the onboarding form and sends an empty one to manual.
+  if (mode === 'client' && !email) return { ok: false, error: 'email_required' };
+  return { ok: true, name, slug, managerSlug, email, mode };
+}
+
+// Read-only checks against the live roster. Returns the blockers (codes) the
+// database would refuse with, so the preview can say so before anything runs.
+export async function createPreview(db, v) {
+  // The onboarding form lands in client_onboarding (standard funnel) or
+  // ai_client_onboarding (AI funnel); the finalizer's queue row can come from either.
+  const FORM_COLS = 'first_name,last_name,email,created_at';
+  const readForms = (table) => must(db.from(table).select(FORM_COLS).order('created_at', { ascending: false }).limit(1000));
+  const [managers, flags, clients, profiles, forms, aiForms, plans] = await Promise.all([
+    must(db.from('social_media_managers').select('slug,name,active,source_clients,slack_profile_url').eq('active', true).order('name', { ascending: true })),
+    must(db.from('syncview_runtime_flags').select('key,value').in('key', ['client_profiles_authority', 'prod_authority', ...ROUTING_KEYS])),
+    must(db.from('clients').select('slug,display_name')),
+    must(db.from('client_profiles').select('slug,display_name')),
+    v.mode === 'client' ? readForms('client_onboarding') : [],
+    v.mode === 'client' ? readForms('ai_client_onboarding') : [],
+    v.mode === 'client' ? must(db.from('filming_plans').select('client_slug,doc_url,doc_id').eq('client_slug', v.slug)) : [],
+  ]);
+  const flag = Object.fromEntries((flags || []).map((f) => [f.key, f.value]));
+  const lower = (x) => clean(x).toLowerCase();
+  const blockers = [];
+  if (lower(flag.client_profiles_authority && flag.client_profiles_authority.source) !== 'syncview') blockers.push('authority_not_syncview');
+  const pa = flag.prod_authority || {};
+  if (lower(pa.video) !== 'syncview' || lower(pa.graphics) !== 'syncview') blockers.push('production_authority_unavailable');
+  if (ROUTING_KEYS.some((k) => !flag[k] || !Array.isArray(flag[k].clients))) blockers.push('routing_flag_invalid');
+  const manager = (managers || []).find((m) => m.slug === v.managerSlug) || null;
+  if (!manager) blockers.push('manager_unknown');
+  const all = [...(clients || []), ...(profiles || [])];
+  if (all.some((r) => lower(r.display_name) === lower(v.name))) blockers.push('name_taken');
+  else if ((managers || []).some((m) => (Array.isArray(m.source_clients) ? m.source_clients : []).some((c) => lower(c) === lower(v.name)))) blockers.push('name_on_a_manager_list');
+  if (all.some((r) => clean(r.slug) === v.slug)) blockers.push('slug_taken');
+  const allForms = [...(forms || []), ...(aiForms || [])].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const ready = v.mode === 'client' ? slackReadiness(v, allForms, manager, (plans || [])[0]) : null;
+  if (ready) blockers.push(...ready.blockers);
+  return {
+    ready: blockers.length === 0, blockers, mode: v.mode, slug: v.slug, display_name: v.name, email: v.email || null,
+    manager: manager ? { slug: manager.slug, name: clean(manager.name) || manager.slug } : null,
+    managers: (managers || []).map(managerOut),
+    will_create: WILL_CREATE, sheet_copy: v.mode === 'client',
+    // A test client never reaches Slack; a real one is handed to the finalizer.
+    slack: ready ? Object.assign({ mode: 'finalizer' }, ready.slack) : { mode: 'never' },
+  };
+}
+
 export function mapRpcError(message) {
   const m = clean(message);
   for (const [text, out] of Object.entries(RPC_ERRORS)) if (m.includes(text)) return { status: out[0], code: out[1] };
@@ -120,6 +270,36 @@ export function buildHandler(deps) {
 
       const member = await adminMember(db, clean(body.member_id));
       if (!member) return json({ ok: false, error: 'admin_member_required' }, 403);
+
+      if (action === 'create_preview' || action === 'create') {
+        // With no name yet, the preview only lists the managers (the dialog's picker).
+        if (action === 'create_preview' && !clean(body.display_name)) {
+          const managers = await must(db.from('social_media_managers').select('slug,name,slack_profile_url').eq('active', true).order('name', { ascending: true }));
+          return json({ ok: true, ready: false, blockers: ['name_invalid'], managers: (managers || []).map(managerOut) });
+        }
+        const v = validateCreate(body);
+        if (!v.ok) return json({ ok: false, error: v.error }, 400);
+        const preview = await createPreview(db, v);
+        if (action === 'create_preview') return json({ ok: true, ...preview });
+        const requestId = clean(body.request_id);
+        if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$/.test(requestId)) return json({ ok: false, error: 'request_id_required' }, 400);
+        const made = await db.rpc('client_create_native', {
+          p_request_id: requestId, p_client_slug: v.slug, p_display_name: v.name, p_manager_slug: v.managerSlug,
+          p_email: v.email || '', p_actor: member.name, p_mode: v.mode,
+        });
+        if (made.error) {
+          const m = mapCreateError(made.error.message, made.error.code);
+          if (m.code === 'create_failed') console.error('client-onboarding: create failed', clean(made.error.message).slice(0, 200));
+          return json({ ok: false, error: m.code, blockers: preview.blockers }, m.status);
+        }
+        // Best effort, real clients only: push the new rows to the read-only Sheet copy now
+        // (what is not copied stays queued for the next copy). Never turns a create into a failure.
+        let sheetCopy = null;
+        if (v.mode === 'client' && typeof deps.copyToSheet === 'function') {
+          try { sheetCopy = await deps.copyToSheet(db); } catch (_e) { sheetCopy = { ok: false }; }
+        }
+        return json({ ok: true, request_id: requestId, result: made.data, client_slug: v.slug, mode: v.mode, sheet_copy: sheetCopy });
+      }
 
       if (action === 'summary') {
         const rows = await must(db.from('client_onboarding_summary_v1').select('*').order('client_slug', { ascending: true }));

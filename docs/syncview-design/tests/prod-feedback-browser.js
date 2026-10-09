@@ -52,6 +52,7 @@ async function check(label, fn) { await fn(); checks++; console.log('  ok  ' + l
       const _prodCommentBegin = () => { mutationButtons++; };
       const _prodCommentLifecycle = () => { mutationButtons++; };
       ${['_calEsc', '_calEscAttr', '_jsAttrArg'].map(name => source.match(new RegExp('^\\s*function ' + name + '\\([^\\n]+', 'm'))[0]).join('\n')}
+      ${between('function _writeUiCommentRound(', 'function _writeUiNativeId(')}
       ${between('function _prodHashText(', 'function _prodInitials(')}
       ${between('function _prodFileLinkLabel(', 'function _prodAssetsPanelHTML(')}
       ${renderCode}

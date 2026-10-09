@@ -1,0 +1,218 @@
+[
+  {
+    "state": "tiktok-client-ready",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-light-393.png",
+        "sha256": "29da365828d672d492b5a317eb66d4114d26f64585924f6f496ff89fd5fb5d5f"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-light-393-viewport.png",
+        "sha256": "19a1957de4c4b8d75d0b485f279912038efac939d5b9df0a20e76ac1a5727cee"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-light-393.png",
+        "sha256": "29da365828d672d492b5a317eb66d4114d26f64585924f6f496ff89fd5fb5d5f"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-light-393-viewport.png",
+        "sha256": "19a1957de4c4b8d75d0b485f279912038efac939d5b9df0a20e76ac1a5727cee"
+      }
+    }
+  },
+  {
+    "state": "tiktok-client-ready",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-dark-393.png",
+        "sha256": "49724fa9ebb0a4904da351e87450ed1af35e0a01a36987321ed7e860f84daaf9"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-dark-393-viewport.png",
+        "sha256": "25b162b46b26466fa3ca3422ee204dd5ddb16bdfff3a2602505f2618ac282ed1"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-dark-393.png",
+        "sha256": "49724fa9ebb0a4904da351e87450ed1af35e0a01a36987321ed7e860f84daaf9"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-dark-393-viewport.png",
+        "sha256": "25b162b46b26466fa3ca3422ee204dd5ddb16bdfff3a2602505f2618ac282ed1"
+      }
+    }
+  },
+  {
+    "state": "tiktok-client-ready",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-light-412.png",
+        "sha256": "1dadb23c6d81ddf201c4d654a10a232777d116b2279ea63e91a028f3945931cc"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-light-412-viewport.png",
+        "sha256": "66adde363371d10afb2041939298a1474344d07f38e834ef1ae769cddcd9e016"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-light-412.png",
+        "sha256": "1dadb23c6d81ddf201c4d654a10a232777d116b2279ea63e91a028f3945931cc"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-light-412-viewport.png",
+        "sha256": "66adde363371d10afb2041939298a1474344d07f38e834ef1ae769cddcd9e016"
+      }
+    }
+  },
+  {
+    "state": "tiktok-client-ready",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-dark-412.png",
+        "sha256": "2538c0a644d4a3afeff3a216dcbda91ef9ec294eba67c7882caa315864f0e369"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-ready-dark-412-viewport.png",
+        "sha256": "57b989ec44fa19eef55f8c7ed981921a003c26177d40b84b180416f7a42c5c07"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-dark-412.png",
+        "sha256": "2538c0a644d4a3afeff3a216dcbda91ef9ec294eba67c7882caa315864f0e369"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-ready-dark-412-viewport.png",
+        "sha256": "57b989ec44fa19eef55f8c7ed981921a003c26177d40b84b180416f7a42c5c07"
+      }
+    }
+  },
+  {
+    "state": "tiktok-client-search",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-light-393.png",
+        "sha256": "7cecc484e5599fd5adab7882b103961c5b38c0cd06a4ed6b36af39307129ee3b"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-light-393-viewport.png",
+        "sha256": "7cecc484e5599fd5adab7882b103961c5b38c0cd06a4ed6b36af39307129ee3b"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-light-393.png",
+        "sha256": "7cecc484e5599fd5adab7882b103961c5b38c0cd06a4ed6b36af39307129ee3b"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-light-393-viewport.png",
+        "sha256": "7cecc484e5599fd5adab7882b103961c5b38c0cd06a4ed6b36af39307129ee3b"
+      }
+    }
+  },
+  {
+    "state": "tiktok-client-search",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-dark-393.png",
+        "sha256": "730304edc492a57e4c9f6cc5807749f526d69ee6ae549d9c1d8cc45b2f8b80f9"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-dark-393-viewport.png",
+        "sha256": "730304edc492a57e4c9f6cc5807749f526d69ee6ae549d9c1d8cc45b2f8b80f9"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-dark-393.png",
+        "sha256": "730304edc492a57e4c9f6cc5807749f526d69ee6ae549d9c1d8cc45b2f8b80f9"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-dark-393-viewport.png",
+        "sha256": "730304edc492a57e4c9f6cc5807749f526d69ee6ae549d9c1d8cc45b2f8b80f9"
+      }
+    }
+  },
+  {
+    "state": "tiktok-client-search",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-light-412.png",
+        "sha256": "20b107c54fe2479438e3f64b1ce712d983f22bbd4daba8748eedfebbbbbd9271"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-light-412-viewport.png",
+        "sha256": "20b107c54fe2479438e3f64b1ce712d983f22bbd4daba8748eedfebbbbbd9271"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-light-412.png",
+        "sha256": "20b107c54fe2479438e3f64b1ce712d983f22bbd4daba8748eedfebbbbbd9271"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-light-412-viewport.png",
+        "sha256": "20b107c54fe2479438e3f64b1ce712d983f22bbd4daba8748eedfebbbbbd9271"
+      }
+    }
+  },
+  {
+    "state": "tiktok-client-search",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+    "before": {
+      "fullPage": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-dark-412.png",
+        "sha256": "728f60bf484a82325cb804318c12fe13406fc36e35b1651df0a4570b2819838d"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/before/tiktok-client-search-dark-412-viewport.png",
+        "sha256": "728f60bf484a82325cb804318c12fe13406fc36e35b1651df0a4570b2819838d"
+      }
+    },
+    "after": {
+      "fullPage": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-dark-412.png",
+        "sha256": "728f60bf484a82325cb804318c12fe13406fc36e35b1651df0a4570b2819838d"
+      },
+      "viewport": {
+        "file": "batch-5/review-followup/after/tiktok-client-search-dark-412-viewport.png",
+        "sha256": "728f60bf484a82325cb804318c12fe13406fc36e35b1651df0a4570b2819838d"
+      }
+    }
+  }
+]

@@ -760,6 +760,17 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             throw _writeUiGatewayError(503, 'client_scope_unavailable');
         }
     }
+    /* A comment's change-request round, as the canonical table accepts it:
+       a whole number of 1 or more, otherwise no round at all. Older calendar
+       comments were stored with round 0, and a reply inherits its thread
+       root's round, so a reply under one of them sent round 0; the server
+       let it through and production_comments' CHECK (round > 0) threw, a 500
+       the page retried about 520 times (OPEN_REPAIRS 382). Every comment
+       write, and every queued retry of one, goes through this. */
+    function _writeUiCommentRound(value) {
+        const round = Number(value);
+        return value != null && value !== '' && Number.isInteger(round) && round > 0 ? round : null;
+    }
     function _writeUiNativeId(post, component) {
         if (!post) return '';
         // A component with no work item has no deliverable id -- least of all
@@ -2529,7 +2540,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 parent_id: String(meta && meta.parentId || meta && meta.comment && meta.comment.parent_id || ''),
                 audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                 is_tweak: !!(meta && meta.isTweak),
-                round: meta && Number.isInteger(meta.round) ? meta.round : null
+                round: _writeUiCommentRound(meta && meta.round)
             } : null,
             attempted: false,
             native_committed: false
@@ -3436,7 +3447,7 @@ export {
   _writeUiLastRenderedAuthoritySig, _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner,
   _writeUiLegacyResumeOwnerCurrent, _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom,
   _writeUiLinkSlotSealed, _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice,
-  _writeUiMarkRepairCommitted, _writeUiMergeCommittedBatch, _writeUiNativeId, _writeUiNativeStatus,
+  _writeUiMarkRepairCommitted, _writeUiMergeCommittedBatch, _writeUiCommentRound, _writeUiNativeId, _writeUiNativeStatus,
   _writeUiPrimeRerouteFlag, _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRecordFailure,
   _writeUiRefreshAuthority, _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions,
   _writeUiRepairJournalRead, _writeUiReportFailure, _writeUiRerouteUseGateway,

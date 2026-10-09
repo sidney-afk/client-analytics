@@ -13,7 +13,7 @@ import {
   _writeUiSourceClientSlug, _writeUiSourceEditsOnly
 } from './120-calendar-flags-write-repair.js';
 import { _calShouldBumpThumbRevForGraphicStatus } from './130-calendar-model-cache.js';
-import { _svClientPhoneActive, _svClientPhoneRegisterSamplesRefresh } from './095-shared-client.js';
+import { _svClientPhoneActive, _svClientPhoneRegisterSamplesRefresh, _svPhoneNotesPresentation } from './095-shared-client.js';
 import { _writeUiLegacyWithoutRetired } from './134-calendar-prefs-mount.js';
 import {
   _writeUiApplyOverallStatus, _writeUiApplySupersededTeamDelivery,
@@ -1990,6 +1990,7 @@ import {
             ${actionFailure}
             <div class="cal-comments-feed" id="sxrCommentsFeed"><div class="cal-comments-feed-inner">${feedHtml}</div></div>
             ${_sxrComposerHtml(post, videoComments)}`;
+        _svPhoneNotesPresentation();
         const ta = document.getElementById('sxrCommentComposer');
         if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
     }
@@ -2031,7 +2032,7 @@ import {
         const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
         const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target ? _sxrFindCompForCommentId(post, target.id) : _sxrComposeComp);
         if (role === 'client' && !canonicalGate.linked) {
-            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
+            return '<div class="cal-comments-empty" data-notes-unavailable><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
         }
         if (canonicalGate.linked && (!canonicalGate.ready || (role === 'client' && !canonicalGate.client))) {
             return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'

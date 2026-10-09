@@ -15,13 +15,13 @@ is recorded as a known residual. The journey sweep found three: one confirmed
 against a live count and fixed (a Calendar address for a client whose slug has
 "&" fell through to Home), two put to the owner as questions. The stop rule has
 not been met. Browser changes only. No live write, deploy, merge, flag or n8n
-edit. Detail: OPEN_REPAIRS 376.
+edit. Detail: OPEN_REPAIRS 384.
 
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 2 (batch 5) and the cycle 2 tally
 
 Nine of the fifteen candidates batch 4 left unverified were verified (two
 against live counts) and fixed in one stacked PR; six remain unverified and are
-listed in OPEN_REPAIRS 375. Cycle 2 in all: 28 candidates, 22 confirmed and
+listed in OPEN_REPAIRS 383. Cycle 2 in all: 28 candidates, 22 confirmed and
 fixed across two PRs, 6 open. The stop rule (two cycles in a row with nothing)
 has not been met. Browser changes only. No live write, deploy, merge, flag or
 n8n edit.
@@ -34,13 +34,13 @@ Thirteen verified in the code and fixed in one stacked PR, pinned by a suite
 whose blocks each fail on the code before it; fifteen recorded unverified for
 the next cycle. The stop rule (two cycles in a row with nothing) has not been
 met. Browser changes only. No live write, deploy, merge, flag or n8n edit.
-Detail: OPEN_REPAIRS 374.
+Detail: OPEN_REPAIRS 377.
 
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 3) and the cycle 1 tally
 
 The Today and Clients group: eight candidates, four confirmed and fixed, one
 confirmed and left for a server change, one put to the owner as a question, two
-not verified. Detail: OPEN_REPAIRS 373. Cycle 1 in all: 27 candidates (24 from
+not verified. Detail: OPEN_REPAIRS 376. Cycle 1 in all: 27 candidates (24 from
 three pattern sweeps, 3 from a signed-in walk of the live site on the test
 client); 18 of them confirmed and closed by 17 fixes across three stacked PRs,
 each with a guard that fails on the code before it; 3 left for the owner; 6 not
@@ -56,7 +56,7 @@ impact, one already covered by batch 1. The wrong-client save was reproduced in 
 real browser against a local stand-in backend before it was fixed, and the live
 database was read (counts only) for its signature: none found. Browser changes
 only; the two frozen client writers are untouched. No live write, deploy, merge,
-flag or n8n edit. Detail: OPEN_REPAIRS 372.
+flag or n8n edit. Detail: OPEN_REPAIRS 375.
 
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 1 (batch 1)
 

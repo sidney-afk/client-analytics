@@ -139,7 +139,7 @@ function harness(sources) {
   // The writers under test answer source-only for a component with no work
   // item of its own (caption/title). The real predicate loads beside them so a
   // stub cannot drift from it. OPEN_REPAIRS 127.
-  vm.runInContext([extract('_writeUiComponentHasWorkItem')].concat(sources).join('\n'), context);
+  vm.runInContext([extract('_writeUiComponentHasWorkItem'), extract('_writeUiCommentRound')].concat(sources).join('\n'), context);
   return { context, host };
 }
 

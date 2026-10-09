@@ -41,6 +41,7 @@ const CANDIDATE=[
  '2026-09-18-native-calendar-backfill-temp-table-clear.sql',
  '2026-09-19-native-intake-open-load.sql',
  '2026-10-01-calendar-overall-status-bridge.sql',
+ '2026-10-08-native-calendar-na-wins-one-client.sql',
 ];
 const ATOMIC='atomic-native-intake';
 // Explicit minimum known edges, not inferred migration-date order. Their
@@ -107,6 +108,10 @@ const DEPENDENCIES={
  // the overall status to the same UPDATE), so it lands after that file and
  // after the backfill fix that follows it.
  '2026-10-01-calendar-overall-status-bridge.sql':['2026-09-18-native-calendar-status-bridge.sql','2026-09-18-native-calendar-backfill-temp-table-clear.sql'],
+ // Re-defines the projection (N/A wins) on top of the 2026-10-01 body and the
+ // two-argument backfill on top of the 2026-09-18 repair, and adds the
+ // one-client backfill, so it lands after both (OPEN_REPAIRS 373, 381).
+ '2026-10-08-native-calendar-na-wins-one-client.sql':['2026-10-01-calendar-overall-status-bridge.sql','2026-09-18-native-calendar-backfill-temp-table-clear.sql'],
 };
 function transactions(sql){
  const statements=splitSqlStatements(sql);let open=false,commits=0,outside=0;const boundaries=[],savepoints=[];

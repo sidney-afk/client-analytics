@@ -2516,6 +2516,14 @@
         /* Audience picker — sits above the composer when starting a new thread. */
         .cal-cm-audience { display: flex; align-items: center; gap: 8px; padding: 0 4px 8px; flex-wrap: wrap; }
         .cal-cm-audience-cap { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; }
+        @media (max-width: 767px) {
+            .cal-comments-modal .cal-cm-audience-cap { font-size: 13px; color: var(--text-secondary); }
+            #sxrCommentsModal[data-phone-notes-unavailable]:has(.cal-comments-feed-inner > .cal-comments-empty):not(:has(.cal-cm-thread)) { height: auto; min-height: 280px; }
+            /* Collapse only an empty feed: existing notes must remain readable
+               even when this card's composer is unavailable. */
+            .cal-comments-modal[data-phone-notes-unavailable]:has(.cal-comments-feed-inner > .cal-comments-empty):not(:has(.cal-cm-thread)) .cal-comments-feed { display: none; }
+            .cal-comments-modal[data-phone-notes-unavailable]:has(.cal-comments-feed-inner > .cal-comments-empty):not(:has(.cal-cm-thread)) > .cal-comments-empty { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px; }
+        }
         /* Internal/Client tag shown on each thread root in the feed (team view). */
         .cal-cm-aud-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 5px; }
@@ -4612,6 +4620,37 @@
         .ca-pop-keys kbd { font: inherit; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
         .ca-allbtn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border: 1px solid var(--border); border-radius: 99px; background: transparent; font-family: inherit; font-size: 0.78rem; font-weight: 650; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
         .ca-allbtn:hover, .ca-allbtn[aria-expanded="true"] { color: var(--text-primary); border-color: var(--text-secondary); }
+        /* "New client" (admin only) and its dialog (step 2.5). */
+        .ca-newbtn { margin-left: auto; color: var(--text-primary); }
+        .cn-scrim { position: fixed; inset: 0; z-index: 90; background: var(--overlay); }
+        .cn-dialog { position: fixed; z-index: 91; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box; padding: 20px 22px 18px; background: var(--white); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-lg); }
+        .cn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .cn-head h3 { margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        .cn-lead { margin: 6px 0 16px; font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary); }
+        .cn-field { display: block; margin-bottom: 12px; }
+        .cn-label { display: block; margin-bottom: 5px; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+        .cn-opt { font-weight: 500; color: var(--text-muted); }
+        .cn-slug { min-height: 1.2em; margin: -6px 0 12px; font-size: 0.74rem; color: var(--text-muted); }
+        .cn-slug code { font-family: inherit; font-weight: 700; color: var(--text-secondary); }
+        .cn-test { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px; background: var(--brief-know-bg); color: var(--brief-know-ink); font-weight: 700; }
+        .cn-preview { min-height: 44px; }
+        .cn-preview .ca-msg { margin: 0; }
+        .cn-hint { padding: 10px 12px; border-radius: 10px; background: var(--surface-subtle); font-size: 0.78rem; color: var(--text-muted); }
+        .cn-ready { padding: 12px 14px; border-radius: 12px; background: var(--brief-edit-bg); }
+        .cn-ready-title { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 800; color: var(--brief-edit-ink); }
+        .cn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--up); }
+        .cn-list { margin: 8px 0 8px; padding-left: 18px; font-size: 0.8rem; line-height: 1.6; color: var(--text-primary); }
+        .cn-note { font-size: 0.74rem; line-height: 1.5; color: var(--text-secondary); }
+        .cn-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+        .cn-slack { margin: 4px 0 8px; padding-top: 8px; border-top: 1px solid var(--border-light); }
+        .cn-slack-title { font-size: 0.76rem; font-weight: 800; color: var(--brief-edit-ink); }
+        .cn-checks { list-style: none; margin: 6px 0 0; padding: 0; font-size: 0.78rem; line-height: 1.7; color: var(--text-secondary); }
+        .cn-checks li.is-done { color: var(--text-primary); }
+        .cn-tick { display: inline-block; width: 18px; font-weight: 800; color: var(--text-muted); }
+        .cn-checks li.is-done .cn-tick { color: var(--up); }
+        .cn-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+        .cn-fixes { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+        .cn-fixes .cc-btn { font-size: 0.76rem; padding: 6px 10px; }
         .ca-ico { width: 16px; height: 16px; flex: none; }
         .ca-drop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 60; width: min(620px, 100%); background: var(--white); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 8px; }
         .ca-drop-head { display: flex; align-items: center; gap: 12px; padding: 4px 6px 8px 10px; font-size: 0.74rem; font-weight: 700; color: var(--text-muted); }
@@ -4784,6 +4823,13 @@
             /* The pocket admin shell tints every Kasper input; the pill is the field here. */
             html.pocket-admin-phone #kasperContent .ca-search .search-bar-input { background: transparent; border-radius: 0; }
             .ca-allbtn { flex: none; min-height: 44px; justify-content: center; padding: 0 14px; color: var(--text-primary); background: var(--white); }
+            /* "New client" is a square + next to "All clients": the search keeps its row. */
+            .ca-newbtn { margin-left: 0; width: 44px; padding: 0; }
+            .ca-newbtn span { display: none; }
+            .cn-dialog { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 88vh; border-radius: 18px 18px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
+            .cn-dialog .ca-input { font-size: 16px; min-height: 44px; }
+            .cn-actions .cc-btn { flex: 1; min-height: 48px; }
+            .cn-fixes .cc-btn { min-height: 44px; width: 100%; }
             .ca-drop { width: 100%; }
             .ca-list { grid-template-columns: 1fr; max-height: 60vh; }
             /* The pocket shell sizes .ca-row for the old full-page list (78px); the dropdown list is denser. */
@@ -5048,6 +5094,9 @@
             body:has(.pocket-staff-bar) .tdy-cl { flex: none; min-height: 44px; font-size: 13px; }
             body:has(.pocket-staff-bar) .tdy-skel .tdy-clients .sv-skeleton-pill { height: 44px !important; }
             body:has(.pocket-staff-bar) .tdy-rings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+            /* An empty day already has an All clear panel. Keep the loading
+               skeleton and every nonempty job group visible. */
+            body:has(.pocket-staff-bar) .tdy-rings:has(> .tdy-rg.on):not(:has(.tdy-ring:not(.full))) { display: none; }
             body:has(.pocket-staff-bar) .tdy-rg { min-width: 0; min-height: 124px; padding: 16px 8px; border-radius: 20px; border: 1px solid var(--border); justify-content: center; gap: 12px; font-size: 13px; line-height: 1.4; }
             body:has(.pocket-staff-bar) .tdy-rg:nth-child(5):last-child { grid-column: 1 / -1; flex-direction: row; min-height: 88px; gap: 16px; }
             body:has(.pocket-staff-bar) .tdy-rg.on { border-color: var(--text-primary); box-shadow: none; border-width: 2px; }
@@ -5579,6 +5628,11 @@
             html.fph-on .tk-card .tpl-input { font-size: 16px; min-height: 46px; box-sizing: border-box; }
             html.fph-on .confirm-overlay .brief-action-btn { min-height: 44px; min-width: 88px; font-size: 15px; border-radius: 12px; }
             html.fph-on .tk-counter { font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
+            html.fph-on .tk-card textarea::placeholder,
+            html.fph-on .tk-card input::placeholder { color:var(--text-secondary); opacity:1; }
+            html.fph-on .tk-queue-empty,
+            html.fph-on .tk-preview-card h3 { font-size:13px; line-height:1.5; color:var(--text-secondary); }
+            html.fph-on .tk-preview-card h3 span { font-size:13px!important; }
             html.fph-on .tk-grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
             html.fph-on .tk-opts-head { min-height: 48px; align-items: center; }
             html.fph-on .tk-toggle { min-height: 44px; font-size: 13px; }
@@ -5606,6 +5660,7 @@
             html.fph-on .tk-file-actions { width: 100%; }
             html.fph-on .tk-file-actions .tk-mini-btn { flex: 1; }
             html.fph-on .tk-warn-chip { display: flex; gap: 0; padding: 0; margin-bottom: 6px; background: transparent; font-size: 12px; font-weight: 700; }
+            html.fph-on .tk-profile-chip { font-family: inherit; font-size: 13px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
             html.fph-on .tk-warn-chip::before { content: ''; flex: none; width: 17px; height: 17px; margin-right: 8px; background: currentColor; -webkit-mask: var(--fph-ico-alert) center / contain no-repeat; mask: var(--fph-ico-alert) center / contain no-repeat; }
             /* Post now: pinned to the bottom of the screen, full width. */
             html.fph-on .tk-submit-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; box-sizing: border-box; margin: 0; padding: 10px max(18px, env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); gap: 10px; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: var(--white); box-shadow: none; }
@@ -5635,6 +5690,25 @@
             html.fph-on[data-fph="home"] .overview-table tbody td:nth-child(2) { width: 84px; min-width: 84px; padding-left: 4px; padding-right: 8px; white-space: normal; font-size: 12px; line-height: 1.35; }
             html.fph-on[data-fph="home"] .overview-table thead th:nth-child(2) { width: 84px; min-width: 84px; }
             html.fph-on[data-fph="home"] .overview-table tbody td:nth-child(1) { min-width: 340px; }
+            /* Loading uses the native table cells as phone card placeholders.
+               It keeps the desktop DOM and yields to the real metrics paint. */
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton { margin: 16px 0 0; overflow: visible; }
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton::before { content: 'Loading analytics…'; display: block; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); }
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton .overview-controls,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton colgroup,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton thead,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton .top-rank-badge,
+            html.fph-on[data-fph="home"] .analytics-overview-skeleton .client-view-btn { display: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table { display: block; width: 100%; min-width: 0; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody { display: grid; gap: 14px; width: 100%; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody tr { display: grid; grid-template-columns: minmax(0,1fr); padding: 18px 16px; border: 1px solid var(--border); border-radius: 22px; background: var(--white); filter: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td { display: none; width: auto; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:nth-child(1) { display: block; min-width: 0; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:first-child .cell-inner { min-height: 24px; }
+            html.fph-on[data-fph="home"] .analytics-overview-table td:first-child::after { content: none; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:nth-child(2) { display: block; width: auto; min-width: 0; padding: 8px 0 4px; }
+            html.fph-on[data-fph="home"] .analytics-overview-table tbody td:nth-child(4n+3) { display: block; padding: 20px 16px; margin-top: 10px; border-radius: 14px; background: var(--field-bg); }
+            html.fph-on[data-fph="home"] .analytics-overview-table .sv-skeleton { margin: 0; --sv-skel-base: var(--border); --sv-skel-sheen: var(--field-bg-hover); }
             html.fph-on[data-fph="home"] .overview-wrap a,
             html.fph-on[data-fph="home"] .overview-wrap button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
             html.fph-on[data-fph="home"] .overview-wrap a.client-name-link,
@@ -5711,7 +5785,10 @@
             html.fph-on[data-fph="workload"] .workload-overview-status { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--border-light); background: transparent; }
             html.fph-on[data-fph="workload"] .workload-overview-status::before { grid-column: 1 / -1; font-size: 12px; letter-spacing: 0.04em; }
             html.fph-on[data-fph="workload"] .workload-overview-status.is-empty { display: none; }
-            html.fph-on[data-fph="workload"] .workload-overview-row:not(:has(.workload-overview-status:not(.is-empty)))::after { content: 'Nothing overdue, in progress or waiting on tweaks.'; grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--border-light); font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+            html.fph-on[data-fph="workload"] .workload-overview-row:not(.is-skeleton):not(:has(.workload-overview-status:not(.is-empty)))::after { content: 'Nothing overdue, in progress or waiting on tweaks.'; grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--border-light); font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+            html.fph-on[data-fph="workload"] .workload-overview-row.is-skeleton .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--field-bg-hover); }
+            html.fph-on[data-fph="workload"] .workload-skeleton-grid .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--field-bg-hover); }
+            html.fph-on[data-fph="workload"] .workload-skeleton-day { background:var(--field-bg); }
             html.fph-on[data-fph="workload"] .workload-overview-status-clients { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; min-width: 0; }
             html.fph-on[data-fph="workload"] .wl-now-client-chip { font-size: 14px; gap: 8px; padding: 0 14px; justify-content: flex-start; }
             html.fph-on[data-fph="workload"] .wl-now-client-chip-count { font-size: 13px; }
@@ -7035,6 +7112,7 @@
  html.pocket-admin-phone #kasperContent > .pto-admin > .pto-card-head .pto-card-title { display:none; }
  html.pocket-admin-phone #kasperContent .ca-detail { font-size:14px; line-height:1.65; }
  html.pocket-admin-phone #kasperContent :is(.ca-resource-title,.ca-resource-sub,.ca-label,.cb-resource-label,.cb-resource-sub) { font-size:12px; line-height:1.6; }
+ html.pocket-admin-phone #kasperContent :is(.ca-field dt,.ca-field dt label,.ca-empty,.ca-mgr-count,.ca-mgr-foot,.ca-drop-head>span,.ca-opt-sub,.ca-row-sub,.ca-fold-tag,.ca-prov,.ca-hist-when,.ca-status,.ca-land-label,.ca-hs-band .cb-lead) { font-size:13px; line-height:1.6; color:var(--text-secondary); }
  html.pocket-admin-phone #kasperContent .kad-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
  html.pocket-admin-phone #kasperContent .kad-stat { margin:0; }
 }

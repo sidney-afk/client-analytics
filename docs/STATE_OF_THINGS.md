@@ -33,18 +33,36 @@ here with where it stopped, so it can be restarted.
   Media Managers (session Roster): DONE 2026-10-02, live.** The database is the main copy (`client_profiles_authority` =
   `{"source":"syncview"}` since 20:00 UTC); six n8n workflows read or write through `roster-read` / `roster-write`; Manager Sync is off;
   the Sheet tabs are a mirror kept by the database, still editable by people until the owner protects them in Google (OPEN_REPAIRS 331, `docs/ops/N8N_EDIT_LOG.md`). Still open: the owner protects
-  the two tabs in Google; the Finalizer's first real client is its end to end proof; the page still reads both tabs itself (own step);
+  the two tabs in Google; the Finalizer's first real client is its end to end proof;
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
+  **Slice 1, the page's own two reads (session Quarry, 2026-10-08, OPEN_REPAIRS 374): BUILT, in PR, switch not flipped.** With
+  `"roster": "database"` in `analytics_mirror_read_enabled` the page never downloads Clients Info or Social Media Managers (client
+  list from `analytics-read`, review queue managers from `smm-weekly-reports`); merging deploys nothing (`analytics-read` gains a
+  client-row-only read for links the numbers read is not on for, deployed by hand). Parity measured 2026-10-08 (read only): Clients Info 36 of 36 rows equal, all columns; manager assignments 41 and
+  41, 0 differences. The daily copy job failed every day from 2026-10-03 (it tried to copy Clients Info, which the database now owns,
+  and stopped before Metrics); this PR makes it skip Clients Info and adds the manager comparison. Steps:
+  `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`.
+  Analytics are paused by owner decision (2026-10-06): CLIENTS METRICS, TOP VIDEOS and their replacement jobs are off on purpose.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
-  TikTok Upload (Courier, 2026-10-07, OPEN_REPAIRS 362): built behind the switch `tiktok_upload_source`, still on n8n.
-  Owner steps: approve and apply `migrations/2026-10-07-tiktok-uploads.sql`, deploy `tiktok-upload` and `tiktok-upload-cancel`,
-  flip the switch, run `scripts/tiktok-uploads-copy.js --apply`; then the six n8n TikTok workflows can be switched off (owner's go).
+  TikTok Upload (Courier, OPEN_REPAIRS 362): LIVE on Supabase since 2026-10-07 17:42 UTC (`tiktok_upload_source` = `supabase`,
+  sheet rows copied). Six n8n TikTok workflows switched off 2026-10-08 on the owner's go (`docs/ops/N8N_EDIT_LOG.md`). Still on:
+  `TikTok Upload, Result`, because Post For Me's result webhook points at it; it goes off once Courier's result action is deployed
+  and the webhook is re-pointed. Calendar Upsert Post and its Comment Merge helper were switched off the same day (zero runs since
+  2026-10-07 15:00 UTC; the page never sends Calendar saves to n8n since #1858).
 - **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
   checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
   shows, under a client's details, the HubSpot deal and contract and payment state, the Resources list and the
   27-step checklist (admin only; OPEN_REPAIRS 332). Next, each with the owner's go: "Create client" (step 2.5),
   then the matching pass for the current clients (Stage 3). Plan: `docs/plans/2026-10-01-onboarding-checklist-and-profile.md`.
+  **"Create client" is LIVE since 2026-10-08** (OPEN_REPAIRS 372): both migrations applied, `client-onboarding`
+  deployed, throwaway create and teardown passed (Lighthouse). **Its Slack nudge is built, not applied** (PR 2011):
+  real clients only, no n8n edit; the database nudges the existing finalizer webhook after a create and when a filming
+  plan link is saved, the 15 minute timer covers the rest. Owner steps in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 6
+  (apply `2026-10-09-create-client-slack-nudge.sql`, redeploy `client-onboarding`). Clients who never fill the form
+  would need an n8n change, written out there for the owner's go. **Stage 3 dry run done**, nothing saved:
+  `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
+  confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.
   The measured picture of how a client is onboarded today (every step, every per-client resource with
   counts, and the owner's decisions) is `docs/audits/2026-10-01-client-onboarding-as-it-really-is.md`.
 - **D. Navigation, then look and feel.** The owner plans to start this himself the weekend of 2026-10-03
@@ -169,10 +187,6 @@ here with where it stopped, so it can be restarted.
      `docs/plans/2026-09-29-calendar-unarchive.md`, ledger item 288). Still to do
      as a separate change: a warning when someone moves a work item whose card is
      archived (needs the sealed capture and an owner deploy).
-   - **Escape does not close a Calendar card's thumbnail or video edit box**
-     (owner 2026-09-26). Re-checked on the live site 2026-10-08 (session Sentinel, test client): still
-     broken. FIXED in PR #2000 (OPEN_REPAIRS 371), waiting for the merge: Escape puts back the link the
-     box opened with and closes it, Enter keeps what was typed; Samples too. Move to Done after the merge.
    - **Daily real-browser client check from a local session, Samples included,
      noting odd loads, pop-ups and delays** (owner 2026-09-22). The shipped
      morning check is headless on GitHub and has no Samples flow.
@@ -244,6 +258,13 @@ hiring senders when the editor hire closes.
   **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
   calendar drift check had causes found and fixed (test code and test-client data only); confirm
   they are green on main after the merge.** The other lanes were not re-checked.
+  **2026-10-08 (OPEN_REPAIRS 373, session Mend): Calendar E2E, Samples E2E and the drift check.** Robot causes
+  fixed in test code (fake-key refusal shadowing the fake gateway; fake-key 401s on staff reads signing the robot
+  out, which since admin-only Kasper sends it to Home; notes sent before their thread loads; two probes on
+  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Owner steps left:
+  apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
+  test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
+  preflight's two pins at that migration before the next Section 4 dispatch.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since
@@ -288,6 +309,11 @@ hiring senders when the editor hire closes.
   dormant: the owner wants it, see priority item 6.)
 
 ## Done (was listed as open somewhere)
+
+- **Escape closes a Calendar card's thumbnail or video edit box (owner report 2026-09-26; DONE, merged 2026-10-08 in
+  #2000, OPEN_REPAIRS 371).** Re-checked on the live site that day (session Sentinel, test client) and found still
+  broken, then fixed: Escape puts back the link the box opened with and closes it, Enter keeps what was typed; Samples
+  too. Not yet re-checked on the live site after the merge.
 
 - **Opening an item is faster, and the two SyncLinear saved-copy decisions are done (2026-10-01, OPEN_REPAIRS 323, PR open
   until merged).** The saved list lives 7 days; finished rows are kept in the browser's larger store and a boot reads only

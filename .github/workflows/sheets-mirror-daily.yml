@@ -81,3 +81,10 @@ jobs:
 
       - name: Compare the mirror with the Sheets
         run: node scripts/sheets-mirror-parity.js --strict --json="$RUNNER_TEMP/parity.json"
+
+      # Social Media Managers: the database is the main copy since 2026-10-02 and the tab is
+      # its mirror; the page stops reading the tab under the roster switch (Sheets move,
+      # slice 1). Counts and short references only.
+      - name: Compare the manager assignments with the Social Media Managers tab
+        if: always()
+        run: node scripts/roster-managers-parity.js --strict

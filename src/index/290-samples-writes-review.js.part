@@ -11,7 +11,7 @@ import {
   _writeUiGatewayError, _writeUiGatewayWithRepair, _writeUiHasCredential, _writeUiHealRerouteFlag,
   _writeUiIntentId, _writeUiLastRenderedAuthoritySig, _writeUiLegacyItemOwnedBy,
   _writeUiLegacyResumeOwner, _writeUiLegacyResumeOwnerCurrent, _writeUiLegacyResumeOwnerKey,
-  _writeUiMarkRepairCommitted, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrincipalKey,
+  _writeUiMarkRepairCommitted, _writeUiCommentRound, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrincipalKey,
   _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRefreshAuthority,
   _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiRepairJournalRead,
   _writeUiReportFailure, _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs,
@@ -241,7 +241,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                     nativeId,
                     sourceEditedAt: comment && (comment.updated_at || comment.created_at),
                     requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
-                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: _writeUiCommentRound(meta && meta.round), ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
                 }, repair);
     }
     function _writeUiApplyJournalEdits(post, edits, surface) {
@@ -418,7 +418,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             created_at: String(row.source_created_at || fallback.created_at || row.created_at || lifecycleAt),
             updated_at: lifecycleAt,
             is_tweak: row.is_tweak === true || fallback.is_tweak === true,
-            round: Number.isInteger(row.round) ? row.round : (Number.isInteger(fallback.round) ? fallback.round : null),
+            round: _writeUiCommentRound(row.round) || _writeUiCommentRound(fallback.round),
             deleted: !!String(row.deleted_at || ''),
             done: !!String(row.resolved_at || ''),
             done_at: String(row.resolved_at || ''),
@@ -586,7 +586,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 meta.parentId = intent.comment_meta && intent.comment_meta.parent_id;
                 meta.audience = intent.comment_meta && intent.comment_meta.audience;
                 meta.isTweak = !!(intent.comment_meta && intent.comment_meta.is_tweak);
-                meta.round = intent.comment_meta && Number.isInteger(intent.comment_meta.round) ? intent.comment_meta.round : null;
+                meta.round = _writeUiCommentRound(intent.comment_meta && intent.comment_meta.round);
                 acknowledgement = group.surface === 'sxr'
                     ? await _sxrPostLinearComment(_sxrLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta)
                     : await _calPostLinearComment(_calLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta);

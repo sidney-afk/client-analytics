@@ -2,7 +2,7 @@
 /*
  * Corrections to site-assurance batches 1 to 5, from an independent review of
  * those changes run before any of them was merged (2026-10-08), plus one route
- * defect from the cycle 3 journey sweep. OPEN_REPAIRS 376 has the stories.
+ * defect from the cycle 3 journey sweep. OPEN_REPAIRS 384 has the stories.
  * Each block lifts the real function and runs it against stand-ins; where a
  * function needs half the page to run, the block reads its code and says so.
  */

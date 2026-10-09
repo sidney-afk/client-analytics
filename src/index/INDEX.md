@@ -10,9 +10,9 @@
 | 2 | `003-sv-route.html.part` | 197 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7252 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7330 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 2080 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
+| 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2364 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
@@ -25,17 +25,17 @@
 | 17 | `080-workload-render.js.part` | 3469 | Smart default: a creative lands on their own work (see |
 | 18 | `090-workload-popovers.js.part` | 1017 | Sub-issue popover |
 | 19 | `092-core-submit-form-navigation.js.part` | 899 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
-| 20 | `095-shared-client.js.part` | 565 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
+| 20 | `095-shared-client.js.part` | 586 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 22 | `097-today.js.part` | 877 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 24 | `099-phone-staff-shell.js.part` | 225 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
-| 25 | `099-staff-phone-bar.js.part` | 464 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
+| 24 | `099-phone-staff-shell.js.part` | 244 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
+| 25 | `099-staff-phone-bar.js.part` | 472 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 26 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 29 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
-| 30 | `120-calendar-flags-write-repair.js.part` | 3447 | The members a flag value offers, or null when it offers no member list at |
+| 30 | `120-calendar-flags-write-repair.js.part` | 3458 | The members a flag value offers, or null when it offers no member list at |
 | 31 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
 | 32 | `130-calendar-model-cache.js.part` | 1413 | Returns the comments array for a given component. Falls back to the |
 | 33 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
@@ -49,7 +49,7 @@
 | 41 | `180-calendar-native-post-media.js.part` | 2953 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 44 | `190-calendar-approval-comments.js.part` | 3246 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 44 | `190-calendar-approval-comments.js.part` | 3248 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 45 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 46 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 47 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
@@ -58,17 +58,17 @@
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 53 | `280-samples-cards-notes.js.part` | 3019 | SURFACE 3: the save engine |
+| 53 | `280-samples-cards-notes.js.part` | 3020 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 55 | `299-instagram-upload.js.part` | 741 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
 | 56 | `300-tiktok-upload.js.part` | 2397 | TIKTOK UPLOAD MODULE |
-| 57 | `305-core-kasper-shared.js.part` | 752 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
+| 57 | `305-core-kasper-shared.js.part` | 791 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 59 | `320-core-kasper-subtabs.js.part` | 20 | — |
 | 60 | `321-kasper-dashboard-replies.js.part` | 3048 | The Samples subtab was folded into Review (samples are listed in the |
 | 61 | `322-core-kasper-tab-counts.js.part` | 34 | — |
-| 62 | `323-kasper-dashboard-tail.js.part` | 927 | Review Session |
-| 63 | `324-client-onboarding-panel.js.part` | 507 | talking to the functions (admin only; the server checks the key and the member again) |
+| 62 | `323-kasper-dashboard-tail.js.part` | 931 | Review Session |
+| 63 | `324-client-onboarding-panel.js.part` | 730 | talking to the functions (admin only; the server checks the key and the member again) |
 | 64 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 65 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 66 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |

@@ -1,0 +1,10 @@
+{
+  "sourceHash": "6d7d8e683dbb5e28f66cd7d74c208d6bdc6313e9afdd1caba1e80cd11d8d0dce",
+  "generatedIndexHash": "377bc7081dcedfe20a27af66d689857097bb9b7eafcb55179b8cf408984bc530",
+  "mainRef": "83933a862720ad80785a4737d9fdedfbec3254fb",
+  "productCommit": "8dd7ed9917a6c916a97e01ae5dec0159081d2150",
+  "beforeSourceHash": "c2221cd8405981e3fc2d3ff551bd648d937c053e37b97aea5112b277e83e4963",
+  "beforeRef": "8eb01d9339b2f1af773723c8c090f0d77dd6c2df",
+  "pairs": 18,
+  "note": "Original before fixtures retained; after captures refreshed after main integration. Main may change underlying content. Exact desktop comparisons isolate preservation against current main. No full-round acceptance."
+}

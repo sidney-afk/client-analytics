@@ -476,6 +476,12 @@ or message send. Do not rerun the non-idempotent provisioning workflow. For hist
 or manual reconciliation rather than rerunning intake — backfilling that cohort to Slack is a
 separate, deliberately deferred pass (their `roam_channel_id` on Clients Info is the list).
 
+> **"Create client" is live (2026-10-08). Once its Slack nudge is applied too** (`migrations/2026-10-09-create-client-slack-nudge.sql`,
+> waits for the owner's go; `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 6) the database calls the trigger below by itself,
+> after a real client is created and whenever a filming plan link is saved for a real client with no channel yet; any other
+> last piece is picked up by the 15 minute timer. Test clients are never sent. Create the client with the exact name and email
+> the client used on the onboarding form (standard or AI); the dialog checks it.
+
 **Triggering the finalizer yourself (live since 2026-09-30; owner decision: the next real client is the proof).**
 The finalizer now has three ways to start, all running the same steps. The webhook and a once a day safety check were added on
 2026-09-30 (`docs/ops/N8N_EDIT_LOG.md`, step A). The **15 minute check is still on** and stays on until the next real client's

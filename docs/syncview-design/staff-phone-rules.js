@@ -116,14 +116,22 @@
             }
             active.forEach(el => {
                 if (!overlays.has(el)) {
-                    const trigger = lastTrigger?.isConnected && lastTrigger.checkVisibility() ? lastTrigger
-                        : document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
+                    const trigger = liveTrigger(lastTrigger)
+                        || document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
                     overlays.set(el, trigger);
                 }
             });
             if (active.length) lock(); else unlock();
-            if (returnTo?.isConnected && returnTo.checkVisibility()
+            returnTo = liveTrigger(returnTo);
+            if (returnTo
                 && (!active.length || active.some(el => el.contains(returnTo)))) returnTo.focus({ preventScroll: true });
+        }
+        function liveTrigger(trigger) {
+            // Native pickers can repaint their trigger on opening and closing.
+            // Follow its stable id so a disconnected old node cannot redirect
+            // focus to the page's unrelated More button after native restore.
+            const current = trigger?.isConnected ? trigger : trigger?.id ? document.getElementById(trigger.id) : null;
+            return current?.checkVisibility() ? current : null;
         }
         function schedule() {
             if (!queued) { queued = true; queueMicrotask(sync); }

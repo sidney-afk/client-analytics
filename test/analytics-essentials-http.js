@@ -19,7 +19,7 @@ let checks = 0;
 function check(label, fn) { fn(); checks++; console.log('ok ' + checks + ' - ' + label); }
 function plain(value) { return JSON.parse(JSON.stringify(value)); }
 
-function harness() {
+function harness(opts = {}) {
   const saved = { metrics: 'last good metrics', clients: [{ client_name: CLIENT }], at: 100 };
   let current = true;
   const bodies = [];
@@ -33,7 +33,9 @@ function harness() {
     allData: [{ client_name: CLIENT, date: '2026-10-01', ig_followers: '99' }],
     clientMap: { [CLIENT]: { client_name: CLIENT } },
     _clientEssentialsLoad: { promise: null, status: 'idle', run: null },
-    _analyticsMirrorRead: async () => null, _analyticsStaffMirrorRead: async () => null,
+    _analyticsMirrorRead: async () => opts.mirror || null, _analyticsStaffMirrorRead: async () => opts.staff || null,
+    _analyticsRosterFromDatabase: async () => !!opts.roster,
+    _analyticsCacheRead: () => (opts.noSaved ? null : plain(saved)),
     _analyticsFp: parts => JSON.stringify(parts), wlMergeClientsFromSheet() {}, svAreaApi: () => null,
     _syncviewClientEntryRunCurrent: () => current,
     _syncviewStaleClientEntryError: () => new Error('stale_client_entry'),
@@ -58,7 +60,7 @@ function harness() {
       const h = harness();
       const before = h.snapshot();
       h.replies[lane] = { status, body: '<html>Request failed</html>' };
-      await assert.rejects(h.ctx.fetchEssentials());
+      await assert.rejects(h.ctx.fetchEssentials(), /analytics_essentials_http/);
       check(lane + ' HTTP ' + status + ' preserves data, cache, freshness and fingerprint', () => {
         assert.deepStrictEqual(h.snapshot(), before);
         assert.strictEqual(h.writes.length, 0);
@@ -70,7 +72,7 @@ function harness() {
   const client = harness();
   const run = { slug: 'fixture-client', signal: new AbortController().signal };
   client.replies.roster.status = 503;
-  await assert.rejects(client.ctx._syncviewClientEssentials(run));
+  await assert.rejects(client.ctx._syncviewClientEssentials(run), /analytics_essentials_http/);
   check('a current client entry records failed essentials as error', () => {
     assert.strictEqual(client.ctx._clientEssentialsLoad.status, 'error');
   });
@@ -102,6 +104,41 @@ function harness() {
     assert.deepStrictEqual(revoked.snapshot(), before);
     assert.strictEqual(revoked.writes.length, 0);
     assert.strictEqual(revoked.ctx._clientEssentialsLoad.status, 'idle');
+  });
+  // ---- the roster switch: the client list never comes from the Sheet ----
+  const DB_CLIENTS = [{ client_name: 'Database Client' }];
+  const rStaff = harness({ roster: true, staff: { metrics: null, clients: DB_CLIENTS } });
+  await rStaff.ctx.fetchEssentials();
+  check('roster on, stale staff numbers: Metrics from the Sheet, clients from the database, roster tab never read', () => {
+    assert.deepStrictEqual(rStaff.bodies, ['metrics']);
+    assert.deepStrictEqual(Object.keys(rStaff.ctx.clientMap), ['Database Client']);
+    assert.deepStrictEqual(rStaff.writes, [{ metrics: METRICS, clients: DB_CLIENTS }]);
+  });
+  const rSaved = harness({ roster: true });
+  await rSaved.ctx.fetchEssentials();
+  check('roster on, staff read failed: this browser\'s saved client list, roster tab never read', () => {
+    assert.deepStrictEqual(rSaved.bodies, ['metrics']);
+    assert.deepStrictEqual(Object.keys(rSaved.ctx.clientMap), [CLIENT]);
+  });
+  const rNone = harness({ roster: true, noSaved: true });
+  const noneBefore = rNone.snapshot();
+  await assert.rejects(rNone.ctx.fetchEssentials(), /analytics_roster_unavailable/);
+  check('roster on, no database answer and no saved copy: refuses and changes nothing, no Sheet read', () => {
+    assert.deepStrictEqual(rNone.snapshot(), noneBefore);
+    assert.strictEqual(rNone.bodies.length, 0);
+    assert.strictEqual(rNone.writes.length, 0);
+  });
+  const rLink = harness({ roster: true, mirror: { ess: null, ext: null, clients: [{ client_name: CLIENT }] } });
+  await rLink.ctx._syncviewClientEssentials(run);
+  check('roster on, client link without a numbers copy: its own database row, Metrics from the Sheet, nothing saved', () => {
+    assert.deepStrictEqual(rLink.bodies, ['metrics']);
+    assert.deepStrictEqual(Object.keys(rLink.ctx.clientMap), [CLIENT]);
+    assert.strictEqual(rLink.writes.length, 0);
+  });
+  const rLinkFail = harness({ roster: true });
+  await assert.rejects(rLinkFail.ctx._syncviewClientEssentials(run), /analytics_roster_unavailable/);
+  check('roster on, client link with no database answer: refuses, never the whole Clients Info tab', () => {
+    assert.strictEqual(rLinkFail.bodies.length, 0);
   });
   console.log('analytics-essentials-http: ' + checks + ' checks passed');
 })().catch(err => { console.error(err); process.exitCode = 1; });

@@ -81,7 +81,7 @@ function capture(page) {
 }
 async function _ctx(browser) {
   const c = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
-  await seedStaffGate(c);
+  await seedStaffGate(c, { answerStaffReads: true });
   // write_ui_reroute_clients → the PRODUCTION roster, which has the TEST
   // client enrolled like every other active client. This used to serve `[]`
   // and call that faithful because "real clients run legacy"; they do not,

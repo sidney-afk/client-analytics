@@ -1251,7 +1251,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
            "Saved, syncing" for a save that worked until the next load clears
            it. Writing here would also store the other client's settings under
            this one; left for a change that can rewrite one card of a saved
-           copy on its own. Recorded in OPEN_REPAIRS 376. */
+           copy on its own. Recorded in OPEN_REPAIRS 384. */
         if (calClientSlug(calState.client) !== slug) return true;
         return _calCacheWrite(slug, calState.posts, options);
     }

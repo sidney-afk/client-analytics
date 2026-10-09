@@ -197,6 +197,51 @@ import { clientMap } from './040-shared-briefs.js';
             if (chip.textContent !== account) chip.textContent = account;
         });
     }
+    // Canvas labels cannot inherit CSS. Keep the native options per axis,
+    // including a phone-to-desktop crossing, without touching Chart defaults
+    // or client review charts. The plugin also covers native series rebuilds.
+    const _fphAxisOriginals = new WeakMap();
+    let _fphChartPlugin = false;
+    function _fphChartAxes(chart) {
+        const phone = FPH_MQ.matches && _fphScreen() === FPH_SCREENS.home
+            && !!chart.canvas?.closest('.client-view');
+        const rootStyle = getComputedStyle(document.documentElement);
+        let originals = _fphAxisOriginals.get(chart);
+        if (phone && !originals) { originals = new Map(); _fphAxisOriginals.set(chart, originals); }
+        let changed = false;
+        for (const [axis, scale] of Object.entries(chart.config.options.scales || {})) {
+            const ticks = scale.ticks;
+            if (!ticks) continue;
+            if (phone && !originals.has(axis)) {
+                originals.set(axis, { font: ticks.font, color: ticks.color,
+                    themeColor: ticks.color === rootStyle.getPropertyValue('--chart-axis').trim() });
+            }
+            const original = originals?.get(axis);
+            if (!original) continue;
+            const color = rootStyle.getPropertyValue(phone ? '--text-secondary' : '--chart-axis').trim();
+            const font = phone ? { ...original.font, size: 13 } : original.font;
+            const restoredColor = phone || original.themeColor ? color : original.color;
+            if (ticks.font?.size !== font?.size || ticks.color !== restoredColor) {
+                if (font === undefined) delete ticks.font; else ticks.font = font;
+                if (restoredColor === undefined) delete ticks.color; else ticks.color = restoredColor;
+                changed = true;
+            }
+        }
+        if (!phone) _fphAxisOriginals.delete(chart);
+        return changed;
+    }
+    function _fphCharts() {
+        if (!window.Chart) return;
+        if (!_fphChartPlugin) {
+            window.Chart.register({ id: 'staffPhoneAnalyticsAxes',
+                beforeInit(chart) { _fphChartAxes(chart); },
+                beforeUpdate(chart) { _fphChartAxes(chart); } });
+            _fphChartPlugin = true;
+        }
+        Object.values(window.Chart.instances).forEach(chart => {
+            if (_fphChartAxes(chart)) chart.update('none');
+        });
+    }
     function _fphSync() {
         _fphRaf = 0;
         const cfg = _fphScreen();
@@ -227,6 +272,7 @@ import { clientMap } from './040-shared-briefs.js';
             // unstyled, on a screen it does not belong to.
             if (_fphBar) { _fphBar.querySelectorAll('dialog[open]').forEach(d => d.close()); _fphBar.hidden = true; }
         }
+        _fphCharts();
     }
     function _fphQueue() { if (!_fphRaf) _fphRaf = requestAnimationFrame(_fphSync); }
     function _fphInit() {
@@ -237,6 +283,7 @@ import { clientMap } from './040-shared-briefs.js';
         watch.observe(nav, { attributes: true, attributeFilter: ['class'], subtree: true });
         // The Upload page swaps its platform inside the same route.
         watch.observe(main, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+        watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
         if (FPH_MQ.addEventListener) FPH_MQ.addEventListener('change', _fphQueue);
         _fphQueue();
     }

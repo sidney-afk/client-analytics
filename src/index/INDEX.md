@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7330 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7359 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -29,7 +29,7 @@
 | 21 | `096-quick-jump.js.part` | 177 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 22 | `097-today.js.part` | 854 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 24 | `099-phone-staff-shell.js.part` | 244 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
+| 24 | `099-phone-staff-shell.js.part` | 291 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
 | 25 | `099-staff-phone-bar.js.part` | 472 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 26 | `100-onboarding-staff-controls.js.part` | 2406 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
@@ -65,9 +65,9 @@
 | 57 | `305-core-kasper-shared.js.part` | 791 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 59 | `320-core-kasper-subtabs.js.part` | 20 | — |
-| 60 | `321-kasper-dashboard-replies.js.part` | 3048 | The Samples subtab was folded into Review (samples are listed in the |
+| 60 | `321-kasper-dashboard-replies.js.part` | 3058 | The Samples subtab was folded into Review (samples are listed in the |
 | 61 | `322-core-kasper-tab-counts.js.part` | 34 | — |
-| 62 | `323-kasper-dashboard-tail.js.part` | 923 | Review Session |
+| 62 | `323-kasper-dashboard-tail.js.part` | 924 | Review Session |
 | 63 | `324-client-onboarding-panel.js.part` | 730 | talking to the functions (admin only; the server checks the key and the member again) |
 | 64 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 65 | `340-kasper-editors-board.js.part` | 734 | Editor work model |

@@ -886,8 +886,9 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const recent = _caRecentMap();
         const opened = (_caState.rows || []).filter(r => !r.archived_at && recent[r.slug]).sort((a, b) => recent[b.slug] - recent[a.slug]).slice(0, 6);
         const active = (_caState.rows || []).filter(r => !r.archived_at).length;
+        const archived = (_caState.rows || []).length - active;
         return `<div class="ca-land">
-                <p class="ca-land-lead">${active} client${active === 1 ? '' : 's'}. Search above, or open All clients.</p>
+                <p class="ca-land-lead" data-ca-active="${active}" data-ca-archived="${archived}">${active} client${active === 1 ? '' : 's'}. Search above, or open All clients.</p>
                 ${opened.length ? `<div class="ca-land-label">Recently opened</div><div class="ca-recent">${opened.map(r => `<button type="button" class="ca-chip" data-ca-slug="${_calEscAttr(r.slug)}" onclick="_caSelect('${_calEscAttr(r.slug)}')">${_caAvatar(_caName(r), 'is-sm')}${_calEsc(_caName(r))}</button>`).join('')}</div>` : ''}
             </div>`;
     }

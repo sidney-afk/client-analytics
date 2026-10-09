@@ -2892,6 +2892,16 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                 return;
             }
             wrap.toggleAttribute('data-pocket-reviewer', ['review', 'replies', 'filming'].includes(_kasperState.tab));
+            const clientLead = main.querySelector('.ca-land-lead[data-ca-active="0"]');
+            if (clientLead && !clientLead.classList.contains('pocket-admin-empty-copy')) {
+                clientLead._pocketEmptyText = clientLead.textContent;
+                clientLead.classList.add('pocket-admin-empty-copy');
+                clientLead.textContent = Number(clientLead.dataset.caArchived) > 0
+                    ? 'No active clients. Open All clients and choose Show archived.'
+                    : main.querySelector('#caNewBtn')
+                        ? 'No clients yet. Choose New client to add the first one.'
+                        : 'No clients yet.';
+            }
             for (const [selector, text] of [
                 ['#kadBody > .kasper-empty .kasper-empty-sub', 'Ad results update twice daily. Check back after the next update.'],
                 ['#kqlBody > .kasper-empty .kasper-empty-sub', 'New quiz submissions will appear here.']

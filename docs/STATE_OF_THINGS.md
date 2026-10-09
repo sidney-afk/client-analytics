@@ -192,7 +192,9 @@ here with where it stopped, so it can be restarted.
      archived (needs the sealed capture and an owner deploy).
    - **Daily real-browser client check from a local session, Samples included,
      noting odd loads, pop-ups and delays** (owner 2026-09-22). The shipped
-     morning check is headless on GitHub and has no Samples flow.
+     morning check is headless on GitHub. **2026-10-09 (session Gatekeeper, OPEN_REPAIRS 388, in PR):
+     it now includes a client Samples approve** on the test client's sample with real work items (staff sends it
+     with a real sign-in, the client approves, staff puts it back). It needs the SMM role key in CI; until then it says "not run" (blocked on the owner decision in entry 388). The local-session half is still open.
    - **Write down how to prompt local sessions to use the app's Browser pane
      instead of Chrome** (owner 2026-09-23, "write this somewhere").
    - **Public-key reads of `calendar_posts` and `sample_reviews`, phases 1 and 2**
@@ -224,8 +226,11 @@ hiring senders when the editor hire closes.
   personal data sitting in a third-party tool.
 - **2026-10-15: assurance-ledger lane goes red again.** Four quality-tier rows
   were restated, not re-proven, and reach 90 days on about 2026-10-15
-  (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
-  access from the owner's machine. The separate "Linear access extension to
+  (OPEN_REPAIRS 205a). **2026-10-09 (session Gatekeeper, OPEN_REPAIRS 388, in PR): the three Tier 0 rows
+  (client links, link issuance, client thumbnails) were re-proven on the live site, test client, 12 of 12
+  (`node qa/dawn/tier0-live-proof.js`), plus Calendar staff writes and Samples + Kasper; the State column is
+  restamped 2026-10-09.** Still past their window: submit intake, staff sign-in, the Linear mirror row, PTO,
+  Templates, Filming plans, Weekly reports (re-prove or retire before the lane's 90-day line). The separate "Linear access extension to
   2026-10-15" is moot: all Linear keys were revoked on 2026-09-23.
 - **Slack alerts become one message (owner said yes, 2026-09-28): BUILT 2026-10-02, switch off, in PR (OPEN_REPAIRS 328).**
   Runs hourly in shadow (prints the message in the run summary, posts nothing); every old alert still posts. Owner's
@@ -268,6 +273,12 @@ hiring senders when the editor hire closes.
   apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
   test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
   preflight's two pins at that migration before the next Section 4 dispatch.
+  **2026-10-09 (OPEN_REPAIRS 388, session Gatekeeper, in PR):** Calendar run 112 (first with 373's fixes) was 21 of 67
+  red. Fixed: probe cards now carry fixture work items with a faked gateway that holds its status (13 probes), p85, p92,
+  p94; p89, p90, p91 retired (they drive the staff blank-card funnel production no longer reaches). Samples: Kasper Undo
+  was a real bug (fixed); Finish expectation follows the owner's 2026-09-27 rule; robot servers answer like Pages. p28,
+  p29, p30, p36 stay (they test native routing). Blocked: how CI gets the SMM role key (the `production` environment needs approval per run;
+  owner decision in entry 388). Then run both nightlies on the branch before merging.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

@@ -31603,3 +31603,56 @@ Not proven: the disposable-Postgres recovery rehearsal for v12 was not run in
 this sandbox (no database server); it needs a run where
 `TRACK_B_RECOVERY_TEST_CORPUS=history-v12`. Offline suites cover the table list,
 keys, refusals, restore SQL, preflight SQL and the grant text.
+
+## 388. [2026-10-09, BUILT, NOT MERGED] Client paths re-proven on the live site; Samples Kasper Undo fixed; Calendar and Samples robots back on the paths production takes (session Gatekeeper)
+
+**Samples nightly, 6 of 210 red (run 99).** Four Kasper paths, two causes:
+- *Undo: a real product bug.* `_sxrKasperUndoApprove` set the card back to Kasper Approval on screen and only then called
+  `_sxrKasperApplyAndPersist`, whose stale-screen check (entry 316, PR 1916, 2026-10-01) compares the card on screen with the
+  server. The server held his own Client Approval, so every Undo of a Kasper approve on Samples was refused as "someone else
+  changed this card" (screenshot of the live refusal, test client, 2026-10-09). Fix: Undo no longer pre-sets the card; the
+  check runs first and the save sets it. A client approval that lands after his approve is still not undone. Test:
+  `test/kasper-never-lose-decision.js` "Samples: Undo of his own approve" fails on the old code with the live message.
+- *Finish: a stale robot expectation.* Owner decision 2026-09-27: a sample he finishes leaves his queue (no "Sent to SMM" row).
+  The tree path and `kasper_finish_video` now prove the saved `kasper_finished_at` stamp, the status, and the card leaving.
+- *Two create-then-reload scenarios:* the page shows clean addresses (`/sample-reviews/<slug>`); the robots served it with
+  Python's plain file server, which answers such a path with a bare 404 where GitHub Pages answers `404.html` (which forwards
+  into the app). `qa/pages_static_server.py` answers like Pages; `qa/master.js`, `qa/run-probes.js` and the morning check use it.
+
+**Calendar nightly.** Run 111 (2026-10-08, before entry 373's fixes merged): 28 of 67. Run 112 (2026-10-09, with them): 21 of 67.
+p28, p29, p30 and p36 pass and stay: despite "linear" in their names they test the native write routing production takes
+(rewritten 2026-09-08). p59, p68, p82 and p87 test live features too. What was left, by cause:
+- *Thirteen probes moved a video or thumbnail on a seeded card with no work item* (p42, p43, p43b, p44, p45, p48, p53,
+  p87_kasper_finish_stale_refresh, p71, p59, p57, p66, p82). Every production card has work items; since the native cutover a
+  decision on a part with none is refused, and since 373 the invented key's call to the real gateway is refused too, so the
+  card's own row was never written. `qa/probes/lib.js` now gives every new seed fixture work items and fakes the gateway in
+  every probe browser, as p28 and the Samples tree already did (`noWorkItems: true` opts a seed out). One more layer: after
+  a committed write the page reads the work item back to confirm it, and the fixture answered that read with no status, so
+  the write stopped with `native_replay_status_unavailable` (measured on p42). The fixture work item now holds the status the
+  faked gateway last accepted. p42 then passed locally; the full-list result is in the PR.
+- *p92* did the same on Samples (fake gateway added; 10/10 locally). *p85* proved the client approve on a thumbnail with no
+  work item; it now uses the caption, which has none of its own (the gate checks are unchanged). *p94* read `location.hash`,
+  empty under clean addresses; it reads `svRoute.hash()` (6/6). *p61* is left to the full-list result in the PR.
+- *Retired: p89, p90, p91.* They click the staff "+" and type into the blank card it used to make. For a client on the native
+  lane "+" opens Create Post, which makes the work items first; every active client and the test client are on it, and an
+  unreadable roster fails toward it, so production cannot reach that funnel. Files kept; reason in the manifest; Create Post is
+  covered by `docs/syncview-design/tests/prod-write-gateway-browser.js`. `qa/master.js`'s fast profile uses p92 and p94 instead.
+- *p96:* the robot's staff key is not a role key; see the blocked decision below.
+
+**Tier 0 re-proven on the live site** (`qa/dawn/tier0-live-proof.js`, 12 of 12, test client only): real staff sign-in and
+Share with client (issuer 200); the link in a fresh profile loads Calendar and Samples, thumbnails draw, client approve and
+request-changes save and hold, the client approves a sample thumbnail with real work items (staff sends it from the real sheet
+and puts it back). Ledger rows restamped to 2026-10-09; no row overstates.
+
+**Morning check: Samples approve added** (owner 2026-09-22). A throwaway sample cannot take a client decision
+(`native_link_required`, measured), so it uses the test client's one sample with real work items through
+`qa/dawn/native-sample-roundtrip.js`. Needs a role key and the roster name; without them it reports "not run" (⚠️), never passed.
+
+**Blocked on an owner decision (2026-10-09).** The owner said not to create `SYNCVIEW_STAFF_KEY`: the role keys already exist as
+secrets of the `production` environment (`ROLE_KEY_SMM` etc.), and the nightlies should read `ROLE_KEY_SMM` from there. That
+environment has a required-reviewer rule (`.github/workflows/deploy-client-review-link.yml` says so, and its last run waited
+2 min 23 s for approval), so a scheduled run that used it would wait for a person every night. Not changed. The owner picks:
+the key in a repository secret or an environment with no approval rule, or the rule removed from `production` (which also
+removes it from the deploy workflows that rely on it). Until then p96 and the morning check's Samples approve cannot run in CI.
+The full Calendar list was not re-run after the fixture fixes; both nightlies need a run on the branch before merging.
+**Way back:** revert the PR.

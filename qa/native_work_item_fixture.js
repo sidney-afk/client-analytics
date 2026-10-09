@@ -74,13 +74,41 @@ function teamForComponent(component) {
 /* The crosswalk row the app compares against the card. Matches on all four
    fields `_prodCrosswalkMismatchFields` checks, so the verdict is `valid` and
    the client front door can open — the state a real linked card is in. */
+/*
+ * The status each fixture work item holds, as the faked gateway last accepted it
+ * (OPEN_REPAIRS 388). After a committed write the page reads the work item back
+ * (`/rest/v1/deliverables?select=id,status,status_at,updated_at`) to confirm or
+ * replay it, and a row with no status stops the write with
+ * `native_replay_status_unavailable`: that is how a Kasper change request on a
+ * video never reached the card in thirteen Calendar probes. A work item nobody
+ * has written yet reports `in_progress` with an old clock, so the page's replay
+ * sends its status rather than taking it as already there.
+ */
+const _fixtureStatus = new Map();
+function fixtureNativeStatus(label) {
+  const s = String(label || '').trim().toLowerCase();
+  if (!s) return '';
+  if (s.includes('tweak')) return 'tweak';
+  if (s.includes('scheduled')) return 'scheduled';
+  if (s === 'posted') return 'posted';
+  if (s === 'approved') return 'approved';
+  if (s.includes('smm')) return 'smm_approval';
+  if (s.includes('kasper')) return 'kasper_approval';
+  if (s.includes('client')) return 'client_approval';
+  return s.replace(/\s+/g, '_');
+}
 function crosswalkRowFor(cardId, component, slug) {
+  const id = nativeDeliverableId(cardId, component);
+  const held = _fixtureStatus.get(id) || { status: 'in_progress', status_at: '2000-01-01T00:00:00.000Z' };
   return {
-    id: nativeDeliverableId(cardId, component),
+    id,
     client_slug: slug,
     team: teamForComponent(component),
     origin: 'calendar',
-    card_id: String(cardId)
+    card_id: String(cardId),
+    status: held.status,
+    status_at: held.status_at,
+    updated_at: held.status_at
   };
 }
 
@@ -210,6 +238,10 @@ async function stubNativeGateway(ctx, options) {
     try { payload = JSON.parse(request.postData() || '{}'); } catch (e) { payload = { parseErr: true }; }
     calls.push(payload);
     if (typeof opts.onCall === 'function') opts.onCall(payload);
+    // A status the faked gateway accepts is what the work item now holds.
+    if (payload && payload.operation === 'status' && payload.id && fixtureNativeStatus(payload.status)) {
+      _fixtureStatus.set(String(payload.id), { status: fixtureNativeStatus(payload.status), status_at: new Date().toISOString() });
+    }
     return route.fulfill({
       status: 200,
       contentType: 'application/json',

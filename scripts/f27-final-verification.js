@@ -95,6 +95,11 @@ const RECONCILER_CLOSURE_PATHS = Object.freeze([
   'scripts/monitoring-alert-relay.js',
   'scripts/monitoring-watchdog.js',
   'scripts/prod-authority-guard.js',
+  // Added 2026-10-09 alongside the same two entries in
+  // scripts/f27-reconciler-closure.js (OPEN_REPAIRS 388): the two scripts above
+  // now load their pure halves from these shared modules. Keep in step.
+  'supabase/functions/_shared/monitoring-alert-relay-core.mjs',
+  'supabase/functions/_shared/monitoring-watchdog-core.mjs',
 ]);
 const NONTERMINAL_RUN_STATUSES = Object.freeze([
   'queued', 'in_progress', 'waiting', 'pending', 'requested',

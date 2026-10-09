@@ -24,7 +24,7 @@ const KEY    = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
 // sets `caption` or `caption_alt` itself (including '') is left as written.
 //
 // A NEW card also gets fixture work items for its video and thumbnail (OPEN_REPAIRS
-// 388). Every production card has them, and since the native cutover a video or
+// 392). Every production card has them, and since the native cutover a video or
 // thumbnail decision on a card with none is refused (native_link_required), so
 // fourteen probes that seed a card and then move its video or thumbnail went red
 // at that step every night. The ids live only in this run's intercepted reads and

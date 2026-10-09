@@ -16,6 +16,10 @@ on:
         description: 'Optional space-separated probe names to run instead of the manifest (e.g. "p42_concurrent_components p46_pagination_fix")'
         required: false
         default: ''
+      source:
+        description: 'Who started the run: manual (the default) or db-timer (the database timer; the run then behaves exactly like the schedule)'
+        type: string
+        default: manual
 
 jobs:
   e2e:
@@ -35,7 +39,11 @@ jobs:
           PROBE_ATTEMPTS: '3'
           # Each probe resolves the current TEST token in its own Node process,
           # keeps it local, and strips this issuer credential from Chromium.
-          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          # The SMM role key, as a repository secret (owner, 2026-10-09). The role
+          # keys also live in the `production` environment, but that environment
+          # needs an approval per run, which a nightly cannot wait for; the
+          # issuer, the staff writers and p96 all accept a role key.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
           # An ACTIVE admin/SMM roster name the staff key's role resolves to.
           # p96_description_image_upload binds the live writer to it and FAILS
           # without it; nothing else reads it. Never committed, secret only.
@@ -47,7 +55,7 @@ jobs:
       # signal). Posts through the same SyncView Bot webhook the reconcile
       # pager uses; degrades to a warning if the secret is absent.
       - name: Page the SyncView Bot on scheduled failure
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && (github.event_name == 'schedule' || inputs.source == 'db-timer')
         shell: bash
         env:
           SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}

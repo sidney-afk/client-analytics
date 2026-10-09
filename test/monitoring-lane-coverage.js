@@ -36,9 +36,11 @@ function ok(condition, message) {
 const ROOT = path.join(__dirname, '..');
 const WORKFLOW_DIR = path.join(ROOT, '.github', 'workflows');
 
-const watchdog = fs.readFileSync(path.join(ROOT, 'scripts', 'monitoring-watchdog.js'), 'utf8');
-const laneBlock = watchdog.slice(watchdog.indexOf('const LANES = Object.freeze(['),
-  watchdog.indexOf(']);', watchdog.indexOf('const LANES = Object.freeze([')));
+// The lane table lives in the shared core since 2026-10-09 (one table for the
+// GitHub hosts and the database timer host).
+const watchdog = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', '_shared', 'monitoring-watchdog-core.mjs'), 'utf8');
+const laneBlock = watchdog.slice(watchdog.indexOf('export const LANES = Object.freeze(['),
+  watchdog.indexOf(']);', watchdog.indexOf('export const LANES = Object.freeze([')));
 const watchedLanes = new Set([...laneBlock.matchAll(/\bkey: '([a-z0-9_]+)'/g)].map(match => match[1]));
 
 // Heartbeats written from a workflow file, with the file that writes each.

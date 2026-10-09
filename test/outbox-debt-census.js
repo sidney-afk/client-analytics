@@ -188,9 +188,12 @@ const assess = (over = {}) => assessDebt({
   for (const file of ['outbox-debt-census.yml', 'syncview-retirement-census.yml']) {
     ok(!fs.existsSync(path.join(workflows, file)), file + ' is deleted: a retired census must not keep a host that runs');
   }
-  const ticker = fs.readFileSync(path.join(workflows, 'lane-ticker.yml'), 'utf8');
-  ok(!/outbox-debt-census|syncview-retirement-census/.test(ticker),
-    'the lane ticker no longer dispatches a retired census (a leftover dispatch would beat old heartbeats and hide nothing)');
+  // The lane ticker that used to dispatch them is deleted (2026-10-09, OPEN_REPAIRS 388); the
+  // database timer is now the single dispatcher, so that is where a leftover would hide.
+  ok(!fs.existsSync(path.join(workflows, 'lane-ticker.yml')), 'the old lane ticker is deleted');
+  const timer = fs.readFileSync(path.join(__dirname, '..', 'migrations', '2026-10-09-github-workflow-dispatch-timer.sql'), 'utf8');
+  ok(!/outbox-debt-census|syncview-retirement-census/.test(timer),
+    'the dispatch timer does not dispatch a retired census (a leftover dispatch would beat old heartbeats and hide nothing)');
 
   const { LANES, activeLanes } = require('../scripts/monitoring-watchdog');
   for (const key of ['outbox_debt_census', 'syncview_retirement_census']) {

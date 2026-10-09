@@ -234,11 +234,14 @@ async function main() {
     // `monitoring-watchdog.js` and its `monitoring-alert-relay.js` dependency
     // into the reviewed closure. Both are read/alert only; neither reconciles,
     // applies, or touches a runtime flag or authority value.
-    ok(first.receipt.reconciler_file_count === 11
+    // Thirteen since 2026-10-09 (OPEN_REPAIRS 388): the watchdog's and the
+    // relay's pure halves moved into two shared modules under
+    // supabase/functions/_shared so the database-timer host runs the same code.
+    ok(first.receipt.reconciler_file_count === 13
       && first.receipt.rollback_action === 'keep_apply_disabled'
       && first.receipt.workflow_apply_default_false === 'PASS'
       && first.receipt.local_private_readback === 'PASS',
-    'capture receipt binds the reviewed eleven-file disabled-action contract');
+    'capture receipt binds the reviewed thirteen-file disabled-action contract');
     const bundleRelative = path.relative(fixture.repo, first.bundlePath);
     ok(fs.existsSync(first.bundlePath)
       && (bundleRelative === '..' || bundleRelative.startsWith(`..${path.sep}`)),
@@ -252,7 +255,7 @@ async function main() {
     'same release produces byte-identical deterministic sealed bundles');
 
     const unpacked = unpackBundle(fs.readFileSync(first.bundlePath));
-    ok(unpacked.manifest.file_count === 11
+    ok(unpacked.manifest.file_count === 13
       && JSON.stringify(unpacked.manifest.files.map(row => row.path))
         === JSON.stringify(EXPECTED_CLOSURE_PATHS)
       && unpacked.manifest.files.every(row =>
@@ -470,7 +473,7 @@ async function main() {
     ok(unreviewedBlobResult.result.status !== 0
       && unreviewedBlobResult.receipt.code === 'REVIEWED_CLOSURE_BLOB_DRIFT'
       && !fs.existsSync(unreviewedBlobResult.bundlePath),
-    'any unreviewed byte in the exact eleven-file runtime closure fails closed');
+    'any unreviewed byte in the exact thirteen-file runtime closure fails closed');
 
     const dynamic = syntheticRepo();
     replace(

@@ -76,7 +76,7 @@ function teamForComponent(component) {
    the client front door can open — the state a real linked card is in. */
 /*
  * The status each fixture work item holds, as the faked gateway last accepted it
- * (OPEN_REPAIRS 388). After a committed write the page reads the work item back
+ * (OPEN_REPAIRS 392). After a committed write the page reads the work item back
  * (`/rest/v1/deliverables?select=id,status,status_at,updated_at`) to confirm or
  * replay it, and a row with no status stops the write with
  * `native_replay_status_unavailable`: that is how a Kasper change request on a

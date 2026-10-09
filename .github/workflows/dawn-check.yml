@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '30 11 * * 1-5'   # 11:30 UTC Mon-Fri = 07:30 New York (EDT) / 06:30 (EST)
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'Who started the run: manual (the default) or db-timer (the database timer; the run then behaves exactly like the schedule)'
+        type: string
+        default: manual
 
 concurrency:
   group: dawn-check
@@ -31,9 +36,13 @@ jobs:
       - name: Run the dawn check (serves app, scoped to sidneylaruel)
         env:
           SXR_COURIER: '0'
-          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          # The SMM role key, as a repository secret (owner, 2026-10-09). The role
+          # keys also live in the `production` environment, but that environment
+          # needs an approval per run, which a nightly cannot wait for; the
+          # issuer, the staff writers and p96 all accept a role key.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
           # Optional staff ROLE key: role-gated reads (Workload) refuse the key above.
-          SYNCVIEW_ROLE_KEY: ${{ secrets.SYNCVIEW_ROLE_KEY }}
+          SYNCVIEW_ROLE_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
           # The roster name the role key signs in as (the Samples approve signs in
           # through the real sign-in card). Same secret the Calendar nightly uses.
           SYNCVIEW_ACTOR: ${{ secrets.SYNCVIEW_STAFF_ACTOR }}
@@ -56,7 +65,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - name: Page the SyncView Bot on scheduled failure
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && (github.event_name == 'schedule' || inputs.source == 'db-timer')
         shell: bash
         env:
           SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}

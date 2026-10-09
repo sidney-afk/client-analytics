@@ -79,7 +79,7 @@ p84_concurrent_double_approve.js
 p85_review_gate_enforcement.js
 # --- duplicate Linear-issue surfacing (never hide an active card) ---
 p87_resolve_on_route.js
-# --- RETIRED 2026-10-09 (session Gatekeeper, OPEN_REPAIRS 388): p89, p90, p91 ---
+# --- RETIRED 2026-10-09 (session Gatekeeper, OPEN_REPAIRS 392): p89, p90, p91 ---
 # All three click the staff "+" and type into the blank card it used to make,
 # the blank-card-then-save funnel. For a client on the native lane that funnel no
 # longer exists: "+" opens Create Post, which makes the work items first

@@ -1641,6 +1641,11 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       _prodBeginDescriptionEdit('gra-description-child');
       _prodSetDescriptionMode('gra-description-child', 'source');
     });
+    // The editor re-renders after the mode switch; measure only once it has laid out.
+    await page.waitForFunction(() => {
+      const editor = document.querySelector('[data-prod-description="gra-description-child"] .prod-description-editor');
+      return !!editor && editor.getBoundingClientRect().width > 0;
+    }, null, { timeout: 5000 }).catch(() => {});
     const compactDescription = await page.locator('[data-prod-description="gra-description-child"]').evaluate(panel => {
       const editor = panel.querySelector('.prod-description-editor');
       const source = panel.querySelector('[data-prod-description-control="source"]');

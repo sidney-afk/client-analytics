@@ -22,6 +22,10 @@ on:
         description: "Apply changes (otherwise dry run)"
         type: boolean
         default: false
+      source:
+        description: 'Who started the run: manual (the default) or db-timer (the database timer; the run then behaves exactly like the schedule)'
+        type: string
+        default: manual
 
 permissions:
   contents: read
@@ -37,7 +41,7 @@ jobs:
     env:
       SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      APPLY: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply) || (github.event_name == 'schedule' && vars.CLIENTS_ROSTER_SYNC_APPLY == 'true') }}
+      APPLY: ${{ (github.event_name == 'workflow_dispatch' && inputs.source != 'db-timer' && inputs.apply) || ((github.event_name == 'schedule' || inputs.source == 'db-timer') && vars.CLIENTS_ROSTER_SYNC_APPLY == 'true') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

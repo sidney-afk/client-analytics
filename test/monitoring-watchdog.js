@@ -24,6 +24,7 @@ const {
   watchdogDecision,
 } = require('../scripts/monitoring-watchdog');
 const { assertPublicSafe, relayPayload } = require('../scripts/monitoring-alert-relay');
+const CORE_PATH = path.join(__dirname, '..', 'supabase', 'functions', '_shared', 'monitoring-watchdog-core.mjs');
 
 let failures = 0;
 function ok(condition, message) {
@@ -356,8 +357,10 @@ const LINEAR_SECRET = /\bLINEAR_[A-Z0-9_]+\b/;
  * sets on every pass, so a reader of one run's JSON can see the whole estate.
  */
 {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'monitoring-watchdog.js'), 'utf8');
-  const start = source.indexOf('async function runCheck(');
+  // The pass itself moved into the shared core on 2026-10-09 so the database
+  // timer host runs the very same code; the pins follow it there.
+  const source = fs.readFileSync(CORE_PATH, 'utf8');
+  const start = source.indexOf('export async function runCheck(');
   const runCheckSource = source.slice(start, source.indexOf('\n/**', start));
   ok(/watching: activeLanes\(\)/.test(runCheckSource) && /retired: retiredLanes\(\)/.test(runCheckSource),
     'every --check must report which lanes it watches AND which it has retired');
@@ -386,10 +389,9 @@ const LINEAR_SECRET = /\bLINEAR_[A-Z0-9_]+\b/;
  * So pin the shape of the read itself.
  */
 {
-  const source = fs.readFileSync(
-    path.join(__dirname, '..', 'scripts', 'monitoring-watchdog.js'), 'utf8');
-  const start = source.indexOf('async function readState(');
-  const readStateSource = source.slice(start, source.indexOf('\nasync function runCheck(', start));
+  const source = fs.readFileSync(CORE_PATH, 'utf8');
+  const start = source.indexOf('export async function readState(');
+  const readStateSource = source.slice(start, source.indexOf('\nexport async function runCheck(', start));
   ok(start > -1 && readStateSource.length > 0, 'readState is present and sliceable');
   ok(/const watched = activeLanes\(\);/.test(readStateSource)
       && /watched\.map\(lane =>/.test(readStateSource)

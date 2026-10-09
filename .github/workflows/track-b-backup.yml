@@ -21,6 +21,10 @@ on:
         description: 'Destructively restore the new backup into the configured scratch project'
         type: boolean
         default: false
+      source:
+        description: 'Who started the run: manual (the default) or db-timer (the database timer; the run then behaves exactly like the schedule)'
+        type: string
+        default: manual
 
 permissions:
   contents: read
@@ -36,7 +40,7 @@ jobs:
     env:
       # A schedule never hardcodes a coverage claim. The protected variable is
       # advanced only with the matching installed schema/grant/rehearsal release.
-      TRACK_B_BACKUP_CORPUS: ${{ github.event_name == 'workflow_dispatch' && inputs.backup_corpus != 'configured' && inputs.backup_corpus || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
+      TRACK_B_BACKUP_CORPUS: ${{ github.event_name == 'workflow_dispatch' && inputs.source != 'db-timer' && inputs.backup_corpus != 'configured' && inputs.backup_corpus || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
       TRACK_B_BACKUP_DATABASE_URL: ${{ secrets.TRACK_B_BACKUP_DATABASE_URL }}
       TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
       TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
@@ -91,12 +95,12 @@ jobs:
         run: rm -f "$RUNNER_TEMP/syncview-track-b-latest.snapshot"
 
   restore_rehearsal:
-    if: github.event_name == 'workflow_dispatch' && inputs.restore_rehearsal == true
+    if: github.event_name == 'workflow_dispatch' && inputs.source != 'db-timer' && inputs.restore_rehearsal == true
     needs: backup
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      TRACK_B_BACKUP_CORPUS: ${{ github.event_name == 'workflow_dispatch' && inputs.backup_corpus != 'configured' && inputs.backup_corpus || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
+      TRACK_B_BACKUP_CORPUS: ${{ github.event_name == 'workflow_dispatch' && inputs.source != 'db-timer' && inputs.backup_corpus != 'configured' && inputs.backup_corpus || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
       TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
       TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
       TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ vars.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}

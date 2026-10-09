@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 56 |
+| Deployable function slugs | 57 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 27 |
+| Manual-dispatch-only paths | 28 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -52,6 +52,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `linear-inbound` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** RETIRED 2026-09-24 (B2 Slice 7): deleted from production and its dispatch lane removed. The source stays only as the frozen reference its contract tests read, until B2 Slice 10. Do not redeploy it except as the rollback in ROLLBACK.md. | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
 | `linear-outbound` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** RETIRED (B2 Slice 8, 2026-09-24): deleted live after the three-function Section 4 release (run 36023623936) was green; no deploy path. Source kept frozen as a contract-test reference until Slice 10. | `_shared/linear-create-id.mjs` | `linear-outbound/f27-replay.mjs`<br>`linear-outbound/mapping.mjs`<br>`linear-outbound/monitoring.mjs` |
+| `monitoring-watchdog-tick` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/monitoring-alert-relay-core.mjs`<br>`_shared/monitoring-watchdog-core.mjs`<br>`_shared/monitoring-watchdog-tick.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `notify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `notify/format.ts`<br>`notify/slack-api.ts`<br>`notify/urgent-link.ts` |
 | `onboarding-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

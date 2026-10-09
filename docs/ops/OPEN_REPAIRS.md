@@ -31754,3 +31754,79 @@ run); transcripts go to the model inside tags the system message calls data,
 not instructions; a non-Frame.io link is named as such in the box; the
 Transcript pill sits top right, clear of "Show more", and hides on a phone once
 a caption exists; closing the box with pasted text asks first.
+
+## 390. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED] Scheduled jobs and the dead-man's switch move onto Supabase's own timer
+
+**What was wrong.** GitHub runs this repository's `schedule:` crons hours late. Measured on
+2026-10-09: the 5-minute native notification sender ran 6 times in 30 hours, and the daily roster
+and Sheets copy jobs started about 7 hours after their time. That is a product problem (notifications
+and intake completion go out hours late), and it made the monitoring dead-man's switch page about
+itself: 2 false pages that week for its own lane, `monitoring_watchdog` (max 360 minutes). The
+earlier fix, `lane-ticker.yml` (a GitHub job meant to dispatch the frequent lanes), has stopped after
+a few seconds on every run: `gh workflow view` on the runner has no `--json` flag, so it reads its
+own state as "unknown" and exits without dispatching anything.
+
+**What changed (source only).** The owner chose Supabase's built-in timer (pg_cron, already running
+six jobs here) over n8n, for both halves.
+
+1. **Every scheduled workflow is started on time.** `migrations/2026-10-09-github-workflow-dispatch-timer.sql`
+   makes one pg_cron job per scheduled workflow (`gh-dispatch-<workflow>`), on the workflow's own cron,
+   that calls GitHub's workflow_dispatch API through pg_net with a token read from Vault. Runs started
+   that way are not dropped: 60 sampled dispatched runs (2026-09-28 to 2026-10-09) all started within
+   131 seconds. The `schedule:` blocks stay as a fallback. 17 workflows are dispatched. 2 are not, on
+   purpose: `monitoring-deadman.yml` and `monitoring-crosscheck.yml` (they stay the independent second
+   observer of the switch). The timer is the single dispatcher: `lane-ticker.yml`, the earlier
+   GitHub-side dispatcher of the five frequent lanes, is deleted in this change (a one-line fix to
+   it, PR 2020, would otherwise have dispatched those lanes a second time). Eight workflows that tell a timed run
+   from a manual one gained a `source` input (default `manual`); `source=db-timer` behaves exactly like
+   the schedule, and manual runs are unchanged. `test/github-dispatch-timer.js` checks the list against
+   `.github/workflows` in both directions, the crons, the inputs and those guards.
+2. **The dead-man's switch runs on the same timer.** New Edge Function `monitoring-watchdog-tick`
+   runs the same check as `node scripts/monitoring-watchdog.js --check`: same lanes, thresholds,
+   latches, page through the same n8n alert relay, and the same `monitoring_watchdog` heartbeat
+   (actor `supabase-cron-monitoring-watchdog`, run handle `pgcron:<id>`). There is one source, not
+   two copies. The lane table, the decision and the whole pass moved into
+   `supabase/functions/_shared/monitoring-watchdog-core.mjs`, and the page shape into
+   `.../_shared/monitoring-alert-relay-core.mjs`. The Node scripts `require()` them. The F27
+   reconciler closure (which seals `scripts/monitoring-watchdog.js` and its dependencies) gained the
+   two core files and its pins were re-taken from the committed bytes. The function does not check
+   the n8n API: delivery confirmation needs `N8N_API_KEY`, never gates paging, and stays with the
+   GitHub hosts. `migrations/2026-10-09-monitoring-watchdog-tick-ping.sql` and `-schedule.sql` run it
+   every 15 minutes; the schedule refuses to install before the dispatch timer exists. The two GitHub
+   workflows stay as the second observer.
+
+**Thresholds: no change needed.** Measured read only on 2026-10-09 over the last 7 days of
+heartbeats, the lanes' own gaps under GitHub's schedule reached 539 minutes for card_calendar_drift
+(max 240), 781 for alert_digest and 520 to 561 for the four native lanes (max 360). A 15-minute
+observer alone would have sent about 54 stale pages that week, against 18 actually sent. With the
+dispatch timer, each lane's gap is its own cadence plus run time: 5 to 60 minutes for the frequent
+lanes against 240 or 360, and about a day for the daily lanes against 2160. So no lane needs a
+threshold change. `monitoring_watchdog`'s 360 stays as what the GitHub fallback needs; a follow-up
+can bring it down once the timer has a track record. If the token expires, dispatches fail with
+401/403 in `net._http_response`, the lanes fall back to GitHub's late schedule, and the switch, which
+does not use the token, pages on the stale lanes. That page is the alarm.
+
+**Owner steps, in order, when he says go** (none done):
+1. On GitHub, create a fine-grained personal access token. Settings, Developer settings, Fine-grained
+   tokens: resource owner = the account that owns this repository; repository access "Only select
+   repositories" = this repository alone; repository permissions "Actions: Read and write" (GitHub adds
+   "Metadata: Read-only" itself); nothing else. Pick an expiry and note it.
+2. In the Supabase SQL editor, store it in Vault:
+   `select vault.create_secret('<the token>', 'github_dispatch_token');`
+3. Run `migrations/2026-10-09-github-workflow-dispatch-ping.sql`, wait a minute, and check it answered
+   200 and 204. It dispatches card-calendar-status-drift.yml once; that job only reads.
+4. Run `migrations/2026-10-09-github-workflow-dispatch-timer.sql`.
+5. Make one random value of at least 32 characters. Set it as the Edge Function secret
+   `MONITORING_WATCHDOG_KEY`, and store the same text in Vault:
+   `select vault.create_secret('<the same text>', 'monitoring_watchdog_key');`
+6. Set the Edge Function secret `MONITORING_ALERT_WEBHOOK` to the same relay URL the GitHub secret
+   `SLACK_ALERT_WEBHOOK` holds (the production webhook URL of the n8n alert relay workflow
+   `Tfhc3vebZyG6obOg`; reading it there is not an edit).
+7. After this merges, deploy through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = the merge commit on main.
+8. Run `migrations/2026-10-09-monitoring-watchdog-tick-ping.sql`, wait a minute, and check it answered
+   `"ready":true`.
+9. Run `migrations/2026-10-09-monitoring-watchdog-tick-schedule.sql`.
+Rollback: `select cron.unschedule(jobid) from cron.job where jobname like 'gh-dispatch-%' or jobname = 'monitoring-watchdog-tick';`
+(the GitHub `schedule:` blocks and hosts keep running, as today).

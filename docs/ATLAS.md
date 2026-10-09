@@ -349,6 +349,7 @@ There are 46 entrypoint folders and one shared helper folder here. The live proj
 | <!-- atlas:edge workload-plan -->[`workload-plan`](../supabase/functions/workload-plan/index.ts) | Staff reads native Workload; admin and SMM edit internal plan dates. | Live v39. [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | <!-- atlas:edge write-diagnostics -->[`write-diagnostics`](../supabase/functions/write-diagnostics/index.ts) | Browsers report save refusals; admin reads Save problems. | Live v22. [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | <!-- atlas:edge client-hubspot-sync -->[`client-hubspot-sync`](../supabase/functions/client-hubspot-sync/index.ts) | Keeps each client's HubSpot deal, contract state and payment state in SyncView (read only toward HubSpot, never n8n): refreshed when an admin opens a profile and by a daily timer. | Source only, not deployed; needs `migrations/2026-10-04-client-hubspot-sync.sql`, the secrets `HUBSPOT_READ_TOKEN` and `HUBSPOT_SYNC_KEY`, and the switch row `client_hubspot_sync`. [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
+| <!-- atlas:edge monitoring-watchdog-tick -->[`monitoring-watchdog-tick`](../supabase/functions/monitoring-watchdog-tick/index.ts) | The monitoring dead-man's switch on Supabase's own timer: every 15 minutes (pg_cron) it runs the same heartbeat check as `scripts/monitoring-watchdog.js --check` and pages the owner through the alert relay; the GitHub hosts stay as a second observer. | Source only, not deployed; needs the secrets `MONITORING_WATCHDOG_KEY` and `MONITORING_ALERT_WEBHOOK`, then `migrations/2026-10-09-monitoring-watchdog-tick-ping.sql` and `-schedule.sql` (OPEN_REPAIRS 388). [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 
 
 ### Live functions owned outside this repo
@@ -610,7 +611,6 @@ There are **49 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/f42-card-comment-import.yml -->[`f42-card-comment-import.yml`](../.github/workflows/f42-card-comment-import.yml) | Manual | Imports approved historical card comments. |
 | <!-- atlas:action .github/workflows/graphics-f2-evidence.yml -->[`graphics-f2-evidence.yml`](../.github/workflows/graphics-f2-evidence.yml) | Manual, Pull request | Captures private graphics evidence. |
 | <!-- atlas:action .github/workflows/graphics-f2-preflight.yml -->[`graphics-f2-preflight.yml`](../.github/workflows/graphics-f2-preflight.yml) | Manual | Runs graphics read-only preflight. |
-| <!-- atlas:action .github/workflows/lane-ticker.yml -->[`lane-ticker.yml`](../.github/workflows/lane-ticker.yml) | Manual, Cron `41 * * * *` | Dispatches enabled native lanes and hands off a resident ticker. |
 | <!-- atlas:action .github/workflows/linear-deliverables-reconcile.yml -->[`linear-deliverables-reconcile.yml`](../.github/workflows/linear-deliverables-reconcile.yml) | Manual | Retained Linear reconciliation lane; runtime gates decide admission. |
 | <!-- atlas:action .github/workflows/linear-exit-preparation-ci.yml -->[`linear-exit-preparation-ci.yml`](../.github/workflows/linear-exit-preparation-ci.yml) | Pull request | Runs isolated Linear-exit preparation proofs. |
 | <!-- atlas:action .github/workflows/linear-outbound-drain.yml -->[`linear-outbound-drain.yml`](../.github/workflows/linear-outbound-drain.yml) | Manual | Retained outbound lane; live outbound flag is off. |
@@ -636,7 +636,7 @@ There are **49 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/workload-source-freshness.yml -->[`workload-source-freshness.yml`](../.github/workflows/workload-source-freshness.yml) | Manual | Checks native workload source freshness. |
 
 
-The resident [ticker](../.github/workflows/lane-ticker.yml) schedules notification sender and monitor at five minutes, intake completion and monitor at fifteen minutes, and status drift at sixty minutes. Its hourly cron is a recovery starter; its resident loop and self-handoff maintain those intervals while enabled. Owner variables and concurrency gates still control each dispatched lane.
+The database timer ([migrations/2026-10-09-github-workflow-dispatch-timer.sql](../migrations/2026-10-09-github-workflow-dispatch-timer.sql), OPEN_REPAIRS 388; built, not applied) dispatches every scheduled workflow above through GitHub's workflow_dispatch API at its own cron, because GitHub runs `schedule:` crons hours late; the two dead-man hosts are left on GitHub's own schedule as the independent observer. It replaced the resident `lane-ticker.yml`, deleted 2026-10-09. Owner variables and concurrency gates still control each dispatched lane.
 
 
 | Other repo workflow | Trigger | Purpose |

@@ -26955,7 +26955,9 @@
            so this said "Color updated" for colours that were not saved. Count
            the cards the save marked as failed as well. */
         const failed = results.filter(r => r.status === 'rejected').length
-            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError); }).length;
+            // ("Not saved yet: ..." is an older change still waiting on the card, put back
+            // after a save that worked; it does not mean this colour failed.)
+            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError && !/^Not saved yet: /.test(String(p._saveError))); }).length;
         if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
         else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
     }
@@ -39162,8 +39164,20 @@
             _calPendingEdits[pid] = Object.assign({}, entry.edits, _calPendingEdits[pid] || {});
             delete forClient[pid];
             restored += 1;
+            /* Show it as well as save it. The card was just loaded with the
+               server's value, and the save only updates the list after its own
+               reads, so the box kept the old text under a "Saved" chip, and
+               typing into that stale box wrote over the restored words. Mirror
+               the plain fields onto the card now, as typing does. */
+            const shown = calState.posts.find(post => post && post.id === pid);
+            if (shown) {
+                Object.keys(_calPendingEdits[pid]).forEach(k => {
+                    if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) shown[k] = _calPendingEdits[pid][k];
+                });
+            }
             _calFlushCardSave(pid);
         }
+        if (restored) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
         if (!Object.keys(forClient).length) delete _calParkedEdits[key];
         return restored;
     }
@@ -39178,6 +39192,13 @@
        before the network answers. True when the write was made or rightly
        skipped; false only when storage refused a write that was due. */
     function _calCacheWriteIfCurrent(slug, options) {
+        /* Known residual (independent review, 2026-10-08): a save that put a
+           repair marker into this client's saved copy before the view moved
+           away does not take it out here, so on return the card can show
+           "Saved, syncing" for a save that worked until the next load clears
+           it. Writing here would also store the other client's settings under
+           this one; left for a change that can rewrite one card of a saved
+           copy on its own. Recorded in OPEN_REPAIRS 384. */
         if (calClientSlug(calState.client) !== slug) return true;
         return _calCacheWrite(slug, calState.posts, options);
     }
@@ -45919,7 +45940,11 @@
                no error anywhere in the Review view (the "Save failed" chip is
                only on Sheet cards). Read the mark, as Approve does. */
             const current = calState.posts.find(p => p.id === pid);
-            if (current && current._saveError) {
+            // "Not saved yet: ..." is the chip the engine puts BACK after a save
+            // that worked, for an older status, date or order change still
+            // waiting on this card (_calRestoreFailedIntentChip). It is not this
+            // comment failing, and saying so would invite a duplicate.
+            if (current && current._saveError && !/^Not saved yet: /.test(String(current._saveError))) {
                 _calReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError;
                 _calReviewRepaintCard(pid);
                 return;
@@ -57207,9 +57232,9 @@
                the composer shows no audience switch for a reply. Carrying an
                unsent INTERNAL comment into a reply on a client-visible thread
                would post staff-only words where the client reads them (found by
-               an independent review of the first version of this change). Text
-               is carried only into a thread of the audience it was typed for;
-               otherwise the person is asked, as for Edit. */
+               an independent review of the first version of this change, before
+               it shipped). Text is carried only into a thread of the audience it
+               was typed for; otherwise the person is asked, as for Edit. */
             const crossesAudience = action === 'add' && comment && unsent
                 && String(comment.audience || 'internal') !== String(draft.audience || 'internal');
             if (crossesAudience && !discardUnsent) {
@@ -57363,6 +57388,10 @@
             if (!issue || !comment) return false;
             const state = _prodCommentDraftFor(id);
             const key = [action, comment.id, comment.version, comment.row_updated_at].join(':');
+            // A second click on the same button while its own write is out is not
+            // a second request, and must not earn the "was not sent" message below.
+            if (state.lifecyclePendingKey === key) return false;
+            state.lifecyclePendingKey = key;
             if (state.lifecycleKey !== key) {
                 state.lifecycleKey = key;
                 state.lifecycleRequestId = _prodWriteRequestId('comment-' + action);
@@ -57376,6 +57405,7 @@
                     expected_updated_at: comment.row_updated_at
                 }
             }, state.lifecycleRequestId).then(result => {
+                state.lifecyclePendingKey = '';
                 state.lifecycleKey = '';
                 state.lifecycleRequestId = '';
                 /* Nothing came back: another comment write on this card was
@@ -57390,6 +57420,7 @@
                 _prodComments.adopt(id, result && result.comment);
                 _prodComments.refresh(id);
             }).catch(error => {
+                state.lifecyclePendingKey = '';
                 _writeUiRecordFailure('production', 'comment_lifecycle', error, { id: String(id) });
                 state.error = _prodWriteErrorText(error, issue, 'comment');
                 _prodComments.refresh(id);
@@ -70881,7 +70912,7 @@
                     wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
                     wirePost.tweaks = wirePost.video_tweaks;
                     delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
-                    delete wirePost._baseAt; delete wirePost._saveError;
+                    delete wirePost._baseAt; delete wirePost._saveError; delete wirePost._saveErrorAt;
                     delete wirePost._writeUiRetryEdits; delete wirePost._writeUiHeldSourceEdits; delete wirePost._writeUiRetrySourceAt;
                     delete wirePost._writeUiRetryPrincipal;
                     delete wirePost._writeUiPrecommittedNative;
@@ -70925,6 +70956,7 @@
                 const _okPost = sxrState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;
+                    delete _okPost._saveErrorAt;
                     delete _okPost._writeUiRetryEdits; delete _okPost._writeUiHeldSourceEdits; delete _okPost._writeUiRetrySourceAt;
                     delete _okPost._writeUiRetryPrincipal;
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
@@ -70960,6 +70992,7 @@
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                     cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    cur._saveErrorAt = Date.now();   // how long _sxrMergeServerRows keeps the unsaved text
                     // Retry the failed field set, never an old whole-card snapshot.
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     if (gatewayCommitted) {
@@ -72869,6 +72902,7 @@
         if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
         return fc.some(c => c && c.id && _sxrMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
     }
+    const SXR_FAILED_TEXT_KEEP_MS = 30 * 60 * 1000;
     function _sxrMergeServerRows(server) {
         const local = sxrState.posts || [];
         const localById = new Map(local.map(p => [p.id, p]));
@@ -72940,12 +72974,18 @@
                else, but keep the unsaved text and its Retry until it is retried
                or the person edits again. Statuses are not kept: the save engine
                already put those back when the save failed. */
-            if (loc && loc._saveError && loc._writeUiRetryEdits) {
+            /* For half an hour, not for ever (independent review, 2026-10-08):
+               kept without limit, an ignored Retry would mask a teammate's
+               later change to the same field indefinitely and then send the
+               stale text along with the next unrelated edit to the card. */
+            if (loc && loc._saveError && loc._writeUiRetryEdits
+                && Date.now() - Number(loc._saveErrorAt || 0) < SXR_FAILED_TEXT_KEEP_MS) {
                 const kept = Object.assign({}, carrySourceRepair(srv, loc));
                 Object.keys(loc._writeUiRetryEdits).forEach(k => {
                     if (k.charAt(0) !== '_' && _SXR_ROLLBACK_FIELDS.indexOf(k) < 0 && k in loc) kept[k] = loc[k];
                 });
                 kept._saveError = loc._saveError;
+                kept._saveErrorAt = loc._saveErrorAt;
                 kept._writeUiRetryEdits = loc._writeUiRetryEdits;
                 _sxrMergePostComments(kept, loc);
                 out.push(kept);
@@ -75526,9 +75566,22 @@
     function _igCreateAnswerIsFinal(created) {
         const j = created && created.json;
         if (!j || typeof j !== 'object') return false;
-        if (created.status >= 400 && created.status < 500) return true;
-        if (created.status !== 200 || j.ok !== false || !j.row || j.row.status !== 'failed') return false;
-        return !/Post For Me answered (0|5\d\d)\b/.test(String(j.error || ''));
+        return created.status >= 400 && created.status < 500;
+    }
+    /* The function also answers HTTP 200 with {"ok":false}, a row marked failed
+       and a reason when Post For Me did not accept the create. That reason is
+       worth showing, and the row belongs in the queue. But it is NOT proof that
+       no post exists: the same shape comes back when Post For Me fails or times
+       out after taking the post, and the page cannot tell the two apart from
+       the text (the first version of this change tried to, by matching the
+       error text, and an independent review showed how that could end in two
+       posts). So the attempt and its key are KEPT: pressing again retries this
+       same post, and the function's own lookup adopts one that already exists. */
+    function _igCreateRefusalReason(created) {
+        const j = created && created.json;
+        if (!j || typeof j !== 'object' || created.status !== 200 || j.ok !== false) return '';
+        if (!j.row || j.row.status !== 'failed') return '';
+        return String(j.error || j.row.error || '').trim();
     }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
@@ -75767,17 +75820,16 @@
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
-                // An answer that says no is final. A server error or an unreadable answer leaves the outcome unknown.
-                // "No" comes two ways: a 4xx, or HTTP 200 with {"ok":false} and a row marked failed, which is how
-                // the function reports that Post For Me itself refused the post. That second shape used to be read
-                // as "could not confirm": the reason was never shown, the row never reached the queue, and every
-                // new press uploaded the whole video again to be refused again. The one 200 that stays unknown is
-                // Post For Me not answering (status 0 or a 5xx of its own): the post may exist, so the same key is kept.
+                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
                 const final = _igCreateAnswerIsFinal(created);
-                if (final) {
-                    igState.attempt = null;
-                    const failedRow = created.json && created.json.row;
+                if (final) igState.attempt = null;
+                // Post For Me did not accept it, and said why: show the reason and the failed row
+                // (it used to read "could not confirm", with the reason hidden). The attempt is kept.
+                const reason = final ? '' : _igCreateRefusalReason(created);
+                if (reason) {
+                    const failedRow = created.json.row;
                     if (failedRow && failedRow.id) { igState.uploads = [failedRow].concat(igState.uploads.filter(r => r.id !== failedRow.id)); _igRenderQueue(); }
+                    throw Object.assign(new Error('Instagram did not take this post: ' + reason + ' Pressing the button again retries this same post; it cannot post twice.'), { igUnknown: false });
                 }
                 throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
             }
@@ -88869,4 +88921,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7b0be66e0a11.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-baefab48683b.js");

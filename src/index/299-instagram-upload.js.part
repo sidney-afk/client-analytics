@@ -298,9 +298,22 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function _igCreateAnswerIsFinal(created) {
         const j = created && created.json;
         if (!j || typeof j !== 'object') return false;
-        if (created.status >= 400 && created.status < 500) return true;
-        if (created.status !== 200 || j.ok !== false || !j.row || j.row.status !== 'failed') return false;
-        return !/Post For Me answered (0|5\d\d)\b/.test(String(j.error || ''));
+        return created.status >= 400 && created.status < 500;
+    }
+    /* The function also answers HTTP 200 with {"ok":false}, a row marked failed
+       and a reason when Post For Me did not accept the create. That reason is
+       worth showing, and the row belongs in the queue. But it is NOT proof that
+       no post exists: the same shape comes back when Post For Me fails or times
+       out after taking the post, and the page cannot tell the two apart from
+       the text (the first version of this change tried to, by matching the
+       error text, and an independent review showed how that could end in two
+       posts). So the attempt and its key are KEPT: pressing again retries this
+       same post, and the function's own lookup adopts one that already exists. */
+    function _igCreateRefusalReason(created) {
+        const j = created && created.json;
+        if (!j || typeof j !== 'object' || created.status !== 200 || j.ok !== false) return '';
+        if (!j.row || j.row.status !== 'failed') return '';
+        return String(j.error || j.row.error || '').trim();
     }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
@@ -539,17 +552,16 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
-                // An answer that says no is final. A server error or an unreadable answer leaves the outcome unknown.
-                // "No" comes two ways: a 4xx, or HTTP 200 with {"ok":false} and a row marked failed, which is how
-                // the function reports that Post For Me itself refused the post. That second shape used to be read
-                // as "could not confirm": the reason was never shown, the row never reached the queue, and every
-                // new press uploaded the whole video again to be refused again. The one 200 that stays unknown is
-                // Post For Me not answering (status 0 or a 5xx of its own): the post may exist, so the same key is kept.
+                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
                 const final = _igCreateAnswerIsFinal(created);
-                if (final) {
-                    igState.attempt = null;
-                    const failedRow = created.json && created.json.row;
+                if (final) igState.attempt = null;
+                // Post For Me did not accept it, and said why: show the reason and the failed row
+                // (it used to read "could not confirm", with the reason hidden). The attempt is kept.
+                const reason = final ? '' : _igCreateRefusalReason(created);
+                if (reason) {
+                    const failedRow = created.json.row;
                     if (failedRow && failedRow.id) { igState.uploads = [failedRow].concat(igState.uploads.filter(r => r.id !== failedRow.id)); _igRenderQueue(); }
+                    throw Object.assign(new Error('Instagram did not take this post: ' + reason + ' Pressing the button again retries this same post; it cannot post twice.'), { igUnknown: false });
                 }
                 throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
             }

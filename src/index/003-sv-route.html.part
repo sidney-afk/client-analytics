@@ -161,7 +161,12 @@
             var q0 = new URLSearchParams(location.search);
             if (q0.has('sv_path')) {
                 var p0 = q0.get('sv_path'); q0.delete('sv_path');
-                if (!/^\/(?!\/)[A-Za-z0-9._~%\/-]*$/.test(p0) || !toLegacy(p0, '')) p0 = '/';
+                // "&" is allowed: a client whose name has "&" (or "and") has it in its
+                // slug, the Calendar writes that slug into its address as it is, and
+                // without it here a reload or a pasted card link for that client fell
+                // through to Home with no notice. The value is already decoded and is
+                // only ever used as a path.
+                if (!/^\/(?!\/)[A-Za-z0-9._~%&\/-]*$/.test(p0) || !toLegacy(p0, '')) p0 = '/';
                 origReplace.call(history, history.state, '', p0 + qs(q0) + location.hash);
             } else if (APP === '/' && (location.pathname === '/' || location.pathname === '/index.html')) {
                 // An old address opened directly: show it at its clean path.

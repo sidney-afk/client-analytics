@@ -7,7 +7,7 @@
 | Order | Fragment | Lines | Banner |
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
-| 2 | `003-sv-route.html.part` | 192 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
+| 2 | `003-sv-route.html.part` | 197 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 7333 | Templates view |
@@ -37,7 +37,7 @@
 | 29 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
 | 30 | `120-calendar-flags-write-repair.js.part` | 3458 | The members a flag value offers, or null when it offers no member list at |
 | 31 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
-| 32 | `130-calendar-model-cache.js.part` | 1411 | Returns the comments array for a given component. Falls back to the |
+| 32 | `130-calendar-model-cache.js.part` | 1413 | Returns the comments array for a given component. Falls back to the |
 | 33 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 34 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 35 | `133-core-loading-skeletons.js.part` | 378 | Modern animated loader — a single rotating ring with a subtle label. |
@@ -45,22 +45,22 @@
 | 37 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 38 | `150-calendar-hydration-import.js.part` | 2289 | For a card linked to a real sub-issue (not a parent), return which of |
 | 39 | `160-calendar-organize-ui.js.part` | 3142 | Lighter path for the Order switch: update the chrome in place so the |
-| 40 | `170-calendar-links-status.js.part` | 3423 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 40 | `170-calendar-links-status.js.part` | 3442 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 41 | `180-calendar-native-post-media.js.part` | 2953 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 44 | `190-calendar-approval-comments.js.part` | 3244 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 44 | `190-calendar-approval-comments.js.part` | 3248 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 45 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 46 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 47 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
-| 48 | `230-production-create-comments.js.part` | 2778 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 48 | `230-production-create-comments.js.part` | 2784 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 49 | `240-production-description.js.part` | 2717 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 53 | `280-samples-cards-notes.js.part` | 3011 | SURFACE 3: the save engine |
+| 53 | `280-samples-cards-notes.js.part` | 3020 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 55 | `299-instagram-upload.js.part` | 729 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
+| 55 | `299-instagram-upload.js.part` | 741 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
 | 56 | `300-tiktok-upload.js.part` | 2397 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 791 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |

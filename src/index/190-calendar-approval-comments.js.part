@@ -910,7 +910,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                no error anywhere in the Review view (the "Save failed" chip is
                only on Sheet cards). Read the mark, as Approve does. */
             const current = calState.posts.find(p => p.id === pid);
-            if (current && current._saveError) {
+            // "Not saved yet: ..." is the chip the engine puts BACK after a save
+            // that worked, for an older status, date or order change still
+            // waiting on this card (_calRestoreFailedIntentChip). It is not this
+            // comment failing, and saying so would invite a duplicate.
+            if (current && current._saveError && !/^Not saved yet: /.test(String(current._saveError))) {
                 _calReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError;
                 _calReviewRepaintCard(pid);
                 return;

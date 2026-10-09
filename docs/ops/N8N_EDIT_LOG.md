@@ -280,3 +280,16 @@ Left on, on purpose: `Caption Prompts, Get` (first-load fallback, 291), `Sample 
 investigation) and `TikTok Upload, Result` (until Post For Me's webhook is re-pointed, 370).
 Backup: the saved versions above stay in n8n (deactivated, not archived), and the Sunday weekly backup exports every workflow.
 Undo: in n8n open the workflow and publish it again.
+
+## 2026-10-09 TikTok Upload, Result switched off (owner's go, session Lighthouse)
+
+Workflow and the version that stays saved (unpublished only; no step, connection or credential touched):
+- SyncView TikTok Upload, Result (`1qZmOQPtG6rKYlK7`, webhook `/webhook/tiktok-result`): `fa247b1c-26c6-472b-b4c1-031afbab9afa`
+Changed: unpublished (active true to false). Nothing deleted, nothing edited.
+Why: Post For Me results now reach the `tiktok-upload` function directly (OPEN_REPAIRS 370). On 2026-10-09 the owner ran
+`node scripts/tiktok-pfm-webhook.js --register`, which answered "Already there" and listed exactly one Post For Me webhook,
+the function's own. The owner asked to finish moving TikTok results off n8n.
+Evidence, checked immediately before switching off: the workflow's last run was 2026-10-08 18:47 UTC, and four posts on
+2026-10-09 (14:03 to 15:29 UTC) were flipped to `posted` with their TikTok link in `tiktok_uploads` with no n8n run at all.
+`tiktok_upload_source` reads `supabase`.
+Undo: in n8n open the workflow and publish it again, then register its URL as a Post For Me webhook.

@@ -50,7 +50,7 @@ const MAX_TABS = 16;
 // month's plan in its own Docs tab (NEW_CLIENT_ONBOARDING §6a). A plain export
 // returns only the first tab, so read the tab ids from the Doc page (the Doc
 // is shared by link) and export each tab as text.
-async function planTabs(docId: string): Promise<Array<{ id: string; name: string; text: string }>> {
+export async function planTabs(docId: string): Promise<Array<{ id: string; name: string; text: string }>> {
   const base = `https://docs.google.com/document/d/${encodeURIComponent(docId)}`;
   const page = await fetch(`${base}/edit`);
   const html = page.ok ? await page.text() : "";
@@ -69,7 +69,7 @@ async function planTabs(docId: string): Promise<Array<{ id: string; name: string
 
 // Fallback label when the Doc page gives no tab name: the month (and year)
 // the tab mentions most.
-function tabMonth(text: string): string {
+export function tabMonth(text: string): string {
   const counts = new Map<string, number>();
   for (const m of text.matchAll(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b(?:\s+(\d{4}))?/gi)) {
     const key = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() + (m[2] ? " " + m[2] : "");
@@ -120,16 +120,17 @@ function gh(path: string, raw = false): Promise<Response> {
   });
 }
 
-export async function clientStyle(db: SupabaseClient, client: string): Promise<string> {
-  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
-  const found = await findClient(db, client);
-  if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
+// The written voice and title facts for one client slug, or the reason there
+// are none. Shared with the thumbnail-titles functions, which seed each
+// client's thumbnail title prompt from the same facts this connector shows.
+export async function titleStyleFacts(clientSlug: string, clientName = "", exclude: RegExp | null = null): Promise<{ text: string; reason: string }> {
+  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return { text: "", reason: "brain_not_connected" };
   const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
   const list = await gh(`contents/clients?ref=${ref}`);
-  if (!list.ok) return `Could not read the Synchro Brain (${list.status}).`;
+  if (!list.ok) return { text: "", reason: `brain_unreadable_${list.status}` };
   const folders = ((await list.json()) as Array<{ name: string; type: string }>).filter((i) => i.type === "dir").map((i) => i.name);
-  const folder = findClientFolder(folders, found.plan.client_slug) || findClientFolder(folders, found.plan.client_name);
-  if (!folder) return `${found.plan.client_name} has no folder in the Synchro Brain yet.`;
+  const folder = findClientFolder(folders, clientSlug) || (clientName ? findClientFolder(folders, clientName) : null);
+  if (!folder) return { text: "", reason: "no_brain_folder" };
   const read = async (file: string) => {
     const r = await gh(`contents/clients/${folder}/${file}.md?ref=${ref}`, true);
     return r.ok ? await r.text() : "";
@@ -138,9 +139,20 @@ export async function clientStyle(db: SupabaseClient, client: string): Promise<s
   const facts = [
     ...parseBrainFacts(voice, "voice"),
     ...parseBrainFacts(editing, "editing").filter((f: { heading: string }) => TITLE_FACTS.test(f.heading) && !/font|colou?r|spec/i.test(f.heading)),
-  ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
-  if (!facts.length) return `${found.plan.client_name}: the Synchro Brain has no written voice or title facts yet. Match the wording style of the client's recent Canva thumbnail titles.`;
+  ].filter((f: { status: string; body: string; heading: string }) => f.status === "written" && f.body && !(exclude && exclude.test(f.heading)));
+  if (!facts.length) return { text: "", reason: "no_written_facts" };
   const text = facts.map((f: { file: string; heading: string; spec: string; body: string }) =>
     `## ${f.heading} (${f.file})\n${f.body}`).join("\n\n");
-  return `${found.plan.client_name}, voice and title guidance from the Synchro Brain (written facts only; fonts and colours come from the latest Canva thumbnail, not from here):\n\n${text.slice(0, BRIEF_MAX_CHARS)}`;
+  return { text: text.slice(0, BRIEF_MAX_CHARS), reason: "" };
+}
+
+export async function clientStyle(db: SupabaseClient, client: string): Promise<string> {
+  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
+  const found = await findClient(db, client);
+  if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
+  const style = await titleStyleFacts(found.plan.client_slug, found.plan.client_name);
+  if (style.reason.startsWith("brain_unreadable_")) return `Could not read the Synchro Brain (${style.reason.slice(17)}).`;
+  if (style.reason === "no_brain_folder") return `${found.plan.client_name} has no folder in the Synchro Brain yet.`;
+  if (!style.text) return `${found.plan.client_name}: the Synchro Brain has no written voice or title facts yet. Match the wording style of the client's recent Canva thumbnail titles.`;
+  return `${found.plan.client_name}, voice and title guidance from the Synchro Brain (written facts only; fonts and colours come from the latest Canva thumbnail, not from here):\n\n${style.text}`;
 }

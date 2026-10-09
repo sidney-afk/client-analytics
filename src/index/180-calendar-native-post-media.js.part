@@ -2121,8 +2121,16 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         }
         overlay.classList.add('open');
     }
-    function _calCloseCaptionPromptModal() {
+    /* Every way out of the dialog (X, Cancel, backdrop, Escape) comes here. When
+       it is the transcript box and text was pasted, ask first: the text is not
+       kept anywhere. `force` is the box's own Generate and the confirm's Discard. */
+    function _calCloseCaptionPromptModal(force) {
         const overlay = document.getElementById('calPromptOverlay');
+        const tx = document.getElementById('calTxTA');
+        if (force !== true && overlay && overlay.classList.contains('open') && tx && tx.value.trim()) {
+            showConfirm('Discard the pasted transcript?', 'What you pasted is not saved anywhere. Close the box and lose it?', () => _calCloseCaptionPromptModal(true), 'Discard');
+            return;
+        }
         if (overlay) overlay.classList.remove('open');
     }
     function _calResetCaptionPromptToDefault() {
@@ -2187,9 +2195,13 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const url = _calCapLiveAssetUrl(pid, post);
         const hasVideo = !!url && /f\.io|frame\.io/i.test(url);
         const title = hasVideo ? 'Add a transcript (optional)' : 'Write the caption from a transcript';
+        // A link that is not Frame.io (a Drive file, say) cannot be transcribed,
+        // so the box says that instead of claiming there is no video.
         const lead = hasVideo
             ? 'The video is still transcribed as usual. Anything you paste here is used together with it, for example the full script or notes on what matters.'
-            : 'This post has no video linked. Paste what is said in the video and the caption is written from it.';
+            : (url
+                ? 'This post\u2019s video link is not a Frame.io link, so the video cannot be transcribed automatically. Paste what is said in the video and the caption is written from it.'
+                : 'This post has no video linked. Paste what is said in the video and the caption is written from it.');
         modal.innerHTML =
             '<div class="cal-prompt-head">' +
                 '<div class="cal-prompt-head-text">' +
@@ -2231,7 +2243,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const pid = go.getAttribute('data-pid') || '';
         const transcript = ta.value.trim();
         if (!transcript && go.getAttribute('data-required') === '1') return;
-        _calCloseCaptionPromptModal();
+        _calCloseCaptionPromptModal(true);
         _calGenerateCaption(pid, { transcript: transcript });
     }
 

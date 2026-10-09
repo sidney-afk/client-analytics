@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 197 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7370 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 7373 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -46,7 +46,7 @@
 | 38 | `150-calendar-hydration-import.js.part` | 2292 | For a card linked to a real sub-issue (not a parent), return which of |
 | 39 | `160-calendar-organize-ui.js.part` | 3142 | Lighter path for the Order switch: update the chrome in place so the |
 | 40 | `170-calendar-links-status.js.part` | 3442 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 41 | `180-calendar-native-post-media.js.part` | 3120 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 41 | `180-calendar-native-post-media.js.part` | 3132 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 44 | `190-calendar-approval-comments.js.part` | 3248 | Count of posts actually awaiting this surface's sign-off — i.e. at least |

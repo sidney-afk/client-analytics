@@ -31640,9 +31640,39 @@ every outside service stood in), `test/caption-generate-browser.js` (desktop and
 iPhone size, switch off and on). Not proven live: the function is not deployed
 and the AI secrets were not available to this session.
 
-**Owner steps:** merge; set the secrets `REPLICATE_API_TOKEN` (new) and check
-`ANTHROPIC_API_KEY` and `BRAIN_GITHUB_TOKEN` exist; deploy `caption-generate`
-from the one-function lane at main's SHA; turn the switch on for the test client
-only and generate one caption with a video and one from a transcript. Rollback:
-delete the switch row (back to n8n at once). The n8n workflow stays on until the
-switch has been on for every client for 30 days.
+**Owner steps:**
+1. Merge.
+2. Supabase, Edge Functions, Secrets: add `REPLICATE_API_TOKEN` (new; from
+   replicate.com, Account, API tokens). Confirm `ANTHROPIC_API_KEY`,
+   `BRAIN_GITHUB_TOKEN` and `APIFY_TOKEN` are listed (the Frame.io fallback
+   uses `APIFY_TOKEN`; without it a link the direct lookup cannot read fails
+   instead of falling back).
+3. Deploy: https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml,
+   Run workflow, function `caption-generate`, commit SHA = main's tip right after
+   the merge.
+4. Switch on for the test client only (Supabase SQL editor):
+   ```sql
+   insert into public.syncview_runtime_flags (key, value, updated_by)
+   values ('caption_generate_ef_clients', '{"clients":["sidneylaruel"]}', 'owner')
+   on conflict (key) do update set value = excluded.value;
+   ```
+   Then generate one caption on a card with a video and one from a pasted
+   transcript.
+5. Rollback at any time (back to n8n at once):
+   `delete from public.syncview_runtime_flags where key = 'caption_generate_ef_clients';`
+
+The n8n workflow stays on until the switch has been on for every client for 30 days.
+
+**For whoever writes `voice.md` in the brain repository:** the function finds the
+section only if it is written the way every brain fact is, a `## Caption style`
+heading followed directly by a `<!-- brain ... -->` block (`brain/parse.mjs`
+skips a heading without one and folds its text into the section above). With
+the block present and text under it, only that section is sent; otherwise every
+written voice section is.
+
+Review follow-ups (2026-10-09, Lighthouse): an existing job id is refused (the
+first row is an insert, so a re-post cannot clear a cancel or start a second
+run); transcripts go to the model inside tags the system message calls data,
+not instructions; a non-Frame.io link is named as such in the box; the
+Transcript pill sits top right, clear of "Show more", and hides on a phone once
+a caption exists; closing the box with pasted text asks first.

@@ -328,10 +328,19 @@ Deno.serve(async (req) => {
     mode: parsed.mode === "video" ? "video" : "transcript", forward, startedAt: Date.now(), caption: "",
   };
   // n8n "Progress scraping": the row the page's poller confirms the job by. A card with no video starts at writing.
-  await patchJob(job, {
-    client, postId: job.postId, status: "running", stage: job.mode === "video" ? "scraping" : "writing",
+  // An INSERT, not an upsert: a job id that already exists is refused, so a re-post can never clear a cancel or
+  // start a second run of the same job (the primary key makes two racing posts end with one refused too).
+  const first = buildPatch({
+    jobId: job.jobId, client, postId: job.postId, status: "running", stage: job.mode === "video" ? "scraping" : "writing",
     caption: "", error: "", cancel_requested: false, started_at: new Date().toISOString(),
-  });
+  }, new Date().toISOString());
+  if (!first.ok) return json({ ok: false, error: first.error }, 400);
+  const { error: insertError } = await db.from("caption_jobs").insert(first.patch);
+  if (insertError) {
+    if (insertError.code === "23505") return json({ ok: false, error: "This caption job was already started" }, 409);
+    console.warn("[caption-generate] job row insert failed", insertError.code || "");
+    return json({ ok: false, error: "Could not start the caption job. Try again." }, 500);
+  }
   const work = run(job);
   const rt = (globalThis as unknown as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
   if (rt && typeof rt.waitUntil === "function") rt.waitUntil(work);

@@ -38,7 +38,7 @@ const card = (id, name, assetUrl, order) => ({
 
 async function open(browser, origin, opts) {
   const state = {
-    flag: opts.flag, cards: [card('v1', 'Video card', FRAME, 1), card('v2', 'Video card with notes', FRAME, 2), card('n1', 'No video card', '', 3)],
+    flag: opts.flag, cards: [card('v1', 'Video card', FRAME, 1), card('v2', 'Video card with notes', FRAME, 2), card('n1', 'No video card', '', 3), card('d1', 'Drive link card', 'https://drive.google.com/file/d/fixture/view', 4)],
     n8n: [], ef: [], jobs: new Map(),
   };
   const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, opts.device));
@@ -196,6 +196,47 @@ async function runDesktopOrPhone(browser, origin, label, device) {
   expect(e3.body.postId === 'v2' && e3.body.assetUrl === FRAME && /Sunday walks/.test(e3.body.transcript || ''), `${label} on: the video link and the pasted notes go together`);
   expect(t.state.n8n.length === 0, `${label} on: still zero n8n calls`);
   await shot(t.page, `after-${prefix}-done`, 'n1');
+
+  // 4. A non Frame.io link: the box does not claim there is no video.
+  await t.page.locator(sel('d1', '.cal-cap-gen')).click();
+  await t.page.waitForSelector('#calPromptOverlay.open #calTxTA', { timeout: 5000 });
+  const lead = await t.page.evaluate(() => document.querySelector('#calPromptModal .cal-prompt-head-text p').textContent);
+  expect(/not a Frame\.io link/.test(lead) && !/no video linked/.test(lead), `${label} on: a Drive link is called out as not Frame.io (${lead})`);
+
+  // 5. Closing with pasted text asks first; Cancel in the confirm keeps the text; Discard closes.
+  await t.page.fill('#calTxTA', 'Some pasted words');
+  await t.page.locator('#calPromptModal .cal-prompt-btn:not(.is-primary)').click();
+  await sleep(200);
+  expect(await t.page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active')) && await modalOpen(t.page),
+    `${label} on: closing with pasted text asks first and keeps the box open`);
+  await shot(t.page, `after-${prefix}-discard-confirm`);
+  await t.page.evaluate(() => document.getElementById('confirmYes').click());
+  await sleep(200);
+  expect(!(await modalOpen(t.page)), `${label} on: Discard closes the box`);
+  await t.page.locator(sel('d1', '.cal-cap-gen')).click();
+  await t.page.waitForSelector('#calPromptOverlay.open #calTxTA', { timeout: 5000 });
+  await t.page.keyboard.press('Escape');
+  await sleep(200);
+  expect(!(await modalOpen(t.page)), `${label} on: an empty box closes without asking`);
+
+  // 6. The Transcript pill never sits on the "Show more" toggle (desktop), and on a phone it hides once a caption exists.
+  if (label === 'desktop') {
+    const overlap = await t.page.evaluate(sel => {
+      const wrap = document.querySelector(sel);
+      const toggle = wrap.querySelector('.cal-cap-toggle'); const tx = wrap.querySelector('.cal-cap-tx');
+      toggle.hidden = false;
+      const a = toggle.getBoundingClientRect(), b = tx.getBoundingClientRect();
+      return !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+    }, '.cal-card[data-pid="v1"] .cal-cap-wrap[data-capwrap="main"]'.replace('v1', 'v2'));
+    expect(!overlap, `${label} on: the Transcript pill and the Show more toggle do not overlap`);
+  } else {
+    // v2 got a caption from step 3; the pill must be hidden next to it.
+    const shown = await t.page.evaluate(() => {
+      const tx = document.querySelector('.cal-card[data-pid="v2"] .cal-cap-tx');
+      return tx ? getComputedStyle(tx).display !== 'none' : 'missing';
+    });
+    expect(shown === false, `${label} on: with a caption in the box the Transcript pill is hidden (${shown})`);
+  }
   expect(t.pageErrors.length === 0, `${label} on: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 }

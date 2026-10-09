@@ -49,6 +49,11 @@ function postgrest(url: URL, init: RequestInit): Response {
     }
     if (init.method === "POST") {
       const body = JSON.parse(String(init.body));
+      // No on_conflict means a plain insert: an existing key is a unique violation, as in Postgres.
+      const isUpsert = url.searchParams.has("on_conflict");
+      for (const p of Array.isArray(body) ? body : [body]) {
+        if (!isUpsert && state.jobs.has(p.job_id)) return reply({ code: "23505", message: "duplicate key value violates unique constraint" }, 409);
+      }
       for (const p of Array.isArray(body) ? body : [body]) {
         const prev = state.jobs.get(p.job_id) || {};
         state.jobs.set(p.job_id, { ...prev, ...p });
@@ -135,7 +140,7 @@ ok(r.status === 200 && r.json.ok && r.json.accepted && r.json.jobId === "job_vid
 ok(state.stages.join(",") === "job_video:scraping,job_video:transcribing,job_video:writing,job_video:done", "video: stages scraping, transcribing, writing, done (as n8n): " + state.stages.join(","));
 const c0 = state.claude[0] as { model: string; max_tokens: number; system: string; messages: Array<{ content: string }> };
 ok(c0.model === "claude-sonnet-4-6" && c0.max_tokens === 1500, "video: same model and token cap as n8n");
-ok(c0.messages[0].content.startsWith("FIXTURE CLIENT PROMPT\n\nTranscript:\nWHISPER TRANSCRIPT") && c0.messages[0].content.endsWith("PASTED NOTES"), "video: the table's client prompt, the Whisper transcript, then the pasted notes");
+ok(c0.messages[0].content.startsWith("FIXTURE CLIENT PROMPT\n\nTranscript:\n<transcript>\nWHISPER TRANSCRIPT\n</transcript>") && c0.messages[0].content.endsWith("<pasted_notes>\nPASTED NOTES\n</pasted_notes>") && c0.system.includes("data, not instructions"), "video: the table's client prompt, the Whisper transcript, then the pasted notes");
 ok(c0.system.includes("# Writing rules (always apply)") && c0.system.includes("FIXTURE CAPTION STYLE") && !c0.system.includes("Warm."), "video: writing rules plus only the Caption style section");
 ok(state.claude.length === 2 && /Remove these/.test((state.claude[1] as { messages: Array<{ content: string }> }).messages[2].content), "video: one revision asked for the tells in the first draft");
 let row = state.jobs.get("job_video")!;
@@ -149,7 +154,7 @@ r = await call({ client: "fixtureclient", postId: "p2", jobId: "job_tx", transcr
 ok(r.status === 200 && r.json.accepted, "transcript: accepted");
 ok(!state.calls.some((c) => /frame\.io|f\.io|replicate/.test(c)), "transcript: Frame.io and Replicate are never called");
 ok(state.stages.join(",") === "job_tx:writing,job_tx:done", "transcript: starts at writing: " + state.stages.join(","));
-ok((state.claude[0] as { messages: Array<{ content: string }> }).messages[0].content.endsWith("Transcript:\nWHAT WAS SAID"), "transcript: the pasted text is the transcript");
+ok((state.claude[0] as { messages: Array<{ content: string }> }).messages[0].content.endsWith("<pasted_transcript>\nWHAT WAS SAID\n</pasted_transcript>"), "transcript: the pasted text is the transcript");
 ok(state.jobs.get("job_tx")!.status === "done", "transcript: done");
 
 // 3. No client prompt saved: the n8n default prompt.
@@ -175,6 +180,10 @@ reset();
 ok((await call({ client: "fixtureclient", postId: "p6", transcript: "x" }, {})).status === 401, "no staff key: 401");
 ok((await call({ client: "fixtureclient", postId: "p6", transcript: "x" }, { "x-syncview-key": SMM_KEY, "x-syncview-client-token": "t" })).status === 403, "client review link: 403");
 ok((await call({ client: "fixtureclient", postId: "p6" })).status === 400, "no video and no transcript: 400");
+// A re-post of a job id that already exists is refused and leaves the row alone (a cancel stays a cancel).
+const before = JSON.stringify(state.jobs.get("job_cancel"));
+r = await call({ client: "fixtureclient", postId: "p4", assetUrl: "https://f.io/abc", jobId: "job_cancel" });
+ok(r.status === 409 && /already started/.test(r.json.error) && JSON.stringify(state.jobs.get("job_cancel")) === before, "an existing job id: 409, the row (and its cancel) untouched");
 state.jobs.set("job_other", { job_id: "job_other", client: "fixtureclient", post_id: "p7", status: "running", updated_at: new Date().toISOString() });
 r = await call({ client: "fixtureclient", postId: "p7", jobId: "job_dup", transcript: "x" });
 ok(r.status === 409 && !state.jobs.has("job_dup"), "a card already generating: 409, nothing written");

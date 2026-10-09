@@ -155,7 +155,7 @@ async function clientCalendar(browser, url, A, R) {
 }
 async function clientSamples(browser, url) {
   const u = new URL(url); u.searchParams.set('sxr', '1'); u.searchParams.set('v', 'sample-reviews');
-  const r = await nativeSampleRoundTrip({ browser, origin: LIVE, clientUrl: u.toString(), roleKey: ROLE_KEY, actor: ACTOR, guard });
+  const r = await nativeSampleRoundTrip({ browser, origin: LIVE, openClient: (pg) => pg.goto(u.toString(), { waitUntil: 'domcontentloaded', timeout: 45000 }), roleKey: ROLE_KEY, actor: ACTOR, guard });
   if (r.step === 'target') { rec('T0-2 client Samples approve', false, 'not run: the test client has no sample with a real work item'); return; }
   rec('T0-2 client link loads (Samples review)', r.landedMs != null, r.landedMs != null ? `samples shown after ${r.landedMs} ms (${r.cards} on screen)` : `stopped at step ${r.step}`);
   if (r.landedMs != null) rec('T0-3 client-visible thumbnail (Samples)', r.thumb.drawn > 0, `images on the sample ${r.thumb.imgs}, drawn ${r.thumb.drawn}`);

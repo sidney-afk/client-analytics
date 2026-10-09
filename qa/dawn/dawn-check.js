@@ -155,8 +155,9 @@ const ACTOR = String(process.env.SYNCVIEW_ACTOR || '').trim();
 async function clientSamplesFlow(browser) {
   if (!HAS_ROLE_KEY || !ACTOR) { record('samples-approve', { ok: true, blocked: true, detail: D.samplesNoKey() }); return; }
   const entry = require('../test-client-entry.js');
-  const url = ORIGIN + entry.testClientEntryPath('sample-reviews', entry.TEST_CLIENT.name, await entry.currentTestClientToken());
-  const r = await nativeSampleRoundTrip({ browser, origin: ORIGIN, clientUrl: url, roleKey: ROLE_KEY, actor: ACTOR, guard,
+  const token = await entry.currentTestClientToken();
+  const openClient = (pg) => entry.gotoTestClientEntry(pg, { origin: ORIGIN, view: 'sample-reviews', name: entry.TEST_CLIENT.name, token, gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 } });
+  const r = await nativeSampleRoundTrip({ browser, origin: ORIGIN, openClient, roleKey: ROLE_KEY, actor: ACTOR, guard,
     shot: (pg, key) => shot(pg, key, true) });
   if (r.step === 'target') { record('samples-approve', { ok: false, detail: D.failedAt('target') }); return; }
   const ok = r.ok;

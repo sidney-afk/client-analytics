@@ -22,7 +22,19 @@ const KEY    = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
 // 2026-09-03), so a caption seeded at Kasper Approval never reached his queue
 // and every caption probe that starts there failed at step one. A probe that
 // sets `caption` or `caption_alt` itself (including '') is left as written.
+//
+// A NEW card also gets fixture work items for its video and thumbnail (OPEN_REPAIRS
+// 388). Every production card has them, and since the native cutover a video or
+// thumbnail decision on a card with none is refused (native_link_required), so
+// fourteen probes that seed a card and then move its video or thumbnail went red
+// at that step every night. The ids live only in this run's intercepted reads and
+// the gateway is faked in every context below (qa/native_work_item_fixture.js
+// says what that does and does not prove). `noWorkItems: true` opts a seed out,
+// for a probe that asserts the refusal itself.
+const NWF = require('../native_work_item_fixture.js');
 const up = (post) => {
+  if (post && 'noWorkItems' in post) { const { noWorkItems, ...rest } = post; if (!noWorkItems && rest.id && rest.name) NWF.registerProbeWorkItems([{ id: rest.id, components: ['video', 'graphic'] }]); post = rest; }
+  else if (post && post.id && post.name) NWF.registerProbeWorkItems([{ id: post.id, components: ['video', 'graphic'] }]);
   if (!(post && post.id && post.name && post.platforms) || 'caption' in post || 'caption_alt' in post) return G.up(post);
   return G.up(Object.assign({}, post, { caption: 'QA probe caption ' + String(post.id).slice(-6) }));
 };
@@ -83,7 +95,13 @@ async function _ctx(browser, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
   await seedStaffGate(c, { answerStaffReads: true });
   await stubRerouteFlagProduction(c);
-  await require('../native_work_item_fixture.js').applyProbeWorkItems(c);
+  await NWF.applyProbeWorkItems(c);
+  // The fixture work items above need their gateway: without it a status save
+  // reached the real production-write with the harness's invented key and was
+  // refused (OPEN_REPAIRS 373), so the card's own row was never written. A probe
+  // that counts gateway calls registers its own stub after this one; Playwright
+  // tries the newest route first, so that one answers.
+  await NWF.stubNativeGateway(c);
   return c;
 }
 async function _open(browser, url, opts) { const c = await _ctx(browser, opts); const p = await c.newPage(); capture(p);

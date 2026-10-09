@@ -63,9 +63,9 @@ async function setPartFromSheet(page, origin, id, comp, status) {
   }, [id, comp, status]);
 }
 
-// clientUrl: a Samples client link for the test client (with its token).
+// openClient(page): navigates a fresh page to the test client's Samples link.
 // Returns { ok, step, landedMs, cards, ms, restored, staffErrors, clientErrors }.
-async function nativeSampleRoundTrip({ browser, origin, clientUrl, roleKey, actor, guard, shot }) {
+async function nativeSampleRoundTrip({ browser, origin, openClient, roleKey, actor, guard, shot }) {
   const out = { ok: false, step: 'target', thumb: { imgs: 0, drawn: 0 }, landedMs: null, cards: 0, ms: null, restored: false, staffErrors: 0, clientErrors: 0 };
   const S = findNativeSample();
   if (!S) return out;
@@ -85,7 +85,7 @@ async function nativeSampleRoundTrip({ browser, origin, clientUrl, roleKey, acto
     if (guard) await guard(c);
     try {
       const t0 = Date.now();
-      await c.goto(clientUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await openClient(c);
       out.landedMs = await c.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(x => (x.querySelector('.kcard-title') || {}).textContent === n), S.name, { timeout: 30000 }).then(() => Date.now() - t0).catch(() => null);
       out.cards = await c.evaluate(() => document.querySelectorAll('.cal-review-card').length);
       // Is the sample's thumbnail actually drawn for the client (decoded, width > 0)?

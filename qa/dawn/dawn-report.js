@@ -16,6 +16,8 @@ const CHECKS = Object.freeze({
   'client-approve': 'Client approves',
   'client-request': 'Client requests changes',
   'client-errors': 'Client page has no app errors',
+  'samples-approve': 'Client approves a sample',
+  'samples-errors': 'Client Samples page has no app errors',
   'staff-save': 'Staff card save',
   'rename': 'Card rename, sub-issue follows',
   'staff-errors': 'Staff calendar has no app errors',
@@ -27,7 +29,7 @@ const CHECKS = Object.freeze({
   'harness': 'Harness ran to the end',
   'cleanup': 'Everything put back',
 });
-const STEPS = Object.freeze(['landing', 'click', 'save', 'hold', 'saved-mark', 'save-error', 'syncing-stuck', 'field', 'card', 'sub-issue', 'target', 'error']);
+const STEPS = Object.freeze(['sign-in', 'send', 'landing', 'click', 'save', 'hold', 'saved-mark', 'save-error', 'syncing-stuck', 'field', 'card', 'sub-issue', 'target', 'error']);
 const TABS = ['workload', 'synclinear', 'analytics'];
 
 const int = (n) => {
@@ -43,6 +45,7 @@ const yn = (b) => (b ? 'yes' : 'no');
 const D = Object.freeze({
   approveOk: (landedMs, cards) => `link opened on the Review tab in ${fmt(landedMs)} ms (${fmt(cards)} cards); approval saved and held`,
   requestOk: () => 'request saved with its text; status is Tweaks Needed',
+  sampleApproveOk: (landedMs, cards) => `Samples link opened in ${fmt(landedMs)} ms (${fmt(cards)} samples); approval saved and held`,
   saveOk: (syncMs, savedMs) => syncMs == null
     ? `saved at ${fmt(savedMs)} ms (no syncing step needed)`
     : `"Saved, syncing" at ${fmt(syncMs)} ms, then saved at ${fmt(savedMs)} ms`,
@@ -53,6 +56,7 @@ const D = Object.freeze({
   tabSlow: (ms, map) => `slow: ${fmt(ms)} ms vs ${fmt(map)} ms map`,
   tabNever: (capS, statuses) => `nothing showed within ${fmt(capS)} s` +
     (statuses && statuses.length ? `; failed requests: ${statuses.map(s => Number.isInteger(s) ? `HTTP ${fmt(s)}` : 'network').join(', ')}` : ''),
+  samplesNoKey: () => 'not run: the Samples approve needs a staff sign-in (set the SYNCVIEW_ROLE_KEY and SYNCVIEW_ACTOR secrets)',
   tabBlocked: () => 'not measured: this tab needs a staff role key and the run has none (set the SYNCVIEW_ROLE_KEY secret)',
   noTarget: () => 'not run: no test card with a two-sided, Linear-free sub-issue link was found',
   harness: () => 'the harness stopped early; see the runner for details',
@@ -74,6 +78,7 @@ const TITLES = Object.values(CHECKS).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '
 const DETAIL = [
   `link opened on the Review tab in ${N} ms \\(${N} cards\\); approval saved and held`,
   'request saved with its text; status is Tweaks Needed',
+  `Samples link opened in ${N} ms \\(${N} samples\\); approval saved and held`,
   `saved at ${N} ms \\(no syncing step needed\\)`,
   `"Saved, syncing" at ${N} ms, then saved at ${N} ms`,
   'card and its sub-issue both took the new name',
@@ -81,6 +86,7 @@ const DETAIL = [
   `app errors on this page: ${N}`,
   `(?:slow: )?${N} ms vs ${N} ms map`,
   `nothing showed within ${N} s(?:; failed requests: (?:HTTP ${N}|network)(?:, (?:HTTP ${N}|network))*)?`,
+  'not run: the Samples approve needs a staff sign-in \\(set the SYNCVIEW_ROLE_KEY and SYNCVIEW_ACTOR secrets\\)',
   'not measured: this tab needs a staff role key and the run has none \\(set the SYNCVIEW_ROLE_KEY secret\\)',
   'not run: no test card with a two-sided, Linear-free sub-issue link was found',
   'the harness stopped early; see the runner for details',
@@ -149,7 +155,7 @@ function buildReport({ started, results, violations = 0, calMs = null, baseline 
     L.push(`| ${CHECKS[k]} | ${cell} | ${fmt(baseline[k].cold)} ms | ${fmt(baseline[k].warm)} ms |`);
   }
   L.push(`| Staff calendar, first card | ${calMs == null ? 'never' : fmt(calMs) + ' ms'} | ${fmt(baseline.calendar.cold)} ms | ${fmt(baseline.calendar.warm)} ms |`);
-  const writes = results.filter(r => ['client-approve', 'client-request', 'staff-save', 'rename'].includes(r.key) && r.ok && r.ms != null);
+  const writes = results.filter(r => ['client-approve', 'client-request', 'samples-approve', 'staff-save', 'rename'].includes(r.key) && r.ok && r.ms != null);
   if (writes.length) { L.push(''); L.push('No map numbers exist yet for the write flows; today’s: ' + writes.map(r => `${CHECKS[r.key].toLowerCase()} ${fmt(r.ms)} ms`).join(', ') + '.'); }
   L.push('');
   const clean = results.find(r => r.key === 'cleanup');

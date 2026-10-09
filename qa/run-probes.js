@@ -84,7 +84,7 @@ async function waitForOwnedServer(child, failed, ms = 30000) {
 
   console.log('Starting static server on :' + PORT + ' …');
   let serverFailed = false;
-  const srv = spawn('python3', ['-m', 'http.server', String(PORT)], {
+  const srv = spawn('python3', [path.join(ROOT, 'qa', 'pages_static_server.py'), String(PORT)], {
     cwd: ROOT,
     stdio: 'ignore',
     detached: true,

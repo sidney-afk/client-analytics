@@ -34,6 +34,9 @@ jobs:
           SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
           # Optional staff ROLE key: role-gated reads (Workload) refuse the key above.
           SYNCVIEW_ROLE_KEY: ${{ secrets.SYNCVIEW_ROLE_KEY }}
+          # The roster name the role key signs in as (the Samples approve signs in
+          # through the real sign-in card). Same secret the Calendar nightly uses.
+          SYNCVIEW_ACTOR: ${{ secrets.SYNCVIEW_STAFF_ACTOR }}
         run: node qa/dawn/dawn-check.js
       # PUBLIC REPO: the summary, log and artifacts are readable by anyone. The
       # report carries only check names, pass/fail, timings and counts (enforced

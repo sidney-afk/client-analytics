@@ -47,6 +47,11 @@ const now = () => new Date().toISOString();
     await lib.poll(() => { const r = lib.supa(`id=eq.${PID}&select=video_status`); return r && r[0] && r[0].video_status === 'Tweaks Needed'; });
 
     const smm = await lib.smm(browser);
+    // The work item is fixture-level, so its gateway must be too (as p28 does).
+    // Without it the status save reached the real production-write with the
+    // harness's invented key and was refused (OPEN_REPAIRS 373), so the sample's
+    // own record was never written and both backend checks below failed.
+    await require('../native_work_item_fixture.js').stubNativeGateway(smm.context());
     await smm.waitForFunction((pid) => !!document.querySelector(`.cal-card[data-pid="${pid}"]`), PID, { timeout: 30000 });
 
     const before = await smm.evaluate((pid) => {

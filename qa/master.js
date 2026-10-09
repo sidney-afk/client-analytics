@@ -114,7 +114,8 @@ function profilePlan(profile) {
     unit: {},
     boot: {},
     parity: { files: ['parity_logic.js', 'realtime_parity.js'] },
-    probes: { files: ['p89_cal_create_via_ui.js', 'p91_ui_realtime_multitab.js'] },
+    // p89/p91 drove the retired staff blank-card funnel (nightly manifest, 2026-10-09).
+    probes: { files: ['p92_sxr_resolve_pill_inplace.js', 'p94_nav_full_quota.js'] },
     scenarios: { filter: 'create_via_ui,create_then_archive_race,create_rename_rename_race,create_drag_reorder_persist,create_during_remote_merge,create_survives_reload,create_many_via_ui,create_via_ui_workflow_video,clean_both,smm_request_video,client_approve_video' },
     visual: { filter: 'clean_both' },
   };
@@ -432,7 +433,7 @@ function laneVisual(cfg) {
     // managers terminate detached children after a few seconds, while an
     // in-process server cannot answer during the synchronous lane runners.
     let serverFailed = false;
-    srv = spawn(py, ['-m', 'http.server', String(PORT)], {
+    srv = spawn(py, [path.join(ROOT, 'qa', 'pages_static_server.py'), String(PORT)], {
       cwd: ROOT,
       stdio: 'ignore',
       detached: false,

@@ -519,7 +519,8 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         name_invalid: 'Type the client\'s name.',
         slug_invalid: 'That name has no letters or numbers to make a link name from.',
         email_invalid: 'That email does not look right.',
-        email_required: 'Add the client\'s email. The Slack channels are only made when it matches the onboarding form.',
+        // Only until 2026-10-10-create-client-email-optional.sql is applied (the database still asks for one).
+        email_required: 'The database still asks for an email: the change that makes it optional is not applied yet. Add the email, or wait for that change.',
         name_differs_from_form: 'The onboarding form is already in under a different spelling of this name. The Slack channels are only made when the two match exactly.',
         email_differs_from_form: 'The onboarding form for this client has a different email. The Slack channels are only made when the two match.',
         manager_unknown: 'Pick a social media manager.',
@@ -584,7 +585,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
                 <label class="cn-field"><span class="cn-label">Social media manager</span>
                     <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
                 </label>
-                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">needed for Slack</span></span>
+                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">optional, needed for Slack channels</span></span>
                     <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
                 </label>
                 <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
@@ -643,7 +644,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
         if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet or Slack</span>' : ''}` : '';
         const emailNote = document.getElementById('cnEmailNote');
-        if (emailNote) emailNote.textContent = test ? 'optional' : 'needed for Slack';
+        if (emailNote) emailNote.textContent = test ? 'optional' : 'optional, needed for Slack channels';
         const box = document.getElementById('cnPreview');
         const btn = document.getElementById('cnCreateBtn');
         const p = _cnState.preview;
@@ -677,13 +678,20 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         const sl = p.slack || {};
         if (sl.mode !== 'finalizer') return '';
         const row = (done, text) => `<li class="${done ? 'is-done' : ''}"><span class="cn-tick" aria-hidden="true">${done ? '✓' : '○'}</span>${_calEsc(text)}<span class="cn-sr">${done ? ' (in)' : ' (still missing)'}</span></li>`;
-        const all = sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
+        // Without an email the finalizer cannot match the client to the onboarding form (owner decision
+        // 2026-10-10: the create still goes ahead). With the form already in, it would send the job to manual.
+        const emailIn = sl.client_email !== false;
+        const all = emailIn && sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
+        const emailFix = !emailIn && sl.form_email
+            ? `<div class="cn-slack-warn">The onboarding form is already in, and without the client's email Slack sends the job to you to sort out by hand. <button type="button" class="cc-btn" data-cn-use="email" onclick="_cnUseForm('email')">Use the form's email: ${_calEsc(sl.form_email)}</button></div>`
+            : '';
         return `<div class="cn-slack"><div class="cn-slack-title">Slack channels: ${all ? 'made right after you create' : 'made automatically once these are in'}</div>
                 <ul class="cn-checks">
+                    ${row(emailIn, 'Client email')}
                     ${row(sl.form_received, 'Onboarding form from the client, same name and email')}
                     ${row(sl.manager_slack_id, 'The manager\'s Slack id')}
                     ${row(sl.filming_plan_linked, 'Filming plan link')}
-                </ul></div>`;
+                </ul>${emailFix}</div>`;
     }
     function _cnUseForm(field) {
         const sl = (_cnState.preview && _cnState.preview.slack) || {};

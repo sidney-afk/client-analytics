@@ -54,6 +54,22 @@ ok('nudge file: a filming plan link save nudges through a trigger', /after inser
 ok('nudge file: nobody may call the nudge directly; create stays service_role only', /revoke all on function public\.slack_finalizer_nudge\(text\) from public, anon, authenticated, service_role;/.test(nudge) && /revoke all on function public\.filming_plans_slack_finalizer_nudge\(\) from public, anon, authenticated, service_role;/.test(nudge) && !/grant execute on function public\.(slack_finalizer_nudge|filming_plans_slack_finalizer_nudge)/.test(nudge) && /grant execute on function public\.client_create_native\(text, text, text, text, text, text, text\) to service_role;/.test(nudge) && !/grant\s+(select|insert|update|delete|all)/i.test(nudge));
 ok('nudge file: no table is created or altered', !/create table|alter table/i.test(nudge));
 ok('nudge file: no long dash anywhere', !nudgeSql.includes('—'));
+
+// migrations/2026-10-10-create-client-email-optional.sql: owner decision 2026-10-10, a real client needs no email.
+const optSql = fs.readFileSync(path.join(ROOT, 'migrations', '2026-10-10-create-client-email-optional.sql'), 'utf8');
+const opt = optSql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+ok('email-optional file: one transaction', (opt.match(/^begin;/gm) || []).length === 1 && (opt.match(/^commit;/gm) || []).length === 1);
+ok('email-optional file: client_create_native is the 2026-10-09 one minus the email requirement, nothing else', (() => {
+  const prev = fnBody(nudge).split('\n'); const next = fnBody(opt).split('\n');
+  const added = next.filter((l) => !prev.includes(l)); const removed = prev.filter((l) => !next.includes(l));
+  return added.length === 0 && removed.length === 1 && /client_create_email_required/.test(removed[0]) && !/client_create_email_required/.test(opt);
+})());
+ok('email-optional file: the Slack nudge stays in the create', /'slack', case when v_mode = 'client' and public\.slack_finalizer_nudge\(v_slug\) then 'finalizer_nudged' else 'not_queued' end/.test(opt));
+ok('email-optional file: a given email is still validated', /client_create_email_invalid/.test(opt));
+ok('email-optional file: same revokes (all four roles) and the single service_role grant', /revoke all on function public\.client_create_native\(text, text, text, text, text, text, text\)\s+from public, anon, authenticated, service_role;/.test(opt) && (opt.match(/grant /g) || []).length === 1 && /grant execute on function public\.client_create_native\(text, text, text, text, text, text, text\) to service_role;/.test(opt));
+ok('email-optional file: touches nothing else (no table, trigger or other function)', (opt.match(/create or replace function/g) || []).length === 1 && !/create table|alter table|create trigger|drop /i.test(opt));
+ok('email-optional file: the applied 2026-10-09 file still carries the rule it replaces (it is never edited)', /client_create_email_required/.test(nudge));
+ok('email-optional file: no long dash anywhere', !optSql.includes('—'));
 const proof = fs.readFileSync(path.join(ROOT, 'scripts', 'client-create-proof.sql'), 'utf8');
 ok('the disposable-cluster proof ends with its marker', proof.includes("'CLIENT_CREATE_PROOF_OK'"));
 

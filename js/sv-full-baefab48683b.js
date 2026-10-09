@@ -17539,51 +17539,6 @@
             if (chip.textContent !== account) chip.textContent = account;
         });
     }
-    // Canvas labels cannot inherit CSS. Keep the native options per axis,
-    // including a phone-to-desktop crossing, without touching Chart defaults
-    // or client review charts. The plugin also covers native series rebuilds.
-    const _fphAxisOriginals = new WeakMap();
-    let _fphChartPlugin = false;
-    function _fphChartAxes(chart) {
-        const phone = FPH_MQ.matches && _fphScreen() === FPH_SCREENS.home
-            && !!chart.canvas?.closest('.client-view');
-        const rootStyle = getComputedStyle(document.documentElement);
-        let originals = _fphAxisOriginals.get(chart);
-        if (phone && !originals) { originals = new Map(); _fphAxisOriginals.set(chart, originals); }
-        let changed = false;
-        for (const [axis, scale] of Object.entries(chart.config.options.scales || {})) {
-            const ticks = scale.ticks;
-            if (!ticks) continue;
-            if (phone && !originals.has(axis)) {
-                originals.set(axis, { font: ticks.font, color: ticks.color,
-                    themeColor: ticks.color === rootStyle.getPropertyValue('--chart-axis').trim() });
-            }
-            const original = originals?.get(axis);
-            if (!original) continue;
-            const color = rootStyle.getPropertyValue(phone ? '--text-secondary' : '--chart-axis').trim();
-            const font = phone ? { ...original.font, size: 13 } : original.font;
-            const restoredColor = phone || original.themeColor ? color : original.color;
-            if (ticks.font?.size !== font?.size || ticks.color !== restoredColor) {
-                if (font === undefined) delete ticks.font; else ticks.font = font;
-                if (restoredColor === undefined) delete ticks.color; else ticks.color = restoredColor;
-                changed = true;
-            }
-        }
-        if (!phone) _fphAxisOriginals.delete(chart);
-        return changed;
-    }
-    function _fphCharts() {
-        if (!window.Chart) return;
-        if (!_fphChartPlugin) {
-            window.Chart.register({ id: 'staffPhoneAnalyticsAxes',
-                beforeInit(chart) { _fphChartAxes(chart); },
-                beforeUpdate(chart) { _fphChartAxes(chart); } });
-            _fphChartPlugin = true;
-        }
-        Object.values(window.Chart.instances).forEach(chart => {
-            if (_fphChartAxes(chart)) chart.update('none');
-        });
-    }
     function _fphSync() {
         _fphRaf = 0;
         const cfg = _fphScreen();
@@ -17614,7 +17569,6 @@
             // unstyled, on a screen it does not belong to.
             if (_fphBar) { _fphBar.querySelectorAll('dialog[open]').forEach(d => d.close()); _fphBar.hidden = true; }
         }
-        _fphCharts();
     }
     function _fphQueue() { if (!_fphRaf) _fphRaf = requestAnimationFrame(_fphSync); }
     function _fphInit() {
@@ -17625,7 +17579,6 @@
         watch.observe(nav, { attributes: true, attributeFilter: ['class'], subtree: true });
         // The Upload page swaps its platform inside the same route.
         watch.observe(main, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
-        watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
         if (FPH_MQ.addEventListener) FPH_MQ.addEventListener('change', _fphQueue);
         _fphQueue();
     }
@@ -27002,7 +26955,9 @@
            so this said "Color updated" for colours that were not saved. Count
            the cards the save marked as failed as well. */
         const failed = results.filter(r => r.status === 'rejected').length
-            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError); }).length;
+            // ("Not saved yet: ..." is an older change still waiting on the card, put back
+            // after a save that worked; it does not mean this colour failed.)
+            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError && !/^Not saved yet: /.test(String(p._saveError))); }).length;
         if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
         else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
     }
@@ -39209,8 +39164,20 @@
             _calPendingEdits[pid] = Object.assign({}, entry.edits, _calPendingEdits[pid] || {});
             delete forClient[pid];
             restored += 1;
+            /* Show it as well as save it. The card was just loaded with the
+               server's value, and the save only updates the list after its own
+               reads, so the box kept the old text under a "Saved" chip, and
+               typing into that stale box wrote over the restored words. Mirror
+               the plain fields onto the card now, as typing does. */
+            const shown = calState.posts.find(post => post && post.id === pid);
+            if (shown) {
+                Object.keys(_calPendingEdits[pid]).forEach(k => {
+                    if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) shown[k] = _calPendingEdits[pid][k];
+                });
+            }
             _calFlushCardSave(pid);
         }
+        if (restored) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
         if (!Object.keys(forClient).length) delete _calParkedEdits[key];
         return restored;
     }
@@ -39225,6 +39192,13 @@
        before the network answers. True when the write was made or rightly
        skipped; false only when storage refused a write that was due. */
     function _calCacheWriteIfCurrent(slug, options) {
+        /* Known residual (independent review, 2026-10-08): a save that put a
+           repair marker into this client's saved copy before the view moved
+           away does not take it out here, so on return the card can show
+           "Saved, syncing" for a save that worked until the next load clears
+           it. Writing here would also store the other client's settings under
+           this one; left for a change that can rewrite one card of a saved
+           copy on its own. Recorded in OPEN_REPAIRS 384. */
         if (calClientSlug(calState.client) !== slug) return true;
         return _calCacheWrite(slug, calState.posts, options);
     }
@@ -45966,7 +45940,11 @@
                no error anywhere in the Review view (the "Save failed" chip is
                only on Sheet cards). Read the mark, as Approve does. */
             const current = calState.posts.find(p => p.id === pid);
-            if (current && current._saveError) {
+            // "Not saved yet: ..." is the chip the engine puts BACK after a save
+            // that worked, for an older status, date or order change still
+            // waiting on this card (_calRestoreFailedIntentChip). It is not this
+            // comment failing, and saying so would invite a duplicate.
+            if (current && current._saveError && !/^Not saved yet: /.test(String(current._saveError))) {
                 _calReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError;
                 _calReviewRepaintCard(pid);
                 return;
@@ -57254,9 +57232,9 @@
                the composer shows no audience switch for a reply. Carrying an
                unsent INTERNAL comment into a reply on a client-visible thread
                would post staff-only words where the client reads them (found by
-               an independent review of the first version of this change). Text
-               is carried only into a thread of the audience it was typed for;
-               otherwise the person is asked, as for Edit. */
+               an independent review of the first version of this change, before
+               it shipped). Text is carried only into a thread of the audience it
+               was typed for; otherwise the person is asked, as for Edit. */
             const crossesAudience = action === 'add' && comment && unsent
                 && String(comment.audience || 'internal') !== String(draft.audience || 'internal');
             if (crossesAudience && !discardUnsent) {
@@ -57410,6 +57388,10 @@
             if (!issue || !comment) return false;
             const state = _prodCommentDraftFor(id);
             const key = [action, comment.id, comment.version, comment.row_updated_at].join(':');
+            // A second click on the same button while its own write is out is not
+            // a second request, and must not earn the "was not sent" message below.
+            if (state.lifecyclePendingKey === key) return false;
+            state.lifecyclePendingKey = key;
             if (state.lifecycleKey !== key) {
                 state.lifecycleKey = key;
                 state.lifecycleRequestId = _prodWriteRequestId('comment-' + action);
@@ -57423,6 +57405,7 @@
                     expected_updated_at: comment.row_updated_at
                 }
             }, state.lifecycleRequestId).then(result => {
+                state.lifecyclePendingKey = '';
                 state.lifecycleKey = '';
                 state.lifecycleRequestId = '';
                 /* Nothing came back: another comment write on this card was
@@ -57437,6 +57420,7 @@
                 _prodComments.adopt(id, result && result.comment);
                 _prodComments.refresh(id);
             }).catch(error => {
+                state.lifecyclePendingKey = '';
                 _writeUiRecordFailure('production', 'comment_lifecycle', error, { id: String(id) });
                 state.error = _prodWriteErrorText(error, issue, 'comment');
                 _prodComments.refresh(id);
@@ -70928,7 +70912,7 @@
                     wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
                     wirePost.tweaks = wirePost.video_tweaks;
                     delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
-                    delete wirePost._baseAt; delete wirePost._saveError;
+                    delete wirePost._baseAt; delete wirePost._saveError; delete wirePost._saveErrorAt;
                     delete wirePost._writeUiRetryEdits; delete wirePost._writeUiHeldSourceEdits; delete wirePost._writeUiRetrySourceAt;
                     delete wirePost._writeUiRetryPrincipal;
                     delete wirePost._writeUiPrecommittedNative;
@@ -70972,6 +70956,7 @@
                 const _okPost = sxrState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;
+                    delete _okPost._saveErrorAt;
                     delete _okPost._writeUiRetryEdits; delete _okPost._writeUiHeldSourceEdits; delete _okPost._writeUiRetrySourceAt;
                     delete _okPost._writeUiRetryPrincipal;
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
@@ -71007,6 +70992,7 @@
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                     cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    cur._saveErrorAt = Date.now();   // how long _sxrMergeServerRows keeps the unsaved text
                     // Retry the failed field set, never an old whole-card snapshot.
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     if (gatewayCommitted) {
@@ -72916,6 +72902,7 @@
         if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
         return fc.some(c => c && c.id && _sxrMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
     }
+    const SXR_FAILED_TEXT_KEEP_MS = 30 * 60 * 1000;
     function _sxrMergeServerRows(server) {
         const local = sxrState.posts || [];
         const localById = new Map(local.map(p => [p.id, p]));
@@ -72987,12 +72974,18 @@
                else, but keep the unsaved text and its Retry until it is retried
                or the person edits again. Statuses are not kept: the save engine
                already put those back when the save failed. */
-            if (loc && loc._saveError && loc._writeUiRetryEdits) {
+            /* For half an hour, not for ever (independent review, 2026-10-08):
+               kept without limit, an ignored Retry would mask a teammate's
+               later change to the same field indefinitely and then send the
+               stale text along with the next unrelated edit to the card. */
+            if (loc && loc._saveError && loc._writeUiRetryEdits
+                && Date.now() - Number(loc._saveErrorAt || 0) < SXR_FAILED_TEXT_KEEP_MS) {
                 const kept = Object.assign({}, carrySourceRepair(srv, loc));
                 Object.keys(loc._writeUiRetryEdits).forEach(k => {
                     if (k.charAt(0) !== '_' && _SXR_ROLLBACK_FIELDS.indexOf(k) < 0 && k in loc) kept[k] = loc[k];
                 });
                 kept._saveError = loc._saveError;
+                kept._saveErrorAt = loc._saveErrorAt;
                 kept._writeUiRetryEdits = loc._writeUiRetryEdits;
                 _sxrMergePostComments(kept, loc);
                 out.push(kept);
@@ -75573,9 +75566,22 @@
     function _igCreateAnswerIsFinal(created) {
         const j = created && created.json;
         if (!j || typeof j !== 'object') return false;
-        if (created.status >= 400 && created.status < 500) return true;
-        if (created.status !== 200 || j.ok !== false || !j.row || j.row.status !== 'failed') return false;
-        return !/Post For Me answered (0|5\d\d)\b/.test(String(j.error || ''));
+        return created.status >= 400 && created.status < 500;
+    }
+    /* The function also answers HTTP 200 with {"ok":false}, a row marked failed
+       and a reason when Post For Me did not accept the create. That reason is
+       worth showing, and the row belongs in the queue. But it is NOT proof that
+       no post exists: the same shape comes back when Post For Me fails or times
+       out after taking the post, and the page cannot tell the two apart from
+       the text (the first version of this change tried to, by matching the
+       error text, and an independent review showed how that could end in two
+       posts). So the attempt and its key are KEPT: pressing again retries this
+       same post, and the function's own lookup adopts one that already exists. */
+    function _igCreateRefusalReason(created) {
+        const j = created && created.json;
+        if (!j || typeof j !== 'object' || created.status !== 200 || j.ok !== false) return '';
+        if (!j.row || j.row.status !== 'failed') return '';
+        return String(j.error || j.row.error || '').trim();
     }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
@@ -75814,17 +75820,16 @@
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
-                // An answer that says no is final. A server error or an unreadable answer leaves the outcome unknown.
-                // "No" comes two ways: a 4xx, or HTTP 200 with {"ok":false} and a row marked failed, which is how
-                // the function reports that Post For Me itself refused the post. That second shape used to be read
-                // as "could not confirm": the reason was never shown, the row never reached the queue, and every
-                // new press uploaded the whole video again to be refused again. The one 200 that stays unknown is
-                // Post For Me not answering (status 0 or a 5xx of its own): the post may exist, so the same key is kept.
+                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
                 const final = _igCreateAnswerIsFinal(created);
-                if (final) {
-                    igState.attempt = null;
-                    const failedRow = created.json && created.json.row;
+                if (final) igState.attempt = null;
+                // Post For Me did not accept it, and said why: show the reason and the failed row
+                // (it used to read "could not confirm", with the reason hidden). The attempt is kept.
+                const reason = final ? '' : _igCreateRefusalReason(created);
+                if (reason) {
+                    const failedRow = created.json.row;
                     if (failedRow && failedRow.id) { igState.uploads = [failedRow].concat(igState.uploads.filter(r => r.id !== failedRow.id)); _igRenderQueue(); }
+                    throw Object.assign(new Error('Instagram did not take this post: ' + reason + ' Pressing the button again retries this same post; it cannot post twice.'), { igUnknown: false });
                 }
                 throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
             }
@@ -83169,16 +83174,6 @@
                 return;
             }
             wrap.toggleAttribute('data-pocket-reviewer', ['review', 'replies', 'filming'].includes(_kasperState.tab));
-            const clientLead = main.querySelector('.ca-land-lead[data-ca-active="0"]');
-            if (clientLead && !clientLead.classList.contains('pocket-admin-empty-copy')) {
-                clientLead._pocketEmptyText = clientLead.textContent;
-                clientLead.classList.add('pocket-admin-empty-copy');
-                clientLead.textContent = Number(clientLead.dataset.caArchived) > 0
-                    ? 'No active clients. Open All clients and choose Show archived.'
-                    : main.querySelector('#caNewBtn')
-                        ? 'No clients yet. Choose New client to add the first one.'
-                        : 'No clients yet.';
-            }
             for (const [selector, text] of [
                 ['#kadBody > .kasper-empty .kasper-empty-sub', 'Ad results update twice daily. Check back after the next update.'],
                 ['#kqlBody > .kasper-empty .kasper-empty-sub', 'New quiz submissions will appear here.']
@@ -84223,9 +84218,8 @@
         const recent = _caRecentMap();
         const opened = (_caState.rows || []).filter(r => !r.archived_at && recent[r.slug]).sort((a, b) => recent[b.slug] - recent[a.slug]).slice(0, 6);
         const active = (_caState.rows || []).filter(r => !r.archived_at).length;
-        const archived = (_caState.rows || []).length - active;
         return `<div class="ca-land">
-                <p class="ca-land-lead" data-ca-active="${active}" data-ca-archived="${archived}">${active} client${active === 1 ? '' : 's'}. Search above, or open All clients.</p>
+                <p class="ca-land-lead">${active} client${active === 1 ? '' : 's'}. Search above, or open All clients.</p>
                 ${opened.length ? `<div class="ca-land-label">Recently opened</div><div class="ca-recent">${opened.map(r => `<button type="button" class="ca-chip" data-ca-slug="${_calEscAttr(r.slug)}" onclick="_caSelect('${_calEscAttr(r.slug)}')">${_caAvatar(_caName(r), 'is-sm')}${_calEsc(_caName(r))}</button>`).join('')}</div>` : ''}
             </div>`;
     }
@@ -84771,7 +84765,8 @@
         name_invalid: 'Type the client\'s name.',
         slug_invalid: 'That name has no letters or numbers to make a link name from.',
         email_invalid: 'That email does not look right.',
-        email_required: 'Add the client\'s email. The Slack channels are only made when it matches the onboarding form.',
+        // Only until 2026-10-10-create-client-email-optional.sql is applied (the database still asks for one).
+        email_required: 'The database still asks for an email: the change that makes it optional is not applied yet. Add the email, or wait for that change.',
         name_differs_from_form: 'The onboarding form is already in under a different spelling of this name. The Slack channels are only made when the two match exactly.',
         email_differs_from_form: 'The onboarding form for this client has a different email. The Slack channels are only made when the two match.',
         manager_unknown: 'Pick a social media manager.',
@@ -84836,7 +84831,7 @@
                 <label class="cn-field"><span class="cn-label">Social media manager</span>
                     <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
                 </label>
-                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">needed for Slack</span></span>
+                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">optional, needed for Slack channels</span></span>
                     <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
                 </label>
                 <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
@@ -84895,7 +84890,7 @@
         const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
         if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet or Slack</span>' : ''}` : '';
         const emailNote = document.getElementById('cnEmailNote');
-        if (emailNote) emailNote.textContent = test ? 'optional' : 'needed for Slack';
+        if (emailNote) emailNote.textContent = test ? 'optional' : 'optional, needed for Slack channels';
         const box = document.getElementById('cnPreview');
         const btn = document.getElementById('cnCreateBtn');
         const p = _cnState.preview;
@@ -84929,13 +84924,20 @@
         const sl = p.slack || {};
         if (sl.mode !== 'finalizer') return '';
         const row = (done, text) => `<li class="${done ? 'is-done' : ''}"><span class="cn-tick" aria-hidden="true">${done ? '✓' : '○'}</span>${_calEsc(text)}<span class="cn-sr">${done ? ' (in)' : ' (still missing)'}</span></li>`;
-        const all = sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
+        // Without an email the finalizer cannot match the client to the onboarding form (owner decision
+        // 2026-10-10: the create still goes ahead). With the form already in, it would send the job to manual.
+        const emailIn = sl.client_email !== false;
+        const all = emailIn && sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
+        const emailFix = !emailIn && sl.form_email
+            ? `<div class="cn-slack-warn">The onboarding form is already in, and without the client's email Slack sends the job to you to sort out by hand. <button type="button" class="cc-btn" data-cn-use="email" onclick="_cnUseForm('email')">Use the form's email: ${_calEsc(sl.form_email)}</button></div>`
+            : '';
         return `<div class="cn-slack"><div class="cn-slack-title">Slack channels: ${all ? 'made right after you create' : 'made automatically once these are in'}</div>
                 <ul class="cn-checks">
+                    ${row(emailIn, 'Client email')}
                     ${row(sl.form_received, 'Onboarding form from the client, same name and email')}
                     ${row(sl.manager_slack_id, 'The manager\'s Slack id')}
                     ${row(sl.filming_plan_linked, 'Filming plan link')}
-                </ul></div>`;
+                </ul>${emailFix}</div>`;
     }
     function _cnUseForm(field) {
         const sl = (_cnState.preview && _cnState.preview.slack) || {};
@@ -88919,4 +88921,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-eb7af9163ec3.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-baefab48683b.js");

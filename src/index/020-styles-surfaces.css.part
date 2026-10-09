@@ -4651,6 +4651,8 @@
         .cn-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
         .cn-fixes { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
         .cn-fixes .cc-btn { font-size: 0.76rem; padding: 6px 10px; }
+        .cn-slack-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--sv-bg-fff7f7); color: var(--sv-fg-b91c1c); font-size: 0.74rem; line-height: 1.45; }
+        .cn-slack-warn .cc-btn { font-size: 0.74rem; padding: 5px 10px; }
         .ca-ico { width: 16px; height: 16px; flex: none; }
         .ca-drop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 60; width: min(620px, 100%); background: var(--white); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 8px; }
         .ca-drop-head { display: flex; align-items: center; gap: 12px; padding: 4px 6px 8px 10px; font-size: 0.74rem; font-weight: 700; color: var(--text-muted); }
@@ -4830,6 +4832,7 @@
             .cn-dialog .ca-input { font-size: 16px; min-height: 44px; }
             .cn-actions .cc-btn { flex: 1; min-height: 48px; }
             .cn-fixes .cc-btn { min-height: 44px; width: 100%; }
+            .cn-slack-warn .cc-btn { min-height: 44px; width: 100%; }
             .ca-drop { width: 100%; }
             .ca-list { grid-template-columns: 1fr; max-height: 60vh; }
             /* The pocket shell sizes .ca-row for the old full-page list (78px); the dropdown list is denser. */

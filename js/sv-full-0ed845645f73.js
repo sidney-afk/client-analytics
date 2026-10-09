@@ -16830,7 +16830,16 @@
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
             if (!list.length) return head + scope + _tdyClientsHtml(d) + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>`;
-            const i = ((tdyState.walk % list.length) + list.length) % list.length;
+            /* The walk keeps its place by POST, not by position. The list is
+               rebuilt on every live re-read, and with a bare index a post
+               leaving the list earlier in date order (a teammate added its
+               link) silently swapped the card under "Post 3 of 5" for the next
+               one, possibly another client's, with "Open card" following the
+               swap. If the post being shown is gone, the position is kept. */
+            let i = tdyState.walkId ? list.findIndex(x => x.id === tdyState.walkId) : -1;
+            if (i < 0) i = ((tdyState.walk % list.length) + list.length) % list.length;
+            tdyState.walk = i;
+            tdyState.walkId = list[i].id;
             const p = list[i], name = d.names[p.client] || p.client || '';
             const gap = _calSmmMediaGap(p) || {};
             const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
@@ -17038,7 +17047,7 @@
     }
     function _tdyPurgeSensitiveState() {
         tdyState.gen++; tdyState.purges++; tdyState.freshAt = 0; tdyState.fromSaved = false; _tdyInflight = null;
-        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0;
+        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0; tdyState.walkId = '';
         _tdyClientRows = null;
         _tdyAlsoSees = null;
         _tdyCacheClear();
@@ -17147,7 +17156,7 @@
         _tdyPaint();
     }
     function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
-    function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
+    function _tdyWalkNext() { tdyState.walk++; tdyState.walkId = ''; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
     function _tdyOpenSync(id) {
         try { window.open(svRoute.fast('/synclinear/' + encodeURIComponent(id)), '_blank', 'noopener'); } catch (e) {}
@@ -17188,6 +17197,20 @@
         if (!r) return;
         const name = d.names[r.client_slug] || r.client_slug;
         try { svSharedClientNote(name); } catch (e) {}
+        /* A work item that knows its card opens it the way a post row does.
+           The other road names only the work item, and the Calendar lets a
+           card past its saved month and status filter only when it is asked
+           for by card id, so "Open card" from "To approve" or "Dates to move"
+           ended on "Card not shown" whenever that client's filter hid the
+           card, and the address never carried the card either. Measured
+           2026-10-08: all 261 open calendar-origin items carry a card id that
+           is a card of their own client. */
+        if (r.card_id) {
+            _calSetFocusRequest({ client: name, cardId: String(r.card_id) });
+            navTo('calendar');
+            _tdyCardInAddress(r.client_slug, String(r.card_id));
+            return;
+        }
         wlOpenInContentCalendar(name, '', r.id);
     }
     function _tdyTeardown() { tdyState.gen++; _tdyStopLive(); }
@@ -26979,7 +27002,9 @@
            so this said "Color updated" for colours that were not saved. Count
            the cards the save marked as failed as well. */
         const failed = results.filter(r => r.status === 'rejected').length
-            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError); }).length;
+            // ("Not saved yet: ..." is an older change still waiting on the card, put back
+            // after a save that worked; it does not mean this colour failed.)
+            + ids.filter(pid => { const p = calState.posts.find(x => x.id === pid); return !!(p && p._saveError && !/^Not saved yet: /.test(String(p._saveError))); }).length;
         if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
         else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
     }
@@ -32125,11 +32150,19 @@
             showNotify('Not waiting on Kasper', 'Nothing on this card is at Kasper Approval right now, so there is nothing to ping him about.');
             return;
         }
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(calState.client || '').trim(), post.name, {
+        /* The client this card belongs to, fixed now. The marker is saved after
+           the confirm, two flag reads and the Slack call, and it used to read
+           the client on screen at THAT moment: after a quick client switch the
+           "sent" marker went to the other client with this card's id, was
+           refused, and the ping (already delivered) left no trace, so Kasper's
+           Urgent list missed the card and the button was live for a second
+           ping. The editor ping already pins its client the same way. */
+        const sourceClient = calState.client;
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('calendar'), surface: 'calendar', component: comp },
-            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping),
-            preflight: () => _calAssertSavingOn(calState.client)
+            persist: (ping) => _calPersistKasperUrgentForPost(sourceClient, post, comp, ping),
+            preflight: () => _calAssertSavingOn(sourceClient)
         });
     }
     /* Which component the ping is recorded against. The button can be clicked
@@ -39178,8 +39211,20 @@
             _calPendingEdits[pid] = Object.assign({}, entry.edits, _calPendingEdits[pid] || {});
             delete forClient[pid];
             restored += 1;
+            /* Show it as well as save it. The card was just loaded with the
+               server's value, and the save only updates the list after its own
+               reads, so the box kept the old text under a "Saved" chip, and
+               typing into that stale box wrote over the restored words. Mirror
+               the plain fields onto the card now, as typing does. */
+            const shown = calState.posts.find(post => post && post.id === pid);
+            if (shown) {
+                Object.keys(_calPendingEdits[pid]).forEach(k => {
+                    if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) shown[k] = _calPendingEdits[pid][k];
+                });
+            }
             _calFlushCardSave(pid);
         }
+        if (restored) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
         if (!Object.keys(forClient).length) delete _calParkedEdits[key];
         return restored;
     }
@@ -39194,6 +39239,13 @@
        before the network answers. True when the write was made or rightly
        skipped; false only when storage refused a write that was due. */
     function _calCacheWriteIfCurrent(slug, options) {
+        /* Known residual (independent review, 2026-10-08): a save that put a
+           repair marker into this client's saved copy before the view moved
+           away does not take it out here, so on return the card can show
+           "Saved, syncing" for a save that worked until the next load clears
+           it. Writing here would also store the other client's settings under
+           this one; left for a change that can rewrite one card of a saved
+           copy on its own. Recorded in OPEN_REPAIRS 384. */
         if (calClientSlug(calState.client) !== slug) return true;
         return _calCacheWrite(slug, calState.posts, options);
     }
@@ -43560,7 +43612,18 @@
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragend', (e) => {
+            card.classList.remove('dragging');
+            /* A drag that ended with no drop (Escape, or released outside the
+               strip) saved nothing, but the cards had already been moved on
+               screen as the pointer passed over them and nothing put them
+               back. The strip showed an order that did not exist, and the next
+               real drop read the order from the screen and saved the abandoned
+               move with it. Redraw from what is actually stored. */
+            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
+                try { _calRenderBody({ preserveScroll: true }); } catch (err) {}
+            }
+        });
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');
@@ -44984,7 +45047,13 @@
                 items.push({ component, name: component === 'video' ? 'Video work item' : k.second + ' work item', read, plan });
             }
             const slot = _arxOrderSlot(fresh, _arxLive(kind));
-            const past = kind === 'cal' && fresh.scheduled_date && Date.parse(String(fresh.scheduled_date).slice(0, 10)) < Date.now() - 86400000;
+            /* "Has passed" means before today on this person's calendar. Parsing
+               the date as an instant read it as midnight UTC, so west of UTC
+               the note came on during the evening of the scheduled day itself
+               (from 6 pm in Guatemala). Compare the two days as days. */
+            const nowDay = new Date();
+            const todayIso = nowDay.getFullYear() + '-' + String(nowDay.getMonth() + 1).padStart(2, '0') + '-' + String(nowDay.getDate()).padStart(2, '0');
+            const past = kind === 'cal' && !!fresh.scheduled_date && String(fresh.scheduled_date).slice(0, 10) < todayIso;
             const ok = await _arxDialog({
                 title: 'Restore “' + _arxNameOf(fresh) + '”?',
                 msg: 'It goes back to ' + k.where + ' exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be ' + status + '.',
@@ -45918,7 +45987,11 @@
                no error anywhere in the Review view (the "Save failed" chip is
                only on Sheet cards). Read the mark, as Approve does. */
             const current = calState.posts.find(p => p.id === pid);
-            if (current && current._saveError) {
+            // "Not saved yet: ..." is the chip the engine puts BACK after a save
+            // that worked, for an older status, date or order change still
+            // waiting on this card (_calRestoreFailedIntentChip). It is not this
+            // comment failing, and saying so would invite a duplicate.
+            if (current && current._saveError && !/^Not saved yet: /.test(String(current._saveError))) {
                 _calReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError;
                 _calReviewRepaintCard(pid);
                 return;
@@ -46426,13 +46499,15 @@
        "ready only" filter (or an active month filter) would otherwise hide an
        in-review post; the focus clears when the user leaves the Sheet. */
     function _calReviewOpenInSheet(pid) {
+        /* Through the one road every other view change takes. This used to
+           switch the view by hand, which skipped what onCalViewChange also
+           does: the Sheet came up with no Organize menu (so an active month
+           filter could be neither seen nor changed), no Select buttons and no
+           zoom, until "Sheet" was clicked again. The focus is set after, since
+           it is what lets the card past the filters. */
         calState.focusPid = pid;
-        if (calState.view !== 'organizer') {
-            calState.view = 'organizer';
-            _calSavePrefs();
-            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
-        }
-        _calRenderBody();
+        if (calState.view !== 'organizer') onCalViewChange('organizer');
+        else _calRenderBody();
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
             if (!card) return;
@@ -46454,12 +46529,13 @@
 
     function editInOrganizerFromPreview(id) {
         closeCalPreview();
-        if (calState.view !== 'organizer') {
-            calState.view = 'organizer';
-            _calSavePrefs();
-            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
-            _calRenderBody();
-        }
+        // Same road as _calReviewOpenInSheet, and the same focus: without it a
+        // card the saved month or status filter hides (every card from the
+        // Unscheduled tray under a month filter) was never rendered, and the
+        // button did nothing at all.
+        calState.focusPid = id;
+        if (calState.view !== 'organizer') onCalViewChange('organizer');
+        else _calRenderBody({ preserveScroll: true });
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
             if (card) {
@@ -57203,9 +57279,9 @@
                the composer shows no audience switch for a reply. Carrying an
                unsent INTERNAL comment into a reply on a client-visible thread
                would post staff-only words where the client reads them (found by
-               an independent review of the first version of this change). Text
-               is carried only into a thread of the audience it was typed for;
-               otherwise the person is asked, as for Edit. */
+               an independent review of the first version of this change, before
+               it shipped). Text is carried only into a thread of the audience it
+               was typed for; otherwise the person is asked, as for Edit. */
             const crossesAudience = action === 'add' && comment && unsent
                 && String(comment.audience || 'internal') !== String(draft.audience || 'internal');
             if (crossesAudience && !discardUnsent) {
@@ -57359,6 +57435,10 @@
             if (!issue || !comment) return false;
             const state = _prodCommentDraftFor(id);
             const key = [action, comment.id, comment.version, comment.row_updated_at].join(':');
+            // A second click on the same button while its own write is out is not
+            // a second request, and must not earn the "was not sent" message below.
+            if (state.lifecyclePendingKey === key) return false;
+            state.lifecyclePendingKey = key;
             if (state.lifecycleKey !== key) {
                 state.lifecycleKey = key;
                 state.lifecycleRequestId = _prodWriteRequestId('comment-' + action);
@@ -57372,6 +57452,7 @@
                     expected_updated_at: comment.row_updated_at
                 }
             }, state.lifecycleRequestId).then(result => {
+                state.lifecyclePendingKey = '';
                 state.lifecycleKey = '';
                 state.lifecycleRequestId = '';
                 /* Nothing came back: another comment write on this card was
@@ -57386,6 +57467,7 @@
                 _prodComments.adopt(id, result && result.comment);
                 _prodComments.refresh(id);
             }).catch(error => {
+                state.lifecyclePendingKey = '';
                 _writeUiRecordFailure('production', 'comment_lifecycle', error, { id: String(id) });
                 state.error = _prodWriteErrorText(error, issue, 'comment');
                 _prodComments.refresh(id);
@@ -59005,7 +59087,15 @@
             return _prodCancelDescriptionEdit(id);
         }
         function _prodCaptureDescriptionFocus(root) {
-            const id = String(_prodState.openId || '');
+            /* The ROW id, not the raw open id. A card opened by a pasted link
+               or through its batch is open under its identifier, while the
+               description is read and kept under the row id (the comments had
+               the same split and were fixed with _prodOpenRowId; see
+               test/prod-deep-link-open-id-key.js). With the raw id the
+               description never repainted when its read landed, so it sat on
+               the loading bar, and the caret jumped to the start of the text on
+               any re-render while editing. */
+            const id = _prodOpenRowId();
             const state = id && _prodState.descriptions.get(id);
             if (!root || !state || !state.editing) return null;
             const panel = root.querySelector('[data-prod-description="' + CSS.escape(id) + '"]');
@@ -59497,7 +59587,7 @@
                         _prodAdoptDescriptionValue(id, loadedRow.description, loadedRow.updated_at);
                         const reconciled = _prodState.descriptions.get(id);
                         if (reconciled) reconciled.scopeSignature = _prodIssueScopeSignature(issue);
-                        if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                        if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                         return state;
                     }
                 }
@@ -59522,7 +59612,7 @@
                 state.refreshError = '';
                 state.refreshSilent = !force;
                 state.status = state.hasValue ? 'stale' : 'loading';
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 // The owner reads, guards and records. It never throws.
                 await _prodEnsureBatchDescription(batchId, force);
                 if (!panelStillCurrent()) {
@@ -59561,7 +59651,7 @@
                     state.refreshError = '';
                     state.status = state.hasValue ? 'stale' : 'idle';
                 }
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return state;
             }
             if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
@@ -59571,7 +59661,7 @@
                 state.status = state.hasValue ? 'stale' : 'error';
                 state.error = state.hasValue ? state.error : 'Staff sign-in is required to load this description.';
                 state.refreshError = state.hasValue ? 'Staff sign-in is required to refresh this description.' : '';
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return null;
             }
             const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
@@ -59595,7 +59685,7 @@
             state.refreshSilent = !force;
             if (state.hasValue) state.status = 'stale';
             else state.status = 'loading';
-            if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+            if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
             try {
                 const response = await fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
@@ -59664,7 +59754,7 @@
                     adopted.renderValue = renderBrief;
                     adopted.renderExpiresAt = renderExpiresAt;
                 }
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return state;
             } catch (error) {
                 if (!requestStillCurrent()) return null;
@@ -59676,7 +59766,7 @@
                     state.status = 'error';
                     state.error = 'Description could not load.';
                 }
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return null;
             }
         }
@@ -70054,11 +70144,13 @@
         if (!post) return;
         const comp = _sxrKasperUrgentPingComp(post);
         if (!comp) { if (typeof showNotify === 'function') showNotify('Not waiting on Kasper', 'Nothing on this sample is at Kasper Approval right now, so there is nothing to ping him about.'); return; }
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
+        // The sample's own client, fixed now: the marker is saved seconds later (see _calSendKasperUrgentSlack).
+        const sourceClient = sxrState.client;
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
-            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping),
-            preflight: () => _sxrAssertSavingOn(sxrState.client)
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sourceClient, post, comp, ping),
+            preflight: () => _sxrAssertSavingOn(sourceClient)
         });
     }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
@@ -70473,7 +70565,13 @@
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragend', (e) => {
+            card.classList.remove('dragging');
+            // A drag with no drop saved nothing: redraw the stored order (see the Calendar's twin).
+            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
+                try { _sxrRenderBody({ preserveScroll: true }); } catch (err) {}
+            }
+        });
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');
@@ -70861,7 +70959,7 @@
                     wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
                     wirePost.tweaks = wirePost.video_tweaks;
                     delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
-                    delete wirePost._baseAt; delete wirePost._saveError;
+                    delete wirePost._baseAt; delete wirePost._saveError; delete wirePost._saveErrorAt;
                     delete wirePost._writeUiRetryEdits; delete wirePost._writeUiHeldSourceEdits; delete wirePost._writeUiRetrySourceAt;
                     delete wirePost._writeUiRetryPrincipal;
                     delete wirePost._writeUiPrecommittedNative;
@@ -70905,6 +71003,7 @@
                 const _okPost = sxrState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;
+                    delete _okPost._saveErrorAt;
                     delete _okPost._writeUiRetryEdits; delete _okPost._writeUiHeldSourceEdits; delete _okPost._writeUiRetrySourceAt;
                     delete _okPost._writeUiRetryPrincipal;
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
@@ -70940,6 +71039,7 @@
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                     cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    cur._saveErrorAt = Date.now();   // how long _sxrMergeServerRows keeps the unsaved text
                     // Retry the failed field set, never an old whole-card snapshot.
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     if (gatewayCommitted) {
@@ -72849,6 +72949,7 @@
         if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
         return fc.some(c => c && c.id && _sxrMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
     }
+    const SXR_FAILED_TEXT_KEEP_MS = 30 * 60 * 1000;
     function _sxrMergeServerRows(server) {
         const local = sxrState.posts || [];
         const localById = new Map(local.map(p => [p.id, p]));
@@ -72920,12 +73021,18 @@
                else, but keep the unsaved text and its Retry until it is retried
                or the person edits again. Statuses are not kept: the save engine
                already put those back when the save failed. */
-            if (loc && loc._saveError && loc._writeUiRetryEdits) {
+            /* For half an hour, not for ever (independent review, 2026-10-08):
+               kept without limit, an ignored Retry would mask a teammate's
+               later change to the same field indefinitely and then send the
+               stale text along with the next unrelated edit to the card. */
+            if (loc && loc._saveError && loc._writeUiRetryEdits
+                && Date.now() - Number(loc._saveErrorAt || 0) < SXR_FAILED_TEXT_KEEP_MS) {
                 const kept = Object.assign({}, carrySourceRepair(srv, loc));
                 Object.keys(loc._writeUiRetryEdits).forEach(k => {
                     if (k.charAt(0) !== '_' && _SXR_ROLLBACK_FIELDS.indexOf(k) < 0 && k in loc) kept[k] = loc[k];
                 });
                 kept._saveError = loc._saveError;
+                kept._saveErrorAt = loc._saveErrorAt;
                 kept._writeUiRetryEdits = loc._writeUiRetryEdits;
                 _sxrMergePostComments(kept, loc);
                 out.push(kept);
@@ -75506,9 +75613,22 @@
     function _igCreateAnswerIsFinal(created) {
         const j = created && created.json;
         if (!j || typeof j !== 'object') return false;
-        if (created.status >= 400 && created.status < 500) return true;
-        if (created.status !== 200 || j.ok !== false || !j.row || j.row.status !== 'failed') return false;
-        return !/Post For Me answered (0|5\d\d)\b/.test(String(j.error || ''));
+        return created.status >= 400 && created.status < 500;
+    }
+    /* The function also answers HTTP 200 with {"ok":false}, a row marked failed
+       and a reason when Post For Me did not accept the create. That reason is
+       worth showing, and the row belongs in the queue. But it is NOT proof that
+       no post exists: the same shape comes back when Post For Me fails or times
+       out after taking the post, and the page cannot tell the two apart from
+       the text (the first version of this change tried to, by matching the
+       error text, and an independent review showed how that could end in two
+       posts). So the attempt and its key are KEPT: pressing again retries this
+       same post, and the function's own lookup adopts one that already exists. */
+    function _igCreateRefusalReason(created) {
+        const j = created && created.json;
+        if (!j || typeof j !== 'object' || created.status !== 200 || j.ok !== false) return '';
+        if (!j.row || j.row.status !== 'failed') return '';
+        return String(j.error || j.row.error || '').trim();
     }
     function _igValidate() {
         if (!igState.client) return 'Pick a client first.';
@@ -75611,7 +75731,7 @@
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
@@ -75747,17 +75867,16 @@
                 scheduledAtUTC: utc, timezone: igState.schedule.tz, idempotencyKey,
             }, 'instagram_create');
             if (!created.ok) {
-                // An answer that says no is final. A server error or an unreadable answer leaves the outcome unknown.
-                // "No" comes two ways: a 4xx, or HTTP 200 with {"ok":false} and a row marked failed, which is how
-                // the function reports that Post For Me itself refused the post. That second shape used to be read
-                // as "could not confirm": the reason was never shown, the row never reached the queue, and every
-                // new press uploaded the whole video again to be refused again. The one 200 that stays unknown is
-                // Post For Me not answering (status 0 or a 5xx of its own): the post may exist, so the same key is kept.
+                // An answer that says no (4xx) is final. A server error or an unreadable answer leaves the outcome unknown.
                 const final = _igCreateAnswerIsFinal(created);
-                if (final) {
-                    igState.attempt = null;
-                    const failedRow = created.json && created.json.row;
+                if (final) igState.attempt = null;
+                // Post For Me did not accept it, and said why: show the reason and the failed row
+                // (it used to read "could not confirm", with the reason hidden). The attempt is kept.
+                const reason = final ? '' : _igCreateRefusalReason(created);
+                if (reason) {
+                    const failedRow = created.json.row;
                     if (failedRow && failedRow.id) { igState.uploads = [failedRow].concat(igState.uploads.filter(r => r.id !== failedRow.id)); _igRenderQueue(); }
+                    throw Object.assign(new Error('Instagram did not take this post: ' + reason + ' Pressing the button again retries this same post; it cannot post twice.'), { igUnknown: false });
                 }
                 throw Object.assign(new Error((created.json && created.json.error) || ('The post could not be confirmed (HTTP ' + (created.status || 'no response') + ').')), { igUnknown: !final });
             }
@@ -75891,7 +76010,21 @@
     function mountInstagramPanel(deps) {
         _igDeps = deps;
         const shared = svSharedClientFor('tiktok-upload');
-        if (!igState.client && shared && (WL_CLIENT_NAMES || []).includes(shared)) igState.client = shared;
+        /* Follow the client in the top bar unless a post is already being put
+           together, as the TikTok side does. This only took the top-bar client
+           when the form had none, so after its first client the Instagram form
+           kept that one for the whole session: pick another client in the top
+           bar and the top bar and the TikTok side said B while this form, empty,
+           still said A, and a video attached then went to A's Instagram. */
+        const igIdle = !igState.file && !String(igState.title || '').trim() && !igState.submitting;
+        if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
+            if (igState.client && igState.client !== shared) {
+                igState.error = null; igState.notice = null;
+                if (igState.cover.source === 'calendar') _igCoverClear(true);
+                igState.cover.cardId = ''; igState.cover.note = '';
+            }
+            igState.client = shared;
+        }
         _igMounted = true;
         const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');
         if (form) form.hidden = false;
@@ -83690,8 +83823,16 @@
         const rows = (_caState.rows || []).filter(r => {
             if (r.archived_at && !_caState.showArchived) return false;
             if (!q) return true;
-            return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
-                .some(v => String(v || '').toLowerCase().includes(q));
+            /* The profile shows handles as "@name", and they are stored
+               without the "@" (all 32 Instagram and 18 TikTok handles on
+               2026-10-08), so a handle typed the way it is shown matched
+               nobody. A leading "@" is ignored on both sides for the three
+               handle fields; a bare "@" is not a search. */
+            const bare = q.replace(/^@+/, '');
+            if ([r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().includes(q))) return true;
+            return bare !== q && !!bare && [r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().replace(/^@+/, '').includes(bare));
         });
         const recent = _caRecentMap();
         return rows.slice().sort((a, b) => {
@@ -84682,7 +84823,8 @@
         name_invalid: 'Type the client\'s name.',
         slug_invalid: 'That name has no letters or numbers to make a link name from.',
         email_invalid: 'That email does not look right.',
-        email_required: 'Add the client\'s email. The Slack channels are only made when it matches the onboarding form.',
+        // Only until 2026-10-10-create-client-email-optional.sql is applied (the database still asks for one).
+        email_required: 'The database still asks for an email: the change that makes it optional is not applied yet. Add the email, or wait for that change.',
         name_differs_from_form: 'The onboarding form is already in under a different spelling of this name. The Slack channels are only made when the two match exactly.',
         email_differs_from_form: 'The onboarding form for this client has a different email. The Slack channels are only made when the two match.',
         manager_unknown: 'Pick a social media manager.',
@@ -84747,7 +84889,7 @@
                 <label class="cn-field"><span class="cn-label">Social media manager</span>
                     <select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>
                 </label>
-                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">needed for Slack</span></span>
+                <label class="cn-field"><span class="cn-label">Email <span class="cn-opt" id="cnEmailNote">optional, needed for Slack channels</span></span>
                     <input class="ca-input" id="cnEmail" type="email" autocomplete="off" spellcheck="false" maxlength="254" placeholder="name@example.com" value="${_calEscAttr(_cnState.email)}" data-cn="email" oninput="_cnInput(this)">
                 </label>
                 <div class="cn-preview" id="cnPreview" aria-live="polite"></div>
@@ -84806,7 +84948,7 @@
         const test = /^ZZ THROWAWAY/.test(_cnState.name.trim());
         if (slugEl) slugEl.innerHTML = slug ? `Link name <code>${_calEsc(slug)}</code>${test ? ' <span class="cn-test">Test client: removable, never on the Sheet or Slack</span>' : ''}` : '';
         const emailNote = document.getElementById('cnEmailNote');
-        if (emailNote) emailNote.textContent = test ? 'optional' : 'needed for Slack';
+        if (emailNote) emailNote.textContent = test ? 'optional' : 'optional, needed for Slack channels';
         const box = document.getElementById('cnPreview');
         const btn = document.getElementById('cnCreateBtn');
         const p = _cnState.preview;
@@ -84840,13 +84982,20 @@
         const sl = p.slack || {};
         if (sl.mode !== 'finalizer') return '';
         const row = (done, text) => `<li class="${done ? 'is-done' : ''}"><span class="cn-tick" aria-hidden="true">${done ? '✓' : '○'}</span>${_calEsc(text)}<span class="cn-sr">${done ? ' (in)' : ' (still missing)'}</span></li>`;
-        const all = sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
+        // Without an email the finalizer cannot match the client to the onboarding form (owner decision
+        // 2026-10-10: the create still goes ahead). With the form already in, it would send the job to manual.
+        const emailIn = sl.client_email !== false;
+        const all = emailIn && sl.form_received && sl.manager_slack_id && sl.filming_plan_linked;
+        const emailFix = !emailIn && sl.form_email
+            ? `<div class="cn-slack-warn">The onboarding form is already in, and without the client's email Slack sends the job to you to sort out by hand. <button type="button" class="cc-btn" data-cn-use="email" onclick="_cnUseForm('email')">Use the form's email: ${_calEsc(sl.form_email)}</button></div>`
+            : '';
         return `<div class="cn-slack"><div class="cn-slack-title">Slack channels: ${all ? 'made right after you create' : 'made automatically once these are in'}</div>
                 <ul class="cn-checks">
+                    ${row(emailIn, 'Client email')}
                     ${row(sl.form_received, 'Onboarding form from the client, same name and email')}
                     ${row(sl.manager_slack_id, 'The manager\'s Slack id')}
                     ${row(sl.filming_plan_linked, 'Filming plan link')}
-                </ul></div>`;
+                </ul>${emailFix}</div>`;
     }
     function _cnUseForm(field) {
         const sl = (_cnState.preview && _cnState.preview.slack) || {};
@@ -88830,4 +88979,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-26f0a2c1b0cc.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-0ed845645f73.js");

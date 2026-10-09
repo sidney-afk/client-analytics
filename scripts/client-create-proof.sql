@@ -71,6 +71,8 @@ alter table public.filming_plans add column if not exists doc_id text;
 \i migrations/2026-10-08-create-client.sql
 \i migrations/2026-10-09-create-client-slack-nudge.sql
 \i migrations/2026-10-09-create-client-slack-nudge.sql
+\i migrations/2026-10-10-create-client-email-optional.sql
+\i migrations/2026-10-10-create-client-email-optional.sql
 
 do $$
 declare r jsonb; n int; k text; v record;
@@ -102,8 +104,6 @@ begin
     if sqlerrm <> 'client_create_test_needs_throwaway_name' then raise; end if; end;
   begin perform public.client_create_native('req-c0', 'zzthrowawayx', 'ZZ THROWAWAY X', 'managera', 'x@example.com', 'Admin', 'client'); raise exception 'throwaway as real'; exception when others then
     if sqlerrm <> 'client_create_throwaway_name_needs_test_mode' then raise; end if; end;
-  begin perform public.client_create_native('req-c0', 'newone', 'New One', 'managera', '', 'Admin', 'client'); raise exception 'real client without email'; exception when others then
-    if sqlerrm <> 'client_create_email_required' then raise; end if; end;
   if exists (select 1 from public.clients where slug in ('newone', 'zzthrowawayx', 'someonelisted', 'realonetwo')) then raise exception 'a refusal left a row'; end if;
   if (select count(*) from net.sent) <> 0 then raise exception 'a refusal sent a nudge'; end if;
 
@@ -193,6 +193,18 @@ begin
     union all select 1 from public.roster_sheet_outbox where client_slug = 'zzthrowawaynine') z;
   if n <> 0 then raise exception 'teardown left % rows', n; end if;
   if not exists (select 1 from public.clients where slug = 'newone') then raise exception 'the real client was touched'; end if;
+  -- owner decision 2026-10-10: a REAL client may be created without an email; the nudge still fires for it,
+  -- and a test client without an email is still never nudged
+  select count(*) into n from net.sent;
+  r := public.client_create_native('req-ne1', 'noemailone', 'No Email One', 'managera', '', 'Admin', 'client');
+  if r->>'outcome' <> 'created' or r->>'kind' <> 'client' or r->>'slack' <> 'finalizer_nudged' then raise exception 'real create without email %', r; end if;
+  if (select coalesce(email, '') from public.client_profiles where slug = 'noemailone') <> '' then raise exception 'an email appeared from nowhere'; end if;
+  if (select count(*) from net.sent) <> n + 1 or (select body->>'client_name' from net.sent order by id desc limit 1) <> 'No Email One' then raise exception 'real client without email was not nudged'; end if;
+  begin perform public.client_create_native('req-ne2', 'noemailtwo', 'No Email Two', 'managera', 'not an email', 'Admin', 'client'); raise exception 'bad email allowed'; exception when others then
+    if sqlerrm <> 'client_create_email_invalid' then raise; end if; end;
+  r := public.client_create_native('req-ne3', 'zzthrowawaynoemail', 'ZZ THROWAWAY No Email', 'managerb', '', 'Admin', 'test');
+  if r->>'outcome' <> 'created' or r->>'slack' <> 'not_queued' or (select count(*) from net.sent) <> n + 1 then raise exception 'a test client without email was nudged %', r; end if;
+  perform public.client_create_native_test_teardown('zzthrowawaynoemail', 'Admin');
   -- a broken web call never fails the write it rides on
   create or replace function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds integer default 5000) returns bigint
     language plpgsql as $f$ begin raise exception 'net down'; end $f$;

@@ -85,7 +85,7 @@ The first real client made with the button is the end to end proof of the real p
 on the Clients Info Sheet copy, immutable receipt). It cannot be undone except by archiving, by design of
 the 2026-09-09 provisioning function.
 
-## 6. Slack nudge (built 2026-10-08, NOT applied; owner's go)
+## 6. Slack nudge (APPLIED; live database checked 2026-10-10)
 
 The Slack Creative Channel Finalizer (n8n) already waits for its missing pieces: a pending queue row (written by
 the onboarding form's provisioning, standard or AI funnel), exactly one Clients Info row with the same name (case
@@ -103,7 +103,7 @@ finalizer's own **15 minute timer** picks the client up (and the daily safety ch
 Never for a test client: kind `test`, a `zzthrowaway` slug or a "ZZ THROWAWAY" name is refused inside the nudge.
 The whole nudge, its lookup included, sits inside one exception handler, so it can never fail a create or a
 filming plan save; pg_net sends it after the transaction commits. The redefined `client_create_native` differs
-from the live one by exactly two lines: a real client needs an email (an empty one sends the finalizer's job to
+from the live one by exactly two lines: a real client needs an email (step 7 undoes this; an empty one sends the finalizer's job to
 manual), and the `slack` answer. The page (already in this PR) blocks a name or email that differs from an
 onboarding form on file (both form tables are read; extra spaces do not count), with a one-click fix.
 
@@ -136,6 +136,31 @@ The first real client is the end to end Slack proof. Its channels are made on th
 the last piece is in: within a minute or two when that piece is the create itself or a filming plan link save
 (both nudge it), otherwise on the next 15 minute timer run. That run also serves as the proof the runbook asks
 for before removing the finalizer's 15 minute timer; until then the timer must stay.
+
+## 7. Email optional again (built 2026-10-10, NOT applied; owner decision)
+
+The owner decided a real client must not need an email ("sometimes I don't have it"). Steps after merge:
+
+1. Paste `migrations/2026-10-10-create-client-email-optional.sql` in the SQL editor (whole file). It redefines
+   `client_create_native` without the email check; nothing else changes (the Slack nudge stays). Readback:
+
+```sql
+select position('client_create_email_required' in prosrc) = 0 as email_optional,
+       position('slack_finalizer_nudge' in prosrc) > 0 as nudge_kept
+  from pg_proc where proname = 'client_create_native';                                   -- t, t
+select r.rolname, has_function_privilege(r.rolname, 'public.client_create_native(text,text,text,text,text,text,text)', 'execute')
+  from pg_roles r where r.rolname in ('anon', 'authenticated', 'service_role') order by 1;  -- f, f, t
+```
+
+2. Redeploy `client-onboarding` through
+   [Deploy one allowlisted Edge Function](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml)
+   with the merge commit's SHA on `main`.
+
+Without an email the client's Slack channels wait: the dialog lists **Client email** as missing. If the onboarding
+form is already in, the finalizer would send the job to the owner to sort out by hand (it treats an empty email
+as a mismatch, on its own timer too), so the dialog warns and offers the form's email in one click. Adding the
+email on the profile later lets the next finalizer pass make the channels. Rollback: re-run
+`2026-10-09-create-client-slack-nudge.sql`.
 
 **What still needs n8n (owner's go, not done).** A client who never submits the onboarding form never gets a queue
 row, so no channels. Every real client fills the form today, so this is not needed now. If it ever is, the exact

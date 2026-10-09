@@ -731,6 +731,7 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 
 | `docs/ATLAS.md` | Whole SyncView inventory and routes to owners; live facts are dated. |
 | `docs/plans/2026-10-03-sheets-remaining-map.md` | Cartographer's measured 84-tab Google Sheets exit map, remaining dependencies and owner decisions. |
+| `docs/plans/2026-10-09-token-budget-opportunities.md` | Scout's read-only ranked list of large projects worth a big token budget, with three ready-to-paste executor prompts. |
 | `test/atlas-sync.js` | Unit check for missing or stale edge folders, table-creating migrations, Actions files and n8n truth IDs. |
 
 | `docs/syncview-design/tests/staff-selection-samples-browser.js` | Generated-product Selection and staff Samples phone states, both themes and 360/390/430, with fictional transport. |

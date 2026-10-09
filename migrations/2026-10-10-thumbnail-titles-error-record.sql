@@ -1,4 +1,4 @@
--- Thumbnail titles: keep the reason on record (OPEN_REPAIRS 393). Follows
+-- Thumbnail titles: keep the reason on record (OPEN_REPAIRS 394). Follows
 -- 2026-10-09-thumbnail-titles.sql.
 --
 -- The backfill on 2026-10-09 ended 15 items as generation_failed with last_error empty on every row:

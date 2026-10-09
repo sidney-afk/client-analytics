@@ -31514,8 +31514,8 @@ or archived-only clients, with the original desktop guidance restored.
 
 The Expanded draft and gallery preserve 40 native before/after pairs at 393 and
 412 in both themes. Every full page was personally inspected in unscaled chunks;
-reviews bind source and PNG hashes. 36 cells are CLEAN; four New client form cells
-remain OPEN for branded manager-picker review. Repeated Workload chips remain an
+reviews bind source and PNG hashes. 32 cells are CLEAN; eight Clients loading/New client form cells
+remain OPEN for loading-shell and branded manager-picker review. Repeated Workload chips remain an
 unconfirmed candidate. The full narrowed round and fresh-eyes round remain OPEN.
 
 Regression checks cover supporting-text/axis size and contrast, native chart

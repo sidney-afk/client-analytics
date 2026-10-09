@@ -389,7 +389,7 @@
     "failures": []
   },
   "clients": {
-    "checks": 764,
+    "checks": 772,
     "rows": [
       {
         "label": "clients",
@@ -4483,9 +4483,513 @@
     "failures": []
   },
   "clientMenus": {
-    "checks": 412,
+    "checks": 772,
     "rows": [
       {
+        "label": "clients",
+        "width": 393,
+        "theme": "light",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-empty",
+        "width": 393,
+        "theme": "light",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-archived-empty",
+        "width": 393,
+        "theme": "light",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-create-menu",
+        "width": 393,
+        "theme": "light",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "ca-iconbtn",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "cnName",
+            "w": 359,
+            "h": 46
+          },
+          {
+            "name": "cnManager",
+            "w": 359,
+            "h": 46
+          },
+          {
+            "name": "cnEmail",
+            "w": 359,
+            "h": 46
+          },
+          {
+            "name": "cc-btn",
+            "w": 175.5,
+            "h": 48
+          },
+          {
+            "name": "cnCreateBtn",
+            "w": 175.5,
+            "h": 48
+          }
+        ],
+        "fields": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone sv-phone-locked",
+            "y": 0,
+            "height": 0,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-loading",
+        "width": 393,
+        "theme": "light",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": [
+          {
+            "className": "ca-status",
+            "font": 13,
+            "contrast": 4.859481219257647
+          }
+        ]
+      },
+      {
         "label": "clients-list-menu",
         "width": 393,
         "theme": "light",
@@ -5004,6 +5508,510 @@
         ]
       },
       {
+        "label": "clients",
+        "width": 393,
+        "theme": "dark",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-empty",
+        "width": 393,
+        "theme": "dark",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-archived-empty",
+        "width": 393,
+        "theme": "dark",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-create-menu",
+        "width": 393,
+        "theme": "dark",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "ca-iconbtn",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "cnName",
+            "w": 359,
+            "h": 46
+          },
+          {
+            "name": "cnManager",
+            "w": 359,
+            "h": 46
+          },
+          {
+            "name": "cnEmail",
+            "w": 359,
+            "h": 46
+          },
+          {
+            "name": "cc-btn",
+            "w": 175.5,
+            "h": 48
+          },
+          {
+            "name": "cnCreateBtn",
+            "w": 175.5,
+            "h": 48
+          }
+        ],
+        "fields": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone sv-phone-locked",
+            "y": 0,
+            "height": 0,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-loading",
+        "width": 393,
+        "theme": "dark",
+        "scrollWidth": 393,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 267,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 172.5,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 172.5,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 852,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": [
+          {
+            "className": "ca-status",
+            "font": 13,
+            "contrast": 11.115790657454117
+          }
+        ]
+      },
+      {
         "label": "clients-list-menu",
         "width": 393,
         "theme": "dark",
@@ -5518,6 +6526,510 @@
             "className": "ca-prov",
             "font": 13,
             "contrast": 11.115790657454117
+          }
+        ]
+      },
+      {
+        "label": "clients",
+        "width": 412,
+        "theme": "light",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-empty",
+        "width": 412,
+        "theme": "light",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-archived-empty",
+        "width": 412,
+        "theme": "light",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-create-menu",
+        "width": 412,
+        "theme": "light",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "ca-iconbtn",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "cnName",
+            "w": 378,
+            "h": 46
+          },
+          {
+            "name": "cnManager",
+            "w": 378,
+            "h": 46
+          },
+          {
+            "name": "cnEmail",
+            "w": 378,
+            "h": 46
+          },
+          {
+            "name": "cc-btn",
+            "w": 185,
+            "h": 48
+          },
+          {
+            "name": "cnCreateBtn",
+            "w": 185,
+            "h": 48
+          }
+        ],
+        "fields": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone sv-phone-locked",
+            "y": 0,
+            "height": 0,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-loading",
+        "width": 412,
+        "theme": "light",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": [
+          {
+            "className": "ca-status",
+            "font": 13,
+            "contrast": 4.859481219257647
           }
         ]
       },
@@ -6036,6 +7548,510 @@
             "className": "ca-prov",
             "font": 13,
             "contrast": 4.859481219257647
+          }
+        ]
+      },
+      {
+        "label": "clients",
+        "width": 412,
+        "theme": "dark",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-empty",
+        "width": 412,
+        "theme": "dark",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-archived-empty",
+        "width": 412,
+        "theme": "dark",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-create-menu",
+        "width": 412,
+        "theme": "dark",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "ca-iconbtn",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "cnName",
+            "w": 378,
+            "h": 46
+          },
+          {
+            "name": "cnManager",
+            "w": 378,
+            "h": 46
+          },
+          {
+            "name": "cnEmail",
+            "w": 378,
+            "h": 46
+          },
+          {
+            "name": "cc-btn",
+            "w": 185,
+            "h": 48
+          },
+          {
+            "name": "cnCreateBtn",
+            "w": 185,
+            "h": 48
+          }
+        ],
+        "fields": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone sv-phone-locked",
+            "y": 0,
+            "height": 0,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": []
+      },
+      {
+        "label": "clients-loading",
+        "width": 412,
+        "theme": "dark",
+        "scrollWidth": 412,
+        "controls": [
+          {
+            "name": "BUTTON",
+            "w": 79.03125,
+            "h": 44
+          },
+          {
+            "name": "kasper-subtab kasper-more-trigger active",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caSearch",
+            "w": 286,
+            "h": 46.796875
+          },
+          {
+            "name": "search-bar-icon",
+            "w": 44,
+            "h": 44
+          },
+          {
+            "name": "caAllBtn",
+            "w": 182,
+            "h": 44
+          },
+          {
+            "name": "caNewBtn",
+            "w": 182,
+            "h": 44
+          }
+        ],
+        "fields": [
+          16
+        ],
+        "scrollY": 0,
+        "headingAncestors": [
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "pocket-admin-heading",
+            "y": 0,
+            "height": 78,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "",
+            "className": "kasper-wrap",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "content",
+            "className": "",
+            "y": 0,
+            "height": 468.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "MAIN",
+            "id": "mainWrap",
+            "className": "main",
+            "y": 0,
+            "height": 500.796875,
+            "scrollTop": 0
+          },
+          {
+            "tag": "BODY",
+            "id": "",
+            "className": "sv-shared-client",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          },
+          {
+            "tag": "HTML",
+            "id": "",
+            "className": "sv-staff-phone pocket-admin-phone",
+            "y": 0,
+            "height": 915,
+            "scrollTop": 0
+          }
+        ],
+        "clientsSupporting": [
+          {
+            "className": "ca-status",
+            "font": 13,
+            "contrast": 11.115790657454117
           }
         ]
       },

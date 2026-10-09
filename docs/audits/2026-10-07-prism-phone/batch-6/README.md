@@ -21,9 +21,13 @@ draft evidence. [Gallery](gallery.md) contains 40 matched native before/after
 phone pairs at 393 × 852 and 412 × 915 in light and dark. Every complete page
 was personally viewed in unscaled chunks; different before viewports were
 separately inspected. [Reviews](reviews.json) bind the judgment to source and
-PNG hashes: 36 CLEAN cells and four OPEN cells.
+PNG hashes: 32 CLEAN cells and eight OPEN cells.
 
-The four New client form cells remain OPEN: the existing manager control is a
+Four Clients loading cells remain OPEN because the native loading view loses
+its heading and controls. This existing loading-shell problem needs a separate
+repair: the initial-loading lifecycle replaces the shell, so retaining navigation
+needs a focused lifecycle check beyond this batch's readability and guidance
+changes. It is not accepted as clean. The four New client form cells remain OPEN: the existing manager control is a
 native select and needs a branded-picker review. Open, Cancel and Escape work
 in the intercepted fixture, but this batch does not accept that form as clean.
 Repeated Workload chips remain an unconfirmed candidate, not a reproduced

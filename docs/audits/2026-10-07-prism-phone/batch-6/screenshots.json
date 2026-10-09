@@ -601,13 +601,13 @@
   },
   {
     "file": "after/clients-create-menu-light-393-viewport.png",
-    "sha256": "9317abede35e33602ae17374b1d84eff18ad026143f524b5b3ec87af4ef6f019",
+    "sha256": "69e1b3afa38256f3401f54803323cb421989a9127020f86e292a2197e7b66b60",
     "lane": "admin",
     "phase": "after"
   },
   {
     "file": "after/clients-create-menu-light-393.png",
-    "sha256": "9317abede35e33602ae17374b1d84eff18ad026143f524b5b3ec87af4ef6f019",
+    "sha256": "69e1b3afa38256f3401f54803323cb421989a9127020f86e292a2197e7b66b60",
     "lane": "admin",
     "phase": "after"
   },

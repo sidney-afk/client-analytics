@@ -145,7 +145,7 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Clients | staff / discovery | clients-create-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-empty | empty | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | Clients | staff / admin | clients-list-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | clients-search-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | TikTok upload | staff / finch | tiktok-cancel-confirm | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-client-ready | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |

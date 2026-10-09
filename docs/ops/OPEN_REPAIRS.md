@@ -31531,3 +31531,11 @@ writes, database changes, n8n edits or GitHub merge by Prism. Local proof does n
 claim hosted CI or deployed acceptance. Gallery, checks, coverage and ledger
 census: docs/audits/2026-10-07-prism-phone/batch-6/README.md. Historical main ledger
 duplicates are retained; this batch adds one unique number and no new collision.
+
+Same-PR fixture follow-up: the final phone runner loads hash-checked production
+Chart.js bytes without a private vendor directory. A no-vendor run reproduced
+the missing native chart; strict native axis/action checks then pass at 360,
+393 and 412. The streamed-boot drawing stub now exposes Chart.js 4 registration
+and its instance collection, resolving its hosted missing-API error without
+changing uncaught-error/navigation assertions. Actual-library chart acceptance
+remains separate. Product fragments and reviewed screenshots are unchanged.

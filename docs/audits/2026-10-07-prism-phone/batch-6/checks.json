@@ -111,6 +111,16 @@
       "logSha256": "e95bc5e121e0ccacde6e82c11758d89ba8fc7cd23f33097b552e99789e698231"
     },
     {
+      "check": "boot-after",
+      "status": "CURRENT_SOURCE_RECEIPT",
+      "lastLines": [
+        "PASS staff Calendar owned ancillary tail and BFCache recovery",
+        "PASS F184 verified client queue resume lease and BFCache stale release [startup/focus/online/visible/timer/pageshow.persisted]",
+        "SUMMARY 23 scenario groups passed (38767 ms, one attempt per navigation)"
+      ],
+      "logSha256": "fdec4caff80281544fde41d303f209053772cdef3032db7f6acbce7a9cf4a183"
+    },
+    {
       "check": "build-index-2",
       "status": "HISTORICAL_RECEIPT",
       "lastLines": [
@@ -177,6 +187,33 @@
         "  OK    no byte-pinned file changed its line-ending composition"
       ],
       "logSha256": "f7a57513322a1afd8eeb0f6c7284f619d1d87a24e14cd204b19a7a78bcbfe80b"
+    },
+    {
+      "check": "chart-ci-after",
+      "status": "CURRENT_SOURCE_RECEIPT",
+      "lastLines": [
+        "ok analytics-detail-dash 412 light",
+        "ok analytics-detail-dash 412 dark",
+        "staff-phone-final-pass: 12 renders, 0 problems"
+      ],
+      "logSha256": "edbbc3a000f6269ec371ee7871a3d486382aac4866f00632040b964a26e1fd12"
+    },
+    {
+      "check": "chart-ci-before",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "FAIL analytics-detail 360 light: page.evaluate: TypeError: Cannot read properties of null (reading 'data')",
+        "staff-phone-final-pass: 0 renders, 1 problems"
+      ],
+      "logSha256": "46ff07c826eab0e1979815aa6f03d8a6bd79fe32cc7e8dfe934b5cc31aa17366"
+    },
+    {
+      "check": "chart-loader-default",
+      "status": "CURRENT_SOURCE_RECEIPT",
+      "lastLines": [
+        "PINNED_CHART_DEFAULT: 205222 hash-checked production bytes; no vendor or file override."
+      ],
+      "logSha256": "22b23c5e8aa20093e7f5cbb028d8c4e6c6326c13cb3877ee8b8e696bc4aea350"
     },
     {
       "check": "client-calendar-expanded-browser-final",
@@ -690,6 +727,24 @@
       "logSha256": "b98dff681148ee031ea87ddadf748d3f3cfe2ed606b63d1933ff0aa3f671c34f"
     },
     {
+      "check": "fetch-final-gate-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "From https://github.com/sidney-afk/client-analytics",
+        " * branch              main       -> FETCH_HEAD"
+      ],
+      "logSha256": "45e58163e2e98b2b20d242754179c5ee00462044a8616b5f168954e51d37c572"
+    },
+    {
+      "check": "fetch-final-gate",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "From https://github.com/sidney-afk/client-analytics",
+        " * branch              main       -> FETCH_HEAD"
+      ],
+      "logSha256": "45e58163e2e98b2b20d242754179c5ee00462044a8616b5f168954e51d37c572"
+    },
+    {
       "check": "fetch-last",
       "status": "HISTORICAL_RECEIPT",
       "lastLines": [
@@ -755,6 +810,16 @@
       "logSha256": "4a1559ec6dbe1dd92441002df97cbee85ff2ec7ea285ab4c3ac10d65228af072"
     },
     {
+      "check": "identity-push-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "  files carrying at least one      0   (any is a failure)",
+        "  WHERE (counts only \u2014 this tool never prints what it matched):",
+        "This change adds no client slug and no colleague's name \u2705"
+      ],
+      "logSha256": "4a1559ec6dbe1dd92441002df97cbee85ff2ec7ea285ab4c3ac10d65228af072"
+    },
+    {
       "check": "identity-push",
       "status": "HISTORICAL_RECEIPT",
       "lastLines": [
@@ -783,6 +848,16 @@
         "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
       ],
       "logSha256": "e72651694d4b81b95e2f36c4c9f56c008ccf3b4d0fe97597dd765d5c82326337"
+    },
+    {
+      "check": "index-last",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "check-index: working-tree index.html \u2014 sha256=e7b80e0a8654efb53203b8aaedf4263ad85e8ac9b52e261b80e5da8451b8ce16 bytes=1327125",
+        "check-index: committed index.html (HEAD) \u2014 sha256=e7b80e0a8654efb53203b8aaedf4263ad85e8ac9b52e261b80e5da8451b8ce16 bytes=1327125",
+        "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+      ],
+      "logSha256": "7e2e488b38a161675baf32b104bbf96f580d5e2a4173bbb11b01e0c93a1cb3bb"
     },
     {
       "check": "index-push-2",
@@ -855,6 +930,24 @@
         "kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)"
       ],
       "logSha256": "acdad20225873965ae428950f1554dcaf525be840a5711855671d2022367a3be"
+    },
+    {
+      "check": "ledger-final-gate-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "LEDGER_PUSH_GATE: entry 385 unique; independent scans agree; no new collisions against freshly fetched 5e884ea09a62b737d991d1dd75274654fdff88cd."
+      ],
+      "logSha256": "ab4fa56f40acd86745a2a5d4834cfb93ae55b800ca829ab8297ee037dc14c02f"
+    },
+    {
+      "check": "ledger-final-gate",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "    return codecs.charmap_decode(input,self.errors,decoding_table)[0]",
+        "           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+        "UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 34627: character maps to <undefined>"
+      ],
+      "logSha256": "9e3c62223857611d3ac80c5d2373a65d88ff57f91b73a88ebb17f24abaddf50d"
     },
     {
       "check": "ledger-push",
@@ -1005,10 +1098,18 @@
       "logSha256": "a271545f6fde102d9c507c8680812a0fcd433dda6840537124d069eaf1f56866"
     },
     {
-      "check": "packet-push",
+      "check": "packet-harness",
       "status": "HISTORICAL_RECEIPT",
       "lastLines": [],
       "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "packet-push",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "BATCH_6_PACKET: 40 hash-bound personal reviews; 32 CLEAN, 8 OPEN; 44 exact desktop pairs; 146 real log tails; one unique ledger entry 385; no new duplicate numbers against 5e884ea09a62b737d991d1dd75274654fdff88cd."
+      ],
+      "logSha256": "1b5617b979203921de796a659defc295e5941e4a930d68e92f117f4a444d3284"
     },
     {
       "check": "product-commit-2",
@@ -1031,8 +1132,37 @@
       "logSha256": "dece65c604f1c2d7a6e7d329671586fb497e02afba144c91c57530d59f500a7b"
     },
     {
+      "check": "proof-refresh-commit",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "[codex/prism-phone-batch-6 5422abc1] docs: refresh batch 6 proof on main and keep Clients loading open",
+        " 14 files changed, 3136 insertions(+), 751 deletions(-)"
+      ],
+      "logSha256": "95b9dbb5001a211a6e1d85eaee74900098abac67e4306731463c80c8f446941a"
+    },
+    {
+      "check": "push",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "branch 'codex/prism-phone-batch-6' set up to track 'origin/codex/prism-phone-batch-6'.",
+        "To https://github.com/sidney-afk/client-analytics.git",
+        " * [new branch]        codex/prism-phone-batch-6 -> codex/prism-phone-batch-6"
+      ],
+      "logSha256": "ba51f7d9cb8f6a0f085503566b3c2d5a8a73548dcc94ac2337eed9663bfdddf6"
+    },
+    {
       "check": "repo-map-final",
       "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists",
+        "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
+        "repo-map-sync: 1127 passed, 0 failed"
+      ],
+      "logSha256": "9e8eefe03b90676c200063a0e0b9aa402f32e8570838bcc506fca6a0a66e647b"
+    },
+    {
+      "check": "repo-map-harness",
+      "status": "CURRENT_SOURCE_RECEIPT",
       "lastLines": [
         "OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists",
         "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
@@ -1283,7 +1413,23 @@
       "logSha256": "35c6fc124b86dcdee5b4d91d1f25a9f213e0c9f564927689c9f2690bbd4776ac"
     },
     {
+      "check": "visible-boot-hosted",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "Streamed visible boot (one attempt)\tDrive streamed first paint, reload, and BFCache once\t2026-10-09T01:07:24.9913207Z     at runStaffHistoryScenario (/home/runner/work/client-analytics/client-analytics/qa/boot/client-entry-sequence.js:1766:5)",
+        "Streamed visible boot (one attempt)\tDrive streamed first paint, reload, and BFCache once\t2026-10-09T01:07:24.9914131Z     at async main (/home/runner/work/client-analytics/client-analytics/qa/boot/client-entry-sequence.js:4632:5)",
+        "Streamed visible boot (one attempt)\tDrive streamed first paint, reload, and BFCache once\t2026-10-09T01:07:25.0057481Z ##[error]Process completed with exit code 1."
+      ],
+      "logSha256": "bb662f8b2f7361d97284089d25cc7cffb38ec6e271b0a14b47bc49ab08643160"
+    },
+    {
       "check": "whitespace-final",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [],
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "whitespace-last",
       "status": "HISTORICAL_RECEIPT",
       "lastLines": [],
       "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"

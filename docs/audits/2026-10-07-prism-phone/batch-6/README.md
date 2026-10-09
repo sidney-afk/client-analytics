@@ -41,6 +41,16 @@ staff-phone, client-phone and CSS scope checks pass. [Check receipts](checks.jso
 preserve actual terminal endings, including rejected captures, failed attempts,
 and the corrected runs. Hosted CI and deployed behavior are separate gates.
 
+The final CI runner also loads the pinned production Chart.js bytes through the
+existing hash-checked admin helper; it does not need a private vendor directory.
+An intercepted no-vendor baseline reproduced the missing native chart, and the
+same strict native axis/action checks pass after repairing the fixture transport.
+Product fragments and the reviewed screenshots are unchanged by this harness fix.
+The streamed boot fixture's drawing stub also now exposes Chart.js 4 plugin
+registration and its instance collection. Its missing API caused the hosted
+boot error; uncaught-error and navigation assertions stay unchanged. Axis and
+chart-action acceptance uses the actual pinned library, never this boot stub.
+
 [Source](source.json), [capture/action receipts](capture-receipts.json),
 [PNG hashes](screenshots.json), [viewport comparison](viewport-review.json) and
 [ledger census](ledger.json) make the evidence reviewable. Earlier transitional

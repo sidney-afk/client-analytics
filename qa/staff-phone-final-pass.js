@@ -350,8 +350,12 @@ async function main(){
     console.log(JSON.stringify([...core.map(s=>({name:s.name,lane:'finch'})),...states.map(s=>({name:s.name,lane:'staff'})),...cases.map(name=>({name,lane:'staff'}))],null,2));
     return;
   }
+  // CI blocks CDN requests too. Reuse the hash-checked production asset loader
+  // so native axis assertions never depend on a private FINCH_VENDOR directory.
+  const chartSource = core.some(s=>only.test(s.name)&&s.name.startsWith('analytics-detail'))
+    ? await require('../docs/syncview-design/tests/kasper-admin-expanded-browser').loadChartSource() : null;
   for (const s of core.filter(s=>only.test(s.name))) for(const width of widths) for(const theme of themes) {
-    const h=await open({...s.open,width,height:heightFor(width,arg('height')),theme,dsf:1});
+    const h=await open({...s.open,chartSource:s.name.startsWith('analytics-detail')?chartSource:null,width,height:heightFor(width,arg('height')),theme,dsf:1});
     try { await h.page.waitForTimeout(s.settle||3000);
       await h.page.evaluate(names=>{WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();names.forEach(n=>WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n));if(typeof wlState!=='undefined')wlState.clientOptions=names.slice();},require('./finch-phone/fixtures').CLIENTS);
       if(s.name==='analytics-detail') { await h.page.locator(before?'.overview-table a.client-name-link':'.card-client-link',{hasText:'Client A'}).first().click();await h.page.waitForTimeout(2200); }

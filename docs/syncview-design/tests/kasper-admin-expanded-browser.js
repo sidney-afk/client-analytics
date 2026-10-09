@@ -725,5 +725,5 @@ async function runMain() {
   console.log('KASPER_ADMIN_EXPANDED: '+rows.length+' native states; '+checks+' checks; '+failures.length+' failures; fictional data; no live writes.');
   if (failures.length) process.exitCode=1;
 }
-module.exports = {runMain};
+module.exports = {runMain,loadChartSource};
 if (require.main===module) runMain().catch(e => {console.error(e);process.exitCode=1;});

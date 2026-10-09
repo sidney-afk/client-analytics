@@ -49,6 +49,7 @@
     html.sv-staff-phone .cal-cap-wrap .cal-fld-cap { flex: 1 1 100%; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { position: static !important; inset: auto; margin: 0; margin-block: 0 !important; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; width: auto; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen { order: 1; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-tx { position: static !important; inset: auto; margin: 0; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; order: 1; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { order: 2; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle { order: 3; margin-left: auto; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle-txt { display: inline; }

@@ -83,7 +83,6 @@ AI generation (briefs, captions, summaries):
 - `webhook/generate-caption`, `webhook/generate-content-summary`,
   `webhook/generate-tab-summary`
 - `webhook/caption-prompts-get`
-- `functions/v1/caption-generate` (the Generate caption AI job off n8n, staff key; used only for clients listed in the runtime flag `caption_generate_ef_clients`, otherwise the page still calls the n8n `generate-caption` webhook; OPEN_REPAIRS 388)
 - `functions/v1/caption-jobs` (caption job progress and cancel, staff key; it replaced the two n8n caption job status and update webhooks, which the page no longer calls)
 - **Caption prompts (n8n exit PR 3, 2026-09-29):** the Calendar reads prompts from the `caption_prompts` table (plain REST read, `cache: 'no-store'`, query `select=client_slug,prompt&order=client_slug.asc`). `caption-prompts-get` stays only as an error-only fallback, after a last-known-good copy kept in the browser, so a failed table read cannot make Generate send an empty prompt. The save goes to `functions/v1/caption-prompts-save` only, after a fresh, bounded read of `settings_ef_clients` (an unreadable flag holds the save, an unlisted client pauses it with a message, never n8n). The n8n `caption-prompts-save` call is gone.
 

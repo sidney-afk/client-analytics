@@ -13,7 +13,7 @@
 // Needs the switch thumbnail_titles to list the test client, SYNCVIEW_ROLE_KEY (or SYNCVIEW_STAFF_KEY)
 // + SYNCVIEW_ACTOR, and SUPABASE_SERVICE_ROLE_KEY to read the descriptions back (the browser key
 // cannot read them). Cleans up: cancels every work item it made and archives every card.
-// TEST client only. Screenshots go to TT_SHOTS. Run: node qa/run-probes.js thumbnail_titles_live
+// TEST client only. Screenshots go to TT_SHOTS (default: a temp folder, never the repo). Run: node qa/run-probes.js thumbnail_titles_live
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +23,8 @@ const { TEST_CLIENT } = require('../test-client-entry.js');
 
 const TEST = TEST_CLIENT.slug;
 const TS = Date.now();
-const SHOTS = process.env.TT_SHOTS || path.join(__dirname, '..', '..', 'docs', 'syncview-design', 'mockups', 'thumbnail-titles', 'live');
+// Outside the repository by default: the pictures carry a real staff name (the assignee), and the repo is public.
+const SHOTS = process.env.TT_SHOTS || path.join(require('os').tmpdir(), 'thumbnail-titles-live');
 fs.mkdirSync(SHOTS, { recursive: true });
 const res = [];
 const ok = (c, m, x) => { res.push(!!c); console.log((c ? 'PASS ' : 'FAIL ') + m + (x ? '  [' + String(x).slice(0, 220) + ']' : '')); };
@@ -64,6 +65,12 @@ async function openCalendar(browser, opts) {
   await p.waitForTimeout(8000);
   return p;
 }
+async function dismissSaved(p) {
+  await p.waitForSelector('#confirmOverlay.active #confirmYes', { timeout: 15000 }).catch(() => {});
+  const msg = await p.$eval('#confirmOverlay', e => e.innerText).catch(() => '');
+  await p.click('#confirmOverlay.active #confirmYes').catch(() => {});
+  return msg;
+}
 async function openEditor(p) {
   await p.click('.cal-kebab-wrap button.cal-kebab', { timeout: 60000 });
   await p.waitForSelector('#calKebabMenu:not([hidden])', { timeout: 10000 });
@@ -101,6 +108,8 @@ async function cancelItem(browser, id) {
   ok(clients.length === 1 && clients[0] === TEST, 'the switch lists the test client only', JSON.stringify(clients));
   if (!(clients.length === 1 && clients[0] === TEST)) process.exit(1);
 
+  // Start from "use the default" on the test client, whatever an earlier run left.
+  await svc(`thumbnail_title_prompts?client_slug=eq.${TEST}`, { method: 'PATCH', body: JSON.stringify({ prompt: '' }) });
   const browser = await H.launch();
   const made = { cards: [], sxrCards: [], items: [] };
   try {
@@ -115,6 +124,7 @@ async function cancelItem(browser, id) {
     await p.fill('#calPromptTA', initial + '\n- Probe edit ' + TS);
     await p.click('#calPromptSaveBtn');
     await p.waitForFunction(() => !document.getElementById('calPromptOverlay').classList.contains('open'), null, { timeout: 30000 });
+    ok(/Custom thumbnail title prompt saved/.test(await dismissSaved(p)), 'the save says so');
     await openEditor(p);
     const custom = await p.$eval('.cal-prompt-banner', e => e.className);
     const saved = await p.$eval('#calPromptTA', e => e.value);
@@ -123,6 +133,7 @@ async function cancelItem(browser, id) {
     await p.click('.cal-prompt-btn:has-text("Reset to default")');
     await p.click('#calPromptSaveBtn');
     await p.waitForFunction(() => !document.getElementById('calPromptOverlay').classList.contains('open'), null, { timeout: 30000 });
+    ok(/Using the default thumbnail title prompt/.test(await dismissSaved(p)), 'the reset save says the default is in use');
     const row = ((await svc(`thumbnail_title_prompts?client_slug=eq.${TEST}&select=prompt,default_prompt`)) || [])[0] || {};
     ok(row.prompt === '' && (row.default_prompt || '').startsWith('You write short'), 'Reset to default + Save stores "use the default" again');
 

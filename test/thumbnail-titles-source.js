@@ -125,6 +125,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/d\.origin = 'calendar'/.test(sql) && !/origin = 'samples'/.test(sql), 'Submit tab and Calendar only, never Samples');
   ok(/coalesce\(btrim\(d\.brief\), ''\) <> ''[\s\S]{0,60}skipped_human/.test(sql), 'a description someone wrote is never overwritten');
   ok(/for update;/.test(sql), 'write under a row lock');
+  ok(/A refused write never overwrites the record[\s\S]{0,120}state in \('pending', 'running'\)/.test(sql), 'a refused second write keeps the first result on record');
+  ok(/the Synchro Brain has no written title style for this client yet/.test(read('src/index/180-calendar-native-post-media.js.part')), 'the banner only claims a Brain style when there is one');
   ok(/revoke all on table public\.thumbnail_title_prompts from public, anon, authenticated, service_role/.test(sql), 'prompt table revoked from all four roles');
   ok(!/grant select on table public\.thumbnail_title_prompts to anon/.test(sql), 'prompt table not browser readable');
   ok(/p_apply boolean default false/.test(sql) && /'dry_run'/.test(sql), 'backfill defaults to a dry run');

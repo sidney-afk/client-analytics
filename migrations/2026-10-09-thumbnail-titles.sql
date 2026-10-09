@@ -208,7 +208,9 @@ begin
   update public.thumbnail_title_queue
      set state = final_state, outcome = case when final_state in ('written', 'needs_info') then p_outcome else final_state end,
          lease_until = null, last_error = null, updated_at = now()
-   where deliverable_id = p_deliverable_id;
+   where deliverable_id = p_deliverable_id
+     -- A refused write never overwrites the record of a line already written.
+     and (final_state in ('written', 'needs_info') or state in ('pending', 'running'));
   return final_state;
 end $$;
 

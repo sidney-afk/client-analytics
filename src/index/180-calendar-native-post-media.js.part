@@ -2128,7 +2128,11 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             ? '<div class="cal-prompt-banner is-custom">' + bannerSvgCheck +
                 '<span>Custom prompt loaded for <strong>' + _calEsc(client) + '</strong> (' + initial.length + ' characters).</span></div>'
             : '<div class="cal-prompt-banner is-default">' + bannerSvgInfo +
-                '<span>This is the default for <strong>' + _calEsc(client) + '</strong>: the standard title instruction plus the client\'s title style from the Synchro Brain (' + initial.length + ' characters). Edit and Save to make your own version.</span></div>';
+                '<span>This is the default for <strong>' + _calEsc(client) + '</strong>: the standard title instruction' +
+                (/This client's title style, from the Synchro Brain/.test(_calThumbTitleDefault)
+                    ? ' plus the client\'s title style from the Synchro Brain'
+                    : ' (the Synchro Brain has no written title style for this client yet)') +
+                ' (' + initial.length + ' characters). Edit and Save to make your own version.</span></div>';
         modal.innerHTML = _calThumbTitlePromptHtml(client,
             bannerHtml +
             '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="Write only the instructions; the videos and the filming plan are added automatically.">' + _calEsc(initial) + '</textarea>' +

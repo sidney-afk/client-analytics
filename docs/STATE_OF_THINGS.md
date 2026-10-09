@@ -229,9 +229,12 @@ hiring senders when the editor hire closes.
 - **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**
   (measured 2026-10-09, OPEN_REPAIRS 389): 8 items, none needs the sealed capture. The roster switch (374) and the
   `analytics-read` deploy come first after a look at the backup.
-- **Thumbnail titles (OPEN_REPAIRS 391, session Sorter, 2026-10-09): built, deployed, switch OFF.** Owner: set the
-  Edge Function secret `THUMBNAIL_TITLES_API_KEY`, switch `thumbnail_titles` on, then say go for the backfill (dry run:
-  136 open empty thumbnails, 16 clients). Prompt editor is in the Calendar "..." menu under "Caption prompt".
+- **Thumbnail titles follow-up (OPEN_REPAIRS 393, 2026-10-10): week-tab plans and stored failure reasons, in PR.**
+  Release: apply `migrations/2026-10-10-thumbnail-titles-error-record.sql`, then deploy `thumbnail-titles`; then re-queue
+  the 15 `generation_failed` and 4 week-tab items. Owner decision open: 21 items whose plan's newest month tab is older than the post.
+- **Thumbnail titles (OPEN_REPAIRS 391): LIVE.** Switch `thumbnail_titles` = `{"clients":["*"]}` since 2026-10-09 19:48 UTC
+  (checked 2026-10-10); backfill ran 2026-10-09 (queue: 33 titles written, 111 Needs info lines, 3 skipped as already
+  filled). Prompt editor is in the Calendar "..." menu under "Caption prompt". Follow-up above (393).
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
   dispatchers (interview invite, practical test) are still active and run every
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).

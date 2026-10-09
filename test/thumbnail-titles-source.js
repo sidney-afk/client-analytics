@@ -102,6 +102,41 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(msg.startsWith('PROMPT') && msg.includes('{"key":"p1","videoNumber":3,"postName":"Video 3"}') && msg.includes('{"key":"p2","postName":"Launch"}') && msg.endsWith('Filming plan:\nPLAN'), 'user message shape');
   ok(/Count|counted sequentially from the top of the plan/.test(L.SYSTEM_PROMPT) && /Never invent/.test(L.SYSTEM_PROMPT), 'system prompt keeps the n8n counting rule and forbids invention');
 
+  // Week tabs (2026-10-10): some plans keep one tab per week, not per month.
+  const weekly = ['YouTube Plan', 'Week of Sept 28', 'Launch plan', 'Week of Sept 7', 'Week of Aug 31',
+    'Week of Aug 24', 'Week of Aug 17', 'Week of July 20th', 'All Ideas'].map((name, i) => ({ id: 'w' + i, name, text: 'plan text ' + i }));
+  const pickName = (when) => { const r = L.pickTab(weekly, when, () => ''); return r.tab ? r.tab.name : r.reason; };
+  eq(pickName('2026-10-05T16:00:00Z'), 'Week of Sept 28', 'post a week after the start: that week');
+  eq(pickName('2026-09-28T00:00:00Z'), 'Week of Sept 28', 'post on the start day: that week');
+  eq(pickName('2026-09-27T23:59:00Z'), 'Week of Sept 7', 'the day before: the latest earlier week');
+  eq(pickName('2026-09-03T12:00:00Z'), 'Week of Aug 31', 'early September: the week that started in August');
+  eq(pickName('2026-11-10T00:00:00Z'), 'no_month_tab', 'more than 5 weeks after the last week: never guessed');
+  eq(pickName('2026-07-01T00:00:00Z'), 'no_month_tab', 'before the first week: never guessed');
+  eq(L.weekStart('Week of Sept 28', '2026-10-05T00:00:00Z').toISOString().slice(0, 10), '2026-09-28', 'Sept is September');
+  eq(L.weekStart('Week of July 20th', '2026-08-01T00:00:00Z').toISOString().slice(0, 10), '2026-07-20', 'ordinal day');
+  eq(L.weekStart('Wk of 9/28', '2026-10-01T00:00:00Z').toISOString().slice(0, 10), '2026-09-28', 'numeric month/day');
+  eq(L.weekStart('Week of Dec 28', '2027-01-04T00:00:00Z').toISOString().slice(0, 10), '2026-12-28', 'a December week fits an early January post');
+  eq(L.weekStart('Week of Oct 5, 2025', '2026-10-09T00:00:00Z').toISOString().slice(0, 10), '2025-10-05', 'an explicit year is kept');
+  eq(L.pickTab([{ id: 'a', name: 'Week of Oct 5, 2025', text: 'x' }, { id: 'b', name: 'Notes', text: 'y' }], '2026-10-09T00:00:00Z', () => '').reason, 'no_month_tab', 'last year\'s week is out of the window');
+  eq(L.weekStart('September (5)', '2026-10-01T00:00:00Z'), null, 'a month tab is not a week tab');
+  eq(L.weekStart('Weekly ideas', '2026-10-01T00:00:00Z'), null, 'no date, no week');
+  eq(L.weekStart('Week of Feb 30', '2026-03-10T00:00:00Z'), null, 'not a real date');
+  const mixed = [{ id: 'm', name: 'October', text: 'month' }, { id: 'w', name: 'Week of Oct 5', text: 'week' }];
+  eq(L.pickTab(mixed, '2026-10-09T00:00:00Z', () => '').tab.id, 'm', 'a month tab still wins when both exist');
+  eq(L.pickTab([{ id: 'w1', name: 'Week of Oct 5', text: 'a' }, { id: 'w2', name: 'Week of October 5', text: 'b' }, { id: 'n', name: 'Notes', text: 'c' }], '2026-10-09T00:00:00Z', () => '').reason, 'no_month_tab', 'two tabs for the same week: ambiguous, never guessed');
+  eq(L.pickTab([{ id: 'w', name: 'Week of Oct 5', text: 'a' }, { id: 'n', name: 'Notes', text: 'c' }], '2026-10-30T00:00:00Z', () => '').tab.id, 'w', 'a lone October week tab is still picked by date, within the window');
+
+  // The model's answer, read sturdily (2026-10-10): prose with brackets before the list, fences mid-text.
+  const prose = [{ type: 'text', text: 'Note: the plan cites a study [11] and numbering restarts [see part 2].\n[{"key":"p1","title":"Build Bone Strength"}]\nHope that helps [ok].' }];
+  eq([...L.parseTitles(prose, ['p1']).titles.entries()], [['p1', 'Build Bone Strength']], 'a "[11]" footnote before the list does not break it');
+  const fenced = [{ type: 'text', text: 'Here you go:\n```json\n[{"key":"p2","title":"Calm Wins"}]\n```\nDone.' }];
+  eq(L.parseTitles(fenced, ['p2']).titles.get('p2'), 'Calm Wins', 'a fenced list after prose');
+  eq(L.parseTitles([{ type: 'text', text: '[]' }], ['p1']).ok, true, 'an empty list is an answer (every post unmatched), not a failure');
+  eq(L.parseTitles([{ type: 'text', text: 'I could not match any post [sorry].' }], ['p1']).error, 'answer_not_json', 'prose only: answer_not_json');
+  eq(L.parseTitles([], ['p1']).error, 'answer_empty', 'nothing at all: answer_empty');
+  eq(L.shortError('http_400', 'invalid_request_error'), 'http_400: invalid_request_error', 'short error shape');
+  ok(L.shortError('x', 'a\nb'.repeat(300)).length <= 200 && !/\n/.test(L.shortError('x', 'a\nb')), 'short error is one line, at most 200 characters');
+
   // ---- static wiring ----
   const fn = read('supabase/functions/thumbnail-titles/index.ts');
   ok(fn.includes('from "../higgsfield-mcp/clientinfo.ts"') && /planTabs\(docId\)/.test(fn), 'reuses the connector\'s filming-plan reader');
@@ -143,5 +178,14 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/calState\.client && !_isClientLink/.test(kebab.slice(0, cap)), 'menu is staff only');
   ok(!/[ï»¿]/.test(fn.slice(0, 3)) && fn.charCodeAt(0) !== 0xFEFF, 'no byte-order mark');
 
+  const fn2 = read('supabase/functions/thumbnail-titles/index.ts');
+  ok(/needsInfoLine\("generation_failed"\), "needs_info", "generation_failed", code\)/.test(fn2), 'the final generation_failed write keeps the reason');
+  ok(/p_error: lastError \|\| null/.test(fn2) && /PGRST202/.test(fn2), 'apply sends the reason, and still works before the migration');
+  ok(/JSON_ONLY_FOLLOWUP/.test(fn2) && /max_tokens: 4096/.test(fn2), 'one JSON-only follow-up, room for long answers');
+  ok(/http_\$\{response\.status\}/.test(fn2) && /"timeout"/.test(fn2) && /stop_\$\{stop\}/.test(fn2), 'provider failures carry a status, timeout or stop reason');
+  ok(!/fail\(db, p\.job, "provider", counts\)/.test(fn2), 'no bare "provider" failure without a reason');
+  const sql2 = read('migrations/2026-10-10-thumbnail-titles-error-record.sql');
+  ok(/p_error text default null/.test(sql2) && /last_error = case when final_state in \('written', 'needs_info'\) then nullif\(left\(coalesce\(p_error, ''\), 300\), ''\)/.test(sql2), 'the apply function stores the reason');
+  ok(/drop function if exists public\.thumbnail_title_apply\(text, text, text, text\)/.test(sql2) && /revoke all on function public\.thumbnail_title_apply\(text, text, text, text, text\) from public, anon, authenticated, service_role/.test(sql2), 'old signature dropped, new one revoked from all four roles');
   console.log(`thumbnail-titles-source: ${checks} checks passed`);
 })().catch((e) => { console.error(e); process.exit(1); });

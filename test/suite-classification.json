@@ -572,6 +572,7 @@
     "repo-identity-exposure-moved-lines.js",
     "repo-identity-exposure.js",
     "repo-map-sync.js",
+    "repo-vs-live.js",
     "resolve-route-chooser.js",
     "retirement-contract-body-pins.js",
     "review-approve-draft-title.js",

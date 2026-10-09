@@ -68,6 +68,7 @@ const CREATE_ERRORS = Object.freeze({
   client_create_slug_invalid: [400, 'slug_invalid'],
   client_create_name_invalid: [400, 'name_invalid'],
   client_create_email_invalid: [400, 'email_invalid'],
+  // Only until 2026-10-10-create-client-email-optional.sql is applied.
   client_create_email_required: [400, 'email_required'],
   client_create_manager_unknown: [400, 'manager_unknown'],
   client_create_test_needs_throwaway_name: [400, 'test_needs_throwaway_name'],
@@ -127,12 +128,15 @@ export function slackReadiness(v, forms, manager, plan) {
     formName = nameOf(form);
     formEmail = clean(form.email);
     if (formName !== v.name) blockers.push('name_differs_from_form');
-    if (lower(formEmail) !== lower(v.email)) blockers.push('email_differs_from_form');
+    // No email typed is allowed (owner decision 2026-10-10): it shows as a missing piece below, not a blocker.
+    if (v.email && lower(formEmail) !== lower(v.email)) blockers.push('email_differs_from_form');
   }
   return {
     blockers,
     slack: {
       form_received: !!form, form_name: formName, form_email: formEmail,
+      // The finalizer matches the client to the form by email, so without one it cannot make the channels.
+      client_email: !!v.email,
       manager_slack_id: !!(manager && SLACK_USER.test(clean(manager.slack_profile_url))),
       filming_plan_linked: !!(plan && clean(plan.doc_url) && clean(plan.doc_id)),
     },
@@ -150,8 +154,8 @@ export function validateCreate(body) {
   if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return { ok: false, error: 'email_invalid' };
   const mode = THROWAWAY_NAME.test(name) ? 'test' : 'client';
   if (mode === 'client' && (/^zzthrowaway/.test(slug) || /^zz throwaway/i.test(name))) return { ok: false, error: 'throwaway_name_needs_test_mode' };
-  // The Slack finalizer compares the email with the onboarding form and sends an empty one to manual.
-  if (mode === 'client' && !email) return { ok: false, error: 'email_required' };
+  // A real client may be created without an email (owner decision 2026-10-10); the preview then lists
+  // "Client email" as a missing Slack piece.
   return { ok: true, name, slug, managerSlug, email, mode };
 }
 

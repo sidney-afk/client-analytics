@@ -31502,3 +31502,27 @@ Two more from that sweep are owner questions, not fixed:
 And one fact worth knowing, not a defect: nothing links a TikTok or Instagram upload to its Calendar card, so a post scheduled through the upload screen stays "Approved" and on Today's "To schedule" until someone sets Scheduled by hand.
 
 Way back: revert the PR (and with it the fixes it corrects should be reverted too). Not yet seen by the owner in his browser.
+
+## 385. [2026-10-10, BUILT, NOT APPLIED, NOT DEPLOYED] Create client: a real client no longer needs an email (owner decision)
+
+Session Beacon. Owner decision 2026-10-10: "sometimes I don't have it". Undoes the email requirement that PR 2011
+added (OPEN_REPAIRS 372, Slack follow-up); the Slack nudge stays.
+
+**Built.** `migrations/2026-10-10-create-client-email-optional.sql` (NEW file; the applied 2026-10-09 file is not
+edited) redefines `client_create_native` without the `client_create_email_required` check, everything else
+identical (tested line by line), same revokes on all four roles and the single service_role grant. The
+`client-onboarding` preview no longer refuses a missing email: the Slack checklist shows **Client email** as a
+missing piece, because the finalizer matches the client to the onboarding form by email. When the form is
+already in and no email is typed, the dialog warns that Slack would send the job to the owner to sort out by hand
+(the finalizer treats an empty email as a mismatch, on its own 15 minute timer too, nudge or not) and offers the
+form's email in one click. The Email label reads "optional, needed for Slack channels".
+
+**Proof.** `CLIENT_CREATE_PROOF_OK` now applies the 2026-10-10 file on top and checks a real client created with
+no email (still nudged), a given bad email still refused, and a test client with no email never nudged;
+`test/client-create-migration.js`, `test/client-onboarding-handler.js` and
+`docs/syncview-design/tests/clients-create-browser.js` cover the rest (test client only).
+
+**Owner steps after merge:** paste `migrations/2026-10-10-create-client-email-optional.sql` in the SQL editor,
+then redeploy `client-onboarding` (`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 7). Either order works: until the
+file is applied, a create without an email is refused by the database and the dialog says so.
+Rollback: re-run `2026-10-09-create-client-slack-nudge.sql`.

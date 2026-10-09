@@ -362,12 +362,15 @@ const measure = page => page.evaluate(() => {
       await s.page.waitForFunction(() => _caState.loaded, null, { timeout: 5000 }).catch(() => failures.push('failed load: Try again did not load'));
       console.log('ok   a failed load says so and recovers');
       // A failed manager list (e.g. before client-profile-write is deployed) offers Try again.
-      s.ctl.managersFail = 1;
+      // Every manager load fails until "Try again" is pressed: a background re-render of the tab may load the
+      // managers too, and a single planned failure could be used up by it (seen 2026-10-10, a race, not a defect).
+      s.ctl.managersFail = 1000;
       await s.page.evaluate(() => { _caState.managers = null; _caState.managersError = null; });
       await s.page.evaluate(() => _caLoadManagers());
       await s.page.evaluate(() => _caSelect('fixture1'));
       const retry = await s.page.$eval('#caMgrBtn', b => ({ text: b.innerText, disabled: b.disabled })).catch(() => ({}));
       if (!/Try again/.test(retry.text || '') || retry.disabled) failures.push(`manager load failure: the chip shows ${JSON.stringify(retry)}`);
+      s.ctl.managersFail = 0;
       await s.page.click('#caMgrBtn');
       await s.page.waitForFunction(() => _caState.managers && /Manager One/.test(document.getElementById('caMgrBtn').innerText), null, { timeout: 4000 })
         .catch(() => failures.push('manager load failure: Try again did not load the managers'));

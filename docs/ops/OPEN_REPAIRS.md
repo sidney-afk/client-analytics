@@ -31473,7 +31473,37 @@ Session Sentinel. Entry 377 listed fifteen cycle 2 candidates it had not verifie
 
 Way back: revert the PR. Not yet seen by the owner in his browser.
 
-## 384. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 6: Analytics readability and actionable Clients empty guidance
+## 384. [2026-10-08, BUILT, NOT DEPLOYED] Sentinel site assurance, batch 6 (cycle 3): corrections to batches 1 to 5 from an independent review, and a Calendar address that fell through to Home
+
+Session Sentinel, cycle 3. Two side sessions: an independent review of everything batches 1 to 5 changed (entries 371 to 375), looking for regressions, and a sweep that followed whole journeys across screens. Browser changes only. Stacked on batches 1 to 5; **those five should not be merged without this one.** Pinned in `test/assurance-review-corrections.js`, each block failing on the code before this change.
+
+**Corrections to my own changes** (found before any of them was merged):
+
+1. **Entry 371 item 3 could put staff-only words in front of a client.** Reply was made to carry an unsent comment into the reply. A reply takes its thread's audience and shows no audience switch, so an unsent internal comment carried into a reply on a client-visible thread would have been posted client-visible. Text is now carried only into a thread of the audience it was typed for; otherwise the person is asked, and the text is not moved.
+2. **Entry 377 item 1 could lead to a second Instagram post.** It treated "HTTP 200, not ok, row failed" as a final refusal and ended the attempt. The same shape comes back when Post For Me fails or times out after taking the post, and the page cannot tell them apart from the text. The reason is still shown and the failed row still reaches the queue, but the attempt and its key are kept, so pressing again retries the same post and the function's own lookup adopts one that exists. Only a 4xx ends an attempt, as before today.
+3. **Entry 377 items 7 and 8 could report a save that worked as failed.** After a save that works, the Calendar puts back a "Not saved yet: …" chip for any older status, date or order change still waiting on that card. Reading that chip as "this save failed" would have said "Comment not saved yet" under a comment that saved (inviting a duplicate) and "Some colors were not saved" for colours that were. That chip is no longer counted.
+4. **Entry 377 item 10 kept unsaved Samples text with no time limit.** An ignored Retry would have masked a teammate's later change to the same field indefinitely and then sent the stale text along with the next unrelated edit. The failure is now stamped and the text is kept for half an hour.
+5. **Entry 375: a parked edit that came back was saved but not shown.** The card kept the old text under a "Saved" chip, and typing into that stale box wrote over the restored words. Its plain fields are now put on the card and painted when it is restored.
+6. **Entry 377 item 12: a double click on Resolve, Reopen or Delete left "was not sent" beside a thread that had been resolved.** A second click while its own write is out is now ignored.
+
+**Known residual, not fixed.** A save that put a repair marker into a client's saved copy before the view moved away does not take it out when it lands (entry 375 stopped that write to keep another client's list out). On return the card can show "Saved, syncing" for a save that worked until the next load clears it. Fixing it properly needs a way to rewrite one card of a saved copy without also storing the on-screen client's settings under it.
+
+Still true and stated in entry 375: a caption typed and followed at once by a client switch waits, with a notice, until that client is opened again in the same tab.
+
+**From the journey sweep:**
+
+7. **A Calendar address for a client whose slug contains "&" fell through to Home on reload or when pasted.** The Calendar writes the slug into its address as it is; a fresh open goes through the 404 hop, and the route script's path check did not allow "&", so the path was replaced with "/" and the page opened on Analytics with no notice. Measured: one active client has "&" in its slug and has Calendar posts, so every reload and every copied card link for that client was affected. "&" is now allowed in that check (the value is already decoded and only used as a path).
+
+Two more from that sweep are owner questions, not fixed:
+
+- **Today's "To approve" ring counts only video and thumbnail work items; the Calendar's Review queue also counts a caption or a YouTube title waiting on the SMM.** So Today can say nothing is waiting while the Review badge says one is. Measured: no real client's card is in that state today.
+- **Back and Forward onto a Calendar or Samples entry open the client in the top bar, not the client in that address, and then rewrite the address.** A reload of the same address opens the client it names. No write goes to the wrong client; it is a question of which rule the owner wants.
+
+And one fact worth knowing, not a defect: nothing links a TikTok or Instagram upload to its Calendar card, so a post scheduled through the upload screen stays "Approved" and on Today's "To schedule" until someone sets Scheduled by hand.
+
+Way back: revert the PR (and with it the fixes it corrects should be reverted too). Not yet seen by the owner in his browser.
+
+## 385. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 6: Analytics readability and actionable Clients empty guidance
 
 Analytics phone metrics and chart axes had tiny, faint labels and cramped detail
 columns. They now use readable supporting text, neutral panels, two balanced

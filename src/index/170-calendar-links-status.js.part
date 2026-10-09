@@ -1217,8 +1217,20 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             _calPendingEdits[pid] = Object.assign({}, entry.edits, _calPendingEdits[pid] || {});
             delete forClient[pid];
             restored += 1;
+            /* Show it as well as save it. The card was just loaded with the
+               server's value, and the save only updates the list after its own
+               reads, so the box kept the old text under a "Saved" chip, and
+               typing into that stale box wrote over the restored words. Mirror
+               the plain fields onto the card now, as typing does. */
+            const shown = calState.posts.find(post => post && post.id === pid);
+            if (shown) {
+                Object.keys(_calPendingEdits[pid]).forEach(k => {
+                    if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) shown[k] = _calPendingEdits[pid][k];
+                });
+            }
             _calFlushCardSave(pid);
         }
+        if (restored) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
         if (!Object.keys(forClient).length) delete _calParkedEdits[key];
         return restored;
     }
@@ -1233,6 +1245,13 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        before the network answers. True when the write was made or rightly
        skipped; false only when storage refused a write that was due. */
     function _calCacheWriteIfCurrent(slug, options) {
+        /* Known residual (independent review, 2026-10-08): a save that put a
+           repair marker into this client's saved copy before the view moved
+           away does not take it out here, so on return the card can show
+           "Saved, syncing" for a save that worked until the next load clears
+           it. Writing here would also store the other client's settings under
+           this one; left for a change that can rewrite one card of a saved
+           copy on its own. Recorded in OPEN_REPAIRS 384. */
         if (calClientSlug(calState.client) !== slug) return true;
         return _calCacheWrite(slug, calState.posts, options);
     }

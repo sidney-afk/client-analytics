@@ -31455,7 +31455,7 @@ It is unique; a full scan also identifies pre-existing duplicate numbers
 13, 14, 22, 23, 175, 176, 177 and 180 on main. Historical records are retained.
 Retargeting to main and its local merge remain conditional on PR #2002 merging.
 
-## 384. [2026-10-10, BUILT, NOT APPLIED, NOT DEPLOYED] Create client: a real client no longer needs an email (owner decision)
+## 385. [2026-10-10, BUILT, NOT APPLIED, NOT DEPLOYED] Create client: a real client no longer needs an email (owner decision)
 
 Session Beacon. Owner decision 2026-10-10: "sometimes I don't have it". Undoes the email requirement that PR 2011
 added (OPEN_REPAIRS 372, Slack follow-up); the Slack nudge stays.

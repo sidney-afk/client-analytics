@@ -61,7 +61,7 @@ here with where it stopped, so it can be restarted.
   plan link is saved, the 15 minute timer covers the rest. Owner steps in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 6
   (apply `2026-10-09-create-client-slack-nudge.sql`, redeploy `client-onboarding`). Clients who never fill the form
   would need an n8n change, written out there for the owner's go.
-  **2026-10-10 (owner decision): a real client no longer needs an email** (OPEN_REPAIRS 384): built, owner pastes
+  **2026-10-10 (owner decision): a real client no longer needs an email** (OPEN_REPAIRS 385): built, owner pastes
   `2026-10-10-create-client-email-optional.sql` and redeploys `client-onboarding` (step 7 of the same file).
   **Stage 3 dry run done**, nothing saved:
   `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high

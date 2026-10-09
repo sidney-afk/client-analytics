@@ -57681,7 +57681,9 @@
                 attachments,
                 component: String(row.component || '').trim(),
                 is_tweak: _prodCommentTruthy(row.is_tweak),
-                round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+                // Number(null) is 0, which made every canonical comment with no
+                // round read back as round 0 (OPEN_REPAIRS 382).
+                round: _writeUiCommentRound(row.round),
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),
@@ -88911,4 +88913,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-61d428840d67.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-5ec5e0efc341.js");

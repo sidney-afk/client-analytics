@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 55 |
+| Deployable function slugs | 57 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 26 |
+| Manual-dispatch-only paths | 28 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -71,6 +71,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `thumbnail-folder-resolve` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `thumbnail-revision-read` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `thumbnail-revision-scan` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
+| `thumbnail-title-prompts` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/parse.mjs`<br>`higgsfield-mcp/clientinfo.ts`<br>`thumbnail-titles/logic.mjs`<br>`thumbnail-titles/seed.ts` |
+| `thumbnail-titles` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | - | `brain/parse.mjs`<br>`higgsfield-mcp/clientinfo.ts`<br>`thumbnail-titles/logic.mjs`<br>`thumbnail-titles/seed.ts` |
 | `tiktok-upload` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/roster-native.mjs`<br>`_shared/roster-sheet-copy.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/tiktok-queue.mjs` | `tiktok-upload/handler.mjs` |
 | `tiktok-upload-cancel` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/roster-native.mjs`<br>`_shared/roster-sheet-copy.mjs`<br>`_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | `tiktok-upload-cancel/logic.mjs` |
 | `workload-plan` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard)<br>**Manual release note:** Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-plan/native-snapshot.mjs` |

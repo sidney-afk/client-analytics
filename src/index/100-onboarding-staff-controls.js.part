@@ -1132,6 +1132,8 @@ import {
     const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
     const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
+    /* Thumbnail title prompt read + save (staff key; the table is closed to the browser). */
+    const THUMBNAIL_TITLE_PROMPTS_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/thumbnail-title-prompts';
     /* "URGENT TWEAKS NEEDED" editor ping: native route only
        (native_urgent_dispatch via production-write). The legacy n8n
        send-urgent-slack webhook was retired in B2. */
@@ -2387,7 +2389,7 @@ export {
   CAPTION_PROMPTS_SAVE_EF_URL, CLIENT_REVIEW_LINK_URL,
   CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
   PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, _svReadWithRetry, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
-  THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, URGENT_KASPER_SLACK_URL,
+  THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, THUMBNAIL_TITLE_PROMPTS_EF_URL, URGENT_KASPER_SLACK_URL,
   WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obSetDraftKey, _obSetSubIdKey,
   _obSetVariant, _obZoom, _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites,
   _ptoEsc, _ptoFlagChannel, _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue,

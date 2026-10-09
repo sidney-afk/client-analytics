@@ -640,6 +640,7 @@
     "thumbnail-drive-warning.js",
     "thumbnail-revision-history.js",
     "thumbnail-revision-scheduler.js",
+    "thumbnail-titles-source.js",
     "tiktok-carousel-transport.js",
     "tiktok-size-label.js",
     "tiktok-upload-cancel-source.js",

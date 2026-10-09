@@ -101,7 +101,15 @@ import { _prodRender } from './260-production-refresh-boot.js';
             return _prodCancelDescriptionEdit(id);
         }
         function _prodCaptureDescriptionFocus(root) {
-            const id = String(_prodState.openId || '');
+            /* The ROW id, not the raw open id. A card opened by a pasted link
+               or through its batch is open under its identifier, while the
+               description is read and kept under the row id (the comments had
+               the same split and were fixed with _prodOpenRowId; see
+               test/prod-deep-link-open-id-key.js). With the raw id the
+               description never repainted when its read landed, so it sat on
+               the loading bar, and the caret jumped to the start of the text on
+               any re-render while editing. */
+            const id = _prodOpenRowId();
             const state = id && _prodState.descriptions.get(id);
             if (!root || !state || !state.editing) return null;
             const panel = root.querySelector('[data-prod-description="' + CSS.escape(id) + '"]');
@@ -593,7 +601,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                         _prodAdoptDescriptionValue(id, loadedRow.description, loadedRow.updated_at);
                         const reconciled = _prodState.descriptions.get(id);
                         if (reconciled) reconciled.scopeSignature = _prodIssueScopeSignature(issue);
-                        if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                        if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                         return state;
                     }
                 }
@@ -618,7 +626,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 state.refreshError = '';
                 state.refreshSilent = !force;
                 state.status = state.hasValue ? 'stale' : 'loading';
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 // The owner reads, guards and records. It never throws.
                 await _prodEnsureBatchDescription(batchId, force);
                 if (!panelStillCurrent()) {
@@ -657,7 +665,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                     state.refreshError = '';
                     state.status = state.hasValue ? 'stale' : 'idle';
                 }
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return state;
             }
             if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
@@ -667,7 +675,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 state.status = state.hasValue ? 'stale' : 'error';
                 state.error = state.hasValue ? state.error : 'Staff sign-in is required to load this description.';
                 state.refreshError = state.hasValue ? 'Staff sign-in is required to refresh this description.' : '';
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return null;
             }
             const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
@@ -691,7 +699,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             state.refreshSilent = !force;
             if (state.hasValue) state.status = 'stale';
             else state.status = 'loading';
-            if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+            if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
             try {
                 const response = await fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
@@ -760,7 +768,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                     adopted.renderValue = renderBrief;
                     adopted.renderExpiresAt = renderExpiresAt;
                 }
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return state;
             } catch (error) {
                 if (!requestStillCurrent()) return null;
@@ -772,7 +780,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                     state.status = 'error';
                     state.error = 'Description could not load.';
                 }
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                if (document.getElementById('prodRoot') && _prodOpenRowId() === id) _prodRender();
                 return null;
             }
         }

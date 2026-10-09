@@ -2253,7 +2253,18 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             e.dataTransfer.effectAllowed = 'move';
             card.classList.add('dragging');
         });
-        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragend', (e) => {
+            card.classList.remove('dragging');
+            /* A drag that ended with no drop (Escape, or released outside the
+               strip) saved nothing, but the cards had already been moved on
+               screen as the pointer passed over them and nothing put them
+               back. The strip showed an order that did not exist, and the next
+               real drop read the order from the screen and saved the abandoned
+               move with it. Redraw from what is actually stored. */
+            if (e && e.dataTransfer && e.dataTransfer.dropEffect === 'none') {
+                try { _calRenderBody({ preserveScroll: true }); } catch (err) {}
+            }
+        });
         card.addEventListener('dragover', (e) => {
             e.preventDefault();
             const dragging = strip.querySelector('.cal-card.dragging');

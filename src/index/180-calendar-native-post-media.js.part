@@ -4,7 +4,7 @@ import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
 import {
   CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
-  CAPTION_GENERATE_EF_URL, CAPTION_PROMPTS_SAVE_EF_URL, GENERATE_CAPTION_URL, _svSelectHtml,
+  CAPTION_GENERATE_EF_URL, CAPTION_PROMPTS_SAVE_EF_URL, GENERATE_CAPTION_URL, THUMBNAIL_TITLE_PROMPTS_EF_URL, _svSelectHtml,
   _svStepperHtml, _svSyncStepper, _syncviewRequireStaffIdentity, _syncviewStaffEligible
 } from './100-onboarding-staff-controls.js';
 import {
@@ -2181,6 +2181,125 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             showNotify('Save failed', (e && e.message) || 'Could not save the caption prompt — try again.');
         }
     }
+    /* Thumbnail title prompt editor -- the twin of the caption prompt above,
+       in the same modal. The background step thumbnail-titles uses it to write
+       a short title into each new thumbnail work item's description from the
+       client's filming plan. The prompt is read and saved through the
+       thumbnail-title-prompts function with the staff key (the table is closed
+       to the browser: its default carries private Synchro Brain text). Empty
+       === "use this client's default" (the n8n instruction plus the client's
+       title style from the Brain). */
+    let _calThumbTitleDefault = '';
+    async function _calThumbTitlePromptCall(body) {
+        const url = THUMBNAIL_TITLE_PROMPTS_EF_URL;
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: _settingsWriteHeaders('thumbnail-title-prompts', url),
+            body: JSON.stringify(body)
+        });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+        return j;
+    }
+    function _calThumbTitlePromptHtml(client, bodyHtml, footHtml) {
+        return '<div class="cal-prompt-head">' +
+                '<div class="cal-prompt-head-text">' +
+                    '<h3>Thumbnail title prompt — ' + _calEsc(client) + '</h3>' +
+                    '<p>Used to write the title into each new thumbnail\'s description, from this client\'s filming plan.</p>' +
+                '</div>' +
+                '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>' +
+            '</div>' +
+            '<div class="cal-prompt-body">' + bodyHtml + '</div>' +
+            '<div class="cal-prompt-foot">' + footHtml + '</div>';
+    }
+    async function _calOpenThumbTitlePromptModal() {
+        const client = calState.client;
+        if (!client || _isClientLink) return;
+        const overlay = document.getElementById('calPromptOverlay');
+        const modal = document.getElementById('calPromptModal');
+        if (!overlay || !modal) return;
+        const closeOnly = '<div class="cal-prompt-foot-left"></div><div class="cal-prompt-foot-right"><button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Close</button></div>';
+        modal.innerHTML = _calThumbTitlePromptHtml(client, '<div class="cal-prompt-banner is-default"><span>Loading the prompt…</span></div>', closeOnly);
+        overlay.classList.add('open');
+        let j;
+        try {
+            j = await _calThumbTitlePromptCall({ action: 'get', client: calClientSlug(client) });
+        } catch (e) {
+            if (calState.client !== client) return;
+            modal.innerHTML = _calThumbTitlePromptHtml(client,
+                '<div class="cal-prompt-banner is-default"><span>Could not load the prompt (' + _calEsc((e && e.message) || 'error') + '). Close and try again.</span></div>', closeOnly);
+            return;
+        }
+        if (calState.client !== client || !overlay.classList.contains('open')) return;
+        _calThumbTitleDefault = String(j.default_prompt || '');
+        const isCustom = !!j.is_custom;
+        const initial = isCustom ? String(j.prompt || '') : _calThumbTitleDefault;
+        const bannerSvgInfo = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 5.5v3M8 11h.01"/></svg>';
+        const bannerSvgCheck = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 5"/></svg>';
+        const bannerHtml = isCustom
+            ? '<div class="cal-prompt-banner is-custom">' + bannerSvgCheck +
+                '<span>Custom prompt loaded for <strong>' + _calEsc(client) + '</strong> (' + initial.length + ' characters).</span></div>'
+            : '<div class="cal-prompt-banner is-default">' + bannerSvgInfo +
+                '<span>This is the default for <strong>' + _calEsc(client) + '</strong>: the standard title instruction' +
+                (/This client's title style, from the Synchro Brain/.test(_calThumbTitleDefault)
+                    ? ' plus the client\'s title style from the Synchro Brain'
+                    : ' (the Synchro Brain has no written title style for this client yet)') +
+                ' (' + initial.length + ' characters). Edit and Save to make your own version.</span></div>';
+        modal.innerHTML = _calThumbTitlePromptHtml(client,
+            bannerHtml +
+            '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="Write only the instructions; the videos and the filming plan are added automatically.">' + _calEsc(initial) + '</textarea>' +
+            '<div class="cal-prompt-hint">' +
+                'Tip: the list of videos and the filming plan are added automatically after your prompt. ' +
+                'Titles are written only into an empty description, never over text someone wrote. Clear the field and save to fall back to the default.' +
+            '</div>',
+            '<div class="cal-prompt-foot-left">' +
+                '<button type="button" class="cal-prompt-btn" onclick="_calResetThumbTitlePromptToDefault()">Reset to default</button>' +
+            '</div>' +
+            '<div class="cal-prompt-foot-right">' +
+                '<button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Cancel</button>' +
+                '<button type="button" class="cal-prompt-btn is-primary" id="calPromptSaveBtn" onclick="_calSaveThumbTitlePrompt()">Save</button>' +
+            '</div>');
+        const ta = document.getElementById('calPromptTA');
+        if (ta) setTimeout(() => { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; }, 30);
+    }
+    function _calResetThumbTitlePromptToDefault() {
+        const ta = document.getElementById('calPromptTA');
+        if (!ta) return;
+        ta.value = _calThumbTitleDefault;
+        ta.focus();
+    }
+    async function _calSaveThumbTitlePrompt() {
+        const client = calState.client;
+        if (!client) return;
+        const ta = document.getElementById('calPromptTA');
+        const btn = document.getElementById('calPromptSaveBtn');
+        if (!ta || !btn) return;
+        const raw = ta.value.trim();
+        const promptText = raw === _calThumbTitleDefault.trim() ? '' : raw;
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            const url = THUMBNAIL_TITLE_PROMPTS_EF_URL;
+            const r = await _writeUiTrackSave('captions', 'thumbnail_title_prompt_save', () => ({ client_slug: calClientSlug(client) }), async () => {
+                await _settingsAssertSavingOn(client);
+                return fetch(url, {
+                    method: 'POST',
+                    headers: _settingsWriteHeaders('thumbnail-title-prompts', url),
+                    body: JSON.stringify({ action: 'save', client: calClientSlug(client), prompt: promptText })
+                });
+            }, { requireOk: true });
+            const j = await r.json();
+            if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+            _calCloseCaptionPromptModal();
+            showNotify('Saved', j.prompt
+                ? 'Custom thumbnail title prompt saved for ' + client + '.'
+                : 'Using the default thumbnail title prompt for ' + client + '.');
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+            showNotify('Save failed', (e && e.message) || 'Could not save the thumbnail title prompt — try again.');
+        }
+    }
 
     /* Transcript box (function path only). A post with no video: Generate
        opens it and the caption is written from what is pasted. A post with a
@@ -3113,8 +3232,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     Object.assign(window, {
         _calArchiveSelected, _calBulkGenerateCaptions, _calCancelBulkCaption, _calCancelCaptionJob,
         _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal, _calGenerateCaption,
-        _calOpenCaptionPromptModal, _calOpenCaptionTranscript, _calResetCaptionPromptToDefault,
-        _calSaveCaptionPrompt, _calSubmitCaptionTranscript, _calSubmitNativePost, _calToggleSelectMode,
+        _calOpenCaptionPromptModal, _calOpenCaptionTranscript, _calOpenThumbTitlePromptModal,
+        _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault, _calSaveCaptionPrompt,
+        _calSaveThumbTitlePrompt, _calSubmitCaptionTranscript, _calSubmitNativePost, _calToggleSelectMode,
         addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday, calWeekShift, calWeekToday
     });
 export {

@@ -302,6 +302,16 @@
       "total": 0,
       "measured_on": "2026-10-07"
     },
+    "thumbnail-titles": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-09"
+    },
+    "thumbnail-title-prompts": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-10-09"
+    },
     "monitoring-watchdog-tick": {
       "counts": {},
       "total": 0,

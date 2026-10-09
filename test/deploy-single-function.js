@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-single-function.yml'), 'utf8');
 const preview = fs.readFileSync(path.join(ROOT, '.github/workflows/native-notification-preview.yml'), 'utf8');
 
-const EXPECTED = ['analytics-market-research-collect', 'analytics-metrics-collect', 'analytics-read', 'analytics-top-videos-collect', 'analytics-write', 'brain', 'caption-generate', 'caption-jobs', 'client-hubspot-sync', 'client-onboarding', 'client-profile-write', 'filming-plan-tabs', 'higgsfield-mcp', 'instagram-upload', 'monitoring-watchdog-tick', 'notify', 'roster-read', 'roster-write', 'syncview-session', 'tiktok-upload', 'tiktok-upload-cancel', 'workload-plan', 'write-diagnostics'];
+const EXPECTED = ['analytics-market-research-collect', 'analytics-metrics-collect', 'analytics-read', 'analytics-top-videos-collect', 'analytics-write', 'brain', 'caption-generate', 'caption-jobs', 'client-hubspot-sync', 'client-onboarding', 'client-profile-write', 'filming-plan-tabs', 'higgsfield-mcp', 'instagram-upload', 'monitoring-watchdog-tick', 'notify', 'roster-read', 'roster-write', 'syncview-session', 'thumbnail-title-prompts', 'thumbnail-titles', 'tiktok-upload', 'tiktok-upload-cancel', 'workload-plan', 'write-diagnostics'];
 // These stay on their own gated lanes (Section 4 sealed bundle, pinned inbound
 // bundle), and the two client writers are FROZEN by owner directive (AGENTS.md):
 // their repo source re-gates client links, so deploying it 401s every client.

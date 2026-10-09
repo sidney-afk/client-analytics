@@ -69,6 +69,16 @@ executes these files (see `README.md` › Repository layout).
   from all four roles. No Edge Function change. `test/production-comment-signal.js`
   measures it on a real PostgreSQL 16.
 
+- **`2026-10-09-thumbnail-titles.sql`** is APPLIED (session Sorter, 2026-10-09,
+  OPEN_REPAIRS 391, with the backfill counter's variable rename the file now
+  carries). Adds `thumbnail_title_prompts` (one per client; service role only,
+  the default carries private Brain text), `thumbnail_title_queue`, the
+  default-off switch `thumbnail_titles`, the backfill (`apply=false` is counts
+  only), and the per-minute timer `thumbnail-titles-tick`, which calls the
+  function only when a switched-on client has work. Its key is the Vault secret
+  `thumbnail_titles_key`, compared inside the database; no trigger on
+  `deliverables`. Every function revokes from all four roles first.
+
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To
   rebuild from scratch, start here.

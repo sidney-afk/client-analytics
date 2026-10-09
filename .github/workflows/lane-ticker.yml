@@ -52,7 +52,9 @@ jobs:
           declare -A last
           end=$(( $(date +%s) + 340*60 ))
           while [ "$(date +%s)" -lt "$end" ]; do
-            state=$(gh workflow view lane-ticker.yml --json state --jq .state || echo unknown)
+            # `gh workflow view` has no --json flag, so the old check always read
+            # "unknown" and stopped the ticker within seconds of every start.
+            state=$(gh api "repos/$GH_REPO/actions/workflows/lane-ticker.yml" --jq .state || echo unknown)
             if [ "$state" != "active" ]; then echo "Ticker workflow is $state; stopping."; echo "stopped=true" >> "$GITHUB_ENV"; break; fi
             now=$(date +%s)
             for entry in "${LANES[@]}"; do

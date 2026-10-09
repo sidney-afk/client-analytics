@@ -442,8 +442,16 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const rows = (_caState.rows || []).filter(r => {
             if (r.archived_at && !_caState.showArchived) return false;
             if (!q) return true;
-            return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
-                .some(v => String(v || '').toLowerCase().includes(q));
+            /* The profile shows handles as "@name", and they are stored
+               without the "@" (all 32 Instagram and 18 TikTok handles on
+               2026-10-08), so a handle typed the way it is shown matched
+               nobody. A leading "@" is ignored on both sides for the three
+               handle fields; a bare "@" is not a search. */
+            const bare = q.replace(/^@+/, '');
+            if ([r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().includes(q))) return true;
+            return bare !== q && !!bare && [r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().replace(/^@+/, '').includes(bare));
         });
         const recent = _caRecentMap();
         return rows.slice().sort((a, b) => {

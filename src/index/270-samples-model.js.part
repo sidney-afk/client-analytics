@@ -2732,11 +2732,13 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (!post) return;
         const comp = _sxrKasperUrgentPingComp(post);
         if (!comp) { if (typeof showNotify === 'function') showNotify('Not waiting on Kasper', 'Nothing on this sample is at Kasper Approval right now, so there is nothing to ping him about.'); return; }
-        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
+        // The sample's own client, fixed now: the marker is saved seconds later (see _calSendKasperUrgentSlack).
+        const sourceClient = sxrState.client;
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sourceClient || '').trim(), post.name, {
             kind: 'kasper',
             payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
-            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping),
-            preflight: () => _sxrAssertSavingOn(sxrState.client)
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sourceClient, post, comp, ping),
+            preflight: () => _sxrAssertSavingOn(sourceClient)
         });
     }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {

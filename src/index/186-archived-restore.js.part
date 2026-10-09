@@ -392,7 +392,13 @@ import {
                 items.push({ component, name: component === 'video' ? 'Video work item' : k.second + ' work item', read, plan });
             }
             const slot = _arxOrderSlot(fresh, _arxLive(kind));
-            const past = kind === 'cal' && fresh.scheduled_date && Date.parse(String(fresh.scheduled_date).slice(0, 10)) < Date.now() - 86400000;
+            /* "Has passed" means before today on this person's calendar. Parsing
+               the date as an instant read it as midnight UTC, so west of UTC
+               the note came on during the evening of the scheduled day itself
+               (from 6 pm in Guatemala). Compare the two days as days. */
+            const nowDay = new Date();
+            const todayIso = nowDay.getFullYear() + '-' + String(nowDay.getMonth() + 1).padStart(2, '0') + '-' + String(nowDay.getDate()).padStart(2, '0');
+            const past = kind === 'cal' && !!fresh.scheduled_date && String(fresh.scheduled_date).slice(0, 10) < todayIso;
             const ok = await _arxDialog({
                 title: 'Restore “' + _arxNameOf(fresh) + '”?',
                 msg: 'It goes back to ' + k.where + ' exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be ' + status + '.',

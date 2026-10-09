@@ -1,6 +1,6 @@
 import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
-import { svSharedClientFor } from './095-shared-client.js';
+import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOverallStatus } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
@@ -403,7 +403,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
@@ -683,7 +683,21 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function mountInstagramPanel(deps) {
         _igDeps = deps;
         const shared = svSharedClientFor('tiktok-upload');
-        if (!igState.client && shared && (WL_CLIENT_NAMES || []).includes(shared)) igState.client = shared;
+        /* Follow the client in the top bar unless a post is already being put
+           together, as the TikTok side does. This only took the top-bar client
+           when the form had none, so after its first client the Instagram form
+           kept that one for the whole session: pick another client in the top
+           bar and the top bar and the TikTok side said B while this form, empty,
+           still said A, and a video attached then went to A's Instagram. */
+        const igIdle = !igState.file && !String(igState.title || '').trim() && !igState.submitting;
+        if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
+            if (igState.client && igState.client !== shared) {
+                igState.error = null; igState.notice = null;
+                if (igState.cover.source === 'calendar') _igCoverClear(true);
+                igState.cover.cardId = ''; igState.cover.note = '';
+            }
+            igState.client = shared;
+        }
         _igMounted = true;
         const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');
         if (form) form.hidden = false;

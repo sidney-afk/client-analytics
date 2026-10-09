@@ -31986,4 +31986,34 @@ morning check also as `SYNCVIEW_ROLE_KEY`). No environment is used. A role key i
 Still for the owner to check: `SYNCVIEW_STAFF_ACTOR` must hold an active SMM's name exactly as the sign-in list shows it
 (p96 and the morning check's Samples approve sign in as that person).
 **Way back:** revert the PR.
-=======
+
+## 393. [2026-10-09, BUILT, NOT MERGED] Calendar board jumps sideways (and up and down) when it refreshes on its own
+
+**What was wrong.** Reported by the owner on 2026-10-09: sitting still on the staff Calendar, the
+board kept jumping left and right whenever it refreshed by itself (realtime change, the fallback
+poll, a tab return). Every one of those roads ends in `_calRenderBody({ preserveScroll: true })`,
+which rebuilt the body and put back the old pixel offsets: the Sheet strip's `scrollLeft` and the
+page's `scrollY`. That is right only if nothing changed before the spot on screen. When a card is
+added ahead of it, or one is archived, the same pixel offset shows a different card, so the board
+moves by one card width. The test client gets cards added and removed by the robots all day (282
+rows touched in the six hours before this was measured, read only), so on it the board moved on
+almost every refresh. Inner scrolled boxes (a review card's caption or thread box, the phone
+Unscheduled row) were not kept at all.
+
+**Measured in a real browser** (offline fixture, fictional client, `node
+docs/syncview-design/tests/calendar-refresh-scroll-browser.js`; a background refresh that brings one
+new post ahead of the rest). Before: desktop Sheet `scrollLeft` stayed 2000 but the card in view
+moved 334 px sideways; desktop Review moved 136 px down; phone Review 211 px, phone Sheet 1078 px,
+phone Month and Week 74 px. Desktop Month and Week held. A refresh with nothing new held on every
+view before and after. After: 0 px on all eight (one sub-pixel rounding on phone Review).
+
+**Fix** (`src/index/160-calendar-organize-ui.js.part`). Before the repaint, every scrolled box in the
+Calendar body and the page itself remember the first card or day in view (`data-pid`,
+`data-cal-review-pid`, `data-iso`, `data-cal-move`) and where it sat. After the repaint the pixel
+offset goes back first, then the box is nudged so that same card sits in the same place; one more
+check runs on the next frame for cards whose height settles late. When the card is gone the pixel
+offset stays, as before. Covers Review, Sheet, Month, Week, desktop and phone.
+
+**Proof.** The new browser test fails on the old code (`desktop smmreview: ... moved ... 136px down`)
+and passes on the fix; it runs in `calendar-unit-tests.yml`. It was not run against the live test
+client: the staff Calendar needs a real staff sign-in this sandbox does not have.

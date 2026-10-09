@@ -305,6 +305,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/staff-calendar-expanded-browser.js
+      - name: A background Calendar refresh keeps the card in view in place on every view
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/calendar-refresh-scroll-browser.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

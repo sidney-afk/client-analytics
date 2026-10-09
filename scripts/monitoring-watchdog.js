@@ -29,7 +29,7 @@
  *
  * ONE SOURCE. The lane table, the decision, the page and the `--check` pass
  * itself live in supabase/functions/_shared/monitoring-watchdog-core.mjs,
- * which the Edge Function bundles and this script loads with require(). This
+ * which the Edge Function bundles and this script loads with a plain require call. This
  * file is only the GitHub host's half: environment, transport, CLI.
  *
  * LATCHING

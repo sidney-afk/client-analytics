@@ -10,7 +10,7 @@
 //
 // It lives here, under supabase/functions/_shared, because an Edge Function
 // can only bundle files from this tree; the Node script loads it with
-// require() (Node 20.19+ / 22.12+ load an ES module synchronously). There is
+// a plain require call (Node 20.19+ / 22.12+ load an ES module synchronously). There is
 // therefore ONE lane table and ONE decision, and the two hosts cannot drift
 // apart. Everything that differs between them -- how a row is read, how an
 // event is written, how a page is posted, what the run handle is -- is passed

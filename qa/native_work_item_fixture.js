@@ -400,7 +400,9 @@ async function applyProbeWorkItems(ctx) {
       const { card } = _registered[i];
       if (String(card.id) !== String(cardId)) continue;
       const comps = (card.components && card.components.length) ? card.components : ['video', 'graphic'];
-      return Object.fromEntries(comps.map(c => [c, nativeDeliverableId(card.id, c)]));
+      // `sharesWith`: this card names ANOTHER registered card's work items, the
+      // shape the duplicate-link warning exists for (p82).
+      return Object.fromEntries(comps.map(c => [c, nativeDeliverableId(card.sharesWith || card.id, c)]));
     }
     return null;
   };

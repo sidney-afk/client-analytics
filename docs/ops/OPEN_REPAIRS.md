@@ -31649,6 +31649,22 @@ and puts it back). Ledger rows restamped to 2026-10-09; no row overstates.
 (`native_link_required`, measured), so it uses the test client's one sample with real work items through
 `qa/dawn/native-sample-roundtrip.js`. Needs a role key and the roster name; without them it reports "not run" (⚠️), never passed.
 
+**Second pass, after the full Calendar list ran locally on the merged branch.** Every probe but the ones below then failed
+only on this sandbox's realtime socket, which answers 500 here and works in CI (the "0 JS errors" line; p49 and p70 test
+realtime itself). The rest, each a robot cause:
+- *p34*: two of its cards are meant to have no work item; they now opt out (`noWorkItems: true`) of the library default.
+- *p61*: the client's note was refused with "Notes are still loading"; it now waits for the thread as p60 does (373).
+- *p71*: "computed overall on a fresh surface" read the staff tab's copy without reloading it; it reloads first.
+- *p82*: since Linear was retired a shared old Linear link is deliberately not a collision (`_calDupeKey`); the twin card
+  now shares the first card's fixture work item (`sharesWith` in the fixture), which is what the warning guards.
+- *p87_kasper_finish_stale_refresh*: it faked the old n8n save address; saves go to `calendar-upsert` since 2026-10-07, so
+  Finish's save reached the live function, did not land, and Finish was undone. Both addresses are now faked (it writes nothing).
+- *p96* passes with the SMM role key and a roster name (run locally with both).
+- *Samples nightly scenarios:* the eight create_* scenarios drive the same retired "+" funnel on Samples
+  (`addSxrBlankCard` -> Create Post for every enrolled client) and ran only because scenarios use the legacy lane; retired
+  from the nightly list in `qa/master.js` (still defined, still run by `--profile=full`). The nightly keeps clean_both,
+  smm_request_video, client_approve_video and the 24 tree paths.
+
 **The robots' key (owner decision 2026-10-09).** The role keys live in the `production` environment, which needs an
 approval per run (`.github/workflows/deploy-client-review-link.yml`; its last run waited 2 min 23 s), so a nightly cannot
 use it, and the approval rule stays exactly as it is. The owner added the repository secret `ROBOT_ROLE_KEY_SMM` (the SMM

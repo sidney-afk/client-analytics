@@ -146,15 +146,22 @@ export const LANES = Object.freeze([
    * freshness then falls back to their 46-to-274-minute cadence (and its
    * occasional page) instead of going quiet.
    *
-   * The threshold is deliberately NOT changed in the same change. Once the
-   * timer has run for a while, a follow-up can bring this lane's 360 down
-   * toward the timer's real cadence; until then 360 is still what the GitHub
-   * fallback needs. Measured 2026-10-09 (read only, last 7 days): with a
-   * 15-minute observer, the GitHub-hosted lanes' OWN gaps (card_calendar_drift
-   * up to 539m against 240, alert_digest up to 781m and the four native lanes
-   * up to 561m against 360) would be seen far more often than today's
-   * every-few-hours observer sees them, so their thresholds need the same
-   * follow-up BEFORE the timer is switched on -- see the ledger entry.
+   * The same timer also starts the lanes themselves on time. Measured
+   * 2026-10-09 (read only, last 7 days), the GitHub-hosted lanes' OWN gaps ran
+   * far past their cadence (card_calendar_drift up to 539m against 240,
+   * alert_digest up to 781m and the four native lanes up to 561m against 360),
+   * because GitHub drops their crons too, and a 15-minute observer alone would
+   * have paged on most of those gaps. So the database timer dispatches every
+   * scheduled workflow through the workflow_dispatch API at its intended cron
+   * (migrations/2026-10-09-github-workflow-dispatch-timer.sql), and dispatched
+   * runs start within about two minutes (60 sampled, 2026-09-28..10-09). Each
+   * lane's gap is then its own cadence plus run time, well inside its
+   * threshold, so no threshold changes. The watchdog schedule refuses to
+   * install before the dispatch timer exists.
+   *
+   * This lane's 360 is unchanged too: it is what the GitHub fallback needs if
+   * the timer stops. Once the timer has run for a while, a follow-up can bring
+   * it down toward the timer's 15 minutes.
    *
    * `timer_hosts` names the non-workflow host. It is not a workflow file, so
    * it sits apart from `hosts`, which the suite checks against .github/workflows.

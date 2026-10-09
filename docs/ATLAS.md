@@ -610,7 +610,6 @@ There are **49 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/f42-card-comment-import.yml -->[`f42-card-comment-import.yml`](../.github/workflows/f42-card-comment-import.yml) | Manual | Imports approved historical card comments. |
 | <!-- atlas:action .github/workflows/graphics-f2-evidence.yml -->[`graphics-f2-evidence.yml`](../.github/workflows/graphics-f2-evidence.yml) | Manual, Pull request | Captures private graphics evidence. |
 | <!-- atlas:action .github/workflows/graphics-f2-preflight.yml -->[`graphics-f2-preflight.yml`](../.github/workflows/graphics-f2-preflight.yml) | Manual | Runs graphics read-only preflight. |
-| <!-- atlas:action .github/workflows/lane-ticker.yml -->[`lane-ticker.yml`](../.github/workflows/lane-ticker.yml) | Manual, Cron `41 * * * *` | Dispatches enabled native lanes and hands off a resident ticker. |
 | <!-- atlas:action .github/workflows/linear-deliverables-reconcile.yml -->[`linear-deliverables-reconcile.yml`](../.github/workflows/linear-deliverables-reconcile.yml) | Manual | Retained Linear reconciliation lane; runtime gates decide admission. |
 | <!-- atlas:action .github/workflows/linear-exit-preparation-ci.yml -->[`linear-exit-preparation-ci.yml`](../.github/workflows/linear-exit-preparation-ci.yml) | Pull request | Runs isolated Linear-exit preparation proofs. |
 | <!-- atlas:action .github/workflows/linear-outbound-drain.yml -->[`linear-outbound-drain.yml`](../.github/workflows/linear-outbound-drain.yml) | Manual | Retained outbound lane; live outbound flag is off. |
@@ -636,7 +635,7 @@ There are **49 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/workload-source-freshness.yml -->[`workload-source-freshness.yml`](../.github/workflows/workload-source-freshness.yml) | Manual | Checks native workload source freshness. |
 
 
-The resident [ticker](../.github/workflows/lane-ticker.yml) schedules notification sender and monitor at five minutes, intake completion and monitor at fifteen minutes, and status drift at sixty minutes. Its hourly cron is a recovery starter; its resident loop and self-handoff maintain those intervals while enabled. Owner variables and concurrency gates still control each dispatched lane.
+The database timer ([migrations/2026-10-09-github-workflow-dispatch-timer.sql](../migrations/2026-10-09-github-workflow-dispatch-timer.sql), OPEN_REPAIRS 388; built, not applied) dispatches every scheduled workflow above through GitHub's workflow_dispatch API at its own cron, because GitHub runs `schedule:` crons hours late; the two dead-man hosts are left on GitHub's own schedule as the independent observer. It replaced the resident `lane-ticker.yml`, deleted 2026-10-09. Owner variables and concurrency gates still control each dispatched lane.
 
 
 | Other repo workflow | Trigger | Purpose |

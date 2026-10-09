@@ -4,10 +4,11 @@
 -- this file refuses to schedule anything unless a signed ping reached the deployed function in the
 -- last hour and was answered "ready":true. OPEN_REPAIRS 388.
 --
--- READ BEFORE APPLYING: the ledger entry measured (2026-10-09, read only, last 7 days) that a
--- 15-minute observer would see the GitHub-hosted lanes' own schedule gaps far more often than the
--- GitHub hosts do today (about 54 stale pages a week at today's thresholds, against 18 sent), so
--- the threshold follow-up named there should land first.
+-- ORDER: apply 2026-10-09-github-workflow-dispatch-timer.sql FIRST; this file refuses to run until
+-- its gh-dispatch-* jobs exist. Why: measured 2026-10-09 (read only, last 7 days), GitHub ran the
+-- lanes' own workflows hours late, so a 15-minute observer alone would have sent about 54 stale
+-- pages a week instead of 18. With the dispatch timer starting those workflows on time, every
+-- lane's gap is its own cadence (5 minutes to 1 day), well inside its unchanged threshold.
 --
 -- The timer for the monitoring dead-man's switch (scripts/monitoring-watchdog.js,
 -- docs/ops/MONITORING.md). One pg_cron job, every 15 minutes: calls the Edge Function's "tick",
@@ -38,6 +39,9 @@ begin
                   where status_code = 200 and content::text like '%"pong":"monitoring-watchdog-tick","ready":true%'
                     and created > now() - interval '1 hour') then
     raise exception 'no ready ping from the deployed monitoring-watchdog-tick in the last hour; deploy it, set MONITORING_WATCHDOG_KEY to the Vault value and MONITORING_ALERT_WEBHOOK, run 2026-10-09-monitoring-watchdog-tick-ping.sql, wait a minute, then run this file';
+  end if;
+  if not exists (select 1 from cron.job where jobname like 'gh-dispatch-%' and active) then
+    raise exception 'apply 2026-10-09-github-workflow-dispatch-timer.sql first: without it the watched lanes run hours late and this timer would page on every gap';
   end if;
 end
 $check$;

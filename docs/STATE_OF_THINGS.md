@@ -347,7 +347,7 @@ hiring senders when the editor hire closes.
 - **The two dormant censuses are retired (owner, 2026-09-29; OPEN_REPAIRS 293).**
   The outbox-debt and retirement-admission monitors only wrote heartbeats. Their
   workflows are deleted, both dead-man lanes are marked retired (dated, with a
-  reason), and `lane-ticker` no longer dispatches them. Scripts, SQL and tests stay
+  reason), and `lane-ticker` no longer dispatched them (it was itself deleted 2026-10-09, OPEN_REPAIRS 388). Scripts, SQL and tests stay
   as a frozen reference. Their 69 and 72 old heartbeat rows are kept in the event
   log, as every earlier retired lane's were; deleting them is a separate owner go.
 - **Kasper loads on demand (#1841), checked by the owner with a real login on

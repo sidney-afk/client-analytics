@@ -1,0 +1,166 @@
+{
+  "beforeHead": "00e792f4c22dc87a78757df0b7720001bcf3428d",
+  "status": "Expanded draft presentation injected into the native main shell; not product acceptance. Draft review found faint chart Y labels; final native after evidence verifies corrected X and Y labels.",
+  "images": [
+    {
+      "file": "mockup/analytics-detail-dark-393-viewport.png",
+      "sha256": "f6a98b6129658b6afb87f57f02965d86bd3d2644c84ee87724c35d1bd3c259e7"
+    },
+    {
+      "file": "mockup/analytics-detail-dark-393.png",
+      "sha256": "fd5379d64e0007dd7e1a89db5cf143d7d16ca076ad7aadc8b4fc0f0d3ba00876"
+    },
+    {
+      "file": "mockup/analytics-detail-dark-412-viewport.png",
+      "sha256": "3f41780b78b7d4006a9b2202a1606ae6091feb602c38e9f03eaed8b4327481d4"
+    },
+    {
+      "file": "mockup/analytics-detail-dark-412.png",
+      "sha256": "1b07c69a53635a7d8073cd1b0e50b593300f571acc80fc59616a9f3a6c72e56c"
+    },
+    {
+      "file": "mockup/analytics-detail-light-393-viewport.png",
+      "sha256": "f33d149257772619188717da8497dc91cbc2601fa313673aad68c237067f0627"
+    },
+    {
+      "file": "mockup/analytics-detail-light-393.png",
+      "sha256": "cfad4a062d9fca1d2465263e24069f85ef73b83a6bf032c93d670204c1711c52"
+    },
+    {
+      "file": "mockup/analytics-detail-light-412-viewport.png",
+      "sha256": "c2d7cd5bc9a0be03a6f8ce0ab330bd3aaa6c778c932ee304161a0431df6cb233"
+    },
+    {
+      "file": "mockup/analytics-detail-light-412.png",
+      "sha256": "7ab70c22fcfc537d060fcd9c75e1b23ad47370e9023487205ffaede1ec4de2da"
+    },
+    {
+      "file": "mockup/analytics-overview-dark-393-viewport.png",
+      "sha256": "c59f25658f4bc6364c933d70d979c48832e1241db0a4f27a1135d9d4ed9c8f8e"
+    },
+    {
+      "file": "mockup/analytics-overview-dark-393.png",
+      "sha256": "ff6641deac4d8b2b087cb971f6beba5c2466820d94ffa694e530ff8e46c23a1e"
+    },
+    {
+      "file": "mockup/analytics-overview-dark-412-viewport.png",
+      "sha256": "4fe33b9333e626adb43c20eb78ef2821329a44dcfe87047c2aa3f54b6474ec5d"
+    },
+    {
+      "file": "mockup/analytics-overview-dark-412.png",
+      "sha256": "b94e0f0c0c679c90358000a3652ee5fad7d6a2472c5c2e13a3135e66e45fca13"
+    },
+    {
+      "file": "mockup/analytics-overview-light-393-viewport.png",
+      "sha256": "7cca3a3d462c13f1973a1d78f865ff1ec376ed17dc3bfb13e9b74849a49971ab"
+    },
+    {
+      "file": "mockup/analytics-overview-light-393.png",
+      "sha256": "4ccf725fd8dd21ae0432059b2be01aa8312481d7f5b7378f6a813441deb77172"
+    },
+    {
+      "file": "mockup/analytics-overview-light-412-viewport.png",
+      "sha256": "0730a86ff6fabe99a2c1f124677548409cb7f9d085fe7661f49f54343814ff13"
+    },
+    {
+      "file": "mockup/analytics-overview-light-412.png",
+      "sha256": "51fc41dbd234811a9cdeaa0c99840b3121f89dfe1b2722a29dc2dbad41217ddf"
+    },
+    {
+      "file": "mockup/clients-dark-393-viewport.png",
+      "sha256": "ced8d544640a1fe7064c844b26a4f06ed2265f2eba518fd3c69819906ff2632d"
+    },
+    {
+      "file": "mockup/clients-dark-393.png",
+      "sha256": "ced8d544640a1fe7064c844b26a4f06ed2265f2eba518fd3c69819906ff2632d"
+    },
+    {
+      "file": "mockup/clients-dark-412-viewport.png",
+      "sha256": "400171756f5d4ef4606c6fc997b6fff9fd4c7eb99d784b41ef019b95cd738b83"
+    },
+    {
+      "file": "mockup/clients-dark-412.png",
+      "sha256": "400171756f5d4ef4606c6fc997b6fff9fd4c7eb99d784b41ef019b95cd738b83"
+    },
+    {
+      "file": "mockup/clients-empty-dark-393-viewport.png",
+      "sha256": "b9f4d9836fbb0c07b1b4f4e1ea5545be7cc3798a9e683f3a506d11fb1980451b"
+    },
+    {
+      "file": "mockup/clients-empty-dark-393.png",
+      "sha256": "b9f4d9836fbb0c07b1b4f4e1ea5545be7cc3798a9e683f3a506d11fb1980451b"
+    },
+    {
+      "file": "mockup/clients-empty-dark-412-viewport.png",
+      "sha256": "362534d2a86ad82e76a379485995edbde86d49362a8a79d40ddeb51664237b83"
+    },
+    {
+      "file": "mockup/clients-empty-dark-412.png",
+      "sha256": "362534d2a86ad82e76a379485995edbde86d49362a8a79d40ddeb51664237b83"
+    },
+    {
+      "file": "mockup/clients-empty-light-393-viewport.png",
+      "sha256": "c5d9206d342480ebf9b5b1b6c9851daf502856b8c5073e67915b467ea90070cc"
+    },
+    {
+      "file": "mockup/clients-empty-light-393.png",
+      "sha256": "c5d9206d342480ebf9b5b1b6c9851daf502856b8c5073e67915b467ea90070cc"
+    },
+    {
+      "file": "mockup/clients-empty-light-412-viewport.png",
+      "sha256": "f961f7be294ae6a421630a0619787cf35dfde25221323f656ec9141fdcf23991"
+    },
+    {
+      "file": "mockup/clients-empty-light-412.png",
+      "sha256": "f961f7be294ae6a421630a0619787cf35dfde25221323f656ec9141fdcf23991"
+    },
+    {
+      "file": "mockup/clients-light-393-viewport.png",
+      "sha256": "eee49cbe64c00855eb2f871da67f5717bb08b3839c7033d79447a8597e53a1a0"
+    },
+    {
+      "file": "mockup/clients-light-393.png",
+      "sha256": "eee49cbe64c00855eb2f871da67f5717bb08b3839c7033d79447a8597e53a1a0"
+    },
+    {
+      "file": "mockup/clients-light-412-viewport.png",
+      "sha256": "98160ffcb24e7c8aafbbcb28617ee209d9c4361b9f222fd83280084244186eed"
+    },
+    {
+      "file": "mockup/clients-light-412.png",
+      "sha256": "98160ffcb24e7c8aafbbcb28617ee209d9c4361b9f222fd83280084244186eed"
+    },
+    {
+      "file": "mockup/clients-loading-dark-393-viewport.png",
+      "sha256": "9acf26ab3b3d020fcab1f172370ec83889b19d302f7b04f893c9e2a743aa4105"
+    },
+    {
+      "file": "mockup/clients-loading-dark-393.png",
+      "sha256": "9acf26ab3b3d020fcab1f172370ec83889b19d302f7b04f893c9e2a743aa4105"
+    },
+    {
+      "file": "mockup/clients-loading-dark-412-viewport.png",
+      "sha256": "b7e30be99526a96a44a5f6ee060cf8003d671caf62b95b49a20192f12738f2db"
+    },
+    {
+      "file": "mockup/clients-loading-dark-412.png",
+      "sha256": "b7e30be99526a96a44a5f6ee060cf8003d671caf62b95b49a20192f12738f2db"
+    },
+    {
+      "file": "mockup/clients-loading-light-393-viewport.png",
+      "sha256": "6d5e1a9c2bf902db0f86be64210c23b1a342426ea61aae9325c7a6fed671eec5"
+    },
+    {
+      "file": "mockup/clients-loading-light-393.png",
+      "sha256": "6d5e1a9c2bf902db0f86be64210c23b1a342426ea61aae9325c7a6fed671eec5"
+    },
+    {
+      "file": "mockup/clients-loading-light-412-viewport.png",
+      "sha256": "be6ca27d746019fed4a89ba6879b936927afb8294cc5ad7b33f9c19911d5aa5d"
+    },
+    {
+      "file": "mockup/clients-loading-light-412.png",
+      "sha256": "be6ca27d746019fed4a89ba6879b936927afb8294cc5ad7b33f9c19911d5aa5d"
+    }
+  ]
+}

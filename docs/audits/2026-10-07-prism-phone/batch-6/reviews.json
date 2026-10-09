@@ -1,0 +1,842 @@
+[
+  {
+    "lane": "finch",
+    "state": "analytics-detail",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-dark-393.png",
+        "sha256": "9534a291f9dd4678e525092483b6044622d2098b3ba51d8cf3038249f4c2605d"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-dark-393-viewport.png",
+        "sha256": "f6a98b6129658b6afb87f57f02965d86bd3d2644c84ee87724c35d1bd3c259e7"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-detail",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-dark-412.png",
+        "sha256": "5bbf7b132c11837cc5058b8aaf325771be5ed02bf7d385c9fb9e0b0a42d053b1"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-dark-412-viewport.png",
+        "sha256": "3f41780b78b7d4006a9b2202a1606ae6091feb602c38e9f03eaed8b4327481d4"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-detail-dash",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-dash-dark-393.png",
+        "sha256": "a0566ca7d1bad699ab7e2802bda29194b60d37b9cbc757ac97aaef3b13e7d37c"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-dash-dark-393-viewport.png",
+        "sha256": "09d131de6c55e53b4451f95c8b42e26631c9ca0ce698a6442d33ca4e7087fdc6"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-detail-dash",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-dash-dark-412.png",
+        "sha256": "6f1b56ff6e17916b31f7105513418bcbd5b33b03148c728093c7edc2dd8ee2e4"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-dash-dark-412-viewport.png",
+        "sha256": "451b705a7910cf661b950e84003695e1566016f6a6ddc8ff3e0b50339e19aa4c"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-detail-dash",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-dash-light-393.png",
+        "sha256": "bd808a2e71cf9105ed8e1a663bba338885afd6aca375a1d5552b5b4667735eec"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-dash-light-393-viewport.png",
+        "sha256": "83b3310362910ef81958ec9cb85e36c8653f7e9132b47937586f2fbc78689749"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-detail-dash",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-dash-light-412.png",
+        "sha256": "2f15d08e22127ded9d1911422b3c999f5c21ff91e0eb93484c426a48cdf58982"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-dash-light-412-viewport.png",
+        "sha256": "71a8637d8d46666ff1d07de4518af342d34a67cb540bd7efe60c3bebc97cf86c"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-detail",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-light-393.png",
+        "sha256": "f31392ee530b59cc877db0a8bc2d19a91a759051479580dc2509ce63262e1bf7"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-light-393-viewport.png",
+        "sha256": "f33d149257772619188717da8497dc91cbc2601fa313673aad68c237067f0627"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-detail",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-detail-light-412.png",
+        "sha256": "f0af13f87eecf59956bbbf60b39e8e60fc61c418a12b980b3d1b4ef203af6d8a"
+      },
+      {
+        "file": "batch-6/after/analytics-detail-light-412-viewport.png",
+        "sha256": "c2d7cd5bc9a0be03a6f8ce0ab330bd3aaa6c778c932ee304161a0431df6cb233"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-overview",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-overview-dark-393.png",
+        "sha256": "ff6641deac4d8b2b087cb971f6beba5c2466820d94ffa694e530ff8e46c23a1e"
+      },
+      {
+        "file": "batch-6/after/analytics-overview-dark-393-viewport.png",
+        "sha256": "c59f25658f4bc6364c933d70d979c48832e1241db0a4f27a1135d9d4ed9c8f8e"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-overview",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-overview-dark-412.png",
+        "sha256": "b94e0f0c0c679c90358000a3652ee5fad7d6a2472c5c2e13a3135e66e45fca13"
+      },
+      {
+        "file": "batch-6/after/analytics-overview-dark-412-viewport.png",
+        "sha256": "4fe33b9333e626adb43c20eb78ef2821329a44dcfe87047c2aa3f54b6474ec5d"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-overview",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-overview-light-393.png",
+        "sha256": "4ccf725fd8dd21ae0432059b2be01aa8312481d7f5b7378f6a813441deb77172"
+      },
+      {
+        "file": "batch-6/after/analytics-overview-light-393-viewport.png",
+        "sha256": "7cca3a3d462c13f1973a1d78f865ff1ec376ed17dc3bfb13e9b74849a49971ab"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "finch",
+    "state": "analytics-overview",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/analytics-overview-light-412.png",
+        "sha256": "51fc41dbd234811a9cdeaa0c99840b3121f89dfe1b2722a29dc2dbad41217ddf"
+      },
+      {
+        "file": "batch-6/after/analytics-overview-light-412-viewport.png",
+        "sha256": "0730a86ff6fabe99a2c1f124677548409cb7f9d085fe7661f49f54343814ff13"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-archived-empty",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-archived-empty-dark-393.png",
+        "sha256": "6f90dfd18b157652b82a73b7f62aaad8b392593b6215e68e68045f6e7283a37d"
+      },
+      {
+        "file": "batch-6/after/clients-archived-empty-dark-393-viewport.png",
+        "sha256": "6f90dfd18b157652b82a73b7f62aaad8b392593b6215e68e68045f6e7283a37d"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-archived-empty",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-archived-empty-dark-412.png",
+        "sha256": "e80d1afdcd05efc06a6e9298ae905b4b1d679fa9f180d12d9b019c8c1d4ab60b"
+      },
+      {
+        "file": "batch-6/after/clients-archived-empty-dark-412-viewport.png",
+        "sha256": "e80d1afdcd05efc06a6e9298ae905b4b1d679fa9f180d12d9b019c8c1d4ab60b"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-archived-empty",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-archived-empty-light-393.png",
+        "sha256": "1980cd341997eff183cc3418c555010e2ff9d2535aa92722413da9618c4441d7"
+      },
+      {
+        "file": "batch-6/after/clients-archived-empty-light-393-viewport.png",
+        "sha256": "1980cd341997eff183cc3418c555010e2ff9d2535aa92722413da9618c4441d7"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-archived-empty",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-archived-empty-light-412.png",
+        "sha256": "5c7c8bde0b431c03244c9dc246a3e1c78e558082f146fac615dd7eb3fca8a584"
+      },
+      {
+        "file": "batch-6/after/clients-archived-empty-light-412-viewport.png",
+        "sha256": "5c7c8bde0b431c03244c9dc246a3e1c78e558082f146fac615dd7eb3fca8a584"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-create-menu",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "OPEN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-create-menu-dark-393.png",
+        "sha256": "aeca7b88796fd663e4505e570f03e92484ff491ffdd106c6e3e89a0dc86fdd2e"
+      },
+      {
+        "file": "batch-6/after/clients-create-menu-dark-393-viewport.png",
+        "sha256": "aeca7b88796fd663e4505e570f03e92484ff491ffdd106c6e3e89a0dc86fdd2e"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-create-menu",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "OPEN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-create-menu-dark-412.png",
+        "sha256": "9914cf1baca371d5ee3311a5b129521f15320ad258b392b3072b39371f9789d8"
+      },
+      {
+        "file": "batch-6/after/clients-create-menu-dark-412-viewport.png",
+        "sha256": "9914cf1baca371d5ee3311a5b129521f15320ad258b392b3072b39371f9789d8"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-create-menu",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "OPEN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-create-menu-light-393.png",
+        "sha256": "9317abede35e33602ae17374b1d84eff18ad026143f524b5b3ec87af4ef6f019"
+      },
+      {
+        "file": "batch-6/after/clients-create-menu-light-393-viewport.png",
+        "sha256": "9317abede35e33602ae17374b1d84eff18ad026143f524b5b3ec87af4ef6f019"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-create-menu",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "OPEN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-create-menu-light-412.png",
+        "sha256": "79aea7fde20094d8780905ffdc49de9ba9407edc5dea7fce76599677f9ed0fa2"
+      },
+      {
+        "file": "batch-6/after/clients-create-menu-light-412-viewport.png",
+        "sha256": "79aea7fde20094d8780905ffdc49de9ba9407edc5dea7fce76599677f9ed0fa2"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-dark-393.png",
+        "sha256": "ced8d544640a1fe7064c844b26a4f06ed2265f2eba518fd3c69819906ff2632d"
+      },
+      {
+        "file": "batch-6/after/clients-dark-393-viewport.png",
+        "sha256": "ced8d544640a1fe7064c844b26a4f06ed2265f2eba518fd3c69819906ff2632d"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-dark-412.png",
+        "sha256": "400171756f5d4ef4606c6fc997b6fff9fd4c7eb99d784b41ef019b95cd738b83"
+      },
+      {
+        "file": "batch-6/after/clients-dark-412-viewport.png",
+        "sha256": "400171756f5d4ef4606c6fc997b6fff9fd4c7eb99d784b41ef019b95cd738b83"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-empty",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-empty-dark-393.png",
+        "sha256": "b9f4d9836fbb0c07b1b4f4e1ea5545be7cc3798a9e683f3a506d11fb1980451b"
+      },
+      {
+        "file": "batch-6/after/clients-empty-dark-393-viewport.png",
+        "sha256": "b9f4d9836fbb0c07b1b4f4e1ea5545be7cc3798a9e683f3a506d11fb1980451b"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-empty",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-empty-dark-412.png",
+        "sha256": "362534d2a86ad82e76a379485995edbde86d49362a8a79d40ddeb51664237b83"
+      },
+      {
+        "file": "batch-6/after/clients-empty-dark-412-viewport.png",
+        "sha256": "362534d2a86ad82e76a379485995edbde86d49362a8a79d40ddeb51664237b83"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-empty",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-empty-light-393.png",
+        "sha256": "c5d9206d342480ebf9b5b1b6c9851daf502856b8c5073e67915b467ea90070cc"
+      },
+      {
+        "file": "batch-6/after/clients-empty-light-393-viewport.png",
+        "sha256": "c5d9206d342480ebf9b5b1b6c9851daf502856b8c5073e67915b467ea90070cc"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-empty",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-empty-light-412.png",
+        "sha256": "f961f7be294ae6a421630a0619787cf35dfde25221323f656ec9141fdcf23991"
+      },
+      {
+        "file": "batch-6/after/clients-empty-light-412-viewport.png",
+        "sha256": "f961f7be294ae6a421630a0619787cf35dfde25221323f656ec9141fdcf23991"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-light-393.png",
+        "sha256": "eee49cbe64c00855eb2f871da67f5717bb08b3839c7033d79447a8597e53a1a0"
+      },
+      {
+        "file": "batch-6/after/clients-light-393-viewport.png",
+        "sha256": "eee49cbe64c00855eb2f871da67f5717bb08b3839c7033d79447a8597e53a1a0"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-light-412.png",
+        "sha256": "98160ffcb24e7c8aafbbcb28617ee209d9c4361b9f222fd83280084244186eed"
+      },
+      {
+        "file": "batch-6/after/clients-light-412-viewport.png",
+        "sha256": "98160ffcb24e7c8aafbbcb28617ee209d9c4361b9f222fd83280084244186eed"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-loading",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-loading-dark-393.png",
+        "sha256": "9acf26ab3b3d020fcab1f172370ec83889b19d302f7b04f893c9e2a743aa4105"
+      },
+      {
+        "file": "batch-6/after/clients-loading-dark-393-viewport.png",
+        "sha256": "9acf26ab3b3d020fcab1f172370ec83889b19d302f7b04f893c9e2a743aa4105"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-loading",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-loading-dark-412.png",
+        "sha256": "b7e30be99526a96a44a5f6ee060cf8003d671caf62b95b49a20192f12738f2db"
+      },
+      {
+        "file": "batch-6/after/clients-loading-dark-412-viewport.png",
+        "sha256": "b7e30be99526a96a44a5f6ee060cf8003d671caf62b95b49a20192f12738f2db"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-loading",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-loading-light-393.png",
+        "sha256": "6d5e1a9c2bf902db0f86be64210c23b1a342426ea61aae9325c7a6fed671eec5"
+      },
+      {
+        "file": "batch-6/after/clients-loading-light-393-viewport.png",
+        "sha256": "6d5e1a9c2bf902db0f86be64210c23b1a342426ea61aae9325c7a6fed671eec5"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-loading",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-loading-light-412.png",
+        "sha256": "be6ca27d746019fed4a89ba6879b936927afb8294cc5ad7b33f9c19911d5aa5d"
+      },
+      {
+        "file": "batch-6/after/clients-loading-light-412-viewport.png",
+        "sha256": "be6ca27d746019fed4a89ba6879b936927afb8294cc5ad7b33f9c19911d5aa5d"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-list-menu",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-list-menu-dark-393.png",
+        "sha256": "52ffc49ede05c01a5789f96db5646f0632a3d75bfb8063141feb7d3fc2f2e550"
+      },
+      {
+        "file": "batch-6/after/clients-list-menu-dark-393-viewport.png",
+        "sha256": "52ffc49ede05c01a5789f96db5646f0632a3d75bfb8063141feb7d3fc2f2e550"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-list-menu",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-list-menu-dark-412.png",
+        "sha256": "5287da2f97fece74172d24289c77b8c834b5897392e5399023ec98894894a67d"
+      },
+      {
+        "file": "batch-6/after/clients-list-menu-dark-412-viewport.png",
+        "sha256": "5287da2f97fece74172d24289c77b8c834b5897392e5399023ec98894894a67d"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-list-menu",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-list-menu-light-393.png",
+        "sha256": "b9636d74baf9e933c40b1bad879410c212b30ccb499e9ca1bfb64428e02cbc63"
+      },
+      {
+        "file": "batch-6/after/clients-list-menu-light-393-viewport.png",
+        "sha256": "b9636d74baf9e933c40b1bad879410c212b30ccb499e9ca1bfb64428e02cbc63"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-list-menu",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-list-menu-light-412.png",
+        "sha256": "97990f0d2eb0343b630f11435409477208e0b85a3b7a852f8cd2795ec868080b"
+      },
+      {
+        "file": "batch-6/after/clients-list-menu-light-412-viewport.png",
+        "sha256": "97990f0d2eb0343b630f11435409477208e0b85a3b7a852f8cd2795ec868080b"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-search-menu",
+    "width": 393,
+    "height": 852,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-search-menu-dark-393.png",
+        "sha256": "fe68ebcc44948157f38e5ef909afa5b4f16f4931ce872ed7ea020ed8adc82434"
+      },
+      {
+        "file": "batch-6/after/clients-search-menu-dark-393-viewport.png",
+        "sha256": "fe68ebcc44948157f38e5ef909afa5b4f16f4931ce872ed7ea020ed8adc82434"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-search-menu",
+    "width": 412,
+    "height": 915,
+    "theme": "dark",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-search-menu-dark-412.png",
+        "sha256": "05635a95528ea810e16a4b5105bb38ed5a747a3aedc41aca952463fed5326272"
+      },
+      {
+        "file": "batch-6/after/clients-search-menu-dark-412-viewport.png",
+        "sha256": "05635a95528ea810e16a4b5105bb38ed5a747a3aedc41aca952463fed5326272"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-search-menu",
+    "width": 393,
+    "height": 852,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-search-menu-light-393.png",
+        "sha256": "634a38ed02072dae7dfbc3d4b2da37ae6fb1d47f6eaa0150bced59fb06862701"
+      },
+      {
+        "file": "batch-6/after/clients-search-menu-light-393-viewport.png",
+        "sha256": "634a38ed02072dae7dfbc3d4b2da37ae6fb1d47f6eaa0150bced59fb06862701"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  },
+  {
+    "lane": "admin",
+    "state": "clients-search-menu",
+    "width": 412,
+    "height": 915,
+    "theme": "light",
+    "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+    "reviewer": "Prism",
+    "verdict": "CLEAN",
+    "files": [
+      {
+        "file": "batch-6/after/clients-search-menu-light-412.png",
+        "sha256": "fec58950336b8f29388c077f54d23a1e2c6a2700387a7107bdf7bb4577bba57c"
+      },
+      {
+        "file": "batch-6/after/clients-search-menu-light-412-viewport.png",
+        "sha256": "fec58950336b8f29388c077f54d23a1e2c6a2700387a7107bdf7bb4577bba57c"
+      }
+    ],
+    "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+  "generatedIndexHash": "b6d77faf1ff2320f3b4406dedc37bc6ce4c82f8815a66720f1ed4ccd3d6678c7",
+  "beforeHead": "00e792f4c22dc87a78757df0b7720001bcf3428d",
+  "beforeSourceHash": "74d12c38f56ca2735674de468989ced836694b617ef36adf6aa489bba87ba2c4",
+  "productHead": "b6daa023bad5f848a25cc341790bb878727b5463",
+  "mainIntegrated": "59085d9446eb3a80f0dc02f24ea94b1bcd4b0d52",
+  "pr2008MergedAt": "2026-10-08T23:51:43Z",
+  "safety": "Fictional identities and intercepted transports only; no live writes, database changes, n8n edits or merge by Prism."
+}

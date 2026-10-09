@@ -21,7 +21,7 @@ const fixtureNow = new Date();
 const cases = [
   ...['today-rings','today-all-clear','today-loading','today-editor-all-clear'].flatMap(name => ['light','dark'].map(theme=>({name,theme}))),
   ...['calendar-notes','samples-notes','samples-notes-unlinked'].flatMap(name => [false,true].map(warm=>({name,theme:'light',warm}))),
-  ...['analytics-loading','workload-loading','tiktok-client-ready'].flatMap(name=>['light','dark'].flatMap(theme=>[false,true].map(warm=>({name,theme,warm,finch:true})))),
+  ...['analytics-loading','analytics-overview','analytics-detail','analytics-detail-dash','workload-loading','tiktok-client-ready'].flatMap(name=>['light','dark'].flatMap(theme=>[false,true].map(warm=>({name,theme,warm,finch:true})))),
 ].filter(test => !arg('only') || new RegExp(arg('only')).test(test.name));
 assert(cases.length, 'No native parity cases selected');
 async function renderFinch(build,test) {
@@ -36,7 +36,11 @@ async function renderFinch(build,test) {
   try {
     await page.waitForTimeout(scenario.settle||2000);
     trace('settled');
-    if(scenario.steps) await scenario.steps(page);
+    if(/^analytics-detail/.test(test.name)) {
+      const link=test.warm?'.card-client-link':'.overview-table a.client-name-link';
+      await page.locator(link,{hasText:test.name.endsWith('dash')?'Client C':'Client A'}).first().click();
+      await page.waitForTimeout(2200);
+    } else if(scenario.steps) await scenario.steps(page);
     if(test.warm) await page.setViewportSize({width:1440,height:900});
     await page.addStyleTag({content:freeze});
     trace('waiting for fonts');
@@ -49,7 +53,7 @@ async function renderFinch(build,test) {
     trace('captured');
     const styles=await page.evaluate(()=>Array.from(document.body.querySelectorAll('*')).map(n=>{const s=getComputedStyle(n);return [n.tagName,n.id,n.className,Array.from(s).sort().map(p=>[p,s.getPropertyValue(p).replaceAll(location.origin,'__FIXTURE_ORIGIN__')])];}));
     return {png,styles,styleHash:digest(JSON.stringify(styles))};
-  } finally {await run.close();}
+  } finally {trace('closing fixture');await run.close();trace('fixture closed');}
 }
 async function render(browser, origin, build, test) {
   if(test.finch) return renderFinch(build,test);

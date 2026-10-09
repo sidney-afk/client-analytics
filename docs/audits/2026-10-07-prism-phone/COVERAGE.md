@@ -136,18 +136,20 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Clients | staff / admin | client-manager-change-actions | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | client-manager-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / admin | client-research-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | clients | normal | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-archived-empty | empty | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | Clients | staff / discovery | clients-create-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / discovery | clients-create-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / discovery | clients-create-manager-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | clients-create-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Clients | staff / discovery | clients-create-open | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients-list-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Clients | staff / admin | clients-search-menu | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Clients | staff / admin | clients-empty | empty | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-list-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-loading | loading | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Clients | staff / admin | clients-search-menu | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | TikTok upload | staff / finch | tiktok-cancel-confirm | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| TikTok upload | staff / finch | tiktok-client-ready | normal | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
-| TikTok upload | staff / finch | tiktok-client-search | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| TikTok upload | staff / finch | tiktok-client-ready | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| TikTok upload | staff / finch | tiktok-client-search | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-no-account | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | TikTok upload | staff / finch | tiktok-options | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
@@ -170,12 +172,12 @@ Earlier galleries and coverage are historical proof. No 375/390/430 acceptance t
 | Analytics | client / client-links-expanded | analytics-single | normal | OPEN | not used | OPEN | not used | OPEN | not used |
 | Analytics | client / client-links-expanded | analytics-tabs | menus/sheets open | OPEN | not used | OPEN | not used | OPEN | not used |
 | Analytics | staff / finch | analytics-client-picker | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Analytics | staff / finch | analytics-detail | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Analytics | staff / finch | analytics-detail-dash | menus/sheets open | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Analytics | staff / finch | analytics-detail | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
+| Analytics | staff / finch | analytics-detail-dash | menus/sheets open | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | Analytics | staff / finch | analytics-empty | empty | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-grid | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-loading | loading | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
-| Analytics | staff / finch | analytics-overview | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
+| Analytics | staff / finch | analytics-overview | normal | OPEN | OPEN | CLEAN | CLEAN | CLEAN | CLEAN |
 | Analytics | staff / finch | analytics-pin | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-search | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |
 | Analytics | staff / finch | analytics-week | normal | OPEN | OPEN | OPEN | OPEN | OPEN | OPEN |

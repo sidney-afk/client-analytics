@@ -1,0 +1,938 @@
+{
+  "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
+  "checks": [
+    {
+      "check": "analytics-after-2",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "ok analytics-detail-dash 412 light",
+        "ok analytics-detail-dash 412 dark",
+        "staff-phone-final-pass: 8 renders, 4 problems"
+      ],
+      "logSha256": "98b2fd93438fcda0bbb12d705794660d636dab2764963f23039b8b678de6382b"
+    },
+    {
+      "check": "analytics-after-3",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "ok analytics-detail-dash 412 light",
+        "ok analytics-detail-dash 412 dark",
+        "staff-phone-final-pass: 12 renders, 0 problems"
+      ],
+      "logSha256": "e3b77136175bd96d680800a0752aef598e2abdba45f373a0c191fb55c2186e86"
+    },
+    {
+      "check": "analytics-after",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "ok analytics-detail-dash 412 light",
+        "ok analytics-detail-dash 412 dark",
+        "staff-phone-final-pass: 12 renders, 0 problems"
+      ],
+      "logSha256": "e3b77136175bd96d680800a0752aef598e2abdba45f373a0c191fb55c2186e86"
+    },
+    {
+      "check": "analytics-before",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "FAIL analytics-detail-dash 412 light: Analytics supporting text below 13px or 4.5 contrast: [{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.831455715675823},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.831455715675823},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.908644000811509},{\"selector\":\"gain-delta down\",\"font\":10.72,\"opacity\":1,\"contrast\":4.414806900342339},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.908644000811509},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.968946131645285},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.968946131645285},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257}]",
+        "FAIL analytics-detail-dash 412 dark: Analytics supporting text below 13px or 4.5 contrast: [{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":9.378089905972805},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":9.989693166210316},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":9.378089905972805},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":9.989693166210316},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":9.383105390868858},{\"selector\":\"gain-delta down\",\"font\":10.72,\"opacity\":1,\"contrast\":5.928521225923846},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":9.383105390868858},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":9.989693166210316},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":9.546050598882886},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":9.989693166210316},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":9.546050598882886},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":9.989693166210316}]",
+        "staff-phone-final-pass: 12 renders, 12 problems"
+      ],
+      "logSha256": "cc07a65c8b480a5c112f44ff394e4a91a9bb9cf4a7b5c54fe19c200337757696"
+    },
+    {
+      "check": "analytics-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "ok analytics-detail-dash 412 light",
+        "ok analytics-detail-dash 412 dark",
+        "staff-phone-final-pass: 12 renders, 0 problems"
+      ],
+      "logSha256": "e3b77136175bd96d680800a0752aef598e2abdba45f373a0c191fb55c2186e86"
+    },
+    {
+      "check": "analytics-legacy",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "ok analytics-empty 430 light",
+        "ok analytics-empty 430 dark",
+        "staff-phone-final-pass: 36 renders, 0 problems"
+      ],
+      "logSha256": "87a789d57ba7d7344311319cffc96f8e62e708e4b67c8dc299eba56d78ad3b9f"
+    },
+    {
+      "check": "analytics-main-guard",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "FAIL analytics-detail-dash 393 light: Analytics supporting text below 13px or 4.5 contrast: [{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.831455715675823},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.831455715675823},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.908644000811509},{\"selector\":\"gain-delta down\",\"font\":10.72,\"opacity\":1,\"contrast\":4.414806900342339},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.908644000811509},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.968946131645285},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257},{\"selector\":\"gain-chip-label\",\"font\":12,\"opacity\":1,\"contrast\":4.968946131645285},{\"selector\":\"gain-delta up\",\"font\":10.72,\"opacity\":1,\"contrast\":3.000874450387257}]; Analytics chart labels below 13px or 4.5 contrast: [{\"chart\":\"growthChart\",\"axis\":\"x\",\"font\":11,\"color\":\"#b4b4ae\",\"contrast\":2.083258629167868},{\"chart\":\"growthChart\",\"axis\":\"y\",\"font\":11,\"color\":\"#b4b4ae\",\"contrast\":2.083258629167868},{\"chart\":\"viewsChart\",\"axis\":\"x\",\"font\":11,\"color\":\"#b4b4ae\",\"contrast\":2.083258629167868},{\"chart\":\"viewsChart\",\"axis\":\"y0\",\"font\":11,\"color\":\"#b4b4ae\",\"contrast\":2.083258629167868}]",
+        "staff-phone-final-pass: 1 renders, 2 problems"
+      ],
+      "logSha256": "c94d780a50c5cfcb87fbe5a29a64f824dd998e8cc75848938990631a48bc99dd"
+    },
+    {
+      "check": "build-index-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "build-index: js/sv-16-kasper-b8d85a92cdc1.js (334128 bytes)",
+        "build-index: wrote index.html (1326731 bytes) from 67 fragment(s)",
+        "build-index: wrote src/index/INDEX.md"
+      ],
+      "logSha256": "4e74080f3f2772aa6276e5cc172541b451304c07f809b483f122728923961bef"
+    },
+    {
+      "check": "build-index-3",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "build-index: js/sv-16-kasper-b8d85a92cdc1.js (334128 bytes)",
+        "build-index: wrote index.html (1326731 bytes) from 67 fragment(s)",
+        "build-index: wrote src/index/INDEX.md"
+      ],
+      "logSha256": "6da058c605479f303f4d2b8b7eb2f347e2911be0171d29213bc96f74dbbdc1d7"
+    },
+    {
+      "check": "build-index",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "build-index: js/sv-16-kasper-b8d85a92cdc1.js (334128 bytes)",
+        "build-index: wrote index.html (1326729 bytes) from 67 fragment(s)",
+        "build-index: wrote src/index/INDEX.md"
+      ],
+      "logSha256": "6f229fe62b8e99b607dad4336f3af381506118ce6b79f1e4a91f56469b77e8b1"
+    },
+    {
+      "check": "build-main",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "build-index: js/sv-16-kasper-3c2556c1f94b.js (334323 bytes)",
+        "build-index: wrote index.html (1326731 bytes) from 67 fragment(s)",
+        "build-index: wrote src/index/INDEX.md"
+      ],
+      "logSha256": "ed6952d62f9e4f3330312947deb8e0d2fc40413ca21b398218d25d042ae3e85d"
+    },
+    {
+      "check": "byte-pins-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "byte-pinned line endings vs origin/main: 106 pinned, 0 touched by this change",
+        "  OK    no byte-pinned file changed its line-ending composition"
+      ],
+      "logSha256": "f7a57513322a1afd8eeb0f6c7284f619d1d87a24e14cd204b19a7a78bcbfe80b"
+    },
+    {
+      "check": "client-calendar-expanded-browser-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "client-calendar-expanded: OK (1566 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 393/412; requested light, effective client light)."
+      ],
+      "logSha256": "22e948fe0a5745ae06d207c5ef21fc9671fb1419790beb04a06f7ce0dc65d55e"
+    },
+    {
+      "check": "client-calendar-expanded-browser",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "client-calendar-expanded: OK (1566 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 393/412; requested light, effective client light)."
+      ],
+      "logSha256": "22e948fe0a5745ae06d207c5ef21fc9671fb1419790beb04a06f7ce0dc65d55e"
+    },
+    {
+      "check": "client-calendar-legacy",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "client-calendar-expanded: OK (783 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360; requested light, effective client light)."
+      ],
+      "logSha256": "1cf014dde865c79a28c97a9335fe8ca84652f41c97b043f2c73e92e7b100ee6a"
+    },
+    {
+      "check": "client-links-expanded-browser-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "client-links-expanded: OK (1028 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 393/412; requested light, effective client light)."
+      ],
+      "logSha256": "08ac0deaec31654cb61e985117f461dc0a9d9e31161773a21d6de867da17f5b9"
+    },
+    {
+      "check": "client-links-expanded-browser",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "client-links-expanded: OK (1028 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 393/412; requested light, effective client light)."
+      ],
+      "logSha256": "08ac0deaec31654cb61e985117f461dc0a9d9e31161773a21d6de867da17f5b9"
+    },
+    {
+      "check": "client-phone-css-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width: <=767px) and html.boot-client)"
+      ],
+      "logSha256": "8406a46e77e6737792eacb1cb10782095db2bc20217067780a0ca718109401a6"
+    },
+    {
+      "check": "client-phone-css-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width: <=767px) and html.boot-client)"
+      ],
+      "logSha256": "8406a46e77e6737792eacb1cb10782095db2bc20217067780a0ca718109401a6"
+    },
+    {
+      "check": "clients-after-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 20 native states; 364 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "5afbc2c968e901f599135050b534628fd5b1b696e81b33d86d7a30d4078eaa21"
+    },
+    {
+      "check": "clients-after",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 20 native states; 336 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "f5e18c8eca2d4138bc9c16c9a0b4d2c28e8374cf49b086ca9a301564c4cd5fb7"
+    },
+    {
+      "check": "clients-before-corrected",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "FAIL clients-empty: phone guidance returns without navigating or changing rows",
+        "FAIL clients-archived-empty: empty guidance points to an available native action",
+        "FAIL clients-archived-empty: phone guidance returns without navigating or changing rows"
+      ],
+      "logSha256": "f9ce2877ba526f27cd94c9b8baac80c2fd0f1d0ea3b332ac2402a66a80aa8cf4"
+    },
+    {
+      "check": "clients-before",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "FAIL clients-empty: phone guidance returns without navigating or changing rows",
+        "FAIL clients-archived-empty: empty guidance points to an available native action",
+        "FAIL clients-archived-empty: phone guidance returns without navigating or changing rows"
+      ],
+      "logSha256": "700881743613cfb26cf028edd4ce2657cad119c757025f3b57773a3c4629b9e8"
+    },
+    {
+      "check": "clients-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 28 native states; 764 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "45d0486db47d86b65ed9b2d146ff3aabaa831671a64245c6c11d729b430d32c4"
+    },
+    {
+      "check": "clients-legacy",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 42 native states; 1104 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "e82915284855a941a380656cbd3dfd21b22b870675e8af84a577e200ee0d0d6f"
+    },
+    {
+      "check": "clients-menus-accepted",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 412 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "ec5362f5e3c6883183df7669389f45c1ebd677ca6c87b14f90a1adf9bff2e87a"
+    },
+    {
+      "check": "clients-menus-after-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 404 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "2412680b99285aef9fa6956156d4770d773938cc7459019733c1147eb4bdf4a6"
+    },
+    {
+      "check": "clients-menus-after",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 404 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "2412680b99285aef9fa6956156d4770d773938cc7459019733c1147eb4bdf4a6"
+    },
+    {
+      "check": "clients-menus-before-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 32 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "7197642c9291915d613d2b2cb23b4f309a53a797aab1177b2738a72735b81dff"
+    },
+    {
+      "check": "clients-menus-before",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 32 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "7197642c9291915d613d2b2cb23b4f309a53a797aab1177b2738a72735b81dff"
+    },
+    {
+      "check": "clients-menus-final-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 404 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "2412680b99285aef9fa6956156d4770d773938cc7459019733c1147eb4bdf4a6"
+    },
+    {
+      "check": "clients-menus-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 404 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "2412680b99285aef9fa6956156d4770d773938cc7459019733c1147eb4bdf4a6"
+    },
+    {
+      "check": "clients-mockup",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 12 native states; 12 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "8092dbf328dd29960b55a0e490b0c22fa88998a7510b0db4dfaf39e787109be1"
+    },
+    {
+      "check": "coverage-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "PHONE_COVERAGE: 187 scoped native states; 933 device/theme cells; 85 discovery obligations; 36 clean cells"
+      ],
+      "logSha256": "38f97bab5d28c97229e5527dee7c1721ee10eaa56780da33e6c0ad8eef2581cd"
+    },
+    {
+      "check": "coverage-3",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "PHONE_COVERAGE: 187 scoped native states; 933 device/theme cells; 85 discovery obligations; 32 clean cells"
+      ],
+      "logSha256": "c95d55520a1456c07b39f83fceaa2374ab12ef14199c1e03d8f8a4dd96d9cf26"
+    },
+    {
+      "check": "coverage-final-reset",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "PHONE_COVERAGE: 187 scoped native states; 933 device/theme cells; 85 discovery obligations; 0 clean cells"
+      ],
+      "logSha256": "4a22ba47947198d2d66d7978df7173de9b20e07409565f7194e3f72a287be406"
+    },
+    {
+      "check": "coverage-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "PHONE_COVERAGE: 187 scoped native states; 933 device/theme cells; 85 discovery obligations; 36 clean cells"
+      ],
+      "logSha256": "38f97bab5d28c97229e5527dee7c1721ee10eaa56780da33e6c0ad8eef2581cd"
+    },
+    {
+      "check": "coverage",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "PHONE_COVERAGE: 187 scoped native states; 933 device/theme cells; 85 discovery obligations; 0 clean cells"
+      ],
+      "logSha256": "4a22ba47947198d2d66d7978df7173de9b20e07409565f7194e3f72a287be406"
+    },
+    {
+      "check": "desktop-all-staff-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "ok   staff-navKasper @1440: pixels identical, computed styles identical (899cf4463584)",
+        "ok   staff-time-off @1440: pixels identical, computed styles identical (79e48f1e84df)",
+        "12/12 desktop shots identical to 59085d9446eb3a80f0dc02f24ea94b1bcd4b0d52"
+      ],
+      "logSha256": "30f3318483e7aae2d92a5aec2f3ed551b133454e05c4eb5429be7640e3cac5b1"
+    },
+    {
+      "check": "desktop-all-staff",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "ok   staff-navKasper @1440: pixels identical, computed styles identical (da837a3787f9)",
+        "ok   staff-time-off @1440: pixels identical, computed styles identical (79e48f1e84df)",
+        "12/12 desktop shots identical to 00e792f4c22dc87a78757df0b7720001bcf3428d"
+      ],
+      "logSha256": "05536f7d336728f6b38491e5419c5b368fbcb29c3824ccc46a657fc8b3b5d2f4"
+    },
+    {
+      "check": "desktop-analytics-2",
+      "status": "TERMINATED_NO_VERDICT",
+      "lastLines": [
+        "Finch parity analytics-overview before warm: captured",
+        "Finch parity analytics-overview after warm: opening",
+        "Finch parity analytics-overview after warm: booted"
+      ],
+      "logSha256": "0c6585461fa324bc83693c09498550fa8fc9005e97b682b61ae954ab01773bea"
+    },
+    {
+      "check": "desktop-analytics-3",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "Finch parity analytics-detail-dash after warm: fixture closed",
+        "ok analytics-detail-dash-dark-warm: desktop pixels and computed styles identical",
+        "FIXTURE_DESKTOP_PARITY: 12/12 exact 1440 desktop pairs; native Today/Notes/Analytics/Workload/TikTok fixtures; cold and phone-to-desktop; no live writes."
+      ],
+      "logSha256": "09256fed99427ec8dc655555ae3dda53c2a21e9a3e3fb873cdec3a0b1bf2d83a"
+    },
+    {
+      "check": "desktop-analytics-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "ok analytics-detail-dash-dark-cold: desktop pixels and computed styles identical",
+        "ok analytics-detail-dash-dark-warm: desktop pixels and computed styles identical",
+        "FIXTURE_DESKTOP_PARITY: 12/12 exact 1440 desktop pairs; native Today/Notes/Analytics/Workload/TikTok fixtures; cold and phone-to-desktop; no live writes."
+      ],
+      "logSha256": "81c0736dab69f6bb29e2f33ec4559b75eb0130ab955685a374fad626fa0eba1c"
+    },
+    {
+      "check": "desktop-analytics",
+      "status": "TERMINATED_NO_VERDICT",
+      "lastLines": [
+        "ok analytics-loading-light-cold: desktop pixels and computed styles identical",
+        "ok analytics-loading-light-warm: desktop pixels and computed styles identical"
+      ],
+      "logSha256": "c01dee9b9504c4c37bdf3555b2db96dad6fa78fa20b883912ab0bd481961fac3"
+    },
+    {
+      "check": "desktop-clients-cold-after-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "desktop-clients-cold-after-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "desktop-clients-cold-before-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "desktop-clients-cold-before-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "desktop-clients-cold-before",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 8 native states; 2 checks; 2 failures; fictional data; no live writes.",
+        "FAIL clients-create-menu light 1440: locator.tap: The page does not support tap. Use hasTouch context option to enable touch support.",
+        "FAIL clients-create-menu dark 1440: locator.tap: The page does not support tap. Use hasTouch context option to enable touch support."
+      ],
+      "logSha256": "054faa0718a5a97645c789c5bcdb7a51e4ef148b60fd91c1661ec236586cf065"
+    },
+    {
+      "check": "desktop-clients-compare-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "CLIENTS_DESKTOP_PARITY: 20/20 exact 1440 desktop pairs against integrated main; cold and phone-to-desktop; pixels and computed styles identical."
+      ],
+      "logSha256": "ce4fff81886c3e6252e150b6d12bed3f2aaa7486d2655f9deddb668f368de61c"
+    },
+    {
+      "check": "desktop-clients-compare",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "CLIENTS_DESKTOP_PARITY: 20/20 exact 1440 desktop pairs; native normal/empty/archived/loading/New client; cold and phone-to-desktop; pixels and computed styles identical."
+      ],
+      "logSha256": "f92500c1c189d14ed5c79d03bd60bc923177daec351799e42708e9f86ed4fcb8"
+    },
+    {
+      "check": "desktop-clients-warm-after-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "desktop-clients-warm-after-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "desktop-clients-warm-before-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "desktop-clients-warm-before-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_EXPANDED: 10 native states; 4 checks; 0 failures; fictional data; no live writes."
+      ],
+      "logSha256": "de8c474b690a1d9e7bf719d2332837c20753105abe868a95474c7d777e3a0605"
+    },
+    {
+      "check": "evidence-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "BATCH_6_EVIDENCE: 40 native before/after pairs; 40 personally reviewed cells; 32 CLEAN; 8 OPEN; full round not accepted."
+      ],
+      "logSha256": "4255ea54804d9ece4452d2a1babc022d1a98a3b519153e262591cd42ca723669"
+    },
+    {
+      "check": "evidence-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "BATCH_6_EVIDENCE: 40 native before/after pairs; 40 personally reviewed cells; 36 CLEAN; 4 OPEN; full round not accepted."
+      ],
+      "logSha256": "b98dff681148ee031ea87ddadf748d3f3cfe2ed606b63d1933ff0aa3f671c34f"
+    },
+    {
+      "check": "evidence",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "BATCH_6_EVIDENCE: 40 native before/after pairs; 40 personally reviewed cells; 36 CLEAN; 4 OPEN; full round not accepted."
+      ],
+      "logSha256": "b98dff681148ee031ea87ddadf748d3f3cfe2ed606b63d1933ff0aa3f671c34f"
+    },
+    {
+      "check": "fetch-main",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "From https://github.com/sidney-afk/client-analytics",
+        " * branch              main       -> FETCH_HEAD",
+        "   00e792f4..59085d94  main       -> origin/main"
+      ],
+      "logSha256": "1ba1a581998f1509d21054dffc72bfcd1c806c8f6494509babe5140ca051fb71"
+    },
+    {
+      "check": "fetch-push-gate",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "From https://github.com/sidney-afk/client-analytics",
+        " * branch              main       -> FETCH_HEAD"
+      ],
+      "logSha256": "45e58163e2e98b2b20d242754179c5ee00462044a8616b5f168954e51d37c572"
+    },
+    {
+      "check": "finch-phone-css-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "finch-phone-css-scope: OK (1 block(s), 413 braces, all under @media (max-width: <=767px) and html.fph-on)"
+      ],
+      "logSha256": "4cfb466544853c4e864456595bb3e9385594148a781ef20fcdb066541e838ee2"
+    },
+    {
+      "check": "finch-phone-css-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "finch-phone-css-scope: OK (1 block(s), 413 braces, all under @media (max-width: <=767px) and html.fph-on)"
+      ],
+      "logSha256": "4cfb466544853c4e864456595bb3e9385594148a781ef20fcdb066541e838ee2"
+    },
+    {
+      "check": "finch-phone-css-scope",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "  operator: 'deepStrictEqual'",
+        "}",
+        "Node.js v22.12.0"
+      ],
+      "logSha256": "ba12f96b7420788e22b78cde64576a0945e6f82f83b223558e2dd81bd7cf315f"
+    },
+    {
+      "check": "identity-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [],
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "index-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "check-index: working-tree index.html \u2014 sha256=8fd2943f2efb16304250a9cc3d3d48d695313bbbafd7794f829b1e726bb1358d bytes=1326731",
+        "check-index: committed index.html (HEAD) \u2014 sha256=8fd2943f2efb16304250a9cc3d3d48d695313bbbafd7794f829b1e726bb1358d bytes=1326731",
+        "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+      ],
+      "logSha256": "7d3fe482f456ae1a715db616c29e74909cde4f3f13f4fbc29f1b7cac5cc68462"
+    },
+    {
+      "check": "index-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "check-index: working-tree index.html \u2014 sha256=b6d77faf1ff2320f3b4406dedc37bc6ce4c82f8815a66720f1ed4ccd3d6678c7 bytes=1326731",
+        "check-index: committed index.html (HEAD) \u2014 sha256=b6d77faf1ff2320f3b4406dedc37bc6ce4c82f8815a66720f1ed4ccd3d6678c7 bytes=1326731",
+        "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+      ],
+      "logSha256": "e72651694d4b81b95e2f36c4c9f56c008ccf3b4d0fe97597dd765d5c82326337"
+    },
+    {
+      "check": "index",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "check-index: FAIL \u2014 assembled bytes do not equal committed index.html (HEAD)",
+        "check-index: FAIL \u2014 working-tree index.html does not equal committed index.html (HEAD)",
+        "check-index: FAILED"
+      ],
+      "logSha256": "3c772e2abeb02446e541dbb78f422a3fc1c6ea5362d1d81d56a54a8a3838cebb"
+    },
+    {
+      "check": "kasper-admin-expanded-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_SCOPE: 289 rules; all capped at 767px and owned marker; widened/unscoped rules rejected."
+      ],
+      "logSha256": "4991bc2575298251a9f3f0d2436dc6b9c6bb4d580a9b5bc4f1eff4eb423f454a"
+    },
+    {
+      "check": "kasper-admin-expanded-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "KASPER_ADMIN_SCOPE: 289 rules; all capped at 767px and owned marker; widened/unscoped rules rejected."
+      ],
+      "logSha256": "4991bc2575298251a9f3f0d2436dc6b9c6bb4d580a9b5bc4f1eff4eb423f454a"
+    },
+    {
+      "check": "kasper-admin-phone-css-scope-final",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "  requireStack: []",
+        "}",
+        "Node.js v22.12.0"
+      ],
+      "logSha256": "f51f16f4e75bef8104abbe18f001307ba82a6ad056c11f4258d9beeacd4a07fc"
+    },
+    {
+      "check": "kasper-phone-css-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)"
+      ],
+      "logSha256": "acdad20225873965ae428950f1554dcaf525be840a5711855671d2022367a3be"
+    },
+    {
+      "check": "kasper-phone-css-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)"
+      ],
+      "logSha256": "acdad20225873965ae428950f1554dcaf525be840a5711855671d2022367a3be"
+    },
+    {
+      "check": "main-assurance",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "  ok  Instagram: so does one with a video attached",
+        "  ok  Instagram: a form with no client takes the top-bar client, as before",
+        "assurance-cycle2-remaining: all checks passed"
+      ],
+      "logSha256": "a2f07f14eeee9aba198503bba09665f1055bc79eb1fadd4e8a9652be28d6dece"
+    },
+    {
+      "check": "main-commit",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "[codex/prism-phone-batch-6 b6daa023] Merge current main into phone batch 6 and rebuild generated page"
+      ],
+      "logSha256": "8739545dc78fb37d257f9b1095b9d32212aeb8eb095870be61deda264f149fb2"
+    },
+    {
+      "check": "merge-main",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "Auto-merging src/index/INDEX.md",
+        "CONFLICT (content): Merge conflict in src/index/INDEX.md",
+        "Automatic merge failed; fix conflicts and then commit the result."
+      ],
+      "logSha256": "776874c129e7c64e346f1f3953f62b51a75d35d628467f3005b0e1d1a8d82074"
+    },
+    {
+      "check": "mockup-detail-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "EXPANDED_MOCKUP_PREPARATION: 4 native draft cells; zero page errors; zero writes; current main shell, injected draft presentation only."
+      ],
+      "logSha256": "a4c7296ed7271d00f37f3ba7a3dc39d2e7c66487285002aa1fee5d2dd11665d1"
+    },
+    {
+      "check": "mockup",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "EXPANDED_MOCKUP_PREPARATION: 8 native draft cells; zero page errors; zero writes; current main shell, injected draft CSS only."
+      ],
+      "logSha256": "069e43a0d88d8e8aa78f1605798d1c1c6a93bc831b6767748905fed65f653757"
+    },
+    {
+      "check": "modules-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "typeof guards in modules: 523; unresolvable: 0",
+        "minified parts: 19 files, 2687 KB, 5263 top-level names, 0 lost, 0 changed kind",
+        "check-modules: all checks passed"
+      ],
+      "logSha256": "fe4be0f2c46e877fff6352622307fba8f67841995f350895461e029c627dc27d"
+    },
+    {
+      "check": "modules",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "typeof guards in modules: 523; unresolvable: 0",
+        "minified parts: 19 files, 2686 KB, 5263 top-level names, 0 lost, 0 changed kind",
+        "check-modules: all checks passed"
+      ],
+      "logSha256": "07d01ce3c2c9ee37eb96fb30f5e7bc7c5df25da92b06442c4b3f2d2b9ecf974a"
+    },
+    {
+      "check": "packet-final-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [],
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "packet-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "BATCH_6_PACKET: 40 hash-bound personal reviews; 36 CLEAN, 4 OPEN; 44 exact desktop pairs; 103 real log tails; one unique ledger entry 384; no new duplicate numbers against 59085d9446eb3a80f0dc02f24ea94b1bcd4b0d52."
+      ],
+      "logSha256": "a271545f6fde102d9c507c8680812a0fcd433dda6840537124d069eaf1f56866"
+    },
+    {
+      "check": "product-commit-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        " create mode 100644 js/sv-09-core-c6b04b8bbd0d.js",
+        " create mode 100644 js/sv-16-kasper-b8d85a92cdc1.js",
+        " create mode 100644 js/sv-full-26f0a2c1b0cc.js"
+      ],
+      "logSha256": "4af192675399897628f841875a84bd5db0200d62a214751d1bd28c8c9bb9d072"
+    },
+    {
+      "check": "product-commit",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "\tjs/sv-full-6c7ffdb63382.js",
+        "\tjs/sv-full-80a4b95476d5.js",
+        "no changes added to commit (use \"git add\" and/or \"git commit -a\")"
+      ],
+      "logSha256": "dece65c604f1c2d7a6e7d329671586fb497e02afba144c91c57530d59f500a7b"
+    },
+    {
+      "check": "repo-map-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists",
+        "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
+        "repo-map-sync: 1127 passed, 0 failed"
+      ],
+      "logSha256": "9e8eefe03b90676c200063a0e0b9aa402f32e8570838bcc506fca6a0a66e647b"
+    },
+    {
+      "check": "repo-map",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists",
+        "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
+        "repo-map-sync: 1126 passed, 0 failed"
+      ],
+      "logSha256": "eba5fa58f627008aaeb975dd30a08af8042b462d4ad4cb92d0b1566e22946eb5"
+    },
+    {
+      "check": "staff-calendar-phone-css-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+      ],
+      "logSha256": "c170a5038eb6da90d17f2a512aa488fae7c02fc71899572a4bfd935e458dbd15"
+    },
+    {
+      "check": "staff-calendar-phone-css-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+      ],
+      "logSha256": "c170a5038eb6da90d17f2a512aa488fae7c02fc71899572a4bfd935e458dbd15"
+    },
+    {
+      "check": "staff-calendar-phone-css-scope",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-calendar-phone-css-scope: OK (1 block(s), 396 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+      ],
+      "logSha256": "c170a5038eb6da90d17f2a512aa488fae7c02fc71899572a4bfd935e458dbd15"
+    },
+    {
+      "check": "staff-phone-css-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-phone-css-scope: OK (1 block(s), 368 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))"
+      ],
+      "logSha256": "17cf4eeecb60fd2138ff89839f8df2ec4bbd8596240fb53fd14b3518a548c749"
+    },
+    {
+      "check": "staff-phone-css-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "staff-phone-css-scope: OK (1 block(s), 368 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))"
+      ],
+      "logSha256": "17cf4eeecb60fd2138ff89839f8df2ec4bbd8596240fb53fd14b3518a548c749"
+    },
+    {
+      "check": "staff-phone-css-scope",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-phone-css-scope: OK (1 block(s), 368 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))"
+      ],
+      "logSha256": "17cf4eeecb60fd2138ff89839f8df2ec4bbd8596240fb53fd14b3518a548c749"
+    },
+    {
+      "check": "staff-phone-design-browser-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "ok sample-reviews-412-dark-missing-media",
+        "ok sample-reviews-412-dark-linked",
+        "STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports"
+      ],
+      "logSha256": "0bbdf92540973db309d220518f4b3f8db477522bd2b7582b8b93d77f3b178b47"
+    },
+    {
+      "check": "staff-phone-design-browser",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "ok sample-reviews-412-dark-missing-media",
+        "ok sample-reviews-412-dark-linked",
+        "STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports"
+      ],
+      "logSha256": "0bbdf92540973db309d220518f4b3f8db477522bd2b7582b8b93d77f3b178b47"
+    },
+    {
+      "check": "staff-phone-rules-browser-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "ok time-off-light-412 screen, menus, layout and scroll lock",
+        "ok time-off-dark-412 screen, menus, layout and scroll lock",
+        "STAFF_PHONE_RULES: 160 states; 0 failures; 393/412 touch; synthetic transports; no live writes"
+      ],
+      "logSha256": "f91f1cca5021c72e7f4949f7dbf81bcd7fccf28272c23128db03bdf908b703b3"
+    },
+    {
+      "check": "staff-phone-rules-browser",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "ok time-off-light-412 screen, menus, layout and scroll lock",
+        "ok time-off-dark-412 screen, menus, layout and scroll lock",
+        "STAFF_PHONE_RULES: 160 states; 0 failures; 393/412 touch; synthetic transports; no live writes"
+      ],
+      "logSha256": "f91f1cca5021c72e7f4949f7dbf81bcd7fccf28272c23128db03bdf908b703b3"
+    },
+    {
+      "check": "staff-phone-rules-source-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped"
+      ],
+      "logSha256": "2d3ededbffa5c7991abd846c785938e4a383f2d803aed99d86ac2162d3a2981f"
+    },
+    {
+      "check": "staff-phone-rules-source-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 61 rules phone-capped and staff-scoped"
+      ],
+      "logSha256": "2d3ededbffa5c7991abd846c785938e4a383f2d803aed99d86ac2162d3a2981f"
+    },
+    {
+      "check": "staff-samples-phone-css-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-samples-phone-css-scope: OK (1 block(s), 344 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])"
+      ],
+      "logSha256": "4205a249ea5e9837948382395bbfdbe662f4d1637ec2e5a75602080530e761c9"
+    },
+    {
+      "check": "staff-samples-phone-css-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "staff-samples-phone-css-scope: OK (1 block(s), 344 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])"
+      ],
+      "logSha256": "4205a249ea5e9837948382395bbfdbe662f4d1637ec2e5a75602080530e761c9"
+    },
+    {
+      "check": "staff-samples-phone-css-scope",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-samples-phone-css-scope: OK (1 block(s), 344 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])"
+      ],
+      "logSha256": "4205a249ea5e9837948382395bbfdbe662f4d1637ec2e5a75602080530e761c9"
+    },
+    {
+      "check": "staff-selection-phone-css-scope-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-selection-phone-css-scope: OK (1 block(s), 30 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+      ],
+      "logSha256": "8e6833452b73d0c6773589674162e6dd2c934097689f8f575219407b5cee6efb"
+    },
+    {
+      "check": "staff-selection-phone-css-scope-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "staff-selection-phone-css-scope: OK (1 block(s), 30 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+      ],
+      "logSha256": "8e6833452b73d0c6773589674162e6dd2c934097689f8f575219407b5cee6efb"
+    },
+    {
+      "check": "staff-selection-phone-css-scope",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "staff-selection-phone-css-scope: OK (1 block(s), 30 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])"
+      ],
+      "logSha256": "8e6833452b73d0c6773589674162e6dd2c934097689f8f575219407b5cee6efb"
+    },
+    {
+      "check": "truth-2",
+      "status": "HISTORICAL_RECEIPT",
+      "lastLines": [
+        "OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema",
+        "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",
+        "truth-sync: 515 passed, 0 failed"
+      ],
+      "logSha256": "f553c14b610dd9941807e8830bdca3c295d1591c971c30e210d085c3d1489294"
+    },
+    {
+      "check": "truth-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [
+        "OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema",
+        "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",
+        "truth-sync: 515 passed, 0 failed"
+      ],
+      "logSha256": "f553c14b610dd9941807e8830bdca3c295d1591c971c30e210d085c3d1489294"
+    },
+    {
+      "check": "truth",
+      "status": "REJECTED_OR_FAILED_ATTEMPT",
+      "lastLines": [
+        "OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema",
+        "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",
+        "truth-sync: 363 passed, 94 failed"
+      ],
+      "logSha256": "35c6fc124b86dcdee5b4d91d1f25a9f213e0c9f564927689c9f2690bbd4776ac"
+    },
+    {
+      "check": "whitespace-final",
+      "status": "FINAL_RECEIPT",
+      "lastLines": [],
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "note": "Actual terminal endings from every saved batch-6 check/operation log. Historical and failed attempts are retained, not acceptance. Initial truth/index invocation failures were corrected; transitional captures rejected. Empty terminated logs carry no verdict. Final push/PR receipts are reported separately."
+}

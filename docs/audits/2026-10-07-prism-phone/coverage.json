@@ -1,6 +1,6 @@
 {
   "scopeVersion": "owner-2026-10-08",
-  "sourceHash": "b284eafbb6a10dd190b010ecb89a03e78b4e09bfa92d5aea6d0347a83b0252a8",
+  "sourceHash": "ce79f8f52d96929a01a7e4b3d18f2cad99aa7c6199d037fc704b76bf074045a4",
   "profiles": [
     {
       "id": "desktop",
@@ -6475,6 +6475,492 @@
           "width": 393,
           "height": 852,
           "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-light-393-viewport.png",
+            "sha256": "eee49cbe64c00855eb2f871da67f5717bb08b3839c7033d79447a8597e53a1a0"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-dark-393-viewport.png",
+            "sha256": "ced8d544640a1fe7064c844b26a4f06ed2265f2eba518fd3c69819906ff2632d"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-light-412-viewport.png",
+            "sha256": "98160ffcb24e7c8aafbbcb28617ee209d9c4361b9f222fd83280084244186eed"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-dark-412-viewport.png",
+            "sha256": "400171756f5d4ef4606c6fc997b6fff9fd4c7eb99d784b41ef019b95cd738b83"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        }
+      ]
+    },
+    {
+      "name": "clients-archived-empty",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "empty",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-archived-empty-light-393-viewport.png",
+            "sha256": "1980cd341997eff183cc3418c555010e2ff9d2535aa92722413da9618c4441d7"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-archived-empty-dark-393-viewport.png",
+            "sha256": "6f90dfd18b157652b82a73b7f62aaad8b392593b6215e68e68045f6e7283a37d"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-archived-empty-light-412-viewport.png",
+            "sha256": "5c7c8bde0b431c03244c9dc246a3e1c78e558082f146fac615dd7eb3fca8a584"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-archived-empty-dark-412-viewport.png",
+            "sha256": "e80d1afdcd05efc06a6e9298ae905b4b1d679fa9f180d12d9b019c8c1d4ab60b"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        }
+      ]
+    },
+    {
+      "lane": "discovery",
+      "name": "clients-create-empty",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "empty",
+      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "discovery",
+      "name": "clients-create-loading",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "loading",
+      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "lane": "discovery",
+      "name": "clients-create-manager-menu",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        }
+      ]
+    },
+    {
+      "name": "clients-create-menu",
+      "tab": "clients",
+      "lane": "admin",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": {
+            "file": "batch-6/after/clients-create-menu-light-393-viewport.png",
+            "sha256": "9317abede35e33602ae17374b1d84eff18ad026143f524b5b3ec87af4ef6f019"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": {
+            "file": "batch-6/after/clients-create-menu-dark-393-viewport.png",
+            "sha256": "aeca7b88796fd663e4505e570f03e92484ff491ffdd106c6e3e89a0dc86fdd2e"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": {
+            "file": "batch-6/after/clients-create-menu-light-412-viewport.png",
+            "sha256": "79aea7fde20094d8780905ffdc49de9ba9407edc5dea7fce76599677f9ed0fa2"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        },
+        {
+          "profile": "android",
+          "width": 412,
+          "height": 915,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": {
+            "file": "batch-6/after/clients-create-menu-dark-412-viewport.png",
+            "sha256": "9914cf1baca371d5ee3311a5b129521f15320ad258b392b3072b39371f9789d8"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "OPEN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Native New client opens, Cancel and Escape dismiss it. The native manager select remains OPEN for a branded-picker review; this form is not accepted as clean. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
+        }
+      ]
+    },
+    {
+      "lane": "discovery",
+      "name": "clients-create-open",
+      "screen": "Clients",
+      "ownerScreen": "Clients",
+      "audience": "staff",
+      "kind": "menus/sheets open",
+      "setup": "OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport",
+      "cells": [
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "light",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "desktop",
+          "width": 1440,
+          "height": 900,
+          "theme": "dark",
+          "status": "OPEN",
+          "capture": null,
+          "review": null
+        },
+        {
+          "profile": "iphone-pro",
+          "width": 393,
+          "height": 852,
+          "theme": "light",
           "status": "OPEN",
           "capture": null,
           "review": null
@@ -6540,36 +7026,68 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-empty-light-393-viewport.png",
+            "sha256": "c5d9206d342480ebf9b5b1b6c9851daf502856b8c5073e67915b467ea90070cc"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-empty-dark-393-viewport.png",
+            "sha256": "b9f4d9836fbb0c07b1b4f4e1ea5545be7cc3798a9e683f3a506d11fb1980451b"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-empty-light-412-viewport.png",
+            "sha256": "f961f7be294ae6a421630a0619787cf35dfde25221323f656ec9141fdcf23991"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-empty-dark-412-viewport.png",
+            "sha256": "362534d2a86ad82e76a379485995edbde86d49362a8a79d40ddeb51664237b83"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         }
       ]
     },
@@ -6605,36 +7123,68 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-list-menu-light-393-viewport.png",
+            "sha256": "b9636d74baf9e933c40b1bad879410c212b30ccb499e9ca1bfb64428e02cbc63"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-list-menu-dark-393-viewport.png",
+            "sha256": "52ffc49ede05c01a5789f96db5646f0632a3d75bfb8063141feb7d3fc2f2e550"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-list-menu-light-412-viewport.png",
+            "sha256": "97990f0d2eb0343b630f11435409477208e0b85a3b7a852f8cd2795ec868080b"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-list-menu-dark-412-viewport.png",
+            "sha256": "5287da2f97fece74172d24289c77b8c834b5897392e5399023ec98894894a67d"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         }
       ]
     },
@@ -6670,36 +7220,68 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-loading-light-393-viewport.png",
+            "sha256": "6d5e1a9c2bf902db0f86be64210c23b1a342426ea61aae9325c7a6fed671eec5"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-loading-dark-393-viewport.png",
+            "sha256": "9acf26ab3b3d020fcab1f172370ec83889b19d302f7b04f893c9e2a743aa4105"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-loading-light-412-viewport.png",
+            "sha256": "be6ca27d746019fed4a89ba6879b936927afb8294cc5ad7b33f9c19911d5aa5d"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-loading-dark-412-viewport.png",
+            "sha256": "b7e30be99526a96a44a5f6ee060cf8003d671caf62b95b49a20192f12738f2db"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         }
       ]
     },
@@ -6735,36 +7317,68 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-search-menu-light-393-viewport.png",
+            "sha256": "634a38ed02072dae7dfbc3d4b2da37ae6fb1d47f6eaa0150bced59fb06862701"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-search-menu-dark-393-viewport.png",
+            "sha256": "fe68ebcc44948157f38e5ef909afa5b4f16f4931ce872ed7ea020ed8adc82434"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-search-menu-light-412-viewport.png",
+            "sha256": "fec58950336b8f29388c077f54d23a1e2c6a2700387a7107bdf7bb4577bba57c"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/clients-search-menu-dark-412-viewport.png",
+            "sha256": "05635a95528ea810e16a4b5105bb38ed5a747a3aedc41aca952463fed5326272"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable Clients controls and actionable empty/archived guidance. Native search/list/archive actions and desktop wording restoration pass. The capture waits for the native wrapper to be visible and resets ordinary scrolling instantly; a new guard requires the menu heading to be fully visible. Earlier transitional captures are rejected. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         }
       ]
     },
@@ -6863,68 +7477,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-ready-light-393-viewport.png",
-            "sha256": "19a1957de4c4b8d75d0b485f279912038efac939d5b9df0a20e76ac1a5727cee"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-ready-dark-393-viewport.png",
-            "sha256": "25b162b46b26466fa3ca3422ee204dd5ddb16bdfff3a2602505f2618ac282ed1"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-ready-light-412-viewport.png",
-            "sha256": "66adde363371d10afb2041939298a1474344d07f38e834ef1ae769cddcd9e016"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-ready-dark-412-viewport.png",
-            "sha256": "57b989ec44fa19eef55f8c7ed981921a003c26177d40b84b180416f7a42c5c07"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -6959,68 +7541,36 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-search-light-393-viewport.png",
-            "sha256": "7cecc484e5599fd5adab7882b103961c5b38c0cd06a4ed6b36af39307129ee3b"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-search-dark-393-viewport.png",
-            "sha256": "730304edc492a57e4c9f6cc5807749f526d69ee6ae549d9c1d8cc45b2f8b80f9"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-search-light-412-viewport.png",
-            "sha256": "20b107c54fe2479438e3f64b1ce712d983f22bbd4daba8748eedfebbbbbd9271"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "CLEAN",
-          "capture": {
-            "file": "batch-5/review-followup/after/tiktok-client-search-dark-412-viewport.png",
-            "sha256": "728f60bf484a82325cb804318c12fe13406fc36e35b1651df0a4570b2819838d"
-          },
-          "review": {
-            "file": "batch-5/review-followup/reviews.json",
-            "reviewer": "Prism",
-            "verdict": "CLEAN",
-            "note": "Personally viewed all complete full-page chunks; native viewport is an exact top crop. Normal layout and native search menu remain aligned and readable. Native action assertions verify the picked destination independently of the query; the open picker covers the account line, so these pictures alone do not demonstrate the behavioral correction. Full/fresh review remains OPEN."
-          }
+          "status": "OPEN",
+          "capture": null,
+          "review": null
         }
       ]
     },
@@ -8284,36 +8834,68 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-light-393-viewport.png",
+            "sha256": "f33d149257772619188717da8497dc91cbc2601fa313673aad68c237067f0627"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-dark-393-viewport.png",
+            "sha256": "f6a98b6129658b6afb87f57f02965d86bd3d2644c84ee87724c35d1bd3c259e7"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-light-412-viewport.png",
+            "sha256": "c2d7cd5bc9a0be03a6f8ce0ab330bd3aaa6c778c932ee304161a0431df6cb233"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-dark-412-viewport.png",
+            "sha256": "3f41780b78b7d4006a9b2202a1606ae6091feb602c38e9f03eaed8b4327481d4"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         }
       ]
     },
@@ -8348,36 +8930,68 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-dash-light-393-viewport.png",
+            "sha256": "83b3310362910ef81958ec9cb85e36c8653f7e9132b47937586f2fbc78689749"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-dash-dark-393-viewport.png",
+            "sha256": "09d131de6c55e53b4451f95c8b42e26631c9ca0ce698a6442d33ca4e7087fdc6"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-dash-light-412-viewport.png",
+            "sha256": "71a8637d8d46666ff1d07de4518af342d34a67cb540bd7efe60c3bebc97cf86c"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-detail-dash-dark-412-viewport.png",
+            "sha256": "451b705a7910cf661b950e84003695e1566016f6a6ddc8ff3e0b50339e19aa4c"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         }
       ]
     },
@@ -8604,36 +9218,68 @@
           "width": 393,
           "height": 852,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-overview-light-393-viewport.png",
+            "sha256": "7cca3a3d462c13f1973a1d78f865ff1ec376ed17dc3bfb13e9b74849a49971ab"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "iphone-pro",
           "width": 393,
           "height": 852,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-overview-dark-393-viewport.png",
+            "sha256": "c59f25658f4bc6364c933d70d979c48832e1241db0a4f27a1135d9d4ed9c8f8e"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "light",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-overview-light-412-viewport.png",
+            "sha256": "0730a86ff6fabe99a2c1f124677548409cb7f9d085fe7661f49f54343814ff13"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         },
         {
           "profile": "android",
           "width": 412,
           "height": 915,
           "theme": "dark",
-          "status": "OPEN",
-          "capture": null,
-          "review": null
+          "status": "CLEAN",
+          "capture": {
+            "file": "batch-6/after/analytics-overview-dark-412-viewport.png",
+            "sha256": "4fe33b9333e626adb43c20eb78ef2821329a44dcfe87047c2aa3f54b6474ec5d"
+          },
+          "review": {
+            "file": "batch-6/reviews.json",
+            "reviewer": "Prism",
+            "verdict": "CLEAN",
+            "note": "Personally viewed every full-page chunk at native scale. Native viewport is an identical crop where supplied. Readable metric, gain, account and chart labels; consistent two-column detail panels. Native chart series/mode/theme/Back and resize assertions pass. Acceptance covers this cell only; the complete narrowed round and fresh-eyes round remain OPEN."
+          }
         }
       ]
     },

@@ -14,6 +14,7 @@ const arg = name => process.argv.find(x => x.startsWith('--' + name + '='))?.spl
 const before = process.argv.includes('--capture-before');
 const base = path.resolve(arg('before-root') || root);
 const desktop = process.argv.includes('--desktop');
+const warmDesktop = desktop && process.argv.includes('--warm-desktop');
 const widths = arg('widths') ? arg('widths').split(',').map(Number) : arg('width') ? [Number(arg('width'))] : desktop ? [1024,1280,1440,1920] : [360,390,430];
 const out = arg('out');
 const themes = arg('theme') ? [arg('theme')] : ['light','dark'];
@@ -91,6 +92,11 @@ add('credentials-masked', 'client-credentials', () => { _ccState.kasper.credenti
 add('credential-add', 'client-credentials', null, p => p.locator('.cc-topbar .cc-btn').filter({ hasText: 'Add credential' }).click());
 add('clients', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = null; _caPaint(); });
 add('clients-empty', 'clients', () => { _caState.rows = []; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = null; _caPaint(); });
+add('clients-archived-empty', 'clients', (data,row) => { Object.assign(_caState,{rows:[{...row,archived_at:'2026-10-01T10:00:00Z'}],loaded:true,loading:false,error:null,selected:null,search:'',searchOpen:false,listOpen:false,showArchived:false}); _caRender(); });
+add('clients-create-menu','clients',()=>{Object.assign(_caState,{rows:[],loaded:true,loading:false,error:null,selected:null,search:'',searchOpen:false,listOpen:false});_caRender();},async page=>{
+  if(desktop) await page.locator('#caNewBtn').click(); else await page.locator('#caNewBtn').tap();
+  expect(await page.locator('.cn-dialog').isVisible(),'Clients: New client opens the native dialog from an empty list');
+});
 add('clients-loading', 'clients', () => { _caState.rows = []; _caState.loaded = false; _caState.loading = true; _caState.error = null; _caState.selected = null; _caPaint(); });
 add('client-detail', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = row.slug; _caPaint(); });
 add('clients-error', 'clients', () => { _caState.rows = []; _caState.loading = false; _caState.loaded = false; _caState.error = 'The client list could not load. Refresh to try again.'; _caPaint(); });
@@ -294,10 +300,15 @@ function serve() {
   return new Promise(resolve => server.listen(0,'127.0.0.1',() => resolve(server)));
 }
 async function capture(page,label,width,theme) {
+  await page.locator('.kasper-wrap').waitFor({state:'visible'});
+  if(warmDesktop) {
+    await page.setViewportSize({width,height:heightFor(width,arg('height'))});
+    await page.waitForFunction(()=>!document.documentElement.classList.contains('pocket-admin-phone'));
+  }
   // Native taps can scroll the main container. Start ordinary screen captures
   // at its top; preserve the actual position of open sheets and pickers.
-  if(!(await page.locator('dialog[open], .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup, .kasper-more.open, #staffAccountPopover:not([hidden])').count())) {
-    await page.evaluate(()=>{scrollTo(0,0);document.getElementById('mainWrap')?.scrollTo(0,0);});
+  if(!(await page.locator('dialog[open], .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup:visible, .kasper-more.open, #staffAccountPopover:not([hidden])').count())) {
+    await page.evaluate(()=>{scrollTo({top:0,left:0,behavior:'instant'});document.getElementById('mainWrap')?.scrollTo({top:0,left:0,behavior:'instant'});});
   }
   await page.mouse.move(0,0);
   // Visible labels only, for public proof. Native controls/handlers stay intact.
@@ -313,6 +324,10 @@ async function capture(page,label,width,theme) {
   // frames. Measure its settled geometry, as the PNG capture does, rather
   // than fingerprinting the old label's temporarily retained pill width.
   await page.evaluate(() => new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  if(!before && !desktop && ['clients-list-menu','clients-search-menu'].includes(label)) {
+    const heading=await page.locator('.pocket-admin-heading').boundingBox();
+    expect(heading && heading.y>=0 && heading.height>=40 && heading.y+heading.height<=heightFor(width,arg('height')),label+': settled capture keeps the native phone heading fully visible');
+  }
   const metrics = await page.evaluate(() => {
     const visible = n => n.checkVisibility({ checkVisibilityCSS: true }) && n.getBoundingClientRect().height > 0;
     const controls = [...document.querySelectorAll('button,a[href],[role=button],[role=option],summary,input:not([type=hidden]),select,textarea')].filter(visible).filter(n => !(n.getBoundingClientRect().width <= 1 && getComputedStyle(n).opacity === '0')).map(n => { const target = n.matches('input[type=radio],input[type=checkbox]') ? n.closest('label') || n : n; const r = target.getBoundingClientRect(); return { name: (n.id || n.className || n.tagName).toString().slice(0,90), w:r.width,h:r.height }; });
@@ -363,7 +378,7 @@ async function capture(page,label,width,theme) {
   }
 }
 async function open(browser,origin,width,theme) {
-  const ctx = await browser.newContext({ viewport:{width,height:heightFor(width,arg('height'))},isMobile:width<768,hasTouch:width<768,reducedMotion:'reduce',locale:'en-US',timezoneId:'America/Guatemala' });
+  const ctx = await browser.newContext({ viewport:warmDesktop?{width:393,height:852}:{width,height:heightFor(width,arg('height'))},isMobile:warmDesktop||width<768,hasTouch:warmDesktop||width<768,reducedMotion:'reduce',locale:'en-US',timezoneId:'America/Guatemala' });
   await ctx.route(u => !u.toString().startsWith(origin), async route => {
     const q = route.request(),u = new URL(q.url());
     const json = body => route.fulfill({ status:200,headers:CORS,contentType:'application/json',body:JSON.stringify(body) });
@@ -502,6 +517,7 @@ async function runMain() {
             await page.evaluate(tab => {
               hideToast(); // A preceding fictional save is not this state's status.
               document.activeElement?.blur(); _syncviewCloseStaffAccount(); _kasperSetMoreOpen(false,false,false);
+              _cnClose(true); // A New client dialog must not leak into the next native state.
               document.querySelector('dialog.pocket-admin-tabs')?.dispatchEvent(new Event('cancel',{cancelable:true}));
               _ccCloseModal();
               document.getElementById('ccEditClose')?.click();
@@ -532,6 +548,25 @@ async function runMain() {
             }
             if (!before && !desktop) {
               await page.waitForTimeout(50);
+              if(t.tab==='clients' && await page.locator('#caNewBtn').count()) {
+                expect(await page.locator('#caNewBtn span').isVisible(),t.label+': New client has a visible label, including outside the empty state');
+              }
+              if(['clients-empty','clients-archived-empty'].includes(t.label)) {
+                const lead=page.locator('.ca-land-lead');
+                const expected=t.label==='clients-empty'?'No clients yet. Choose New client to add the first one.':'No active clients. Open All clients and choose Show archived.';
+                expect(await lead.innerText()===expected,t.label+': empty guidance points to an available native action');
+                await page.setViewportSize({width:1440,height:900});
+                await page.waitForFunction(()=>!document.documentElement.classList.contains('pocket-admin-phone'));
+                expect(await lead.innerText()==='0 clients. Search above, or open All clients.',t.label+': desktop crossing restores the original guidance');
+                await page.setViewportSize({width,height:heightFor(width,arg('height'))});
+                await page.waitForFunction(()=>document.documentElement.classList.contains('pocket-admin-phone'));
+                expect(await lead.innerText()===expected,t.label+': phone guidance returns without navigating or changing rows');
+                if(t.label==='clients-archived-empty') {
+                  await page.locator('#caAllBtn').tap();await page.locator('#caDrop .ca-link').tap();
+                  expect(await page.locator('#caDrop .ca-row.is-archived').count()===1,t.label+': named actions reveal the archived fixture');
+                  await page.locator('#caDrop .ca-iconbtn').tap();
+                }
+              }
               if (['ad-performance','quiz-leads'].includes(t.tab)) {
                 if(t.label==='ads-empty' || t.label==='quiz-empty') {
                   const selector=t.tab==='ad-performance'?'#kadBody':'#kqlBody';
@@ -629,6 +664,12 @@ async function runMain() {
               }
             }
             await capture(page,t.label,width,theme);
+            if(!before && !desktop && t.label==='clients-create-menu') {
+              await page.getByRole('button',{name:'Cancel',exact:true}).tap();
+              expect(!(await page.locator('.cn-dialog').isVisible()),'Clients: Cancel dismisses the native New client dialog');
+              await page.locator('#caNewBtn').tap();await page.keyboard.press('Escape');
+              expect(!(await page.locator('.cn-dialog').isVisible()),'Clients: Escape dismisses the native New client dialog');
+            }
             if (!before && !desktop && ['review-open','messages'].includes(t.label)) {
               await page.setViewportSize({width:1280,height:844}); await page.waitForTimeout(100);
               if (t.label==='review-open') {

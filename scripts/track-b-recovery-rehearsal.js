@@ -27,11 +27,11 @@ function reverifyInventory(snapshot) {
   installInventory.verify(snapshot.manifest);
 }
 const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
-if (!['history-v7','history-v8','history-v9','history-v10','history-v11'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
+if (!['history-v7','history-v8','history-v9','history-v10','history-v11','history-v12'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
 const CORPUS_VERSION = backup.resolveCorpus(CORPUS).version;
 const UPSTREAM_LEDGER = process.env.TRACK_B_RECOVERY_TEST_UPSTREAM_LEDGER === '1';
 if (process.env.TRACK_B_RECOVERY_TEST_UPSTREAM_LEDGER && !UPSTREAM_LEDGER) throw new Error('invalid_upstream_ledger_opt_in');
-if (UPSTREAM_LEDGER && CORPUS !== 'history-v11') throw new Error('upstream_ledger_requires_history_v11');
+if (UPSTREAM_LEDGER && CORPUS !== 'history-v11' && CORPUS !== 'history-v12') throw new Error('upstream_ledger_requires_history_v11');
 const UPSTREAM_LEDGER_COMMIT = 'fcebb856d3f5ea607cf5665ac391c258ad173abb';
 const UPSTREAM_LEDGER_OWNERS = [
   ['2026-09-09-kasper-urgent-pings.sql','fdab0481ae24094831540efb294ae80d749c6f2aa0e5c4034c3346a96632b72b'],
@@ -121,7 +121,10 @@ const SOURCES = ['scripts/linear-exit-composition/recovery-ordered.js','scripts/
   'migrations/2026-09-11-native-ordinary-receipt-repair.sql',
   'migrations/2026-09-12-native-ordinary-envelope-repair.sql',
   'migrations/2026-09-09-editors-event-assignee.sql',
-  'migrations/2026-09-09-native-notification-outbox.sql'] : [])];
+  'migrations/2026-09-09-native-notification-outbox.sql'] : []),
+  ...(CORPUS_VERSION >= 12 ? ['migrations/2026-07-10-smm-weekly-reports.sql',
+  'supabase/migrations/20261007150000_smm_also_sees.sql',
+  'migrations/2026-10-03-native-client-test-provision.sql'] : [])];
 // Platform-only prerequisites. No public application table/function/type is
 // recreated manually on the target; the package must reconstruct those.
 const TARGET_PREREQUISITES = `create schema extensions; create extension pgcrypto schema extensions;
@@ -176,7 +179,7 @@ function grants(cfg, db, role, mode) {
 }
 function dataGrants(cfg, db, role, mode) {
   const result = cp.spawnSync(cfg.psql, ['-w', ...db.args(), '-v', 'mode=' + mode, '-v', 'existing_role=' + role,
-    '-v', 'confirmation=' + (mode === 'backup' ? (CORPUS_VERSION===11?'HISTORY_V11_BACKUP_GRANTS_ONLY':CORPUS_VERSION===10?'HISTORY_V10_BACKUP_GRANTS_ONLY':CORPUS_VERSION===9?'HISTORY_V9_BACKUP_GRANTS_ONLY':'HISTORY_V8_BACKUP_GRANTS_ONLY') : 'DISPOSABLE_SCRATCH_ONLY'),
+    '-v', 'confirmation=' + (mode === 'backup' ? (CORPUS_VERSION===12?'HISTORY_V12_BACKUP_GRANTS_ONLY':CORPUS_VERSION===11?'HISTORY_V11_BACKUP_GRANTS_ONLY':CORPUS_VERSION===10?'HISTORY_V10_BACKUP_GRANTS_ONLY':CORPUS_VERSION===9?'HISTORY_V9_BACKUP_GRANTS_ONLY':'HISTORY_V8_BACKUP_GRANTS_ONLY') : 'DISPOSABLE_SCRATCH_ONLY'),
     '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-'+CORPUS+'-backup-prerequisites.sql')], {
     encoding: 'utf8', timeout: 60000, windowsHide: true, env: cleanEnv(cfg.password) });
   fs.writeFileSync(path.join(cfg.output, 'data-grants-' + mode + '.private.log'), result.stderr || '');
@@ -267,15 +270,19 @@ async function run() {
     const seeded = phase(cfg, source, 'seed', '', 'source');
     const continuity = CORPUS_VERSION>=9 ? phase(cfg,source,'seed','','continuity-source',9) : null;
     check('actual selected corpus schema contains four accepted cards and retained unknown ingress', () => {
-      assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS_VERSION===11 ? 52 : CORPUS_VERSION===10 ? 47 : CORPUS_VERSION===9 ? 42 : CORPUS==='history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
+      assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS_VERSION===12 ? 55 : CORPUS_VERSION===11 ? 52 : CORPUS_VERSION===10 ? 47 : CORPUS_VERSION===9 ? 42 : CORPUS==='history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
       assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
       const selected = backup.resolveCorpus(CORPUS).tables;
       for (const table of selected) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
+      const v12Tail = CORPUS_VERSION >= 12 ? 3 : 0;
+      if (CORPUS_VERSION >= 12) {
+        assert.deepEqual(selected.slice(-3).map(table => table.name), ['social_media_managers','smm_also_sees','production_native_client_test_provisions']);
+      }
       if (CORPUS_VERSION >= 11) {
-        assert.deepEqual(selected.slice(-5).map(table => table.name), ['production_native_ordinary_receipt_admissions','production_notification_config','production_notification_intents','production_notification_delivery_receipts','production_notification_reconciliations']);
+        assert.deepEqual(selected.slice(-5 - v12Tail, v12Tail ? -v12Tail : undefined).map(table => table.name), ['production_native_ordinary_receipt_admissions','production_notification_config','production_notification_intents','production_notification_delivery_receipts','production_notification_reconciliations']);
       }
       if (CORPUS_VERSION >= 10) {
-        assert.deepEqual(selected.slice(CORPUS_VERSION >= 11 ? -10 : -V10_NEW_DURABLE_OWNERS.length, CORPUS_VERSION >= 11 ? -5 : undefined).map(table => table.name), V10_NEW_DURABLE_OWNERS);
+        assert.deepEqual(selected.slice(CORPUS_VERSION >= 11 ? -10 - v12Tail : -V10_NEW_DURABLE_OWNERS.length, CORPUS_VERSION >= 11 ? -5 - v12Tail : undefined).map(table => table.name), V10_NEW_DURABLE_OWNERS);
         for (const name of V10_NATIVE_RECOVERY_OWNERS) {
           assert.ok(selected.some(table => table.name === name), 'v10 selected native recovery owner:' + name);
           assert.notEqual(source.query('select to_regclass(' + quote('public.' + name) + ')'), '', 'v10 source native recovery owner:' + name);

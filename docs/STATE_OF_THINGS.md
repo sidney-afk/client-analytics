@@ -69,7 +69,7 @@ here with where it stopped, so it can be restarted.
   would need an n8n change, written out in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` for the owner's go.
   **A real client no longer needs an email** (owner decision, OPEN_REPAIRS 385): LIVE (measured 2026-10-09): the SQL is
   applied (no email check in `client_create_native`, EXECUTE closed to `anon` and `authenticated`) and `client-onboarding`
-  was deployed 2026-10-09 01:37 UTC at #2015, after its last change, so steps 6 and 7 of that file are both done.
+  was deployed 2026-10-09 01:37 UTC at #2015, after its last change, so the apply and deploy parts of steps 6 and 7 of that file are done (their throwaway checks are not recorded).
   **Stage 3 dry run done**, nothing saved:
   `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
   confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.

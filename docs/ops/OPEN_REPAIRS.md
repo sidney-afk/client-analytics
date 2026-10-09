@@ -31678,4 +31678,6 @@ finding the n8n Samples caller.
 **Kept visible.** `scripts/repo-vs-live.js` (test `test/repo-vs-live.js`) prints repo vs live
 for every function and for every row of `scripts/repo-vs-live-shelf.json`, read only, yes/no
 answers and counts only. A session that builds something waiting on the owner adds its row to
-the shelf in the same pull request.
+the shelf in the same pull request. Not proven: its live mode (Management API reads) has never run
+against the real API, because this session had no token; today's table came from `--live-json`. A
+probe it cannot read prints `UNKNOWN`, never a pass.

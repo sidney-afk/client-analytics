@@ -192,5 +192,7 @@ what the repo says next to what is live: `LIVE`, `WAITING`, `HELD` (you chose to
   bytes with the deploy lanes' own attestor.
 - A session without one passes readings it took itself: `--live-json=<file>`.
 - It prints only yes/no answers and counts, never a name, an email or a key.
+- Its live mode has not yet run against the real API (this session had no token; today's table came
+  from `--live-json`). If a probe cannot be read it prints `UNKNOWN`, never a pass.
 - The shelf it checks is `scripts/repo-vs-live-shelf.json`. A session that builds something
   waiting on you adds one row there in the same pull request.

@@ -32,6 +32,9 @@
  * token is only sent as a header, and an API error is reported by status code.
  *
  * Exit code: 0, or 1 with --strict when something is waiting that is not held.
+ *
+ * Not yet proven: the live mode was written without a token (2026-10-09, OPEN_REPAIRS 389) and has
+ * not run against the real API. A probe it cannot read prints UNKNOWN, never LIVE.
  */
 
 const fs = require('fs');

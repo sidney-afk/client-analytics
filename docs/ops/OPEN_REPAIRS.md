@@ -31603,3 +31603,46 @@ Not proven: the disposable-Postgres recovery rehearsal for v12 was not run in
 this sandbox (no database server); it needs a run where
 `TRACK_B_RECOVERY_TEST_CORPUS=history-v12`. Offline suites cover the table list,
 keys, refusals, restore SQL, preflight SQL and the grant text.
+
+## 388. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, SWITCH OFF] Generate caption off n8n: the caption-generate function, a fixed writing rule set, and a transcript box (session Scribe)
+
+The Calendar's Generate caption ran on the n8n workflow "SyncView Calendar —
+Generate Caption" (Frame.io file, Replicate Whisper, Claude, then calendar-upsert;
+progress already in `caption-jobs`). The workflow was read, never edited, run or
+deactivated.
+
+Built: `supabase/functions/caption-generate/` does the same job step for step
+(same request keys, direct Frame.io lookup with the Apify scrape as fallback,
+same Whisper version and settings, same default prompt, model `claude-sonnet-4-6`
+and 1500 token cap, same `caption_jobs` stages and cancel checkpoints, same
+calendar-upsert body). It answers at once and works in the background (Supabase
+allows 400 s; the run stops itself at 370 s with an honest error), so the page's
+poller, cancel and refresh survival are unchanged. New:
+- the client's prompt is read from `caption_prompts` by the function;
+- the client's Brain `voice.md` is read the way the `brain` function reads it;
+  the `## Caption style` section is used when it has text, otherwise every
+  written voice section;
+- one fixed writing rule set for every client (`writing-rules.mjs`), adapted
+  from the MIT-licensed "avoid-ai-writing" skill (v3.37.0, notice kept), plus
+  one automatic revision when the draft has a mechanical tell (dashes, listed
+  words);
+- a transcript box: a card with no video opens it from Generate; a card with a
+  video gets an optional Transcript pill. Desktop and phone (bottom sheet).
+
+Switch: `syncview_runtime_flags` key `caption_generate_ef_clients`,
+`{"clients":["<slug>"]}` or `{"all":true}`. Missing, malformed or unreadable
+means n8n, so nothing changes until the owner sets it; measured 2026-10-09: the
+row does not exist. The transcript box only exists on the function path.
+
+Proof (offline only): `test/caption-generate-source.js` (logic and wiring),
+`qa/caption-generate/function-run.ts` (the function's own code under Deno with
+every outside service stood in), `test/caption-generate-browser.js` (desktop and
+iPhone size, switch off and on). Not proven live: the function is not deployed
+and the AI secrets were not available to this session.
+
+**Owner steps:** merge; set the secrets `REPLICATE_API_TOKEN` (new) and check
+`ANTHROPIC_API_KEY` and `BRAIN_GITHUB_TOKEN` exist; deploy `caption-generate`
+from the one-function lane at main's SHA; turn the switch on for the test client
+only and generate one caption with a video and one from a transcript. Rollback:
+delete the switch row (back to n8n at once). The n8n workflow stays on until the
+switch has been on for every client for 30 days.

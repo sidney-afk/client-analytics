@@ -40,8 +40,10 @@ const ORIGIN = 'http://localhost:8000';
 const SUPA = 'https://uzltbbrjidmjwwfakwve.supabase.co';
 const KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
 const HOOKS = 'https://synchrosocial.app.n8n.cloud/webhook';
-const SXR_UPSERT = HOOKS + '/sample-review-upsert';
-const SXR_REORDER = HOOKS + '/sample-review-reorder';
+// Samples seed/save and reorder go to the Edge Functions the page itself uses (moved off
+// n8n 2026-10-09, like upCal on 2026-10-07; these probes were the n8n workflow's only callers).
+const SXR_UPSERT = SUPA + '/functions/v1/sample-review-upsert';
+const SXR_REORDER = SUPA + '/functions/v1/sample-review-reorder';
 // Hosts the courier tunnels for the page (Node -> proxy -> host works; the
 // browser's own egress does not). docs.google.com is included so the CLIENT
 // SHARE surface boots: its router does `await fetchEssentials()` (Metrics +
@@ -397,7 +399,10 @@ function nodePost(url, obj, extraHeaders) {
   try { return JSON.parse(out); } catch { return { _raw: out }; }
 }
 // Seed/save a sample via the live upsert webhook (the same write the FE makes).
-function up(sample, base) { return nodePost(SXR_UPSERT, { client: 'sidneylaruel', sample, comments_base_at: base || '' }); }
+function up(sample, base) {
+  return nodePost(SXR_UPSERT, { client: 'sidneylaruel', sample, comments_base_at: base || '' },
+    STAFF_KEY ? { 'x-syncview-key': STAFF_KEY } : null);
+}
 // Archive a seed and VERIFY it stuck, re-archiving a few times. Heavy probes can
 // leave a trailing browser flush in-flight that lands AFTER an in-finally
 // archive and re-saves the row's status; close the browser BEFORE calling this,
@@ -438,7 +443,9 @@ function archiveStaleTestRows(nameRe, minAgeMs, log) {
   }
   return out;
 }
-function reorder(items) { return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }); }
+function reorder(items) {
+  return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }, STAFF_KEY ? { 'x-syncview-key': STAFF_KEY } : null);
+}
 // Read TEST rows back from Supabase REST using the same fileless transport as
 // the browser courier. The protected URL and headers stay in stdin config, and
 // curl's response stays in memory.

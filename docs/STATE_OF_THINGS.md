@@ -8,6 +8,10 @@ Every line below was checked against the live system on **2026-09-26** (read-onl
 SQL on `syncview_runtime_flags`, tables and row counts; the live Edge Function
 list; the n8n workflow list). Where a doc and the live system disagree, the live
 system wins and this page says so. Counts only, no client names.
+Lines marked **(measured 2026-10-09)** were re-checked that day by session Shipwright
+(OPEN_REPAIRS 389); the owner's remaining steps are one ordered sitting in
+[`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md), and `node scripts/repo-vs-live.js`
+prints repo vs live for the whole shelf.
 
 When you close or change something here, update its line in the same PR. If a
 line is older than a week, re-check it before relying on it.
@@ -36,7 +40,9 @@ here with where it stopped, so it can be restarted.
   the two tabs in Google; the Finalizer's first real client is its end to end proof;
   CLIENTS METRICS and TOP VIDEOS keep reading the Sheet until Harbor's port. Beacon (onboarding) will extend the Clients tab.
   Cartographer's measured remaining map (84 tabs, readers/writers, costs and owner-gated slice order): [2026-10-03 Sheets remaining map](plans/2026-10-03-sheets-remaining-map.md); evidence 2026-10-02, including live Roster progress beyond the older status above.
-  **Slice 1, the page's own two reads (session Quarry, 2026-10-08, OPEN_REPAIRS 374): BUILT, in PR, switch not flipped.** With
+  **Slice 1, the page's own two reads (session Quarry, 2026-10-08, OPEN_REPAIRS 374): merged (#1997), NOT live (measured 2026-10-09):
+  `analytics-read` is still v21 from 2026-10-02, the switch has no `roster` key, and the daily copy has not run since the fix
+  merged. Owner steps 2 to 4 of `docs/ops/OWNER_SHIP_LIST.md`.** With
   `"roster": "database"` in `analytics_mirror_read_enabled` the page never downloads Clients Info or Social Media Managers (client
   list from `analytics-read`, review queue managers from `smm-weekly-reports`); merging deploys nothing (`analytics-read` gains a
   client-row-only read for links the numbers read is not on for, deployed by hand). Parity measured 2026-10-08 (read only): Clients Info 36 of 36 rows equal, all columns; manager assignments 41 and
@@ -47,8 +53,9 @@ here with where it stopped, so it can be restarted.
 - **B. Move off n8n.** Phase 2 plan, step by step (item 6b below).
   TikTok Upload (Courier, OPEN_REPAIRS 362): LIVE on Supabase since 2026-10-07 17:42 UTC (`tiktok_upload_source` = `supabase`,
   sheet rows copied). Six n8n TikTok workflows switched off 2026-10-08 on the owner's go (`docs/ops/N8N_EDIT_LOG.md`). Still on:
-  `TikTok Upload, Result`, because Post For Me's result webhook points at it; it goes off once Courier's result action is deployed
-  and the webhook is re-pointed. Calendar Upsert Post and its Comment Merge helper were switched off the same day (zero runs since
+  `TikTok Upload, Result`, because Post For Me's result webhook points at it. Courier's result action is deployed (`tiktok-upload`,
+  2026-10-08 15:44 UTC); the webhook is not re-pointed yet: the n8n workflow ran 7 times on 2026-10-07 and 08 (measured 2026-10-09,
+  OPEN_REPAIRS 370; owner step 6 of the ship list). Calendar Upsert Post and its Comment Merge helper were switched off the same day (zero runs since
   2026-10-07 15:00 UTC; the page never sends Calendar saves to n8n since #1858).
 - **C. Onboarding (session Beacon, 2026-10-02: the checklist is built and in use on the test client).** The
   checklist tables, the `client-onboarding` and `client-hubspot-sync` functions are live, and the Clients tab now
@@ -58,11 +65,11 @@ here with where it stopped, so it can be restarted.
   **"Create client" is LIVE since 2026-10-08** (OPEN_REPAIRS 372): both migrations applied, `client-onboarding`
   deployed, throwaway create and teardown passed (Lighthouse). **Its Slack nudge is applied** (PR 2011, live database checked 2026-10-10):
   real clients only, no n8n edit; the database nudges the existing finalizer webhook after a create and when a filming
-  plan link is saved, the 15 minute timer covers the rest. Owner steps in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 6
-  (apply `2026-10-09-create-client-slack-nudge.sql`, redeploy `client-onboarding`). Clients who never fill the form
-  would need an n8n change, written out there for the owner's go.
-  **2026-10-10 (owner decision): a real client no longer needs an email** (OPEN_REPAIRS 385): built, owner pastes
-  `2026-10-10-create-client-email-optional.sql` and redeploys `client-onboarding` (step 7 of the same file).
+  plan link is saved, the 15 minute timer covers the rest. Clients who never fill the form
+  would need an n8n change, written out in `docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` for the owner's go.
+  **A real client no longer needs an email** (owner decision, OPEN_REPAIRS 385): LIVE (measured 2026-10-09): the SQL is
+  applied (no email check in `client_create_native`, EXECUTE closed to `anon` and `authenticated`) and `client-onboarding`
+  was deployed 2026-10-09 01:37 UTC at #2015, after its last change, so the apply and deploy parts of steps 6 and 7 of that file are done (their throwaway checks are not recorded).
   **Stage 3 dry run done**, nothing saved:
   `docs/audits/2026-10-08-stage3-matching-dry-run.md` (Drive folder found for 31 of 35, HubSpot deal for 25; 192 high
   confidence proposals waiting for the owner). Next: the owner approves batches; the approvals screen (3.3) is not built.
@@ -108,9 +115,10 @@ here with where it stopped, so it can be restarted.
    every other save: Templates, Filming plans, caption prompts, Workload dates,
    TikTok, Hiring, credentials and the rest (list in
    `docs/audits/2026-09-29-write-paths-refusal-coverage.md`, kept honest by a test).
-   Measured live: `traffic` fills for browser reports; the gateway's own rows
-   still show none because `production-write` was deployed before #1643 and needs
-   its next Section 4 deploy. Left: that deploy (owner's capture ritual).
+   Measured live 2026-10-09: `traffic` fills for browser reports and for the gateway's own
+   rows (all 542 gateway rows since 2026-10-08 carry it; it shipped with the 2026-09-30
+   Section 4 deploy). Nothing left from that deploy. Left: making the log easy to read and
+   widening coverage (Time off saves, the six urgent-ping codes of OPEN_REPAIRS 314).
 5. **Load-per-tab, step 5: client links get the smaller page. DONE: merged (#1868, key fix #1872),
    Vigil hand-tested the live client links 2026-09-30 (all five steps pass, test client only).
    Parts are also minified since 2026-09-30 (#1873).**
@@ -151,7 +159,7 @@ here with where it stopped, so it can be restarted.
    merge. Generate Caption's Save step, the last real caller of the n8n Calendar save, moved to the function 2026-10-03 (OPEN_REPAIRS 334).
 6c. **n8n exit, analytics jobs (owner, 2026-10-01): Metrics step built, waiting for the owner (session Harbor, OPEN_REPAIRS 322).** Order: daily metrics, Top Videos, Market Research. Our own Edge Function
    `analytics-metrics-collect` runs beside n8n CLIENTS METRICS in shadow (writes a shadow table only), compared daily; n8n is not edited. Plan with the node
-   by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. Not deployed, not applied, never run against Apify (first proof is the first shadow day).
+   by node map and the steps: `docs/plans/2026-10-01-n8n-off-analytics.md`. (Measured 2026-10-09: the shadow migrations are applied, the shadow tables and both timers exist, both functions are deployed; both flags are `off` by the owner's 2026-10-06 pause; the live mode of 356 is not applied; Market Research is neither applied nor deployed.)
    Owner decisions 2026-10-01: Apify double spend accepted; Pro plan; day 1 shadow = test client plus one real client with Instagram, TikTok and YouTube, then all clients for 3 days; 3 clean days is the bar before proposing to switch n8n off. Next: Lighthouse merges, then the owner's click-by-click steps (`docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`: three secrets, the key also in Vault). **Top Videos (2026-10-02, OPEN_REPAIRS 327, plan section 7): built the same way, in shadow beside n8n TOP VIDEOS (`analytics-top-videos-collect`, timer 08:00 to 12:59 UTC, same key and secrets, nothing new for the owner to create), not deployed, not applied; steps `docs/ops/ANALYTICS_TOP_VIDEOS_OWNER_STEPS.md`, after the metrics steps.** **Market Research (2026-10-02, OPEN_REPAIRS 335, plan section 7c): mapped and built the same way, in shadow (`analytics-market-research-collect`; it is NOT a daily job: n8n has five webhooks and no timer, so it builds one brief per request, test client first, with a daily cap), not deployed, not applied; steps `docs/ops/ANALYTICS_MARKET_RESEARCH_OWNER_STEPS.md` (one new secret, `ANTHROPIC_API_KEY`; confirm `OPENAI_KEY`).** Evidence of use: 13 briefs for 9 clients, none since 2026-06-03; the owner decides later whether to keep the Keywords brief at all. The other four enabled branches stay on n8n for now. **The switch for Metrics and Top Videos (2026-10-06, OPEN_REPAIRS 356, plan section 8b): built, in PR, nothing deployed or applied.** Flag mode `live` writes the real tables (source `edge`, first writer wins per client per day), n8n's safety checks rebuilt over our queues and named by the combined Slack message (which must be switched on first), the daily copy and parity lane no longer fail when the two tabs stop. No Sheet copy kept (owner). Steps: "Going live" in `docs/ops/ANALYTICS_COLLECT_OWNER_STEPS.md`; n8n deactivation needs the owner's explicit go.
 7. **Navigation, then look and feel** (roadmap phases D and E in
    `docs/plans/2026-09-21-post-modularization-roadmap.md`), each starting from
@@ -217,6 +225,9 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
+- **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**
+  (measured 2026-10-09, OPEN_REPAIRS 389): 8 items, none needs the sealed capture. The roster switch (374) and the
+  `analytics-read` deploy come first after a look at the backup.
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
   dispatchers (interview invite, practical test) are still active and run every
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).
@@ -227,7 +238,8 @@ hiring senders when the editor hire closes.
   (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
   access from the owner's machine. The separate "Linear access extension to
   2026-10-15" is moot: all Linear keys were revoked on 2026-09-23.
-- **Slack alerts become one message (owner said yes, 2026-09-28): BUILT 2026-10-02, switch off, in PR (OPEN_REPAIRS 328).**
+- **Slack alerts become one message (owner said yes, 2026-09-28): BUILT 2026-10-02, merged, switch off (OPEN_REPAIRS 328; measured
+  2026-10-09: the 09:37 UTC run printed `ALERT_DIGEST_ENABLED` empty, so it is still shadow).**
   Runs hourly in shadow (prints the message in the run summary, posts nothing); every old alert still posts. Owner's
   steps: compare shadow with real alerts, approve one edit to the n8n alert relay (snippet in
   `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`), set `ALERT_DIGEST_ENABLED` to `true`, then old alerts are removed one by one.
@@ -246,8 +258,12 @@ hiring senders when the editor hire closes.
 
 ## Needs a session
 
-- **Add `Access-Control-Max-Age: 7200` to `production-write` at the next sealed Section 4 deploy** (owner decision 2026-10-01; OPEN_REPAIRS 326). Seven other hot-path functions already carry it in source; `production-write` is held back only because it moves inside that ceremony. `calendar-upsert` is frozen and stays without it.
-- **`production-comments` has the two-hour preflight header in source but is not deployed** (owner decision 2026-10-02; OPEN_REPAIRS 326). It deploys only through the staff-sensitive lane's manual dispatch, which also redeploys `notify`, `production-write` and `production-archive` from the same commit; the header rides the next dispatch the owner needs anyway. `analytics-read`, `brain` and `workload-plan` (single-function lane, one dispatch each with the merge commit) also carry it in source and still need their dispatch.
+- **Something still saves Samples through n8n** (measured 2026-10-09, OPEN_REPAIRS 389): `Sample Review — Upsert`
+  ran 729 times since 2026-10-02 and was running during the check, although staff and client saves go to the
+  functions (289, 292, 333). Find the caller before that workflow can be switched off. Five other old n8n
+  workflows had zero runs and are listed for the owner's switch-off go (ship list step 7).
+- **Add `Access-Control-Max-Age: 7200` to `production-write`** (owner decision 2026-10-01; OPEN_REPAIRS 326). Measured 2026-10-09: it is **not in the source yet** (today's Section 4 deploy shipped main as it is), so a session adds it with the fingerprint re-pin and it ships at the next Section 4 deploy. `calendar-upsert` is frozen and stays without it.
+- **The two-hour preflight header, live state (measured 2026-10-09, OPEN_REPAIRS 389):** live on `key-verify`, `smm-weekly-reports`, `thumbnail-revision-read`, `brain` and `workload-plan`. Waiting: `analytics-read` (single-function lane, ship list step 2) and `production-comments` (live build from 2026-09-17; its lane's manual dispatch also redeploys `notify`, `production-write`, `production-archive` and eight onboarding functions, all equal to main today; optional, ship list step 8).
 - **Duplicate ledger numbers in OPEN_REPAIRS:** 13, 14, 22, 23, 175, 176, 177,
   180 each appear twice, and 220 sits before 218/219. Append a renumbering
   note; never rewrite.
@@ -255,8 +271,8 @@ hiring senders when the editor hire closes.
   2026-09-23 (OPEN_REPAIRS 225 said "never recorded one"). 4,206 are
   `invalid_staff_key` on the Production gateway, almost all on 09-23 and 09-24
   and down to 2 on 09-25, so it looks like one automated caller that stopped.
-  The `traffic` column (256) now fills on browser reports; gateway rows stay
-  empty until `production-write` is redeployed (measured 2026-09-29, item 4).
+  The `traffic` column (256) fills on browser reports and, since the 2026-09-30
+  Section 4 deploy, on gateway rows too (measured 2026-10-09, item 4).
 - **Scheduled lanes that are red** (the lanes in OPEN_REPAIRS 205). Repair or retire each.
   **2026-10-02 (OPEN_REPAIRS 329): the Production polish interaction and heavy lanes and the card vs
   calendar drift check had causes found and fixed (test code and test-client data only); confirm
@@ -264,10 +280,10 @@ hiring senders when the editor hire closes.
   **2026-10-08 (OPEN_REPAIRS 373, session Mend): Calendar E2E, Samples E2E and the drift check.** Robot causes
   fixed in test code (fake-key refusal shadowing the fake gateway; fake-key 401s on staff reads signing the robot
   out, which since admin-only Kasper sends it to Home; notes sent before their thread loads; two probes on
-  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Owner steps left:
-  apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
-  test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
-  preflight's two pins at that migration before the next Section 4 dispatch.
+  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Measured 2026-10-09: the migration is
+  applied from the LF copy (both routine bodies match the preflight pins, OPEN_REPAIRS 381), the test-client repair ran,
+  and the pins are re-pointed (today's Section 4 run passed its preflight). Left: the `SYNCVIEW_STAFF_KEY` repository
+  secret holds a role key (p96); a secret cannot be read, so the next Calendar and Samples nightly runs show it.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

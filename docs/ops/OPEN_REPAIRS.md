@@ -31970,6 +31970,8 @@ realtime itself). The rest, each a robot cause:
 - *p87_kasper_finish_stale_refresh*: it faked the old n8n save address; saves go to `calendar-upsert` since 2026-10-07, so
   Finish's save reached the live function, did not land, and Finish was undone. Both addresses are now faked (it writes nothing).
 - *p96* passes with the SMM role key and a roster name (run locally with both).
+- *p31, p38*: the live switch `caption_generate_ef_clients` was set to all clients at 19:33 UTC on 2026-10-09, so caption
+  generation now calls the `caption-generate` function; the probes faked only the n8n address. Both addresses are faked now.
 - *Samples nightly scenarios:* the eight create_* scenarios drive the same retired "+" funnel on Samples
   (`addSxrBlankCard` -> Create Post for every enrolled client) and ran only because scenarios use the legacy lane; retired
   from the nightly list in `qa/master.js` (still defined, still run by `--profile=full`). The nightly keeps clean_both,

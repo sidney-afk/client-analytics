@@ -16,13 +16,18 @@ const seed = (id) => Q.up({ id, name: 'BG ' + id.slice(-6), platforms: 'youtube'
   await seedStaffGate(ctx, { answerStaffReads: true });
   let inFlight = 0, maxConcurrent = 0;
   const respFor = {};
-  await ctx.route('**/webhook/generate-caption', async (r) => {
+  // Caption generation moved to the caption-generate function for every client
+  // (live switch caption_generate_ef_clients, 2026-10-09); the n8n address is kept
+  // for a client the switch leaves out. Both get the same fake (OPEN_REPAIRS 392).
+  const GEN_CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' };
+  await ctx.route(u => /\/webhook\/generate-caption$|\/functions\/v1\/caption-generate$/.test(u.pathname), async (r) => {
+    if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: GEN_CORS });
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     inFlight++; maxConcurrent = Math.max(maxConcurrent, inFlight);
     await new Promise(x => setTimeout(x, 2500));   // hold the slot so concurrency is observable
     inFlight--;
     const resp = respFor[body.postId] || { ok: true, caption: 'BULK-' + String(body.postId).slice(-6) };
-    await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(resp) });
+    await r.fulfill({ status: 200, contentType: 'application/json', headers: GEN_CORS, body: JSON.stringify(resp) });
   });
   await ctx.route('**/webhook/caption-prompts-get', async (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
   await ctx.route('**/webhook/caption-job-status', async (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"status":"running"}' }));

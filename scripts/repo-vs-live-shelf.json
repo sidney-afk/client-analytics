@@ -1,0 +1,39 @@
+{
+  "format": "repo-vs-live-shelf-v1",
+  "about": "What the repo says is built and should be live, with one read-only check each. scripts/repo-vs-live.js reads this file. When you build something that waits on a deploy, a database paste or a switch, add a row here in the same PR; when it is live, leave the row (it then prints LIVE) until the next tidy-up. Probes must be one SELECT that returns one yes/no or one count, never a name. Ledger numbers are docs/ops/OPEN_REPAIRS.md entries.",
+  "functions": {
+    "analytics-read": { "entries": [374, 326], "lane": "deploy-single-function.yml" },
+    "production-comments": { "entries": [326], "lane": "deploy-onboarding-edge-functions.yml (manual dispatch)" },
+    "calendar-upsert": { "entries": [334], "hold": "frozen writer: the gated source needs the n8n login to carry the writer key first (OPEN_REPAIRS 334)" },
+    "sample-review-upsert": { "entries": [289, 292], "hold": "frozen writer, kept as it is on purpose" },
+    "analytics-market-research-collect": { "entries": [335], "hold": "analytics jobs paused by owner decision 2026-10-06" },
+    "linear-inbound": { "hold": "deleted on purpose 2026-09-24; source kept as a frozen reference" },
+    "linear-outbound": { "hold": "deleted on purpose 2026-09-24; source kept as a frozen reference" }
+  },
+  "owned_elsewhere": {
+    "pipeline-google": "synchro-pipelines",
+    "fp-tab-test": "synchro-pipelines",
+    "doctors-partial-capture": "synchrosocial"
+  },
+  "probes": [
+    { "id": "357-comment-signal", "entry": 357, "kind": "database", "what": "live updates: deliverables.comments_changed_at and its trigger", "sql": "select exists(select 1 from information_schema.columns where table_schema='public' and table_name='deliverables' and column_name='comments_changed_at') and exists(select 1 from pg_trigger where tgname='zzz_production_comment_signal')", "expect": true },
+    { "id": "362-tiktok-uploads", "entry": 362, "kind": "database", "what": "TikTok queue table tiktok_uploads", "sql": "select to_regclass('public.tiktok_uploads') is not null", "expect": true },
+    { "id": "362-tiktok-source", "entry": 362, "kind": "switch", "what": "tiktok_upload_source = supabase", "sql": "select coalesce((select value->>'source' from public.syncview_runtime_flags where key='tiktok_upload_source'),'') = 'supabase'", "expect": true },
+    { "id": "363-smm-also-sees", "entry": 363, "kind": "database", "what": "Today 'also sees' table smm_also_sees", "sql": "select to_regclass('public.smm_also_sees') is not null", "expect": true },
+    { "id": "372-slack-nudge", "entry": 372, "kind": "database", "what": "Create client Slack nudge trigger", "sql": "select exists(select 1 from pg_trigger where tgname='filming_plans_slack_finalizer_nudge')", "expect": true },
+    { "id": "381-na-wins-lf", "entry": 381, "kind": "database", "what": "N/A-wins calendar routines applied from the LF copy (preflight pins)", "sql": "select coalesce((select md5(prosrc) from pg_proc where proname='production_native_calendar_status_project' and pronargs=0),'') = '0bba613424a49ebad9aab831115668a6' and coalesce((select md5(prosrc) from pg_proc where proname='production_native_calendar_status_backfill' and pronargs=2),'') = '0633f083cf5222750510819a141750d4'", "expect": true },
+    { "id": "385-email-optional", "entry": 385, "kind": "database", "what": "Create client: email optional in client_create_native", "sql": "select coalesce((select position('client_create_email_required' in prosrc) = 0 from pg_proc where proname='client_create_native' limit 1), false)", "expect": true },
+    { "id": "385-execute-closed", "entry": 385, "kind": "database", "what": "client_create_native: no EXECUTE for anon or authenticated", "sql": "select count(*) from pg_proc p where p.proname='client_create_native' and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'))", "expect": 0 },
+    { "id": "313-sample-bridge", "entry": 313, "kind": "database", "what": "sample status bridge trigger", "sql": "select exists(select 1 from pg_trigger where tgname='zzz_native_sample_status_project')", "expect": true },
+    { "id": "374-roster-switch", "entry": 374, "kind": "switch", "what": "page reads the roster from the database (\"roster\": \"database\" in analytics_mirror_read_enabled)", "sql": "select coalesce((select value->>'roster' from public.syncview_runtime_flags where key='analytics_mirror_read_enabled'),'') = 'database'", "expect": true },
+    { "id": "356-analytics-live-sql", "entry": 356, "kind": "database", "what": "analytics live mode tables and checks", "sql": "select to_regclass('public.analytics_collect_daily_checks') is not null", "expect": true, "hold": "analytics jobs paused by owner decision 2026-10-06" },
+    { "id": "356-analytics-live-switch", "entry": 356, "kind": "switch", "what": "analytics_metrics_collect mode = live", "sql": "select coalesce((select value->>'mode' from public.syncview_runtime_flags where key='analytics_metrics_collect'),'') = 'live'", "expect": true, "hold": "analytics jobs paused by owner decision 2026-10-06" },
+    { "id": "335-market-research-shadow", "entry": 335, "kind": "database", "what": "Market Research shadow table", "sql": "select to_regclass('public.analytics_market_research_shadow') is not null", "expect": true, "hold": "analytics jobs paused by owner decision 2026-10-06" },
+    { "id": "387-backup-latest", "entry": 387, "kind": "lane", "what": "private backup: latest run green", "workflow": "track-b-backup.yml", "expect": "success" },
+    { "id": "387-backup-nightly", "entry": 387, "kind": "lane", "what": "private backup: latest scheduled (nightly) run green", "workflow": "track-b-backup.yml", "event": "schedule", "expect": "success", "hold": "time only: the first nightly run after the fix has not happened yet" },
+    { "id": "328-digest-switch", "entry": 328, "kind": "manual", "what": "repository variable ALERT_DIGEST_ENABLED = true", "how": "the run log of alert-digest.yml prints ALERT_DIGEST_ENABLED (empty = shadow)" },
+    { "id": "373-staff-key-secret", "entry": 373, "kind": "manual", "what": "repository secret SYNCVIEW_STAFF_KEY holds a role key", "how": "secrets cannot be read; the next Calendar and Samples nightly robots show it" },
+    { "id": "370-pfm-webhook", "entry": 370, "kind": "manual", "what": "Post For Me result webhook points at tiktok-upload, not n8n", "how": "n8n 'SyncView TikTok Upload — Result' should stop receiving runs" },
+    { "id": "331-sheet-tabs-protected", "entry": 331, "kind": "manual", "what": "Clients Info and Social Media Managers tabs protected in Google", "how": "Google Sheets > Data > Protect sheets and ranges" }
+  ]
+}

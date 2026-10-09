@@ -1,0 +1,369 @@
+{
+  "captured_at": "2026-10-09T15:55:00Z",
+  "source": "session Shipwright: Supabase MCP (function list, read-only SQL) and GitHub run history",
+  "note": "Byte results for the three Section 4 functions come from the attestation of deploy-f27-section4-closures run 51 (2026-10-09 14:35 UTC, commit 71e4ec7a, success); no file under supabase/functions changed on main between that commit and 1018bba5. Every other function is compared by dates only.",
+  "functions": [
+    {
+      "slug": "onboarding-capture",
+      "version": 63,
+      "updated_at": "2026-07-02T21:32:24.048Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "client-credentials",
+      "version": 77,
+      "updated_at": "2026-10-07T19:09:50.117Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "calendar-upsert",
+      "version": 78,
+      "updated_at": "2026-09-10T16:34:51.724Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "calendar-reorder",
+      "version": 66,
+      "updated_at": "2026-07-14T22:23:15.055Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "sample-review-upsert",
+      "version": 79,
+      "updated_at": "2026-09-10T16:36:53.537Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "sample-review-reorder",
+      "version": 66,
+      "updated_at": "2026-07-19T17:21:51.600Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "templates-save",
+      "version": 64,
+      "updated_at": "2026-07-14T22:23:20.876Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "caption-prompts-save",
+      "version": 64,
+      "updated_at": "2026-07-14T22:23:23.482Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "client-token-verify",
+      "version": 62,
+      "updated_at": "2026-07-22T22:05:46.570Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "key-verify",
+      "version": 70,
+      "updated_at": "2026-10-02T04:08:55.475Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "onboarding-list",
+      "version": 69,
+      "updated_at": "2026-10-07T19:09:38.315Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "ai-onboarding-list",
+      "version": 69,
+      "updated_at": "2026-10-07T19:09:41.505Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "legacy-onboarding-list",
+      "version": 69,
+      "updated_at": "2026-10-07T19:09:44.352Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "onboarding-full",
+      "version": 69,
+      "updated_at": "2026-10-07T19:09:47.137Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "filming-plans",
+      "version": 65,
+      "updated_at": "2026-10-02T04:08:50.394Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "thumbnail-folder-resolve",
+      "version": 56,
+      "updated_at": "2026-07-17T17:54:59.890Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "thumbnail-revision-scan",
+      "version": 63,
+      "updated_at": "2026-09-29T16:00:07.605Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "smm-weekly-reports",
+      "version": 64,
+      "updated_at": "2026-10-07T19:09:55.477Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "deliverable-write",
+      "version": 66,
+      "updated_at": "2026-09-30T22:30:15.754Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "batch-write",
+      "version": 66,
+      "updated_at": "2026-09-30T22:30:20.012Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "production-comments",
+      "version": 54,
+      "updated_at": "2026-09-17T21:49:19.482Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "production-write",
+      "version": 111,
+      "updated_at": "2026-10-09T14:36:55.930Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "thumbnail-revision-read",
+      "version": 60,
+      "updated_at": "2026-10-02T04:08:22.649Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "client-review-link",
+      "version": 37,
+      "updated_at": "2026-08-08T18:15:32.349Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "pto",
+      "version": 37,
+      "updated_at": "2026-08-11T16:44:51.326Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "workload-plan",
+      "version": 48,
+      "updated_at": "2026-10-02T14:49:39.414Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "production-archive",
+      "version": 38,
+      "updated_at": "2026-09-17T21:49:21.538Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "kasper-ad-performance-read",
+      "version": 37,
+      "updated_at": "2026-08-27T20:36:42.825Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "quiz-capture",
+      "version": 34,
+      "updated_at": "2026-08-24T22:11:19.476Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "quiz-leads-list",
+      "version": 34,
+      "updated_at": "2026-08-24T22:11:21.760Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "hiring-applications",
+      "version": 35,
+      "updated_at": "2026-09-18T23:55:04.263Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "hiring-automation",
+      "version": 33,
+      "updated_at": "2026-09-15T22:49:47.815Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "description-image-upload",
+      "version": 33,
+      "updated_at": "2026-09-29T16:00:11.705Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "notify",
+      "version": 35,
+      "updated_at": "2026-10-02T02:44:23.110Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "write-diagnostics",
+      "version": 30,
+      "updated_at": "2026-09-28T14:28:27.026Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "brain",
+      "version": 20,
+      "updated_at": "2026-10-02T14:50:12.361Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "analytics-read",
+      "version": 21,
+      "updated_at": "2026-10-02T14:49:02.822Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "analytics-write",
+      "version": 18,
+      "updated_at": "2026-10-01T02:29:33.291Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "client-profile-write",
+      "version": 17,
+      "updated_at": "2026-10-07T19:51:16.971Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "syncview-session",
+      "version": 15,
+      "updated_at": "2026-09-27T19:36:21.189Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "higgsfield-mcp",
+      "version": 35,
+      "updated_at": "2026-10-01T15:56:19.532Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "filming-plan-tabs",
+      "version": 12,
+      "updated_at": "2026-09-29T16:08:00.557Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "fp-tab-test",
+      "version": 13,
+      "updated_at": "2026-09-29T23:02:34.844Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "pipeline-google",
+      "version": 13,
+      "updated_at": "2026-09-30T21:39:58.758Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "caption-jobs",
+      "version": 13,
+      "updated_at": "2026-10-02T23:48:39.672Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "instagram-upload",
+      "version": 11,
+      "updated_at": "2026-09-30T22:53:35.267Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "doctors-partial-capture",
+      "version": 11,
+      "updated_at": "2026-10-05T15:54:01.665Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "analytics-metrics-collect",
+      "version": 6,
+      "updated_at": "2026-10-06T20:44:46.281Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "roster-read",
+      "version": 5,
+      "updated_at": "2026-10-02T02:46:13.579Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "roster-write",
+      "version": 5,
+      "updated_at": "2026-10-02T02:47:17.778Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "client-onboarding",
+      "version": 7,
+      "updated_at": "2026-10-09T01:37:50.975Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "client-hubspot-sync",
+      "version": 4,
+      "updated_at": "2026-10-02T23:47:58.676Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "analytics-top-videos-collect",
+      "version": 3,
+      "updated_at": "2026-10-06T20:46:23.634Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "tiktok-upload-cancel",
+      "version": 2,
+      "updated_at": "2026-10-07T17:41:55.493Z",
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "tiktok-upload",
+      "version": 2,
+      "updated_at": "2026-10-08T15:44:03.857Z",
+      "status": "ACTIVE"
+    }
+  ],
+  "fingerprints": {
+    "production-write": "PASS",
+    "deliverable-write": "PASS",
+    "batch-write": "PASS"
+  },
+  "probes": {
+    "357-comment-signal": true,
+    "362-tiktok-uploads": true,
+    "362-tiktok-source": true,
+    "363-smm-also-sees": true,
+    "372-slack-nudge": true,
+    "381-na-wins-lf": true,
+    "385-email-optional": true,
+    "385-execute-closed": 0,
+    "313-sample-bridge": true,
+    "374-roster-switch": false,
+    "356-analytics-live-sql": false,
+    "356-analytics-live-switch": false,
+    "335-market-research-shadow": false
+  },
+  "lanes": {
+    "387-backup-latest": {
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:45:46Z",
+      "event": "workflow_dispatch"
+    },
+    "387-backup-nightly": {
+      "conclusion": "failure",
+      "created_at": "2026-10-09T13:35:40Z",
+      "event": "schedule"
+    }
+  }
+}

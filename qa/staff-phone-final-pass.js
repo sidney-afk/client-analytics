@@ -20,6 +20,23 @@ const only = new RegExp(arg('only', '.*'));
 const shots = arg('shots', ''), receipts = [], failures = [];
 const allStates = process.argv.includes('--all-states');
 const settle = p => p.waitForTimeout(850);
+async function analyticsAxes(page) {
+  return page.evaluate(()=>{
+    const rgb=value=>{
+      if(value.startsWith('#')) { let h=value.slice(1);if(h.length===3)h=h.split('').map(c=>c+c).join('');return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)); }
+      return value.match(/[\d.]+/g).map(Number);
+    };
+    const luminance=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+    return Object.values(window.Chart?.instances||{}).filter(chart=>chart.canvas.closest('.client-view')&&chart.canvas.checkVisibility({checkVisibilityCSS:true})).flatMap(chart=>{
+      let background=[255,255,255];
+      for(let parent=chart.canvas;parent;parent=parent.parentElement) {const color=rgb(getComputedStyle(parent).backgroundColor);if(color.length===3||color[3]===1){background=color;break;}}
+      return Object.values(chart.scales).filter(scale=>scale.options.display!==false).map(scale=>{
+        const front=luminance(rgb(scale.options.ticks.color)),back=luminance(background);
+        return {chart:chart.canvas.id,axis:scale.id,font:scale.options.ticks.font.size,color:scale.options.ticks.color,contrast:(Math.max(front,back)+.05)/(Math.min(front,back)+.05)};
+      });
+    });
+  });
+}
 const core = SCENARIOS.filter(s => ['analytics-overview','analytics-detail','workload-week','linear-list','linear-detail','tiktok-client-ready','instagram-client-ready','menu-tabs','menu-more','menu-client'].includes(s.id)).map(s => ({ ...s, name: s.id }));
 core.push({...SCENARIOS.find(s=>s.id==='tiktok-client-ready'),name:'tiktok-client-search',steps:async p=>{
   await SCENARIOS.find(s=>s.id==='tiktok-client-ready').steps(p);
@@ -109,6 +126,25 @@ async function verify(page, name, width, theme) {
       assert.ok(loader.rows.length && loader.rows.every(row=>row.left>=15 && row.right<=width-15 && row.height>=200 && row.height<=350 && row.radius>=20),'Analytics loading cards are complete, rounded and contained in the phone');
       assert.ok(await page.locator('.analytics-overview-skeleton tbody td').evaluateAll(cells=>cells.filter(cell=>cell.checkVisibility({checkVisibilityCSS:true})).every(cell=>['Top','Right','Bottom','Left'].every(side=>parseFloat(getComputedStyle(cell)['border'+side+'Width'])===0))),'Analytics loading bars must not inherit colored metric-cell borders');
     }
+    if(name.startsWith('analytics-') && name!=='analytics-loading') {
+      const text=await page.evaluate(()=>{
+        const rgb=value=>value.match(/[\d.]+/g).map(Number);
+        const luminance=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        return [...document.querySelectorAll('.card-platform-label,.card-metric-label,.card-metric-gain,.card-platform a span,.platform-handle-link,.m-label,.m-value.empty,.m-delta,.gain-chip-label,.gain-delta,.card-platform .analytics-state-badge')].filter(node=>node.checkVisibility({checkVisibilityCSS:true})).map(node=>{
+          const style=getComputedStyle(node);let background=[255,255,255,1];
+          for(let parent=node;parent;parent=parent.parentElement){const color=rgb(getComputedStyle(parent).backgroundColor);if(color.length===3||color[3]===1){background=color;break;}}
+          const color=rgb(style.color),alpha=color[3]??1;
+          const front=luminance(color.map((v,i)=>i<3?v*alpha+background[i]*(1-alpha):v)),back=luminance(background);
+          return {selector:node.className||node.parentElement.className,font:parseFloat(style.fontSize),opacity:Number(style.opacity),contrast:(Math.max(front,back)+.05)/(Math.min(front,back)+.05)};
+        });
+      });
+      const unreadable=text.filter(node=>node.font<13||node.opacity!==1||node.contrast<4.5);
+      if(unreadable.length) faults.push('Analytics supporting text below 13px or 4.5 contrast: '+JSON.stringify(unreadable.slice(0,12)));
+      if(name.startsWith('analytics-detail')) {
+        const axes=await analyticsAxes(page);
+        if(axes.length<4||axes.some(axis=>axis.font<13||axis.contrast<4.5)) faults.push('Analytics chart labels below 13px or 4.5 contrast: '+JSON.stringify(axes));
+      }
+    }
     if (name === 'today-all-clear') {
       assert.ok(await page.locator('.tdy-rings').isHidden(), 'empty day must not repeat five zero-item job tiles');
       const heading = await page.locator('.tdy-win h2').boundingBox();
@@ -164,6 +200,26 @@ async function verify(page, name, width, theme) {
   }
   // Screenshot the picker before exercising its choice above.
   if (name !== 'menu-client' && !name.endsWith('client-picker') && shots) await capture(page, name, width, theme);
+  if(!before && name==='analytics-detail') {
+    const follower=page.locator('.chart-section').first();
+    await follower.getByRole('button',{name:'TikTok',exact:true}).tap();await settle(page);
+    assert.equal(await page.evaluate(()=>growthChart.data.datasets[0].label),'TikTok','Native chart series did not change');
+    await follower.getByRole('button',{name:'Daily Change',exact:true}).tap();await settle(page);
+    assert.equal(await page.evaluate(()=>growthChart.config.type),'bar','Daily Change did not change the native chart mode');
+    for(const next of [theme==='light'?'dark':'light',theme]) {
+      const values=await page.evaluate(()=>JSON.stringify(growthChart.data.datasets[0].data));
+      await page.evaluate(next=>document.documentElement.setAttribute('data-theme',next),next);await settle(page);
+      const axes=await analyticsAxes(page);
+      assert.ok(axes.length>=4&&axes.every(axis=>axis.font>=13&&axis.contrast>=4.5),'Series/mode/theme repaint lost readable chart axes: '+JSON.stringify(axes));
+      assert.equal(await page.evaluate(()=>JSON.stringify(growthChart.data.datasets[0].data)),values,'Theme repaint changed chart data');
+    }
+    await page.setViewportSize({width:1440,height:900});await settle(page);
+    assert.ok((await analyticsAxes(page)).every(axis=>axis.font===11),'Phone chart font remained at desktop width');
+    await page.setViewportSize({width,height:heightFor(width,arg('height'))});await settle(page);
+    assert.ok((await analyticsAxes(page)).every(axis=>axis.font===13&&axis.contrast>=4.5),'Chart readability did not return after resize');
+    await page.getByRole('button',{name:'Back',exact:true}).tap();await settle(page);
+    assert.ok(await page.locator('.cards-grid').isVisible(),'Native Back did not return to the Analytics client cards');
+  }
   if (!before && name === 'analytics-overview' && [390,393,412].includes(width) && theme === 'light') {
     const saved = await page.evaluate(()=>localStorage.getItem('syncview_viewMode'));
     await page.getByTitle('Show as table').click(); await settle(page);
@@ -294,8 +350,12 @@ async function main(){
     console.log(JSON.stringify([...core.map(s=>({name:s.name,lane:'finch'})),...states.map(s=>({name:s.name,lane:'staff'})),...cases.map(name=>({name,lane:'staff'}))],null,2));
     return;
   }
+  // CI blocks CDN requests too. Reuse the hash-checked production asset loader
+  // so native axis assertions never depend on a private FINCH_VENDOR directory.
+  const chartSource = core.some(s=>only.test(s.name)&&s.name.startsWith('analytics-detail'))
+    ? await require('../docs/syncview-design/tests/kasper-admin-expanded-browser').loadChartSource() : null;
   for (const s of core.filter(s=>only.test(s.name))) for(const width of widths) for(const theme of themes) {
-    const h=await open({...s.open,width,height:heightFor(width,arg('height')),theme,dsf:1});
+    const h=await open({...s.open,chartSource:s.name.startsWith('analytics-detail')?chartSource:null,width,height:heightFor(width,arg('height')),theme,dsf:1});
     try { await h.page.waitForTimeout(s.settle||3000);
       await h.page.evaluate(names=>{WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();names.forEach(n=>WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n));if(typeof wlState!=='undefined')wlState.clientOptions=names.slice();},require('./finch-phone/fixtures').CLIENTS);
       if(s.name==='analytics-detail') { await h.page.locator(before?'.overview-table a.client-name-link':'.card-client-link',{hasText:'Client A'}).first().click();await h.page.waitForTimeout(2200); }

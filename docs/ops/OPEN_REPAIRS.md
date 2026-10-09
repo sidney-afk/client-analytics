@@ -31526,3 +31526,40 @@ no email (still nudged), a given bad email still refused, and a test client with
 then redeploy `client-onboarding` (`docs/ops/CREATE_CLIENT_LIGHTHOUSE.md` step 7). Either order works: until the
 file is applied, a create without an email is refused by the database and the dialog says so.
 Rollback: re-run `2026-10-09-create-client-slack-nudge.sql`.
+
+## 386. [2026-10-08, BUILT, NOT MERGED] Prism phone batch 6: Analytics readability and actionable Clients empty guidance
+
+Analytics phone metrics and chart axes had tiny, faint labels and cramped detail
+columns. They now use readable supporting text, neutral panels, two balanced
+detail columns and 13 px native chart axes. Data, series/mode controls and theme
+changes are preserved; desktop axes and layout restore exactly. Clients now
+shows a named New client action and gives actionable guidance for zero clients
+or archived-only clients, with the original desktop guidance restored.
+
+The Expanded draft and gallery preserve 40 native before/after pairs at 393 and
+412 in both themes. Every full page was personally inspected in unscaled chunks;
+reviews bind source and PNG hashes. 32 cells are CLEAN; eight Clients loading/New client form cells
+remain OPEN for loading-shell and branded manager-picker review. Repeated Workload chips remain an
+unconfirmed candidate. The full narrowed round and fresh-eyes round remain OPEN.
+
+Regression checks cover supporting-text/axis size and contrast, native chart
+series/mode/theme/Back actions, desktop axis restoration, empty/archive guidance,
+New client open/Cancel/Escape and fully visible menu headings. The old Analytics
+fixture fails the new independent label and axis assertions. Native staff-phone
+and client-phone checks pass. 44 exact 1440 desktop pairs against integrated main
+cover broad staff pages, Analytics and Clients, including phone-to-desktop.
+
+PR 2008 was confirmed merged before this fresh branch. Main was integrated and
+the fragments rebuilt. Fictional data and intercepted transports only; no live
+writes, database changes, n8n edits or GitHub merge by Prism. Local proof does not
+claim hosted CI or deployed acceptance. Gallery, checks, coverage and ledger
+census: docs/audits/2026-10-07-prism-phone/batch-6/README.md. Historical main ledger
+duplicates are retained; this batch adds one unique number and no new collision.
+
+Same-PR fixture follow-up: the final phone runner loads hash-checked production
+Chart.js bytes without a private vendor directory. A no-vendor run reproduced
+the missing native chart; strict native axis/action checks then pass at 360,
+393 and 412. The streamed-boot drawing stub now exposes Chart.js 4 registration
+and its instance collection, resolving its hosted missing-API error without
+changing uncaught-error/navigation assertions. Actual-library chart acceptance
+remains separate. Product fragments and reviewed screenshots are unchanged.

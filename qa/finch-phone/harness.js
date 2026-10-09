@@ -61,6 +61,7 @@ async function open(opts) {
   await context.route('**/*', route => {
     const u = route.request().url();
     if (u.startsWith(base)) return route.continue();
+    if (o.chartSource && /chart\.js@4/.test(u)) return route.fulfill({status:200,contentType:'text/javascript',body:o.chartSource});
     if (vendor && /chart\.js@4/.test(u)) return vfile('chart.umd.min.js', 'text/javascript')(route);
     if (vendor && /supabase-js@2/.test(u)) return vfile('supabase.js', 'text/javascript')(route);
     if (vendor && /fonts\.googleapis\.com/.test(u)) {

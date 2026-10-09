@@ -505,6 +505,9 @@ function installBootObserver(config) {
     destroy() {}
   }
   FakeChart.defaults = {};
+  FakeChart.instances = {};
+  FakeChart.registeredPlugins = [];
+  FakeChart.register = (...plugins) => FakeChart.registeredPlugins.push(...plugins);
   window.Chart = FakeChart;
 
   window.__syncviewRealtimeTrace = {

@@ -167,7 +167,8 @@ const measure = page => page.evaluate(() => {
       if (head.title !== 'Clients' || head.sub || head.refresh || head.listShown || !head.pill) failures.push(`${label}: header is not title + search + All clients (${JSON.stringify(head)})`);
       if (phone) {
         // Lighthouse review 2026-10-07: one "Clients" heading, a placeholder that fits,
-        // a labelled "All clients", and search + button on one row.
+        // a labelled "All clients". Prism batch 6 gave search its own full row with
+        // "All clients" and "New client" side by side underneath.
         const ph = await p.evaluate(() => {
           const vis = e => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
           const titles = [...document.querySelectorAll('h1, h2, .cc-title, [class*="title"]')]
@@ -179,13 +180,20 @@ const measure = page => page.evaluate(() => {
           const room = input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
           const btn = document.getElementById('caAllBtn').getBoundingClientRect();
           const pill = document.querySelector('.ca-search .search-bar-pill').getBoundingClientRect();
+          const head = document.getElementById('caHead').getBoundingClientRect();
+          const nb = document.getElementById('caNewBtn');
+          const nbr = nb && vis(nb) ? nb.getBoundingClientRect() : null;
+          const mid = r => (r.top + r.bottom) / 2;
           return { titles: titles.length, placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room,
-            label: document.getElementById('caAllBtn').innerText.trim(), sameRow: Math.abs((btn.top + btn.bottom) / 2 - (pill.top + pill.bottom) / 2) < 6 };
+            label: document.getElementById('caAllBtn').innerText.trim(),
+            searchRow: pill.width >= head.width - 24 && btn.top >= pill.bottom - 1,
+            buttonsRow: !nbr || Math.abs(mid(btn) - mid(nbr)) < 6 };
         });
         if (ph.titles !== 1) failures.push(`${label}: "Clients" heading shown ${ph.titles} times`);
         if (!ph.fits) failures.push(`${label}: the search placeholder "${ph.placeholder}" is cut off`);
         if (ph.label !== 'All clients') failures.push(`${label}: the list button reads "${ph.label}"`);
-        if (!ph.sameRow) failures.push(`${label}: search and All clients are not on one row`);
+        if (!ph.searchRow) failures.push(`${label}: search does not span its own row above All clients`);
+        if (!ph.buttonsRow) failures.push(`${label}: All clients and New client are not on one row`);
       }
       if (shots) await p.screenshot({ path: path.join(shots, `start-${vp.width}${sfx}.png`) });
 

@@ -21,6 +21,12 @@ and picker focus, Analytics/Workload loading and TikTok account wording,
 with complete before/after pages, native action receipts and open findings.
 `docs/audits/2026-10-07-prism-phone/batch-5/review-followup/` records the picked-client TikTok regression,
 eight reviewed phone pairs, exact desktop checks and the entry 380 ledger scan.
+`docs/audits/2026-10-07-prism-phone/batch-6/` records Analytics metric/chart
+readability and Clients empty guidance, the Expanded draft, 40 native
+before/after pairs, personal reviews, check tails, exact desktop comparisons
+and the append-only ledger census. New client picker review remains open.
+The final phone runner reuses the admin fixture's hash-checked production
+Chart.js loader; Finch accepts those pinned bytes without a private vendor folder.
 
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,

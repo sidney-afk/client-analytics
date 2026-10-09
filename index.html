@@ -10565,6 +10565,34 @@
             html.fph-on { --sv-phone-active-surface: var(--surface-raised); }
             html.fph-on[data-theme=dark] { --sv-phone-active-surface: var(--border); }
         }
+        /* Analytics: readable supporting text on neutral phone panels. */
+@media (max-width:767px){
+html.fph-on[data-fph="home"] .card-platform{background:var(--field-bg);color:var(--text-primary);padding:12px 14px;gap:10px 24px;}
+html.fph-on[data-fph="home"] .card-platform-label{font-size:13px;color:var(--text-primary);letter-spacing:.02em;}
+html.fph-on[data-fph="home"] .card-platform a{font-size:13px!important;color:var(--text-secondary)!important;}
+html.fph-on[data-fph="home"] .card-metric-label{font-size:13px;color:var(--text-secondary);letter-spacing:0;text-transform:none;}
+html.fph-on[data-fph="home"] .card-metric-val{font-size:20px;color:var(--text-primary);line-height:1.3;}
+html.fph-on[data-fph="home"] .card-metric-gain{font-size:13px;line-height:1.5;opacity:1!important;}
+html.fph-on[data-fph="home"] .card-metric-gain.up{color:var(--text-primary);background:var(--up-bg);border-radius:5px;padding:1px 5px;align-self:flex-start;}
+html.fph-on[data-fph="home"] .card-metric-gain.down{color:var(--text-primary);background:var(--dn-bg);border-radius:5px;padding:1px 5px;align-self:flex-start;}
+html.fph-on[data-fph="home"] .card-metric-gain.flat{color:var(--text-secondary);}
+html.fph-on[data-fph="home"] .platform-section{background:var(--white);border:1px solid var(--border);padding:18px 16px;}
+html.fph-on[data-fph="home"] .platform-section-header{padding:0 0 16px;}
+html.fph-on[data-fph="home"] .metrics-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px;padding:0;}
+html.fph-on[data-fph="home"] .metric-block{min-width:0;padding:0;border:0;}
+html.fph-on[data-fph="home"] .platform-name{color:var(--text-primary);}
+html.fph-on[data-fph="home"] .platform-pill{background:var(--text-secondary);}
+html.fph-on[data-fph="home"] .platform-handle-link{font-size:13px;color:var(--text-secondary);opacity:1;}
+html.fph-on[data-fph="home"] .m-label{font-size:13px;color:var(--text-secondary);}
+html.fph-on[data-fph="home"] .m-value{color:var(--text-primary);}
+html.fph-on[data-fph="home"] .m-value.empty{color:var(--text-secondary);opacity:1;}
+html.fph-on[data-fph="home"] .m-delta,html.fph-on[data-fph="home"] .gain-delta{font-size:13px;color:var(--text-primary);opacity:1!important;}
+html.fph-on[data-fph="home"] .m-delta.up,html.fph-on[data-fph="home"] .gain-delta.up{background:var(--up-bg);color:var(--text-primary);}
+html.fph-on[data-fph="home"] .m-delta.down,html.fph-on[data-fph="home"] .gain-delta.down{background:var(--dn-bg);color:var(--text-primary);}
+html.fph-on[data-fph="home"] .m-delta.flat,html.fph-on[data-fph="home"] .m-delta.none,html.fph-on[data-fph="home"] .gain-delta.flat{background:var(--field-bg);color:var(--text-secondary);}
+html.fph-on[data-fph="home"] .gain-chip-label,html.fph-on[data-fph="home"] .gains-bar-label,html.fph-on[data-fph="home"] .gains-platform-name{font-size:13px;}
+html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[data-fph="home"] .platform-section .analytics-state-badge{font-size:13px;background:var(--field-bg);color:var(--text-secondary);border-color:var(--border);}
+}
         /* FINCH-PHONE:END */
 
         /* STAFF-CALENDAR-PHONE:BEGIN */
@@ -11832,6 +11860,7 @@
  html.pocket-admin-phone #kasperContent .sp-table td:nth-child(8)::before { content:'Browser'; }
  html.pocket-admin-phone #kasperContent .sp-table td:nth-child(9)::before { content:'App version'; }
 }
+@media (max-width:767px){html.pocket-admin-phone #caHead{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}html.pocket-admin-phone #caSearchWrap{grid-column:1/-1;width:100%;}html.pocket-admin-phone #caNewBtn{width:auto;padding:0 14px;margin:0;justify-content:center;}html.pocket-admin-phone #caNewBtn span{display:inline;}html.pocket-admin-phone #caAllBtn{width:100%;justify-content:center;}}
 /* POCKET-ADMIN-PHONE:END */
 
 /* STAFF-PHONE-RULES:BEGIN */
@@ -12465,9 +12494,9 @@
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-baefab48683b.js";
-        var PARTS = ["js/sv-01-core-015efd824d0d.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-f7095d1310c6.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-e88727972352.js","js/sv-12-synclinear-8af19c0e5b14.js","js/sv-13-core-74aaa2180579.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-48de5e91de41.js","kasper":"js/sv-16-kasper-146cd87cd99c.js"};
+        var FULL = "js/sv-full-0ed845645f73.js";
+        var PARTS = ["js/sv-01-core-015efd824d0d.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-c13008e6127c.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-e88727972352.js","js/sv-12-synclinear-8af19c0e5b14.js","js/sv-13-core-74aaa2180579.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-48de5e91de41.js","kasper":"js/sv-16-kasper-e0e36dceeac8.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

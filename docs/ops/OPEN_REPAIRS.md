@@ -31604,7 +31604,7 @@ this sandbox (no database server); it needs a run where
 `TRACK_B_RECOVERY_TEST_CORPUS=history-v12`. Offline suites cover the table list,
 keys, refusals, restore SQL, preflight SQL and the grant text.
 
-## 388. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED] Scheduled jobs and the dead-man's switch move onto Supabase's own timer
+## 390. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED] Scheduled jobs and the dead-man's switch move onto Supabase's own timer
 
 **What was wrong.** GitHub runs this repository's `schedule:` crons hours late. Measured on
 2026-10-09: the 5-minute native notification sender ran 6 times in 30 hours, and the daily roster

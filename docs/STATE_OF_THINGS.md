@@ -228,6 +228,9 @@ hiring senders when the editor hire closes.
 - **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**
   (measured 2026-10-09, OPEN_REPAIRS 389): 8 items, none needs the sealed capture. The roster switch (374) and the
   `analytics-read` deploy come first after a look at the backup.
+- **Thumbnail titles (OPEN_REPAIRS 390, session Sorter, 2026-10-09): built, deployed, switch OFF.** Owner: set the
+  Edge Function secret `THUMBNAIL_TITLES_API_KEY`, switch `thumbnail_titles` on, then say go for the backfill (dry run:
+  136 open empty thumbnails, 16 clients). Prompt editor is in the Calendar "..." menu under "Caption prompt".
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
   dispatchers (interview invite, practical test) are still active and run every
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).

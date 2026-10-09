@@ -1,5 +1,5 @@
 // thumbnail_titles_live.js -- ON DEMAND, not nightly: it creates real work items on the TEST client.
-// Live proof of the thumbnail titles background step (OPEN_REPAIRS 377,
+// Live proof of the thumbnail titles background step (OPEN_REPAIRS 390,
 // migrations/2026-10-09-thumbnail-titles.sql) through the real page:
 //   1. the Calendar "..." menu has "Thumbnail title prompt" right under "Caption prompt"; the editor
 //      opens with the seeded default; a custom edit saves, reopens as custom, and Reset + Save goes

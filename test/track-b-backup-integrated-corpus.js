@@ -5,7 +5,7 @@ const {fixtureDump}=require('./track-b-backup-corpus');
 function run(){const checks=[],check=(name,fn)=>{fn();checks.push(name);};const dir=fs.mkdtempSync(path.join(os.tmpdir(),'history-v6-'));
 const key=crypto.randomBytes(32).toString('base64'),generated=new Date(Date.now()-60000).toISOString();const packages={};
 try{
-check('prior formats remain14/21/33/35/37/39 before explicit v9, v10 and v11 successors',()=>{assert.deepEqual(Object.values(backup.CORPORA).map(c=>c.tables.length),[14,21,33,35,37,39,42,47,52]);assert.equal(backup.resolveCorpus().name,'legacy-v3');assert.equal(new Set(backup.INTEGRATED_HISTORY_TABLES.map(t=>t.name)).size,35);assert.equal(new Set(backup.MATERIALIZATION_HISTORY_TABLES.map(t=>t.name)).size,37);for(const table of ['production_card_materialization_receipts','production_card_materialization_ingress'])assert.deepEqual(backup.MATERIALIZATION_HISTORY_TABLES.find(row=>row.name===table),{name:table,pk:'id'});});
+check('prior formats remain14/21/33/35/37/39 before explicit v9, v10, v11 and v12 successors',()=>{assert.deepEqual(Object.values(backup.CORPORA).map(c=>c.tables.length),[14,21,33,35,37,39,42,47,52,55]);assert.equal(backup.resolveCorpus().name,'legacy-v3');assert.equal(new Set(backup.INTEGRATED_HISTORY_TABLES.map(t=>t.name)).size,35);assert.equal(new Set(backup.MATERIALIZATION_HISTORY_TABLES.map(t=>t.name)).size,37);for(const table of ['production_card_materialization_receipts','production_card_materialization_ingress'])assert.deepEqual(backup.MATERIALIZATION_HISTORY_TABLES.find(row=>row.name===table),{name:table,pk:'id'});});
 for(const corpus of Object.keys(backup.CORPORA)){const file=path.join(dir,corpus+'.sql'),pack=path.join(dir,corpus+'.snapshot');fs.writeFileSync(file,fixtureDump(corpus));backup.packSnapshot(file,pack,generated,`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`,key,corpus);packages[corpus]=fs.readFileSync(pack);check(corpus+' authenticates its original explicit format',()=>{const read=backup.readSnapshotBytes(packages[corpus],key);assert.equal(read.corpus,corpus);assert.equal(read.manifest.table_count,backup.resolveCorpus(corpus).tables.length);});}
 check('v5 cannot satisfy v6 freshness',()=>{assert.equal(backup.selectAuthenticatedCandidates([{file:{id:'synthetic',name:backup.snapshotName(generated)},bytes:packages['history-v5']}],key,Date.now(),'history-v6').latest,null);});
 check('v6 cannot satisfy v7 freshness',()=>{assert.equal(backup.selectAuthenticatedCandidates([{file:{id:'synthetic',name:backup.snapshotName(generated)},bytes:packages['history-v6']}],key,Date.now(),'history-v7').latest,null);});
@@ -13,7 +13,7 @@ check('v7 cannot satisfy v8 freshness',()=>{assert.equal(backup.selectAuthentica
 for(const table of ['production_card_provenance','calendar_feedback_materializations'])check('omitted '+table+' refuses instead of claiming empty',()=>{const sql=fixtureDump('history-v6').toString(),start=sql.indexOf('COPY public.'+table+' '),end=sql.indexOf('\\.\n',start)+3;assert.throws(()=>backup.parseStrictPgDump(sql.slice(0,start)+sql.slice(end),'history-v6'),/missing/);});
 for(const table of ['production_card_materialization_receipts','production_card_materialization_ingress'])check('v7 omitted '+table+' refuses instead of claiming empty',()=>{const sql=fixtureDump('history-v7').toString(),start=sql.indexOf('COPY public.'+table+' '),end=sql.indexOf('\\.\n',start)+3;assert.throws(()=>backup.parseStrictPgDump(sql.slice(0,start)+sql.slice(end),'history-v7'),/missing/);});
 check('v7 rejects unknown tables and wrong retained-owner keys',()=>{const sql=fixtureDump('history-v7').toString();assert.throws(()=>backup.parseStrictPgDump(sql+'COPY public.unowned_history (id) FROM stdin;\n1\n\\.\n','history-v7'),/Unexpected/);assert.throws(()=>backup.parseStrictPgDump(sql.replace('production_card_materialization_receipts (id)','production_card_materialization_receipts (receipt_id)'),'history-v7'),/primary-key/);});
-check('readers reject unsupported or mismatched authenticated format versions',()=>{assert.throws(()=>backup.manifestCorpus({schema_version:12,corpus:'history-v11'}),/Unsupported/);assert.throws(()=>backup.manifestCorpus({schema_version:11,corpus:'history-v10'}),/does not match/);assert.throws(()=>backup.manifestCorpus({schema_version:10,corpus:'history-v9'}),/does not match/);assert.throws(()=>backup.manifestCorpus({schema_version:9,corpus:'history-v8'}),/does not match/);assert.throws(()=>backup.manifestCorpus({schema_version:8,corpus:'history-v7'}),/does not match/);});
+check('readers reject unsupported or mismatched authenticated format versions',()=>{assert.throws(()=>backup.manifestCorpus({schema_version:13,corpus:'history-v12'}),/Unsupported/);assert.throws(()=>backup.manifestCorpus({schema_version:12,corpus:'history-v11'}),/does not match/);assert.throws(()=>backup.manifestCorpus({schema_version:11,corpus:'history-v10'}),/does not match/);assert.throws(()=>backup.manifestCorpus({schema_version:10,corpus:'history-v9'}),/does not match/);assert.throws(()=>backup.manifestCorpus({schema_version:9,corpus:'history-v8'}),/does not match/);assert.throws(()=>backup.manifestCorpus({schema_version:8,corpus:'history-v7'}),/does not match/);});
 check('old restore guard precedes all destructive steps',()=>{for(const corpus of ['legacy-v3','history-v4','history-v5']){const sql=restore.restoreSql(fixtureDump(corpus),corpus);assert.match(sql,/omits integrated recovery evidence/);assert.ok(sql.indexOf('omits integrated recovery evidence')<sql.indexOf('(false)'));assert.doesNotMatch(sql,/\bcascade\b/i);}});
 check('v6 restores through distinct35-table trigger helper and provenance sequence',()=>{const sql=restore.restoreSql(fixtureDump('history-v6'),'history-v6');assert.match(sql,/track_b_restore_set_history_v6_user_triggers\(false\)/);assert.match(sql,/pg_get_serial_sequence\('public.production_card_provenance', 'id'\)/);assert.doesNotMatch(sql,/\bcascade\b/i);});
 check('v7 restores through its distinct helper without invented sequence resets',()=>{const sql=restore.restoreSql(fixtureDump('history-v7'),'history-v7'),resets=sql.slice(sql.indexOf('select setval('));assert.match(sql,/track_b_restore_set_history_v7_user_triggers\(false\)/);assert.doesNotMatch(resets,/production_card_materialization_(?:receipts|ingress)/);assert.doesNotMatch(sql,/\bcascade\b/i);});
@@ -78,11 +78,54 @@ check('v11 retains ordinary admissions plus notification evidence, identities, F
   for(const text of ['HISTORY_V11_BACKUP_GRANTS_ONLY','Ordinary native admission requires deferred mirror outbox foreign key','Ordinary native receipt guard trigger/function required','Notification immutable intent guard trigger/function required','Notification source observer trigger/functions required','v11 durable owner requires row level security','Notification config service-only writer privilege required','Notification durable identity sequence missing'])assert.match(grants,new RegExp(text));
 });
 check('all prior formats refuse installed continuity owners before destructive restore',()=>{
-  for(const corpus of Object.keys(backup.CORPORA).filter(c=>c!=='history-v9'&&c!=='history-v10'&&c!=='history-v11')){
+  for(const corpus of Object.keys(backup.CORPORA).filter(c=>c!=='history-v9'&&c!=='history-v10'&&c!=='history-v11'&&c!=='history-v12')){
     const sql=restore.restoreSql(fixtureDump(corpus),corpus);
     assert.match(sql,/omits native continuity recovery evidence/);assert.ok(sql.indexOf('omits native continuity recovery evidence')<sql.indexOf('truncate table'));
     assert.match(backup.readOnlyPrivilegeSql(corpus),/omits native continuity recovery evidence/);
   }
+});
+check('v12 is v11 plus the roster, staff grants and native test provisions, parents before children',()=>{
+  const v11=backup.resolveCorpus('history-v11'),corpus=backup.resolveCorpus('history-v12');
+  assert.equal(corpus.version,12);assert.equal(corpus.tables.length,55);assert.deepEqual(corpus.tables.slice(0,52),v11.tables);
+  assert.deepEqual(corpus.tables.slice(-3),[{name:'social_media_managers',pk:'slug'},{name:'smm_also_sees',pk:'id'},{name:'production_native_client_test_provisions',pk:'request_id'}]);
+  const names=corpus.tables.map(t=>t.name);assert.ok(names.indexOf('team_members')<names.indexOf('smm_also_sees'));assert.ok(names.indexOf('social_media_managers')<names.indexOf('smm_also_sees'));assert.ok(names.indexOf('clients')<names.indexOf('production_native_client_test_provisions'));
+  assert.equal(backup.manifestCorpus({schema_version:12,corpus:'history-v12'}).name,'history-v12');
+  const dump=fixtureDump('history-v12').toString();
+  for(const [table,key] of [['social_media_managers','slug'],['smm_also_sees','id'],['production_native_client_test_provisions','request_id']]){
+    assert.throws(()=>backup.parseStrictPgDump(dump.replace(table+' ('+key+')',table+' (wrong_key)'),'history-v12'),/primary-key/);
+    const start=dump.indexOf('COPY public.'+table+' '),end=dump.indexOf('\\.\n',start)+3;
+    assert.throws(()=>backup.parseStrictPgDump(dump.slice(0,start)+dump.slice(end),'history-v12'),/(missing|Disallowed)/);
+  }
+  assert.equal(backup.selectAuthenticatedCandidates([{file:{id:'synthetic',name:backup.snapshotName(generated)},bytes:packages['history-v11']}],key,Date.now(),'history-v12').latest,null);
+  const sql=restore.restoreSql(dump,'history-v12');assert.match(sql,/track_b_restore_set_history_v12_user_triggers\(false\)/);assert.doesNotMatch(sql,/\bcascade\b/i);
+  for(const table of ['social_media_managers','smm_also_sees','production_native_client_test_provisions'])assert.ok(sql.includes('COPY public."'+table+'"'));
+  const preflight=backup.readOnlyPrivilegeSql('history-v12');
+  for(const table of ['social_media_managers','smm_also_sees','production_native_client_test_provisions'])assert.ok(preflight.includes("'public."+table+"'::regclass")&&preflight.includes("select '"+table+"'"));
+  assert.match(preflight,/omitted incoming foreign key/);assert.match(preflight,/omitted referenced relation/);assert.doesNotMatch(preflight,/omits roster, staff grant or native test provision evidence/);
+});
+check('v11 and every older source preflight and restore refuse the three new owners before destructive work',()=>{
+  for(const corpus of Object.keys(backup.CORPORA).filter(c=>c!=='history-v12')){
+    const sql=restore.restoreSql(fixtureDump(corpus),corpus);
+    if(backup.resolveCorpus(corpus).version>=5){assert.match(sql,/omits roster, staff grant or native test provision evidence/);assert.ok(sql.indexOf('omits roster, staff grant or native test provision evidence')<sql.indexOf('truncate table'));assert.match(backup.readOnlyPrivilegeSql(corpus),/omits roster, staff grant or native test provision evidence/);}
+  }
+});
+check('v12 grants artifact: exact55, SELECT-only backup, private trigger helper, identity-free new owners',()=>{
+  const corpus=backup.resolveCorpus('history-v12'),grants=fs.readFileSync(path.join(__dirname,'../scripts/track-b-history-v12-backup-prerequisites.sql'),'utf8'),helper='track_b_restore_set_history_v12_user_triggers';
+  assert.match(grants,/HISTORY_V12_BACKUP_GRANTS_ONLY/);assert.doesNotMatch(grants.replace(/--[^\n]*/g,''),/V11|v11/);
+  for(const table of corpus.tables)assert.ok(grants.includes("'"+table.name+"'"));
+  assert.ok(grants.includes(`create or replace function public.${helper}(enabled boolean)`));
+  assert.ok(grants.includes(`revoke all on function public.${helper}(boolean) from anon, authenticated, service_role;`));
+  assert.ok(grants.includes(`grant execute on function public.${helper}(boolean) to :"existing_role";`));
+  assert.match(grants,/when 'social_media_managers' then array\['slug'\]/);assert.match(grants,/when 'production_native_client_test_provisions' then array\['request_id'\]/);
+  assert.match(grants,/v12 roster, staff grant or native test provision schema is incomplete/);
+});
+check('v12 backup-role migration grants SELECT only on exactly the three new relations',()=>{
+  const sql=fs.readFileSync(path.join(__dirname,'../migrations/2026-10-09-track-b-history-v12-backup-select.sql'),'utf8');
+  const code=sql.replace(/--[^\n]*/g,'');
+  assert.doesNotMatch(code.replace(/'[^']*'/g,"''"),/\b(revoke|insert|update|delete|truncate|create|alter|drop)\b/i);
+  assert.equal((code.match(/\bgrant\s/gi)||[]).length,1);assert.match(code,/format\('grant select on table public\.%I to %I'/);
+  for(const table of ['social_media_managers','smm_also_sees','production_native_client_test_provisions'])assert.ok(code.includes("'"+table+"'"));
+  assert.match(code,/rolbypassrls/);
 });
 console.log(JSON.stringify({status:'PASS',passed:checks.length,checks,proof:'offline_only'}));
 }finally{for(const name of fs.readdirSync(dir))fs.unlinkSync(path.join(dir,name));fs.rmdirSync(dir);}}

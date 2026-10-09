@@ -187,7 +187,7 @@ The active six-hour lane still follows the corpus selected by the protected
 `TRACK_B_BACKUP_CORPUS` repository variable. The legacy 14-table format remains
 its current authenticated value until the matching schema, restricted-role
 grants, and disposable recovery rehearsal are approved together. The workflow
-accepts explicit manual `history-v7`, `history-v8`, `history-v9`, `history-v10`, and `history-v11` package
+accepts explicit manual `history-v7`, `history-v8`, `history-v9`, `history-v10`, `history-v11`, and `history-v12` package
 runs; each version has its own signed format and prior versions refuse a newer
 owner instead of claiming empty coverage.
 
@@ -214,6 +214,8 @@ package carries the exact `pg_dump` COPY column list rather than a fixed list.
 It also retains the Boolean-singleton `syncview_retirement_admission` census state, the native identifier mint/grant owners, and the service-only `description_images` ledger. The v10 prerequisite rejects an identity sequence on every new owner.
 
 `history-v11` is a prepared 52-table successor. It adds the immutable ordinary native receipt admission ledger, notification config, notification intents, delivery receipts, and the operator reconciliation journal. The two notification journals use generated identity sequences; the ordinary admission's mirror-outbox foreign key must be `DEFERRABLE INITIALLY DEFERRED`, so restore begins by deferring constraints and validates all source references before commit. The v11 prerequisite also requires the ordinary receipt guard, all notification source observers, RLS, and their service-only ACL boundaries. It remains preparation for future hosted use. Disposable v11 restore has since passed; see the current preparation status and scoped receipts above.
+
+`history-v12` is the 55-table successor (OPEN_REPAIRS 387). It adds `social_media_managers`, `smm_also_sees` and `production_native_client_test_provisions`, because the last two hold foreign keys into `team_members`, the roster and `clients`, and the boundary check refuses a corpus that omits either end of a foreign key. Activation: grant the backup role SELECT with `migrations/2026-10-09-track-b-history-v12-backup-select.sql`, then set the protected `TRACK_B_BACKUP_CORPUS` variable to `history-v12`. The scratch-restore grants script is `scripts/track-b-history-v12-backup-prerequisites.sql`.
 
 Neither version restores Storage bucket configuration or object bytes, signed/Linear-hosted asset availability, provider state, n8n configuration, secrets, or client-facing tokens outside the selected database rows. The restored description ledger is evidence only; its referenced objects require separately verified custody before activation. The receipt
 and data corpus must be advanced again when a new authoritative table is

@@ -31563,3 +31563,43 @@ the missing native chart; strict native axis/action checks then pass at 360,
 and its instance collection, resolving its hosted missing-API error without
 changing uncaught-error/navigation assertions. Actual-library chart acceptance
 remains separate. Product fragments and reviewed screenshots are unchanged.
+
+## 387. [2026-10-09, BUILT, NOT MERGED, NOT APPLIED] Nightly private backup failing since 2026-10-07: new corpus history-v12 (session Vault)
+
+The Track-B private backup failed every run from 2026-10-07 23:12 UTC with
+"Backup privilege preflight failed (psql; exit=1)". The last good snapshot was
+2026-10-07 13:39 UTC. Cause, measured read-only: the boundary check
+(`corpusBoundarySql`) correctly refuses a corpus when a table outside it has a
+foreign key into a table inside it, and two newer tables did: `smm_also_sees`
+(into `team_members`, entry 363) and `production_native_client_test_provisions`
+(into `clients`, the create-client migrations). The guard is right, so it is
+unchanged and no foreign key is dropped.
+
+Fix: **history-v12 = history-v11 plus three tables (55 in all)**. Three, not
+two: `smm_also_sees` also points at `social_media_managers` (the SMM roster,
+found by reading the live foreign keys), and a covered table may not reference
+an uncovered one, so the roster has to come in with it. Parents sit before
+children in the table order so a restore copies them in the right order.
+Added the way v11 was: magic `SYNCVIEW_TRACK_B_SNAPSHOT_V12`, manifest
+`schema_version` 12, a "version < 12" refusal so every older corpus (source
+preflight and restore) refuses once these tables exist, the restore helper
+`track_b_restore_set_history_v12_user_triggers`, the v12 grants script for the
+scratch restore, the recovery rehearsal and its table counts, and the tests and
+large-dump proof. Both workflows list history-v12.
+The LINEAR_EXIT credential, priority and complete-application capture lanes stay
+pinned to history-v11 (their own contracts); they were not part of the nightly
+backup.
+
+**Owner steps (nothing here is applied or switched):** (1) merge; (2) run
+`migrations/2026-10-09-track-b-history-v12-backup-select.sql` after replacing the
+one placeholder with the backup role name (it only grants SELECT on the three
+tables and refuses to run if the role could write to them); (3) set the
+repository variable `TRACK_B_BACKUP_CORPUS` to `history-v12`, because the
+schedule reads that variable, not the workflow file; (4) dispatch the backup once
+and read that the preflight and upload pass. Until (2) and (3) the nightly stays
+red.
+
+Not proven: the disposable-Postgres recovery rehearsal for v12 was not run in
+this sandbox (no database server); it needs a run where
+`TRACK_B_RECOVERY_TEST_CORPUS=history-v12`. Offline suites cover the table list,
+keys, refusals, restore SQL, preflight SQL and the grant text.

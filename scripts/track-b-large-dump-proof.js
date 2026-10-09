@@ -4,7 +4,7 @@
 //
 //   node scripts/track-b-large-dump-proof.js [--gib=2.2] [--dir=<scratch dir>]
 //
-// It writes a synthetic history-v11 dump whose journal-shaped table carries
+// It writes a synthetic history-v12 dump whose journal-shaped table carries
 // multi-byte UTF-8 rows until the file passes the requested size, runs the
 // real packSnapshot -> readSnapshotFile path with a random HMAC key, checks
 // the sealed manifest's row counts, and shows that the whole-string decode the
@@ -21,7 +21,7 @@ const backup = require('./track-b-backup');
 const arg = name => (process.argv.find(a => a.startsWith(`--${name}=`)) || '').split('=')[1];
 const GIB = Number(arg('gib') || '2.2');
 const dir = fs.mkdtempSync(path.join(arg('dir') || os.tmpdir(), 'track-b-large-'));
-const CORPUS = 'history-v11';
+const CORPUS = 'history-v12';
 const BIG = 'card_change_journal';
 const url = `postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`;
 const t0 = Date.now();

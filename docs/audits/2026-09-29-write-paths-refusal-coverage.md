@@ -119,6 +119,7 @@ and SMM weekly reports.
 | `160-calendar-organize-ui.js` | `_thumbCompareLoad` | `THUMBNAIL_REVISION_READ_EF_URL` POST | read |  | Reads thumbnail revisions. |
 | `170-calendar-links-status.js` | `current` | `url` POST | read |  | Reads the editor options for the intake picker. |
 | `180-calendar-native-post-media.js` | `_calCancelCaptionJob` | `CAPTION_JOB_UPDATE_URL` POST | background |  | "Cancel" for a caption job; the page settles the job locally if it fails. |
+| `180-calendar-native-post-media.js` | `_calCapJobStart` | `CAPTION_GENERATE_EF_URL` POST | reports | `_calCapJobSettle` | Starts a caption generation on the caption-generate function (switch caption_generate_ef_clients). A job that ends in error is recorded once as caption_generate, where the job settles. |
 | `180-calendar-native-post-media.js` | `_calCapJobStart` | `GENERATE_CAPTION_URL` POST | reports | `_calCapJobSettle` | Starts a caption generation (n8n). A job that ends in error is recorded once as caption_generate, where the job settles. |
 | `180-calendar-native-post-media.js` | `_calCapJobsPoll` | `CAPTION_JOB_UPDATE_URL` POST | background |  | Stand-down message for a caption job that timed out; the job already ends in error and is recorded there. |
 | `180-calendar-native-post-media.js` | `_calSaveCaptionPrompt` | `writeUrl` POST | reports | `_calSaveCaptionPrompt` | Caption prompt save (caption-prompts-save). Recorded as caption_prompt_save. |

@@ -3427,7 +3427,7 @@ export {
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calClearStaleApprovals, _calComponentsFor,
   _calIsTitleReviewOn, _calIsYouTubeCard, _calLoadCommentsField, _calNormStatus,
   _calAssertFlagAllows, _calAssertSavingOn, _settingsAssertSavingOn, _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp, _urgentReadCardRow,
-  _calRuntimeFlagClient, _calRuntimeFlagClients, _calSetCapJobBatch, _calSetCapJobPollBusy,
+  _calRuntimeFlagClient, _calRuntimeFlagClients, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _calSetCapJobBatch, _calSetCapJobPollBusy,
   _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,
   _calUnionCommentCell, _calUpsertFetch, _calUpsertFetchPinned, _calUpsertHeaders,

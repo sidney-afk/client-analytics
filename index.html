@@ -7153,6 +7153,15 @@
            cancel-X used to sit bottom-right where it overlapped that toggle when a
            long (overflowing) caption was re-generated. Top-right is the only free
            corner, and reads as the conventional "cancel" spot. */
+        /* Optional transcript pill (caption function path, card with a video): top right, clear of the bottom-right
+           "Show more" toggle; same show/hide rule as Generate. It is never drawn while a job runs, so the cancel x
+           that uses the same corner never meets it. */
+        .cal-cap-tx { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.1s; }
+        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-tx,
+        .cal-cap-wrap textarea.cal-fld-cap:not(:placeholder-shown) ~ .cal-cap-tx { opacity: 0; pointer-events: none; }
+        .cal-cap-tx:hover { color: var(--text-primary); border-color: var(--text-primary); background: var(--bg); }
+        .cal-cap-tx svg { width: 12px; height: 12px; }
+        .cal-prompt-textarea.cal-tx-textarea { font-family: inherit; font-size: 0.86rem; min-height: 220px; }
         .cal-cap-gen-x { position: absolute; right: 8px; top: 8px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); transition: color 0.12s, border-color 0.12s, background 0.12s; z-index: 2; }
         .cal-cap-gen-x:hover { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fef2f2); }
         .cal-cap-gen-x svg { width: 10px; height: 10px; }
@@ -11914,6 +11923,8 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .cal-cap-wrap .cal-fld-cap { flex: 1 1 100%; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { position: static !important; inset: auto; margin: 0; margin-block: 0 !important; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; width: auto; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen { order: 1; }
+    html.sv-staff-phone .cal-cap-wrap .cal-cap-tx { position: static !important; inset: auto; margin: 0; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; order: 1; }
+    html.sv-staff-phone .cal-cap-wrap textarea.cal-fld-cap:not(:placeholder-shown) ~ .cal-cap-tx { display: none !important; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { order: 2; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle { order: 3; margin-left: auto; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle-txt { display: inline; }
@@ -12494,8 +12505,8 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-0ed845645f73.js";
-        var PARTS = ["js/sv-01-core-015efd824d0d.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-c13008e6127c.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-e88727972352.js","js/sv-12-synclinear-8af19c0e5b14.js","js/sv-13-core-74aaa2180579.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-1264848556ab.js";
+        var PARTS = ["js/sv-01-core-015efd824d0d.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-9c3f43f101ad.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-cea1f50add5f.js","js/sv-12-synclinear-8af19c0e5b14.js","js/sv-13-core-74aaa2180579.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-48de5e91de41.js","kasper":"js/sv-16-kasper-e0e36dceeac8.js"};
         var FORCE = null;
         var CLIENTS = true;

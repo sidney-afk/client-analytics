@@ -156,13 +156,13 @@ const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.te
 const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
 // 2026-09-23: its manual release now runs through the one-function exact-SHA
 // lane, dispatch-only, and the deliberate-manual note stays on its row.
-ok(manifestCheck.status === 0 && slugRows.length === 55
+ok(manifestCheck.status === 0 && slugRows.length === 56
   && writeDiagnosticsRow.includes('[deploy-single-function]')
   && writeDiagnosticsRow.includes('| workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
   && !writeDiagnosticsRow.includes('main push')
   && writeDiagnosticsRow.includes('--no-verify-jwt')
   && writeDiagnosticsRow.includes('WRITE_DIAGNOSTICS_ENABLED=true'),
-`generated deploy manifest is current and contains all 55 slugs (tiktok-upload added 2026-10-07, tiktok-upload-cancel added 2026-10-07, analytics-market-research-collect 2026-10-02, analytics-top-videos-collect 2026-10-02, client-hubspot-sync added 2026-10-02, higgsfield-mcp added 2026-09-28, filming-plan-tabs 2026-09-29, caption-jobs 2026-09-30, instagram-upload 2026-09-30, roster-read and roster-write 2026-10-02, analytics-metrics-collect 2026-10-01, client-onboarding 2026-10-01) including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
+`generated deploy manifest is current and contains all 56 slugs (monitoring-watchdog-tick added 2026-10-09, tiktok-upload added 2026-10-07, tiktok-upload-cancel added 2026-10-07, analytics-market-research-collect 2026-10-02, analytics-top-videos-collect 2026-10-02, client-hubspot-sync added 2026-10-02, higgsfield-mcp added 2026-09-28, filming-plan-tabs 2026-09-29, caption-jobs 2026-09-30, instagram-upload 2026-09-30, roster-read and roster-write 2026-10-02, analytics-metrics-collect 2026-10-01, client-onboarding 2026-10-01) including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five

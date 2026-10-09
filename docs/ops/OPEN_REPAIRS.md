@@ -31603,3 +31603,61 @@ Not proven: the disposable-Postgres recovery rehearsal for v12 was not run in
 this sandbox (no database server); it needs a run where
 `TRACK_B_RECOVERY_TEST_CORPUS=history-v12`. Offline suites cover the table list,
 keys, refusals, restore SQL, preflight SQL and the grant text.
+
+## 388. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED] The dead-man's switch gets a host on Supabase's own timer
+
+**What was wrong.** The monitoring dead-man's switch (`--check`) ran only from two GitHub Actions
+schedules, every 15 and every 20 minutes on paper. GitHub delivers those crons every few hours, so
+the switch's own lane, `monitoring_watchdog` (max 360 minutes), kept paging that the switch itself
+was dead when nothing had stopped: 2 such pages in the 7 days to 2026-10-09.
+
+**What changed (source only).** The owner chose Supabase's built-in timer (pg_cron, already used by
+six jobs here) over n8n.
+
+- New Edge Function `monitoring-watchdog-tick`. It runs the same check as
+  `node scripts/monitoring-watchdog.js --check`: same lanes, same thresholds, same latches, same page
+  through the same n8n alert relay, and it writes the same `monitoring_watchdog` heartbeat (actor
+  `supabase-cron-monitoring-watchdog`, run handle `pgcron:<id>`).
+- ONE source, not two copies: the lane table, the decision and the whole pass moved into
+  `supabase/functions/_shared/monitoring-watchdog-core.mjs`, the page shape into
+  `supabase/functions/_shared/monitoring-alert-relay-core.mjs`; the two Node scripts load them with
+  `require()` and keep only their GitHub transport. `test/monitoring-watchdog-tick.js` asserts the
+  script's lane table IS the core's table. The moved code and comments are unchanged apart from
+  taking the run handle and transport as arguments; the textual pins in
+  `test/monitoring-watchdog.js` and `test/monitoring-lane-coverage.js` now read the core file.
+- It does not check the n8n API. The Node relay client polls n8n executions (`N8N_API_KEY`) to
+  confirm a page was delivered; that receipt never gates paging or latching, so the timer host
+  skips it, holds no n8n key, and reports `delivery_reason: not_checked_by_timer_host`.
+- `migrations/2026-10-09-monitoring-watchdog-tick-ping.sql` (one signed ping) and
+  `migrations/2026-10-09-monitoring-watchdog-tick-schedule.sql` (pg_cron every 15 minutes through
+  pg_net, the same pattern as the HubSpot timer; refuses to install without a fresh ping answered
+  `"ready":true`). Neither is applied.
+- The two GitHub workflows stay as the second, independent observer. `monitoring-watchdog-tick` is
+  added to the one-function deploy lane's allowlist.
+
+**Thresholds are NOT changed, and the follow-up should land BEFORE the timer is scheduled.**
+Measured read only on 2026-10-09 over the last 7 days of heartbeats: a 15-minute observer sees the
+GitHub-hosted lanes' own schedule gaps far more often than today's every-few-hours observer. At
+today's thresholds that is about 54 stale pages a week (64 lane incidents: card_calendar_drift 16,
+alert_digest 10, the four native lanes 8 to 10 each, calendar_e2e_nightly 1) against 18 pages
+actually sent that week. The largest gaps were 539 minutes for card_calendar_drift (max 240), 781
+for alert_digest and 520 to 561 for the four native lanes (max 360). So the timer alone fixes the
+switch's pages about itself but not card_calendar_drift's, and would add pages for the others. The
+follow-up raises those lanes' `max_age_minutes` above their measured gaps (or moves their hosts off
+GitHub's cron), and can then bring `monitoring_watchdog`'s 360 down toward the timer's cadence.
+
+**Owner steps, in order, when he says go** (none done):
+1. Make one random value of at least 32 characters. Set it as the Edge Function secret
+   `MONITORING_WATCHDOG_KEY`, and store the same text in Vault in the SQL editor:
+   `select vault.create_secret('<the same text>', 'monitoring_watchdog_key');`
+2. Set the Edge Function secret `MONITORING_ALERT_WEBHOOK` to the same relay URL the GitHub secret
+   `SLACK_ALERT_WEBHOOK` holds (the production webhook URL of the n8n alert relay workflow
+   `Tfhc3vebZyG6obOg`; reading it there is not an edit).
+3. After this merges, deploy through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = the merge commit on main.
+4. Run `migrations/2026-10-09-monitoring-watchdog-tick-ping.sql`, wait a minute, check it answered
+   `"ready":true`.
+5. After the threshold follow-up has merged, run
+   `migrations/2026-10-09-monitoring-watchdog-tick-schedule.sql`.
+Rollback: `select cron.unschedule('monitoring-watchdog-tick');` (the GitHub hosts keep running).

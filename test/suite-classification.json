@@ -379,6 +379,7 @@
     "monitoring-lane-coverage.js",
     "monitoring-lane-failing.js",
     "monitoring-watchdog.js",
+    "monitoring-watchdog-tick.js",
     "n8n-execution-quota-watchdog.js",
     "n8n-native-urgent-draft.js",
     "native-assignee-catalog-dryrun.js",

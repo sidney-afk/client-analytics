@@ -31682,7 +31682,156 @@ the shelf in the same pull request. Not proven: its live mode (Management API re
 against the real API, because this session had no token; today's table came from `--live-json`. A
 probe it cannot read prints `UNKNOWN`, never a pass.
 
-## 390. [2026-10-09, BUILT, DEPLOYED, SWITCH OFF, backfill waiting for the owner] Thumbnail titles come back (session Sorter)
+## 388. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, SWITCH OFF] Generate caption off n8n: the caption-generate function, a fixed writing rule set, and a transcript box (session Scribe)
+
+The Calendar's Generate caption ran on the n8n workflow "SyncView Calendar —
+Generate Caption" (Frame.io file, Replicate Whisper, Claude, then calendar-upsert;
+progress already in `caption-jobs`). The workflow was read, never edited, run or
+deactivated.
+
+Built: `supabase/functions/caption-generate/` does the same job step for step
+(same request keys, direct Frame.io lookup with the Apify scrape as fallback,
+same Whisper version and settings, same default prompt, model `claude-sonnet-4-6`
+and 1500 token cap, same `caption_jobs` stages and cancel checkpoints, same
+calendar-upsert body). It answers at once and works in the background (Supabase
+allows 400 s; the run stops itself at 370 s with an honest error), so the page's
+poller, cancel and refresh survival are unchanged. New:
+- the client's prompt is read from `caption_prompts` by the function;
+- the client's Brain `voice.md` is read the way the `brain` function reads it;
+  the `## Caption style` section is used when it has text, otherwise every
+  written voice section;
+- one fixed writing rule set for every client (`writing-rules.mjs`), adapted
+  from the MIT-licensed "avoid-ai-writing" skill (v3.37.0, notice kept), plus
+  one automatic revision when the draft has a mechanical tell (dashes, listed
+  words);
+- a transcript box: a card with no video opens it from Generate; a card with a
+  video gets an optional Transcript pill. Desktop and phone (bottom sheet).
+
+Switch: `syncview_runtime_flags` key `caption_generate_ef_clients`,
+`{"clients":["<slug>"]}` or `{"all":true}`. Missing, malformed or unreadable
+means n8n, so nothing changes until the owner sets it; measured 2026-10-09: the
+row does not exist. The transcript box only exists on the function path.
+
+Proof (offline only): `test/caption-generate-source.js` (logic and wiring),
+`qa/caption-generate/function-run.ts` (the function's own code under Deno with
+every outside service stood in), `test/caption-generate-browser.js` (desktop and
+iPhone size, switch off and on). Not proven live: the function is not deployed
+and the AI secrets were not available to this session.
+
+**Owner steps:**
+1. Merge.
+2. Supabase, Edge Functions, Secrets: add `REPLICATE_API_TOKEN` (new; from
+   replicate.com, Account, API tokens). Confirm `ANTHROPIC_API_KEY`,
+   `BRAIN_GITHUB_TOKEN` and `APIFY_TOKEN` are listed (the Frame.io fallback
+   uses `APIFY_TOKEN`; without it a link the direct lookup cannot read fails
+   instead of falling back).
+3. Deploy: https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml,
+   Run workflow, function `caption-generate`, commit SHA = main's tip right after
+   the merge.
+4. Switch on for the test client only (Supabase SQL editor):
+   ```sql
+   insert into public.syncview_runtime_flags (key, value, updated_by)
+   values ('caption_generate_ef_clients', '{"clients":["sidneylaruel"]}', 'owner')
+   on conflict (key) do update set value = excluded.value;
+   ```
+   Then generate one caption on a card with a video and one from a pasted
+   transcript.
+5. Rollback at any time (back to n8n at once):
+   `delete from public.syncview_runtime_flags where key = 'caption_generate_ef_clients';`
+
+The n8n workflow stays on until the switch has been on for every client for 30 days.
+
+**For whoever writes `voice.md` in the brain repository:** the function finds the
+section only if it is written the way every brain fact is, a `## Caption style`
+heading followed directly by a `<!-- brain ... -->` block (`brain/parse.mjs`
+skips a heading without one and folds its text into the section above). With
+the block present and text under it, only that section is sent; otherwise every
+written voice section is.
+
+Review follow-ups (2026-10-09, Lighthouse): an existing job id is refused (the
+first row is an insert, so a re-post cannot clear a cancel or start a second
+run); transcripts go to the model inside tags the system message calls data,
+not instructions; a non-Frame.io link is named as such in the box; the
+Transcript pill sits top right, clear of "Show more", and hides on a phone once
+a caption exists; closing the box with pasted text asks first.
+
+## 390. [2026-10-09, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED] Scheduled jobs and the dead-man's switch move onto Supabase's own timer
+
+**What was wrong.** GitHub runs this repository's `schedule:` crons hours late. Measured on
+2026-10-09: the 5-minute native notification sender ran 6 times in 30 hours, and the daily roster
+and Sheets copy jobs started about 7 hours after their time. That is a product problem (notifications
+and intake completion go out hours late), and it made the monitoring dead-man's switch page about
+itself: 2 false pages that week for its own lane, `monitoring_watchdog` (max 360 minutes). The
+earlier fix, `lane-ticker.yml` (a GitHub job meant to dispatch the frequent lanes), has stopped after
+a few seconds on every run: `gh workflow view` on the runner has no `--json` flag, so it reads its
+own state as "unknown" and exits without dispatching anything.
+
+**What changed (source only).** The owner chose Supabase's built-in timer (pg_cron, already running
+six jobs here) over n8n, for both halves.
+
+1. **Every scheduled workflow is started on time.** `migrations/2026-10-09-github-workflow-dispatch-timer.sql`
+   makes one pg_cron job per scheduled workflow (`gh-dispatch-<workflow>`), on the workflow's own cron,
+   that calls GitHub's workflow_dispatch API through pg_net with a token read from Vault. Runs started
+   that way are not dropped: 60 sampled dispatched runs (2026-09-28 to 2026-10-09) all started within
+   131 seconds. The `schedule:` blocks stay as a fallback. 17 workflows are dispatched. 2 are not, on
+   purpose: `monitoring-deadman.yml` and `monitoring-crosscheck.yml` (they stay the independent second
+   observer of the switch). The timer is the single dispatcher: `lane-ticker.yml`, the earlier
+   GitHub-side dispatcher of the five frequent lanes, is deleted in this change (a one-line fix to
+   it, PR 2020, would otherwise have dispatched those lanes a second time). Eight workflows that tell a timed run
+   from a manual one gained a `source` input (default `manual`); `source=db-timer` behaves exactly like
+   the schedule, and manual runs are unchanged. `test/github-dispatch-timer.js` checks the list against
+   `.github/workflows` in both directions, the crons, the inputs and those guards.
+2. **The dead-man's switch runs on the same timer.** New Edge Function `monitoring-watchdog-tick`
+   runs the same check as `node scripts/monitoring-watchdog.js --check`: same lanes, thresholds,
+   latches, page through the same n8n alert relay, and the same `monitoring_watchdog` heartbeat
+   (actor `supabase-cron-monitoring-watchdog`, run handle `pgcron:<id>`). There is one source, not
+   two copies. The lane table, the decision and the whole pass moved into
+   `supabase/functions/_shared/monitoring-watchdog-core.mjs`, and the page shape into
+   `.../_shared/monitoring-alert-relay-core.mjs`. The Node scripts `require()` them. The F27
+   reconciler closure (which seals `scripts/monitoring-watchdog.js` and its dependencies) gained the
+   two core files and its pins were re-taken from the committed bytes. The function does not check
+   the n8n API: delivery confirmation needs `N8N_API_KEY`, never gates paging, and stays with the
+   GitHub hosts. `migrations/2026-10-09-monitoring-watchdog-tick-ping.sql` and `-schedule.sql` run it
+   every 15 minutes; the schedule refuses to install before the dispatch timer exists. The two GitHub
+   workflows stay as the second observer.
+
+**Thresholds: no change needed.** Measured read only on 2026-10-09 over the last 7 days of
+heartbeats, the lanes' own gaps under GitHub's schedule reached 539 minutes for card_calendar_drift
+(max 240), 781 for alert_digest and 520 to 561 for the four native lanes (max 360). A 15-minute
+observer alone would have sent about 54 stale pages that week, against 18 actually sent. With the
+dispatch timer, each lane's gap is its own cadence plus run time: 5 to 60 minutes for the frequent
+lanes against 240 or 360, and about a day for the daily lanes against 2160. So no lane needs a
+threshold change. `monitoring_watchdog`'s 360 stays as what the GitHub fallback needs; a follow-up
+can bring it down once the timer has a track record. If the token expires, dispatches fail with
+401/403 in `net._http_response`, the lanes fall back to GitHub's late schedule, and the switch, which
+does not use the token, pages on the stale lanes. That page is the alarm.
+
+**Owner steps, in order, when he says go** (none done):
+1. On GitHub, create a fine-grained personal access token. Settings, Developer settings, Fine-grained
+   tokens: resource owner = the account that owns this repository; repository access "Only select
+   repositories" = this repository alone; repository permissions "Actions: Read and write" (GitHub adds
+   "Metadata: Read-only" itself); nothing else. Pick an expiry and note it.
+2. In the Supabase SQL editor, store it in Vault:
+   `select vault.create_secret('<the token>', 'github_dispatch_token');`
+3. Run `migrations/2026-10-09-github-workflow-dispatch-ping.sql`, wait a minute, and check it answered
+   200 and 204. It dispatches card-calendar-status-drift.yml once; that job only reads.
+4. Run `migrations/2026-10-09-github-workflow-dispatch-timer.sql`.
+5. Make one random value of at least 32 characters. Set it as the Edge Function secret
+   `MONITORING_WATCHDOG_KEY`, and store the same text in Vault:
+   `select vault.create_secret('<the same text>', 'monitoring_watchdog_key');`
+6. Set the Edge Function secret `MONITORING_ALERT_WEBHOOK` to the same relay URL the GitHub secret
+   `SLACK_ALERT_WEBHOOK` holds (the production webhook URL of the n8n alert relay workflow
+   `Tfhc3vebZyG6obOg`; reading it there is not an edit).
+7. After this merges, deploy through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = the merge commit on main.
+8. Run `migrations/2026-10-09-monitoring-watchdog-tick-ping.sql`, wait a minute, and check it answered
+   `"ready":true`.
+9. Run `migrations/2026-10-09-monitoring-watchdog-tick-schedule.sql`.
+Rollback: `select cron.unschedule(jobid) from cron.job where jobname like 'gh-dispatch-%' or jobname = 'monitoring-watchdog-tick';`
+(the GitHub `schedule:` blocks and hosts keep running, as today).
+
+## 391. [2026-10-09, BUILT, DEPLOYED, SWITCH OFF, backfill waiting for the owner] Thumbnail titles come back (session Sorter)
 
 **Why.** Thumbnail work items made in SyncView arrive with an empty description
 (owner's measurement 2026-10-09: 55 of 93 open calendar-made thumbnails in To do

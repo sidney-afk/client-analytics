@@ -70,7 +70,7 @@ executes these files (see `README.md` › Repository layout).
   measures it on a real PostgreSQL 16.
 
 - **`2026-10-09-thumbnail-titles.sql`** is APPLIED (session Sorter, 2026-10-09,
-  OPEN_REPAIRS 390, with the backfill counter's variable rename the file now
+  OPEN_REPAIRS 391, with the backfill counter's variable rename the file now
   carries). Adds `thumbnail_title_prompts` (one per client; service role only,
   the default carries private Brain text), `thumbnail_title_queue`, the
   default-off switch `thumbnail_titles`, the backfill (`apply=false` is counts

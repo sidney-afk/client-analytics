@@ -191,6 +191,13 @@
       "status": "background",
       "note": "\"Cancel\" for a caption job; the page settles the job locally if it fails."
     },
+    "180-calendar-native-post-media.js.part|_calCapJobStart|CAPTION_GENERATE_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_calCapJobSettle"
+      ],
+      "note": "Starts a caption generation on the caption-generate function (switch caption_generate_ef_clients). A job that ends in error is recorded once as caption_generate, where the job settles."
+    },
     "180-calendar-native-post-media.js.part|_calCapJobStart|GENERATE_CAPTION_URL|POST": {
       "status": "reports",
       "within": [

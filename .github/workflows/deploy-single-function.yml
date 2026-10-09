@@ -23,7 +23,7 @@ on:
         description: The one function to deploy
         required: true
         type: choice
-        options: [analytics-market-research-collect, analytics-metrics-collect, analytics-read, analytics-top-videos-collect, analytics-write, brain, caption-jobs, client-hubspot-sync, client-onboarding, client-profile-write, filming-plan-tabs, higgsfield-mcp, instagram-upload, notify, roster-read, roster-write, syncview-session, thumbnail-title-prompts, thumbnail-titles, tiktok-upload, tiktok-upload-cancel, workload-plan, write-diagnostics]
+        options: [analytics-market-research-collect, analytics-metrics-collect, analytics-read, analytics-top-videos-collect, analytics-write, brain, caption-generate, caption-jobs, client-hubspot-sync, client-onboarding, client-profile-write, filming-plan-tabs, higgsfield-mcp, instagram-upload, monitoring-watchdog-tick, notify, roster-read, roster-write, syncview-session, thumbnail-title-prompts, thumbnail-titles, tiktok-upload, tiktok-upload-cancel, workload-plan, write-diagnostics]
       commit_sha:
         description: Exact 40-character commit SHA from main to deploy
         required: true
@@ -56,7 +56,7 @@ jobs:
           # The choice input is not a security boundary on its own (the API can
           # send any string), so the allowlist is enforced again here.
           case "$DEPLOY_FUNCTION" in
-            analytics-market-research-collect|analytics-metrics-collect|analytics-read|analytics-top-videos-collect|analytics-write|brain|caption-jobs|client-hubspot-sync|client-onboarding|client-profile-write|filming-plan-tabs|higgsfield-mcp|instagram-upload|notify|roster-read|roster-write|syncview-session|thumbnail-title-prompts|thumbnail-titles|tiktok-upload|tiktok-upload-cancel|workload-plan|write-diagnostics) ;;
+            analytics-market-research-collect|analytics-metrics-collect|analytics-read|analytics-top-videos-collect|analytics-write|brain|caption-generate|caption-jobs|client-hubspot-sync|client-onboarding|client-profile-write|filming-plan-tabs|higgsfield-mcp|instagram-upload|monitoring-watchdog-tick|notify|roster-read|roster-write|syncview-session|thumbnail-title-prompts|thumbnail-titles|tiktok-upload|tiktok-upload-cancel|workload-plan|write-diagnostics) ;;
             *) echo "::error::Refused: '$DEPLOY_FUNCTION' is not on this lane's allowlist"; exit 1 ;;
           esac
           if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
@@ -138,7 +138,7 @@ jobs:
           fi
           # The loop lists the allowlist once more and deploys only the match.
           deployed=0
-          for fn in analytics-market-research-collect analytics-metrics-collect analytics-read analytics-top-videos-collect analytics-write brain caption-jobs client-hubspot-sync client-onboarding client-profile-write filming-plan-tabs higgsfield-mcp instagram-upload notify roster-read roster-write syncview-session thumbnail-title-prompts thumbnail-titles tiktok-upload tiktok-upload-cancel workload-plan write-diagnostics; do
+          for fn in analytics-market-research-collect analytics-metrics-collect analytics-read analytics-top-videos-collect analytics-write brain caption-generate caption-jobs client-hubspot-sync client-onboarding client-profile-write filming-plan-tabs higgsfield-mcp instagram-upload monitoring-watchdog-tick notify roster-read roster-write syncview-session thumbnail-title-prompts thumbnail-titles tiktok-upload tiktok-upload-cancel workload-plan write-diagnostics; do
             if [ "$fn" = "$DEPLOY_FUNCTION" ]; then
               # --use-api bundles on Supabase's side: no edge-runtime image pull
               # from ghcr.io, whose rate limit failed this lane twice. The

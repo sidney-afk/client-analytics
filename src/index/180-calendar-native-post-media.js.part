@@ -4,7 +4,7 @@ import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
 import {
   CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
-  CAPTION_PROMPTS_SAVE_EF_URL, GENERATE_CAPTION_URL, THUMBNAIL_TITLE_PROMPTS_EF_URL, _svSelectHtml,
+  CAPTION_GENERATE_EF_URL, CAPTION_PROMPTS_SAVE_EF_URL, GENERATE_CAPTION_URL, THUMBNAIL_TITLE_PROMPTS_EF_URL, _svSelectHtml,
   _svStepperHtml, _svSyncStepper, _syncviewRequireStaffIdentity, _syncviewStaffEligible
 } from './100-onboarding-staff-controls.js';
 import {
@@ -13,7 +13,7 @@ import {
   DEFAULT_CAPTION_PROMPT, _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer,
   _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus,
-  _calAssertSavingOn, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
+  _calAssertSavingOn, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
   _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
   _settingsAssertSavingOn, _settingsWriteHeaders, _syncviewEfHeaders,
@@ -1381,6 +1381,59 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (!/f\.io|frame\.io/i.test(url)) return false;
         return true;
     }
+    /* n8n exit: the caption job can run on the caption-generate function
+       instead of the n8n Generate Caption workflow. The runtime switch
+       caption_generate_ef_clients decides, per client:
+         { "clients": ["<slug>", ...] }   those clients use the function
+         { "all": true }                  every client does
+       A missing, malformed or unreadable switch means n8n, today's path, so
+       nothing changes until the owner turns it on. Pasting a transcript (for a
+       post with no video, or as an extra) only exists on the function path.
+       Read with the anon key like every runtime flag, bounded, and reused for
+       30 seconds so a bulk run does not read it once per card. */
+    const CAL_CAPTION_EF_FLAG_KEY = 'caption_generate_ef_clients';
+    const CAL_CAPTION_EF_FLAG_MS = 2500;
+    const CAL_CAPTION_EF_FLAG_FRESH_MS = 30000;
+    const CAL_CAPTION_TRANSCRIPT_MAX = 20000;
+    let _calCaptionEfFlag = { all: false, clients: new Set(), at: 0 };
+    function _calCaptionEfFlagParse(rows) {
+        const row = Array.isArray(rows) ? rows[0] : null;
+        const value = row && row.value;
+        if (value && typeof value === 'object' && !Array.isArray(value) && value.all === true) return { all: true, clients: new Set() };
+        const members = row ? _calRuntimeFlagRawMembers(value) : null;
+        if (!members) return { all: false, clients: new Set() };
+        return { all: false, clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)) };
+    }
+    async function _calCaptionEfFlagRead() {
+        let parsed = { all: false, clients: new Set() };
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), CAL_CAPTION_EF_FLAG_MS) : null;
+        try {
+            if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CAL_CAPTION_EF_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            parsed = _calCaptionEfFlagParse(await resp.json());
+        } catch (e) {
+            console.warn('[Calendar] caption switch unreadable; captions use n8n', e && e.message);
+        } finally { if (timer) clearTimeout(timer); }
+        _calCaptionEfFlag = { all: parsed.all, clients: parsed.clients, at: Date.now() };
+        return _calCaptionEfFlag;
+    }
+    function _calCaptionRouteCached(clientOrSlug) {
+        const slug = calClientSlug(clientOrSlug || calState.client || '');
+        return (_calCaptionEfFlag.all || (slug && _calCaptionEfFlag.clients.has(slug))) ? 'ef' : 'n8n';
+    }
+    async function _calCaptionRoute(clientOrSlug) {
+        if (Date.now() - _calCaptionEfFlag.at > CAL_CAPTION_EF_FLAG_FRESH_MS) await _calCaptionEfFlagRead();
+        return _calCaptionRouteCached(clientOrSlug);
+    }
+    /* Called when the Calendar mounts: learn the switch, then repaint the
+       Generate buttons so a card with no video offers the transcript box. */
+    async function _calCaptionRouteRefresh() {
+        await _calCaptionEfFlagRead();
+        document.querySelectorAll('.cal-card[data-pid]').forEach(card => _calCapGenBtnRefresh(card.getAttribute('data-pid')));
+    }
     /* ============================================================
        Caption-job engine.
        A job is created per click, POSTed to the generate-caption
@@ -1435,8 +1488,19 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             return '<button type="button" class="cal-cap-gen is-busy" disabled title="' + _calEscAttr(CAL_CAPGEN_BUSY_TIP) + '"><span class="cal-cap-gen-spin"></span><span>' + label + elapsed + '</span></button>' + xBtn;
         }
         const url = _calCapLiveAssetUrl(pid, p);
-        const can = !_calIsBlankId(pid) && !!url && /f\.io|frame\.io/i.test(url);
-        return '<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption(\'' + pid + '\')"' + (can ? '' : ' disabled title="Add a video Frame link first"') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>';
+        const hasVideo = !!url && /f\.io|frame\.io/i.test(url);
+        const blank = _calIsBlankId(pid);
+        // Function path only: no video means Generate opens the transcript box,
+        // and with a video a second pill adds an optional transcript.
+        const ef = !blank && _calCaptionRouteCached(calState.client) === 'ef';
+        const can = !blank && (hasVideo || ef);
+        const title = !can ? ' disabled title="Add a video Frame link first"'
+            : (!hasVideo ? ' title="No video linked: paste the transcript and the caption is written from it"' : '');
+        const gen = '<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption(\'' + pid + '\')"' + title + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>';
+        const tx = (ef && hasVideo)
+            ? '<button type="button" class="cal-cap-tx" onclick="_calOpenCaptionTranscript(\'' + pid + '\')" title="Optional: paste a transcript or notes to use with the video"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5L12 5v8.5H4z"/><path d="M6 8h4M6 10.5h4"/></svg><span>Transcript</span></button>'
+            : '';
+        return gen + tx;
     }
     /* Re-render the Generate pill (and per-card cancel ✕) in place from the
        current job state, without a full body re-render. */
@@ -1449,6 +1513,8 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (!post) return;
         const oldX = wrap.querySelector('.cal-cap-gen-x');
         if (oldX) oldX.remove();
+        const oldTx = wrap.querySelector('.cal-cap-tx');
+        if (oldTx) oldTx.remove();
         const btn = wrap.querySelector('.cal-cap-gen');
         if (!btn) return;
         btn.outerHTML = _calCapGenBtnHtml(post);
@@ -1482,6 +1548,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             const arr = _calCapJobsActiveList().map(j => ({
                 jobId: j.jobId, pid: j.pid, client: j.client, clientName: j.clientName,
                 assetUrl: j.assetUrl, captionPrompt: j.captionPrompt,
+                route: j.route || 'n8n', transcript: j.transcript || '',
                 status: j.status, stage: j.stage, startedAt: j.startedAt,
                 confirmed: !!j.confirmed, posted: !!j.posted, cancelRequested: !!j.cancelRequested
             }));
@@ -1506,8 +1573,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             const job = {
                 jobId: r.jobId, pid: r.pid, client: r.client || '', clientName: r.clientName || r.client || '',
                 assetUrl: r.assetUrl || '', captionPrompt: r.captionPrompt || '',
+                route: r.route === 'ef' ? 'ef' : 'n8n', transcript: String(r.transcript || ''),
                 status: r.posted ? 'running' : 'queued',
-                stage: r.posted ? (r.stage || 'scraping') : 'queued',
+                stage: r.posted ? (r.stage || (r.assetUrl ? 'scraping' : 'writing')) : 'queued',
                 error: '', caption: '', startedAt: r.startedAt, lastMovementAt: now,
                 confirmed: !!r.confirmed, posted: !!r.posted,
                 cancelRequested: !!r.cancelRequested, postFailed: false,
@@ -1537,22 +1605,8 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             return { ok: false, error: 'Card not saved yet' };
         }
         const assetUrl = _calCapLiveAssetUrl(pid, post);
-        if (!assetUrl) {
-            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Add a video URL first');
-            return { ok: false, error: 'Add a video URL first' };
-        }
-        if (!/f\.io|frame\.io/i.test(assetUrl)) {
-            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Frame.io URLs only');
-            return { ok: false, error: 'Frame.io URLs only' };
-        }
-        // A just-pasted URL is queued for saving alongside the generation, so
-        // the sheet ends up consistent even if the user navigates away.
-        if (assetUrl !== String(post.asset_url || '').trim()) {
-            post.asset_url = assetUrl;
-            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-            _calPendingEdits[pid].asset_url = assetUrl;
-            _calFlushCardSave(pid);
-        }
+        const hasVideo = !!assetUrl && /f\.io|frame\.io/i.test(assetUrl);
+        const transcript = String(opts.transcript || '').trim();
         // The live textarea / pending edit wins over saved state for the
         // "already has a caption" check — covers text typed seconds ago.
         const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
@@ -1561,6 +1615,28 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             (ta ? ta.value :
                 (_calPendingEdits[pid] && _calPendingEdits[pid].caption != null ? _calPendingEdits[pid].caption : post.caption)) || ''
         ).trim();
+        if (!hasVideo && !transcript) {
+            // On the function path a post with no video is written from a
+            // pasted transcript: open the box instead of refusing.
+            if (!opts.silent && !liveCaption && (await _calCaptionRoute(calState.client)) === 'ef') {
+                _calOpenCaptionTranscript(pid);
+                return { ok: false, error: 'Waiting for the transcript', skipped: true };
+            }
+            if (!assetUrl) {
+                if (!opts.silent) _calSetCaptionBusy(pid, null, liveCaption ? 'This card already has a caption — clear it first to regenerate.' : 'Add a video URL first');
+                return { ok: false, error: liveCaption ? 'Caption already set' : 'Add a video URL first', skipped: !!liveCaption };
+            }
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Frame.io URLs only');
+            return { ok: false, error: 'Frame.io URLs only' };
+        }
+        // A just-pasted URL is queued for saving alongside the generation, so
+        // the sheet ends up consistent even if the user navigates away.
+        if (hasVideo && assetUrl !== String(post.asset_url || '').trim()) {
+            post.asset_url = assetUrl;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].asset_url = assetUrl;
+            _calFlushCardSave(pid);
+        }
         if (liveCaption && !opts.force) {
             if (!opts.silent) _calSetCaptionBusy(pid, null, 'This card already has a caption — clear it first to regenerate.');
             return { ok: false, error: 'Caption already set', skipped: true };
@@ -1579,10 +1655,20 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             if (!opts.silent) _calSetCaptionBusy(pid, null, 'Could not load this client\u2019s caption prompt. Try again in a moment.');
             return { ok: false, error: 'Caption prompt unavailable', skipped: true };
         }
+        // Which backend writes it: the runtime switch (n8n unless turned on).
+        // A pasted transcript only exists on the function path.
+        const route = await _calCaptionRoute(clientName);
+        if (transcript && route !== 'ef') {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Writing from a transcript is switched off for this client.');
+            return { ok: false, error: 'Transcript path is off', skipped: true };
+        }
+        // Two quick clicks both waited above; only the first one starts a job.
+        if (_calCapJobActive(_calCaptionJobs.get(pid))) return { ok: false, error: 'Already generating' };
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
-            assetUrl: assetUrl, captionPrompt: _calCaptionPromptFor(clientName),
+            route: route, transcript: route === 'ef' ? transcript : '',
+            assetUrl: hasVideo ? assetUrl : '', captionPrompt: _calCaptionPromptFor(clientName),
             status: 'queued', stage: 'queued', error: '', caption: '',
             startedAt: Date.now(), lastMovementAt: Date.now(),
             confirmed: false, posted: false, cancelRequested: false, postFailed: false,
@@ -1611,7 +1697,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     }
     async function _calCapJobStart(job) {
         job.status = 'running';
-        job.stage = 'scraping';
+        job.stage = job.assetUrl ? 'scraping' : 'writing';
         job.posted = true;
         job.startedAt = Date.now();       // the visible clock starts when the request goes out
         job.lastMovementAt = Date.now();
@@ -1622,15 +1708,27 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         try {
             const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
             const killer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch {} }, CAL_CAPJOB_FETCH_TIMEOUT_MS) : null;
-            const resp = await fetch(GENERATE_CAPTION_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    client: job.client, postId: job.pid, assetUrl: job.assetUrl,
-                    captionPrompt: job.captionPrompt, jobId: job.jobId
-                }),
-                signal: ctrl ? ctrl.signal : undefined
-            });
+            // The function answers at once ({ accepted }) and the poller follows
+            // the caption_jobs row; n8n holds the request until the caption is done.
+            const resp = job.route === 'ef'
+                ? await fetch(CAPTION_GENERATE_EF_URL, {
+                    method: 'POST',
+                    headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CAPTION_GENERATE_EF_URL),
+                    body: JSON.stringify({
+                        client: job.client, postId: job.pid, assetUrl: job.assetUrl,
+                        captionPrompt: job.captionPrompt, jobId: job.jobId, transcript: job.transcript || ''
+                    }),
+                    signal: ctrl ? ctrl.signal : undefined
+                })
+                : await fetch(GENERATE_CAPTION_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client: job.client, postId: job.pid, assetUrl: job.assetUrl,
+                        captionPrompt: job.captionPrompt, jobId: job.jobId
+                    }),
+                    signal: ctrl ? ctrl.signal : undefined
+                });
             if (killer) clearTimeout(killer);
             json = await resp.json().catch(() => null);
             if (!json) throw new Error('HTTP ' + resp.status);
@@ -1640,6 +1738,12 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             // the row never appears does the watchdog fail the job.
             console.warn('[Calendar] generate-caption request dropped', job.pid, e);
             job.postFailed = true;
+            _calCapJobPollNow();
+            return;
+        }
+        // The function accepted the job: the poller takes it from here.
+        if (job.route === 'ef' && json.ok && json.accepted) {
+            job.confirmed = true;
             _calCapJobPollNow();
             return;
         }
@@ -2017,8 +2121,16 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         }
         overlay.classList.add('open');
     }
-    function _calCloseCaptionPromptModal() {
+    /* Every way out of the dialog (X, Cancel, backdrop, Escape) comes here. When
+       it is the transcript box and text was pasted, ask first: the text is not
+       kept anywhere. `force` is the box's own Generate and the confirm's Discard. */
+    function _calCloseCaptionPromptModal(force) {
         const overlay = document.getElementById('calPromptOverlay');
+        const tx = document.getElementById('calTxTA');
+        if (force !== true && overlay && overlay.classList.contains('open') && tx && tx.value.trim()) {
+            showConfirm('Discard the pasted transcript?', 'What you pasted is not saved anywhere. Close the box and lose it?', () => _calCloseCaptionPromptModal(true), 'Discard');
+            return;
+        }
         if (overlay) overlay.classList.remove('open');
     }
     function _calResetCaptionPromptToDefault() {
@@ -2187,6 +2299,71 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             btn.textContent = 'Save';
             showNotify('Save failed', (e && e.message) || 'Could not save the thumbnail title prompt — try again.');
         }
+    }
+
+    /* Transcript box (function path only). A post with no video: Generate
+       opens it and the caption is written from what is pasted. A post with a
+       video: the Transcript pill opens it and what is pasted is used together
+       with the video's own audio (optional). Reuses the caption prompt dialog's
+       overlay, so it is a bottom sheet on a phone like that one. */
+    function _calOpenCaptionTranscript(pid) {
+        const post = (calState.posts || []).find(p => p.id === pid);
+        const overlay = document.getElementById('calPromptOverlay');
+        const modal = document.getElementById('calPromptModal');
+        if (!post || !overlay || !modal) return;
+        const url = _calCapLiveAssetUrl(pid, post);
+        const hasVideo = !!url && /f\.io|frame\.io/i.test(url);
+        const title = hasVideo ? 'Add a transcript (optional)' : 'Write the caption from a transcript';
+        // A link that is not Frame.io (a Drive file, say) cannot be transcribed,
+        // so the box says that instead of claiming there is no video.
+        const lead = hasVideo
+            ? 'The video is still transcribed as usual. Anything you paste here is used together with it, for example the full script or notes on what matters.'
+            : (url
+                ? 'This post\u2019s video link is not a Frame.io link, so the video cannot be transcribed automatically. Paste what is said in the video and the caption is written from it.'
+                : 'This post has no video linked. Paste what is said in the video and the caption is written from it.');
+        modal.innerHTML =
+            '<div class="cal-prompt-head">' +
+                '<div class="cal-prompt-head-text">' +
+                    '<h3>' + _calEsc(title) + '</h3>' +
+                    '<p>' + _calEsc(lead) + '</p>' +
+                '</div>' +
+                '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>' +
+            '</div>' +
+            '<div class="cal-prompt-body">' +
+                '<textarea class="cal-prompt-textarea cal-tx-textarea" id="calTxTA" maxlength="' + CAL_CAPTION_TRANSCRIPT_MAX + '" aria-label="Transcript" placeholder="' + _calEscAttr(hasVideo ? 'Paste a transcript or notes (optional)' : 'Paste the video’s transcript here') + '" oninput="_calCaptionTranscriptInput()"></textarea>' +
+                '<div class="cal-prompt-hint" id="calTxHint">The client’s caption prompt and voice are used as usual.</div>' +
+            '</div>' +
+            '<div class="cal-prompt-foot">' +
+                '<div class="cal-prompt-foot-left"></div>' +
+                '<div class="cal-prompt-foot-right">' +
+                    '<button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Cancel</button>' +
+                    '<button type="button" class="cal-prompt-btn is-primary" id="calTxGo" data-pid="' + _calEscAttr(pid) + '" data-required="' + (hasVideo ? '0' : '1') + '"' + (hasVideo ? '' : ' disabled') + ' onclick="_calSubmitCaptionTranscript()">Generate caption</button>' +
+                '</div>' +
+            '</div>';
+        overlay.classList.add('open');
+        const ta = document.getElementById('calTxTA');
+        if (ta) setTimeout(() => { try { ta.focus(); } catch (e) {} }, 30);
+    }
+    function _calCaptionTranscriptInput() {
+        const ta = document.getElementById('calTxTA');
+        const go = document.getElementById('calTxGo');
+        const hint = document.getElementById('calTxHint');
+        if (!ta || !go) return;
+        const n = ta.value.trim().length;
+        if (go.getAttribute('data-required') === '1') go.disabled = n === 0;
+        if (hint) hint.textContent = n
+            ? n.toLocaleString() + ' of ' + CAL_CAPTION_TRANSCRIPT_MAX.toLocaleString() + ' characters. The client’s caption prompt and voice are used as usual.'
+            : 'The client’s caption prompt and voice are used as usual.';
+    }
+    function _calSubmitCaptionTranscript() {
+        const ta = document.getElementById('calTxTA');
+        const go = document.getElementById('calTxGo');
+        if (!ta || !go) return;
+        const pid = go.getAttribute('data-pid') || '';
+        const transcript = ta.value.trim();
+        if (!transcript && go.getAttribute('data-required') === '1') return;
+        _calCloseCaptionPromptModal(true);
+        _calGenerateCaption(pid, { transcript: transcript });
     }
 
     function wireCalOrganizerDrag(skipAutoCenter) {
@@ -3054,9 +3231,10 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _calArchiveSelected, _calBulkGenerateCaptions, _calCancelBulkCaption, _calCancelCaptionJob,
-        _calCardSelectClick, _calCloseCaptionPromptModal, _calGenerateCaption, _calOpenCaptionPromptModal,
-        _calOpenThumbTitlePromptModal, _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault,
-        _calSaveCaptionPrompt, _calSaveThumbTitlePrompt, _calSubmitNativePost, _calToggleSelectMode,
+        _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal, _calGenerateCaption,
+        _calOpenCaptionPromptModal, _calOpenCaptionTranscript, _calOpenThumbTitlePromptModal,
+        _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault, _calSaveCaptionPrompt,
+        _calSaveThumbTitlePrompt, _calSubmitCaptionTranscript, _calSubmitNativePost, _calToggleSelectMode,
         addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday, calWeekShift, calWeekToday
     });
 export {
@@ -3067,6 +3245,7 @@ export {
   _calRecordKasperSeenOnPost, _calRenderNativePostChoice, _calReorderOptimistic,
   _calReviewComponentActive, _calReviewMode, _calReviewState, _calRunPooled,
   _calShowApprovedAfterTweaks, _calWireDragEdgeScroll, _calWireDragOnCard, _calWireShiftScroll,
+  _calCaptionRouteRefresh,
   _kasperGetSeenAt, _kasperHasUnreadReply, _kasperLatestInternalComp, _kasperMarkSeenAt,
   _kasperOwnedThreadRoots, _kasperRepliesSeenBasis, _nativePostViewSlug, _notesGetSeen,
   _notesMarkSeen, archiveCalPost, calMonthShift, calWeekShiftDays, renderCalMonth, renderCalWeek,

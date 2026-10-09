@@ -1,4 +1,4 @@
--- Thumbnail titles (OPEN_REPAIRS 390). Brings back the automatic thumbnail title that the
+-- Thumbnail titles (OPEN_REPAIRS 391). Brings back the automatic thumbnail title that the
 -- retired n8n step "Generate Titles" used to write, as Supabase Edge Functions.
 --
 -- What this file adds (idempotent; rollback block at the bottom):

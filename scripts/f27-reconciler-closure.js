@@ -80,6 +80,15 @@ const EXPECTED_CLOSURE_PATHS = Object.freeze([
   // latch rows; it holds no reconcile, apply, flag or authority path.
   'scripts/monitoring-watchdog.js',
   'scripts/prod-authority-guard.js',
+  // Entered the closure 2026-10-09 (OPEN_REPAIRS 388). The watchdog's lane
+  // table, decision and check pass, and the relay's payload contract and POST,
+  // MOVED out of the two scripts above into these shared modules so the
+  // database-timer Edge Function runs the same code. They are the same
+  // read/alert-only logic as before: no filesystem, process or child-process
+  // work, no environment reads, no reconcile, apply, flag or authority path.
+  // The scripts load them with a literal relative require().
+  'supabase/functions/_shared/monitoring-alert-relay-core.mjs',
+  'supabase/functions/_shared/monitoring-watchdog-core.mjs',
 ].sort());
 const REVIEWED_BLOB_SHA256 = Object.freeze({
   // Re-pinned 2026-09-21 for the index.html modularization Step 0: ONE blob,
@@ -210,8 +219,15 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     '7619b30d29522e1766f753b1b674c8ed68688980970077ff1aa39353d3af3c98',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
+  // Re-pinned 2026-10-09 (OPEN_REPAIRS 388): its pure half (payload contract,
+  // public-safety screen, POST) moved verbatim into
+  // supabase/functions/_shared/monitoring-alert-relay-core.mjs, which this file
+  // now require()s; delivery confirmation stays here. Closure MEMBERSHIP grew by
+  // that one file (listed above). Hash from
+  // `git show HEAD:scripts/monitoring-alert-relay.js | sha256sum` on the
+  // committed file, never typed by hand. (Previous pin: dd35e38e...)
   'scripts/monitoring-alert-relay.js':
-    'dd35e38e88232085618144403e77571874aba5a004bc17fae5207671c4490388',
+    '3a63808d0c6e3aa9b6c826ec16f22006392e2e69c4376962c5e94b77151ce112',
   // Re-pinned twice on 2026-08-07. First for `production_shadow_audit` joining
   // LANES; then for the "ran and failed" incident -- the watchdog now also pages
   // when a lane's newest FRESH heartbeat carries ok:false, latched separately
@@ -344,10 +360,24 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // command, entrypoint or mutation path moved; closure membership is
   // unchanged. Hash from `git show HEAD:scripts/monitoring-watchdog.js | sha256sum`
   // on the committed file, never typed by hand. (Previous pin: 6cebc1b4...)
+  // Re-pinned 2026-10-09 (OPEN_REPAIRS 388): the lane table, the decision and
+  // the --check pass moved verbatim into
+  // supabase/functions/_shared/monitoring-watchdog-core.mjs, which this file now
+  // require()s, so the database-timer host runs the same code; this file keeps
+  // only the GitHub transport and CLI. Closure MEMBERSHIP grew by that one file
+  // (listed above). Still read/alert only. Hash from
+  // `git show HEAD:scripts/monitoring-watchdog.js | sha256sum` on the committed
+  // file, never typed by hand. (Previous pin: d0290cb9...)
   'scripts/monitoring-watchdog.js':
-    'd0290cb9c9b461c4e7d98d49474270b93d11071e4017c7a523a8446c2de2342a',
+    'b2d1c28f933f99829bb638f97f2d943fd726d1f3d45ec8fdb5d3e42dd6ac0d6e',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
+  // Both entered 2026-10-09 (OPEN_REPAIRS 388), see the membership note above.
+  // Hashes from `git show HEAD:<path> | sha256sum` on the committed files.
+  'supabase/functions/_shared/monitoring-alert-relay-core.mjs':
+    'bb849ff825b1445f780167038af50b03617a85da76a14f1f692fcb2897e95edf',
+  'supabase/functions/_shared/monitoring-watchdog-core.mjs':
+    'd6068810edc47aee856de87c26e0f91b24ed7b6286808d674b73d6537fa03dbe',
 });
 const HASH_ALGORITHM =
   'sha256(path-byte-length:path\\ncontent-byte-length:raw-git-blob-bytes\\n) over sorted paths';

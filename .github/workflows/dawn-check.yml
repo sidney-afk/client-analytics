@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '30 11 * * 1-5'   # 11:30 UTC Mon-Fri = 07:30 New York (EDT) / 06:30 (EST)
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'Who started the run: manual (the default) or db-timer (the database timer; the run then behaves exactly like the schedule)'
+        type: string
+        default: manual
 
 concurrency:
   group: dawn-check
@@ -53,7 +58,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - name: Page the SyncView Bot on scheduled failure
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && (github.event_name == 'schedule' || inputs.source == 'db-timer')
         shell: bash
         env:
           SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}

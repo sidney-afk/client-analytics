@@ -1132,6 +1132,10 @@ import {
     const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
     const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
+    /* n8n exit: the caption job on a Supabase Edge Function instead of the
+       generate-caption workflow. Used only for clients the runtime switch
+       caption_generate_ef_clients lists; everyone else keeps GENERATE_CAPTION_URL. */
+    const CAPTION_GENERATE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-generate';
     /* Thumbnail title prompt read + save (staff key; the table is closed to the browser). */
     const THUMBNAIL_TITLE_PROMPTS_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/thumbnail-title-prompts';
     /* "URGENT TWEAKS NEEDED" editor ping: native route only
@@ -2385,7 +2389,7 @@ import {
 export {
   CALENDAR_REORDER_EF_URL,
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
-  CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
+  CAL_SUPABASE_URL, CAPTION_GENERATE_EF_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
   CAPTION_PROMPTS_SAVE_EF_URL, CLIENT_REVIEW_LINK_URL,
   CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
   PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, _svReadWithRetry, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,

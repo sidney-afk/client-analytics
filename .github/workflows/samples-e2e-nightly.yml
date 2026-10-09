@@ -20,6 +20,10 @@ on:
         description: 'Optional comma-separated scenario key filter (e.g. "kasper_undo,resolve_via")'
         required: false
         default: ''
+      source:
+        description: 'Who started the run: manual (the default) or db-timer (the database timer; the run then behaves exactly like the schedule)'
+        type: string
+        default: manual
 
 jobs:
   samples-e2e:
@@ -67,7 +71,7 @@ jobs:
       # Posts through the same SyncView Bot webhook the reconcile pager uses;
       # degrades to a warning if the secret is absent.
       - name: Page the SyncView Bot on scheduled failure
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && (github.event_name == 'schedule' || inputs.source == 'db-timer')
         shell: bash
         env:
           SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}

@@ -53,6 +53,10 @@ verify_jwt = false
 [functions.brain]
 verify_jwt = false
 
+# Generate caption off n8n: staff role key checked in code (same as caption-jobs).
+[functions.caption-generate]
+verify_jwt = false
+
 [functions.caption-prompts-save]
 verify_jwt = false
 

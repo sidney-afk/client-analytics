@@ -362,6 +362,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-prompts-guard-browser.js
+      - name: Generate caption off n8n (switch off unchanged, function path, transcript box, desktop and phone)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/caption-generate-browser.js
       - name: Client approve and request-changes always save through the function
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

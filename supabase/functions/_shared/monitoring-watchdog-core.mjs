@@ -1,0 +1,692 @@
+// The dead-man's switch itself: the lane table, the decision, the page, and
+// one full `--check` pass. Shared, byte for byte, by its two kinds of host:
+//
+//   scripts/monitoring-watchdog.js            Node, run by the GitHub Actions
+//                                             hosts (monitoring-deadman.yml,
+//                                             monitoring-crosscheck.yml)
+//   supabase/functions/monitoring-watchdog-tick   Deno, called every 15 minutes
+//                                             by Supabase's own timer (pg_cron
+//                                             through pg_net)
+//
+// It lives here, under supabase/functions/_shared, because an Edge Function
+// can only bundle files from this tree; the Node script loads it with
+// a plain require call (Node 20.19+ / 22.12+ load an ES module synchronously). There is
+// therefore ONE lane table and ONE decision, and the two hosts cannot drift
+// apart. Everything that differs between them -- how a row is read, how an
+// event is written, how a page is posted, what the run handle is -- is passed
+// in as `io`, so nothing in this file reads an environment variable.
+//
+// Dependency free, no Deno and no Node globals beyond Date and Promise.
+//
+// PUBLIC SAFETY. Lane keys, ages, counts and run handles only.
+
+export const HEARTBEAT_ACTION = 'monitoring_heartbeat';
+export const LATCH_ACTION = 'monitoring_watchdog_latch';
+
+/*
+ * `max_age_minutes` is the lane's own cadence plus enough slack to absorb
+ * GitHub's well-documented cron drift under load (a ten-minute schedule
+ * routinely delivers ~13 runs/day, not 144). Too tight and it becomes noise;
+ * too loose and an outage runs for a day before anyone hears about it.
+ */
+/*
+ * LANE RETIREMENT — added 2026-09-07 for the Linear exit (OPEN_REPAIRS 174).
+ *
+ * Four of these lanes cannot outlive Linear. `reconciler_pager`,
+ * `production_write_drill`, `production_shadow_audit` and
+ * `b1_incremental_refresh` are each hosted by a workflow whose "require
+ * secrets" step demands LINEAR_API_KEY, and each writes its heartbeat under
+ * `if: always()`. On the day the credential dies they do not go quiet — they
+ * RUN, fail, beat `ok:false`, latch a `failing` incident that never clears
+ * (nothing can un-latch a lane that can never pass again), and leave a red run
+ * behind every day. That is the estate teaching its owner to ignore the one
+ * channel that would have told him about a real failure.
+ *
+ * So a lane now carries three facts it did not carry before:
+ *
+ *   hosts        — the workflow file(s) that run it and write its heartbeat.
+ *   retires_with — 'linear' if this lane is scheduled to die with the exit.
+ *                  Declarative today; it changes no behaviour on its own.
+ *   retired      — null while the lane is watched. At cutoff this becomes
+ *                  `{ at, reason }` and the lane leaves the watched set.
+ *
+ * `retired` is NOT a way to make a lane quietly disappear, which would be the
+ * exact silence this file exists to prevent. Two things stop that:
+ *
+ *   1. Every `--check` run reports its retired lanes by name in the JSON, so
+ *      what the switch is deliberately NOT watching is stated on every pass.
+ *   2. test/monitoring-watchdog.js enforces the invariant in BOTH directions
+ *      against the workflow files themselves: an active lane must have at
+ *      least one actively-scheduled host, and a retired lane must have none.
+ *      You therefore cannot disable a Linear workflow without retiring its
+ *      lane, and you cannot retire a lane while its workflow still runs. The
+ *      two halves of the cutoff are welded together by the test suite instead
+ *      of by a note in a runbook.
+ */
+export const LANES = Object.freeze([
+  { key: 'reconciler_pager', label: 'reconciler drift pager', cadence: 'schedule ~10m (drifts)', max_age_minutes: 240,
+    hosts: ['linear-deliverables-reconcile.yml'], retires_with: 'linear',
+    retired: { at: '2026-09-20', reason: 'linear-cutoff' } },
+  /*
+   * The watchdog's own lane, and the only one with more than one host. Two
+   * independent workflows run `--check`, and the check writes this beat, so
+   * either host dying is still reported by the other. `monitoring-crosscheck.yml`
+   * exists because the second host USED to be linear-deliverables-reconcile.yml,
+   * which the cutoff disables — re-homing it is what keeps "a checker cannot
+   * report its own death" true after Linear is gone.
+   */
+  /*
+   * max_age_minutes is 360, not the 180 the two crons imply, because GitHub
+   * does not deliver those crons. MEASURED 2026-09-08 over both hosts' actual
+   * run history: monitoring-deadman.yml (cron every 15m) fired 8 times in 29
+   * hours and monitoring-crosscheck.yml (cron every 20m) 5 times in 16, so the
+   * COMBINED beat — which is what this lane's freshness actually depends on —
+   * arrives every 46 to 274 minutes rather than every 15. GitHub schedules a
+   * cron on a best-effort queue and drops firings under account load; this
+   * repository ran 42,000+ workflow runs, and the dispatched lanes crowd out
+   * the scheduled ones.
+   *
+   * At 180 the lane therefore reported ITSELF stale on any gap over three
+   * hours, which happened twice on 2026-09-08 alone (215m and 274m) and five
+   * times in the eight runs before it. Every one of those pages was false: the
+   * relay delivered, every watched lane was healthy, and nothing had stopped.
+   * A dead-man's switch whose only routine finding is its own death is the
+   * alarm-fatigue failure this whole file exists to prevent — the next reader
+   * discounts it, and the page that matters arrives looking identical.
+   *
+   * 360 clears the worst observed combined gap (274m) by about a third.
+   *
+   * WHAT THAT DOES AND DOES NOT BUY, stated as arithmetic because the first
+   * version of this comment got it wrong and said "pages within six hours":
+   * freshness is only evaluated when a host actually runs, so the real
+   * detection time is max_age_minutes PLUS the observation interval, not
+   * max_age_minutes alone. A lane that stops right after a beat is seen at
+   * age 274 by the next host (healthy) and only at age 548 by the one after,
+   * putting detection near 360 + 274 = 634 minutes, about ten and a half
+   * hours, with typical nearer nine.
+   *
+   * 634 IS AN ESTIMATE, NOT A BOUND, and the distinction matters for a record
+   * operators lean on: 274 is the largest gap in the sampled history, not a
+   * limit GitHub honours. Best-effort scheduling can drop firings for longer
+   * than anything measured here, which pushes detection past 634 by however
+   * long the gap runs; and if BOTH hosts stop firing, no page is produced at
+   * all. That last case is the residual the runbook already names — a total
+   * Actions outage silences both halves — and closing it needs an observer
+   * outside Actions, not a different number here.
+   *
+   * There is no threshold that fixes this, and that is the point worth
+   * carrying: no-false-positives requires max_age above the 274-minute
+   * observation gap, which by the same arithmetic puts the floor on worst-case
+   * detection at about 548 minutes whatever number is chosen. Trading 360 down
+   * to 300 buys roughly an hour of deadline and spends most of the false-alarm
+   * margin to get it. The bind is the observation interval, not the threshold,
+   * so only a host that actually runs on time can shorten this materially.
+   *
+   * Two things would let this come back down, and neither is a code change
+   * here: dispatching a host on a reliable external timer the way the
+   * reconcilers are dispatched every 15 minutes, or cutting the repository's
+   * scheduled-workflow load so GitHub stops dropping firings. Note also that
+   * linear-deliverables-reconcile.yml is listed as a host but contributes a
+   * beat only on its SCHEDULED runs (its --check step is gated on
+   * event_name == 'schedule'), so its frequent dispatched runs do not help,
+   * and the Linear exit retires it entirely.
+   */
+  /*
+   * 2026-10-09 (OPEN_REPAIRS 388): THE RELIABLE TIMER, the first of the two
+   * fixes named above. The owner chose Supabase's own timer over n8n. The
+   * PRIMARY host is now the Edge Function `monitoring-watchdog-tick`, called
+   * every 15 minutes by the pg_cron job `monitoring-watchdog-tick` through
+   * pg_net (migrations/2026-10-09-monitoring-watchdog-tick-schedule.sql). It
+   * runs this same file's `runCheck`, so it reads the same lanes, latches the
+   * same way, pages through the same relay contract and writes this same beat.
+   * pg_cron runs on the database itself, outside GitHub's best-effort queue.
+   *
+   * The two GitHub workflows stay as a SECOND, independent observer: if the
+   * database timer stops, they still run `--check`, and this lane's
+   * freshness then falls back to their 46-to-274-minute cadence (and its
+   * occasional page) instead of going quiet.
+   *
+   * The same timer also starts the lanes themselves on time. Measured
+   * 2026-10-09 (read only, last 7 days), the GitHub-hosted lanes' OWN gaps ran
+   * far past their cadence (card_calendar_drift up to 539m against 240,
+   * alert_digest up to 781m and the four native lanes up to 561m against 360),
+   * because GitHub drops their crons too, and a 15-minute observer alone would
+   * have paged on most of those gaps. So the database timer dispatches every
+   * scheduled workflow through the workflow_dispatch API at its intended cron
+   * (migrations/2026-10-09-github-workflow-dispatch-timer.sql), and dispatched
+   * runs start within about two minutes (60 sampled, 2026-09-28..10-09). Each
+   * lane's gap is then its own cadence plus run time, well inside its
+   * threshold, so no threshold changes. The watchdog schedule refuses to
+   * install before the dispatch timer exists.
+   *
+   * This lane's 360 is unchanged too: it is what the GitHub fallback needs if
+   * the timer stops. Once the timer has run for a while, a follow-up can bring
+   * it down toward the timer's 15 minutes.
+   *
+   * `timer_hosts` names the non-workflow host. It is not a workflow file, so
+   * it sits apart from `hosts`, which the suite checks against .github/workflows.
+   */
+  { key: 'monitoring_watchdog', label: 'monitoring watchdog', cadence: 'pg_cron 15m (primary) + GitHub 15m/20m crosscheck (GitHub delivers ~1 per 3-5h)', max_age_minutes: 360,
+    hosts: ['monitoring-deadman.yml', 'monitoring-crosscheck.yml', 'linear-deliverables-reconcile.yml'],
+    timer_hosts: ['monitoring-watchdog-tick'],
+    heartbeat_flag: '--check', retired: null },
+  { key: 'production_write_drill', label: 'production write drill', cadence: 'daily 04:17 UTC', max_age_minutes: 2160,
+    hosts: ['production-write-drill.yml'], retires_with: 'linear',
+    retired: { at: '2026-09-20', reason: 'linear-cutoff' } },
+  { key: 'b1_incremental_refresh', label: 'B1 incremental refresh', cadence: 'schedule 30m + pager', max_age_minutes: 240,
+    hosts: ['b1-linear-incremental-refresh.yml'], retires_with: 'linear',
+    retired: { at: '2026-09-20', reason: 'linear-cutoff' } },
+  /*
+   * Added 2026-08-07 after an audit of what actually alerts.
+   *
+   * The shadow audit runs daily at 05:17 UTC and was dark on BOTH axes: it
+   * emitted no heartbeat, it was absent from this list, and the pager's three
+   * `production_shadow_audit_*` alerts live in a transform script that was
+   * never applied to the live n8n workflow. Nothing anywhere would have said a
+   * word if it stopped.
+   *
+   * It has already stopped once, silently: an invalid `runner.temp` reference
+   * in the job env block made GitHub reject the workflow outright from
+   * 2026-07-13, so the audit never ran for weeks. That was found by a human
+   * reading the file, not by a monitor.
+   *
+   * 2160 minutes (36h) matches the write drill: one missed daily run is
+   * tolerated for a re-run or a schedule slip, two are not.
+   */
+  { key: 'production_shadow_audit', label: 'production shadow audit', cadence: 'daily 05:17 UTC', max_age_minutes: 2160,
+    hosts: ['production-shadow-audit.yml'], retires_with: 'linear',
+    retired: { at: '2026-09-20', reason: 'linear-cutoff' } },
+  /*
+   * Added 2026-08-08, from the reset audit. Both nightlies had been red for
+   * WEEKS in silence — samples 26 consecutive nights (since 2026-07-13),
+   * calendar 16 (since 2026-07-23) — because their only alarm was a Slack
+   * webhook step that degrades to a log warning when its secret is unset, and
+   * it was: zero pages across all 42 failures. Same 36h tolerance as the other
+   * dailies; the run-and-failed page covers the red itself.
+   */
+  { key: 'samples_e2e_nightly', label: 'samples E2E nightly', cadence: 'daily 06:00 UTC', max_age_minutes: 2160,
+    hosts: ['samples-e2e-nightly.yml'], retired: null },
+  { key: 'calendar_e2e_nightly', label: 'calendar E2E nightly', cadence: 'daily 08:00 UTC', max_age_minutes: 2160,
+    hosts: ['calendar-e2e-nightly.yml'], retired: null },
+  /*
+   * Added 2026-09-18 with the lane itself, rather than after an audit found it
+   * dark -- which is how `production_shadow_audit` above got here.
+   *
+   * It watches the native calendar bridge trigger, and it is deliberately NOT
+   * `retires_with: 'linear'`. The bridge exists precisely because the Linear
+   * round trip stopped carrying native receipts; it is the thing that outlives
+   * the exit, not a thing that dies with it.
+   *
+   * 240 minutes against an hourly cadence: three consecutive misses, which is
+   * past any plausible Actions queue delay and well short of a working day.
+   */
+  { key: 'card_calendar_drift', label: 'card vs calendar status drift', cadence: 'hourly :27', max_age_minutes: 240,
+    hosts: ['card-calendar-status-drift.yml'], retired: null },
+  /*
+   * Added 2026-10-02 (step 29c). The combined problem message is itself a lane,
+   * so its silence is not mistaken for "no problems": the existing dead-man's
+   * switch keeps posting on its own, which is the independent fallback the
+   * design asks for. 360 minutes against an hourly cadence, the same slack as
+   * the other best-effort lanes (GitHub drops cron firings under load).
+   */
+  { key: 'alert_digest', label: 'combined problem message', cadence: 'hourly :47 (best effort)', max_age_minutes: 360,
+    hosts: ['alert-digest.yml'], retired: null },
+  /*
+   * Added 2026-08-23, by owner request: page when the assurance ledger stops
+   * being true.
+   *
+   * Every other lane here watches machinery. This one watches a DOCUMENT --
+   * docs/testing/ASSURANCE_LEDGER.md, the file that says which surfaces are
+   * actually proven and how recently. It had gone quietly false once already:
+   * on 2026-08-22 thirteen rows still read FRESH while every one of them was
+   * more than a month past its window, and the only way to notice was to do the
+   * arithmetic by hand. A claim about evidence that nothing checks is not
+   * evidence.
+   *
+   * The lane is written by .github/workflows/assurance-ledger-freshness.yml,
+   * whose gate is deliberately narrow: it fires when a row STOPS supporting the
+   * state written beside it, not when a row is merely old. 15 of 19 rows are
+   * past their window today and all 15 already say so, so the lane ships green
+   * -- see scripts/assurance-ledger-freshness.js for why that distinction is
+   * the whole design. 2160 minutes (36h) is the same tolerance as every other
+   * daily lane: one missed run is a schedule slip, two are not.
+   */
+  { key: 'assurance_ledger', label: 'assurance ledger freshness', cadence: 'daily 07:37 UTC', max_age_minutes: 2160,
+    hosts: ['assurance-ledger-freshness.yml'], retired: null },
+  /*
+   * Added 2026-09-08 for the Linear exit (OPEN_REPAIRS 174). Both lanes are
+   * deliberately Linear-free: they exist to report what breaks BECAUSE Linear
+   * is gone, so a Linear credential in either would be the watcher dying with
+   * the thing it watches.
+   *
+   * Neither script pages. Each exits non-zero on a finding — and on a census it
+   * could not take — and beats under `if: always()`; this switch does the
+   * paging, with the latching, the (kind,lane) separation and the dedup already
+   * built and proven. Every watcher in this repository that grew its own alarm
+   * grew the same defect: both nightlies sat red for WEEKS because their only
+   * alarm was a Slack webhook step that degrades to a log warning when its
+   * secret is unset.
+   *
+   * The exit code is also the only channel that survives an n8n outage.
+   * `SLACK_ALERT_WEBHOOK` points at the n8n relay `Tfhc3vebZyG6obOg`
+   * (monitoring-alert-relay.js:53), so no PAGE in this estate survives n8n being
+   * down — but a red run still emails the owner through GitHub, which touches
+   * no n8n. That is why `--ok=` is bound to `job.status` and why the scripts
+   * throw rather than warn.
+   *
+   * 90 minutes for two ~30-minute lanes: three missed runs, the same
+   * cadence-plus-drift shape as the other sub-hourly lanes here.
+   */
+  { key: 'workload_source_freshness', label: 'workload source freshness', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['workload-source-freshness.yml'],
+    retired: { at: '2026-09-26', reason: 'workload-reads-native-snapshot' } },
+  // RETIRED 2026-09-29 by the owner: the census was dormant (its workflow only
+  // heartbeat) and its subject, the Linear mirror outbox, is going away with
+  // Linear. The host workflow is deleted; the script and its test stay as a
+  // frozen reference, and the old heartbeat rows stay in the event log.
+  { key: 'outbox_debt_census', label: 'mirror outbox debt census', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['outbox-debt-census.yml'],
+    retired: { at: '2026-09-29', reason: 'dormant-census-retired-by-owner' } },
+  // Prepared native intake repair is dormant until the protected repository
+  // variable enables it. Both scheduled hosts still heartbeat while dormant.
+  // The 360-minute provisional tolerance matches the measured 274-minute
+  // GitHub schedule gaps; it is not a recovery SLO or a prompt-page promise.
+  { key: 'native_intake_completion', label: 'native intake safe completion', cadence: 'schedule 15m (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-intake-completion.yml'], retired: null },
+  { key: 'native_intake_completion_monitor', label: 'native intake completion monitor', cadence: 'schedule 15m offset (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-intake-completion-monitor.yml'], retired: null },
+  // Notification dispatch stays dormant until its SQL, worker secret, and
+  // scoped receipt drill are accepted. The sender and read-only health check
+  // heartbeat while dormant. Their 360-minute tolerance has the same measured
+  // GitHub-cron limit and is explicitly not a delivery SLO.
+  { key: 'native_notification_sender', label: 'native notification sender', cadence: 'schedule 5m (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-notification-sender.yml'], retired: null },
+  { key: 'native_notification_monitor', label: 'native notification monitor', cadence: 'schedule 5m offset (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-notification-monitor.yml'], retired: null },
+  /*
+   * RETIRED 2026-09-29 by the owner. This lane was the dormant admission census:
+   * it reported DORMANT as healthy until an explicit SQL activation RPC ran and
+   * was never activated. The host workflow is deleted; the script, the SQL and
+   * their tests stay as a frozen reference, and the old heartbeat rows stay in
+   * the event log (retired lanes keep theirs, the same as b1_incremental_refresh).
+   */
+  { key: 'syncview_retirement_census', label: 'SyncView retirement admission census', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['syncview-retirement-census.yml'],
+    retired: { at: '2026-09-29', reason: 'dormant-census-retired-by-owner' } },
+]);
+
+export function clean(value) {
+  return String(value == null ? '' : value).trim();
+}
+
+export function laneByKey(key) {
+  return LANES.find(lane => lane.key === clean(key)) || null;
+}
+
+/**
+ * The lanes this switch is currently responsible for. A retired lane stays in
+ * the registry — with the date and reason it stopped being watched — but is no
+ * longer read, paged on, or heartbeat-able. Keeping the row is the point: it is
+ * what lets `--check` state on every pass which lanes it is deliberately
+ * ignoring, and what lets the suite check that claim against the workflow files.
+ */
+export function activeLanes(lanes = LANES) {
+  return lanes.filter(lane => !lane.retired);
+}
+
+export function retiredLanes(lanes = LANES) {
+  return lanes.filter(lane => Boolean(lane.retired));
+}
+
+/**
+ * The watchdog argument that causes a lane's heartbeat to be written. Every
+ * lane but one is beaten by an explicit `--heartbeat=<key>` step in its host
+ * workflow; `monitoring_watchdog` is beaten by the `--check` pass itself, at
+ * the end of `runCheck`, so that its beat proves a COMPLETED pass rather than a
+ * started one.
+ */
+export function heartbeatFlagFor(lane) {
+  return (lane && lane.heartbeat_flag) || `--heartbeat=${lane && lane.key}`;
+}
+
+export function payloadOf(row) {
+  const value = row && row.payload;
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch (_) { return {}; }
+}
+
+export function ageMinutes(iso, nowMs) {
+  const ms = Date.parse(clean(iso));
+  if (!Number.isFinite(ms)) return Infinity;
+  return Math.max(0, (nowMs - ms) / 60000);
+}
+
+/**
+ * Newest heartbeat per lane. A heartbeat with `ok:false` still counts as a
+ * heartbeat: it proves the lane RAN. Whether the run succeeded is that lane's
+ * own alarm's job, and conflating the two is how B1's checkpoint bug (F131)
+ * managed to look green while skipping work.
+ */
+export function newestHeartbeats(rows) {
+  const newest = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const payload = payloadOf(row);
+    const lane = clean(payload.lane);
+    if (!laneByKey(lane)) continue;
+    const at = clean(payload.at || row.ts);
+    if (!newest.has(lane) || Date.parse(at) > Date.parse(newest.get(lane).at)) {
+      newest.set(lane, { lane, at, ok: payload.ok !== false, run_id: clean(payload.run_id) });
+    }
+  }
+  return newest;
+}
+
+/*
+ * Latches are keyed by (KIND, lane), not by lane alone.
+ *
+ * There are now two independent incidents a lane can be in — it stopped
+ * running, and it ran and failed — and they must latch separately. Sharing one
+ * key would let a lane that had already latched as stale swallow the page that
+ * says it came back and is now failing, which is precisely the transition an
+ * operator most needs to hear about.
+ *
+ * Rows written before this existed carry no `incident_kind` and are read as
+ * `stale`, so no historical latch changes meaning.
+ */
+export const STALE_KIND = 'stale';
+export const FAILING_KIND = 'failing';
+
+export function latchKey(kind, lane) {
+  return `${kind}:${lane}`;
+}
+
+export function latchedLanes(rows) {
+  const state = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const payload = payloadOf(row);
+    const lane = clean(payload.lane);
+    if (!lane) continue;
+    const kind = clean(payload.incident_kind).toLowerCase() === FAILING_KIND ? FAILING_KIND : STALE_KIND;
+    const key = latchKey(kind, lane);
+    if (state.has(key)) continue; // rows arrive newest-first
+    state.set(key, clean(payload.incident_state).toLowerCase() === 'latched');
+  }
+  return state;
+}
+
+/**
+ * Pure decision function: which lanes are dead, which of those are new, and
+ * which previously-dead lanes have come back and should un-latch.
+ */
+export function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = activeLanes() }) {
+  const newest = newestHeartbeats(heartbeatRows);
+  const latched = latchedLanes(latchRows);
+  const stale = [];
+  const recovered = [];
+  const healthy = [];
+  const failing = [];
+  const recoveredFailing = [];
+
+  for (const lane of lanes) {
+    const beat = newest.get(lane.key) || null;
+    const age = beat ? ageMinutes(beat.at, nowMs) : Infinity;
+    const isStale = age > lane.max_age_minutes;
+    const wasLatched = latched.get(latchKey(STALE_KIND, lane.key)) === true;
+    const row = {
+      lane: lane.key,
+      label: lane.label,
+      max_age_minutes: lane.max_age_minutes,
+      age_minutes: Number.isFinite(age) ? Math.round(age) : null,
+      // `null` age means no heartbeat has EVER been recorded for this lane.
+      ever_seen: Boolean(beat),
+      last_run_id: beat ? beat.run_id : null,
+    };
+    if (isStale && !wasLatched) stale.push(row);
+    else if (isStale && wasLatched) healthy.push({ ...row, suppressed: 'already_latched' });
+    else if (!isStale && wasLatched) recovered.push(row);
+    else healthy.push(row);
+
+    /*
+     * DID IT PASS — the half that was missing (2026-08-07).
+     *
+     * The staleness question above deliberately ignores `ok`, and rightly so:
+     * a heartbeat with ok:false still proves the lane RAN, and conflating the
+     * two is how F131 looked green while skipping work. But nothing then asked
+     * the second question, and the answer was sitting in the heartbeat the
+     * whole time.
+     *
+     * What that cost: the production write drill failed 22 consecutive nights
+     * from 2026-07-14 to 2026-08-04, wrote ok:false every time, and sent zero
+     * alerts. The conditions that would have caught it were written — in an
+     * n8n transform script that was never applied to the live pager. The alarm
+     * existed on paper and nowhere else.
+     *
+     * Only a FRESH heartbeat is judged. A stale lane already pages above, and
+     * "it failed" is not a claim anyone can make about a lane that has not run
+     * — reporting both for one lane would be two pages for one fact, and the
+     * second would be guesswork.
+     */
+    const isFailing = Boolean(beat) && !isStale && beat.ok === false;
+    const wasFailingLatched = latched.get(latchKey(FAILING_KIND, lane.key)) === true;
+    if (isFailing && !wasFailingLatched) failing.push(row);
+    else if (!isFailing && wasFailingLatched && Boolean(beat) && !isStale) recoveredFailing.push(row);
+  }
+  return { stale, recovered, healthy, failing, recovered_failing: recoveredFailing };
+}
+
+/*
+ * The relay truncates the rendered summary at ~96 characters, so lane names
+ * have to be ordered by how much an operator needs them, not by lane registry
+ * order. Deadest first. Anything that does not fit is reported as `plusNmore`
+ * by the relay client rather than silently disappearing — the first real page
+ * this switch sent lost two of four lane names to that truncation.
+ */
+export function stalePageSpec(rows, runHandle = 'local:1') {
+  const worst = rows.slice().sort((a, b) => {
+    const left = a.ever_seen ? a.age_minutes : Infinity;
+    const right = b.ever_seen ? b.age_minutes : Infinity;
+    return right - left;
+  });
+  const detail = worst
+    .map(row => `${row.lane}=${row.ever_seen ? `${row.age_minutes}m` : 'never'}/max${row.max_age_minutes}m`);
+  return {
+    type: 'monitoring_heartbeat_stale',
+    // Counts first: even a fully truncated line still says how many lanes died.
+    summaryParts: [`lanes${rows.length}`, 'no_heartbeat', ...detail],
+    team: 'monitoring',
+    count: rows.length,
+    runId: `${runHandle}:deadman`,
+    details: { lanes: rows.map(row => row.lane) },
+    text: `SyncView monitoring dead-man's switch: ${rows.length} lane(s) have no fresh heartbeat. ${detail.join(' ')}`,
+  };
+}
+
+/*
+ * Same truncation discipline as stalePageSpec: counts first, then lane names,
+ * because the relay clips the rendered summary at ~96 characters and a fully
+ * clipped line must still say how many lanes are failing.
+ *
+ * A distinct `type` from the stale page matters. These are different problems
+ * with different responses — "it stopped running" is usually scheduling or
+ * permissions, "it ran and failed" is usually the thing the lane watches — and
+ * an operator filtering their DMs should be able to tell them apart without
+ * reading the detail.
+ */
+export function failingPageSpec(rows, runHandle = 'local:1') {
+  const detail = rows.map(row => `${row.lane}=failed/${row.age_minutes}m`);
+  return {
+    type: 'monitoring_lane_failing',
+    summaryParts: [`lanes${rows.length}`, 'ran_but_failed', ...detail],
+    team: 'monitoring',
+    count: rows.length,
+    runId: `${runHandle}:deadman`,
+    details: { lanes: rows.map(row => row.lane) },
+    text: `SyncView monitoring: ${rows.length} lane(s) RAN and reported failure. ${detail.join(' ')}`,
+  };
+}
+
+/*
+ * THE HOST'S HALF. Everything below takes an `io` the host builds:
+ *
+ *   io.restRows(path)              GET /rest/v1/<path> with the service key; rows
+ *   io.insertEvent(action, payload) one deliverable_events row, actor = the host
+ *   io.sendAlert(spec)             post a page through the alert relay; receipt
+ *   io.runHandle                   'github-run:attempt', or the timer's own id
+ *   io.nowMs()                     the clock
+ *   io.dryRun                      evaluate only: no page, no latch, no beat
+ */
+
+export async function writeHeartbeat(io, laneKey, { ok = true } = {}) {
+  const lane = laneByKey(laneKey);
+  if (!lane) throw new Error(`unknown monitoring lane: ${laneKey}`);
+  /*
+   * A retired lane must not be able to beat. If a workflow is still calling
+   * this after its lane was retired, the retirement and the estate disagree,
+   * and the loud version of that disagreement is a red run on the workflow
+   * that should no longer be scheduled. The silent version is a heartbeat
+   * written into a lane nobody reads — which is the failure this whole file
+   * exists to make impossible.
+   */
+  if (lane.retired) {
+    throw new Error(
+      `monitoring lane ${lane.key} was retired (${lane.retired.at || 'unknown date'}: `
+      + `${lane.retired.reason || 'no reason recorded'}) but its workflow still ran. `
+      + 'Un-retire the lane or stop scheduling its host.');
+  }
+  const payload = {
+    lane: lane.key,
+    ok: ok !== false,
+    at: new Date(io.nowMs()).toISOString(),
+    run_id: io.runHandle,
+    max_age_minutes: lane.max_age_minutes,
+  };
+  if (!io.dryRun) await io.insertEvent(HEARTBEAT_ACTION, payload);
+  return payload;
+}
+
+export async function readState(io) {
+  /*
+   * ASK EACH LANE FOR ITS OWN NEWEST BEAT. Do not share one window.
+   *
+   * This used to read the newest `LANES.length * 25` heartbeat rows and pick
+   * each lane's newest out of that slice. A row bound cannot satisfy a TIME
+   * tolerance: the three ~15-minute lanes emit ~175 rows in about fifteen
+   * hours, so every daily lane (36h tolerance) fell off the end of the window
+   * and was read as `ever_seen: false` — "never checked in" — while its beat
+   * sat in the table, minutes old by its own standard.
+   *
+   * Measured 2026-08-16: the window spanned 08:17→23:40 and contained
+   * {monitoring_watchdog 75, b1_incremental_refresh 62, reconciler_pager 37,
+   * calendar_e2e_nightly 1}. THREE of the four daily lanes were invisible.
+   * Two of them — samples_e2e_nightly and production_shadow_audit — had beaten
+   * `ok:false` for three consecutive nights, and because `isFailing` requires
+   * a beat to be present (:218), the real ran-and-failed page was suppressed
+   * and replaced by a false "never ran" page. That is precisely the silent
+   * nightly failure this lane was built on 2026-08-08 to make impossible.
+   *
+   * One bounded request per lane is exact by construction and cannot rot as
+   * cadences change.
+   */
+  const watched = activeLanes();
+  const [heartbeatRows, latchRows] = await Promise.all([
+    Promise.all(watched.map(lane => io.restRows(
+      `deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}`
+      + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=1`,
+    ))).then(perLane => perLane.flat()),
+    // x20, not x10: latch rows now come in two kinds per lane, and the window
+    // has to still contain the newest row of EVERY (kind, lane) pair even when
+    // one lane flaps far more than the rest. Too small a window silently reads
+    // an absent latch as "not latched" and re-pages an incident every 15
+    // minutes.
+    io.restRows(`deliverable_events?select=id,ts,payload&action=eq.${LATCH_ACTION}&order=id.desc&limit=${watched.length * 20}`),
+  ]);
+  return { heartbeatRows, latchRows };
+}
+
+export async function runCheck(io) {
+  const { heartbeatRows, latchRows } = await readState(io);
+  const decision = watchdogDecision({ heartbeatRows, latchRows, nowMs: io.nowMs() });
+  let receipt = null;
+
+  if (decision.stale.length && !io.dryRun) {
+    receipt = await io.sendAlert(stalePageSpec(decision.stale, io.runHandle));
+    for (const row of decision.stale) {
+      await io.insertEvent(LATCH_ACTION, {
+        lane: row.lane,
+        incident_state: 'latched',
+        age_minutes: row.age_minutes,
+        ever_seen: row.ever_seen,
+        run_id: io.runHandle,
+      });
+    }
+  }
+  if (decision.recovered.length && !io.dryRun) {
+    for (const row of decision.recovered) {
+      await io.insertEvent(LATCH_ACTION, {
+        lane: row.lane,
+        incident_state: 'reset',
+        age_minutes: row.age_minutes,
+        run_id: io.runHandle,
+      });
+    }
+  }
+
+  // The "ran and failed" incident, latched independently of staleness so the
+  // two cannot suppress each other.
+  let failingReceipt = null;
+  if (decision.failing.length && !io.dryRun) {
+    failingReceipt = await io.sendAlert(failingPageSpec(decision.failing, io.runHandle));
+    for (const row of decision.failing) {
+      await io.insertEvent(LATCH_ACTION, {
+        lane: row.lane,
+        incident_kind: FAILING_KIND,
+        incident_state: 'latched',
+        age_minutes: row.age_minutes,
+        run_id: io.runHandle,
+      });
+    }
+  }
+  if (decision.recovered_failing.length && !io.dryRun) {
+    for (const row of decision.recovered_failing) {
+      await io.insertEvent(LATCH_ACTION, {
+        lane: row.lane,
+        incident_kind: FAILING_KIND,
+        incident_state: 'reset',
+        age_minutes: row.age_minutes,
+        run_id: io.runHandle,
+      });
+    }
+  }
+
+  // The watchdog's own liveness proof, written last so it reflects a completed
+  // pass rather than merely a started one.
+  const heartbeat = await writeHeartbeat(io, 'monitoring_watchdog');
+
+  return {
+    mode: 'check',
+    dry_run: io.dryRun || undefined,
+    /*
+     * Stated on EVERY pass, not just the pass that retired them. A reader of
+     * one run's output can see the whole watched set and the whole unwatched
+     * set without going to the source. Retirement is a decision; a decision
+     * nobody can see is indistinguishable from a gap.
+     */
+    watching: activeLanes().map(lane => lane.key),
+    retired: retiredLanes().map(lane => ({ lane: lane.key, ...lane.retired })),
+    stale: decision.stale,
+    recovered: decision.recovered.map(row => row.lane),
+    healthy: decision.healthy.map(row => ({ lane: row.lane, age_minutes: row.age_minutes, suppressed: row.suppressed })),
+    failing: decision.failing.map(row => row.lane),
+    recovered_failing: decision.recovered_failing.map(row => row.lane),
+    paged: Boolean(receipt),
+    failing_paged: Boolean(failingReceipt),
+    failing_relay_http_status: failingReceipt ? failingReceipt.http_status : null,
+    failing_delivery_confirmed: failingReceipt ? failingReceipt.delivery_confirmed : null,
+    relay_http_status: receipt ? receipt.http_status : null,
+    delivery_confirmed: receipt ? receipt.delivery_confirmed : null,
+    delivery_reason: receipt ? receipt.delivery_reason : null,
+    relay_execution_id: receipt ? receipt.relay_execution_id : null,
+    heartbeat_at: heartbeat.at,
+  };
+}

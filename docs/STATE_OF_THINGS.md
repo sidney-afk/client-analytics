@@ -146,6 +146,7 @@ here with where it stopped, so it can be restarted.
    about $13; and the live site publishes the whole repo (docs, scripts,
    migrations), so the Pages deploy must become an allowlist before any switch.
 6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30; status 2026-10-01).** Order: D, B, A, E, F, C, K.
+   Generate caption's AI job itself: BUILT 2026-10-09, not deployed, switch off (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388). Until the owner sets `caption_generate_ef_clients`, every caption still runs on n8n.
    D (TikTok poll trim) DONE #1878. B (caption progress in Supabase) DONE: `caption-jobs` live, Generate Caption edited and
    published, Calendar page switched (#1889). A (Slack Creative Channel Finalizer): trigger webhook and daily safety check are
    live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's
@@ -228,7 +229,7 @@ hiring senders when the editor hire closes.
 - **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**
   (measured 2026-10-09, OPEN_REPAIRS 389): 8 items, none needs the sealed capture. The roster switch (374) and the
   `analytics-read` deploy come first after a look at the backup.
-- **Thumbnail titles (OPEN_REPAIRS 390, session Sorter, 2026-10-09): built, deployed, switch OFF.** Owner: set the
+- **Thumbnail titles (OPEN_REPAIRS 391, session Sorter, 2026-10-09): built, deployed, switch OFF.** Owner: set the
   Edge Function secret `THUMBNAIL_TITLES_API_KEY`, switch `thumbnail_titles` on, then say go for the backfill (dry run:
   136 open empty thumbnails, 16 clients). Prompt editor is in the Calendar "..." menu under "Caption prompt".
 - **Retire the hiring senders once the editor hire closes.** Both n8n hiring
@@ -366,7 +367,7 @@ hiring senders when the editor hire closes.
 - **The two dormant censuses are retired (owner, 2026-09-29; OPEN_REPAIRS 293).**
   The outbox-debt and retirement-admission monitors only wrote heartbeats. Their
   workflows are deleted, both dead-man lanes are marked retired (dated, with a
-  reason), and `lane-ticker` no longer dispatches them. Scripts, SQL and tests stay
+  reason), and `lane-ticker` no longer dispatched them (it was itself deleted 2026-10-09, OPEN_REPAIRS 388). Scripts, SQL and tests stay
   as a frozen reference. Their 69 and 72 old heartbeat rows are kept in the event
   log, as every earlier retired lane's were; deleting them is a separate owner go.
 - **Kasper loads on demand (#1841), checked by the owner with a real login on

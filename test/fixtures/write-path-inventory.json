@@ -216,6 +216,17 @@
       ],
       "note": "Caption prompt save (caption-prompts-save). Recorded as caption_prompt_save."
     },
+    "180-calendar-native-post-media.js.part|_calSaveThumbTitlePrompt|url|POST": {
+      "status": "reports",
+      "within": [
+        "_calSaveThumbTitlePrompt"
+      ],
+      "note": "Thumbnail title prompt save (thumbnail-title-prompts, action save). Recorded as thumbnail_title_prompt_save."
+    },
+    "180-calendar-native-post-media.js.part|_calThumbTitlePromptCall|url|POST": {
+      "status": "read",
+      "note": "Reads one client's thumbnail title prompt by POST (thumbnail-title-prompts, action get). Saves nothing."
+    },
     "180-calendar-native-post-media.js.part|persistCalReorder|url|POST": {
       "status": "reports",
       "within": [

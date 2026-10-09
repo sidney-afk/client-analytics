@@ -60,6 +60,16 @@ verify_jwt = false
 [functions.caption-prompts-save]
 verify_jwt = false
 
+# Thumbnail title prompt read + save for the Calendar editor. Staff role key
+# required (client tokens refused); the table is closed to the browser.
+[functions.thumbnail-title-prompts]
+verify_jwt = false
+
+# Background thumbnail titles. Called only by the pg_cron timer with the
+# x-thumbnail-titles-key header (Vault thumbnail_titles_key = THUMBNAIL_TITLES_KEY).
+[functions.thumbnail-titles]
+verify_jwt = false
+
 # Filming plan source of truth. The deployed EF now authenticates every request; missing/wrong
 # credentials return 401. Candidate Pages source routes its direct read here, so anon table SELECT
 # remains temporarily open until that caller merges and is proved, then the F88 revoke can land.

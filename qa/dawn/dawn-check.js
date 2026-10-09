@@ -155,7 +155,7 @@ const ACTOR = String(process.env.SYNCVIEW_ACTOR || '').trim();
 async function clientSamplesFlow(browser) {
   if (!HAS_ROLE_KEY || !ACTOR) { record('samples-approve', { ok: true, blocked: true, detail: D.samplesNoKey() }); return; }
   const entry = require('../test-client-entry.js');
-  const url = ORIGIN + entry.testClientEntryPath('sample-reviews', 'Sidney Laruel', await entry.currentTestClientToken());
+  const url = ORIGIN + entry.testClientEntryPath('sample-reviews', entry.TEST_CLIENT.name, await entry.currentTestClientToken());
   const r = await nativeSampleRoundTrip({ browser, origin: ORIGIN, clientUrl: url, roleKey: ROLE_KEY, actor: ACTOR, guard,
     shot: (pg, key) => shot(pg, key, true) });
   if (r.step === 'target') { record('samples-approve', { ok: false, detail: D.failedAt('target') }); return; }

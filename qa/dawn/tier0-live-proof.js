@@ -37,7 +37,7 @@ const { nativeSampleRoundTrip } = require('./native-sample-roundtrip.js');
 
 const LIVE = (process.env.SYNCVIEW_LIVE_ORIGIN || 'https://syncview.synchrosocial.com').replace(/\/+$/, '');
 const TEST_SLUG = 'sidneylaruel';
-const TEST_NAME = 'Sidney Laruel';
+const TEST_NAME = require('../test-client-entry.js').TEST_CLIENT.name;
 const ROLE_KEY = String(process.env.SYNCVIEW_ROLE_KEY || '').trim();
 const ACTOR = String(process.env.SYNCVIEW_ACTOR || '').trim();
 const TS = Date.now();

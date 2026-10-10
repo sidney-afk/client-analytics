@@ -1,4 +1,5 @@
 name: Combined problem message
+run-name: ${{ github.workflow }} (${{ inputs.source || github.event_name }})
 
 # One message that lists every open problem and stays quiet when all is well
 # (step 29c; see the alert consolidation design under docs/ops).
@@ -39,7 +40,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-guard:
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).
+    uses: ./.github/workflows/schedule-fallback-guard.yml
+    permissions:
+      actions: read
+      contents: read
+
   digest:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

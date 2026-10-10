@@ -29,7 +29,7 @@ const CHECKS = Object.freeze({
   'harness': 'Harness ran to the end',
   'cleanup': 'Everything put back',
 });
-const STEPS = Object.freeze(['sign-in', 'send', 'landing', 'click', 'save', 'hold', 'saved-mark', 'save-error', 'syncing-stuck', 'field', 'card', 'sub-issue', 'target', 'error']);
+const STEPS = Object.freeze(['sign-in', 'send', 'landing', 'click', 'save', 'hold', 'saved-mark', 'save-error', 'syncing-stuck', 'field', 'card', 'sub-issue', 'target', 'error', 'own-step', 'guard']);
 const TABS = ['workload', 'synclinear', 'analytics'];
 
 const int = (n) => {

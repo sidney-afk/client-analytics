@@ -32006,8 +32006,13 @@ use it, and the approval rule stays exactly as it is. The owner added the reposi
 role key). The Calendar nightly, the Samples nightly and the morning check now read it as `SYNCVIEW_STAFF_KEY` (and the
 morning check also as `SYNCVIEW_ROLE_KEY`). No environment is used. A role key is what the robots ran with locally all day
 (the sandbox's staff key is one). `client-signoff-reconcile.yml` was not asked about and still reads `SYNCVIEW_STAFF_KEY`.
-Still for the owner to check: `SYNCVIEW_STAFF_ACTOR` must hold an active SMM's name exactly as the sign-in list shows it
-(p96 and the morning check's Samples approve sign in as that person).
+**Correction (2026-10-10): the admin actor stays with the admin key.** `SYNCVIEW_STAFF_ACTOR` is the admin roster name and
+there is no test SMM on the roster, so the two flows that act as that person cannot use the SMM key: key-verify and
+description-image-upload both require the roster role to match the key's role (401 `role_mismatch`, 403
+`roster_actor_not_unique`). p96 (Calendar nightly) and the morning check's Samples approve now each run in a step of their
+own with `SYNCVIEW_STAFF_KEY` (the admin key) and the actor; every other step stays on `ROBOT_ROLE_KEY_SMM` with no actor.
+The morning check's Samples step writes its result to a file and the main step reports it, so it is still one report.
+`test/robot-key-actor-pairing.js` fails if any workflow step pairs the SMM key with the admin roster name.
 **Way back:** revert the PR.
 
 ## 393. [2026-10-09, BUILT, NOT MERGED] Calendar board jumps sideways (and up and down) when it refreshes on its own

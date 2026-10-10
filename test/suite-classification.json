@@ -440,6 +440,7 @@
     "native-urgent-dispatch.js",
     "native-urgent-ui.js",
     "nightly-dispatch-input.js",
+    "robot-key-actor-pairing.js",
     "no-hardcoded-colors.js",
     "notes-linear-routing.js",
     "notes-loading-skeleton.js",

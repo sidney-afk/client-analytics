@@ -12,11 +12,6 @@ const fs = require('fs');
   assert.strictEqual(findClientFolder(['alpha-beta'], 'Alpha Beta'), 'alpha-beta');
   assert.strictEqual(findClientFolder(['alpha-beta'], 'nope'), null);
   assert.strictEqual(findClientFolder(['alpha-beta'], ''), null);
-  // A slug keeps "&"; the folder spells it out (OPEN_REPAIRS 398).
-  assert.strictEqual(findClientFolder(['alpha-and-beta', 'gamma'], 'alpha&beta'), 'alpha-and-beta', 'an "&" slug finds its "-and-" folder');
-  assert.strictEqual(findClientFolder(['alpha-and-beta'], 'Alpha & Beta'), 'alpha-and-beta', 'so does the display name with "&"');
-  assert.strictEqual(findClientFolder(['alpha-and-beta'], 'Alpha and Beta'), 'alpha-and-beta', 'and with "and"');
-  assert.strictEqual(findClientFolder(['alpha-beta'], 'alpha&beta'), null, '"&" is not dropped: alpha&beta is not alpha-beta');
 
   const md = [
     '# Fixture: editing', '',

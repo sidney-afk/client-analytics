@@ -45,7 +45,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(L.findClientProfile([{ slug: 'x1', display_name: 'Twin' }, { slug: 'x2', display_name: 'Twin' }], 'Twin'), null, 'a name two clients share finds nobody (fail closed)');
   ok(!/\.eq\("slug", clientKey\(/.test(HANDLER), 'the handler no longer looks the client up by the squashed name alone');
 
-  // --- Cancel asks Post For Me first and proves the post is gone (OPEN_REPAIRS 397; the TikTok rule of 361)
+  // --- Cancel asks Post For Me first and proves the post is gone (OPEN_REPAIRS 398; the TikTok rule of 361)
   {
     const fake = (script) => { const calls = []; const fn = async (method, p) => { calls.push(method + ' ' + p); const k = method + ' ' + p.split('?')[0]; const q = script[k]; const r = Array.isArray(q) ? q.shift() : q; return r || { ok: false, status: 0, data: {} }; }; fn.calls = calls; return fn; };
     const P = '/social-posts/pfm_1', R = '/social-post-results';

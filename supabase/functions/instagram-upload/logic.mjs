@@ -51,7 +51,7 @@ export function findClientProfile(profiles, client) {
 // Cancel, Post For Me first (same rule as tiktok-upload-cancel, OPEN_REPAIRS 361): the row may say
 // Cancelled only when Post For Me no longer holds a post that can publish. Before 2026-10-10 Instagram
 // trusted its own "scheduled" row, sent the DELETE and marked the row cancelled on a 2xx or a 404, so a
-// Reel that had already gone out (or was going out) showed as Cancelled (OPEN_REPAIRS 397).
+// Reel that had already gone out (or was going out) showed as Cancelled (OPEN_REPAIRS 398).
 //   pfm(method, path) -> { ok, status, data }, never throws.
 //   -> 'cancelled' | 'already_posted' | 'cancel_failed'
 export const PFM_GONE_OUT = Object.freeze(['processing', 'processed']);

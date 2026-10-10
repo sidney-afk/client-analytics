@@ -1,4 +1,5 @@
 name: Assurance ledger freshness
+run-name: ${{ github.workflow }} (${{ github.event_name }})
 
 # Every other monitored lane watches machinery. This one watches a DOCUMENT.
 #
@@ -42,7 +43,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-guard:
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).
+    uses: ./.github/workflows/schedule-fallback-guard.yml
+    permissions:
+      actions: read
+      contents: read
+
   ledger:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

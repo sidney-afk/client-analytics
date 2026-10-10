@@ -38,9 +38,11 @@ import {
   numberFromCardName,
   numberFromItemTitle,
   parseTitles,
+  JSON_ONLY_FOLLOWUP,
   pickTab,
   postNameFor,
   resolveLine,
+  shortError,
   SYSTEM_PROMPT,
   userMessage,
 } from "./logic.mjs";
@@ -63,18 +65,21 @@ function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
 }
 
-async function apply(db: SupabaseClient, id: string, text: string, state: string, outcome: string): Promise<string> {
-  const { data, error } = await db.rpc("thumbnail_title_apply", {
-    p_deliverable_id: id, p_text: text, p_state: state, p_outcome: outcome,
-  });
+async function apply(db: SupabaseClient, id: string, text: string, state: string, outcome: string, lastError = ""): Promise<string> {
+  const args = { p_deliverable_id: id, p_text: text, p_state: state, p_outcome: outcome };
+  let { data, error } = await db.rpc("thumbnail_title_apply", { ...args, p_error: lastError || null });
+  // Deployed before migrations/2026-10-10-thumbnail-titles-error-record.sql was applied: the database
+  // only has the four-argument version (PostgREST answers PGRST202). Write the line anyway.
+  if (error && error.code === "PGRST202") ({ data, error } = await db.rpc("thumbnail_title_apply", args));
   if (error) throw new Error("apply_failed");
   return clean(data);
 }
 
 // A passing failure goes back in the queue; the third one becomes a Needs info line.
+// Either way the short reason stays in last_error, so a failure is never silent.
 async function fail(db: SupabaseClient, job: Job, code: string, counts: Json): Promise<void> {
   if (job.attempts >= MAX_ATTEMPTS) {
-    const state = await apply(db, job.deliverable_id, needsInfoLine("generation_failed"), "needs_info", "generation_failed");
+    const state = await apply(db, job.deliverable_id, needsInfoLine("generation_failed"), "needs_info", "generation_failed", code);
     counts[state] = Number(counts[state] || 0) + 1;
     return;
   }
@@ -82,7 +87,9 @@ async function fail(db: SupabaseClient, job: Job, code: string, counts: Json): P
   counts.retry_later = Number(counts.retry_later || 0) + 1;
 }
 
-async function askClaude(apiKey: string, model: string, prompt: string, posts: Post[], planText: string): Promise<{ ok: boolean; content: unknown }> {
+type Answer = { ok: boolean; content: unknown; error: string };
+
+async function callClaude(apiKey: string, model: string, messages: Json[]): Promise<Answer> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), PROVIDER_TIMEOUT_MS);
   try {
@@ -90,28 +97,47 @@ async function askClaude(apiKey: string, model: string, prompt: string, posts: P
       method: "POST",
       signal: ctrl.signal,
       headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model,
-        max_tokens: 2048,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userMessage(prompt, posts, planText) }],
-      }),
+      body: JSON.stringify({ model, max_tokens: 4096, system: SYSTEM_PROMPT, messages }),
     });
-    if (!response.ok) return { ok: false, content: null };
     const body = await response.json().catch(() => null) as Json | null;
-    return { ok: !!body && Array.isArray(body.content), content: body ? body.content : null };
-  } catch (_e) {
-    return { ok: false, content: null };
+    if (!response.ok) {
+      const type = body && typeof body.error === "object" && body.error ? clean((body.error as Json).type) : "";
+      return { ok: false, content: null, error: shortError(`http_${response.status}`, type) };
+    }
+    if (!body || !Array.isArray(body.content)) return { ok: false, content: null, error: "answer_unreadable" };
+    const stop = clean(body.stop_reason);
+    return { ok: true, content: body.content, error: stop && stop !== "end_turn" ? `stop_${stop}` : "" };
+  } catch (e) {
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    return { ok: false, content: null, error: aborted ? "timeout" : shortError("network", e instanceof Error ? e.name : "") };
   } finally {
     clearTimeout(timer);
   }
+}
+
+// One request for a month's posts. An answer with no readable list gets one
+// follow-up in the same thread asking for the JSON only; if that still has no
+// list, the reason comes back so the caller can store it.
+async function askClaude(apiKey: string, model: string, prompt: string, posts: Post[], planText: string): Promise<{ titles: Map<string, string> | null; error: string }> {
+  const keys = posts.map((p) => p.key);
+  const messages: Json[] = [{ role: "user", content: userMessage(prompt, posts, planText) }];
+  const first = await callClaude(apiKey, model, messages);
+  if (!first.ok) return { titles: null, error: first.error };
+  const parsed = parseTitles(first.content, keys);
+  if (parsed.ok) return { titles: parsed.titles, error: "" };
+  messages.push({ role: "assistant", content: first.content as Json[] }, { role: "user", content: JSON_ONLY_FOLLOWUP });
+  const second = await callClaude(apiKey, model, messages);
+  if (!second.ok) return { titles: null, error: shortError(parsed.error, second.error) };
+  const again = parseTitles(second.content, keys);
+  if (again.ok) return { titles: again.titles, error: "" };
+  return { titles: null, error: shortError(again.error, [first.error, second.error].filter(Boolean).join(" ")) };
 }
 
 async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: string, model: string, counts: Json): Promise<void> {
   const ids = jobs.map((j) => j.deliverable_id);
   const { data: rows, error } = await db.from("deliverables")
     .select("id,title,batch_id,card_id,created_at,brief,status,kind").in("id", ids);
-  if (error) { for (const j of jobs) await fail(db, j, "deliverables_read", counts); return; }
+  if (error) { for (const j of jobs) await fail(db, j, shortError("deliverables_read", error.code), counts); return; }
   const byId = new Map(((rows || []) as Json[]).map((r) => [clean(r.id), r]));
 
   // Live rows only; a description someone has filled in meanwhile is left alone by apply().
@@ -190,11 +216,15 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
       continue;
     }
     const answer = await askClaude(apiKey, model, prompt, posts, tab.text);
-    const parsed = answer.ok ? parseTitles(answer.content, posts.map((p) => p.key)) : { ok: false, titles: new Map() };
-    if (!parsed.ok) { for (const p of posts) await fail(db, p.job, "provider", counts); continue; }
+    if (!answer.titles) {
+      // Counts and a code only: never a title, a plan line or a client name in the logs.
+      console.warn(`thumbnail-titles: no titles for a group of ${posts.length} (${answer.error})`);
+      for (const p of posts) await fail(db, p.job, answer.error || "provider", counts);
+      continue;
+    }
     const planNormalized = normalizedText(tab.text);
     for (const post of posts) {
-      const line = resolveLine(post, parsed.titles.get(post.key) || "", planNormalized);
+      const line = resolveLine(post, answer.titles.get(post.key) || "", planNormalized);
       const state = await apply(db, post.job.deliverable_id, line.text, line.state, line.outcome);
       counts[state] = Number(counts[state] || 0) + 1;
     }
@@ -257,9 +287,11 @@ Deno.serve(async (req) => {
   for (const [slug, jobs] of byClient) {
     try {
       await runClient(db, slug, jobs, apiKey, model, counts);
-    } catch (_e) {
+    } catch (e) {
+      const reason = shortError("client_run", e instanceof Error ? e.message : "");
+      console.warn(`thumbnail-titles: a client run stopped (${reason})`);
       for (const job of jobs) {
-        try { await db.rpc("thumbnail_titles_release", { p_deliverable_id: job.deliverable_id, p_error: "client_run" }); } catch (_e2) { /* lease expiry re-offers it */ }
+        try { await db.rpc("thumbnail_titles_release", { p_deliverable_id: job.deliverable_id, p_error: reason }); } catch (_e2) { /* lease expiry re-offers it */ }
       }
       counts.client_errors = Number(counts.client_errors || 0) + 1;
     }

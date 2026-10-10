@@ -105,11 +105,67 @@ export function monthLabel(date) {
   return m[0].toUpperCase() + m.slice(1) + " " + d.getUTCFullYear();
 }
 
+// Week tabs. Some plans keep one Docs tab per WEEK instead of per month:
+// "Week of Sept 28", "Week of July 20th", "Wk of 9/28", sometimes with a year.
+// Returns the week's start date (UTC midnight) or null. A name with no year
+// takes the year that puts the start on or before the post, so a December
+// week still fits a post made in early January.
+const MONTH_ABBR = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
+export const WEEK_WINDOW_DAYS = 35;
+
+export function weekStart(name, createdAt) {
+  const text = String(name || "").toLowerCase();
+  if (!/\b(week|wk)\b/.test(text)) return null;
+  let month = -1, day = 0, year = 0;
+  const named = /\b(jan|feb|mar|apr|may|jun|jul|aug|sept|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s*(20\d\d))?/.exec(text);
+  const numeric = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/.exec(text);
+  if (named) {
+    month = MONTH_ABBR[named[1]];
+    day = Number(named[2]);
+    year = named[3] ? Number(named[3]) : 0;
+  } else if (numeric) {
+    month = Number(numeric[1]) - 1;
+    day = Number(numeric[2]);
+    year = numeric[3] ? Number(numeric[3].length === 2 ? "20" + numeric[3] : numeric[3]) : 0;
+  } else {
+    return null;
+  }
+  if (month < 0 || month > 11 || day < 1 || day > 31) return null;
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return null;
+  const build = (y) => {
+    const d = new Date(Date.UTC(y, month, day));
+    return d.getUTCMonth() === month ? d : null; // "Feb 30" is not a date
+  };
+  if (year) return build(year);
+  const y = created.getUTCFullYear();
+  const same = build(y);
+  return same && same.getTime() <= created.getTime() ? same : build(y - 1);
+}
+
+// The week tab whose start is the latest one on or before the post, and no
+// more than WEEK_WINDOW_DAYS before it. Two tabs with the same start date are
+// ambiguous and pick nothing.
+export function pickWeekTab(list, createdAt) {
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return null;
+  const windowMs = WEEK_WINDOW_DAYS * 24 * 3600 * 1000;
+  const fits = list
+    .map((t) => ({ t, start: weekStart(t.name, createdAt) }))
+    .filter((x) => x.start && x.start.getTime() <= created.getTime() && created.getTime() - x.start.getTime() <= windowMs)
+    .sort((a, b) => b.start.getTime() - a.start.getTime());
+  if (!fits.length) return null;
+  if (fits.length > 1 && fits[0].start.getTime() === fits[1].start.getTime()) return null;
+  return fits[0].t;
+}
+
 // Pick the filming-plan tab for the month the post was created in. The house
 // format keeps one Docs tab per month. A tab whose NAME carries the month (and
 // the year, when the name has one) wins; then the month the tab's text talks
-// about most; then, when the Doc has a single tab, that tab. A month with no
-// tab is reported, never guessed: a wrong tab means a wrong video.
+// about most; then, for plans kept one tab per week, the latest week starting
+// on or before the post (within WEEK_WINDOW_DAYS); then, when the Doc has a
+// single tab, that tab. Nothing that fits is reported, never guessed: a wrong
+// tab means a wrong video.
 export function pickTab(tabs, createdAt, tabMonthOf) {
   const list = (tabs || []).filter((t) => String(t.text || "").trim());
   if (!list.length) return { tab: null, reason: "plan_empty" };
@@ -120,17 +176,21 @@ export function pickTab(tabs, createdAt, tabMonthOf) {
     const years = String(label || "").match(/\b20\d\d\b/g);
     return !years || years.includes(year);
   };
-  const byName = list.filter((t) => String(t.name || "").toLowerCase().includes(month) && yearOk(t.name));
+  // Week tabs are matched by their start date below, never by the month word in their name.
+  const monthTabs = list.filter((t) => !weekStart(t.name, createdAt));
+  const byName = monthTabs.filter((t) => String(t.name || "").toLowerCase().includes(month) && yearOk(t.name));
   if (byName.length === 1) return { tab: byName[0], reason: "" };
   if (byName.length > 1) {
     const exactYear = byName.filter((t) => String(t.name).includes(year));
     if (exactYear.length === 1) return { tab: exactYear[0], reason: "" };
   }
-  const byText = list.filter((t) => {
+  const byText = monthTabs.filter((t) => {
     const label = String((tabMonthOf ? tabMonthOf(t.text) : "") || "").toLowerCase();
     return label.startsWith(month) && yearOk(label);
   });
   if (byText.length === 1) return { tab: byText[0], reason: "" };
+  const week = pickWeekTab(list, createdAt);
+  if (week) return { tab: week, reason: "" };
   if (list.length === 1) return { tab: list[0], reason: "" };
   return { tab: null, reason: "no_month_tab" };
 }
@@ -189,31 +249,68 @@ export function userMessage(prompt, posts, planText) {
   return `${prompt}\n\nPosts to title:\n${list}\n\nFilming plan:\n${String(planText || "").slice(0, 20000)}`;
 }
 
+// Pull the JSON array of answers out of the model's text. The answer may be
+// bare JSON, fenced JSON anywhere in the text, or JSON after a sentence of
+// prose, and that prose (or the plan it quotes) can itself hold brackets such
+// as a "[11]" footnote. So every "[" is tried as a start, with every "]" after
+// it as an end, longest first, and the first slice that parses to an array of
+// objects wins. Returns null when there is none.
+export function extractJsonArray(text) {
+  const raw = String(text || "");
+  const candidates = [];
+  for (const m of raw.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) candidates.push(m[1].trim());
+  candidates.push(raw.trim());
+  for (const c of candidates) {
+    try { const v = JSON.parse(c); if (Array.isArray(v)) return v; } catch (_e) { /* try slices */ }
+  }
+  const ends = [];
+  for (let i = raw.length - 1; i >= 0; i--) if (raw[i] === "]") ends.push(i);
+  let tries = 0;
+  for (let i = 0; i < raw.length && tries < 400; i++) {
+    if (raw[i] !== "[") continue;
+    for (const j of ends) {
+      if (j <= i) break;
+      if (++tries > 400) break;
+      try {
+        const v = JSON.parse(raw.slice(i, j + 1));
+        if (Array.isArray(v) && (v.length === 0 || v.some((x) => x && typeof x === "object"))) return v;
+      } catch (_e) { /* next */ }
+    }
+  }
+  return null;
+}
+
 // Read the model's answer into key -> title. Anything malformed is ignored.
+// error is a short code when no answer list could be read at all.
 export function parseTitles(content, keys) {
   const text = (Array.isArray(content) ? content : [])
     .filter((part) => part && part.type === "text")
     .map((part) => String(part.text || ""))
-    .join("\n")
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .trim();
-  let parsed = null;
-  try { parsed = JSON.parse(text); } catch (_e) {
-    const a = text.indexOf("["), b = text.lastIndexOf("]");
-    if (a >= 0 && b > a) { try { parsed = JSON.parse(text.slice(a, b + 1)); } catch (_e2) { parsed = null; } }
-  }
+    .join("\n");
+  const parsed = extractJsonArray(text);
   const wanted = new Set(keys);
   const out = new Map();
-  if (!Array.isArray(parsed)) return { ok: false, titles: out };
+  if (!Array.isArray(parsed)) return { ok: false, titles: out, error: text.trim() ? "answer_not_json" : "answer_empty" };
   for (const row of parsed) {
     const key = row && typeof row.key === "string" ? row.key : "";
     const title = row && typeof row.title === "string" ? row.title.trim().replace(/^["“]|["”]$/g, "").trim() : "";
     if (!wanted.has(key) || !title || out.has(key)) continue;
     out.set(key, title);
   }
-  return { ok: true, titles: out };
+  return { ok: true, titles: out, error: "" };
 }
+
+// The short reason stored in thumbnail_title_queue.last_error. Never a title,
+// a plan line or a client name: a code, an HTTP status and the provider's own
+// error type at most, cut to 200 characters.
+export function shortError(code, detail) {
+  const d = String(detail || "").replace(/[\r\n]+/g, " ").replace(/[^\w .:/-]/g, "").trim();
+  return (String(code || "error") + (d ? ": " + d : "")).slice(0, 200);
+}
+
+// Asked once more, in the same request thread, when an answer came back with
+// no readable list.
+export const JSON_ONLY_FOLLOWUP = 'Reply again with ONLY the JSON array, like [{"key": "p1", "title": "Your Title Here"}], and nothing else. Leave out any post you cannot match.';
 
 // The line written for one post, given the model's title (or none).
 export function resolveLine(post, title, planNormalized) {

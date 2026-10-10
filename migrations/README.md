@@ -59,7 +59,7 @@ executes these files (see `README.md` › Repository layout).
 
 - **`2026-10-10-calendar-auto-posted.sql`** is source-only until Lighthouse applies it, after
   the `calendar-auto-posted` function and the one-line `calendar-upsert` live delta are deployed
-  (OPEN_REPAIRS 394). It adds the `calendar_auto_posted` switch (off), a read-only due list,
+  (OPEN_REPAIRS 395). It adds the `calendar_auto_posted` switch (off), a read-only due list,
   the key check and the 15-minute timer, and refuses to run until the Vault secret
   `calendar_auto_posted_key` exists. It writes no status: the function flips posts through
   `production-write` and `calendar-upsert`. `test/calendar-auto-posted.js` measures it.
@@ -75,6 +75,12 @@ executes these files (see `README.md` › Repository layout).
   authenticated may read only the new timestamp column; both functions revoke
   from all four roles. No Edge Function change. `test/production-comment-signal.js`
   measures it on a real PostgreSQL 16.
+
+- **`2026-10-10-thumbnail-titles-error-record.sql`** is source-only until applied
+  (OPEN_REPAIRS 394). `thumbnail_title_apply` gains an optional `p_error` and keeps it in
+  `thumbnail_title_queue.last_error`, so an item that ends `generation_failed` says why. Apply it
+  BEFORE deploying the matching `thumbnail-titles`; the function falls back to the old four-argument
+  call if it is deployed first. Revokes from all four roles.
 
 - **`2026-10-09-thumbnail-titles.sql`** is APPLIED (session Sorter, 2026-10-09,
   OPEN_REPAIRS 391, with the backfill counter's variable rename the file now

@@ -1,10 +1,10 @@
--- Calendar auto-posted (OPEN_REPAIRS 394). A Calendar post whose overall status is exactly
+-- Calendar auto-posted (OPEN_REPAIRS 395). A Calendar post whose overall status is exactly
 -- "Scheduled" turns "Posted" by itself once its scheduled day has ended in US Eastern time, so
 -- managers stop flipping it by hand (76 Scheduled -> Posted flips in the 30 days to 2026-10-10,
 -- every one of them source "ui").
 --
 -- STATE: BUILT, NOT APPLIED. Lighthouse applies it in the SQL editor after the two functions are
--- deployed (see OPEN_REPAIRS 394 for the order). The switch it adds is OFF.
+-- deployed (see OPEN_REPAIRS 395 for the order). The switch it adds is OFF.
 --
 -- What this file adds (idempotent; rollback block at the bottom):
 --   calendar_auto_posted flag        {"clients": []}: OFF. "*" means every client. A client that is

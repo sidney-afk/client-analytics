@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * calendar-upsert: the ONE-LINE live delta for the auto-posted timer (OPEN_REPAIRS 394).
+ * calendar-upsert: the ONE-LINE live delta for the auto-posted timer (OPEN_REPAIRS 395).
  *
  * calendar-upsert is frozen: the repo's index.ts is NOT what runs (it re-applies the client-link
  * gate, see its header). A change ships as "the exact live source plus the delta". This script is
@@ -31,7 +31,7 @@ const crypto = require('node:crypto');
 
 const ANCHOR = '  const source = rawSource === "linear" || rawSource === "reconcile" ? rawSource : "ui";';
 const PATCHED = '  const source = rawSource === "linear" || rawSource === "reconcile" || rawSource === "auto-posted" ? rawSource : "ui";';
-const NOTE = '  // "auto-posted": the calendar-auto-posted timer (OPEN_REPAIRS 394). Live delta, scripts/calendar-upsert-live-delta.js.';
+const NOTE = '  // "auto-posted": the calendar-auto-posted timer (OPEN_REPAIRS 395). Live delta, scripts/calendar-upsert-live-delta.js.';
 
 function applyDelta(source) {
   const text = String(source);

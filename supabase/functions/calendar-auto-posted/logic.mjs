@@ -1,7 +1,7 @@
 // calendar-auto-posted: the decision and the run, with no network and no
 // database of its own, so test/calendar-auto-posted.js can drive it under Node.
 //
-// THE RULE (owner, 2026-10-10, OPEN_REPAIRS 394). A Calendar post whose overall
+// THE RULE (owner, 2026-10-10, OPEN_REPAIRS 395). A Calendar post whose overall
 // status is exactly "Scheduled" turns "Posted" by itself once its scheduled day
 // has ended in US Eastern time. Nothing else is ever touched: any other status,
 // a card whose parts disagree with its overall, a card or work item a person

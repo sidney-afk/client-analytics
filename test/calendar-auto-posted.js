@@ -1,6 +1,6 @@
 'use strict';
 /*
- * calendar-auto-posted (OPEN_REPAIRS 394): a Scheduled Calendar post turns Posted by itself once
+ * calendar-auto-posted (OPEN_REPAIRS 395): a Scheduled Calendar post turns Posted by itself once
  * its scheduled day has ended in US Eastern time, through the same server calls a click makes.
  *
  *   1. Offline: the overall-status rule equals the page's own functions over every triple of a

@@ -164,8 +164,10 @@ This is set through SyncView itself, admin only, not a raw SQL write: sign in as
 open the Time Off admin panel, choose their name from the member picker, set their real PTO
 start date, and check the enabled box. That submits the `set_start_date` action, which
 runs through the `pto_set_member_start_v1` database function rather than a plain insert, so
-balances and history stay consistent from day one. A raw insert against `pto_members`
-skips that and is not the supported path.
+balances and history stay consistent from day one. Once OPEN_REPAIRS 399 is applied and
+deployed it runs through `pto_set_member_start_v2` instead, which also records who saved it
+and the values before and after in `pto_member_events`. A raw insert against `pto_members`
+skips all of that and is not the supported path.
 
 ## 7. Assigning a client
 

@@ -31992,6 +31992,64 @@ should the step use that newest earlier month tab (for example within one month)
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
 
+## 396. [2026-10-10, BUILT, NOT MERGED] Calendar keep-in-place: a refresh that moves the card in view no longer drags the board after it (session Sweep, site assurance)
+
+**What was wrong.** The fix in 393 (#2029) made a background refresh (realtime change, the fallback
+poll, a tab return) remember the first card or day in view and put that one card back where it was.
+That is right when something lands ahead of the view, but when the refresh moves that card itself,
+the board chased it to its new place. It happens whenever a teammate reschedules the card at the top
+of Review, reorders the Sheet, or schedules a post out of the Unscheduled tray, on the staff Calendar
+and on the client's review link. The first card in view is often only partly on screen, or is the
+first Unscheduled tray post, which sits above the month grid. On phones there was a second slip: a
+day that lost its only post folds away (it is hidden, so it measures as zero size at the top-left of
+the screen), the restore still counted it as found, and the page was pushed by twice that day's
+offset.
+
+**Measured in a real browser** (offline fixture, fictional client, one background refresh where a
+teammate's change moves the first card in view). Before this fix:
+- Desktop Month at the top of the page with an Unscheduled tray, first tray post scheduled onto the
+  24th: the page jumped from 0 to 852 px, so the month header went off the top of the screen.
+- Desktop Sheet, the first card in the strip dragged to the end: the strip jumped from 3384 to 9424 px,
+  about 18 cards. The next card moved 6374 px sideways.
+- Desktop SMM Review, the first card in view rescheduled later: 997 to 2239 px. The next card moved
+  1378 px.
+- Client review link on a phone, the first card in view rescheduled later: 1008 to 1895 px. The next
+  card moved 1313 px.
+- Phone Month, the first day in view lost its only post and folded: the page was pushed 60 px for a day
+  sitting 30 px above the screen, so the next day moved 172 px.
+
+All of these were worse than the one-card jump 393 fixed. After this fix, every other card or day that
+was in view stays exactly where it was (0 px) in all five cases.
+
+**What changed** (`src/index/160-calendar-organize-ui.js.part`).
+- **Several cards are remembered, not one.** Each scrolled box, and the page, now remembers up to six
+  cards or days in view, outermost only (a Sheet card's fields carry its id too and must not outvote
+  the cards around it).
+- **A move is followed only when two cards agree on it.** After the repaint the pixel offset goes back
+  first. Then the restore measures how far each remembered item moved, and follows only a move at
+  least two of them agree on (within 2 px). Something landing ahead of the view moves every item by
+  the same amount, so 393's case stays fixed. A relocated card moves alone and is outvoted.
+- **When no two agree,** a single item decides only if it is the only one left that moved less than
+  the box plus its own size. Otherwise the pixel offset stands. The fix sketch dropped any move bigger
+  than the box, but phone Sheet cards are taller than the screen, so that broke 393's own phone Sheet
+  case.
+- **A folded or hidden item counts as gone.** On a phone the next visible day is used instead.
+- **The next-frame check re-measures only the items the first check agreed on.** If the first check
+  found no agreement because heights were still settling, the next frame asks all of them again.
+
+**Guards.** `docs/syncview-design/tests/calendar-refresh-scroll-browser.js` gained five "moved card"
+cases: (a) desktop Month with a tray at the top, the first tray post gets a date in the shown month;
+(b) desktop Sheet, the first card in view moves to the end; (c) desktop SMM Review, the first card in
+view is rescheduled later; (d) the client review link on a phone, the first card in view is
+rescheduled later; (e) phone Month, the first day in view loses its only post and folds. Each one
+fails on the old code with the numbers above and passes on the fix. The eight "card lands ahead"
+checks from 393 still pass (13/13). The test runs in `calendar-unit-tests.yml` as before.
+
+**Not done:** not run against the live test client, because the staff Calendar needs a real staff
+sign-in, which this sandbox does not have.
+
+**Owner step:** merge. There is nothing to deploy beyond the page itself (no function, no migration).
+
 ## 399. [2026-10-10, BUILT, NOT MERGED, NOT APPLIED, NOT DEPLOYED] PTO Member setup now leaves a record: who changed a start date or the PTO switch, and what it was before (session Sweep, site assurance)
 
 **What was wrong.** In Kasper > Time Off, the Member setup form saves a team member's PTO start date
@@ -32081,3 +32139,4 @@ service_role;` so the old function can write again. Then revert this change to
 `supabase/functions/pto/index.ts` and to the workflow latch on main, set `PTO_SCHEMA_CONTRACT` back to
 `transactional-writes-v1`, and dispatch the PTO lane as in step 4. Dropping v2 afterwards is optional
 (`drop function if exists public.pto_set_member_start_v2(uuid, date, boolean, bigint, text);`).
+

@@ -74,7 +74,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         </div>`;
     }
     function _svCalendarMonthSkeletonHtml(label) {
-        if (document.documentElement.classList.contains('boot-client') && window.matchMedia('(max-width: 767px)').matches) return _svCalendarPhoneTimelineSkeletonHtml(label);
+        if (window.matchMedia('(max-width: 767px)').matches) return _svCalendarPhoneTimelineSkeletonHtml(label);
         const cells = Array.from({ length: 42 }, (_, i) => `<div class="cal-month-cell${i < 3 || i > 36 ? ' out' : ''}">
             <div class="cal-month-cellhead">
                 ${_svSkel('sv-skeleton-line', 'width:28px;height:10px;')}
@@ -99,7 +99,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         </div>`;
     }
     function _svCalendarWeekSkeletonHtml(label) {
-        if (document.documentElement.classList.contains('boot-client') && window.matchMedia('(max-width: 767px)').matches) return _svCalendarPhoneTimelineSkeletonHtml(label);
+        if (window.matchMedia('(max-width: 767px)').matches) return _svCalendarPhoneTimelineSkeletonHtml(label);
         return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
             <div class="cal-week-wrap">
                 <div class="cal-month-header">

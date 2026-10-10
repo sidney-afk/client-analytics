@@ -28,6 +28,12 @@ and the append-only ledger census. New client picker review remains open.
 The final phone runner reuses the admin fixture's hash-checked production
 Chart.js loader; Finch accepts those pinned bytes without a private vendor folder.
 
+`docs/audits/2026-10-07-prism-phone/batch-7/` records the final narrowed phone
+rounds, Expanded draft review, before/after galleries, source/PNG hashes and
+exact desktop receipts. `qa/client-phone/native-captures.js` captures native
+viewport and scroll stops; `qa/client-phone/phone-visual-guards.js` checks
+loading labels, metadata, link targets and native disconnected-account guidance.
+
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,
 media-refresh node preservation and restoration on desktop resize.

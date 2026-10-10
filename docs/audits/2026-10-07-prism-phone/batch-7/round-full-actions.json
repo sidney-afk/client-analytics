@@ -1,0 +1,274 @@
+[
+  {
+    "name": "staff-393-light",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-staff-393-light.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=393",
+      "--themes=light",
+      "--only=^(today\\-all\\-clear|today\\-cleared|today\\-editor\\-all\\-clear|today\\-editor\\-deck|today\\-editor\\-list|today\\-error|today\\-loading|today\\-long\\-content|today\\-many|today\\-ring\\-open|today\\-rings|today\\-walk|calendar\\-alt\\-caption\\-menu|calendar\\-alt\\-caption\\-tabs|calendar\\-caption\\-prompt\\-empty|calendar\\-caption\\-prompt\\-normal|calendar\\-card\\-detail|calendar\\-card\\-notes|calendar\\-empty|calendar\\-error|calendar\\-loading|calendar\\-long\\-content|calendar\\-many|calendar\\-month|calendar\\-month\\-loading|calendar\\-more|calendar\\-no\\-posts|calendar\\-review|calendar\\-save\\-error|calendar\\-sheet|calendar\\-tabs|calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-error|calendar\\-thumbnail\\-prompt\\-loading|calendar\\-thumbnail\\-prompt\\-normal|calendar\\-transcript\\-control|calendar\\-transcript\\-discard|calendar\\-transcript\\-filled|calendar\\-transcript\\-optional|calendar\\-transcript\\-required|calendar\\-week|calendar\\-week\\-loading|samples\\-card\\-notes|samples\\-empty|samples\\-error|samples\\-loading|samples\\-long\\-content|samples\\-many|samples\\-more|samples\\-no\\-posts|samples\\-review|samples\\-save\\-error|samples\\-sheet|samples\\-tabs|linear\\-detail|linear\\-detail\\-asset\\-edit|linear\\-detail\\-comment\\-draft|linear\\-detail\\-description\\-edit|linear\\-detail\\-empty|linear\\-detail\\-loading|linear\\-detail\\-menu|tiktok\\-cancel\\-confirm|tiktok\\-client\\-ready|tiktok\\-client\\-search|tiktok\\-empty|tiktok\\-no\\-account|tiktok\\-options|tiktok\\-photos\\-attached|tiktok\\-photos\\-empty|tiktok\\-posting|tiktok\\-queue\\-done|tiktok\\-queue\\-loading|tiktok\\-queue\\-upcoming|tiktok\\-schedule|tiktok\\-video\\-attached|analytics\\-client\\-picker|analytics\\-detail|analytics\\-detail\\-dash|analytics\\-empty|analytics\\-grid|analytics\\-loading|analytics\\-overview|analytics\\-period\\-week|analytics\\-pin|analytics\\-search|analytics\\-week|workload\\-client\\-picker|workload\\-clients\\-search|workload\\-editors\\-menu|workload\\-empty|workload\\-loading|workload\\-month|workload\\-plan\\-due|workload\\-plan\\-due\\-expanded|workload\\-popover|workload\\-week)$",
+      "--shots=${EVIDENCE}\\round-final19\\staff",
+      "--report=${EVIDENCE}\\round-final19\\staff-393-light.json"
+    ],
+    "round": "round-final19",
+    "lastLines": [
+      "ok calendar-transcript-filled 393 light",
+      "ok calendar-transcript-discard 393 light",
+      "ok calendar-caption-prompt-normal 393 light",
+      "ok calendar-caption-prompt-empty 393 light",
+      "staff-phone-final-pass: 96 renders, 0 problems"
+    ]
+  },
+  {
+    "name": "staff-393-dark",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-staff-393-dark.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=393",
+      "--themes=dark",
+      "--only=^(today\\-all\\-clear|today\\-cleared|today\\-editor\\-all\\-clear|today\\-editor\\-deck|today\\-editor\\-list|today\\-error|today\\-loading|today\\-long\\-content|today\\-many|today\\-ring\\-open|today\\-rings|today\\-walk|calendar\\-alt\\-caption\\-menu|calendar\\-alt\\-caption\\-tabs|calendar\\-caption\\-prompt\\-empty|calendar\\-caption\\-prompt\\-normal|calendar\\-card\\-detail|calendar\\-card\\-notes|calendar\\-empty|calendar\\-error|calendar\\-loading|calendar\\-long\\-content|calendar\\-many|calendar\\-month|calendar\\-month\\-loading|calendar\\-more|calendar\\-no\\-posts|calendar\\-review|calendar\\-save\\-error|calendar\\-sheet|calendar\\-tabs|calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-error|calendar\\-thumbnail\\-prompt\\-loading|calendar\\-thumbnail\\-prompt\\-normal|calendar\\-transcript\\-control|calendar\\-transcript\\-discard|calendar\\-transcript\\-filled|calendar\\-transcript\\-optional|calendar\\-transcript\\-required|calendar\\-week|calendar\\-week\\-loading|samples\\-card\\-notes|samples\\-empty|samples\\-error|samples\\-loading|samples\\-long\\-content|samples\\-many|samples\\-more|samples\\-no\\-posts|samples\\-review|samples\\-save\\-error|samples\\-sheet|samples\\-tabs|linear\\-detail|linear\\-detail\\-asset\\-edit|linear\\-detail\\-comment\\-draft|linear\\-detail\\-description\\-edit|linear\\-detail\\-empty|linear\\-detail\\-loading|linear\\-detail\\-menu|tiktok\\-cancel\\-confirm|tiktok\\-client\\-ready|tiktok\\-client\\-search|tiktok\\-empty|tiktok\\-no\\-account|tiktok\\-options|tiktok\\-photos\\-attached|tiktok\\-photos\\-empty|tiktok\\-posting|tiktok\\-queue\\-done|tiktok\\-queue\\-loading|tiktok\\-queue\\-upcoming|tiktok\\-schedule|tiktok\\-video\\-attached|analytics\\-client\\-picker|analytics\\-detail|analytics\\-detail\\-dash|analytics\\-empty|analytics\\-grid|analytics\\-loading|analytics\\-overview|analytics\\-period\\-week|analytics\\-pin|analytics\\-search|analytics\\-week|workload\\-client\\-picker|workload\\-clients\\-search|workload\\-editors\\-menu|workload\\-empty|workload\\-loading|workload\\-month|workload\\-plan\\-due|workload\\-plan\\-due\\-expanded|workload\\-popover|workload\\-week)$",
+      "--shots=${EVIDENCE}\\round-final19\\staff",
+      "--report=${EVIDENCE}\\round-final19\\staff-393-dark.json"
+    ],
+    "round": "round-final19",
+    "lastLines": [
+      "ok calendar-transcript-filled 393 dark",
+      "ok calendar-transcript-discard 393 dark",
+      "ok calendar-caption-prompt-normal 393 dark",
+      "ok calendar-caption-prompt-empty 393 dark",
+      "staff-phone-final-pass: 96 renders, 0 problems"
+    ]
+  },
+  {
+    "name": "staff-412-light",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-staff-412-light.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=412",
+      "--themes=light",
+      "--only=^(today\\-all\\-clear|today\\-cleared|today\\-editor\\-all\\-clear|today\\-editor\\-deck|today\\-editor\\-list|today\\-error|today\\-loading|today\\-long\\-content|today\\-many|today\\-ring\\-open|today\\-rings|today\\-walk|calendar\\-alt\\-caption\\-menu|calendar\\-alt\\-caption\\-tabs|calendar\\-caption\\-prompt\\-empty|calendar\\-caption\\-prompt\\-normal|calendar\\-card\\-detail|calendar\\-card\\-notes|calendar\\-empty|calendar\\-error|calendar\\-loading|calendar\\-long\\-content|calendar\\-many|calendar\\-month|calendar\\-month\\-loading|calendar\\-more|calendar\\-no\\-posts|calendar\\-review|calendar\\-save\\-error|calendar\\-sheet|calendar\\-tabs|calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-error|calendar\\-thumbnail\\-prompt\\-loading|calendar\\-thumbnail\\-prompt\\-normal|calendar\\-transcript\\-control|calendar\\-transcript\\-discard|calendar\\-transcript\\-filled|calendar\\-transcript\\-optional|calendar\\-transcript\\-required|calendar\\-week|calendar\\-week\\-loading|samples\\-card\\-notes|samples\\-empty|samples\\-error|samples\\-loading|samples\\-long\\-content|samples\\-many|samples\\-more|samples\\-no\\-posts|samples\\-review|samples\\-save\\-error|samples\\-sheet|samples\\-tabs|linear\\-detail|linear\\-detail\\-asset\\-edit|linear\\-detail\\-comment\\-draft|linear\\-detail\\-description\\-edit|linear\\-detail\\-empty|linear\\-detail\\-loading|linear\\-detail\\-menu|tiktok\\-cancel\\-confirm|tiktok\\-client\\-ready|tiktok\\-client\\-search|tiktok\\-empty|tiktok\\-no\\-account|tiktok\\-options|tiktok\\-photos\\-attached|tiktok\\-photos\\-empty|tiktok\\-posting|tiktok\\-queue\\-done|tiktok\\-queue\\-loading|tiktok\\-queue\\-upcoming|tiktok\\-schedule|tiktok\\-video\\-attached|analytics\\-client\\-picker|analytics\\-detail|analytics\\-detail\\-dash|analytics\\-empty|analytics\\-grid|analytics\\-loading|analytics\\-overview|analytics\\-period\\-week|analytics\\-pin|analytics\\-search|analytics\\-week|workload\\-client\\-picker|workload\\-clients\\-search|workload\\-editors\\-menu|workload\\-empty|workload\\-loading|workload\\-month|workload\\-plan\\-due|workload\\-plan\\-due\\-expanded|workload\\-popover|workload\\-week)$",
+      "--shots=${EVIDENCE}\\round-final19\\staff",
+      "--report=${EVIDENCE}\\round-final19\\staff-412-light.json"
+    ],
+    "round": "round-final19",
+    "lastLines": [
+      "ok calendar-transcript-filled 412 light",
+      "ok calendar-transcript-discard 412 light",
+      "ok calendar-caption-prompt-normal 412 light",
+      "ok calendar-caption-prompt-empty 412 light",
+      "staff-phone-final-pass: 96 renders, 0 problems"
+    ]
+  },
+  {
+    "name": "staff-412-dark",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-staff-412-dark.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=412",
+      "--themes=dark",
+      "--only=^(today\\-all\\-clear|today\\-cleared|today\\-editor\\-all\\-clear|today\\-editor\\-deck|today\\-editor\\-list|today\\-error|today\\-loading|today\\-long\\-content|today\\-many|today\\-ring\\-open|today\\-rings|today\\-walk|calendar\\-alt\\-caption\\-menu|calendar\\-alt\\-caption\\-tabs|calendar\\-caption\\-prompt\\-empty|calendar\\-caption\\-prompt\\-normal|calendar\\-card\\-detail|calendar\\-card\\-notes|calendar\\-empty|calendar\\-error|calendar\\-loading|calendar\\-long\\-content|calendar\\-many|calendar\\-month|calendar\\-month\\-loading|calendar\\-more|calendar\\-no\\-posts|calendar\\-review|calendar\\-save\\-error|calendar\\-sheet|calendar\\-tabs|calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-error|calendar\\-thumbnail\\-prompt\\-loading|calendar\\-thumbnail\\-prompt\\-normal|calendar\\-transcript\\-control|calendar\\-transcript\\-discard|calendar\\-transcript\\-filled|calendar\\-transcript\\-optional|calendar\\-transcript\\-required|calendar\\-week|calendar\\-week\\-loading|samples\\-card\\-notes|samples\\-empty|samples\\-error|samples\\-loading|samples\\-long\\-content|samples\\-many|samples\\-more|samples\\-no\\-posts|samples\\-review|samples\\-save\\-error|samples\\-sheet|samples\\-tabs|linear\\-detail|linear\\-detail\\-asset\\-edit|linear\\-detail\\-comment\\-draft|linear\\-detail\\-description\\-edit|linear\\-detail\\-empty|linear\\-detail\\-loading|linear\\-detail\\-menu|tiktok\\-cancel\\-confirm|tiktok\\-client\\-ready|tiktok\\-client\\-search|tiktok\\-empty|tiktok\\-no\\-account|tiktok\\-options|tiktok\\-photos\\-attached|tiktok\\-photos\\-empty|tiktok\\-posting|tiktok\\-queue\\-done|tiktok\\-queue\\-loading|tiktok\\-queue\\-upcoming|tiktok\\-schedule|tiktok\\-video\\-attached|analytics\\-client\\-picker|analytics\\-detail|analytics\\-detail\\-dash|analytics\\-empty|analytics\\-grid|analytics\\-loading|analytics\\-overview|analytics\\-period\\-week|analytics\\-pin|analytics\\-search|analytics\\-week|workload\\-client\\-picker|workload\\-clients\\-search|workload\\-editors\\-menu|workload\\-empty|workload\\-loading|workload\\-month|workload\\-plan\\-due|workload\\-plan\\-due\\-expanded|workload\\-popover|workload\\-week)$",
+      "--shots=${EVIDENCE}\\round-final19\\staff",
+      "--report=${EVIDENCE}\\round-final19\\staff-412-dark.json"
+    ],
+    "round": "round-final19",
+    "lastLines": [
+      "ok calendar-transcript-filled 412 dark",
+      "ok calendar-transcript-discard 412 dark",
+      "ok calendar-caption-prompt-normal 412 dark",
+      "ok calendar-caption-prompt-empty 412 dark",
+      "staff-phone-final-pass: 96 renders, 0 problems"
+    ]
+  },
+  {
+    "name": "staff-calendar",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-staff-calendar.log",
+    "command": [
+      "node",
+      "docs/syncview-design/tests/staff-calendar-expanded-browser.js",
+      "--widths=393,412"
+    ],
+    "round": "round-final19",
+    "lastLines": [
+      "staff-calendar-expanded: OK (6316 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 393/412)."
+    ]
+  },
+  {
+    "name": "rules",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-rules.log",
+    "command": [
+      "node",
+      "qa/staff-phone-rules-browser.js",
+      "--widths=393,412",
+      "--only=^(today|calendar|sample-reviews|tiktok-upload|home|workload)$",
+      "--out=${EVIDENCE}\\round-final19\\rules"
+    ],
+    "round": "round-final19",
+    "lastLines": [
+      "ok workload-light-393 screen, menus, layout and scroll lock",
+      "ok workload-dark-393 screen, menus, layout and scroll lock",
+      "ok workload-light-412 screen, menus, layout and scroll lock",
+      "ok workload-dark-412 screen, menus, layout and scroll lock",
+      "STAFF_PHONE_RULES: 88 states; 0 failures; 393/412 touch; synthetic transports; no live writes"
+    ]
+  },
+  {
+    "name": "design",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-design.log",
+    "command": [
+      "node",
+      "qa/staff-phone-design-browser.js",
+      "--widths=393,412",
+      "--out=${EVIDENCE}\\round-final19\\design"
+    ],
+    "round": "round-final19",
+    "lastLines": [
+      "ok sample-reviews-412-light-missing-media",
+      "ok sample-reviews-412-light-linked",
+      "ok sample-reviews-412-dark-missing-media",
+      "ok sample-reviews-412-dark-linked",
+      "STAFF_PHONE_DESIGN: 16 native card states; 0 failures; fictional intercepted transports"
+    ]
+  },
+  {
+    "name": "admin",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-restored-admin.log",
+    "command": [
+      "node",
+      "docs/syncview-design/tests/kasper-admin-expanded-browser.js",
+      "--widths=393,412",
+      "--states=client-detail,client-edit,client-edit-save-actions,client-history-open,client-manager-change-actions,client-manager-menu,client-onboarding-loading,client-onboarding-open,client-onboarding-step-menu,client-research-open,clients,clients-archived-empty,clients-create-empty,clients-create-loading,clients-create-manager-menu,clients-create-menu,clients-empty,clients-list-menu,clients-loading,clients-search-menu,ads,ads-empty,ads-loading,ads-range-actions,ads-refresh-actions",
+      "--out=${EVIDENCE}\\round-final19-restored\\admin"
+    ],
+    "round": "round-final19-restored",
+    "lastLines": [
+      "KASPER_ADMIN_CHART: pinned production 4.4.0 bytes; 4 phone chart action/theme/desktop-restore states checked.",
+      "KASPER_ADMIN_EXPANDED: 100 native states; 4348 checks; 0 failures; fictional data; no live writes."
+    ]
+  },
+  {
+    "name": "client-calendar",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-restored-client-calendar.log",
+    "command": [
+      "node",
+      "docs/syncview-design/tests/client-calendar-expanded-browser.js",
+      "--widths=393,412",
+      "--themes=light"
+    ],
+    "round": "round-final19-restored",
+    "lastLines": [
+      "client-calendar-expanded: OK (1768 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 393/412; requested light, effective client light)."
+    ]
+  },
+  {
+    "name": "client-links",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-restored-client-links.log",
+    "command": [
+      "node",
+      "docs/syncview-design/tests/client-links-expanded-browser.js",
+      "--widths=393,412",
+      "--themes=light"
+    ],
+    "round": "round-final19-restored",
+    "lastLines": [
+      "client-links-expanded: OK (1122 assertions; Samples Review/queue/Sheet, Analytics, menus, Notes, lightbox, draft, sending, failure, loading, empty, desktop restore; 393/412; requested light, effective client light)."
+    ]
+  },
+  {
+    "name": "staff-393-light",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-prompt-restored-staff-393-light.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=393",
+      "--themes=light",
+      "--only=^(calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-empty)$",
+      "--shots=${EVIDENCE}\\round-final19-prompt-restored\\staff",
+      "--report=${EVIDENCE}\\round-final19-prompt-restored\\staff-393-light.json"
+    ],
+    "round": "round-final19-prompt-restored",
+    "lastLines": [
+      "ok calendar-thumbnail-prompt-empty 393 light",
+      "staff-phone-final-pass: 1 renders, 0 problems"
+    ]
+  },
+  {
+    "name": "staff-393-dark",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-prompt-restored-staff-393-dark.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=393",
+      "--themes=dark",
+      "--only=^(calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-empty)$",
+      "--shots=${EVIDENCE}\\round-final19-prompt-restored\\staff",
+      "--report=${EVIDENCE}\\round-final19-prompt-restored\\staff-393-dark.json"
+    ],
+    "round": "round-final19-prompt-restored",
+    "lastLines": [
+      "ok calendar-thumbnail-prompt-empty 393 dark",
+      "staff-phone-final-pass: 1 renders, 0 problems"
+    ]
+  },
+  {
+    "name": "staff-412-light",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-prompt-restored-staff-412-light.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=412",
+      "--themes=light",
+      "--only=^(calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-empty)$",
+      "--shots=${EVIDENCE}\\round-final19-prompt-restored\\staff",
+      "--report=${EVIDENCE}\\round-final19-prompt-restored\\staff-412-light.json"
+    ],
+    "round": "round-final19-prompt-restored",
+    "lastLines": [
+      "ok calendar-thumbnail-prompt-empty 412 light",
+      "staff-phone-final-pass: 1 renders, 0 problems"
+    ]
+  },
+  {
+    "name": "staff-412-dark",
+    "exit": 0,
+    "log": "${EVIDENCE}\\round-final19-prompt-restored-staff-412-dark.log",
+    "command": [
+      "node",
+      "qa/staff-phone-final-pass.js",
+      "--all-states",
+      "--widths=412",
+      "--themes=dark",
+      "--only=^(calendar\\-thumbnail\\-prompt\\-empty|calendar\\-thumbnail\\-prompt\\-empty)$",
+      "--shots=${EVIDENCE}\\round-final19-prompt-restored\\staff",
+      "--report=${EVIDENCE}\\round-final19-prompt-restored\\staff-412-dark.json"
+    ],
+    "round": "round-final19-prompt-restored",
+    "lastLines": [
+      "ok calendar-thumbnail-prompt-empty 412 dark",
+      "staff-phone-final-pass: 1 renders, 0 problems"
+    ]
+  }
+]

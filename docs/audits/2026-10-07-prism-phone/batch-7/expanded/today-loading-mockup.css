@@ -1,0 +1,4 @@
+@media (max-width:767px) {
+ body:has(.pocket-staff-bar) .tdy-skel .sv-skeleton {--sv-skel-base:var(--border);--sv-skel-sheen:var(--border-light);}
+ body:has(.pocket-staff-bar) .tdy-skel::before {content:"Loading your day...";display:block;color:var(--text-secondary);font-size:14px;margin-bottom:16px;}
+}

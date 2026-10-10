@@ -32403,3 +32403,57 @@ Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Each fix 
 **Owner steps, after merge (single-function lane, commit = main's tip):** `higgsfield-mcp` (item 6) and `instagram-upload` (items 1 and 5). The "&" client's Brain folder, found in the same run, is left to #2033, which fixes it more leniently (it tries "and" first, then the old spelling).
 **Way back:** revert the pull request and redeploy the previous commit of each function.
 
+## 395. [2026-10-09, BUILT, NOT MERGED] Final phone batch: branded manager picker, readable sheets and complete narrowed review
+
+**Batch 6 follow-up (entry 386).** The New client manager picker now uses the
+shared branded control on phones, with native loading, empty, unavailable,
+busy, refusal, Escape and desktop restoration checks. The reported Clients
+loading heading loss was **refuted** against current main: intercepted initial
+GET and POST loading lifecycles retain the native heading and actions at both
+phones and themes. No heading repair is claimed. Repeated Workload client chips
+represent distinct posts; phone context labels now distinguish their native
+destinations. The previous OPEN form, loading and review cells are resolved.
+
+**Repairs found in the full review.** Phone sheets now wrap long post titles and
+keep their native edits; readable metadata, links, placeholders, loading labels,
+caption menus and helper copy replace tiny or faint text. Calendar and Samples
+loading avoids false empty views. Calendar month filters and Today marker fit;
+archive copy describes the native action. Card comment footers stay inside the
+viewport, touch screens hide desktop keyboard hints, Analytics controls and
+Workload timelines are readable, and TikTok queue dates stop overlapping client
+labels. Disconnected-upload guidance names the current Clients/Publishing route.
+Overlay focus respects native restoration. All changes are scoped to phones or
+restore the original nodes, content and styles on desktop resize.
+
+**Proof and finish line.**
+[Batch 7](../audits/2026-10-07-prism-phone/batch-7/README.md) contains 70 native
+before/after pairs, Expanded drafts, a full 2,761-capture round and an independent
+2,756-capture fresh-eyes round. Every unique native-scale crop was personally
+viewed within each round. Both conclude “this is good, nothing looks weird.”
+The source-bound coverage has 279 states, 1,452 cells and 85 obligations, with
+no OPEN phone states or obligations in the narrowed scope. Desktop proof is
+182 exact PNG byte and all-computed-style pairs at 1440, cold and after resizing
+from a phone. Native action, phone scope, Clients, staff/client Calendar and
+identity checks pass; regression guards cover the repaired classes.
+
+Earlier failures are preserved with their actual last lines. Corrupted QA
+Unicode expectations were restored exactly, without relaxing tests. An empty
+thumbnail fixture race was rejected and separately replayed in both rounds with
+empty-value assertions before and after capture. All data is fictional and all
+transports intercepted: no live writes, database changes or n8n edits. Headless
+Chrome preserves the owner's foreground application. Physical-device keyboard,
+real upload delivery, deployed behavior and excluded screens are not claimed.
+Lighthouse spot-check and hosted CI remain separate acceptance gates. One branch,
+one PR; Prism does not merge.
+
+**CI follow-up, 2026-10-10.** The child-breadcrumb fixture now seeds the raw
+parent relationship, which survives native detail reads and adapter rebuilding;
+the original strict markup assertion remains and runs at every width. The shared
+Choose client sheet also receives the existing readable phone placeholder/helper
+styles on its Templates route. Before/Expanded/after captures and exact unfiltered
+390/430 inventories are recorded separately from the original full/fresh source
+binding, with an incremental 1440 desktop byte/style comparison. This entry is
+395 because PR #2030 uses 394 on main; main's historical duplicate headers are
+preserved without adding a collision.
+
+

@@ -1,0 +1,8 @@
+@media (max-width:767px) {
+ html.fph-on[data-fph="home"] .card-head [title] svg {width:18px;height:18px;}
+ html.fph-on[data-fph="home"] .card-head :is(a[title],span[title],.card-eye-btn) {color:var(--text-secondary)!important;}
+ html.fph-on[data-fph="home"] .card-head .card-date {font-size:13px;}
+ html.fph-on[data-fph="home"] .pin-add-btn>span {font-size:13px!important;opacity:1!important;color:var(--text-secondary);}
+ html.fph-on[data-fph="home"] [data-analytics-period] {font-size:13px!important;}
+ html.fph-on[data-fph="home"] :is([data-analytics-period][aria-pressed="false"],.view-toggle-btn:not(.active)) {color:var(--text-secondary)!important;}
+}

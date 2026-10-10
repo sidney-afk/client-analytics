@@ -1,0 +1,10 @@
+@media(max-width:767px){
+html.sv-staff-phone :is(.cal-altcap-add,.cal-cap-tab){font-size:13px;color:var(--text-secondary);min-height:44px;}
+html.sv-staff-phone .cal-altcap-add svg{width:14px;height:14px;}
+html.sv-staff-phone .cal-cap-tab-x{width:44px;height:44px;margin:0;opacity:1;color:var(--text-secondary);}
+html.sv-staff-phone .cal-cap-tab-x svg{width:14px;height:14px;}
+html.sv-staff-phone .cal-cap-tab-chev svg{width:12px;height:12px;}
+body:has(#calView[data-pocket-staff-phone]) .cal-cap-tab-menu-head{font-size:13px;color:var(--text-secondary);}
+body:has(#calView[data-pocket-staff-phone]) .cal-cap-tab-menu-item{font-size:14px;min-height:44px;}
+html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-secondary);opacity:1;}
+}@media(max-width:767px){html.boot-client .cal-review-cap-head{font-size:13px;}}

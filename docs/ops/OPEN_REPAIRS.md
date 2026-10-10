@@ -32240,3 +32240,168 @@ service_role;` so the old function can write again. Then revert this change to
 `transactional-writes-v1`, and dispatch the PTO lane as in step 4. Dropping v2 afterwards is optional
 (`drop function if exists public.pto_set_member_start_v2(uuid, date, boolean, bigint, text);`).
 
+## 401. [2026-10-10, BUILT, NOT MERGED] Samples: Kasper's typed words survive a refused save; an edit put back on return to a client is shown (session Sweep, site assurance)
+
+Two Samples defects found by the site-assurance sweep and confirmed by two independent checks each, both
+by running the real page code. Browser changes only; nothing to deploy, apply or switch on.
+
+**1. Kasper's review queue threw away what he typed when a save was refused.** On a sample in his queue,
+Comment, Request change and Approve after tweaks empty his text box as soon as he clicks, then save. When
+the save was refused, the card repainted with the box still empty and his words existed nowhere. The
+Calendar side of his queue has always put them back. It happened when:
+- the part had moved on the server while he typed (the queue does not refresh while his cursor is in the
+  box, so his screen can go stale): he was told "someone else changed this card", and the box was empty;
+- the check against the server could not be read (a network blip): told "decide again", box empty;
+- an earlier repair was still waiting ("Reload before another action"): box empty;
+- a plain Comment whose save failed: the note was taken out of the thread and out of the box, and the
+  message even called it a "decision".
+
+What changed (`src/index/290-samples-writes-review.js.part`): the three buttons hand the typed text to
+the save as its own value, and every path that ends without a save puts it back in the box before the
+card repaints. It is only put back into an empty box, so anything he typed while the save was running
+is kept. A plain Comment that fails now says "your video note did not go through ... Your words are
+back in the box; send it again." A save that worked still empties the box, as before.
+
+**2. Samples: an edit put back on return to a client was saved but not shown.** The Samples half of entry
+384 item 5, which fixed only the Calendar. An edit typed while an earlier save on that card was still
+running, followed by a client switch, is held with the notice "That edit is not saved yet ... Open
+<client> again in this tab and it will save". On return the load painted the server's old text, then
+the held edit was saved without being shown, so the box kept the old text under a "Saved" icon until
+some unrelated repaint. Clicking into that box and leaving it sent the old text back over the restored
+words. Now (`src/index/270-samples-model.js.part`, `_sxrRestoreParkedEdits`) the plain fields are put on
+the shown sample before the save starts and the list is repainted once, keeping the cursor where it was;
+statuses are left to the save, which rolls them back if it fails. `_SXR_ROLLBACK_FIELDS` is now
+exported from `280-samples-cards-notes.js.part` for this.
+
+**Guards** (each new check fails on the code before this change):
+- `test/kasper-never-lose-decision.js`: part moved on the server (Request change and Approve after
+  tweaks), check read failed, cached-repair refusal, plain Comment whose save fails (words kept, the
+  note is removed from the thread, the message says "note"), and controls: a saved note empties the box,
+  and words typed during a refused save are never overwritten.
+- `test/assurance-review-corrections.js` block 5b: the restored edit is on the shown sample and in the
+  repainted list; a held status and the engine's own keys are not copied.
+- `test/samples-component-fill.js`: the park-and-restore round trip now also checks the shown sample.
+
+**Overlap with open PR #2027** (Samples Kasper Undo fix, branch `claude/stoic-gates-sjlhim`): it edits
+`_sxrKasperUndoApprove` in the same file and adds a test to `test/kasper-never-lose-decision.js`. This
+change touches neither its lines nor the lines next to them. In a trial merge of the two, the source
+fragment, both tests and this ledger merged cleanly; only the generated `index.html` and
+`src/index/INDEX.md` conflicted, as any two page changes do. After `npm run build:index` the merged
+code passed both test files, his Undo case and the cases above. Whichever merges second needs that
+rebuild after its rebase.
+
+**Owner step:** merge. Nothing to deploy.
+
+## 403. [2026-10-10, BUILT, NOT MERGED] Scheduled jobs: the GitHub copy runs only when the timer missed, the combined message sees timer runs, and the thumbnail titles timer is watched (session Sweep, site assurance)
+
+Three findings about the 2026-10-09 move of every scheduled job onto Supabase's timer (OPEN_REPAIRS 390,
+PR 2019), each confirmed by two independent read-only checks on 2026-10-10.
+
+**1. Every scheduled job ran twice.** The 17 workflows the database timer dispatches kept their
+`schedule:` blocks "as a fallback", but GitHub kept delivering them too, 4 to 7 hours late. Counted from
+2026-10-09 18:20 to about 15:30 UTC the next day: 41 late GitHub copies ran beside the timer's runs. What
+that did:
+- The Samples nightly failed once and paged twice (06:00 timer run, 12:18 GitHub copy; the relay took both).
+- Two Calendar E2E runs worked on the test client at the same time (the 14:18 GitHub copy and a 14:59
+  manual run); neither nightly had a concurrency group.
+- The 6-hourly private backup ran 7 times in about 21 hours instead of 4; nothing prunes the extra backups.
+- The roster sync applied twice on 2026-10-10 (06:41 and 13:03; no changes either time).
+- From Monday the dawn check would have run and paged twice each weekday, and the polish gate's late
+  copy would have cancelled the timer's run (its group has cancel-in-progress on).
+- A copy that passed in the afternoon also un-latched a failing nightly's incident, so the next morning's
+  same failure paged again.
+
+**2. The combined problem message could not see the timer's runs.** `scripts/alert-digest.js` read only
+`event=schedule` runs of the four workflows it judges (backup, dawn check, Sheets daily copy, n8n quota
+check), so it judged them from GitHub's late copies alone: a failed timer backup followed by a passing
+late copy was never reported, and on 2026-10-10 a "no backup within 7 hours" was due from 05:54 to 06:12
+while timer backups had passed at 00:23 and 06:23. It is in shadow (`ALERT_DIGEST_ENABLED` unset), so no
+live alert was wrong, but it would have been the day it is switched on.
+
+**3. The per-minute thumbnail titles timer could fail in silence.** `thumbnail-titles-tick` calls the
+function through `net.http_post`, which only queues the request, so `cron.job_run_details` says
+"succeeded" whatever the function answers (1,384 of 1,384 in 30 hours). A 401, a 500, a boot error or a
+missing AI key would leave every new thumbnail without its brief, with nothing reading the queue and pg_net
+keeping responses about 6 hours. Healthy today: 0 items stuck, 0 never queued.
+
+**What changed (source only).**
+1. **The GitHub copy is a real fallback.** New reusable workflow
+   `.github/workflows/schedule-fallback-guard.yml`, the first job of all 17 dispatched workflows (the same
+   six lines in each). On a GitHub schedule run it asks (with `scripts/schedule-fallback-guard.js`)
+   whether the timer already started the same workflow for the newest slot of its cron that was due; if so,
+   every other job is skipped and nothing runs, pages or writes. If the timer missed the slot (or the
+   question cannot be answered) the copy runs exactly as before, so a dead timer still falls back from
+   the first slot it misses. Only the timer's run for the newest due slot counts, never the slot before
+   it: a copy that arrives less than five minutes after its slot and finds no timer run yet waits until
+   slot + five minutes (never longer), looks once more for that slot only, and runs if it is still
+   missing. (The first version of this pull request let the slot before count inside those five minutes,
+   so a timer that died between two slots lost a whole run whenever GitHub delivered promptly: yesterday's
+   08:00 Calendar nightly would have covered today's 08:03 copy, Friday's dawn check Monday's, one backup
+   the next. Found in review.) Each API call gives up after 30 seconds and the guard job's limit is 12
+   minutes, so the wait can never time the guard out, which would skip the job. Any other event (timer,
+   manual, push, pull request) goes
+   straight through. To tell runs apart, each workflow now names its runs: "(db-timer)" for the timer in
+   the eight workflows with a `source` input, "(workflow_dispatch)" for any dispatch of the nine with no
+   inputs (the timer sends them none, so a timer run and a manual one are the same run).
+   `monitoring-deadman.yml` and `monitoring-crosscheck.yml` are untouched (they observe the timer).
+   Replayed read only against the GitHub API on 14 real late copies of six workflows from 2026-10-09/10
+   (backup, roster sync, both nightlies, notification sender, combined message), with the new run names
+   applied to the timer's runs: all 14 would have stood down, each check listing 1 or 2 runs.
+2. **One test-client browser run at a time.** The jobs of the Samples nightly, the Calendar nightly and
+   the dawn check that hold the test-client key share one concurrency group, `test-client-e2e`, never
+   cancelled mid-run. GitHub keeps at most one job WAITING per group: a third run arriving while one runs
+   and one waits cancels the waiting one (it shows as cancelled, and a cancelled nightly writes no
+   heartbeat, so its lane goes stale and pages after 36 hours). At the timer's 06:00 / 08:00 / 11:30 times
+   that needs a manual run on top of two long ones.
+3. **The polish gate's groups are per event** (`production-polish-<ref>-<event>`), so a late copy can no
+   longer cancel the timer's run; pushes to main still replace each other, as do a pull request's.
+4. **The combined message counts timer runs.** It reads every recent run (50 per workflow, in-progress
+   included) with its title. A production run is a "(db-timer)" run, or a GitHub schedule run the timer had
+   not covered (the same function the guard uses decides, so a copy the guard stood down, which ends
+   "success" having done nothing, can never hide the timer's failure). Manual runs stay excluded.
+5. **The dead-man's switch takes a thumbnail titles census** (`supabase/functions/_shared/monitoring-watchdog-core.mjs`,
+   so the 15-minute database-timer host and the two GitHub hosts all run it). Only while the
+   `thumbnail_titles` switch lists a client, counts only: `thumbnail_titles_stuck` = queue rows of a
+   switched-on client pending or running for more than 30 minutes, plus new empty thumbnails the enqueue
+   step should have queued and did not (a function answering 401 never queues anything); it pages once and
+   latches, and resets quietly at zero. `thumbnail_titles_gave_up` = items that ended failed, or needs info
+   with `generation_failed`, per UTC day; each day pages once. Latches go under their own action
+   (`monitoring_watchdog_census_latch`), and a census that cannot read or page never fails the pass: the
+   error is in the result and the heartbeat is still written. Not a heartbeat lane on purpose: the tick
+   only calls the function when there is work, so a fixed max age would page every quiet night. The F27
+   reconciler closure pin for the core file was re-taken from the committed bytes (membership unchanged).
+
+**Guards** (each failed on main before the change):
+- `test/github-dispatch-timer.js`: every dispatched workflow has the run name, the guard job byte for byte,
+  and every other job gated on it (directly or through a gated job); input-free workflows stay input-free;
+  the three test-client jobs share the group; the polish gate's group is per event; the guard's decision
+  on the measured runs (Samples 06:00 vs 12:18, backup 18:23 vs 22:45, a dead timer, a manual run, a
+  cancelled run, Monday vs Friday for the dawn check) and its fail-open paths. On main: 59 failures with
+  the guard script present, a load failure without it.
+- `test/schedule-fallback-guard.js`: a prompt copy is never covered by the slot before (daily 08:00:
+  yesterday vs 08:03 today; dawn check: Friday vs Monday 11:33; backup: 06:23 vs 12:25), both in the check
+  and in the guard job, which waits once until slot + five minutes and then runs the copy; a slow timer's
+  run found after the wait stands the copy down; a late copy never waits; the wait is capped whatever the
+  runner's clock says; a failed second look, a failed wait or a timed-out call runs the copy; the job's
+  time limit covers the worst case. Against the first version of the guard: 20 of 29 checks fail,
+  among them the check and the guard job decision for each of the three scenarios.
+- `test/alert-digest.js`: a failed timer run newest beside an older schedule success is red; a fresh timer
+  success beside an 8-hour-old schedule success is not stale; a manual green run cannot hide a failed timer
+  run; a stood-down copy cannot hide the timer's failure; the reader keeps every event. On main: 5 failures.
+- `test/monitoring-watchdog-tick.js`: a row pending 45 minutes is a problem, with the switch off there is
+  none, a client the switch leaves off is not stuck, an unqueued thumbnail is, give-ups speak once a day,
+  the page is counts only, a census read failure still completes the pass, a dry run pages nothing. On
+  main: the census functions do not exist.
+
+**Owner steps, in order:**
+1. Merge the pull request. From then on the late GitHub copies stand down, and the combined message (still
+   in shadow) judges the timer's runs. The census starts running from the two GitHub dead-man hosts.
+2. Redeploy `monitoring-watchdog-tick` (its shared core changed) through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = main's tip SHA after the merge. Until then
+   only the GitHub hosts take the census, every few hours.
+3. Nothing to apply in SQL, no secret, no variable. The first census pass may page once for the previous
+   day's give-ups, if there were any.
+
+Rollback: revert the pull request (both copies run again, as before), then redeploy `monitoring-watchdog-tick`
+from the reverted main.

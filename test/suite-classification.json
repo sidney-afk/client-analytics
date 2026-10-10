@@ -2,6 +2,11 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "prod-comment-restored-request-id.js",
+    "samples-notes-lifecycle-busy.js",
+    "tiktok-create-keeps-key.js",
+    "tiktok-source-unknown-default.js",
+    "date-only-team-zone.js",
     "higgsfield-create-unconfirmed.js",
     "pages-deploy-source-unreadable.js",
     "production-write-comment-round.js",
@@ -123,6 +128,7 @@
     "cal-na-status.js",
     "cal-review-needs-content.js",
     "calendar-archive-parks-sub-issues.js",
+    "calendar-auto-posted.js",
     "calendar-card-deep-link.js",
     "calendar-card-write-jobs.js",
     "calendar-client-links-after-sheet.js",
@@ -722,6 +728,22 @@
     "finch-phone-css-scope.js"
   ],
   "profiles": [
+    {
+      "file": "instagram-cover-client-switch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/instagram-cover-client-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "credentials-modal-client-switch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/credentials-modal-client-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
     {
       "file": "write-refusal-page-traffic-postgres.js",
       "route": "isolated_postgres",

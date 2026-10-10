@@ -1,0 +1,52 @@
+{
+  "encoding": [
+    {
+      "file": "docs/syncview-design/tests/client-calendar-expanded-browser.js",
+      "changes": [
+        {
+          "original": "\u00b7",
+          "corrupt": "\u00c2\u00b7",
+          "depth": 1,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "file": "docs/syncview-design/tests/client-links-expanded-browser.js",
+      "changes": [
+        {
+          "original": "\u2026",
+          "corrupt": "\u00e2\u20ac\u00a6",
+          "depth": 1,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "file": "docs/syncview-design/tests/kasper-admin-expanded-browser.js",
+      "changes": [
+        {
+          "original": "\u2022\u2022\u2022\u2022\u2022\u2022",
+          "corrupt": "\u00e2\u20ac\u00a2\u00e2\u20ac\u00a2\u00e2\u20ac\u00a2\u00e2\u20ac\u00a2\u00e2\u20ac\u00a2\u00e2\u20ac\u00a2",
+          "depth": 1,
+          "count": 1
+        },
+        {
+          "original": "\u2014",
+          "corrupt": "\u00e2\u20ac\u201d",
+          "depth": 1,
+          "count": 2
+        },
+        {
+          "original": "Loading\u2026",
+          "corrupt": "Loading\u00e2\u20ac\u00a6",
+          "count": 3,
+          "repair": "Exact original expectation restored; represented as Unicode escape to avoid shell encoding drift."
+        }
+      ]
+    }
+  ],
+  "emptyThumbnailFixture": "Delayed native focus could reset Playwright selection during fill. Wait for native focus, assert empty before and after capture; replayed separately in both rounds. Original captures rejected.",
+  "transcriptPlaceholder": "Contact preview clipping candidate refuted by native screenshot and crop; placeholder and outline intact.",
+  "productCssEncoding": "Accidental CP1252 corruption restored to main bytes before final builds; no encoding change is claimed as a product fix."
+}

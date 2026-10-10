@@ -60,6 +60,11 @@ verify_jwt = false
 [functions.caption-prompts-save]
 verify_jwt = false
 
+# Calendar auto-posted (OPEN_REPAIRS 402). Called only by the pg_cron timer with the
+# x-calendar-auto-posted-key header (Vault calendar_auto_posted_key), checked by the database.
+[functions.calendar-auto-posted]
+verify_jwt = false
+
 # Thumbnail title prompt read + save for the Calendar editor. Staff role key
 # required (client tokens refused); the table is closed to the browser.
 [functions.thumbnail-title-prompts]

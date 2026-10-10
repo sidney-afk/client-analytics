@@ -32503,3 +32503,201 @@ Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Each fix 
 **Owner steps, after merge (single-function lane, commit = main's tip):** `higgsfield-mcp` (item 6) and `instagram-upload` (items 1 and 5). The "&" client's Brain folder, found in the same run, is left to #2033, which fixes it more leniently (it tries "and" first, then the old spelling).
 **Way back:** revert the pull request and redeploy the previous commit of each function.
 
+## 395. [2026-10-09, BUILT, NOT MERGED] Final phone batch: branded manager picker, readable sheets and complete narrowed review
+
+**Batch 6 follow-up (entry 386).** The New client manager picker now uses the
+shared branded control on phones, with native loading, empty, unavailable,
+busy, refusal, Escape and desktop restoration checks. The reported Clients
+loading heading loss was **refuted** against current main: intercepted initial
+GET and POST loading lifecycles retain the native heading and actions at both
+phones and themes. No heading repair is claimed. Repeated Workload client chips
+represent distinct posts; phone context labels now distinguish their native
+destinations. The previous OPEN form, loading and review cells are resolved.
+
+**Repairs found in the full review.** Phone sheets now wrap long post titles and
+keep their native edits; readable metadata, links, placeholders, loading labels,
+caption menus and helper copy replace tiny or faint text. Calendar and Samples
+loading avoids false empty views. Calendar month filters and Today marker fit;
+archive copy describes the native action. Card comment footers stay inside the
+viewport, touch screens hide desktop keyboard hints, Analytics controls and
+Workload timelines are readable, and TikTok queue dates stop overlapping client
+labels. Disconnected-upload guidance names the current Clients/Publishing route.
+Overlay focus respects native restoration. All changes are scoped to phones or
+restore the original nodes, content and styles on desktop resize.
+
+**Proof and finish line.**
+[Batch 7](../audits/2026-10-07-prism-phone/batch-7/README.md) contains 70 native
+before/after pairs, Expanded drafts, a full 2,761-capture round and an independent
+2,756-capture fresh-eyes round. Every unique native-scale crop was personally
+viewed within each round. Both conclude “this is good, nothing looks weird.”
+The source-bound coverage has 279 states, 1,452 cells and 85 obligations, with
+no OPEN phone states or obligations in the narrowed scope. Desktop proof is
+182 exact PNG byte and all-computed-style pairs at 1440, cold and after resizing
+from a phone. Native action, phone scope, Clients, staff/client Calendar and
+identity checks pass; regression guards cover the repaired classes.
+
+Earlier failures are preserved with their actual last lines. Corrupted QA
+Unicode expectations were restored exactly, without relaxing tests. An empty
+thumbnail fixture race was rejected and separately replayed in both rounds with
+empty-value assertions before and after capture. All data is fictional and all
+transports intercepted: no live writes, database changes or n8n edits. Headless
+Chrome preserves the owner's foreground application. Physical-device keyboard,
+real upload delivery, deployed behavior and excluded screens are not claimed.
+Lighthouse spot-check and hosted CI remain separate acceptance gates. One branch,
+one PR; Prism does not merge.
+
+**CI follow-up, 2026-10-10.** The child-breadcrumb fixture now seeds the raw
+parent relationship, which survives native detail reads and adapter rebuilding;
+the original strict markup assertion remains and runs at every width. The shared
+Choose client sheet also receives the existing readable phone placeholder/helper
+styles on its Templates route. Before/Expanded/after captures and exact unfiltered
+390/430 inventories are recorded separately from the original full/fresh source
+binding, with an incremental 1440 desktop byte/style comparison. This entry is
+395 because PR #2030 uses 394 on main; main's historical duplicate headers are
+preserved without adding a collision.
+
+## 402. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED, SWITCH OFF] Scheduled posts turn Posted by themselves after their day (session Herald)
+
+**Problem.** Every Scheduled to Posted change on a Calendar post was made by hand. Measured read-only
+2026-10-10, last 30 days of `calendar_post_events`: 71 overall Scheduled to Posted changes plus 82
+caption, 27 video and 25 thumbnail part changes, all source `ui` (the owner counted 76 the same day;
+the window moved). The Production side shows the same flips arriving through the status bridge
+(`native-bridge`, 55 video and 51 thumbnail). On 2026-10-10 there were 18 Scheduled posts, every one
+with both work items linked and both at `scheduled`; one was past its day.
+
+**Rule (owner, 2026-10-10).** A post whose overall status is exactly `Scheduled` turns `Posted` at the
+END of its scheduled day in US Eastern time (`scheduled_date` is a text date; "ended" means today's
+date in America/New_York is later, daylight saving included). Nothing else is touched: any other
+status, a card whose parts disagree with its overall, a card or linked work item changed in the last
+hour (any calendar history row in the hour other than this job's own counts), a linked work item that
+is not itself `scheduled`, a part linked only the old way with no work item, a card that moved while
+the job ran. Parts already Posted or N/A stay as they are; the title is never touched.
+
+**Path: the same server calls a click makes, never a status written in SQL** (OPEN_REPAIRS 373).
+`supabase/functions/calendar-auto-posted` (logic in `logic.mjs`), called by pg_cron every 15 minutes:
+1. Each linked video and thumbnail part goes through `production-write` (operation `status`, surface
+   `calendar`, `posted`), the body the Calendar's status pick sends, plus a compare-and-set on the work
+   item's status and change time. The status bridge then moves the card's part and overall in the same
+   step and writes its own history row, as for a click.
+2. The card is re-read and the rest (caption, any unlinked part, the overall) is saved through
+   `calendar-upsert` with the fresh change time as the conflict base, so a person's save in between
+   wins.
+The job reads with the service role and writes only its own move record, through the claim and release functions; it writes no other table directly (`test/calendar-auto-posted.js`
+asserts it). Calendar history rows say source `auto-posted`, actor `SyncView auto-post`. The
+Production side's history keeps the gateway's own source and names the roster member set in
+`CALENDAR_AUTO_POSTED_ACTOR`: the gateway accepts only a roster member, and there is no robot member.
+A refused work item stops that card before the card save; a partly done card is picked up again after
+its quiet hour. **A person's undo wins (owner, 2026-10-10):** a card that already has an `auto-posted`
+status history row is never moved again, so a person who sets one back to Scheduled is not overruled
+(enforced in the due list and checked again by the function before anything moves).
+**The job's own record (Lighthouse review 2, 2026-10-10).** A history row alone was not enough: when
+every Scheduled part has a work item and the caption is N/A or already Posted, the status bridge
+finishes the whole card, the Calendar save is empty and skipped, and no `auto-posted` row is written
+(about 15 of ~530 live Posted cards have that shape, a thumbnail-only card for one). So before it
+changes anything the job claims the card in `calendar_auto_posted_moves` (card id, card version, time)
+through `calendar_auto_posted_claim`; a claimed card is out of the due list and refused by the claim
+itself for good. The job hands a claim back (`calendar_auto_posted_release`, outcome `incomplete`)
+only when a fresh read shows its own attempt left the card not Posted (a refused work item or save),
+so those cards can be tried again; anything uncertain keeps the claim. The table has RLS on, is
+revoked from public, anon, authenticated and service_role, and service_role gets only SELECT; both
+functions are revoked from the four roles and granted to service_role only. Test: a thumbnail-only
+card is moved once by the bridge alone, a person sets it back, the next tick leaves it alone (in the
+function and in the due list, with no history row anywhere).
+**Ping checks the actor.** `{"action":"ping"}` now reads the roster and reports
+`actor_matches_active_admins` (a count, never a name); `ready` is false unless
+`CALENDAR_AUTO_POSTED_ACTOR` matches exactly one active admin with the gateway's own name rule.
+
+**Switch.** `syncview_runtime_flags.calendar_auto_posted` = `{"clients": []}` (off; `"*"` = all). A
+client that is off is never returned by the due list. Read-only due list `calendar_auto_posted_due`,
+key check against the Vault secret `calendar_auto_posted_key`, all functions revoked from the four
+roles then granted to `service_role` only; the timer's "anything due" check is owner only.
+
+**What reaches the due list (Lighthouse review, 2026-10-10).** The permanent rules are in the SQL, not
+only in the function, so cards that can never flip cannot fill the oldest-first page of 20 and starve
+newer posts: every part Scheduled, Posted or N/A with at least one Scheduled; every Scheduled video or
+thumbnail part either unlinked or with a work item that exists and is `scheduled`; never moved by the
+job before. The test proves 25 such old cards plus one good newer card return the good one.
+
+**Stops for good (fail closed).** When a run cannot prove its Calendar save recorded `auto-posted`
+(`calendar_upsert_source_not_deployed` or `calendar_history_unconfirmed`), the function calls
+`calendar_auto_posted_halt`, which empties the client list and records `halted` (reason, time,
+previous list); the response says `halted: true` (or `halt_failed: true`). Independently, and with no
+write at all, the database stops the due list and the timer as soon as a calendar history row by the
+job's actor carries any source but `auto-posted` after the switch row last changed. Either stop holds
+until someone writes the switch again on purpose.
+
+**calendar-upsert needs a one-line live delta.** Live calendar-upsert (v83, the frozen un-gated
+source, not the repo's index.ts) keeps only `linear`, `reconcile` or `ui` as a source and turns
+anything else into `ui`. `scripts/calendar-upsert-live-delta.js` adds `auto-posted` to that list on
+the exact live source. It refuses unless the live index.ts hashes to `--expect-sha` (measured on v83,
+2026-10-10: `67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185`), refuses any input
+containing `authorizeBrowserWrite` (the repo's gated source), refuses an output folder inside the
+repository, and prints the after-hash (`7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843`
+for v83 with this entry's number in the added comment line, measured 2026-10-10 from the live source
+read-only). Its `--check` mode is the post-deploy proof. There is no `supabase functions deploy` route:
+deploying the repo's calendar-upsert source brings back the 401 outage on every client link. Nothing
+else changes. Until the delta is live the job's first card save would record `ui`; the job checks the
+source after its first save of a run and stops for good (above). The card is also re-read before any work item moves: a card
+whose day, links, parts or version changed since the due list was read is left alone. Gateway
+request ids are reduced to the characters production-write accepts (Codex review on the PR).
+
+**Proof.** `node test/calendar-auto-posted.js`: 111 checks. The overall rule equals the page's own
+`computeOverallStatus` over 2,744 part combinations; Eastern dates across both daylight-saving nights;
+every skip reason; a whole run against fakes (work items before the card, conflict base read after the
+pushes, a refused push stops the card, a conflict is not counted as flipped, a dry run writes nothing,
+a `ui` source or a missing receipt stops it for good and says so, a failed halt is reported, a card
+moved once is never moved again); the delta script's refusals and its post-deploy check; and the
+migration in a throwaway PostgreSQL 16 (refuses without the
+Vault key, idempotent, one 15-minute timer row, switch off returns nothing, test client on returns
+only the ended quiet Scheduled cards and never one moved before, `*` returns all, the SQL parts rule
+equals the page's over 1,000 combinations, 25 stuck old cards do not starve a good newer one, a halt
+and a mislabelled row each stop the due list and the timer, a deliberate switch write resumes, browser
+roles refused). **Live, test client
+only:** a throwaway unlinked card was created through calendar-upsert as Scheduled on 2026-10-08, then
+saved with the job's exact body and headers: a stale conflict base was refused (`conflict: true`), the
+fresh base turned all three parts and the overall Posted, and history rows were written, with source
+`ui` as predicted until the delta ships. The card was then archived through calendar-upsert. The
+`production-write` push and the timer were NOT run live: they need the deployed function and its
+secrets. The due list's SELECT was run read-only on live with every client counted as on: it picked
+exactly the one past-due post.
+
+**Owner and Lighthouse steps, in this order:**
+1. Vault: `select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'calendar_auto_posted_key');`
+2. Edge secret `CALENDAR_AUTO_POSTED_ACTOR` = the exact roster name of one active admin
+   (`ROLE_KEY_ADMIN` is already set for production-write and is reused).
+3. Deploy `calendar-upsert` = live source plus the delta, never the repo source: save the live
+   function JSON (MCP `get_edge_function`; keep it, it is the rollback), run
+   `node scripts/calendar-upsert-live-delta.js <live.json> <out-dir-outside-the-repo> --expect-sha=67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185`,
+   deploy exactly those files with MCP `deploy_edge_function`, same names and entrypoint,
+   `verify_jwt: false`. Then save the live JSON again and run
+   `node scripts/calendar-upsert-live-delta.js --check <live-after.json> --expect-sha=7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843`;
+   it must print `CHECK OK`. Rollback: redeploy the saved JSON unchanged, `verify_jwt: false`.
+4. Deploy `calendar-auto-posted` (deploy-single-function lane on the merged SHA, or by hand),
+   `verify_jwt: false`.
+5. Apply `migrations/2026-10-10-calendar-auto-posted.sql`.
+6. Ping and dry run with the Vault key in `x-calendar-auto-posted-key`: `{"action":"ping"}` must say
+   `"ready":true`; `{"action":"dry_run"}` lists what would flip (card ids and counts only).
+7. Switch on for the test client only: `{"clients": ["<test client slug>"]}`. It needs a Scheduled post
+   whose day has ended and that nobody touched for an hour; the test client had none on 2026-10-10.
+If it stopped itself, `value.halted.reason` says why; fix that, then write the switch again.
+Rollback: switch back to `{"clients": []}` (next tick), then `select cron.unschedule('calendar-auto-posted-tick');`.
+Posts it already flipped stay Posted; a person who sets one back is never overruled.
+
+
+## 404. [2026-10-10, BUILT, NOT MERGED] Wrong client and lost work: the credentials dialog, the Instagram cover, TikTok's retry key, Samples Notes, a restored SyncLinear comment; dates in the team's time zone (session Digger)
+
+Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Browser changes only. Each fix has a guard that fails on the code before it.
+
+1. **Client credentials dialog showed, and could move, another client's logins.** Closing the dialog while client A's list was loading left its `loading` mark set, so opening it for client B never started B's read, and A's answer then filled B's dialog. Edit on one of those rows saved A's row with B's client, which the gateway accepts (it finds the row by id and replaces it). Now each opening has its own sequence number, a retired read changes nothing, and Edit refuses a row whose client is not the dialog's.
+2. **Edit, Reveal and Copy password read an older copy.** They looked rows up in the Kasper store first, which stops refreshing when Kasper is left: after a password change, Copy copied the old one and Edit filled in, and saved back, the old one. The 2026-08-22 fix (`_ccFindIn`) had reached Mark reviewed only. Guard for 1 and 2: `test/credentials-modal-client-switch-browser.js` (real browser; on the old code B's dialog holds A's login, and Copy copies the old password).
+3. **Instagram: a client change during a Calendar thumbnail copy made client A's thumbnail client B's Reel cover**, with A's card id, and kept the caption A's card had filled in. The copy is now dropped when the client or the card changed while it ran, and a caption a card filled in leaves with that client unless someone edited it. `test/instagram-cover-client-switch-browser.js`.
+4. **Analytics "This week" views on the 1st of a month showed a large negative number** in the team's time zone: the month test read `YYYY-MM-DD` as UTC midnight, the evening before, so the 1st's reset counter was subtracted from last month's total. The month is now read from the text. Dormant while analytics are paused; every client link and the staff ranking on the 1st once they resume.
+5. **Kasper Ads panel showed lead dates a day early** (booked, captured, sent, due). Shown in UTC now. Guard for 4 and 5: `test/date-only-team-zone.js` (old: -491,000 views; "Oct 7" for the 8th).
+6. **TikTok: an unreadable switch with nothing saved in the browser sent uploads to n8n**, whose TikTok workflows were switched off on 2026-10-08. It now takes the live path; a browser that saw a rollback keeps it. `test/tiktok-source-unknown-default.js`.
+7. **TikTok: a post Post For Me may have taken was treated as refused.** The function stores a Post For Me timeout or 5xx as a failed row and answers HTTP 200 not-ok; the page dropped the attempt's key, so pressing Submit again made a new post instead of letting the function adopt the first: a possible double post on the client's TikTok. Now only a success or a 4xx ends an attempt (the Instagram twin's rule since 384 item 2), and the message fits the answer: after a 5xx or no answer, press Submit again unchanged; after Post For Me answered "failed" (a real refusal, or a timeout the function stored the same way), change what its reason names, or, if it names nothing, press Submit again unchanged. `test/tiktok-create-keeps-key.js`.
+8. **Samples Notes, Mark done / Reopen on a linked sample, had none of the Calendar twin's guard** (#1642 and its busy mark): a second click, or an Edit, Reply or Delete before the thread was read, was refused with `canonical_comment_read_required`, and the thread showed the old state until the slower notes save finished. Now the actions draw disabled until the thread is read and while the write is out, and the thread is re-read and redrawn before the notes save. `test/samples-notes-lifecycle-busy.js`.
+
+9. **SyncLinear: a comment restored after the tab closed or reloaded mid-send could be posted twice.** The stored copy of unsent text kept the text but not the request id of the send already made, so a second press minted a new one; production-write derives the comment id from the request id, so the new id made a second comment (client-visible on a client thread). The stored copy now carries the request id with the exact text it was made for, and a restored draft reuses it; edited text gets a new one. `test/prod-comment-restored-request-id.js`.
+
+Items 7 and 8 came from cycle 2's sweep of fixes made on one twin only, item 9 from cycle 3's sweep of ambiguous answers. Kasper's Samples notes, found in the same run, are left to #2037, which fixes them more completely. Both browser guards run in the `entry-links-boot` job.
+**Way back:** revert the pull request and rebuild the fragments.

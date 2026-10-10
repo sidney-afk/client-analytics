@@ -228,6 +228,8 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
+- **Scheduled posts turn Posted by themselves (session Herald, OPEN_REPAIRS 402): built, not merged, not deployed, switch off.** Needs, in order: Vault key, the `CALENDAR_AUTO_POSTED_ACTOR` secret, the one-line `calendar-upsert` live delta, the `calendar-auto-posted` function, `migrations/2026-10-10-calendar-auto-posted.sql`, then `calendar_auto_posted` on for the test client.
+
 - **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**
   (measured 2026-10-09, OPEN_REPAIRS 389): 8 items, none needs the sealed capture. The roster switch (374) and the
   `analytics-read` deploy come first after a look at the backup.

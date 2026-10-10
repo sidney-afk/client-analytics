@@ -1,0 +1,3 @@
+@media(max-width:767px) {
+ html.fph-on[data-fph="home"] .analytics-overview-skeleton::before { content:"Loading analytics..."; }
+}

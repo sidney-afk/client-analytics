@@ -1,0 +1,118 @@
+[
+  {
+    "name": "build-index",
+    "command": [
+      "npm.cmd",
+      "run",
+      "build:index"
+    ],
+    "exit": 0,
+    "lastLines": [
+      "build-index: js/sv-04-workload-cac24a0637b7.js (190549 bytes)",
+      "build-index: js/sv-14-tiktok-48de5e91de41.js (130503 bytes)",
+      "build-index: js/sv-16-kasper-fd558b17e192.js (337306 bytes)",
+      "build-index: wrote index.html (1350018 bytes) from 67 fragment(s)",
+      "build-index: wrote src/index/INDEX.md"
+    ],
+    "log": "${EVIDENCE}/package-build-index.log"
+  },
+  {
+    "name": "repo-map-sync",
+    "command": [
+      "node",
+      "--require",
+      "./test/helpers/single-file-index.js",
+      "test/repo-map-sync.js"
+    ],
+    "exit": 0,
+    "lastLines": [
+      "OK  REPO_MAP.md path `docs/syncview-design/tests/calendar-refresh-scroll-browser.js` exists",
+      "OK  REPO_MAP.md path `docs/syncview-design/proofs/staff-calendar-expanded/README.md` exists",
+      "OK  REPO_MAP.md path `docs/syncview-design/tests/phone-thumbnail-comparison.js` exists",
+      "",
+      "repo-map-sync: 1148 passed, 0 failed"
+    ],
+    "log": "${EVIDENCE}/package-repo-map-sync.log"
+  },
+  {
+    "name": "truth-sync",
+    "command": [
+      "node",
+      "--require",
+      "./test/helpers/single-file-index.js",
+      "test/truth-sync.js"
+    ],
+    "exit": 0,
+    "lastLines": [
+      "OK  migrations/title-review-migration.sql contains no current manual-rollout instruction",
+      "OK  migrations/sales-intake-migration.sql is labelled as deployed historical schema",
+      "OK  migrations/sales-intake-migration.sql contains no current manual-rollout instruction",
+      "",
+      "truth-sync: 519 passed, 0 failed"
+    ],
+    "log": "${EVIDENCE}/package-truth-sync.log"
+  },
+  {
+    "name": "byte-pins",
+    "command": [
+      "node",
+      "scripts/byte-pinned-line-ending-check.js"
+    ],
+    "exit": 0,
+    "lastLines": [
+      "  test/linear-exit-provider-issue-observation.js: 0 CRLF, 30 LF, 0 lone CR, 13845 bytes",
+      "  test/linear-exit-provider-recorded-create-recovery.js: 1 CRLF, 18 LF, 0 lone CR, 16294 bytes",
+      "  test/linear-exit-provider-terminal-history.js: 0 CRLF, 44 LF, 0 lone CR, 14021 bytes",
+      "  test/linear-exit-retirement-switch-postgres.js: 62 CRLF, 6 LF, 0 lone CR, 19647 bytes",
+      "  test/linear-exit-source-phases-postgres.js: 1 CRLF, 28 LF, 0 lone CR, 7595 bytes"
+    ],
+    "log": "${EVIDENCE}/package-byte-pins.log"
+  },
+  {
+    "name": "identity-final",
+    "command": [
+      "node",
+      "scripts/repo-identity-exposure-check.js",
+      "--diff=origin/main"
+    ],
+    "exit": 0,
+    "lastLines": [
+      "  files carrying at least one      0   (any is a failure)",
+      "",
+      "  WHERE (counts only \u2014 this tool never prints what it matched):",
+      "",
+      "This change adds no client slug and no colleague's name \u2705"
+    ],
+    "log": "${EVIDENCE}/package-identity-final.log"
+  },
+  {
+    "name": "check-index",
+    "command": [
+      "npm.cmd",
+      "run",
+      "check:index"
+    ],
+    "exit": 0,
+    "lastLines": [
+      "check-index: assembled bytes \u2014 sha256=ed02056afe2079c2c436140e4a86f5e53e8b7e3bd1396bef580f985d9b2ce09b bytes=1350018",
+      "check-index: working-tree index.html \u2014 sha256=ed02056afe2079c2c436140e4a86f5e53e8b7e3bd1396bef580f985d9b2ce09b bytes=1350018",
+      "check-index: committed index.html (HEAD) \u2014 sha256=ed02056afe2079c2c436140e4a86f5e53e8b7e3bd1396bef580f985d9b2ce09b bytes=1350018",
+      "",
+      "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+    ],
+    "log": "${EVIDENCE}/package-check-index.log"
+  },
+  {
+    "name": "client-calendar-360",
+    "command": [
+      "node",
+      "docs/syncview-design/tests/client-calendar-expanded-browser.js",
+      "--widths=360",
+      "--themes=light"
+    ],
+    "exit": 0,
+    "lastLines": [
+      "client-calendar-expanded: OK (884 assertions; Review, Sheet, Month, Week, menus, drafts, loading, failure, empty, breakpoint; 360; requested light, effective client light)."
+    ]
+  }
+]

@@ -726,7 +726,9 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
     function _kadFmtMoney(n) { return n == null ? '—' : ('$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })); }
     function _kadFmtPct(n) { return n == null ? '—' : ((n * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'); }
     function _kadFmtNum(n) { return n == null ? '—' : Number(n).toLocaleString(); }
-    function _kadFmtDate(d) { if (!d) return '—'; const dt = new Date(d + 'T00:00:00Z'); return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+    // The date is a calendar day, read as UTC midnight, so it is shown in UTC:
+    // in the team's zone (UTC-6) local display put every lead a day early (OPEN_REPAIRS 404).
+    function _kadFmtDate(d) { if (!d) return '—'; const dt = new Date(d + 'T00:00:00Z'); return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }); }
 
     function _kadCardHtml(label, value, sub) {
         return '<div class="kad-card kad-stat"><div class="kad-stat-label">' + _calEsc(label) + '</div><div class="kad-stat-value">' + _calEsc(value) + '</div>' + (sub ? '<div class="kad-stat-sub">' + _calEsc(sub) + '</div>' : '') + '</div>';
@@ -1319,11 +1321,11 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
     function _ccPlatformLabel(v) { return String(v || 'account').replace(/[_-]+/g, ' '); }
     function _ccSelectItemsFromValues(values) { return values.map(v => ({ value: v, label: _ccPlatformLabel(v) })); }
     function _ccClientSelectItems(selectedSlug) { return _ccKnownClients().map(n => ({ value: wlNormalizeClient(n) + '|' + n, label: n, active: wlNormalizeClient(n) === selectedSlug })); }
-    function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
     /* Resolve from the list the person is actually looking at.
        The Kasper store holds every client's rows and the per-client modal holds
-       one client's, so the SAME id can sit in both -- and _ccFind always
-       returns the Kasper copy, which may have been loaded much earlier. A write
+       one client's, so the SAME id can sit in both -- and the old _ccFind always
+       returned the Kasper copy, which may have been loaded much earlier (it
+       stops refreshing when Kasper is left). A write
        built from it replaces the whole row, so a stale password, handle, note
        or label would silently overwrite the fresher one the modal is showing.
        Found in review 2026-08-22. */
@@ -1547,7 +1549,7 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
     }
 
     function _ccReveal(id, scope) {
-        const row = _ccFind(id); if (!row || !row.password) return;
+        const row = _ccFindIn(id, scope); if (!row || !row.password) return;
         // Reveal must be INSTANT. The password is already in hand (it came down
         // with the list), so flip the mask + repaint synchronously first; the
         // ~2s stall was the log_reveal round-trip being awaited before the
@@ -1561,7 +1563,7 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
     }
 
     async function _ccCopyPassword(id, scope) {
-        const row = _ccFind(id); if (!row || !row.password) return;
+        const row = _ccFindIn(id, scope); if (!row || !row.password) return;
         if (!_ccRevealed.has(id)) await _ccReveal(id, scope);
         await _ccCopyText(row.password, 'Password copied');
     }
@@ -1575,7 +1577,9 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
 
     function _ccOpenEdit(id, scope, clientSlug) {
         scope = scope || 'kasper';
-        const row = id ? _ccFind(id) : null;
+        // From the list on screen, never the Kasper store's possibly older copy
+        // (the 2026-08-22 _ccFindIn fix had reached Mark reviewed only).
+        const row = id ? _ccFindIn(id, scope) : null;
         const fixedClient = scope === 'modal' ? calClientSlug(_ccState.modal.client) : (clientSlug || (row && row.client_slug) || '');
         const fixedName = scope === 'modal' ? _ccState.modal.client : ((row && row.client_name) || _ccClientNameForSlug(fixedClient));
         const platformValue = String((row && row.platform) || 'instagram').trim().toLowerCase();
@@ -1609,6 +1613,9 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                     const parts = String(ov.querySelector('#ccEditClient').value || '').split('|');
                     slug = parts[0]; name = parts.slice(1).join('|');
                 }
+                // The gateway finds the row by id and replaces it, client
+                // included, so a mismatch here would move the login.
+                if (row && row.client_slug && slug !== row.client_slug) throw new Error('This login belongs to another client. Close this and open that client\'s credentials.');
                 const credential = {
                     id: row && row.id,
                     client_slug: slug,
@@ -2031,6 +2038,9 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         try { await _ccEnsureIdentity(); }
         catch (e) { if (e && e.status === 403) { try { showToast(e.message); } catch (_) {} } return; }
         _ccState.modal.open = true; _ccState.modal.client = clientName; _ccState.modal.loaded = false; _ccState.modal.credentials = [];
+        // A read still out for the previous opening must neither block this
+        // one nor fill it (OPEN_REPAIRS 404): it is retired by the new seq.
+        _ccState.modal.seq = (_ccState.modal.seq || 0) + 1; _ccState.modal.loading = false; _ccState.modal.error = null;
         let ov = document.getElementById('ccOverlay');
         if (!ov) {
             ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay cc-sensitive-overlay open';
@@ -2046,19 +2056,29 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
     function _ccCloseModal() {
         const ov = document.getElementById('ccOverlay'); if (ov) ov.remove();
         _ccState.modal.open = false; _ccRevTeardown('modal');
+        _ccState.modal.seq = (_ccState.modal.seq || 0) + 1; _ccState.modal.loading = false;
     }
 
+    /* The client and the opening are fixed when the read starts. Closing the
+       dialog, or opening it for another client, while the read is out retires
+       it: before 2026-10-10 the `loading` mark it left behind stopped the next
+       client's read from starting, and its answer then filled that client's
+       dialog with this client's logins, where Edit saved them under the other
+       client (OPEN_REPAIRS 404). */
     async function _ccLoadModal(background) {
         if (!_ccState.modal.open || _ccState.modal.loading) return;
+        const seq = _ccState.modal.seq = (_ccState.modal.seq || 0) + 1;
+        const client = _ccState.modal.client;
+        const current = () => _ccState.modal.seq === seq && _ccState.modal.open && _ccState.modal.client === client;
         _ccState.modal.loading = true; _ccState.modal.error = null;
         if (!background) _ccPaintModal();
         try {
-            const slug = calClientSlug(_ccState.modal.client);
-            const json = await _ccApi('list', { client_slug: slug });
+            const json = await _ccApi('list', { client_slug: calClientSlug(client) });
+            if (!current()) return;
             _ccState.modal.credentials = Array.isArray(json.credentials) ? json.credentials : [];
             _ccState.modal.loaded = true;
-        } catch (e) { _ccState.modal.error = e && e.message ? e.message : String(e); }
-        finally { _ccState.modal.loading = false; _ccPaintModal(); }
+        } catch (e) { if (current()) _ccState.modal.error = e && e.message ? e.message : String(e); }
+        finally { if (_ccState.modal.seq === seq) { _ccState.modal.loading = false; _ccPaintModal(); } }
     }
 
     function _ccPaintModal() {
@@ -2848,6 +2868,9 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                 });
                 main.querySelectorAll('[data-pocket-reviewer]').forEach(node => node.removeAttribute('data-pocket-reviewer'));
                 main.querySelectorAll('.pocket-admin-more-icon').forEach(node => node.remove());
+                main.querySelectorAll('.pocket-admin-manager-copy').forEach(node => {
+                    node.textContent = node._pocketManagerText; node.classList.remove('pocket-admin-manager-copy');
+                });
                 main.querySelectorAll('.pocket-admin-no-password').forEach(node => {
                     node.textContent = 'empty'; node.classList.remove('pocket-admin-no-password');
                 });
@@ -2891,6 +2914,11 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
                 main.querySelectorAll('.pocket-admin-more-backdrop').forEach(node => node.remove());
                 return;
             }
+            main.querySelectorAll('.ca-mgr-foot:not(.pocket-admin-manager-copy)').forEach(node => {
+                node._pocketManagerText = node.textContent;
+                node.textContent = "One manager per client. Changes appear in the client's history.";
+                node.classList.add('pocket-admin-manager-copy');
+            });
             wrap.toggleAttribute('data-pocket-reviewer', ['review', 'replies', 'filming'].includes(_kasperState.tab));
             const clientLead = main.querySelector('.ca-land-lead[data-ca-active="0"]');
             if (clientLead && !clientLead.classList.contains('pocket-admin-empty-copy')) {

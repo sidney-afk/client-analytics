@@ -169,12 +169,12 @@ const parkSrc = grabFunc('function _sxrParkEditsForClient(');
 const restoreSrc = grabFunc('function _sxrRestoreParkedEdits(');
 
 function parkHarness(posts) {
-  const seen = { diagnostics: [], notified: [], flushed: [] };
+  const seen = { diagnostics: [], notified: [], flushed: [], renders: 0 };
   const pending = Object.create(null);
   const state = { client: 'testclient', posts: posts || [], principal: 'staff:1:admin' };
   const made = new Function(
     '_sxrPendingEdits', '_writeUiQueueDiagnostic', 'showNotify', 'sxrClientSlug', 'sxrState',
-    '_sxrFlushCardSave', '_writeUiPrincipalKey',
+    '_sxrFlushCardSave', '_writeUiPrincipalKey', '_SXR_ROLLBACK_FIELDS', '_sxrRenderBody', '_svPreserveFocus', 'document',
     'const _sxrParkedEdits = Object.create(null); const SXR_PARKED_EDIT_MAX_CARDS = 50;'
     + parkSrc + restoreSrc
     + '; return { park: _sxrParkEditsForClient, restore: _sxrRestoreParkedEdits, parked: _sxrParkedEdits };',
@@ -186,6 +186,10 @@ function parkHarness(posts) {
     state,
     pid => { seen.flushed.push({ pid, edits: Object.assign({}, pending[pid]) }); },
     () => state.principal,
+    ['video_status', 'graphic_status', 'status'],
+    () => { seen.renders++; },
+    render => render(),
+    { getElementById: () => null },
   );
   return { seen, pending, state, ...made };
 }
@@ -222,6 +226,8 @@ function parkChecks() {
     'through the normal engine flush, with the edit it was holding, so the status machinery and Linear pushes run as they would have');
   ok(h.parked.testclient === undefined,
     'and the parking slot is emptied rather than left to be replayed twice');
+  ok(h.state.posts[0].name === 'typed before the switch' && h.seen.renders === 1,
+    'and the restored text is put on the shown sample and painted, so the box does not keep the server copy under "Saved" (OPEN_REPAIRS 401)');
 
   /* A DIFFERENT ACCOUNT MUST NOT SEND IT. Staff identity is shared through
      localStorage, and a restored bucket is flushed with whoever is signed in
@@ -250,6 +256,8 @@ function parkChecks() {
     'and the NEWER value wins on a field they both carry, so a restore cannot silently revert what was just typed');
   ok(newer.seen.flushed[0].edits.asset_url === 'https://old',
     'while a field only the parked bucket carries is still restored');
+  ok(newer.state.posts[0].name === 'newer, typed after coming back' && newer.state.posts[0].asset_url === 'https://old',
+    'and the shown sample is painted with the same merge the save sends');
 
   /* A card the load did not return must NOT be re-queued: the engine would
      insert it as a new row, which is the defect parking exists to avoid. */

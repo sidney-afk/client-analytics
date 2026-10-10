@@ -31991,3 +31991,55 @@ should the step use that newest earlier month tab (for example within one month)
 
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
+
+## 401. [2026-10-10, BUILT, NOT MERGED] Samples: Kasper's typed words survive a refused save; an edit put back on return to a client is shown (session Sweep, site assurance)
+
+Two Samples defects found by the site-assurance sweep and confirmed by two independent checks each, both
+by running the real page code. Browser changes only; nothing to deploy, apply or switch on.
+
+**1. Kasper's review queue threw away what he typed when a save was refused.** On a sample in his queue,
+Comment, Request change and Approve after tweaks empty his text box as soon as he clicks, then save. When
+the save was refused, the card repainted with the box still empty and his words existed nowhere. The
+Calendar side of his queue has always put them back. It happened when:
+- the part had moved on the server while he typed (the queue does not refresh while his cursor is in the
+  box, so his screen can go stale): he was told "someone else changed this card", and the box was empty;
+- the check against the server could not be read (a network blip): told "decide again", box empty;
+- an earlier repair was still waiting ("Reload before another action"): box empty;
+- a plain Comment whose save failed: the note was taken out of the thread and out of the box, and the
+  message even called it a "decision".
+
+What changed (`src/index/290-samples-writes-review.js.part`): the three buttons hand the typed text to
+the save as its own value, and every path that ends without a save puts it back in the box before the
+card repaints. It is only put back into an empty box, so anything he typed while the save was running
+is kept. A plain Comment that fails now says "your video note did not go through ... Your words are
+back in the box; send it again." A save that worked still empties the box, as before.
+
+**2. Samples: an edit put back on return to a client was saved but not shown.** The Samples half of entry
+384 item 5, which fixed only the Calendar. An edit typed while an earlier save on that card was still
+running, followed by a client switch, is held with the notice "That edit is not saved yet ... Open
+<client> again in this tab and it will save". On return the load painted the server's old text, then
+the held edit was saved without being shown, so the box kept the old text under a "Saved" icon until
+some unrelated repaint. Clicking into that box and leaving it sent the old text back over the restored
+words. Now (`src/index/270-samples-model.js.part`, `_sxrRestoreParkedEdits`) the plain fields are put on
+the shown sample before the save starts and the list is repainted once, keeping the cursor where it was;
+statuses are left to the save, which rolls them back if it fails. `_SXR_ROLLBACK_FIELDS` is now
+exported from `280-samples-cards-notes.js.part` for this.
+
+**Guards** (each new check fails on the code before this change):
+- `test/kasper-never-lose-decision.js`: part moved on the server (Request change and Approve after
+  tweaks), check read failed, cached-repair refusal, plain Comment whose save fails (words kept, the
+  note is removed from the thread, the message says "note"), and controls: a saved note empties the box,
+  and words typed during a refused save are never overwritten.
+- `test/assurance-review-corrections.js` block 5b: the restored edit is on the shown sample and in the
+  repainted list; a held status and the engine's own keys are not copied.
+- `test/samples-component-fill.js`: the park-and-restore round trip now also checks the shown sample.
+
+**Overlap with open PR #2027** (Samples Kasper Undo fix, branch `claude/stoic-gates-sjlhim`): it edits
+`_sxrKasperUndoApprove` in the same file and adds a test to `test/kasper-never-lose-decision.js`. This
+change touches neither its lines nor the lines next to them. In a trial merge of the two, the source
+fragment, both tests and this ledger merged cleanly; only the generated `index.html` and
+`src/index/INDEX.md` conflicted, as any two page changes do. After `npm run build:index` the merged
+code passed both test files, his Undo case and the cases above. Whichever merges second needs that
+rebuild after its rebase.
+
+**Owner step:** merge. Nothing to deploy.

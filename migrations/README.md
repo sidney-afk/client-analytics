@@ -69,6 +69,12 @@ executes these files (see `README.md` › Repository layout).
   from all four roles. No Edge Function change. `test/production-comment-signal.js`
   measures it on a real PostgreSQL 16.
 
+- **`2026-10-10-thumbnail-titles-error-record.sql`** is source-only until applied
+  (OPEN_REPAIRS 394). `thumbnail_title_apply` gains an optional `p_error` and keeps it in
+  `thumbnail_title_queue.last_error`, so an item that ends `generation_failed` says why. Apply it
+  BEFORE deploying the matching `thumbnail-titles`; the function falls back to the old four-argument
+  call if it is deployed first. Revokes from all four roles.
+
 - **`2026-10-09-thumbnail-titles.sql`** is APPLIED (session Sorter, 2026-10-09,
   OPEN_REPAIRS 391, with the backfill counter's variable rename the file now
   carries). Adds `thumbnail_title_prompts` (one per client; service role only,

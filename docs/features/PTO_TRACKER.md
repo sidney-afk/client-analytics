@@ -162,6 +162,7 @@ The applied additive base migration is `migrations/2026-07-15-pto-tracker.sql`. 
 | `pto_members` | Private start date, explicit enablement, and balance-state version. | None. |
 | `pto_requests` | Requested dates, type, server day count, status, and decision audit fields; the candidate delta adds separate cancellation audit fields. | None. |
 | `pto_adjustments` | Dated wellness/sick migration entries and admin corrections. | None. |
+| `pto_member_events` | **Candidate (OPEN_REPAIRS 399, not applied):** append-only record of Member setup: who created a PTO profile or changed its start date or enabled switch, the values before and after, and when. Written only inside `pto_set_member_start_v2`. | None; service role may only read it. |
 
 All three tables have RLS enabled with no anon or authenticated policy, explicit revoked access for
 `anon` and `authenticated`, and explicit service-role grants. They are not added to realtime. The
@@ -179,6 +180,18 @@ applied until a value-free receipt is appended to `EXECUTION_LOG.md`.
 `pto_enabled` defaults to false. That is a data-safety gate, not an invitation to copy a roster into
 the repository. The real roster, start dates, prior leave, and migration adjustments are owner-side
 private inputs.
+
+**Member setup record (OPEN_REPAIRS 399, candidate source, not applied or deployed).** Until this
+release, Member setup overwrote `pto_members` in place with no actor and no prior value, although the
+start date drives every accrual and the switch zeroes a balance. `migrations/2026-10-10-pto-member-setup-audit.sql`
+adds `pto_member_events` (RLS on, no policies, every privilege revoked from public, anon,
+authenticated and service_role, then SELECT only for service_role) and `pto_set_member_start_v2`:
+v1's locks and checks plus a required actor, writing one event row in the same transaction when a
+profile is created or its start date or switch actually changes. The Edge Function passes the
+verified caller's roster name as the actor and refuses with `503 member_setup_audit_not_ready` if
+deployed before the migration; it never falls back to v1. After the function is deployed,
+`migrations/2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql` takes EXECUTE on v1 away from all
+four roles. `test/pto-member-setup-audit.js` replays it on a disposable PostgreSQL 16.
 
 Request/adjustment/member-change triggers advance `pto_members.state_version`. Service-role-only
 `pto_decision_snapshot_v1` and `pto_finalize_decision_v1` RPCs lock request then member rows in the
@@ -213,14 +226,15 @@ individual server-derived sessions remain post-launch hardening.
 | `decide` | POST | Admin | Approves or denies a pending request, rechecking wellness and recording the verified actor. |
 | `cancel` | POST | Requester for own pending; Admin before start date for pending/approved | Applies only the lifecycle-bounded cancellation transition. Candidate source writes cancellation attribution separately and preserves an earlier approval decision. |
 | `adjust` | POST | Admin | Inserts a dated wellness or sick adjustment. |
-| `set_start_date` | POST | Admin | Transactionally upserts private start date and enabled state for one active roster member; rejects deactivation, history, and concurrent-state conflicts under lock. |
+| `set_start_date` | POST | Admin | Transactionally upserts private start date and enabled state for one active roster member; rejects deactivation, history, and concurrent-state conflicts under lock. Candidate source (OPEN_REPAIRS 399) records the verified actor and the before/after values in `pto_member_events` in the same transaction. |
 
 The browser URL contract is the project Edge base plus `functions/v1/pto`. The dedicated workflow
 `.github/workflows/deploy-pto-edge-functions.yml` deploys only `pto` with JWT verification disabled
 because the function enforces the repository's staff-role-key contract itself. Function-only main
 pushes still auto-deploy. A push that also changes PTO SQL is deliberately held: apply and read back
 the migration first, set and read back the Actions repository variable
-`PTO_SCHEMA_CONTRACT=transactional-writes-v1`, then manually dispatch from `main` with
+`PTO_SCHEMA_CONTRACT` to the lane's current `REQUIRED_SCHEMA_CONTRACT` (`member-setup-audit-v1`
+since OPEN_REPAIRS 399; it was `transactional-writes-v1`), then manually dispatch from `main` with
 `migration_readback_confirmed=true`. Every deploy also requires that exact contract latch, preventing
 this Edge version from preceding its database contract. A later schema-dependent Edge revision must
 bump `REQUIRED_SCHEMA_CONTRACT` and the operator-read-back variable together; reusing the old value

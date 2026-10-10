@@ -317,8 +317,9 @@ ok(/migration_readback_confirmed:[\s\S]*type: boolean/.test(DEPLOY_WORKFLOW)
   'manual PTO deploy requires an explicit migration readback confirmation');
 ok(/GITHUB_REF_VALUE[\s\S]*refs\/heads\/main[\s\S]*Manual PTO deploys must run from the main branch/.test(DEPLOY_WORKFLOW),
   'manual PTO deploy rejects a workflow dispatch from any non-main ref');
-ok(/SCHEMA_CONTRACT: \$\{\{ vars\.PTO_SCHEMA_CONTRACT \}\}[\s\S]*REQUIRED_SCHEMA_CONTRACT: transactional-writes-v1[\s\S]*SCHEMA_CONTRACT[\s\S]*REQUIRED_SCHEMA_CONTRACT[\s\S]*exit 1/.test(DEPLOY_WORKFLOW),
-  'every actual deploy requires the read-back transactional schema contract latch');
+ok(/SCHEMA_CONTRACT: \$\{\{ vars\.PTO_SCHEMA_CONTRACT \}\}[\s\S]*REQUIRED_SCHEMA_CONTRACT: member-setup-audit-v1[\s\S]*SCHEMA_CONTRACT[\s\S]*REQUIRED_SCHEMA_CONTRACT[\s\S]*exit 1/.test(DEPLOY_WORKFLOW)
+  && !/REQUIRED_SCHEMA_CONTRACT: transactional-writes-v1/.test(DEPLOY_WORKFLOW),
+  'every actual deploy requires the read-back member-setup-audit schema contract latch (OPEN_REPAIRS 399 bumped it)');
 ok(/concurrency:[\s\S]*group: deploy-pto-edge-function-production[\s\S]*cancel-in-progress: false/.test(DEPLOY_WORKFLOW),
   'PTO deploys serialize so an older checkout cannot finish after the newest production deploy');
 ok((DEPLOY_WORKFLOW.match(/if: steps\.deploy_gate\.outputs\.deploy == 'true'/g) || []).length === 2,
@@ -416,8 +417,9 @@ ok(/request\.status === "pending" \|\| request\.status === "approved"/.test(FN)
 ok(/const hasHistory = data\.requests\.some[\s\S]*data\.adjustments\.some[\s\S]*start_date_history_conflict/.test(FN),
   'member setup refuses to reinterpret an existing leave history under a new start date');
 ok(/\.rpc\("pto_create_request_v1"[\s\S]*p_expected_state_version/.test(FN)
-  && /\.rpc\("pto_set_member_start_v1"[\s\S]*p_expected_state_version/.test(FN),
-  'request insertion and start-date setup use versioned transactional database RPCs');
+  && /\.rpc\("pto_set_member_start_v2"[\s\S]*p_expected_state_version[\s\S]*p_actor: actor/.test(FN)
+  && !/\.rpc\("pto_set_member_start_v1"/.test(FN),
+  'request insertion and start-date setup use versioned transactional database RPCs; setup records its actor (v2)');
 ok((FN.match(/ptoPolicyToday\(\)/g) || []).length >= 4 && !/function utcToday/.test(FN),
   'all date-based Edge rules use the explicit company policy timezone');
 ok(!/n8n/i.test(FN), 'the PTO Edge Function has no n8n dependency');

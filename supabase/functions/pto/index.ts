@@ -923,6 +923,7 @@ async function addAdjustment(
 async function setStartDate(
   supabase: SupabaseClient,
   data: PtoData,
+  caller: MemberRow,
   body: JsonMap,
 ): Promise<Response> {
   const memberId = clean(body.member_id, 80);
@@ -947,12 +948,27 @@ async function setStartDate(
   if (existing && (!Number.isSafeInteger(expectedStateVersion) || Number(expectedStateVersion) < 0)) {
     throw new Error("pto_member_state_invalid");
   }
-  const { data: setRaw, error } = await supabase.rpc("pto_set_member_start_v1", {
+  // The start date drives every accrual and the switch zeroes a balance, so
+  // the write and its record (who, before, after) commit together in v2
+  // (migrations/2026-10-10-pto-member-setup-audit.sql, OPEN_REPAIRS 399).
+  const actor = clean(caller.name, 200);
+  if (!actor) throw new Error("pto_member_setup_actor_missing");
+  const { data: setRaw, error } = await supabase.rpc("pto_set_member_start_v2", {
     p_member_id: memberId,
     p_start_date: startDate,
     p_enabled: body.pto_enabled,
     p_expected_state_version: expectedStateVersion,
+    p_actor: actor,
   });
+  // Deployed before its migration: refuse visibly. Never fall back to the
+  // record-less v1 write.
+  if (error && (error.code === "PGRST202" || error.code === "42883")) {
+    return json({
+      ok: false,
+      error: "member_setup_audit_not_ready",
+      message: "Member setup is paused until the member-setup record migration is applied.",
+    }, 503);
+  }
   if (error || !setRaw || typeof setRaw !== "object") throw new Error("pto_member_upsert_failed");
   const setResult = setRaw as JsonMap;
   const setStatus = clean(setResult.status, 40);
@@ -1041,7 +1057,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (action === "overview") return await overview(data, caller, auth.role);
     if (action === "cancel") return await cancelRequest(supabase, data, caller, auth.role, body);
     if (action === "adjust") return await addAdjustment(supabase, data, caller, body);
-    if (action === "set_start_date") return await setStartDate(supabase, data, body);
+    if (action === "set_start_date") return await setStartDate(supabase, data, caller, body);
     return json({ ok: false, error: "unknown_action" }, 400);
   } catch (error) {
     console.error("pto function failed", error);

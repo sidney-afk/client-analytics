@@ -187,6 +187,15 @@ ok(/const EXIT_UNCLASSIFIED = 3;/.test(CODE) && /class UnclassifiedRoster extend
   'an unclassified roster exits on its own code, distinct from "could not run"');
 ok(/err && err\.exitCode \? err\.exitCode : EXIT_UNAVAILABLE/.test(CODE),
   'and the top-level handler honours that code instead of flattening every failure to the warn-only one');
+/* AN EMPTY ROSTER IS NOT A CLEAN ONE (OPEN_REPAIRS 398). The reads use the
+   publishable key; a grant or row-security change that hides the rows answers
+   200 with none, and zero terms passed every diff with no warning at all. */
+ok(/const MIN_ROSTER_SLUGS = rosterFloor\(process\.env\.IDENTITY_ROSTER_MIN_SLUGS, 10\);/.test(CODE) && /const MIN_ROSTER_NAMES = rosterFloor\(process\.env\.IDENTITY_ROSTER_MIN_NAMES, 3\);/.test(CODE)
+  && /Number\.isFinite\(n\) \? n : fallback/.test(CODE)
+  && !/IDENTITY_ROSTER_MIN/.test(fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'calendar-unit-tests.yml'), 'utf8'))
+  && /if \(slugTerms < MIN_ROSTER_SLUGS \|\| nameTerms < MIN_ROSTER_NAMES\) \{\s*throw new Error\(/.test(CODE)
+  && CODE.indexOf('slugTerms < MIN_ROSTER_SLUGS') < CODE.indexOf('return terms;'),
+  'a roster read with far fewer terms than the agency has is "could not run" (exit 2, a CI warning), never a silent pass');
 {
   const wf = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'calendar-unit-tests.yml'), 'utf8');
   ok(/if \[\[ \$code -eq 3 \]\]; then/.test(wf) && /exit 1/.test(wf.slice(wf.indexOf('$code -eq 3'))),

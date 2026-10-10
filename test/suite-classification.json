@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "prod-comment-restored-request-id.js",
     "samples-notes-lifecycle-busy.js",
     "tiktok-create-keeps-key.js",
     "tiktok-source-unknown-default.js",

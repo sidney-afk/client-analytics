@@ -31946,7 +31946,7 @@ offset stays, as before. Covers Review, Sheet, Month, Week, desktop and phone.
 and passes on the fix; it runs in `calendar-unit-tests.yml`. It was not run against the live test
 client: the staff Calendar needs a real staff sign-in this sandbox does not have.
 
-## 397. [2026-10-10, BUILT, NOT MERGED] Wrong client and lost work: the credentials dialog, the Instagram cover, Kasper's Samples notes, TikTok's retry key, Samples Notes; dates in the team's time zone (session Digger)
+## 397. [2026-10-10, BUILT, NOT MERGED] Wrong client and lost work: the credentials dialog, the Instagram cover, Kasper's Samples notes, TikTok's retry key, Samples Notes, a restored SyncLinear comment; dates in the team's time zone (session Digger)
 
 Bug archaeology (entry 396 and `docs/audits/2026-10-10-bug-archaeology.md`). Browser changes only. Each fix has a guard that fails on the code before it.
 
@@ -31960,5 +31960,7 @@ Bug archaeology (entry 396 and `docs/audits/2026-10-10-bug-archaeology.md`). Bro
 8. **TikTok: a post Post For Me may have taken was treated as refused.** The function stores a Post For Me timeout or 5xx as a failed row and answers HTTP 200 not-ok; the page dropped the attempt's key, so pressing Submit again made a new post instead of letting the function adopt the first: a possible double post on the client's TikTok. Now only a success or a 4xx ends an attempt (the Instagram twin's rule since 384 item 2), and the message says to press Submit again unchanged. `test/tiktok-create-keeps-key.js`.
 9. **Samples Notes, Mark done / Reopen on a linked sample, had none of the Calendar twin's guard** (#1642 and its busy mark): a second click, or an Edit, Reply or Delete before the thread was read, was refused with `canonical_comment_read_required`, and the thread showed the old state until the slower notes save finished. Now the actions draw disabled until the thread is read and while the write is out, and the thread is re-read and redrawn before the notes save. `test/samples-notes-lifecycle-busy.js`.
 
-Items 8 and 9 came from cycle 2's sweep of fixes made on one twin only. Both browser guards run in the `entry-links-boot` job.
+10. **SyncLinear: a comment restored after the tab closed or reloaded mid-send could be posted twice.** The stored copy of unsent text kept the text but not the request id of the send already made, so a second press minted a new one; production-write derives the comment id from the request id, so the new id made a second comment (client-visible on a client thread). The stored copy now carries the request id with the exact text it was made for, and a restored draft reuses it; edited text gets a new one. `test/prod-comment-restored-request-id.js`.
+
+Items 8 and 9 came from cycle 2's sweep of fixes made on one twin only, item 10 from cycle 3's sweep of ambiguous answers. Both browser guards run in the `entry-links-boot` job.
 **Way back:** revert the pull request and rebuild the fragments.

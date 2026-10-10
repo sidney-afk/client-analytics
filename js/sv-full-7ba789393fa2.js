@@ -57644,6 +57644,12 @@
                     fresh.parentId = String(kept.meta.parentId || '');
                     fresh.audience = kept.meta.audience === 'client' ? 'client' : 'internal';
                     fresh.restored = true;
+                    /* Text that was already sent once (the tab closed or reloaded
+                       before the answer) keeps that send's request id, so a second
+                       press replays the same comment instead of posting a second
+                       one; the server derives the comment id from it. Only for the
+                       exact text it was minted for (OPEN_REPAIRS 397). */
+                    if (kept.meta.requestId && String(kept.meta.sentBody || '') === kept.text) fresh.requestId = String(kept.meta.requestId);
                 }
                 _prodState.commentDrafts.set(id, fresh);
             }
@@ -57652,7 +57658,8 @@
         function _prodCommentDraftKeep(id, draft) {
             if (!draft || draft.action !== 'add') return;
             _svDraftSave('prod', _prodCommentDraftClient(id), String(id), 'comment', draft.body,
-                { parentId: draft.parentId || '', audience: draft.audience || 'internal' });
+                { parentId: draft.parentId || '', audience: draft.audience || 'internal',
+                    requestId: draft.requestId || '', sentBody: draft.requestId ? draft.body : '' });
         }
         function _prodDraftDiscard(id) {
             id = String(id || '');
@@ -57794,6 +57801,7 @@
                 return false;
             }
             if (!draft.requestId) draft.requestId = _prodWriteRequestId('comment');
+            _prodCommentDraftKeep(id, draft);   // the stored copy carries the request id before the write leaves
             const comment = {
                 action: draft.action || 'add',
                 body: String(draft.body).trim(),
@@ -89486,4 +89494,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-672212aae36d.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7ba789393fa2.js");

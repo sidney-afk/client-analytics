@@ -44,9 +44,9 @@
 | 36 | `134-calendar-prefs-mount.js.part` | 1091 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 37 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 38 | `150-calendar-hydration-import.js.part` | 2292 | For a card linked to a real sub-issue (not a parent), return which of |
-| 39 | `160-calendar-organize-ui.js.part` | 3225 | Lighter path for the Order switch: update the chrome in place so the |
+| 39 | `160-calendar-organize-ui.js.part` | 3281 | Lighter path for the Order switch: update the chrome in place so the |
 | 40 | `170-calendar-links-status.js.part` | 3442 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 41 | `180-calendar-native-post-media.js.part` | 3252 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 41 | `180-calendar-native-post-media.js.part` | 3271 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 44 | `190-calendar-approval-comments.js.part` | 3248 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
@@ -57,9 +57,9 @@
 | 49 | `240-production-description.js.part` | 2717 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 52 | `270-samples-model.js.part` | 3110 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 53 | `280-samples-cards-notes.js.part` | 3020 | SURFACE 3: the save engine |
-| 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 54 | `290-samples-writes-review.js.part` | 1977 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 55 | `299-instagram-upload.js.part` | 741 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
 | 56 | `300-tiktok-upload.js.part` | 2397 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 791 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |

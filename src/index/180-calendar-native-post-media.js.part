@@ -1672,6 +1672,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             status: 'queued', stage: 'queued', error: '', caption: '',
             startedAt: Date.now(), lastMovementAt: Date.now(),
             confirmed: false, posted: false, cancelRequested: false, postFailed: false,
+            force: !!opts.force,
             resolve: null, promise: null
         };
         job.promise = new Promise(res => { job.resolve = res; });
@@ -1683,19 +1684,37 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         _calCapJobPump();
         return job.promise;
     }
-    /* Start queued jobs while there's concurrency headroom. */
+    /* Start queued jobs while there's concurrency headroom. The running count
+       is taken afresh for each job: a job dropped at start (a caption was
+       typed while it waited) settles and pumps again from inside this loop. */
     function _calCapJobPump() {
-        const active = _calCapJobsActiveList();
-        let running = active.filter(j => j.status === 'running').length;
-        for (const j of active) {
-            if (running >= CAL_CAPJOB_CONCURRENCY) break;
+        for (const j of _calCapJobsActiveList()) {
+            if (_calCapJobsActiveList().filter(x => x.status === 'running').length >= CAL_CAPJOB_CONCURRENCY) break;
             if (j.status !== 'queued' || j.posted || j.cancelRequested) continue;
-            running += 1;
             _calCapJobStart(j);
         }
         _calCapJobsEnsurePolling();
     }
+    /* The card's caption right now, read the way _calGenerateCaption reads it:
+       the textarea, then a pending edit, then the saved post. Only for the
+       client on screen (the function checks the card again before it saves). */
+    function _calCapJobLiveCaption(job) {
+        if (calClientSlug(calState.client || '') !== job.client) return '';
+        const post = (calState.posts || []).find(p => p.id === job.pid);
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(job.pid) + '"]');
+        const ta = card ? card.querySelector('textarea[data-fld="caption"][data-pid="' + _calCapEsc(job.pid) + '"]') : null;
+        const pe = _calPendingEdits[job.pid];
+        return String((ta ? ta.value : (pe && pe.caption != null ? pe.caption : (post ? post.caption : ''))) || '').trim();
+    }
+    const CAL_CAPJOB_KEPT_TYPED = 'Not generated: a caption was written on this card while it waited, so that one was kept.';
     async function _calCapJobStart(job) {
+        // Queued jobs (bulk Generate, or restored after a refresh) wait their
+        // turn. A caption typed on the card meanwhile wins: send nothing.
+        if (!job.force && _calCapJobLiveCaption(job)) {
+            _calCapJobSettle(job, 'cancelled', { error: CAL_CAPJOB_KEPT_TYPED });
+            _calSetCaptionBusy(job.pid, null, CAL_CAPJOB_KEPT_TYPED);
+            return;
+        }
         job.status = 'running';
         job.stage = job.assetUrl ? 'scraping' : 'writing';
         job.posted = true;

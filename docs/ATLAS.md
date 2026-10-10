@@ -582,7 +582,7 @@ All three live jobs are active. Cron clock interpretation is UTC; recent executi
 
 ### GitHub Actions
 
-There are **49 workflow files** in this checkout. The GitHub catalog includes additional historical entries with no current file; catalog presence alone is not a runnable source or a deployment. Cron expressions below use UTC. Manual evidence workflows can write data when dispatched; this session dispatched none.
+There are **50 workflow files** in this checkout. The GitHub catalog includes additional historical entries with no current file; catalog presence alone is not a runnable source or a deployment. Cron expressions below use UTC. Manual evidence workflows can write data when dispatched; this session dispatched none.
 
 
 | Workflow file | Trigger and schedule | Purpose |
@@ -630,6 +630,7 @@ There are **49 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/pto-ui-tests.yml -->[`pto-ui-tests.yml`](../.github/workflows/pto-ui-tests.yml) | Manual, Push, Pull request | Runs PTO browser checks. |
 | <!-- atlas:action .github/workflows/rename-propagation-drain.yml -->[`rename-propagation-drain.yml`](../.github/workflows/rename-propagation-drain.yml) | Manual, Cron `*/5 * * * *` | Drains admitted rename propagation jobs. |
 | <!-- atlas:action .github/workflows/samples-e2e-nightly.yml -->[`samples-e2e-nightly.yml`](../.github/workflows/samples-e2e-nightly.yml) | Manual, Cron `0 6 * * *` | Runs Samples browser journeys. |
+| <!-- atlas:action .github/workflows/schedule-fallback-guard.yml -->[`schedule-fallback-guard.yml`](../.github/workflows/schedule-fallback-guard.yml) | Called by the 17 timer-dispatched workflows | First job of each: on a GitHub schedule run it stands the run down when the database timer already started that slot, so a job runs once; when the timer missed, the run goes ahead (OPEN_REPAIRS 403). |
 | <!-- atlas:action .github/workflows/sheets-mirror-daily.yml -->[`sheets-mirror-daily.yml`](../.github/workflows/sheets-mirror-daily.yml) | Manual, Cron `23 9 * * *` | Copies and compares analytics mirrors; apply variable is true. |
 | <!-- atlas:action .github/workflows/thumbnail-revision-scan.yml -->[`thumbnail-revision-scan.yml`](../.github/workflows/thumbnail-revision-scan.yml) | Manual, Cron `*/10 * * * *` | Scans admitted thumbnail revisions. |
 | <!-- atlas:action .github/workflows/tiktok-carousel-browser-journey.yml -->[`tiktok-carousel-browser-journey.yml`](../.github/workflows/tiktok-carousel-browser-journey.yml) | Manual, Push, Pull request | Runs provider upload browser journey. |
@@ -638,7 +639,7 @@ There are **49 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/workload-source-freshness.yml -->[`workload-source-freshness.yml`](../.github/workflows/workload-source-freshness.yml) | Manual | Checks native workload source freshness. |
 
 
-The database timer ([migrations/2026-10-09-github-workflow-dispatch-timer.sql](../migrations/2026-10-09-github-workflow-dispatch-timer.sql), OPEN_REPAIRS 388; built, not applied) dispatches every scheduled workflow above through GitHub's workflow_dispatch API at its own cron, because GitHub runs `schedule:` crons hours late; the two dead-man hosts are left on GitHub's own schedule as the independent observer. It replaced the resident `lane-ticker.yml`, deleted 2026-10-09. Owner variables and concurrency gates still control each dispatched lane.
+The database timer ([migrations/2026-10-09-github-workflow-dispatch-timer.sql](../migrations/2026-10-09-github-workflow-dispatch-timer.sql), OPEN_REPAIRS 388; built, not applied) dispatches every scheduled workflow above through GitHub's workflow_dispatch API at its own cron, because GitHub runs `schedule:` crons hours late; the two dead-man hosts are left on GitHub's own schedule as the independent observer. Each dispatched workflow keeps its `schedule:` block as the fallback, and its first job ([schedule-fallback-guard.yml](../.github/workflows/schedule-fallback-guard.yml)) lets that late copy run only when the timer missed the slot. It replaced the resident `lane-ticker.yml`, deleted 2026-10-09. Owner variables and concurrency gates still control each dispatched lane.
 
 
 | Other repo workflow | Trigger | Purpose |
@@ -808,6 +809,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration migrations/2026-07-12-production-comments.sql -->[`migrations/2026-07-12-production-comments.sql`](../migrations/2026-07-12-production-comments.sql) | `public.production_comments` |
 | <!-- atlas:migration migrations/2026-07-14-linear-intake-receipts.sql -->[`migrations/2026-07-14-linear-intake-receipts.sql`](../migrations/2026-07-14-linear-intake-receipts.sql) | `public.linear_intake_receipts` |
 | <!-- atlas:migration migrations/2026-07-15-pto-tracker.sql -->[`migrations/2026-07-15-pto-tracker.sql`](../migrations/2026-07-15-pto-tracker.sql) | `public.pto_members`, `public.pto_requests`, `public.pto_adjustments` |
+| <!-- atlas:migration migrations/2026-10-10-pto-member-setup-audit.sql -->[`migrations/2026-10-10-pto-member-setup-audit.sql`](../migrations/2026-10-10-pto-member-setup-audit.sql) | `public.pto_member_events` (append-only Member setup record, written only by `pto_set_member_start_v2`; not applied, OPEN_REPAIRS 399) |
 | <!-- atlas:migration migrations/2026-07-19-workload-plan.sql -->[`migrations/2026-07-19-workload-plan.sql`](../migrations/2026-07-19-workload-plan.sql) | `public.workload_plan` |
 | <!-- atlas:migration migrations/2026-07-20-f27-team-rollback.sql -->[`migrations/2026-07-20-f27-team-rollback.sql`](../migrations/2026-07-20-f27-team-rollback.sql) | `public.track_b_f27_team_fences`, `public.track_b_team_rollbacks`, `public.track_b_team_rollback_intents` |
 | <!-- atlas:migration migrations/2026-07-23-f34-f53-production-attachments.sql -->[`migrations/2026-07-23-f34-f53-production-attachments.sql`](../migrations/2026-07-23-f34-f53-production-attachments.sql) | `public.production_asset_access_checks`, `public.linear_archive_asset_rescue_config`, `public.linear_archive_asset_refs` |

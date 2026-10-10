@@ -31992,6 +31992,402 @@ should the step use that newest earlier month tab (for example within one month)
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
 
+## 396. [2026-10-10, BUILT, NOT MERGED] Calendar keep-in-place: a refresh that moves the card in view no longer drags the board after it (session Sweep, site assurance)
+
+**What was wrong.** The fix in 393 (#2029) made a background refresh (realtime change, the fallback
+poll, a tab return) remember the first card or day in view and put that one card back where it was.
+That is right when something lands ahead of the view, but when the refresh moves that card itself,
+the board chased it to its new place. It happens whenever a teammate reschedules the card at the top
+of Review, reorders the Sheet, or schedules a post out of the Unscheduled tray, on the staff Calendar
+and on the client's review link. The first card in view is often only partly on screen, or is the
+first Unscheduled tray post, which sits above the month grid. On phones there was a second slip: a
+day that lost its only post folds away (it is hidden, so it measures as zero size at the top-left of
+the screen), the restore still counted it as found, and the page was pushed by twice that day's
+offset.
+
+**Measured in a real browser** (offline fixture, fictional client, one background refresh where a
+teammate's change moves the first card in view). Before this fix:
+- Desktop Month at the top of the page with an Unscheduled tray, first tray post scheduled onto the
+  24th: the page jumped from 0 to 852 px, so the month header went off the top of the screen.
+- Desktop Sheet, the first card in the strip dragged to the end: the strip jumped from 3384 to 9424 px,
+  about 18 cards. The next card moved 6374 px sideways.
+- Desktop SMM Review, the first card in view rescheduled later: 997 to 2239 px. The next card moved
+  1378 px.
+- Client review link on a phone, the first card in view rescheduled later: 1008 to 1895 px. The next
+  card moved 1313 px.
+- Phone Month, the first day in view lost its only post and folded: the page was pushed 60 px for a day
+  sitting 30 px above the screen, so the next day moved 172 px.
+
+All of these were worse than the one-card jump 393 fixed. After this fix, every other card or day that
+was in view stays exactly where it was (0 px) in all five cases.
+
+**What changed** (`src/index/160-calendar-organize-ui.js.part`).
+- **Several cards are remembered, not one.** Each scrolled box, and the page, now remembers up to six
+  cards or days in view, outermost only (a Sheet card's fields carry its id too and must not outvote
+  the cards around it).
+- **A move is followed only when two cards agree on it.** After the repaint the pixel offset goes back
+  first. Then the restore measures how far each remembered item moved, and follows only a move at
+  least two of them agree on (within 2 px). Something landing ahead of the view moves every item by
+  the same amount, so 393's case stays fixed. A relocated card moves alone and is outvoted.
+- **When no two agree,** a single item decides only if it is the only one left that moved less than
+  the box plus its own size. Otherwise the pixel offset stands. The fix sketch dropped any move bigger
+  than the box, but phone Sheet cards are taller than the screen, so that broke 393's own phone Sheet
+  case.
+- **A folded or hidden item counts as gone.** On a phone the next visible day is used instead.
+- **The next-frame check re-measures only the items the first check agreed on.** If the first check
+  found no agreement because heights were still settling, the next frame asks all of them again.
+
+**Guards.** `docs/syncview-design/tests/calendar-refresh-scroll-browser.js` gained five "moved card"
+cases: (a) desktop Month with a tray at the top, the first tray post gets a date in the shown month;
+(b) desktop Sheet, the first card in view moves to the end; (c) desktop SMM Review, the first card in
+view is rescheduled later; (d) the client review link on a phone, the first card in view is
+rescheduled later; (e) phone Month, the first day in view loses its only post and folds. Each one
+fails on the old code with the numbers above and passes on the fix. The eight "card lands ahead"
+checks from 393 still pass (13/13). The test runs in `calendar-unit-tests.yml` as before.
+
+**Not done:** not run against the live test client, because the staff Calendar needs a real staff
+sign-in, which this sandbox does not have.
+
+**Owner step:** merge. There is nothing to deploy beyond the page itself (no function, no migration).
+
+## 399. [2026-10-10, BUILT, NOT MERGED, NOT APPLIED, NOT DEPLOYED] PTO Member setup now leaves a record: who changed a start date or the PTO switch, and what it was before (session Sweep, site assurance)
+
+**What was wrong.** In Kasper > Time Off, the Member setup form saves a team member's PTO start date
+and the "PTO enabled" switch. The pto function worked out which admin was saving and then threw that
+away, and the database function it called (`pto_set_member_start_v1`) simply overwrote the member's
+row. Nothing recorded who made the change, what the old values were, or (after the next save) when.
+Every other PTO write already names its actor: decisions (`decided_by`), cancellations
+(`cancelled_by`), adjustments (`created_by`). Member setup was the one that did not. Measured read
+only on 2026-10-10: no member-setup change has happened since go-live, so nothing was lost yet; the
+gap would have hit on the next save.
+
+**Why it matters.** The start date drives every balance: when paid leave starts (60 days after it),
+which accrual rate applies, every wellness grant and the yearly cap. Switching PTO off makes the
+member's card show zeros and refuses their requests. Either change moves someone's balance, and the
+owner's rule (cross-tier invariant 3 in `docs/QUALITY_TIERS.md`) is that HR and balance values never
+change without an audit trail. `docs/testing/ASSURANCE_LEDGER.md` also claimed every PTO write had a
+receipt; that line is corrected to point here.
+
+**What changed.**
+- `migrations/2026-10-10-pto-member-setup-audit.sql` (additive, safe to run twice): a new table,
+  `pto_member_events`, with one row per Member setup save that creates a PTO profile or actually
+  changes the start date or the switch: who (the verified admin's roster name), the start date and
+  switch before (empty on first setup) and after, and when. A save that changes nothing writes
+  nothing. It is written only by a new database function, `pto_set_member_start_v2`, which keeps all
+  of v1's checks (active roster member, the "someone else changed this" check, no start-date change
+  once leave history exists), refuses a blank name, and writes the record in the same transaction
+  as the change: if the record cannot be written, the change does not happen either. Access: RLS on,
+  no policies, every privilege revoked from all four roles (public, anon, authenticated,
+  service_role), then service_role may only READ the table and run v2. Nobody can insert, edit or
+  delete a record directly. v1 is left in place for now, because the live function still calls it.
+- `migrations/2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql`: run only after the new function
+  is deployed. It takes v1 away from all four roles, so nothing can change a start date without a
+  record. It refuses to run if v2 is not there yet.
+- `supabase/functions/pto/index.ts`: Member setup now passes the verified admin and calls v2 with
+  their name. The response the page gets is unchanged. If the function is ever deployed before the
+  migration, Member setup answers "paused until the member-setup record migration is applied" (503)
+  and writes nothing; it never falls back to the old write.
+- `.github/workflows/deploy-pto-edge-functions.yml`: the PTO lane's schema latch moved from
+  `transactional-writes-v1` to `member-setup-audit-v1`, so the new function cannot be deployed until
+  the owner confirms the migration (this is how the lane says "this function needs new SQL").
+- Docs: `docs/features/PTO_TRACKER.md` (table list, action table, latch), `migrations/README.md`,
+  `docs/ops/NEW_STAFF_ONBOARDING.md`, `docs/testing/ASSURANCE_LEDGER.md` (cross-tier invariant 3
+  line corrected).
+- Deliberately NOT changed: the page and `qa/pto-lifecycle/mock-backend.js`. Any byte change to the
+  files in `qa/pto-lifecycle/` or to the Time Off lines of the page makes the published
+  101-screenshot leave evidence packet stale (`test/leave-evidence-fingerprint-coupling.js` and the
+  PTO UI lane go red), and re-publishing it needs a human review of every screenshot: re-running the
+  lane here produced 0 of 101 byte-identical screenshots. The mocked lane never exercises Member
+  setup, so mirroring the record there is left for the next time that packet is regenerated anyway.
+
+**Guards (fail on main 5b6bc517, pass here).**
+- New `test/pto-member-setup-audit.js` (unit suite): 29 offline checks on the function, the two SQL
+  files and the deploy latch (25 fail on main), plus a disposable PostgreSQL 16 run (when PostgreSQL
+  16 is installed, as in CI) that applies the real PTO migrations with Supabase's default privileges,
+  applies this one twice, and replays first setup, no-op save, date change, stale form, blank and
+  null name, inactive member, the history lock, switching PTO off, and a forced record failure that
+  must roll the change back. It measures each of the four roles: anon, authenticated and public can
+  do nothing to the table; service_role can only read it; only service_role can run v2; after step 2
+  no role can run v1. 62 checks in all.
+- `test/pto-accrual.js`: the start-date call must be v2 with the actor (v1 gone from the function),
+  and the latch must be `member-setup-audit-v1`.
+
+**Owner steps, in the PTO lane's order.**
+1. Merge. The merge carries PTO SQL, so the automatic PTO deploy holds itself and nothing deploys.
+   Until step 4, any other push that changes only the pto function will fail at the latch and deploy
+   nothing; that is expected.
+2. In the Supabase SQL editor, run `migrations/2026-10-10-pto-member-setup-audit.sql`, then the
+   READBACK query at the bottom of that file. Expect: the table exists, RLS on, 0 policies; anon,
+   authenticated and public false everywhere; service_role select true, every write false; v2
+   execute true for service_role only; v1 still true for service_role. Append a value-free receipt
+   (no names, ids or dates per person) to `EXECUTION_LOG.md`.
+3. Set the Actions repository variable `PTO_SCHEMA_CONTRACT` to `member-setup-audit-v1`
+   (Settings > Secrets and variables > Actions > Variables) and read it back.
+4. Deploy `pto` from main's tip: open
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-pto-edge-functions.yml,
+   Run workflow on `main`, tick `migration_readback_confirmed`. Do not merge anything between noting
+   main's tip SHA and this dispatch. Then, in Member setup, pick any member who is already set up
+   (the form fills in their current values) and save without changing anything: it should say "PTO
+   member saved", and `select count(*) from public.pto_member_events` should stay 0 (a save that
+   changes nothing writes nothing; the next real change will add the first row).
+5. In the SQL editor, run `migrations/2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql`, then
+   its READBACK query: all four values false.
+
+**Rollback.** Keep `pto_member_events`; it is the record of who changed what. If step 5 was applied,
+first run `grant execute on function public.pto_set_member_start_v1(uuid, date, boolean, bigint) to
+service_role;` so the old function can write again. Then revert this change to
+`supabase/functions/pto/index.ts` and to the workflow latch on main, set `PTO_SCHEMA_CONTRACT` back to
+`transactional-writes-v1`, and dispatch the PTO lane as in step 4. Dropping v2 afterwards is optional
+(`drop function if exists public.pto_set_member_start_v2(uuid, date, boolean, bigint, text);`).
+
+## 401. [2026-10-10, BUILT, NOT MERGED] Samples: Kasper's typed words survive a refused save; an edit put back on return to a client is shown (session Sweep, site assurance)
+
+Two Samples defects found by the site-assurance sweep and confirmed by two independent checks each, both
+by running the real page code. Browser changes only; nothing to deploy, apply or switch on.
+
+**1. Kasper's review queue threw away what he typed when a save was refused.** On a sample in his queue,
+Comment, Request change and Approve after tweaks empty his text box as soon as he clicks, then save. When
+the save was refused, the card repainted with the box still empty and his words existed nowhere. The
+Calendar side of his queue has always put them back. It happened when:
+- the part had moved on the server while he typed (the queue does not refresh while his cursor is in the
+  box, so his screen can go stale): he was told "someone else changed this card", and the box was empty;
+- the check against the server could not be read (a network blip): told "decide again", box empty;
+- an earlier repair was still waiting ("Reload before another action"): box empty;
+- a plain Comment whose save failed: the note was taken out of the thread and out of the box, and the
+  message even called it a "decision".
+
+What changed (`src/index/290-samples-writes-review.js.part`): the three buttons hand the typed text to
+the save as its own value, and every path that ends without a save puts it back in the box before the
+card repaints. It is only put back into an empty box, so anything he typed while the save was running
+is kept. A plain Comment that fails now says "your video note did not go through ... Your words are
+back in the box; send it again." A save that worked still empties the box, as before.
+
+**2. Samples: an edit put back on return to a client was saved but not shown.** The Samples half of entry
+384 item 5, which fixed only the Calendar. An edit typed while an earlier save on that card was still
+running, followed by a client switch, is held with the notice "That edit is not saved yet ... Open
+<client> again in this tab and it will save". On return the load painted the server's old text, then
+the held edit was saved without being shown, so the box kept the old text under a "Saved" icon until
+some unrelated repaint. Clicking into that box and leaving it sent the old text back over the restored
+words. Now (`src/index/270-samples-model.js.part`, `_sxrRestoreParkedEdits`) the plain fields are put on
+the shown sample before the save starts and the list is repainted once, keeping the cursor where it was;
+statuses are left to the save, which rolls them back if it fails. `_SXR_ROLLBACK_FIELDS` is now
+exported from `280-samples-cards-notes.js.part` for this.
+
+**Guards** (each new check fails on the code before this change):
+- `test/kasper-never-lose-decision.js`: part moved on the server (Request change and Approve after
+  tweaks), check read failed, cached-repair refusal, plain Comment whose save fails (words kept, the
+  note is removed from the thread, the message says "note"), and controls: a saved note empties the box,
+  and words typed during a refused save are never overwritten.
+- `test/assurance-review-corrections.js` block 5b: the restored edit is on the shown sample and in the
+  repainted list; a held status and the engine's own keys are not copied.
+- `test/samples-component-fill.js`: the park-and-restore round trip now also checks the shown sample.
+
+**Overlap with open PR #2027** (Samples Kasper Undo fix, branch `claude/stoic-gates-sjlhim`): it edits
+`_sxrKasperUndoApprove` in the same file and adds a test to `test/kasper-never-lose-decision.js`. This
+change touches neither its lines nor the lines next to them. In a trial merge of the two, the source
+fragment, both tests and this ledger merged cleanly; only the generated `index.html` and
+`src/index/INDEX.md` conflicted, as any two page changes do. After `npm run build:index` the merged
+code passed both test files, his Undo case and the cases above. Whichever merges second needs that
+rebuild after its rebase.
+
+**Owner step:** merge. Nothing to deploy.
+
+## 403. [2026-10-10, BUILT, NOT MERGED] Scheduled jobs: the GitHub copy runs only when the timer missed, the combined message sees timer runs, and the thumbnail titles timer is watched (session Sweep, site assurance)
+
+Three findings about the 2026-10-09 move of every scheduled job onto Supabase's timer (OPEN_REPAIRS 390,
+PR 2019), each confirmed by two independent read-only checks on 2026-10-10.
+
+**1. Every scheduled job ran twice.** The 17 workflows the database timer dispatches kept their
+`schedule:` blocks "as a fallback", but GitHub kept delivering them too, 4 to 7 hours late. Counted from
+2026-10-09 18:20 to about 15:30 UTC the next day: 41 late GitHub copies ran beside the timer's runs. What
+that did:
+- The Samples nightly failed once and paged twice (06:00 timer run, 12:18 GitHub copy; the relay took both).
+- Two Calendar E2E runs worked on the test client at the same time (the 14:18 GitHub copy and a 14:59
+  manual run); neither nightly had a concurrency group.
+- The 6-hourly private backup ran 7 times in about 21 hours instead of 4; nothing prunes the extra backups.
+- The roster sync applied twice on 2026-10-10 (06:41 and 13:03; no changes either time).
+- From Monday the dawn check would have run and paged twice each weekday, and the polish gate's late
+  copy would have cancelled the timer's run (its group has cancel-in-progress on).
+- A copy that passed in the afternoon also un-latched a failing nightly's incident, so the next morning's
+  same failure paged again.
+
+**2. The combined problem message could not see the timer's runs.** `scripts/alert-digest.js` read only
+`event=schedule` runs of the four workflows it judges (backup, dawn check, Sheets daily copy, n8n quota
+check), so it judged them from GitHub's late copies alone: a failed timer backup followed by a passing
+late copy was never reported, and on 2026-10-10 a "no backup within 7 hours" was due from 05:54 to 06:12
+while timer backups had passed at 00:23 and 06:23. It is in shadow (`ALERT_DIGEST_ENABLED` unset), so no
+live alert was wrong, but it would have been the day it is switched on.
+
+**3. The per-minute thumbnail titles timer could fail in silence.** `thumbnail-titles-tick` calls the
+function through `net.http_post`, which only queues the request, so `cron.job_run_details` says
+"succeeded" whatever the function answers (1,384 of 1,384 in 30 hours). A 401, a 500, a boot error or a
+missing AI key would leave every new thumbnail without its brief, with nothing reading the queue and pg_net
+keeping responses about 6 hours. Healthy today: 0 items stuck, 0 never queued.
+
+**What changed (source only).**
+1. **The GitHub copy is a real fallback.** New reusable workflow
+   `.github/workflows/schedule-fallback-guard.yml`, the first job of all 17 dispatched workflows (the same
+   six lines in each). On a GitHub schedule run it asks (with `scripts/schedule-fallback-guard.js`)
+   whether the timer already started the same workflow for the newest slot of its cron that was due; if so,
+   every other job is skipped and nothing runs, pages or writes. If the timer missed the slot (or the
+   question cannot be answered) the copy runs exactly as before, so a dead timer still falls back from
+   the first slot it misses. Only the timer's run for the newest due slot counts, never the slot before
+   it: a copy that arrives less than five minutes after its slot and finds no timer run yet waits until
+   slot + five minutes (never longer), looks once more for that slot only, and runs if it is still
+   missing. (The first version of this pull request let the slot before count inside those five minutes,
+   so a timer that died between two slots lost a whole run whenever GitHub delivered promptly: yesterday's
+   08:00 Calendar nightly would have covered today's 08:03 copy, Friday's dawn check Monday's, one backup
+   the next. Found in review.) Each API call gives up after 30 seconds and the guard job's limit is 12
+   minutes, so the wait can never time the guard out, which would skip the job. Any other event (timer,
+   manual, push, pull request) goes
+   straight through. To tell runs apart, each workflow now names its runs: "(db-timer)" for the timer in
+   the eight workflows with a `source` input, "(workflow_dispatch)" for any dispatch of the nine with no
+   inputs (the timer sends them none, so a timer run and a manual one are the same run).
+   `monitoring-deadman.yml` and `monitoring-crosscheck.yml` are untouched (they observe the timer).
+   Replayed read only against the GitHub API on 14 real late copies of six workflows from 2026-10-09/10
+   (backup, roster sync, both nightlies, notification sender, combined message), with the new run names
+   applied to the timer's runs: all 14 would have stood down, each check listing 1 or 2 runs.
+2. **One test-client browser run at a time.** The jobs of the Samples nightly, the Calendar nightly and
+   the dawn check that hold the test-client key share one concurrency group, `test-client-e2e`, never
+   cancelled mid-run. GitHub keeps at most one job WAITING per group: a third run arriving while one runs
+   and one waits cancels the waiting one (it shows as cancelled, and a cancelled nightly writes no
+   heartbeat, so its lane goes stale and pages after 36 hours). At the timer's 06:00 / 08:00 / 11:30 times
+   that needs a manual run on top of two long ones.
+3. **The polish gate's groups are per event** (`production-polish-<ref>-<event>`), so a late copy can no
+   longer cancel the timer's run; pushes to main still replace each other, as do a pull request's.
+4. **The combined message counts timer runs.** It reads every recent run (50 per workflow, in-progress
+   included) with its title. A production run is a "(db-timer)" run, or a GitHub schedule run the timer had
+   not covered (the same function the guard uses decides, so a copy the guard stood down, which ends
+   "success" having done nothing, can never hide the timer's failure). Manual runs stay excluded.
+5. **The dead-man's switch takes a thumbnail titles census** (`supabase/functions/_shared/monitoring-watchdog-core.mjs`,
+   so the 15-minute database-timer host and the two GitHub hosts all run it). Only while the
+   `thumbnail_titles` switch lists a client, counts only: `thumbnail_titles_stuck` = queue rows of a
+   switched-on client pending or running for more than 30 minutes, plus new empty thumbnails the enqueue
+   step should have queued and did not (a function answering 401 never queues anything); it pages once and
+   latches, and resets quietly at zero. `thumbnail_titles_gave_up` = items that ended failed, or needs info
+   with `generation_failed`, per UTC day; each day pages once. Latches go under their own action
+   (`monitoring_watchdog_census_latch`), and a census that cannot read or page never fails the pass: the
+   error is in the result and the heartbeat is still written. Not a heartbeat lane on purpose: the tick
+   only calls the function when there is work, so a fixed max age would page every quiet night. The F27
+   reconciler closure pin for the core file was re-taken from the committed bytes (membership unchanged).
+
+**Guards** (each failed on main before the change):
+- `test/github-dispatch-timer.js`: every dispatched workflow has the run name, the guard job byte for byte,
+  and every other job gated on it (directly or through a gated job); input-free workflows stay input-free;
+  the three test-client jobs share the group; the polish gate's group is per event; the guard's decision
+  on the measured runs (Samples 06:00 vs 12:18, backup 18:23 vs 22:45, a dead timer, a manual run, a
+  cancelled run, Monday vs Friday for the dawn check) and its fail-open paths. On main: 59 failures with
+  the guard script present, a load failure without it.
+- `test/schedule-fallback-guard.js`: a prompt copy is never covered by the slot before (daily 08:00:
+  yesterday vs 08:03 today; dawn check: Friday vs Monday 11:33; backup: 06:23 vs 12:25), both in the check
+  and in the guard job, which waits once until slot + five minutes and then runs the copy; a slow timer's
+  run found after the wait stands the copy down; a late copy never waits; the wait is capped whatever the
+  runner's clock says; a failed second look, a failed wait or a timed-out call runs the copy; the job's
+  time limit covers the worst case. Against the first version of the guard: 20 of 29 checks fail,
+  among them the check and the guard job decision for each of the three scenarios.
+- `test/alert-digest.js`: a failed timer run newest beside an older schedule success is red; a fresh timer
+  success beside an 8-hour-old schedule success is not stale; a manual green run cannot hide a failed timer
+  run; a stood-down copy cannot hide the timer's failure; the reader keeps every event. On main: 5 failures.
+- `test/monitoring-watchdog-tick.js`: a row pending 45 minutes is a problem, with the switch off there is
+  none, a client the switch leaves off is not stuck, an unqueued thumbnail is, give-ups speak once a day,
+  the page is counts only, a census read failure still completes the pass, a dry run pages nothing. On
+  main: the census functions do not exist.
+
+**Owner steps, in order:**
+1. Merge the pull request. From then on the late GitHub copies stand down, and the combined message (still
+   in shadow) judges the timer's runs. The census starts running from the two GitHub dead-man hosts.
+2. Redeploy `monitoring-watchdog-tick` (its shared core changed) through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = main's tip SHA after the merge. Until then
+   only the GitHub hosts take the census, every few hours.
+3. Nothing to apply in SQL, no secret, no variable. The first census pass may page once for the previous
+   day's give-ups, if there were any.
+
+Rollback: revert the pull request (both copies run again, as before), then redeploy `monitoring-watchdog-tick`
+from the reverted main.
+
+## 400. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED] Generate caption: never overwrite a caption written while the job ran; Brain voice found for a client whose short name has '&' (session Sweep, site assurance)
+
+**What was wrong (1 of 2, silent data loss).** Since 2026-10-09 19:33 UTC every client's Generate caption
+runs on the `caption-generate` function. When its caption was ready it saved it through `calendar-upsert`
+without looking at the card first, and `calendar-upsert` only checks for a newer version when the caller
+sends one, so the save always went through. A caption someone typed and saved on the card while the job was
+queued or running was replaced by the generated one, with no warning. The page only protected what was on
+the screen ("never clobber text the user typed"), not the saved card. The page also had its own hole: a
+bulk Generate runs two cards at a time and the rest wait in a queue, and a waiting card was sent when its
+turn came without checking whether someone had typed a caption on it in the meantime.
+
+Scenario: select three empty cards, press Generate; while the first two are generating, type a caption on
+the third and click away (it autosaves). Before: the third card's job was still sent a minute later, and
+its generated caption replaced the typed one in the database. The same happened to a single card typed into
+while its own job was running (from another tab, or the typed text saved before the job finished).
+
+**What was wrong (2 of 2).** The Brain voice (and the "Caption style" section the caption writer uses, and
+the title style behind thumbnail titles and the Higgsfield connector's `client_style`) is found by matching
+the client's short name to a folder in the Synchro Brain. The match dropped every character that is not a
+letter or a digit, so a short name with "&" lost it ("alpha&beta" became "alphabeta"), while the Brain
+folder spells it out ("alpha-and-beta" is "alphaandbeta"). The one active client whose short name contains
+'&' never got its voice: captions and its seeded thumbnail title prompt were written without it, and
+`client_style` said it had no Brain folder. The display-name fallback went through the same match and
+failed the same way.
+
+**What changed.**
+- `supabase/functions/caption-generate/index.ts`: just before the save (after the last cancel check) the
+  function reads the card's caption from `calendar_posts` with the service client. A caption already there
+  is kept: nothing is sent to `calendar-upsert`, and the job ends in error with "A caption was written on
+  this card while this one was being generated, so that one was kept." If the card cannot be read, nothing
+  is saved either ("...could not be checked before saving, so nothing was saved. Try again."). In both
+  cases the job row carries NO caption, because the page saves a caption it finds on an error row when its
+  own box is empty, and a tab that never saw the typed text would have put it back. An empty card (or one
+  with only spaces) is saved to as before. `calendar-upsert` is not changed and no base is sent.
+- `src/index/180-calendar-native-post-media.js.part`: before a queued job is sent, the page reads the
+  card's caption the same way the Generate button does (the box, then an unsaved edit, then the saved
+  card). If there is one, the job is dropped as cancelled with "Not generated: a caption was written on
+  this card while it waited, so that one was kept." and nothing is sent. This covers bulk Generate and
+  jobs restored after a refresh. The queue now recounts the running jobs for each card it starts, so a
+  dropped job never lets a third one run at once.
+- `supabase/functions/brain/parse.mjs` `findClientFolder`: tries the short name with "&" read as "and"
+  first, then the old form, so every match that worked still works. Shared by `brain`, `caption-generate`
+  and the Higgsfield connector (and through it `thumbnail-titles` and `thumbnail-title-prompts`).
+  `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md` has a row for it.
+
+**Guards (each failed on the old code, passes now).**
+- `qa/caption-generate/function-run.ts` (Deno, the function's own code with stand-ins; manual, not in CI):
+  a caption typed on the card while the job runs is kept, no `calendar-upsert` call, error row with no
+  caption; the same on the transcript path; a failed card read saves nothing; a blank card still gets the
+  caption. Before: `FAIL: typed while running: no calendar-upsert save for that card`. 33 checks now.
+- `test/caption-generate-browser.js` (CI, offline browser): bulk Generate on three cards, a caption typed
+  and autosaved on the waiting third: `caption-generate` is never called for it, the typed caption stays,
+  the other two still get theirs. Before: `FAIL queued: caption-generate is never called for the card that
+  got a typed caption (1 call(s))`.
+- `test/caption-generate-source.js`: the read sits after the last cancel check and before the save; both
+  refusals clear the caption; the page drops a captioned queued job before anything is sent.
+- `test/brain-parse.js`: a slug and a display name with "&" find the "-and-" folder; a folder that drops
+  the "&" or uses a dash still matches; a name without "&" does not grow an "and".
+
+**Not done, said plainly.** Nothing was deployed or run against the live backend. A caption saved in the
+few milliseconds between the function's read and its save can still be replaced; closing that needs
+`calendar-upsert` to take a caption base, and it is frozen.
+
+**Owner steps.**
+1. Merge the pull request (the page change goes live with it, through GitHub Pages).
+2. Deploy, from main's tip SHA after the merge, one run per function through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml :
+   `caption-generate`, `brain`, `higgsfield-mcp`, `thumbnail-titles`, `thumbnail-title-prompts`.
+   (`thumbnail-titles` from main also carries entry 394; 394 says it works before its migration too.)
+3. Higgsfield connector, per `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md`: one real call on the live
+   connector after the deploy. `client_style` for the client whose short name has "&" is free and is the
+   one this change touches: it should now return that client's Brain guidance, not "has no folder in the
+   Synchro Brain yet". No tool names or descriptions changed, so the connector does not need re-adding.
+4. Refresh that client's thumbnail title prompt default through the function's own seed path, not by
+   writing the table: the timer's call to `thumbnail-titles` with the body `{"action":"seed"}` instead of
+   `{"action":"tick"}`. It refreshes only the default prompts (a prompt staff saved is never touched). Then
+   open that client's "Thumbnail title prompt" in the Calendar menu: the default should now carry its Brain
+   title style.
+5. Optional live check of the first fix, on the test client `sidneylaruel` only: press Generate on an
+   empty card with a Frame.io link, type a caption on that card and click away while it runs. The card
+   keeps the typed caption and shows "...so that one was kept."
+
 ## 395. [2026-10-09, BUILT, NOT MERGED] Final phone batch: branded manager picker, readable sheets and complete narrowed review
 
 **Batch 6 follow-up (entry 386).** The New client manager picker now uses the
@@ -32044,3 +32440,4 @@ styles on its Templates route. Before/Expanded/after captures and exact unfilter
 binding, with an incremental 1440 desktop byte/style comparison. This entry is
 395 because PR #2030 uses 394 on main; main's historical duplicate headers are
 preserved without adding a collision.
+

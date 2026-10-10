@@ -13,8 +13,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | Deployable function slugs | 60 |
 | Main-push plus manual-dispatch paths | 12 |
 | Manual-dispatch-only paths | 31 |
-| No CI deploy path | 14 |
-| Deliberate-manual subset of no-CI paths | 5 |
+| No CI deploy path | 13 |
+| Deliberate-manual subset of no-CI paths | 6 |
 
 ## Per-function ownership and dependencies
 
@@ -30,7 +30,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `brain` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/parse.mjs` |
 | `calendar-auto-posted` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | - | `calendar-auto-posted/logic.mjs` |
 | `calendar-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
-| `calendar-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
+| `calendar-upsert` | [calendar-upsert-live-delta](../../.github/workflows/calendar-upsert-live-delta.yml) | workflow_dispatch<br>**Manual release note:** FROZEN: the repo source is never deployed (it re-gates client links). The only lane downloads the LIVE function, adds the one auto-posted line, deploys that copy with --no-verify-jwt, verifies by hash and rolls back on failure (OPEN_REPAIRS 402). | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `caption-generate` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/parse.mjs`<br>`caption-generate/apify.mjs`<br>`caption-generate/logic.mjs`<br>`caption-generate/writing-rules.mjs`<br>`caption-jobs/jobs.mjs` |
 | `caption-jobs` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `caption-jobs/jobs.mjs` |
 | `caption-prompts-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |

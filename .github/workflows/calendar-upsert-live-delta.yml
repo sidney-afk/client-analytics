@@ -1,0 +1,169 @@
+name: calendar-upsert live delta (deploy a LIVE copy plus one line)
+
+# Manual-only lane for the one-line calendar-upsert change the calendar-auto-posted
+# timer needs (OPEN_REPAIRS 402, scripts/calendar-upsert-live-delta.js).
+#
+# calendar-upsert is FROZEN: the repo's supabase/functions/calendar-upsert is NOT
+# what runs, and deploying it re-applies the client-link gate and 401s every client
+# review link (2026-07-15, twice). So this lane never deploys repo source. It
+# downloads the LIVE function into a folder outside the checkout, applies the one
+# line there, deploys only that folder with --no-verify-jwt, downloads again and
+# proves the result, and puts the original back if anything after the deploy fails.
+# It is idempotent: a live source that already carries the delta is reported and
+# left alone.
+#
+# test/calendar-upsert-live-delta-lane.js pins these rules.
+on:
+  workflow_dispatch:
+    inputs:
+      expect_before_sha:
+        description: sha256 of the live calendar-upsert index.ts before the delta (live v83, measured 2026-10-10)
+        required: true
+        type: string
+        default: 67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185
+      expect_after_sha:
+        description: sha256 the patched index.ts must have (measured from live v83 with the OPEN_REPAIRS 402 note line)
+        required: true
+        type: string
+        default: 7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843
+      confirm:
+        description: Type DEPLOY LIVE CALENDAR-UPSERT DELTA to run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: calendar-upsert-live-delta
+  cancel-in-progress: false
+
+jobs:
+  live-delta:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PROJECT_REF: uzltbbrjidmjwwfakwve
+      EXPECT_BEFORE: ${{ inputs.expect_before_sha }}
+      EXPECT_AFTER: ${{ inputs.expect_after_sha }}
+      CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - name: Validate the inputs (no secret in scope)
+        shell: bash
+        run: |
+          if [ "$CONFIRM" != "DEPLOY LIVE CALENDAR-UPSERT DELTA" ]; then
+            echo "::error::Refused: type DEPLOY LIVE CALENDAR-UPSERT DELTA in the confirm box"
+            exit 1
+          fi
+          for h in "$EXPECT_BEFORE" "$EXPECT_AFTER"; do
+            if ! [[ "$h" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::Refused: both hashes must be 64 lowercase hex characters"
+              exit 1
+            fi
+          done
+          if [ "$EXPECT_BEFORE" = "$EXPECT_AFTER" ]; then
+            echo "::error::Refused: the before and after hashes are the same"
+            exit 1
+          fi
+      - name: Check out the default branch (for the delta script only)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Prepare work folders OUTSIDE the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          for d in cu-live cu-patched cu-after cu-rollback; do
+            dir="$RUNNER_TEMP/$d"
+            case "$(realpath -m "$dir")/" in "$(realpath "$GITHUB_WORKSPACE")"/*) echo "::error::$dir is inside the checkout"; exit 1 ;; esac
+            rm -rf "$dir"; mkdir -p "$dir/supabase"
+            printf 'project_id = "calendar-upsert-live-delta"\n' > "$dir/supabase/config.toml"
+          done
+          echo "LIVE_DIR=$RUNNER_TEMP/cu-live" >> "$GITHUB_ENV"
+          echo "PATCHED_DIR=$RUNNER_TEMP/cu-patched" >> "$GITHUB_ENV"
+          echo "AFTER_DIR=$RUNNER_TEMP/cu-after" >> "$GITHUB_ENV"
+          echo "ROLLBACK_DIR=$RUNNER_TEMP/cu-rollback" >> "$GITHUB_ENV"
+          echo "SNAPSHOT=$RUNNER_TEMP/cu-before.json" >> "$GITHUB_ENV"
+      - name: 1. Download the LIVE function, refuse unless verify_jwt is false, record every file's sha256
+        id: download
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::SUPABASE_ACCESS_TOKEN is not set in the production Environment"; exit 1; fi
+          meta="$(curl -sS -f "https://api.supabase.com/v1/projects/$PROJECT_REF/functions/calendar-upsert" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")"
+          jwt="$(echo "$meta" | jq -r '.verify_jwt')"
+          version="$(echo "$meta" | jq -r '.version')"
+          if [ "$jwt" != "false" ]; then echo "::error::Refused: live calendar-upsert verify_jwt is $jwt, it must be false"; exit 1; fi
+          supabase functions download calendar-upsert --project-ref "$PROJECT_REF" --workdir "$LIVE_DIR" --use-api
+          node scripts/calendar-upsert-live-delta.js --snapshot "$LIVE_DIR" > "$SNAPSHOT"
+          {
+            echo "## calendar-upsert live delta"
+            echo
+            echo "- Live version before: \`$version\`, verify_jwt false"
+            echo "- Live files (sha256):"
+            jq -r '.files | to_entries[] | "  - `\(.key)` \(.value)"' "$SNAPSHOT"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: 6. Already applied? Then report and stop without deploying
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="$(node scripts/calendar-upsert-live-delta.js --dir-state "$LIVE_DIR" --expect-sha="$EXPECT_BEFORE" --expect-after="$EXPECT_AFTER")"
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          if [ "$state" = "after" ]; then
+            echo "already applied: live index.ts is $EXPECT_AFTER; nothing deployed" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: 2. Apply the delta to a copy; refuse on any mismatch or authorizeBrowserWrite
+        if: steps.state.outputs.state == 'before'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/calendar-upsert-live-delta.js --dir-apply "$LIVE_DIR" "$PATCHED_DIR" --expect-sha="$EXPECT_BEFORE" --expect-after="$EXPECT_AFTER" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: 3. Deploy ONLY the patched live copy (never the repo source)
+        id: deploy
+        if: steps.state.outputs.state == 'before'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PATCHED_DIR"
+          supabase functions deploy calendar-upsert --project-ref "$PROJECT_REF" --workdir "$PATCHED_DIR" --no-verify-jwt --use-api
+      - name: 4. Download again and verify the result
+        id: verify
+        if: steps.state.outputs.state == 'before'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions download calendar-upsert --project-ref "$PROJECT_REF" --workdir "$AFTER_DIR" --use-api
+          node scripts/calendar-upsert-live-delta.js --dir-verify "$AFTER_DIR" --snapshot="$SNAPSHOT" --expect-after="$EXPECT_AFTER" | tee -a "$GITHUB_STEP_SUMMARY"
+          meta="$(curl -sS -f "https://api.supabase.com/v1/projects/$PROJECT_REF/functions/calendar-upsert" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")"
+          jwt="$(echo "$meta" | jq -r '.verify_jwt')"
+          if [ "$jwt" != "false" ]; then echo "::error::live verify_jwt is $jwt after the deploy"; exit 1; fi
+          echo "- Live version after: \`$(echo "$meta" | jq -r '.version')\`, verify_jwt false: PASS" >> "$GITHUB_STEP_SUMMARY"
+      - name: 5. ROLLBACK - put the step-1 original back
+        if: failure() && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure') && steps.verify.outcome != 'success'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::error::The delta did not verify. Redeploying the original live source downloaded in step 1."
+          cd "$LIVE_DIR"
+          supabase functions deploy calendar-upsert --project-ref "$PROJECT_REF" --workdir "$LIVE_DIR" --no-verify-jwt --use-api
+          supabase functions download calendar-upsert --project-ref "$PROJECT_REF" --workdir "$ROLLBACK_DIR" --use-api
+          node scripts/calendar-upsert-live-delta.js --dir-state "$ROLLBACK_DIR" --expect-sha="$EXPECT_BEFORE" --expect-after="$EXPECT_AFTER" | grep -qx before \
+            && echo "ROLLED BACK: live index.ts is the original $EXPECT_BEFORE again" | tee -a "$GITHUB_STEP_SUMMARY" \
+            || { echo "::error::ROLLBACK DID NOT VERIFY: check calendar-upsert by hand now (client review links)"; exit 1; }
+          echo "::error::Run failed and was rolled back; nothing changed live."
+          exit 1

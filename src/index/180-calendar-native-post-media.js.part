@@ -1190,7 +1190,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         // the action originated from.
         const slug = calClientSlug(calState.client);
         showConfirm('Archive ' + ids.length + ' post' + (ids.length === 1 ? '' : 's') + '?',
-            "They're removed from the calendar but kept (archived) in the Google Sheet on our server, so they can always be recovered.",
+            _calStaffPhoneActive() ? "The posts are removed from this calendar. You can bring them back from Archived cards." : "They're removed from the calendar but kept (archived) in the Google Sheet on our server, so they can always be recovered.",
             async () => {
                 const idSet = new Set(ids);
                 const refsById = new Map();
@@ -1251,7 +1251,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (_isClientLink) return;   // archiving is SMM-only in every mode (incl. collab)
         if (!id || _calIsBlankId(id)) return;
         const slug = calClientSlug(calState.client);
-        showConfirm('Archive this post?', "It's removed from the calendar but kept (archived) in the Google Sheet on our server, so it can always be recovered.", async () => {
+        showConfirm('Archive this post?', _calStaffPhoneActive() ? "The post is removed from this calendar. You can bring it back from Archived cards." : "It's removed from the calendar but kept (archived) in the Google Sheet on our server, so it can always be recovered.", async () => {
             const snapshot = calState.posts.slice();
             const target = calState.posts.find(p => p.id === id);
             const refs = target ? _calRefsForPost(target) : [];

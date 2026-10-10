@@ -29,7 +29,7 @@ async function layout(page,label) {
 }
 async function detectorControls(browser) {
   const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
-  const page=await context.newPage();
+  const page=await context.newPage();require('./client-phone/native-captures').prepareCaptures(page);
   await page.setContent('<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{height:3000px}button{position:absolute;left:10px;top:10px;width:60px;height:60px}.test-overlay{position:fixed;top:300px;left:10px;width:300px;height:200px;background:white}</style><button>A</button><button>B</button><div class="test-overlay">Popup</div>');
   assert((await checks.inspect(page)).overlaps.length,'overlap detector missed injected collision');
   await assert.rejects(()=>checks.scrollLock(page,'.test-overlay'),/background moved/,'scroll checker accepted unlocked background');
@@ -89,7 +89,7 @@ async function screen(browser,origin,width,theme,route) {
   const context=await browser.newContext({viewport:{width,height:heightFor(width,arg('height'))},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   await staff.installBackend(context,false);await seedStaffGate(context);
   await context.addInitScript(theme=>{localStorage.setItem('syncview_theme',theme);sessionStorage.setItem('syncview_kasper_unlocked','ok');},theme);
-  const page=await context.newPage();page.setDefaultTimeout(6000);
+  const page=await context.newPage();require('./client-phone/native-captures').prepareCaptures(page);page.setDefaultTimeout(6000);
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   const prefix=route+'-'+theme+'-'+width;
   try {
@@ -149,7 +149,7 @@ async function screen(browser,origin,width,theme,route) {
       await ta.tap();await page.setViewportSize({width,height:400});await settle(page);
       const r=await ta.boundingBox();assert(r.y>=15&&r.y+r.height<=385,prefix+': focused caption hidden by keyboard viewport '+JSON.stringify(r));
       await capture(page,prefix+'-keyboard');await page.keyboard.press('Escape');
-      await page.setViewportSize({width,height:844});
+      await page.setViewportSize({width,height:heightFor(width,arg('height'))});
       await page.evaluate(()=>{calState.posts[0].caption='';calState.posts[0].caption_alt='';_calRenderBody();});await settle(page);
       assert(await page.locator('.cal-cap-toggle').first().evaluate(el=>el.hidden&&getComputedStyle(el).display==='none'),prefix+': empty caption exposes a phantom toggle');
       await layout(page,prefix+'-empty-caption');

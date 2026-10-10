@@ -31945,3 +31945,46 @@ offset stays, as before. Covers Review, Sheet, Month, Week, desktop and phone.
 **Proof.** The new browser test fails on the old code (`desktop smmreview: ... moved ... 136px down`)
 and passes on the fix; it runs in `calendar-unit-tests.yml`. It was not run against the live test
 client: the staff Calendar needs a real staff sign-in this sandbox does not have.
+
+## 394. [2026-10-09, BUILT, NOT MERGED] Final phone batch: branded manager picker, readable sheets and complete narrowed review
+
+**Batch 6 follow-up (entry 386).** The New client manager picker now uses the
+shared branded control on phones, with native loading, empty, unavailable,
+busy, refusal, Escape and desktop restoration checks. The reported Clients
+loading heading loss was **refuted** against current main: intercepted initial
+GET and POST loading lifecycles retain the native heading and actions at both
+phones and themes. No heading repair is claimed. Repeated Workload client chips
+represent distinct posts; phone context labels now distinguish their native
+destinations. The previous OPEN form, loading and review cells are resolved.
+
+**Repairs found in the full review.** Phone sheets now wrap long post titles and
+keep their native edits; readable metadata, links, placeholders, loading labels,
+caption menus and helper copy replace tiny or faint text. Calendar and Samples
+loading avoids false empty views. Calendar month filters and Today marker fit;
+archive copy describes the native action. Card comment footers stay inside the
+viewport, touch screens hide desktop keyboard hints, Analytics controls and
+Workload timelines are readable, and TikTok queue dates stop overlapping client
+labels. Disconnected-upload guidance names the current Clients/Publishing route.
+Overlay focus respects native restoration. All changes are scoped to phones or
+restore the original nodes, content and styles on desktop resize.
+
+**Proof and finish line.**
+[Batch 7](../audits/2026-10-07-prism-phone/batch-7/README.md) contains 70 native
+before/after pairs, Expanded drafts, a full 2,761-capture round and an independent
+2,756-capture fresh-eyes round. Every unique native-scale crop was personally
+viewed within each round. Both conclude “this is good, nothing looks weird.”
+The source-bound coverage has 279 states, 1,452 cells and 85 obligations, with
+no OPEN phone states or obligations in the narrowed scope. Desktop proof is
+182 exact PNG byte and all-computed-style pairs at 1440, cold and after resizing
+from a phone. Native action, phone scope, Clients, staff/client Calendar and
+identity checks pass; regression guards cover the repaired classes.
+
+Earlier failures are preserved with their actual last lines. Corrupted QA
+Unicode expectations were restored exactly, without relaxing tests. An empty
+thumbnail fixture race was rejected and separately replayed in both rounds with
+empty-value assertions before and after capture. All data is fictional and all
+transports intercepted: no live writes, database changes or n8n edits. Headless
+Chrome preserves the owner's foreground application. Physical-device keyboard,
+real upload delivery, deployed behavior and excluded screens are not claimed.
+Lighthouse spot-check and hosted CI remain separate acceptance gates. One branch,
+one PR; Prism does not merge.

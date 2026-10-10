@@ -1,0 +1,5 @@
+/* Expanded Calendar helpers, client organizer and archive metadata. */
+@media (max-width:767px) {
+ html.boot-client :is(.cal-org-sec,.cal-org-toggle .cal-org-toggle-sub),
+ html.sv-staff-phone .arx-row-meta {font-size:13px;line-height:1.5;color:var(--text-secondary);}
+}

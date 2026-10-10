@@ -13,6 +13,7 @@ const priority = ['Today','Calendar','Samples','Card detail sheet','Clients','Ti
 const rare = ['error','refused saves','long names/captions','many items'];
 const inventory = [
   ...list('qa/staff-phone-final-pass.js',['--all-states']),
+  ...list('docs/syncview-design/tests/staff-calendar-expanded-browser.js'),
   ...list('docs/syncview-design/tests/kasper-admin-expanded-browser.js'),
   ...list('docs/syncview-design/tests/client-calendar-expanded-browser.js'),
   ...list('docs/syncview-design/tests/client-links-expanded-browser.js'),
@@ -26,21 +27,20 @@ function classify(state) {
   if(lane==='client-calendar-expanded') screen='Calendar';
   else if(lane==='client-links-expanded') screen=name.startsWith('samples-')?'Samples':'Analytics';
   else if(lane==='admin') screen=/^(clients(?:-|$)|client-)/.test(name)?'Clients':/^ads/.test(name)?'Ads':null;
-  else if(name==='linear-detail') screen='Card detail sheet';
+  else if(name.startsWith('linear-detail')) screen='Card detail sheet';
   else screen=[[/^today-/,'Today'],[/^calendar-/,'Calendar'],[/^(samples|sample-reviews)-/,'Samples'],[/^tiktok-/,'TikTok upload'],[/^(analytics|home)-/,'Analytics'],[/^workload-/,'Workload']].find(([pattern])=>pattern.test(name))?.[1];
   if(!screen || /analytics-(brief|content-calendar)/.test(name)) return null;
   const ownerScreen=screen;
-  const kind=/loading|posting|sending/.test(name)?'loading':/empty|all-clear|no-account|no-posts/.test(name)?'empty':/save-error|denied/.test(name)?'refused saves':/error|failed|invalid-link/.test(name)?'error':/long/.test(name)?'long names/captions':/many/.test(name)?'many items':/tabs|more|menu|picker|client-search|popover|options|schedule|confirm|detail|edit|lightbox|notes|comparison|open|actions|caption|organize$|suggest-post/.test(name)?'menus/sheets open':'normal';
+  const kind=name==='linear-detail'?'normal':/loading|posting|sending/.test(name)?'loading':/empty|all-clear|no-account|no-posts/.test(name)||name==='samples-queue'?'empty':/save-error|denied/.test(name)?'refused saves':/error|failed|invalid-link/.test(name)?'error':/long/.test(name)?'long names/captions':/many/.test(name)?'many items':/tabs|more|menu|picker|client-search|popover|options|schedule|confirm|detail|edit|lightbox|notes|comparison|open|actions|caption|organize$|suggest-post/.test(name)?'menus/sheets open':'normal';
   if(client && /^(month|week)-post$|lightbox|notes|comparison/.test(name)) screen='Card detail sheet';
-  if(rare.includes(kind) && !['Today','Calendar','Samples'].includes(screen)) return null;
+  if(rare.includes(kind) && !['Today','Calendar','Samples'].includes(ownerScreen)) return null;
   return {...state,screen,ownerScreen,audience:client?'client':'staff',kind};
 }
 const selected=inventory.map(classify).filter(Boolean);
 // The older calendar-sheet/samples-sheet names mean the Sheet *view*, not a
 // card detail overlay. Missing native setups must stay explicit discoveries.
-for(const name of ['card-detail-menus','card-detail-empty','card-detail-loading']) selected.push({lane:'discovery',name,screen:'Card detail sheet',ownerScreen:'Card detail sheet',audience:'staff',kind:name.endsWith('empty')?'empty':name.endsWith('loading')?'loading':'menus/sheets open',setup:'OPEN: reach the native deliverable detail sheet; the Sheet view is not a detail sheet'});
-// Main's newly reachable Create client dialog needs its own native captures.
-for(const name of ['clients-create-open','clients-create-manager-menu','clients-create-empty','clients-create-loading']) selected.push({lane:'discovery',name,screen:'Clients',ownerScreen:'Clients',audience:'staff',kind:name.endsWith('empty')?'empty':name.endsWith('loading')?'loading':'menus/sheets open',setup:'OPEN: native New client dialog in src/index/324-client-onboarding-panel.js.part; intercept every preview/create transport'});
+// Detail menu/empty/loading and New client manager states now have native
+// setups in the existing staff/admin runners, rather than discovery placeholders.
 const unique=[...new Map(selected.map(state=>[state.lane+':'+state.name,state])).values()].sort((a,b)=>priority.indexOf(a.screen)-priority.indexOf(b.screen)||a.audience.localeCompare(b.audience)||a.name.localeCompare(b.name));
 fs.mkdirSync(destination,{recursive:true});
 const file=path.join(destination,'coverage.json');

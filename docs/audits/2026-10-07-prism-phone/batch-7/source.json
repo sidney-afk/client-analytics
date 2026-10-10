@@ -1,0 +1,14 @@
+{
+  "sourceHash": "d6f82c15f0769a56add9a84c09652c35cf39d2f2a9808ef39d1fb1a90b87f0ac",
+  "baselineCommit": "1be85475fb8ccc97df9518dfed412980d39e4c47",
+  "devicePixels": "393 x 852 and 412 x 915",
+  "staffThemes": [
+    "light",
+    "dark"
+  ],
+  "clientThemes": [
+    "light"
+  ],
+  "liveWrites": 0,
+  "headless": true
+}

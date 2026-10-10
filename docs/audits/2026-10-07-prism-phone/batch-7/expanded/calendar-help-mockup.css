@@ -1,0 +1,8 @@
+/* PRISM-CALENDAR-HELP-PHONE: Expanded helper contrast and touch wording. */
+@media (max-width: 767px) {
+ html.sv-staff-phone .cal-import-head p,
+ html.sv-staff-phone :is(.cal-import-drop-sub,.cal-native-name-optional,.cal-org-sec,.cal-org-toggle .cal-org-toggle-sub),
+ html.sv-staff-phone .sv-jump-empty { color:var(--text-secondary); font-size:13px; line-height:1.5; }
+ html.sv-staff-phone .cal-import-overlay :is(input,textarea)::placeholder { color:var(--text-secondary); opacity:1; }
+ html.sv-staff-phone .sv-jump-foot { display:none; }
+}

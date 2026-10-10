@@ -78,6 +78,43 @@ All data is fictional and transports are intercepted. No live writes, database
 changes, n8n edits or GitHub merge. Hosted checks and Lighthouse acceptance are
 separate gates. Earlier failed receipts are preserved alongside corrections.
 
+## CI inventory correction, 2026-10-10
+
+The first hosted staff inventory failed a newly added child-breadcrumb guard.
+Its fixture assigned `parent` to a cached adapted issue. Opening the native
+detail sheet read the description, rebuilt the adapter from raw deliverables,
+and discarded that temporary relationship. The test then incorrectly demanded
+child markup from a top-level issue. The product breadcrumb was correct.
+
+The fixture now seeds `linear_issue_uuid` and `raw_issue_parent_id` in its raw
+rows before rebuilding the adapter. The original no-direct-`b`, exact markup
+restoration and desktop parent-link checks remain. Additional assertions verify
+the resolved relationship, parent destination and exact child identifier; this
+guard now runs at every width instead of only 390. This breadcrumb repair changes
+the fixture, not the product breadcrumb or its assertion.
+
+The full hosted logs also exposed a real readability failure in the shared
+Choose client sheet reached through Templates. Its helper copy was 12.8 px with
+insufficient light-theme contrast, and the dark placeholder lacked contrast.
+Two phone-scoped CSS rules apply the already reviewed 13 px helper and 16 px
+placeholder with the secondary text colour to that route. The readability guard
+is unchanged. [Four before/Expanded/after pairs](CI_FOLLOWUP.md) were personally
+reviewed at native size. The generated index was rebuilt; JavaScript bundles did
+not change.
+
+The original full and fresh review manifests remain bound to their original
+source hash in [source.json](source.json). This correction has its own source
+hash, exact CI-width inventory receipts and incremental 1440 desktop byte/style
+comparison against the prior PR head. Earlier captures have not been relabelled
+as captures of the changed source.
+
+[Follow-up receipts](ci-inventory-followup.json) preserve the reproduction,
+diagnosis and full unfiltered inventory checks at the exact CI widths, 390 and
+430, using both default themes without private font/chart overrides. Ledger
+entry 395 replaces this batch's earlier 394 because PR #2030 uses 394, now merged on main.
+The header census preserves main and its historical duplicates without adding
+a new collision.
+
 These are headless Chromium device fixtures, not physical-device or deployed
 production proof. Keyboard resizing is simulated, and TikTok media fixtures
 exercise queue controls rather than real playback or provider delivery. All

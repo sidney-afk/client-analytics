@@ -545,13 +545,29 @@ async function verify(page, name, width, theme) {
     if(name.startsWith('tiktok-client-')) assert.equal(await account.textContent(),humanAccount,'TikTok human-readable phone destination returns after resize');
     assert.match(await label.textContent(),/tap to (browse|add)/,'phone browse copy did not return');
   }
-  if (!before && name === 'linear-detail' && width === 390) {
-    await page.evaluate(() => {const rows=_prodIssues();if(rows.length<2)throw new Error('Missing fictional hierarchy fixture');rows[1].parent=rows[0].id;_prodOpenDeliverable(rows[1].id);});
+  if (!before && name === 'linear-detail') {
+    const hierarchy=await page.evaluate(() => {
+      const rows=_prodIssues(),parent=rows[0];
+      const child=rows.find(row=>row.id!==parent?.id && row.project===parent.project);
+      if(!parent || !child)throw new Error('Missing fictional hierarchy fixture');
+      const parentRow=_prodState.deliverables.find(row=>row.id===parent.id);
+      const childRow=_prodState.deliverables.find(row=>row.id===child.id);
+      // Detail reads rebuild the adapter. Seed its raw source, not a cached
+      // issue object whose temporary parent field disappears on that rebuild.
+      parentRow.linear_issue_uuid='fixture-parent-'+parent.id;
+      childRow.raw_issue_parent_id=parentRow.linear_issue_uuid;
+      _prodState.adapter=null;
+      _prodOpenDeliverable(child.id);
+      return {parentId:parent.id,childId:child.id,label:_prodIssueDisplayLabel(_prodIssue(child.id))};
+    });
     await settle(page);
+    assert.equal(await page.evaluate(id=>_prodIssue(id).parent,hierarchy.childId),hierarchy.parentId,'Native detail reads must preserve the raw fixture hierarchy');
     const crumb=page.locator('.prod-detail-crumb');
     const original=await crumb.innerHTML();
     assert.equal(await crumb.locator(':scope > b').count(),0,'child breadcrumb changed the native desktop markup');
-    assert.notEqual(await crumb.evaluate(n=>getComputedStyle(n,'::after').content),'none','phone issue ID is missing');
+    assert.equal(await crumb.locator('[data-prod-crumb-batch]').getAttribute('data-prod-crumb-batch'),hierarchy.parentId,'Child breadcrumb must link to its fixture parent');
+    assert.equal(await crumb.getAttribute('data-phone-issue-label'),hierarchy.label,'Phone breadcrumb must identify the child issue');
+    assert.equal(await crumb.evaluate(n=>getComputedStyle(n,'::after').content),JSON.stringify(hierarchy.label),'phone issue ID is missing');
     await page.setViewportSize({width:1024,height:844});await settle(page);
     assert.equal(await crumb.innerHTML(),original,'resize rebuilt the issue breadcrumb/editor');
     assert.equal(await crumb.evaluate(n=>getComputedStyle(n,'::after').content),'none','phone abbreviation remained on desktop');

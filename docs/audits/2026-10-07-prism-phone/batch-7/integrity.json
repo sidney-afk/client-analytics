@@ -6,7 +6,9 @@
   "freshCaptures": 2756,
   "openPhoneCells": 0,
   "openObligations": 0,
-  "ledgerEntry": 394,
+  "ledgerEntry": 395,
   "newDuplicateNumbers": [],
-  "mainPreservedWhole": true
+  "mainPreservedWhole": true,
+  "scope": "Original full/fresh review and native assets, bound to the original sourceHash above.",
+  "followupEvidence": "ci-inventory-followup.json"
 }

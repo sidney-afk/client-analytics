@@ -29,6 +29,9 @@ const firePush = (page) => page.evaluate(() => { if (typeof _calV2OnRealtimeChan
   const browser = await launch();
   try {
     // no Linear link → the video pill is freely pickable
+    // A production card has work items; a video status change on one without is refused
+    // (native_link_required), which is why "A's fresh edit" never saved (OPEN_REPAIRS 392).
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: PID, components: ['video', 'graphic'] }]);
     upCal({ id: PID, name: 'RTtwin ' + TS, platforms: 'youtube', scheduled_date: '2026-07-03', video_status: 'In Progress', graphic_status: 'Approved', caption_status: 'Approved', status: 'In Progress' });
     let seeded = false;
     for (let i = 0; i < 15 && !seeded; i++) { const r = row(PID, 'video_status'); seeded = !!r && r.video_status === 'In Progress'; if (!seeded) await sleep(1000); }

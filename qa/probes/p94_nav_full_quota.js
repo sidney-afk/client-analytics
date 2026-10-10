@@ -80,7 +80,9 @@ async function run() {
   for (const [id, wantHash] of [['navTemplates', '#templates'], ['navCalendar', '#calendar'], ['navWorkload', '#workload']]) {
     const r = await page.evaluate((tid) => { const el = document.getElementById(tid); if (!el) return { ok: false }; el.click(); return { ok: true }; }, id);
     await page.waitForTimeout(500);
-    const after = await page.evaluate(() => ({ hash: location.hash, active: document.querySelector('.header-nav-btn.active')?.id || null, content: (document.getElementById('content')?.children.length || 0) > 0 }));
+    // Clean addresses (src/index/003-sv-route.html.part): the bar shows /templates,
+    // so location.hash is empty; svRoute.hash() is the app's own route.
+    const after = await page.evaluate(() => ({ hash: (window.svRoute && typeof svRoute.hash === 'function') ? svRoute.hash() : location.hash, active: document.querySelector('.header-nav-btn.active')?.id || null, content: (document.getElementById('content')?.children.length || 0) > 0 }));
     ok(r.ok && after.hash === wantHash && after.active === id && after.content, `${id} navigates on full quota → ${after.hash} active=${after.active} rendered=${after.content}`);
   }
   ok(navErrs.length === 0, `no uncaught QuotaExceededError escapes navTo (saw ${navErrs.length})`);

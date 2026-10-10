@@ -80,8 +80,10 @@ const allAt = (r, st) => COMPS.every(c => r[c + '_status'] === st);
 
     // overall converges to Approved (video/graphic/caption all Approved); title excluded but also Approved
     S.ok(r.status === 'Approved', 'overall converged to Approved');
-    const overallComputed = await smm.evaluate((pid) => { const p = (calState.posts || []).find(x => x.id === pid); return p ? computeOverallStatus(p) : 'NO_POST'; }, PID);
-    S.ok(overallComputed === 'Approved', 'computed overall = Approved on a fresh surface');
+    // "Fresh surface": read the card again first. Without the reload this read the SMM
+    // tab's copy from before STAGE2/3, so it only passed when live updates happened to land.
+    const overallComputed = await smm.evaluate(async (pid) => { try { await loadCalendarPosts(); } catch (e) {} const p = (calState.posts || []).find(x => x.id === pid); return p ? computeOverallStatus(p) : 'NO_POST'; }, PID);
+    S.ok(overallComputed === 'Approved', 'computed overall = Approved on a fresh surface (got ' + overallComputed + ')');
 
     S.ok(smm._errs.length === 0 && kas._errs.length === 0 && cli._errs.length === 0, 'no JS errors across the full pipeline (' + JSON.stringify([...smm._errs, ...kas._errs, ...cli._errs].slice(0, 3)) + ')');
   } finally { try { await Q.archive(PID); } catch (e) {} await browser.close(); }

@@ -48,12 +48,31 @@ jobs:
         run: |
           npm install
           npx playwright install --with-deps chromium
-      - name: Run the dawn check (serves app, scoped to sidneylaruel)
+      # The Samples approve is the exception: it signs in through the real sign-in
+      # card as the admin roster name, and key-verify only accepts a key whose role
+      # matches that name, so this one step holds the admin key. Its result is
+      # written to a file and reported by the next step.
+      - name: Samples approve (admin key, scoped to sidneylaruel)
         env:
           SXR_COURIER: '0'
+          DAWN_ONLY: samples-approve
           SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
-          # Optional staff ROLE key: role-gated reads (Workload) refuse the key above.
-          SYNCVIEW_ROLE_KEY: ${{ secrets.SYNCVIEW_ROLE_KEY }}
+          SYNCVIEW_ROLE_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_ACTOR: ${{ secrets.SYNCVIEW_STAFF_ACTOR }}
+        run: node qa/dawn/dawn-check.js
+      - name: Run the dawn check (serves app, scoped to sidneylaruel)
+        if: ${{ !cancelled() }}
+        env:
+          SXR_COURIER: '0'
+          # The SMM role key, as a repository secret (owner, 2026-10-09). The role
+          # keys also live in the `production` environment, but that environment
+          # needs an approval per run, which a scheduled run cannot wait for; the
+          # issuer and the staff writers accept a role key. No roster name here:
+          # the SMM key never signs in as the admin actor.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          # Staff ROLE key for role-gated reads (Workload).
+          SYNCVIEW_ROLE_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          DAWN_SAMPLES_OWN_STEP: '1'
         run: node qa/dawn/dawn-check.js
       # PUBLIC REPO: the summary, log and artifacts are readable by anyone. The
       # report carries only check names, pass/fail, timings and counts (enforced

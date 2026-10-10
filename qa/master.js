@@ -106,16 +106,23 @@ function profilePlan(profile) {
     };
   }
   // fast (default): the cheap, high-signal subset you run on every change.
-  // The create_* block is the generalized optimistic-state divergence class:
-  // rows born in the browser, rapid edits, archive race, reorder+reload,
-  // remote/background merge, repeated creates. The teardown divergenceGate also
-  // checks every selected scenario's DOM/local-state/DB agreement.
+  // The teardown divergenceGate checks every selected scenario's DOM/local-state/DB
+  // agreement.
   return {
     unit: {},
     boot: {},
     parity: { files: ['parity_logic.js', 'realtime_parity.js'] },
-    probes: { files: ['p89_cal_create_via_ui.js', 'p91_ui_realtime_multitab.js'] },
-    scenarios: { filter: 'create_via_ui,create_then_archive_race,create_rename_rename_race,create_drag_reorder_persist,create_during_remote_merge,create_survives_reload,create_many_via_ui,create_via_ui_workflow_video,clean_both,smm_request_video,client_approve_video' },
+    // p89/p91 drove the retired staff blank-card funnel (nightly manifest, 2026-10-09).
+    probes: { files: ['p92_sxr_resolve_pill_inplace.js', 'p94_nav_full_quota.js'] },
+    // The eight create_* scenarios (create_via_ui, create_then_archive_race,
+    // create_rename_rename_race, create_drag_reorder_persist, create_during_remote_merge,
+    // create_survives_reload, create_many_via_ui, create_via_ui_workflow_video) were
+    // retired from this list on 2026-10-09 (OPEN_REPAIRS 392): they click the staff "+"
+    // and type into the blank sample it used to make. For every enrolled client "+" now
+    // opens Create Post (addSxrBlankCard -> _calOpenNativePost), so production cannot
+    // reach that funnel; they only ran because scenarios use the legacy lane
+    // (qa/scenario_lane.js). They stay defined and still run under --profile=full.
+    scenarios: { filter: 'clean_both,smm_request_video,client_approve_video' },
     visual: { filter: 'clean_both' },
   };
 }
@@ -432,7 +439,7 @@ function laneVisual(cfg) {
     // managers terminate detached children after a few seconds, while an
     // in-process server cannot answer during the synchronous lane runners.
     let serverFailed = false;
-    srv = spawn(py, ['-m', 'http.server', String(PORT)], {
+    srv = spawn(py, [path.join(ROOT, 'qa', 'pages_static_server.py'), String(PORT)], {
       cwd: ROOT,
       stdio: 'ignore',
       detached: false,

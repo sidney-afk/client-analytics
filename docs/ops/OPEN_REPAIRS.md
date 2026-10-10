@@ -31915,6 +31915,106 @@ iPhone width when opened.
 
 Rollback: block at the bottom of `migrations/2026-10-09-thumbnail-titles.sql`.
 
+## 392. [2026-10-09, BUILT, NOT MERGED] Client paths re-proven on the live site; Samples Kasper Undo fixed; Calendar and Samples robots back on the paths production takes (session Gatekeeper)
+
+**Samples nightly, 6 of 210 red (run 99).** Four Kasper paths, two causes:
+- *Undo: a real product bug.* `_sxrKasperUndoApprove` set the card back to Kasper Approval on screen and only then called
+  `_sxrKasperApplyAndPersist`, whose stale-screen check (entry 316, PR 1916, 2026-10-01) compares the card on screen with the
+  server. The server held his own Client Approval, so every Undo of a Kasper approve on Samples was refused as "someone else
+  changed this card" (screenshot of the live refusal, test client, 2026-10-09). Fix: Undo no longer pre-sets the card; the
+  check runs first and the save sets it. A client approval that lands after his approve is still not undone. Test:
+  `test/kasper-never-lose-decision.js` "Samples: Undo of his own approve" fails on the old code with the live message.
+- *Finish: a stale robot expectation.* Owner decision 2026-09-27: a sample he finishes leaves his queue (no "Sent to SMM" row).
+  The tree path and `kasper_finish_video` now prove the saved `kasper_finished_at` stamp, the status, and the card leaving.
+- *Two create-then-reload scenarios:* the page shows clean addresses (`/sample-reviews/<slug>`); the robots served it with
+  Python's plain file server, which answers such a path with a bare 404 where GitHub Pages answers `404.html` (which forwards
+  into the app). `qa/pages_static_server.py` answers like Pages; `qa/master.js`, `qa/run-probes.js` and the morning check use it.
+
+**Calendar nightly.** Run 111 (2026-10-08, before entry 373's fixes merged): 28 of 67. Run 112 (2026-10-09, with them): 21 of 67.
+p28, p29, p30 and p36 pass and stay: despite "linear" in their names they test the native write routing production takes
+(rewritten 2026-09-08). p59, p68, p82 and p87 test live features too. What was left, by cause:
+- *Thirteen probes moved a video or thumbnail on a seeded card with no work item* (p42, p43, p43b, p44, p45, p48, p53,
+  p87_kasper_finish_stale_refresh, p71, p59, p57, p66, p82). Every production card has work items; since the native cutover a
+  decision on a part with none is refused, and since 373 the invented key's call to the real gateway is refused too, so the
+  card's own row was never written. `qa/probes/lib.js` now gives every new seed fixture work items and fakes the gateway in
+  every probe browser, as p28 and the Samples tree already did (`noWorkItems: true` opts a seed out). One more layer: after
+  a committed write the page reads the work item back to confirm it, and the fixture answered that read with no status, so
+  the write stopped with `native_replay_status_unavailable` (measured on p42). The fixture work item now holds the status the
+  faked gateway last accepted. p42 then passed locally; the full-list result is in the PR.
+- *p92* did the same on Samples (fake gateway added; 10/10 locally). *p85* proved the client approve on a thumbnail with no
+  work item; it now uses the caption, which has none of its own (the gate checks are unchanged). *p94* read `location.hash`,
+  empty under clean addresses; it reads `svRoute.hash()` (6/6). *p61* is left to the full-list result in the PR.
+- *Retired: p89, p90, p91.* They click the staff "+" and type into the blank card it used to make. For a client on the native
+  lane "+" opens Create Post, which makes the work items first; every active client and the test client are on it, and an
+  unreadable roster fails toward it, so production cannot reach that funnel. Files kept; reason in the manifest; Create Post is
+  covered by `docs/syncview-design/tests/prod-write-gateway-browser.js`. `qa/master.js`'s fast profile uses p92 and p94 instead.
+- *p96:* the robot's staff key was not a role key; it now reads `ROBOT_ROLE_KEY_SMM` (below).
+
+**Tier 0 re-proven on the live site** (`qa/dawn/tier0-live-proof.js`, 12 of 12, test client only): real staff sign-in and
+Share with client (issuer 200); the link in a fresh profile loads Calendar and Samples, thumbnails draw, client approve and
+request-changes save and hold, the client approves a sample thumbnail with real work items (staff sends it from the real sheet
+and puts it back). Ledger rows restamped to 2026-10-09; no row overstates.
+
+**Morning check: Samples approve added** (owner 2026-09-22). A throwaway sample cannot take a client decision
+(`native_link_required`, measured), so it uses the test client's one sample with real work items through
+`qa/dawn/native-sample-roundtrip.js`. Needs a role key and the roster name; without them it reports "not run" (⚠️), never passed.
+
+**Second pass, after the full Calendar list ran locally on the merged branch.** Every probe but the ones below then failed
+only on this sandbox's realtime socket, which answers 500 here and works in CI (the "0 JS errors" line; p49 and p70 test
+realtime itself). The rest, each a robot cause:
+- *p34*: two of its cards are meant to have no work item; they now opt out (`noWorkItems: true`) of the library default.
+- *p61*: the client's note was refused with "Notes are still loading"; it now waits for the thread as p60 does (373).
+- *p71*: "computed overall on a fresh surface" read the staff tab's copy without reloading it; it reloads first.
+- *p82*: since Linear was retired a shared old Linear link is deliberately not a collision (`_calDupeKey`); the twin card
+  now shares the first card's fixture work item (`sharesWith` in the fixture), which is what the warning guards.
+- *p87_kasper_finish_stale_refresh*: it faked the old n8n save address; saves go to `calendar-upsert` since 2026-10-07, so
+  Finish's save reached the live function, did not land, and Finish was undone. Both addresses are now faked (it writes nothing).
+- *p96* passes with the SMM role key and a roster name (run locally with both).
+- *p31, p38*: the live switch `caption_generate_ef_clients` was set to all clients at 19:33 UTC on 2026-10-09, so caption
+  generation now calls the `caption-generate` function; the probes faked only the n8n address. Both addresses are faked now.
+- *Samples nightly scenarios:* the eight create_* scenarios drive the same retired "+" funnel on Samples
+  (`addSxrBlankCard` -> Create Post for every enrolled client) and ran only because scenarios use the legacy lane; retired
+  from the nightly list in `qa/master.js` (still defined, still run by `--profile=full`). The nightly keeps clean_both,
+  smm_request_video, client_approve_video and the 24 tree paths.
+
+**Third pass, 2026-10-10: the Samples nightly's probe step.** The owner's run on the branch (38061795202) was the first in
+weeks to pass the master lanes, so the step after them ran for the first time since the native cutover: 7 of 8 red. Causes,
+all in the robots:
+- The Samples probe library never faked the work-item gateway (`qa/sxr_courier_lib.js` now does, as `qa/probes/lib.js`
+  does; not on the legacy lane the scenarios use), and new seeds had no video or thumbnail link, so every approval was
+  refused with "Nothing to review yet" (the 2026-09-05 content rule). New seeds now get placeholder links unless they set
+  their own (the content-rule probe sets them empty on purpose). Two samples (`sxr_concurrency`) and one Calendar card
+  (`cal_realtime_twin`) also get fixture work items, as a real one has.
+- `sxr_kasper_audit_holes` checked pushes to the retired Linear webhooks; it now checks the status reaching the video
+  work item (in its native form, `client_approval`). `sxr_gating_flags` expected the "Sent to SMM" row; it now follows the
+  owner's 2026-09-27 rule (finish stamp saved, the sample leaves the queue and a reply does not bring it back).
+- **Damage, repaired:** `sxr_cold_open` clicks the staff "+", which for an enrolled client opens Create Post and adds no
+  card, so in that run it typed its name into the last EXISTING sample (the test client's one sample with real work items),
+  and archived it (15:14 UTC). Only the sample row and the work-item titles changed; both work items kept their statuses.
+  The sample was un-archived through `sample-review-upsert` (back to Tweaks Needed); its old name is not recorded anywhere,
+  so it keeps the probe's name, which its work-item titles also carry now. The probe now stops if no NEW card appears, and
+  it left the nightly list (it drives the retired funnel).
+Calendar nightly on the branch (run 38061783375): 63 of 64 probes passed. The one failure, p96, is the secret's value:
+`SYNCVIEW_STAFF_ACTOR` matches more than one roster person (`403 roster_actor_not_unique`); it needs a name only one active
+SMM has, exactly as the sign-in list shows it. p96 passed locally with such a name. Owner step.
+Locally after the fixes: 6 of the 7 remaining probes pass. `cal_realtime_twin` cannot be proven here (its first step needs
+the realtime socket, which this sandbox lacks); its CI failure, the status save, was the missing work item.
+
+**The robots' key (owner decision 2026-10-09).** The role keys live in the `production` environment, which needs an
+approval per run (`.github/workflows/deploy-client-review-link.yml`; its last run waited 2 min 23 s), so a nightly cannot
+use it, and the approval rule stays exactly as it is. The owner added the repository secret `ROBOT_ROLE_KEY_SMM` (the SMM
+role key). The Calendar nightly, the Samples nightly and the morning check now read it as `SYNCVIEW_STAFF_KEY` (and the
+morning check also as `SYNCVIEW_ROLE_KEY`). No environment is used. A role key is what the robots ran with locally all day
+(the sandbox's staff key is one). `client-signoff-reconcile.yml` was not asked about and still reads `SYNCVIEW_STAFF_KEY`.
+**Correction (2026-10-10): the admin actor stays with the admin key.** `SYNCVIEW_STAFF_ACTOR` is the admin roster name and
+there is no test SMM on the roster, so the two flows that act as that person cannot use the SMM key: key-verify and
+description-image-upload both require the roster role to match the key's role (401 `role_mismatch`, 403
+`roster_actor_not_unique`). p96 (Calendar nightly) and the morning check's Samples approve now each run in a step of their
+own with `SYNCVIEW_STAFF_KEY` (the admin key) and the actor; every other step stays on `ROBOT_ROLE_KEY_SMM` with no actor.
+The morning check's Samples step writes its result to a file and the main step reports it, so it is still one report.
+`test/robot-key-actor-pairing.js` fails if any workflow step pairs the SMM key with the admin roster name.
+**Way back:** revert the PR.
+
 ## 393. [2026-10-09, BUILT, NOT MERGED] Calendar board jumps sideways (and up and down) when it refreshes on its own
 
 **What was wrong.** Reported by the owner on 2026-10-09: sitting still on the staff Calendar, the

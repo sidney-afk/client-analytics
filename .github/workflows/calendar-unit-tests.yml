@@ -390,7 +390,7 @@ jobs:
 
   browser-guards:
     # Offline browser regression guards that no workflow ran until 2026-10-10
-    # (OPEN_REPAIRS 396). Each was written as the proof of a fix and then never
+    # (OPEN_REPAIRS 405). Each was written as the proof of a fix and then never
     # started again; run on that day's main, 9 of 30 had drifted to failing and
     # one (clean-urls) was catching a real crash: a fresh Kasper sub-tab address
     # showed an admin "Could not load data". Fully mocked: no backend, no

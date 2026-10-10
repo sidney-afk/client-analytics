@@ -48,7 +48,7 @@ const CASES = [
   { name: 'Credentials: bulk import', overlay: '.cc-sensitive-overlay', open: () => _ccOpenBulkImport() },
   { name: 'Credentials: client dialog', overlay: '#ccOverlay', open: () => _ccOpenModalNow('Fixture client') },
   // Added 2026-09-29 (#1853) and never covered: this test was run by no
-  // workflow until 2026-10-10 (OPEN_REPAIRS 396).
+  // workflow until 2026-10-10 (OPEN_REPAIRS 405).
   { name: 'Archived cards list', overlay: '#arxOverlay', open: new Function(`${mountViews}; calState.client = ${CLIENT}; _arxOpen('cal');`) },
   { name: 'Archived restore confirm', overlay: '#arxDialog', open: () => { _arxDialog({ title: 'Restore this card?', msg: 'Fixture', yes: 'Restore' }); } },
 ];
@@ -85,7 +85,7 @@ const NOT_A_BACKDROP_CLICK = [
   // scroll and fires no click, so the press-and-release case cannot happen there;
   // only a mouse in a window under 768 px wide can reach it, and what closes is a
   // menu, never typed work. Listed so the decision is written down; a sheet that
-  // ever holds a form needs the guard instead (OPEN_REPAIRS 396).
+  // ever holds a form needs the guard instead (OPEN_REPAIRS 405).
   ['095-shared-client', 'event.target === dialog || event.target.closest(\'.view-tab-btn\')', 'phone client picker sheet (touch: a moved press fires no click)'],
   ['099-phone-staff-shell', "ev.target === d || ev.target.closest('[data-fph-close]')", 'phone sheet (touch: a moved press fires no click)'],
   ['099-staff-phone-bar', 'if (e.target === dialog) { finish(); return; }', 'phone sheet (touch: a moved press fires no click)'],

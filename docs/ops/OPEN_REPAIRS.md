@@ -31991,3 +31991,22 @@ should the step use that newest earlier month tab (for example within one month)
 
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
+
+## 405. [2026-10-10, BUILT, NOT MERGED] Thirty browser regression tests that no workflow ran; nine had drifted to failing, one was catching a real Kasper crash (session Digger)
+
+Bug archaeology over entries 331 to 393 (session Digger; entries 404 and 398 carry the other fixes of the same run).
+
+**What was wrong.** 21 browser tests under `test/` were classified `isolated_browser` / `not_run_by_unit_ci` and 9 under `docs/syncview-design/tests/` were named by no workflow, npm script or runner. Each was written as the proof of a fix (the edit that stays with its client, 375; save honesty, 375; link-box keys, 371; dialog press-and-release, 215/287; Workload signed-out privacy, #1840; the TikTok queue guards; clean addresses; refresh skeletons) and then never ran again. Run on main `1be8547`, 21 passed and 9 failed: six had gone stale (the beacon helpers grew, #1792/#1796; a TikTok selector caught the Instagram switch, #1887; the rename mock lacked the n8n-exit switch, #1858; two dialogs added in #1853; the phone redesign hides approved parts; a refresh read before the split files ran), two Workload tests still serve reads retired in #1391, the b4 sign-in test predates the menu rework, and **one was right: `test/clean-urls-browser.js`**.
+
+**The crash it was catching.** Since the page loads in parts (#1848, 2026-09-29), boot (`260`, `js/sv-13-core-*`) runs `init()` at its end and waits only for the staff check the head script started early. When that answer came back before the next file (`305`, where `_kasperResolveSubtab` lives) had run, a fresh `/kasper/<subtab>` or `#kasper/<subtab>` threw and an admin saw "Could not load data. Make sure the Google Sheet is set to …". A first visit after a deploy or a slow line was enough. Fix: those two branches wait for the parse to finish, then re-check that boot still owns the navigation. A first version waited only when the resolver was missing and still lost about one reload in thirty: the list it reads (`KASPER_SUBTABS`, fragment 320) is in a third file, `js/sv-17-core-*`, which could still be on its way after 305's had run ("KASPER_SUBTABS is not defined"). Found by running the refresh-skeleton guard ten times (2 failures), then held deterministically.
+
+**Built.**
+- `test/browser-guards-wired.js` (unit): every `isolated_browser` suite is `ci: "representative"` exactly when a workflow runs it; every entry point in `docs/syncview-design/tests/` is started by a workflow, an npm script a workflow calls, or a runner a workflow starts; anything else is listed in `NOT_WIRED` with its reason, and a stale line fails. On the old tree it lists all 30.
+- `calendar-unit-tests.yml`: a `browser-guards` job runs the 28 that pass (every step runs even after one fails, so a red run names every broken guard); 21 classifications flipped to `representative`.
+- Repairs to the six stale guards (each run before and after), two new cases in the dialog test, and the phone menus written down as touch sheets (a moved press fires no click; they hold no typed work).
+- `src/index/260-production-refresh-boot.js.part` (`_bootKasperSubtab`) and `test/kasper-deep-link-split-race-browser.js`, which holds the later files back 1.5 s, all together and then each one alone, and fails on main and on the first version with that exact error card.
+- Probes, not kept: all 281 clean addresses pass with every split file after the first held back; and 30 app addresses, as admin and as SMM, pass with each of the 4 later files held back alone (240 loads; the same probe flags the four Kasper sub-tab addresses on the first version), so the crash has no other siblings.
+
+**Not wired, reason in the test:** `workload-board-browser.js`, `workload-render-browser.js` (harness rewrite), `b4-staff-login.js` (keyboard checks).
+**Proof.** Every guard above run locally (Node 22, Playwright 1.56.1); hosted CI on this pull request is the proof for the new job.
+**Way back:** revert the pull request and rebuild the fragments.

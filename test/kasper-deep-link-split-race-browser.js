@@ -2,7 +2,7 @@
 /*
  * A fresh open of a Kasper sub-tab address (/kasper/<subtab>, #kasper/<subtab>)
  * reaches that sub-tab even when the later script files are still on their
- * way. Found 2026-10-10 (Digger, bug archaeology, OPEN_REPAIRS 396) by
+ * way. Found 2026-10-10 (Digger, bug archaeology, OPEN_REPAIRS 405) by
  * test/clean-urls-browser.js, which no workflow had ever run.
  *
  * Since the page loads in parts (#1848, 2026-09-29), boot (fragment 260,
@@ -14,9 +14,13 @@
  * Sheet is set to 'Anyone with the link can view'." instead of Kasper. A
  * first visit after a deploy (nothing cached) or a slow line was enough.
  *
- * This holds the later files back on purpose and answers the staff check at
- * once, so the race is decided the bad way every time. Every backend answer
- * is local.
+ * The first fix tested for the resolver only, and still lost about one
+ * reload in thirty: the list it reads (KASPER_SUBTABS, fragment 320) is in a
+ * third file, js/sv-17-core-*, which could still be on its way after 305's
+ * had run ("KASPER_SUBTABS is not defined"). So this holds the later files
+ * back on purpose in two ways, every one together and then each one alone
+ * (with the staff check answered once the files before it have run), so the
+ * race is decided the bad way every time. Every backend answer is local.
  */
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -31,7 +35,7 @@ const ADMIN = { id: 'qa_admin', name: 'QA Admin', role: 'admin', team: null };
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS' };
 const HOLD_MS = Number(process.env.KDL_HOLD_MS || 1500);
 
-function pagesServer() {
+function pagesServer(hold) {
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://127.0.0.1');
     let p = decodeURIComponent(u.pathname);
@@ -42,28 +46,27 @@ function pagesServer() {
       if (fs.existsSync(file + '.html')) file = file + '.html';
       else { file = path.join(ROOT, '404.html'); status = 404; }
     }
-    // Every split file after boot's own arrives late (a cold cache on a slow line).
-    const late = /^\/js\/sv-(\d\d)-/.exec(p);
+    // The held split files arrive late (a cold cache on a slow line).
     const send = () => { res.writeHead(status, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' }); fs.createReadStream(file).pipe(res); };
-    if (late && Number(late[1]) >= 14) setTimeout(send, HOLD_MS); else send();
+    if (hold.test(p)) setTimeout(send, HOLD_MS); else send();
   });
   return new Promise(r => server.listen(0, '127.0.0.1', () => r(server)));
 }
 
-(async () => {
-  const split = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8'));
-  if (!split.enabled) { console.log('kasper-deep-link-split-race-browser: split loading is off; nothing to race'); return; }
-  const server = await pagesServer();
-  const browser = await chromium.launch();
+async function openAll(browser, hold, staffDelayMs) {
+  const server = await pagesServer(hold);
   const base = `http://127.0.0.1:${server.address().port}`;
   const results = [];
   try {
     for (const addr of ['/kasper/hiring-process', '/#kasper/hiring-process', '/kasper/editors']) {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-      await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => {
+      await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, async route => {
         const req = route.request(); const url = req.url();
         if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-        if (/\/functions\/v1\/key-verify/.test(url)) return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, role: 'admin', member: ADMIN }) });
+        if (/\/functions\/v1\/key-verify/.test(url)) {
+          if (staffDelayMs) await new Promise(r => setTimeout(r, staffDelayMs));
+          return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, role: 'admin', member: ADMIN }) });
+        }
         if (/docs\.google\.com/.test(url)) return route.fulfill({ status: 200, contentType: 'text/csv', headers: cors, body: 'client_name\n' });
         return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: /\/rest\/v1\//.test(url) ? '[]' : '{}' });
       });
@@ -83,13 +86,40 @@ function pagesServer() {
       await context.close();
     }
   } finally {
-    await browser.close();
     server.close();
   }
-  for (const r of results) {
-    assert.ok(!r.errorCard, `${r.addr}: an admin got "Could not load data" instead of Kasper (${r.cardText.trim()})`);
-    assert.equal(r.nav, 'kasper', `${r.addr}: lands on Kasper (landed on ${r.nav})`);
-    assert.equal(r.tab, r.addr.split('/').pop(), `${r.addr}: on its sub-tab (on ${r.tab})`);
+  return results;
+}
+
+(async () => {
+  const split = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8'));
+  if (!split.enabled) { console.log('kasper-deep-link-split-race-browser: split loading is off; nothing to race'); return; }
+  // The eager split files after boot's own, in load order, read from the built page.
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const parts = JSON.parse(/var PARTS = (\[[^\]]*\]);/.exec(html)[1]);
+  // (Local names are minified away; this message is boot's own, fragment 260.)
+  const boot = parts.findIndex(f => fs.readFileSync(path.join(ROOT, f), 'utf8').includes('background fetchAll failed'));
+  assert.ok(boot >= 0, 'the boot file (fragment 260) is one of the split files');
+  const later = parts.slice(boot + 1);
+  assert.ok(later.length > 0, 'some split files load after boot');
+  const esc = f => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rounds = [{ label: 'every later file late', hold: new RegExp('^/(' + later.map(esc).join('|') + ')$'), staffDelayMs: 0 }]
+    .concat(later.map(f => ({ label: `${f.replace(/-[0-9a-f]+\.js$/, '')} alone late`, hold: new RegExp('^/' + esc(f) + '$'), staffDelayMs: 300 })));
+  const browser = await chromium.launch();
+  const failures = [];
+  let opened = 0;
+  try {
+    for (const round of rounds) {
+      for (const r of await openAll(browser, round.hold, round.staffDelayMs)) {
+        opened++;
+        if (r.errorCard) failures.push(`${round.label}: ${r.addr}: an admin got "Could not load data" instead of Kasper (${r.cardText.trim()})`);
+        else if (r.nav !== 'kasper') failures.push(`${round.label}: ${r.addr}: lands on Kasper (landed on ${r.nav})`);
+        else if (r.tab !== r.addr.split('/').pop()) failures.push(`${round.label}: ${r.addr}: on its sub-tab (on ${r.tab})`);
+      }
+    }
+  } finally {
+    await browser.close();
   }
-  console.log(`kasper-deep-link-split-race-browser: ${results.length} Kasper sub-tab addresses open on their sub-tab with the later files ${HOLD_MS} ms late ✅`);
+  if (failures.length) { failures.forEach(f => console.error('  FAIL ' + f)); throw new Error(`${failures.length} of ${opened} Kasper sub-tab opens went wrong`); }
+  console.log(`kasper-deep-link-split-race-browser: ${opened} opens of 3 Kasper sub-tab addresses reach their sub-tab, with the ${later.length} later files ${HOLD_MS} ms late together and one at a time ✅`);
 })().catch(e => { console.error(e); process.exit(1); });

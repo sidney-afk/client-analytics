@@ -1906,14 +1906,16 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                click (or Back) can land first; the click wins. */
             const _bootNavEpoch=_syncviewNavEpoch;
             const _bootOwnsNav=()=>_syncviewNavEpoch===_bootNavEpoch;
-            /* Kasper's sub-tab names (_kasperResolveSubtab, 305) load in a later
-               file than this one when the page loads in parts (PR 1848). init
-               waits only for the early staff check, so a fresh /kasper/<subtab>
-               could reach its branch before that file had run, throw, and show
-               an admin "Could not load data" (OPEN_REPAIRS 396). Waiting for
-               the parse to finish costs nothing once it has. */
+            /* Kasper's sub-tab names load in later files than this one when the
+               page loads in parts (PR 1848): the resolver (305) in one, the list
+               it reads (KASPER_SUBTABS, 320) in another. init waits only for the
+               early staff check, so a fresh /kasper/<subtab> could reach its
+               branch before either had run, throw, and show an admin "Could not
+               load data" (OPEN_REPAIRS 405). Testing for the resolver alone is
+               not enough (its file can run while the list's is still on its
+               way), so wait for the parse to finish: it costs nothing once it has. */
             const _bootKasperSubtab=async(sub)=>{
-                if(typeof _kasperResolveSubtab!=='function'&&document.readyState==='loading'){
+                if(document.readyState==='loading'){
                     await new Promise(r=>document.addEventListener('DOMContentLoaded',r,{once:true}));
                 }
                 return typeof _kasperResolveSubtab==='function'?_kasperResolveSubtab(sub):'';

@@ -51,7 +51,7 @@ assert(!/status:\s*409\b/.test(func(source, '_writeRefusalBeacon')), 'beacon mus
 // The beacon's own helpers. It swallows every error (a report must never break
 // a save), so a helper missing here makes it send nothing rather than throw:
 // #1792 and #1796 (2026-09-27/28) added four, and this test then failed for
-// two weeks unseen because no workflow ran it (OPEN_REPAIRS 396).
+// two weeks unseen because no workflow ran it (OPEN_REPAIRS 405).
 const names = ['_writeUiDiagnosticIds', '_writeRefusalAppVersion', '_writeRefusalNewId', '_writeRefusalAttemptId',
   '_writeRefusalIsNetworkFailure', '_writeRefusalBeacon', '_writeUiQueueDiagnostic', '_calReplyDraftsLoad', '_calReplyDraftsPersist'];
 

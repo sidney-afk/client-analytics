@@ -31,6 +31,7 @@ divergence cannot be discovered afterwards.
 | **Why** | Re-gating `401`s every client approval and comment on a link issued before the gate. It broke clients **twice** in one day. |
 | **Deploying the repo source** | Re-applies the gate. Silent client outage. `--no-verify-jwt` does not help — the refusal is application-level. |
 | **To ship a change** | Capture the exact live source, apply the delta to *that*, deploy it, with the owner's explicit approval. Never a bare `supabase functions deploy`. |
+| **Lane for `calendar-upsert`** | `.github/workflows/calendar-upsert-live-delta.yml` (2026-10-10, OPEN_REPAIRS 402) does exactly that for the one auto-posted line: downloads the live function, patches the downloaded copy, deploys only it with `--no-verify-jwt`, verifies by hash, rolls back on failure. It never deploys the repo source. |
 | **To close the divergence** | Re-issue every active client link, then re-gate. Owner has declined this for now, so the divergence is permanent until they say otherwise. |
 | **Sources** | `AGENTS.md` freeze banner · F35 row of `ROLLBACK.md` · `EXECUTION_LOG.md` 2026-07-15 |
 

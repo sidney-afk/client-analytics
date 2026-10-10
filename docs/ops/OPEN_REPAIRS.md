@@ -32565,13 +32565,13 @@ exactly the one past-due post.
 1. Vault: `select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'calendar_auto_posted_key');`
 2. Edge secret `CALENDAR_AUTO_POSTED_ACTOR` = the exact roster name of one active admin
    (`ROLE_KEY_ADMIN` is already set for production-write and is reused).
-3. Deploy `calendar-upsert` = live source plus the delta, never the repo source: save the live
-   function JSON (MCP `get_edge_function`; keep it, it is the rollback), run
-   `node scripts/calendar-upsert-live-delta.js <live.json> <out-dir-outside-the-repo> --expect-sha=67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185`,
-   deploy exactly those files with MCP `deploy_edge_function`, same names and entrypoint,
-   `verify_jwt: false`. Then save the live JSON again and run
-   `node scripts/calendar-upsert-live-delta.js --check <live-after.json> --expect-sha=7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843`;
-   it must print `CHECK OK`. Rollback: redeploy the saved JSON unchanged, `verify_jwt: false`.
+3. Deploy `calendar-upsert` = live source plus the delta, never the repo source, through the lane
+   `.github/workflows/calendar-upsert-live-delta.yml` (Actions, Run workflow, keep the two hash defaults,
+   type `DEPLOY LIVE CALENDAR-UPSERT DELTA`). It downloads the live function outside the checkout,
+   refuses unless verify_jwt is false, applies the line, deploys only that copy with `--no-verify-jwt`,
+   downloads again and checks every file by hash, and puts the original back if anything fails. A
+   rerun after success says "already applied" and deploys nothing. (Read-only alternative for a look:
+   the script's JSON modes on a saved `get_edge_function` result.)
 4. Deploy `calendar-auto-posted` (deploy-single-function lane on the merged SHA, or by hand),
    `verify_jwt: false`.
 5. Apply `migrations/2026-10-10-calendar-auto-posted.sql`.
@@ -32583,6 +32583,27 @@ If it stopped itself, `value.halted.reason` says why; fix that, then write the s
 Rollback: switch back to `{"clients": []}` (next tick), then `select cron.unschedule('calendar-auto-posted-tick');`.
 Posts it already flipped stay Posted; a person who sets one back is never overruled.
 
+**Deploy lane for the delta (session Herald, follow-up after #2032 merged).** The one-line change no
+longer has to be copied by hand through MCP. `.github/workflows/calendar-upsert-live-delta.yml` is
+workflow_dispatch only, runs in the production environment with `SUPABASE_ACCESS_TOKEN`, and needs the
+typed confirmation `DEPLOY LIVE CALENDAR-UPSERT DELTA`. Its inputs default to the measured hashes
+(before `67511f67...e91185`, after `7312f7fc...dff843`). Steps: (1) `supabase functions download` into a
+temp folder outside the checkout, sha256 of every file, refuse unless live verify_jwt is false; (2)
+`--dir-apply` must produce the after-hash and refuses any file carrying `authorizeBrowserWrite`; (3)
+deploy only that folder with `--no-verify-jwt --use-api`; (4) download again: index.ts must be the
+after-hash, every other file byte-identical to step 1, verify_jwt still false; (5) if 3 or 4 fails,
+redeploy the step-1 original with `--no-verify-jwt`, prove it by re-downloading, fail the run; (6) a
+live source already at the after-hash is reported as already applied and nothing is deployed. The
+deploy manifest now lists this lane for `calendar-upsert` with the frozen note (the generator counts
+one workflow once even though it has a deploy and a rollback step). `test/calendar-upsert-live-delta-lane.js`
+pins the rules (no repo-source deploy path, `--no-verify-jwt` on every deploy, rollback present, the
+gates and defaults) and runs the script's directory modes on invented files. **Measured read-only on
+the real live v83 source** (from a read-only `get_edge_function`, laid out the way a download writes
+it): snapshot two files, state `before`, apply gives `7312f7fc...dff843`, verify passes on the patched
+copy and fails on the unpatched one. The lane itself has not run: it needs the production token.
+**Not proven yet:** the exact folder layout `supabase functions download --use-api` writes; the lane
+refuses before any deploy unless the entrypoint is `supabase/functions/calendar-upsert/index.ts` with
+its imports present, so a different layout fails safe on the first run.
 
 ## 404. [2026-10-10, BUILT, NOT MERGED] Wrong client and lost work: the credentials dialog, the Instagram cover, TikTok's retry key, Samples Notes, a restored SyncLinear comment; dates in the team's time zone (session Digger)
 

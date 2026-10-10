@@ -57,9 +57,9 @@
 | 49 | `240-production-description.js.part` | 2717 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 52 | `270-samples-model.js.part` | 3110 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 53 | `280-samples-cards-notes.js.part` | 3020 | SURFACE 3: the save engine |
-| 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 54 | `290-samples-writes-review.js.part` | 1977 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 55 | `299-instagram-upload.js.part` | 741 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
 | 56 | `300-tiktok-upload.js.part` | 2397 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 791 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |

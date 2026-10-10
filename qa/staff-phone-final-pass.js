@@ -2,6 +2,8 @@
 // Native generated app, invented data, headless browser by default.
 // --before-root=<checkout> captures the identical journeys against main.
 // --shots=<directory> --widths=360,390,430 --only=<regexp> --report=<json>
+// CI: run the complete --all-states inventory separately at 390 and 430.
+// Design-device runs at 393/412 cover a different viewport matrix.
 const fs = require('fs'), path = require('path'), assert = require('assert/strict');
 const { chromium } = require('playwright');
 const { SCENARIOS } = require('./finch-phone/scenarios');

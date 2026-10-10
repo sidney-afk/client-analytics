@@ -454,5 +454,38 @@
     }
   },
   "liveWrites": 0,
-  "headless": true
+  "headless": true,
+  "mainIntegration": {
+    "mainCommit": "5b6bc5172a1efffd679b683702fcd26bd93edb67",
+    "mergeCommit": "2d965fb5fcb675c13f6e2b6e51114103f7606117",
+    "frontendUnchanged": true,
+    "phoneHarnessExecutionUnchanged": true,
+    "note": "The main merge changed no UI fragments, bundles, index or phone harness. A subsequent comment documents the exact CI width commands and causes the final review head to run the matrix rather than skipping a merge-only delta."
+  },
+  "postMergeChecks": [
+    {
+      "name": "ci-followup-check-index-merged-main",
+      "exit": 0,
+      "lastLines": [
+        "",
+        "check-index: assembled bytes \u2014 sha256=2cdbb8273e49df32f2b2d73bb4977f403e0e835372311e0ba713f05dbd70da22 bytes=1350317",
+        "check-index: working-tree index.html \u2014 sha256=2cdbb8273e49df32f2b2d73bb4977f403e0e835372311e0ba713f05dbd70da22 bytes=1350317",
+        "check-index: committed index.html (HEAD) \u2014 sha256=2cdbb8273e49df32f2b2d73bb4977f403e0e835372311e0ba713f05dbd70da22 bytes=1350317",
+        "",
+        "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+      ]
+    },
+    {
+      "name": "ci-followup-identity-merged-main",
+      "exit": 0,
+      "lastLines": [
+        "  terms this change adds           0   (0 client slugs, 0 staff names)",
+        "  files carrying at least one      0   (any is a failure)",
+        "",
+        "  WHERE (counts only \u2014 this tool never prints what it matched):",
+        "",
+        "This change adds no client slug and no colleague's name \u2705"
+      ]
+    }
+  ]
 }

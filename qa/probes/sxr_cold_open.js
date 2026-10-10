@@ -34,7 +34,8 @@ async function typeField(page, pid, fld, text) {
     await sleep(1500);
 
     // 1. Add — a blank card appears and focuses its name field
-    const before = await page.evaluate(() => document.querySelectorAll('#sxrStrip .cal-card').length);
+    const beforePids = await page.evaluate(() => [...document.querySelectorAll('#sxrStrip .cal-card')].map(c => c.dataset.pid));
+    const before = beforePids.length;
     const addClicked = await page.evaluate(() => { const b = document.querySelector('.cal-card-add'); if (!b) return 'no-add-btn'; b.click(); return 'ok'; });
     t(addClicked === 'ok', 'Add button exists and was clicked', addClicked);
     await sleep(800);
@@ -44,7 +45,17 @@ async function typeField(page, pid, fld, text) {
       return last ? last.dataset.pid : null;
     });
     const after = await page.evaluate(() => document.querySelectorAll('#sxrStrip .cal-card').length);
-    t(after === before + 1 && !!blankPid, 'blank card rendered', `pid=${blankPid}`);
+    // A new card appears (count grows); background refreshes can add or drop other test
+    // rows meanwhile, so "exactly one more" is not asserted (OPEN_REPAIRS 392).
+    t(after >= before + 1 && !!blankPid, 'new card rendered', `pid=${blankPid} before=${before} after=${after}`);
+    // NEVER act on a card that was already there. On 2026-10-10 "+" opened Create Post
+    // instead of adding a card, so this probe typed its name into the last EXISTING
+    // sample (the test client's one sample with real work items) and archived it at the
+    // end (OPEN_REPAIRS 392). If no new card appeared, stop here.
+    if (!blankPid || beforePids.includes(blankPid)) {
+      t(false, 'stopped: no new card to act on, existing cards left untouched');
+      throw new Error('no new card');
+    }
 
     // 2. Type a name → blur promotes the blank to a REAL persisted row
     t((await typeField(page, blankPid, 'name', name)) === 'ok', 'typed name into the real input');
@@ -78,8 +89,11 @@ async function typeField(page, pid, fld, text) {
           const send = document.querySelector('#sxrCommentsOverlay .cal-cm-send'); if (send && !send.disabled) send.click();
         });
         let noted = false;
-        for (let i = 0; i < 15 && !noted; i++) { const r = supa(`id=eq.${realId}&select=video_tweaks`); noted = !!r[0] && /cold-open note/.test(r[0].video_tweaks || ''); if (!noted) await sleep(1000); }
-        t(noted, 'note persisted');
+        // A note on a part with a work item goes to that work item through the gateway;
+        // one without is saved in the sample's own cell. Either is a saved note.
+        const viaGateway = () => (page.context()._nativeGatewayCalls || []).some(c => c && c.operation === 'comment' && JSON.stringify(c.comment || {}).includes('cold-open note'));
+        for (let i = 0; i < 15 && !noted; i++) { const r = supa(`id=eq.${realId}&select=video_tweaks`); noted = viaGateway() || (!!r[0] && /cold-open note/.test(r[0].video_tweaks || '')); if (!noted) await sleep(1000); }
+        t(noted, 'note saved (on the work item or the sample)');
         await page.evaluate(() => { if (typeof closeSxrComments === 'function') closeSxrComments(); });
         await sleep(400);
       }

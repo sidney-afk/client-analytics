@@ -31977,6 +31977,29 @@ realtime itself). The rest, each a robot cause:
   from the nightly list in `qa/master.js` (still defined, still run by `--profile=full`). The nightly keeps clean_both,
   smm_request_video, client_approve_video and the 24 tree paths.
 
+**Third pass, 2026-10-10: the Samples nightly's probe step.** The owner's run on the branch (38061795202) was the first in
+weeks to pass the master lanes, so the step after them ran for the first time since the native cutover: 7 of 8 red. Causes,
+all in the robots:
+- The Samples probe library never faked the work-item gateway (`qa/sxr_courier_lib.js` now does, as `qa/probes/lib.js`
+  does; not on the legacy lane the scenarios use), and new seeds had no video or thumbnail link, so every approval was
+  refused with "Nothing to review yet" (the 2026-09-05 content rule). New seeds now get placeholder links unless they set
+  their own (the content-rule probe sets them empty on purpose). Two samples (`sxr_concurrency`) and one Calendar card
+  (`cal_realtime_twin`) also get fixture work items, as a real one has.
+- `sxr_kasper_audit_holes` checked pushes to the retired Linear webhooks; it now checks the status reaching the video
+  work item (in its native form, `client_approval`). `sxr_gating_flags` expected the "Sent to SMM" row; it now follows the
+  owner's 2026-09-27 rule (finish stamp saved, the sample leaves the queue and a reply does not bring it back).
+- **Damage, repaired:** `sxr_cold_open` clicks the staff "+", which for an enrolled client opens Create Post and adds no
+  card, so in that run it typed its name into the last EXISTING sample (the test client's one sample with real work items),
+  and archived it (15:14 UTC). Only the sample row and the work-item titles changed; both work items kept their statuses.
+  The sample was un-archived through `sample-review-upsert` (back to Tweaks Needed); its old name is not recorded anywhere,
+  so it keeps the probe's name, which its work-item titles also carry now. The probe now stops if no NEW card appears, and
+  it left the nightly list (it drives the retired funnel).
+Calendar nightly on the branch (run 38061783375): 63 of 64 probes passed. The one failure, p96, is the secret's value:
+`SYNCVIEW_STAFF_ACTOR` matches more than one roster person (`403 roster_actor_not_unique`); it needs a name only one active
+SMM has, exactly as the sign-in list shows it. p96 passed locally with such a name. Owner step.
+Locally after the fixes: 6 of the 7 remaining probes pass. `cal_realtime_twin` cannot be proven here (its first step needs
+the realtime socket, which this sandbox lacks); its CI failure, the status save, was the missing work item.
+
 **The robots' key (owner decision 2026-10-09).** The role keys live in the `production` environment, which needs an
 approval per run (`.github/workflows/deploy-client-review-link.yml`; its last run waited 2 min 23 s), so a nightly cannot
 use it, and the approval rule stays exactly as it is. The owner added the repository secret `ROBOT_ROLE_KEY_SMM` (the SMM

@@ -64,6 +64,9 @@ async function sendNote(page, text) {
     t(hits.length === 1, `double-approve: exactly ONE video Client-Approval transition in audit (got ${hits.length})`);
 
     // ---------- 2. two stale SMM tabs — comment merge ----------
+    // The sample gets work items like a real one: a note on a part with none is refused
+    // (native_link_required), which is why both notes were missing (OPEN_REPAIRS 392).
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id2, components: ['video', 'graphic'] }]);
     up({ id: id2, name: 'RACE cm ' + ts, order_index: 2, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress' });
     await sleep(1500);
     const tabA = await smm(browser);

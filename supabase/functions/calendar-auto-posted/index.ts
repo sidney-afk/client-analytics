@@ -60,7 +60,7 @@ function deps(db: SupabaseClient, url: string, anonKey: string, adminKey: string
       const { data, error } = await db.from("calendar_posts").select(CARD_FIELDS.join(","))
         .eq("client", client).eq("id", id).limit(2);
       if (error || !Array.isArray(data) || data.length !== 1) return null;
-      return data[0] as Json;
+      return data[0] as unknown as Json;
     },
     // production-write, exactly the body the Calendar sends for a status pick
     // (_writeUiGatewayPost), plus the compare-and-set the gateway honours.

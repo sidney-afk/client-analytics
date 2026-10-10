@@ -1,4 +1,5 @@
 name: Track-B private backup
+run-name: ${{ github.workflow }} (${{ inputs.source || github.event_name }})
 
 on:
   schedule:
@@ -34,7 +35,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-guard:
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).
+    uses: ./.github/workflows/schedule-fallback-guard.yml
+    permissions:
+      actions: read
+      contents: read
+
   backup:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

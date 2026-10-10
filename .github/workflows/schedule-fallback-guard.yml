@@ -1,0 +1,47 @@
+name: Schedule fallback guard
+
+# Called as the first job of every workflow the database timer dispatches
+# (migrations/2026-10-09-github-workflow-dispatch-timer.sql, OPEN_REPAIRS 397).
+#
+# The timer starts those workflows on time through workflow_dispatch. They keep
+# their own `schedule:` block as a fallback, and GitHub still delivers it, hours
+# late, so without this every job ran twice (two pages for one failure, two E2E
+# runs on the test client at once, doubled backups). On a GitHub schedule run
+# this job asks whether the timer already started the same workflow for the
+# newest slot that was due (scripts/schedule-fallback-guard.js). If it did,
+# `run` is 'false' and the caller's other jobs are skipped. If it did not (the
+# timer is down), or the question cannot be answered, `run` is 'true' and the
+# copy runs exactly as before. Every other event gets 'true' without a checkout.
+on:
+  workflow_call:
+    outputs:
+      run:
+        description: "'false' only for a GitHub schedule run whose slot the database timer already started"
+        value: ${{ jobs.decide.outputs.run }}
+
+jobs:
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.guard.outputs.run || 'true' }}
+    steps:
+      - name: Fetch the guard script (schedule runs only)
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/schedule-fallback-guard.js
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Did the database timer already start this workflow?
+        id: guard
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SCHEDULE_CRON: ${{ github.event.schedule }}
+        run: node scripts/schedule-fallback-guard.js

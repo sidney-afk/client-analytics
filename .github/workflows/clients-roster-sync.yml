@@ -1,4 +1,5 @@
 name: Clients roster sync
+run-name: ${{ github.workflow }} (${{ inputs.source || github.event_name }})
 
 # Keeps public.clients.active in step with the "Clients Info" tab, once a day
 # (owner rule 2026-09-27: a client is current only if it is on that tab).
@@ -35,7 +36,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-guard:
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).
+    uses: ./.github/workflows/schedule-fallback-guard.yml
+    permissions:
+      actions: read
+      contents: read
+
   sync:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:

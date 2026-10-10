@@ -197,5 +197,191 @@ for (const row of rows) {
     'the watchdog timer refuses to install before the dispatch timer exists (lanes would still run late)');
 }
 
-console.log(failures ? `github-dispatch-timer: ${failures} check(s) failed` : `github-dispatch-timer checks passed (${rows.length} dispatched, ${Object.keys(SKIPPED).length} skipped)`);
-process.exit(failures ? 1 : 0);
+// ---------------------------------------------------------------------------
+// 5. THE SCHEDULE COPY IS A REAL FALLBACK (OPEN_REPAIRS 397).
+//
+// The `schedule:` blocks were kept "as a fallback", but GitHub kept delivering
+// them, hours late, so every dispatched job ran twice: on 2026-10-10 the
+// Samples nightly paged twice for one failure, two Calendar E2E runs worked on
+// the test client at once, the backup ran 7 times in about 21 hours instead of
+// 4, and the roster sync applied twice. The check above only proved the timer
+// dispatched nothing twice; GitHub's own copy was invisible to it.
+//
+// What must hold now: every dispatched workflow names its runs by who started
+// them, runs the shared guard job first, and gates every other job on it. The
+// guard (scripts/schedule-fallback-guard.js) stands a schedule copy down when
+// the timer already started the slot, and lets it run when the timer missed.
+// ---------------------------------------------------------------------------
+const guard = require('../scripts/schedule-fallback-guard.js');
+// A workflow with a `source` input names the timer's runs "(db-timer)"; one with no
+// inputs at all names every dispatched run "(workflow_dispatch)" (it has no
+// `inputs.source` to read, and actionlint rightly refuses an undeclared input).
+const RUN_NAME_SOURCE = 'run-name: ${{ github.workflow }} (${{ inputs.source || github.event_name }})';
+const RUN_NAME_PLAIN = 'run-name: ${{ github.workflow }} (${{ github.event_name }})';
+const GUARD_JOB = [
+  '  schedule-guard:',
+  '    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).',
+  '    uses: ./.github/workflows/schedule-fallback-guard.yml',
+  '    permissions:',
+  '      actions: read',
+  '      contents: read',
+].join('\n');
+const GATE = "needs.schedule-guard.outputs.run == 'true'";
+const E2E_GROUP = /^ {4}concurrency:\n {6}group: test-client-e2e\n {6}cancel-in-progress: false$/m;
+
+function jobsOf(source) {
+  const lines = String(source).split('\n');
+  const start = lines.findIndex(line => /^jobs:\s*$/.test(line));
+  const jobs = new Map();
+  let current = null;
+  for (let i = start + 1; start >= 0 && i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\S/.test(line)) break;
+    const id = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
+    if (id) { current = { id: id[1], lines: [] }; jobs.set(id[1], current); continue; }
+    if (current) current.lines.push(line);
+  }
+  for (const job of jobs.values()) {
+    const body = job.lines.join('\n');
+    const needsLine = /^ {4}needs:[ \t]*(.*)$/m.exec(body);
+    let needs = [];
+    if (needsLine && needsLine[1].trim()) needs = needsLine[1].replace(/[[\]\s'"]/g, '').split(',').filter(Boolean);
+    else if (needsLine) needs = [...body.slice(needsLine.index).matchAll(/^ {6}-\s*([A-Za-z0-9_-]+)\s*$/gm)].map(m => m[1]);
+    const cond = /^ {4}if:\s*(.+)$/m.exec(body);
+    Object.assign(job, { body, needs, if: cond ? cond[1].trim() : '' });
+  }
+  return jobs;
+}
+
+{
+  const guardWorkflow = read('.github/workflows/schedule-fallback-guard.yml');
+  ok(/^on:\n {2}workflow_call:/m.test(guardWorkflow) && !/^ {2}(schedule|push|pull_request|workflow_dispatch):/m.test(guardWorkflow),
+    'the guard is a reusable workflow and nothing else starts it');
+  ok(/run: \$\{\{ steps\.guard\.outputs\.run \|\| 'true' \}\}/.test(guardWorkflow),
+    'the guard says run=true unless its check positively found the timer\'s run (fail open)');
+  ok((guardWorkflow.match(/continue-on-error: true/g) || []).length === 2
+    && (guardWorkflow.match(/if: github\.event_name == 'schedule'/g) || []).length === 2,
+    'only a GitHub schedule run is checked, and a failing check can never fail or skip the caller');
+  ok(/permissions:\n {6}actions: read\n {6}contents: read\n/.test(guardWorkflow) && !/: write\b/.test(guardWorkflow),
+    'the guard can read runs and nothing more');
+  ok(/SCHEDULE_CRON: \$\{\{ github\.event\.schedule \}\}/.test(guardWorkflow) && /run: node scripts\/schedule-fallback-guard\.js/.test(guardWorkflow),
+    'the guard judges the copy against the cron that started it');
+}
+
+for (const row of rows) {
+  const source = fs.readFileSync(path.join(WORKFLOW_DIR, row.workflow), 'utf8');
+  if (!liveCrons(source).length) continue;
+  const runName = row.inputs.source === 'db-timer' ? RUN_NAME_SOURCE : RUN_NAME_PLAIN;
+  ok(source.split('\n')[1] === runName,
+    `${row.workflow} names each run by who started it, so a timer run can be told from a manual one (${runName.slice(10)})`);
+  ok(source.includes(`\n${GUARD_JOB}\n`),
+    `${row.workflow} runs the shared schedule-fallback guard job, byte for byte`);
+  const jobs = jobsOf(source);
+  const gated = new Map();
+  const isGated = id => {
+    if (gated.has(id)) return gated.get(id);
+    gated.set(id, false);
+    const job = jobs.get(id);
+    // The gate must be one of the job condition's top-level AND terms.
+    const terms = /\|\|/.test(job ? job.if : '') ? [] : String(job ? job.if : '').split(' && ').map(term => term.trim());
+    const direct = Boolean(job) && job.needs.includes('schedule-guard') && terms.includes(GATE);
+    const indirect = Boolean(job) && job.needs.length > 0 && job.needs.every(n => n !== 'schedule-guard' && isGated(n))
+      && !/always\(\)|cancelled\(\)|failure\(\)/.test(job.if);
+    gated.set(id, direct || indirect);
+    return direct || indirect;
+  };
+  for (const id of jobs.keys()) {
+    if (id === 'schedule-guard') continue;
+    ok(isGated(id), `${row.workflow}: job '${id}' waits for the guard and is skipped when the timer already ran`);
+  }
+  const declared = dispatchInputs(source) || [];
+  if (row.inputs.source !== 'db-timer') {
+    ok(declared.length === 0 && Object.keys(row.inputs).length === 0,
+      `${row.workflow} takes no inputs and the timer sends none, so any dispatched run is the same run the timer starts`);
+  }
+}
+for (const file of Object.keys(SKIPPED)) {
+  const source = fs.readFileSync(path.join(WORKFLOW_DIR, file), 'utf8');
+  ok(!source.includes('schedule-fallback-guard'), `${file} stays on GitHub's own schedule with no guard (it observes the timer)`);
+}
+
+// The three browser runs that write to the test client never overlap.
+for (const file of ['calendar-e2e-nightly.yml', 'samples-e2e-nightly.yml', 'dawn-check.yml']) {
+  const jobs = jobsOf(fs.readFileSync(path.join(WORKFLOW_DIR, file), 'utf8'));
+  const writers = [...jobs.values()].filter(job => /SYNCVIEW_STAFF_KEY/.test(job.body));
+  ok(writers.length >= 1 && writers.every(job => E2E_GROUP.test(job.body)),
+    `${file}: every job holding the test-client key queues in the shared test-client-e2e group (never cancelled mid-run)`);
+}
+// The polish gate's late schedule copy used to land in the same cancel-in-progress
+// group as the run the timer had started, and cancel it.
+ok(/^ {2}group: production-polish-\$\{\{ github\.ref \}\}-\$\{\{ github\.event_name \}\}$/m.test(read('.github/workflows/production-polish-gate.yml')),
+  'production-polish-gate: a schedule copy, a timer run and a push each get their own group, so one cannot cancel another');
+
+// The guard's decision itself.
+{
+  const at = iso => Date.parse(iso);
+  const run = (id, title, created, extra = {}) => ({ id, event: 'workflow_dispatch', display_title: title, created_at: created, head_branch: 'main', conclusion: 'success', ...extra });
+  ok(rows.every(r => guard.parseCron(r.cron)), 'every timer cron parses');
+  ok(guard.latestSlot('23 */6 * * *', at('2026-10-10T06:04:00Z')) === at('2026-10-10T00:23:00Z'), 'latest slot of a 6-hourly cron');
+  ok(guard.latestSlot('30 11 * * 1-5', at('2026-10-12T09:00:00Z')) === at('2026-10-09T11:30:00Z'), 'a weekday cron on a Monday morning looks back to Friday');
+  ok(guard.latestSlot('2-59/5 * * * *', at('2026-10-10T12:06:30Z')) === at('2026-10-10T12:02:00Z'), 'stepped ranges parse');
+
+  // Measured 2026-10-10: timer run 06:00:02, GitHub's copy 12:18:02, both paged.
+  const samples = guard.timerCovered({ cron: '0 6 * * *', atMs: at('2026-10-10T12:18:02Z'), branch: 'main',
+    runs: [run(38029402444, 'Samples E2E (nightly) (db-timer)', '2026-10-10T06:00:02Z', { conclusion: 'failure' })] });
+  ok(samples.covered && samples.timer_run === 38029402444, 'the late Samples copy stands down: the timer already ran (and failed, and paged) for 06:00');
+  ok(!guard.timerCovered({ cron: '0 6 * * *', atMs: at('2026-10-10T12:18:02Z'),
+    runs: [run(1, 'Samples E2E (nightly) (db-timer)', '2026-10-09T06:00:02Z')] }).covered,
+  'a dead timer: yesterday\'s timer run does not cover today, so the copy runs');
+  ok(!guard.timerCovered({ cron: '0 6 * * *', atMs: at('2026-10-10T12:18:02Z'),
+    runs: [run(2, 'Samples E2E (nightly) (manual)', '2026-10-10T07:00:00Z')] }).covered,
+  'a manual run is not the timer: the copy still runs');
+  ok(!guard.timerCovered({ cron: '0 6 * * *', atMs: at('2026-10-10T12:18:02Z'),
+    runs: [run(3, 'Samples E2E (nightly) (db-timer)', '2026-10-10T06:00:02Z', { conclusion: 'cancelled' })] }).covered,
+  'a cancelled timer run does not count');
+  ok(!guard.timerCovered({ cron: '0 6 * * *', atMs: at('2026-10-10T12:18:02Z'),
+    runs: [run(4, 'Samples E2E (nightly) (db-timer)', '2026-10-10T06:00:02Z', { head_branch: 'feature' })], branch: 'main' }).covered,
+  'a timer-looking run on another branch does not count');
+  ok(guard.timerCovered({ cron: '*/5 * * * *', atMs: at('2026-10-10T12:03:00Z'),
+    runs: [run(5, 'Native notification sender (workflow_dispatch)', '2026-10-10T11:55:02Z')] }).covered,
+  'a no-input workflow: any dispatched run is the timer\'s run; within five minutes of a slot the slot before still counts');
+  ok(!guard.timerCovered({ cron: '*/5 * * * *', atMs: at('2026-10-10T12:03:00Z'),
+    runs: [run(6, 'Native notification sender (workflow_dispatch)', '2026-10-10T11:50:02Z')] }).covered,
+  'two missed 5-minute slots: the copy runs');
+  ok(guard.timerCovered({ cron: '23 */6 * * *', atMs: at('2026-10-09T22:45:00Z'),
+    runs: [run(7, 'Track-B private backup (db-timer)', '2026-10-09T18:23:01Z')] }).covered,
+  'the backup copy at 22:45 stands down for the timer\'s 18:23 run (measured 2026-10-09)');
+  ok(guard.timerCovered({ cron: '30 11 * * 1-5', atMs: at('2026-10-12T16:00:00Z'),
+    runs: [run(8, 'Dawn check (weekday mornings) (db-timer)', '2026-10-12T11:30:03Z')] }).covered
+    && !guard.timerCovered({ cron: '30 11 * * 1-5', atMs: at('2026-10-12T16:00:00Z'),
+      runs: [run(9, 'Dawn check (weekday mornings) (db-timer)', '2026-10-09T11:30:03Z')] }).covered,
+  'dawn check: Monday\'s timer run covers Monday\'s copy; Friday\'s does not');
+  ok(!guard.timerCovered({ cron: '0 6 * * *', atMs: at('2026-10-10T12:18:02Z'),
+    runs: [run(10, 'Samples E2E (nightly) (db-timer)', '2026-10-10T12:30:00Z')] }).covered,
+  'a timer run created after the copy is not counted (the combined message judges the same way)');
+}
+
+(async () => {
+  const env = { GITHUB_EVENT_NAME: 'schedule', SCHEDULE_CRON: '0 6 * * *', GITHUB_TOKEN: 't', GITHUB_REPOSITORY: 'o/r', GITHUB_RUN_ID: '42' };
+  const urls = [];
+  const fakeFetch = runs => async url => {
+    urls.push(String(url));
+    if (/\/actions\/runs\/42$/.test(url)) return { ok: true, json: async () => ({ id: 42, workflow_id: 7, created_at: '2026-10-10T12:18:02Z', head_branch: 'main' }) };
+    return { ok: true, json: async () => ({ workflow_runs: runs }) };
+  };
+  const timerRun = { id: 1, event: 'workflow_dispatch', display_title: 'X (db-timer)', created_at: '2026-10-10T06:00:02Z', head_branch: 'main', conclusion: 'success' };
+  const stand = await guard.decide({ env, fetchImpl: fakeFetch([timerRun]) });
+  ok(stand.run === false && stand.reason === 'timer_ran', 'decide: a schedule copy whose slot the timer ran stands down');
+  ok(urls.some(u => /\/actions\/workflows\/7\/runs\?event=workflow_dispatch&created=2026-10-10T05%3A58%3A00Z\.\.2026-10-10T12%3A18%3A02Z&/.test(u)),
+    'decide: it lists only this workflow\'s dispatched runs between the slot and the copy');
+  ok((await guard.decide({ env, fetchImpl: fakeFetch([]) })).run === true, 'decide: no timer run, the copy runs');
+  ok((await guard.decide({ env: { ...env, GITHUB_EVENT_NAME: 'workflow_dispatch' }, fetchImpl: async () => { throw new Error('no call'); } })).run === true,
+    'decide: anything but a schedule run goes ahead without a call');
+  const broken = await guard.decide({ env, fetchImpl: async () => ({ ok: false, status: 502 }) });
+  ok(broken.run === true && broken.reason === 'guard_error', 'decide: an API error fails open, so the copy runs');
+  ok((await guard.decide({ env: { ...env, SCHEDULE_CRON: 'not a cron' }, fetchImpl: fakeFetch([timerRun]) })).run === true,
+    'decide: an unreadable cron fails open');
+
+  console.log(failures ? `github-dispatch-timer: ${failures} check(s) failed` : `github-dispatch-timer checks passed (${rows.length} dispatched, ${Object.keys(SKIPPED).length} skipped)`);
+  process.exit(failures ? 1 : 0);
+})();

@@ -1,4 +1,5 @@
 name: Dawn check (weekday mornings)
+run-name: ${{ github.workflow }} (${{ inputs.source || github.event_name }})
 
 # The morning check (skill: /dawn-check, script: qa/dawn/dawn-check.js).
 # Drives the REAL index.html in headless Chromium against the LIVE backend on
@@ -21,7 +22,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-guard:
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).
+    uses: ./.github/workflows/schedule-fallback-guard.yml
+    permissions:
+      actions: read
+      contents: read
+
   dawn:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true'
+    # One browser run on the test client at a time: the Samples and Calendar
+    # nightlies and the dawn check share this queue (OPEN_REPAIRS 397).
+    concurrency:
+      group: test-client-e2e
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

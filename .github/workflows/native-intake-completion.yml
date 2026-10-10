@@ -1,4 +1,5 @@
 name: Native intake safe completion
+run-name: ${{ github.workflow }} (${{ github.event_name }})
 
 # Source-only prepared lane. GitHub cron is best-effort and has no prompt
 # recovery SLO; a protected repository variable keeps mutation dormant until
@@ -16,7 +17,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-guard:
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).
+    uses: ./.github/workflows/schedule-fallback-guard.yml
+    permissions:
+      actions: read
+      contents: read
+
   complete:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

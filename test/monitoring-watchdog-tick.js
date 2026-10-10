@@ -177,8 +177,10 @@ const allFresh = Object.fromEntries(WATCHED.map(lane => [lane.key, 1]));
     ok(response.status === 200 && body.ok === true && body.mode === 'check' && body.host === 'pg_cron',
       'a healthy tick is a completed check');
     ok(log.pages.length === 0, 'all lanes fresh: nobody is paged');
-    ok(log.reads.length === WATCHED.length + 1,
-      `one read per watched lane plus one latch read (${log.reads.length})`);
+    // +1 latch read, +1 read of the thumbnail_titles switch (the census below stops
+    // there while the switch lists no client, as it does in this fixture).
+    ok(log.reads.length === WATCHED.length + 2,
+      `one read per watched lane, one latch read and one census switch read (${log.reads.length})`);
     ok(log.inserts.length === 1, 'all lanes fresh: exactly one write, the beat');
     const beat = log.inserts[0];
     ok(beat.action === core.HEARTBEAT_ACTION && beat.payload.lane === 'monitoring_watchdog' && beat.payload.ok === true,
@@ -228,6 +230,131 @@ const allFresh = Object.fromEntries(WATCHED.map(lane => [lane.key, 1]));
     ok(response.status === 502 && body.error === 'check_failed', 'a relay that cannot be reached fails the pass');
     ok(!JSON.stringify(body).includes(WEBHOOK) && !/https?:\/\//.test(JSON.stringify(body)),
       'the relay URL never leaves in the error, even when the runtime names it');
+  }
+
+  // -------------------------------------------------------------------------
+  // 4b. The thumbnail titles census (OPEN_REPAIRS 397).
+  //
+  // The per-minute thumbnail-titles timer records "succeeded" whatever the
+  // function answers, and nothing read its queue, so a 401, a 500 or a missing
+  // AI key would have left every new thumbnail without its brief in silence.
+  // The dead-man's switch now asks about OUTCOMES, only while the switch lists
+  // a client, and pages once per incident (once per day for give-ups).
+  // -------------------------------------------------------------------------
+  {
+    const flagOn = [{ key: 'thumbnail_titles', value: { clients: ['*'] }, updated_at: minutesAgo(10 * 24 * 60) }];
+    const flagOff = [{ key: 'thumbnail_titles', value: { clients: [] }, updated_at: minutesAgo(10 * 24 * 60) }];
+    const pending = minutes => ({ client_slug: 'test-client', state: 'pending', created_at: minutesAgo(minutes) });
+    const census = (patch = {}) => core.thumbnailTitlesCensus({
+      flagRows: flagOn, stuckRows: [], waitingRows: [], queuedIds: [], giveUpRows: [], latchRows: [], nowMs: NOW, ...patch });
+
+    let c = census({ stuckRows: [pending(45)] });
+    ok(c.active && c.stuck_in_queue === 1 && c.actions.length === 1 && c.actions[0].kind === 'page'
+      && c.actions[0].check === 'thumbnail_titles_stuck', 'a queue row pending for 45 minutes is a stuck-titles problem');
+    c = census({ flagRows: flagOff, stuckRows: [pending(45)] });
+    ok(!c.active && c.actions.length === 0, 'with the switch off the census says nothing at all');
+    c = census({ flagRows: [], stuckRows: [pending(45)] });
+    ok(!c.active && c.actions.length === 0, 'with no switch row the census says nothing at all');
+    c = census({ stuckRows: [pending(10)] });
+    ok(c.actions.length === 0, 'a row pending for 10 minutes is just the queue working');
+    c = census({ flagRows: [{ key: 'thumbnail_titles', value: { clients: ['another-client'] }, updated_at: minutesAgo(9999) }], stuckRows: [pending(45)] });
+    ok(c.actions.length === 0, 'a pending row of a client the switch leaves off waits on purpose');
+    const waiting = [{ id: 'dlv-1', client_slug: 'test-client', created_at: minutesAgo(45) }];
+    c = census({ waitingRows: waiting });
+    ok(c.never_queued === 1 && c.actions[0] && c.actions[0].check === 'thumbnail_titles_stuck',
+      'a new empty thumbnail the function never queued (a 401 or a failed enqueue) is stuck too');
+    c = census({ waitingRows: waiting, queuedIds: ['dlv-1'] });
+    ok(c.never_queued === 0 && c.actions.length === 0, 'a thumbnail that was queued is not "never queued"');
+    c = census({ waitingRows: waiting, flagRows: [{ key: 'thumbnail_titles', value: { clients: ['*'] }, updated_at: minutesAgo(20) }] });
+    ok(c.never_queued === 0, 'a thumbnail made before the switch went on is not owed a title');
+    const stuckLatched = [{ id: 5, payload: { check: 'thumbnail_titles_stuck', incident_state: 'latched' } }];
+    c = census({ stuckRows: [pending(45)], latchRows: stuckLatched });
+    ok(c.actions.length === 0, 'still stuck and already paged: quiet');
+    c = census({ latchRows: stuckLatched });
+    ok(c.actions.length === 1 && c.actions[0].kind === 'reset', 'cleared: the latch resets quietly');
+    const today = new Date(NOW).toISOString().slice(0, 10);
+    const failedRow = { state: 'failed', outcome: null, updated_at: minutesAgo(30) };
+    const genFailed = { state: 'needs_info', outcome: 'generation_failed', updated_at: minutesAgo(40) };
+    const needsInfo = { state: 'needs_info', outcome: 'plan_empty', updated_at: minutesAgo(40) };
+    c = census({ giveUpRows: [failedRow, genFailed, needsInfo] });
+    ok(c.gave_up[today] === 2 && c.actions.length === 1 && c.actions[0].check === 'thumbnail_titles_gave_up'
+      && c.actions[0].days[0].day === today && c.actions[0].days[0].count === 2,
+    'items that gave up today are counted (a missing plan is not a give-up)');
+    c = census({ giveUpRows: [failedRow], latchRows: [{ id: 6, payload: { check: 'thumbnail_titles_gave_up', incident_state: 'latched', day: today } }] });
+    ok(c.actions.length === 0, 'give-ups speak once per day');
+    const spec = core.thumbnailTitlesPageSpec({ kind: 'page', check: 'thumbnail_titles_stuck', count: 3, in_queue: 1, never_queued: 2 }, 'pgcron:x');
+    const payload = relayCore.relayPayload(spec);
+    ok(relayCore.assertPublicSafe(payload) && /^items3_waiting_over_30m_for_a_title_queue1_never_queued2$/.test(payload.issue_identifier),
+      'the page says how many and where they wait, in counts only');
+
+    // Through the tick, end to end.
+    function censusHarness({ flag = flagOn, stuck = [], waitingRows = [], queued = [], giveUps = [], censusLatches = [], failQueue = false } = {}) {
+      const log = { reads: [], inserts: [], pages: [], order: [] };
+      async function fetchImpl(url, init = {}) {
+        const href = decodeURIComponent(String(url));
+        if (href.startsWith(WEBHOOK)) { log.pages.push(JSON.parse(init.body)); log.order.push('page'); return new Response('{}', { status: 200 }); }
+        if ((init.method || 'GET') === 'GET') {
+          log.reads.push(href);
+          const respond = rows => new Response(JSON.stringify(rows), { status: 200 });
+          if (failQueue && href.includes('thumbnail_title_queue')) return new Response('nope', { status: 500 });
+          if (href.includes('syncview_runtime_flags')) return respond(flag);
+          if (href.includes('thumbnail_title_queue?select=client_slug,state,created_at')) return respond(stuck);
+          if (href.includes('thumbnail_title_queue?select=state,outcome,updated_at')) return respond(giveUps);
+          if (href.includes('thumbnail_title_queue?select=deliverable_id')) return respond(queued.filter(id => href.includes(`"${id}"`)).map(id => ({ deliverable_id: id })));
+          if (href.includes('/deliverables?')) return respond(waitingRows);
+          if (href.includes(`action=eq.${core.CENSUS_LATCH_ACTION}`)) {
+            const check = (/payload->>check=eq\.([a-z_]+)/.exec(href) || [])[1];
+            return respond(censusLatches.filter(row => row.payload.check === check));
+          }
+          const lane = (/payload->>lane=eq\.([a-z0-9_]+)/.exec(href) || [])[1];
+          if (lane) return respond([{ id: 1, ts: minutesAgo(1), payload: { lane, ok: true, at: minutesAgo(1), run_id: 'r' } }]);
+          return respond([]);
+        }
+        const rows = JSON.parse(init.body);
+        log.inserts.push(...rows);
+        log.order.push(rows[0].action === core.HEARTBEAT_ACTION ? 'beat' : rows[0].action === core.CENSUS_LATCH_ACTION ? 'census-latch' : 'latch');
+        return new Response('', { status: 201 });
+      }
+      const handle = tick.buildHandler({ keyOk: () => true, config: () => CONFIG, fetchImpl, newId: () => 'abcdef01-0000', now: () => NOW, sleepImpl: async () => {} });
+      return { handle, log };
+    }
+    {
+      const { handle, log } = censusHarness({ stuck: [pending(45)], waitingRows: waiting });
+      const body = await (await handle(request({ action: 'tick' }))).json();
+      const t = body.census && body.census.thumbnail_titles;
+      ok(body.ok === true && t && t.active === true && t.stuck_in_queue === 1 && t.never_queued === 1 && t.paged.includes('thumbnail_titles_stuck'),
+        'a tick with a stuck row and an unqueued thumbnail pages the stuck-titles problem');
+      ok(log.pages.length === 1 && log.pages[0].type === 'thumbnail_titles_stuck' && log.pages[0].count === 2,
+        'one page, through the same relay as the lanes');
+      ok(log.order.join(',') === 'page,census-latch,beat', 'page, then the census latch, then the beat last');
+      const latch = log.inserts.find(row => row.action === core.CENSUS_LATCH_ACTION);
+      ok(latch && latch.payload.check === 'thumbnail_titles_stuck' && latch.payload.incident_state === 'latched'
+        && !/test-client|dlv-1/.test(JSON.stringify(log.inserts) + JSON.stringify(log.pages) + JSON.stringify(body)),
+      'the latch, the page and the response carry counts only: no client and no item id');
+      ok(log.reads.some(href => href.includes('deliverables?') && href.includes('brief.match.^ *$') && href.includes('card_id=not.is.null')
+        && href.includes('status=not.in.(canceled,duplicate)') && href.includes('origin=eq.calendar')),
+      'the unqueued read uses the enqueue step\'s own predicate');
+    }
+    {
+      const { handle, log } = censusHarness({ flag: flagOff, stuck: [pending(45)] });
+      const body = await (await handle(request({ action: 'tick' }))).json();
+      ok(body.census.thumbnail_titles.active === false && log.pages.length === 0 && log.reads.filter(h => h.includes('thumbnail_title_queue')).length === 0,
+        'switch off: one switch read, no queue read, no page');
+    }
+    {
+      const { handle, log } = censusHarness({ stuck: [pending(45)], failQueue: true });
+      const response = await handle(request({ action: 'tick' }));
+      const body = await response.json();
+      ok(response.status === 200 && body.ok === true && body.census.thumbnail_titles.error === 'read_failed'
+        && log.inserts.some(row => row.action === core.HEARTBEAT_ACTION),
+      'a census that cannot read never fails the dead-man\'s switch: the pass completes and beats');
+    }
+    {
+      const { handle, log } = censusHarness({ stuck: [pending(45)] });
+      const body = await (await handle(request({ action: 'tick', dry_run: true }))).json();
+      ok(body.census.thumbnail_titles.would_page.includes('thumbnail_titles_stuck') && log.pages.length === 0 && log.inserts.length === 0,
+        'dry run: the census says what it would page, and pages and writes nothing');
+    }
   }
 
   // -------------------------------------------------------------------------

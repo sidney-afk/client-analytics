@@ -32049,3 +32049,94 @@ checks from 393 still pass (13/13). The test runs in `calendar-unit-tests.yml` a
 sign-in, which this sandbox does not have.
 
 **Owner step:** merge. There is nothing to deploy beyond the page itself (no function, no migration).
+
+## 399. [2026-10-10, BUILT, NOT MERGED, NOT APPLIED, NOT DEPLOYED] PTO Member setup now leaves a record: who changed a start date or the PTO switch, and what it was before (session Sweep, site assurance)
+
+**What was wrong.** In Kasper > Time Off, the Member setup form saves a team member's PTO start date
+and the "PTO enabled" switch. The pto function worked out which admin was saving and then threw that
+away, and the database function it called (`pto_set_member_start_v1`) simply overwrote the member's
+row. Nothing recorded who made the change, what the old values were, or (after the next save) when.
+Every other PTO write already names its actor: decisions (`decided_by`), cancellations
+(`cancelled_by`), adjustments (`created_by`). Member setup was the one that did not. Measured read
+only on 2026-10-10: no member-setup change has happened since go-live, so nothing was lost yet; the
+gap would have hit on the next save.
+
+**Why it matters.** The start date drives every balance: when paid leave starts (60 days after it),
+which accrual rate applies, every wellness grant and the yearly cap. Switching PTO off makes the
+member's card show zeros and refuses their requests. Either change moves someone's balance, and the
+owner's rule (cross-tier invariant 3 in `docs/QUALITY_TIERS.md`) is that HR and balance values never
+change without an audit trail. `docs/testing/ASSURANCE_LEDGER.md` also claimed every PTO write had a
+receipt; that line is corrected to point here.
+
+**What changed.**
+- `migrations/2026-10-10-pto-member-setup-audit.sql` (additive, safe to run twice): a new table,
+  `pto_member_events`, with one row per Member setup save that creates a PTO profile or actually
+  changes the start date or the switch: who (the verified admin's roster name), the start date and
+  switch before (empty on first setup) and after, and when. A save that changes nothing writes
+  nothing. It is written only by a new database function, `pto_set_member_start_v2`, which keeps all
+  of v1's checks (active roster member, the "someone else changed this" check, no start-date change
+  once leave history exists), refuses a blank name, and writes the record in the same transaction
+  as the change: if the record cannot be written, the change does not happen either. Access: RLS on,
+  no policies, every privilege revoked from all four roles (public, anon, authenticated,
+  service_role), then service_role may only READ the table and run v2. Nobody can insert, edit or
+  delete a record directly. v1 is left in place for now, because the live function still calls it.
+- `migrations/2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql`: run only after the new function
+  is deployed. It takes v1 away from all four roles, so nothing can change a start date without a
+  record. It refuses to run if v2 is not there yet.
+- `supabase/functions/pto/index.ts`: Member setup now passes the verified admin and calls v2 with
+  their name. The response the page gets is unchanged. If the function is ever deployed before the
+  migration, Member setup answers "paused until the member-setup record migration is applied" (503)
+  and writes nothing; it never falls back to the old write.
+- `.github/workflows/deploy-pto-edge-functions.yml`: the PTO lane's schema latch moved from
+  `transactional-writes-v1` to `member-setup-audit-v1`, so the new function cannot be deployed until
+  the owner confirms the migration (this is how the lane says "this function needs new SQL").
+- Docs: `docs/features/PTO_TRACKER.md` (table list, action table, latch), `migrations/README.md`,
+  `docs/ops/NEW_STAFF_ONBOARDING.md`, `docs/testing/ASSURANCE_LEDGER.md` (cross-tier invariant 3
+  line corrected).
+- Deliberately NOT changed: the page and `qa/pto-lifecycle/mock-backend.js`. Any byte change to the
+  files in `qa/pto-lifecycle/` or to the Time Off lines of the page makes the published
+  101-screenshot leave evidence packet stale (`test/leave-evidence-fingerprint-coupling.js` and the
+  PTO UI lane go red), and re-publishing it needs a human review of every screenshot: re-running the
+  lane here produced 0 of 101 byte-identical screenshots. The mocked lane never exercises Member
+  setup, so mirroring the record there is left for the next time that packet is regenerated anyway.
+
+**Guards (fail on main 5b6bc517, pass here).**
+- New `test/pto-member-setup-audit.js` (unit suite): 29 offline checks on the function, the two SQL
+  files and the deploy latch (25 fail on main), plus a disposable PostgreSQL 16 run (when PostgreSQL
+  16 is installed, as in CI) that applies the real PTO migrations with Supabase's default privileges,
+  applies this one twice, and replays first setup, no-op save, date change, stale form, blank and
+  null name, inactive member, the history lock, switching PTO off, and a forced record failure that
+  must roll the change back. It measures each of the four roles: anon, authenticated and public can
+  do nothing to the table; service_role can only read it; only service_role can run v2; after step 2
+  no role can run v1. 62 checks in all.
+- `test/pto-accrual.js`: the start-date call must be v2 with the actor (v1 gone from the function),
+  and the latch must be `member-setup-audit-v1`.
+
+**Owner steps, in the PTO lane's order.**
+1. Merge. The merge carries PTO SQL, so the automatic PTO deploy holds itself and nothing deploys.
+   Until step 4, any other push that changes only the pto function will fail at the latch and deploy
+   nothing; that is expected.
+2. In the Supabase SQL editor, run `migrations/2026-10-10-pto-member-setup-audit.sql`, then the
+   READBACK query at the bottom of that file. Expect: the table exists, RLS on, 0 policies; anon,
+   authenticated and public false everywhere; service_role select true, every write false; v2
+   execute true for service_role only; v1 still true for service_role. Append a value-free receipt
+   (no names, ids or dates per person) to `EXECUTION_LOG.md`.
+3. Set the Actions repository variable `PTO_SCHEMA_CONTRACT` to `member-setup-audit-v1`
+   (Settings > Secrets and variables > Actions > Variables) and read it back.
+4. Deploy `pto` from main's tip: open
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-pto-edge-functions.yml,
+   Run workflow on `main`, tick `migration_readback_confirmed`. Do not merge anything between noting
+   main's tip SHA and this dispatch. Then, in Member setup, pick any member who is already set up
+   (the form fills in their current values) and save without changing anything: it should say "PTO
+   member saved", and `select count(*) from public.pto_member_events` should stay 0 (a save that
+   changes nothing writes nothing; the next real change will add the first row).
+5. In the SQL editor, run `migrations/2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql`, then
+   its READBACK query: all four values false.
+
+**Rollback.** Keep `pto_member_events`; it is the record of who changed what. If step 5 was applied,
+first run `grant execute on function public.pto_set_member_start_v1(uuid, date, boolean, bigint) to
+service_role;` so the old function can write again. Then revert this change to
+`supabase/functions/pto/index.ts` and to the workflow latch on main, set `PTO_SCHEMA_CONTRACT` back to
+`transactional-writes-v1`, and dispatch the PTO lane as in step 4. Dropping v2 afterwards is optional
+(`drop function if exists public.pto_set_member_start_v2(uuid, date, boolean, bigint, text);`).
+

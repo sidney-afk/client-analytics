@@ -32,6 +32,39 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(L.clientAllowed('Fixture Client C', '*'), '* allows everyone');
   ok(!('DEFAULT_ALLOWED_CLIENTS' in L), 'no default client list exists in the source');
 
+  // --- the client is found by slug or display name (OPEN_REPAIRS 398): a slug is not always the squashed name
+  const profiles = [
+    { slug: 'janedoe', display_name: 'Dr. Jane Doe', extra: { postforme_instagram_account_id: 'spc_a' } },
+    { slug: 'alpha&beta', display_name: 'Alpha and Beta', extra: { postforme_instagram_account_id: 'spc_b' } },
+    { slug: 'fixtureclienta', display_name: 'Fixture Client A', extra: { postforme_instagram_account_id: 'spc_c' } },
+  ];
+  eq(L.expectedAccountId(L.findClientProfile(profiles, 'Dr. Jane Doe')), 'spc_a', 'a "Dr." display name finds its client (its slug drops the title)');
+  eq(L.expectedAccountId(L.findClientProfile(profiles, 'Alpha and Beta')), 'spc_b', 'an "and" display name finds the "&" slug');
+  eq(L.expectedAccountId(L.findClientProfile(profiles, 'Fixture Client A')), 'spc_c', 'an ordinary name still finds its client');
+  eq(L.findClientProfile(profiles, 'Nobody Here'), null, 'an unknown name finds nobody');
+  eq(L.findClientProfile([{ slug: 'x1', display_name: 'Twin' }, { slug: 'x2', display_name: 'Twin' }], 'Twin'), null, 'a name two clients share finds nobody (fail closed)');
+  ok(!/\.eq\("slug", clientKey\(/.test(HANDLER), 'the handler no longer looks the client up by the squashed name alone');
+
+  // --- Cancel asks Post For Me first and proves the post is gone (OPEN_REPAIRS 397; the TikTok rule of 361)
+  {
+    const fake = (script) => { const calls = []; const fn = async (method, p) => { calls.push(method + ' ' + p); const k = method + ' ' + p.split('?')[0]; const q = script[k]; const r = Array.isArray(q) ? q.shift() : q; return r || { ok: false, status: 0, data: {} }; }; fn.calls = calls; return fn; };
+    const P = '/social-posts/pfm_1', R = '/social-post-results';
+    let f = fake({ ['GET ' + P]: [{ ok: true, status: 200, data: { status: 'scheduled' } }, { ok: false, status: 404, data: {} }], ['DELETE ' + P]: { ok: true, status: 200, data: {} }, ['GET ' + R]: { ok: true, status: 200, data: { data: [] } } });
+    eq(await L.cancelInPostForMe(f, 'pfm_1'), 'cancelled', 'a scheduled post is deleted, read back as gone, and no result says it went out: cancelled');
+    f = fake({ ['GET ' + P]: { ok: true, status: 200, data: { status: 'processing' } } });
+    eq(await L.cancelInPostForMe(f, 'pfm_1'), 'already_posted', 'a post Post For Me is publishing is not cancelled');
+    ok(!f.calls.some(c => c.startsWith('DELETE')), 'and nothing is deleted');
+    f = fake({ ['GET ' + P]: { ok: false, status: 404, data: {} }, ['GET ' + R]: { ok: true, status: 200, data: { data: [{ post_id: 'pfm_1', success: true }] } } });
+    eq(await L.cancelInPostForMe(f, 'pfm_1'), 'already_posted', 'gone from Post For Me but a result says it went out: already posted (it used to say Cancelled)');
+    f = fake({ ['GET ' + P]: [{ ok: true, status: 200, data: { status: 'scheduled' } }, { ok: true, status: 200, data: { status: 'scheduled' } }], ['DELETE ' + P]: { ok: true, status: 200, data: {} } });
+    eq(await L.cancelInPostForMe(f, 'pfm_1'), 'cancel_failed', 'a delete that answers ok while the post is still there is not a cancel');
+    f = fake({ ['GET ' + P]: [{ ok: true, status: 200, data: { status: 'scheduled' } }, { ok: true, status: 200, data: { status: 'processed' } }], ['DELETE ' + P]: { ok: false, status: 409, data: {} } });
+    eq(await L.cancelInPostForMe(f, 'pfm_1'), 'already_posted', 'a refused delete because it just went out says so');
+    f = fake({});
+    eq(await L.cancelInPostForMe(f, 'pfm_1'), 'cancel_failed', 'Post For Me unreachable: the row stays as it was');
+    ok(/cancelInPostForMe\(/.test(HANDLER) && !/pfm\(pfmKey, "DELETE"/.test(HANDLER), 'the handler cancels only through the checked path');
+  }
+
   // --- the account must be the one on file for that client
   eq(L.expectedAccountId({ extra: { postforme_instagram_account_id: ' spc_fixtureInstagram01 ' } }), 'spc_fixtureInstagram01', 'the id on file is read from the synced Clients Info copy');
   eq(L.expectedAccountId({ extra: {} }), '', 'no id on file reads as empty');

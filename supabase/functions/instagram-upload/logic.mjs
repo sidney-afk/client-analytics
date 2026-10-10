@@ -32,6 +32,59 @@ export function clientAllowed(client, allowedRaw) {
 
 // The Instagram account this client is supposed to post to, from the synced copy of Clients Info
 // (an unknown sheet column is kept in `extra`, under its sheet header).
+// The page sends the client's display name. A few slugs are not the display
+// name with spaces and punctuation taken out ("Dr." is dropped, " and " becomes
+// "&", accents go), so a client is found by its slug or its display name, and a
+// name that matches two clients finds none (fail closed). Same rule as the
+// TikTok side (_shared/tiktok-queue.mjs). Before 2026-10-10 Instagram looked up
+// only `slug = clientKey(name)`, so two active clients would have been refused
+// with "no Instagram account" once they had one (OPEN_REPAIRS 398).
+export function findClientProfile(profiles, client) {
+  const key = clientKey(client);
+  if (!key) return null;
+  const hits = (profiles || []).filter((p) => p && (clean(p.slug) === key || clientKey(p.display_name) === key));
+  const bySlug = hits.filter((p) => clean(p.slug) === key);
+  if (bySlug.length === 1) return bySlug[0];
+  return hits.length === 1 ? hits[0] : null;
+}
+
+// Cancel, Post For Me first (same rule as tiktok-upload-cancel, OPEN_REPAIRS 361): the row may say
+// Cancelled only when Post For Me no longer holds a post that can publish. Before 2026-10-10 Instagram
+// trusted its own "scheduled" row, sent the DELETE and marked the row cancelled on a 2xx or a 404, so a
+// Reel that had already gone out (or was going out) showed as Cancelled (OPEN_REPAIRS 397).
+//   pfm(method, path) -> { ok, status, data }, never throws.
+//   -> 'cancelled' | 'already_posted' | 'cancel_failed'
+export const PFM_GONE_OUT = Object.freeze(['processing', 'processed']);
+export const PFM_CANCELLABLE = Object.freeze(['draft', 'scheduled']);
+function resultsSayPosted(resp, postId) {
+  const list = Array.isArray(resp) ? resp : Array.isArray(resp && resp.data) ? resp.data : [];
+  return list.some((x) => x && typeof x === 'object' && x.success === true && (!x.post_id || String(x.post_id) === postId));
+}
+export async function cancelInPostForMe(pfm, postId) {
+  const id = clean(postId);
+  if (!id) return 'cancel_failed';
+  const path = '/social-posts/' + encodeURIComponent(id);
+  const status = (r) => clean(r && r.data && r.data.status).toLowerCase();
+  const goneOrPosted = async () => {
+    const res = await pfm('GET', '/social-post-results?post_id=' + encodeURIComponent(id));
+    if (!res.ok) return 'cancel_failed';
+    return resultsSayPosted(res.data, id) ? 'already_posted' : 'cancelled';
+  };
+  const before = await pfm('GET', path);
+  if (before.status === 404) return goneOrPosted();
+  if (!before.ok) return 'cancel_failed';
+  if (PFM_GONE_OUT.includes(status(before))) return 'already_posted';
+  if (!PFM_CANCELLABLE.includes(status(before))) return 'cancel_failed';
+  const del = await pfm('DELETE', path);
+  if (!del.ok && del.status !== 404) {
+    const again = await pfm('GET', path);
+    return again.ok && PFM_GONE_OUT.includes(status(again)) ? 'already_posted' : 'cancel_failed';
+  }
+  const after = await pfm('GET', path);
+  if (after.status !== 404) return after.ok && PFM_GONE_OUT.includes(status(after)) ? 'already_posted' : 'cancel_failed';
+  return goneOrPosted();
+}
+
 export const ACCOUNT_COLUMN = 'postforme_instagram_account_id';
 export function expectedAccountId(profile) {
   const extra = profile && typeof profile.extra === 'object' && profile.extra ? profile.extra : {};

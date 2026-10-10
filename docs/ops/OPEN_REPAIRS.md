@@ -31990,9 +31990,12 @@ anything else into `ui`. `scripts/calendar-upsert-live-delta.js` adds `auto-post
 the exact live source (refuses unless the anchor line occurs once). Measured on v83: index.ts sha256
 `67511f67...` before, `1b5f4f8d...` after. Nothing else changes. Until it is deployed the job's first
 card save would record `ui`, so the job checks the source after its first save of every run and stops
-with `calendar_upsert_source_not_deployed` instead of carrying on.
+with `calendar_upsert_source_not_deployed` instead of carrying on; no history receipt at all stops it
+too (`calendar_history_unconfirmed`). The card is also re-read before any work item moves: a card
+whose day, links, parts or version changed since the due list was read is left alone. Gateway
+request ids are reduced to the characters production-write accepts (Codex review on the PR).
 
-**Proof.** `node test/calendar-auto-posted.js`: 65 checks. The overall rule equals the page's own
+**Proof.** `node test/calendar-auto-posted.js`: 71 checks. The overall rule equals the page's own
 `computeOverallStatus` over 2,744 part combinations; Eastern dates across both daylight-saving nights;
 every skip reason; a whole run against fakes (work items before the card, conflict base read after the
 pushes, a refused push stops the card, a conflict is not counted as flipped, a dry run writes nothing,

@@ -81,6 +81,29 @@ export function quietSince(stamp, now) {
   return now.getTime() - ms >= QUIET_MS;
 }
 
+// The gateway accepts request ids of letters, digits and : _ - only
+// (production-write policy validRequestId); a timestamp carries . and +.
+export function requestIdFor(postId, component, itemUpdatedAt) {
+  const raw = SOURCE + ":" + clean(postId) + ":" + clean(component) + ":" + clean(itemUpdatedAt);
+  return raw.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 200);
+}
+
+// The card fields a person could change that this run relies on: its version,
+// its overall and parts, its day and what it is linked to.
+const BINDING = ["scheduled_date", "video_deliverable_id", "graphic_deliverable_id", "linear_issue_id", "graphic_linear_issue_id"];
+export const CARD_FIELDS = ["client", "id", "status", "updated_at", "video_status", "graphic_status", "caption_status", ...BINDING];
+
+function sameBinding(a, b) {
+  return BINDING.every(k => clean(a[k]) === clean(b[k]));
+}
+
+// Before any work item moves: the card must still be exactly what the due list saw.
+export function unchangedSinceDue(row, fresh) {
+  if (!fresh) return false;
+  if (!sameBinding(row, fresh)) return false;
+  return ["status", "updated_at", "video_status", "graphic_status", "caption_status"].every(k => clean(row[k]) === clean(fresh[k]));
+}
+
 const WORK_ITEM = { video: { id: "video_deliverable_id", link: "linear_issue_id", status: "video_deliverable_status", at: "video_deliverable_updated_at" },
   graphic: { id: "graphic_deliverable_id", link: "graphic_linear_issue_id", status: "graphic_deliverable_status", at: "graphic_deliverable_updated_at" } };
 
@@ -116,7 +139,9 @@ export function planCard(row, now) {
     pushes.push({ component: comp, deliverable_id: deliverableId, expected_status: "scheduled", expected_updated_at: clean(row[w.at]) });
   }
   if (!lanes.length) return { skip: "parts_disagree" };
-  return { pushes, lanes };
+  const binding = {};
+  for (const k of BINDING) binding[k] = clean(row[k]);
+  return { pushes, lanes, binding };
 }
 
 // The Calendar save for a card re-read AFTER the gateway pushes. Returns null
@@ -124,6 +149,7 @@ export function planCard(row, now) {
 // {} when the bridge already finished everything.
 export function calendarPatch(plan, fresh) {
   if (!fresh || clean(fresh.status) === "" || clean(fresh.status).toLowerCase() === "archived") return null;
+  if (plan.binding && !sameBinding(plan.binding, fresh)) return null;
   const pushed = new Set(plan.pushes.map(p => p.component));
   const patch = {};
   const after = { ...fresh };
@@ -149,7 +175,8 @@ function bump(map, key) {
 
 // One timer tick. deps:
 //   due(limit)                      rows of calendar_auto_posted_due
-//   readCard(client, id)            the card row now (status parts, updated_at)
+//   readCard(client, id)            the card row now (CARD_FIELDS), read before the
+//                                   pushes and again after them
 //   pushWorkItem(push, ctx)         gateway call; { ok, error }
 //   saveCard(client, id, patch, baseAt)   calendar-upsert; { ok, conflict, error }
 //   sourceOf(client, id, sinceIso)  "auto-posted" | "other" | "none": the source on the
@@ -175,6 +202,13 @@ export async function runTick(deps, opts = {}) {
     const client = clean(row.client);
     const id = clean(row.id);
     if (opts.dryRun) { out.would_flip++; out.would_flip_ids.push(id); continue; }
+
+    // Re-read the card before anything irreversible: a person may have moved
+    // its day, relinked it or changed a part since the due list was read.
+    let before;
+    try { before = await deps.readCard(client, id); } catch (_e) { before = null; }
+    if (!before) { bump(out.failed, "card_read_failed"); continue; }
+    if (!unchangedSinceDue(row, before)) { bump(out.skipped, "changed_while_running"); continue; }
 
     const sinceIso = new Date(deps.now().getTime() - 1000).toISOString();
     let pushFailed = "";
@@ -209,8 +243,9 @@ export async function runTick(deps, opts = {}) {
         await deps.sleep(1000);
         try { seen = await deps.sourceOf(client, id, sinceIso); } catch (_e) { seen = "none"; }
       }
+      // No receipt is no evidence either: stop rather than carry on unrecorded.
       if (seen === "other") { out.ok = false; out.error = "calendar_upsert_source_not_deployed"; break; }
-      if (seen === "none") out.source_unconfirmed = true;
+      if (seen === "none") { out.ok = false; out.error = "calendar_history_unconfirmed"; break; }
     }
   }
   return out;

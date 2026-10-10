@@ -116,11 +116,12 @@ function grabLine(source, re) {
   ]) ok('skip: ' + name, L.planCard(card(over), NOW).skip === reason);
 
   /* ---- the card save after the pushes ---- */
+  const BIND = { scheduled_date: '2026-10-09', video_deliverable_id: 'd_v', graphic_deliverable_id: 'd_g', linear_issue_id: '', graphic_linear_issue_id: '' };
   ok('bridge moved video+graphic: only caption and overall left', JSON.stringify(L.calendarPatch(p1,
-    { status: 'Scheduled', video_status: 'Posted', graphic_status: 'Posted', caption_status: 'Scheduled' }))
+    { ...BIND, status: 'Scheduled', video_status: 'Posted', graphic_status: 'Posted', caption_status: 'Scheduled' }))
     === JSON.stringify({ caption_status: 'Posted', status: 'Posted' }));
   ok('bridge finished everything: nothing left to save', JSON.stringify(L.calendarPatch(L.planCard(card({ caption_status: 'N/A' }), NOW),
-    { status: 'Posted', video_status: 'Posted', graphic_status: 'Posted', caption_status: 'N/A' })) === '{}');
+    { ...BIND, status: 'Posted', video_status: 'Posted', graphic_status: 'Posted', caption_status: 'N/A' })) === '{}');
   ok('a person moved the caption meanwhile: leave the card', L.calendarPatch(p1,
     { status: 'Tweaks Needed', video_status: 'Posted', graphic_status: 'Posted', caption_status: 'Tweaks Needed' }) === null);
   ok('a person moved an unplanned part: leave the card', L.calendarPatch(L.planCard(card({ caption_status: 'Posted' }), NOW),
@@ -130,7 +131,7 @@ function grabLine(source, re) {
   /* ---- a whole run, against fakes ---- */
   function fakes(rows, opts = {}) {
     const calls = [];
-    const cards = new Map(rows.map(r => [r.id, { status: r.status, video_status: r.video_status, graphic_status: r.graphic_status, caption_status: r.caption_status, updated_at: r.updated_at }]));
+    const cards = new Map(rows.map(r => [r.id, { ...r }]));
     let clock = NOW.getTime();
     return {
       calls, cards,
@@ -145,7 +146,11 @@ function grabLine(source, re) {
         c.updated_at = new Date(clock).toISOString();
         return { ok: true };
       },
-      readCard: async (_client, id) => ({ ...cards.get(id) }),
+      readCard: async (_client, id) => {
+        calls.push(['read', id]);
+        if (opts.beforePushEdit && !calls.some(c => c[0] === 'push')) Object.assign(cards.get(id), opts.beforePushEdit);
+        return { ...cards.get(id) };
+      },
       saveCard: async (_client, id, patch, baseAt) => {
         calls.push(['save', id, JSON.stringify(patch), baseAt]);
         if (opts.conflict) return { ok: false, conflict: true };
@@ -159,9 +164,9 @@ function grabLine(source, re) {
     const f = fakes([card()]);
     const r = await L.runTick(f, {});
     const order = f.calls.map(c => c[0]).join();
-    ok('run: work items first, then the card', order === 'push,push,save');
+    ok('run: card re-checked, work items moved, card re-read, then saved', order === 'read,push,push,read,save');
     ok('run: the card save uses the card change time read AFTER the pushes',
-      f.calls[2][3] === f.cards.get('p_test_1').updated_at && f.calls[2][3] !== OLD);
+      f.calls[4][3] === f.cards.get('p_test_1').updated_at && f.calls[4][3] !== OLD);
     ok('run: card ends Posted with every part Posted', f.cards.get('p_test_1').status === 'Posted'
       && ['video', 'graphic', 'caption'].every(c => f.cards.get('p_test_1')[c + '_status'] === 'Posted'));
     ok('run: counted, ids only', r.ok && r.flipped === 1 && r.flipped_ids.join() === 'p_test_1' && !JSON.stringify(r).includes('test-client-a'));
@@ -180,6 +185,30 @@ function grabLine(source, re) {
     const f = fakes([card(), card({ id: 'p_test_2', status: 'Approved' })]);
     const r = await L.runTick(f, { dryRun: true });
     ok('dry run: writes nothing, says what it would do', f.calls.length === 0 && r.would_flip === 1 && r.skipped.not_scheduled === 1);
+  }
+  for (const [name, edit] of [
+    ['rescheduled to a later day', { scheduled_date: '2026-10-20', updated_at: '2026-10-10T14:59:00Z' }],
+    ['relinked to another work item', { video_deliverable_id: 'd_other' }],
+    ['a part changed', { caption_status: 'Tweaks Needed', status: 'Tweaks Needed' }],
+  ]) {
+    const f = fakes([card()], { beforePushEdit: edit });
+    const r = await L.runTick(f, {});
+    ok('run: card ' + name + ' after the due list: no work item moved, nothing saved',
+      !f.calls.some(c => c[0] === 'push' || c[0] === 'save') && r.skipped.changed_while_running === 1);
+  }
+  ok('the card save refuses a card whose day or link moved after the pushes',
+    L.calendarPatch(p1, { status: 'Scheduled', video_status: 'Posted', graphic_status: 'Posted', caption_status: 'Scheduled', scheduled_date: '2026-10-20', video_deliverable_id: 'd_v', graphic_deliverable_id: 'd_g', linear_issue_id: '', graphic_linear_issue_id: '' }) === null);
+  {
+    const f = fakes([card(), card({ id: 'p_test_2' })], { source: 'none' });
+    const r = await L.runTick(f, {});
+    ok('run: stops when the history receipt cannot be confirmed', r.ok === false && r.error === 'calendar_history_unconfirmed' && !f.calls.some(c => c[1] === 'p_test_2'));
+  }
+  {
+    const P = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/production-write/policy.mjs')).href);
+    const rid = L.requestIdFor('p_native_6e0a_2', 'graphic', '2026-10-07 14:48:32.795+00');
+    ok('request id is accepted by the gateway rule and stays deterministic', P.validRequestId(rid) === rid
+      && rid === L.requestIdFor('p_native_6e0a_2', 'graphic', '2026-10-07 14:48:32.795+00')
+      && rid !== L.requestIdFor('p_native_6e0a_2', 'video', '2026-10-07 14:48:32.795+00'));
   }
   {
     const f = fakes([card(), card({ id: 'p_test_2' })], { source: 'other' });

@@ -28,7 +28,7 @@
 //                                  Production history names this person.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { ACTOR_LABEL, DEFAULT_LIMIT, runTick, SOURCE } from "./logic.mjs";
+import { ACTOR_LABEL, CARD_FIELDS, DEFAULT_LIMIT, requestIdFor, runTick, SOURCE } from "./logic.mjs";
 
 type Json = Record<string, unknown>;
 
@@ -39,8 +39,6 @@ function json(obj: unknown, status = 200): Response {
 function clean(v: unknown): string {
   return v == null ? "" : String(v).trim();
 }
-
-const CARD_FIELDS = "client,id,status,updated_at,video_status,graphic_status,caption_status";
 
 function deps(db: SupabaseClient, url: string, anonKey: string, adminKey: string, actor: string) {
   const fnHeaders = (extra: Record<string, string>) => ({
@@ -59,7 +57,7 @@ function deps(db: SupabaseClient, url: string, anonKey: string, adminKey: string
       return (data || []) as Json[];
     },
     readCard: async (client: string, id: string) => {
-      const { data, error } = await db.from("calendar_posts").select(CARD_FIELDS)
+      const { data, error } = await db.from("calendar_posts").select(CARD_FIELDS.join(","))
         .eq("client", client).eq("id", id).limit(2);
       if (error || !Array.isArray(data) || data.length !== 1) return null;
       return data[0] as Json;
@@ -79,7 +77,7 @@ function deps(db: SupabaseClient, url: string, anonKey: string, adminKey: string
             status: "posted",
             // Deterministic per card, part and work-item version: a retry of the
             // same move is an exact replay, never a second change.
-            request_id: `${SOURCE}:${clean(ctx.id)}:${clean(push.component)}:${clean(push.expected_updated_at)}`,
+            request_id: requestIdFor(ctx.id, push.component, push.expected_updated_at),
             source_edited_at: new Date().toISOString(),
             expected_status: push.expected_status,
             expected_updated_at: push.expected_updated_at,

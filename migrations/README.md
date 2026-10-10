@@ -57,6 +57,13 @@ executes these files (see `README.md` › Repository layout).
   function every minute but only while a request is open, with the metrics job's Vault key.
   Nothing the pages read. `test/analytics-market-research-collect-postgres.js` measures it.
 
+- **`2026-10-10-calendar-auto-posted.sql`** is source-only until Lighthouse applies it, after
+  the `calendar-auto-posted` function and the one-line `calendar-upsert` live delta are deployed
+  (OPEN_REPAIRS 394). It adds the `calendar_auto_posted` switch (off), a read-only due list,
+  the key check and the 15-minute timer, and refuses to run until the Vault secret
+  `calendar_auto_posted_key` exists. It writes no status: the function flips posts through
+  `production-write` and `calendar-upsert`. `test/calendar-auto-posted.js` measures it.
+
 - **`2026-10-06-production-comment-signal.sql`** (rollback beside it) is
   source-only until Lighthouse applies it with the owner's go (OPEN_REPAIRS 357).
   A Production comment insert or edit stamps a new column,

@@ -31946,6 +31946,52 @@ offset stays, as before. Covers Review, Sheet, Month, Week, desktop and phone.
 and passes on the fix; it runs in `calendar-unit-tests.yml`. It was not run against the live test
 client: the staff Calendar needs a real staff sign-in this sandbox does not have.
 
+## 394. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED] Thumbnail titles: week-tab plans, and failures that say why (session Sorter)
+
+**Why.** The thumbnail-titles backfill (OPEN_REPAIRS 391) ran on 2026-10-09 over 135 items and left two
+gaps (counts from `thumbnail_title_queue`, read only, 2026-10-10):
+- **25 items `no_month_tab`** (17 backfill, 8 new), from four clients. Only ONE of those plans keeps one
+  Docs tab per week ("Week of Sept 28", "Week of Aug 31", ...): 4 items. The other three plans DO use
+  month tabs, but their newest month tab is older than the posts (an August tab for posts made at the
+  end of September or in October): 21 items. Those 21 are not fixed here on purpose (see owner decision).
+- **15 items `generation_failed`, all from one client, `last_error` empty on every row.** Two causes:
+  1. The record was wiped: each failed try stored a reason through `thumbnail_titles_release`, but the
+     final write (`thumbnail_title_apply`) set `last_error` back to null.
+  2. The tries themselves: the function logs show those runs took 18 to 31 seconds, so the model did
+     answer (a refused request returns in about a second), and the code treated the answer as unreadable.
+     That client's plan tab quotes study footnotes like "[11]"; the old reader took everything from the
+     FIRST "[" to the last "]" in the answer, so any sentence of prose holding a bracket before the list
+     made the whole answer unreadable. The exact answer text was never stored, so this is the measured
+     likely cause, not a replay; re-queuing those items after the deploy will show it, now with a reason.
+
+**What changed.**
+- `pickTab` understands week tabs: when no month tab fits, it takes the week tab whose start date is the
+  latest one on or before the post, within 35 days; two tabs for the same week, or none in the window,
+  still report "no tab" (never a guess). Week names read: "Week of Sept 28", "Week of July 20th",
+  "Wk of 9/28", with or without a year; a December week fits an early-January post. A month tab still
+  wins when both exist. Checked read only against the real week-tab plan: a post made on 5 October now
+  picks "Week of Sept 28".
+- The answer reader tries every "[" with every later "]" (and fenced JSON anywhere), so prose and
+  footnote brackets no longer break it. An answer with no list gets one follow-up in the same thread
+  asking for the JSON only. `max_tokens` 2048 -> 4096.
+- Every failure stores a short reason in `last_error`: `http_<status>: <provider error type>`,
+  `timeout`, `network: <name>`, `answer_not_json`, `answer_empty`, `stop_<reason>`,
+  `deliverables_read: <code>`, `client_run: <message>`. Never a title, a plan line or a client name. The
+  final `generation_failed` write keeps it (`migrations/2026-10-10-thumbnail-titles-error-record.sql`:
+  `thumbnail_title_apply` gains `p_error`). A counts-and-code-only line goes to the function log.
+
+**Release order.** 1. Apply `migrations/2026-10-10-thumbnail-titles-error-record.sql`. 2. Deploy
+`thumbnail-titles` from main through `deploy-single-function`. (If deployed first, it falls back to the
+old four-argument call and still writes, without the reason.) No other function changes; the page does
+not change. Then Lighthouse re-queues the 15 `generation_failed` and the 4 week-tab items.
+
+**Owner decision (not built):** for the 21 items whose plan's newest month tab is older than the post,
+should the step use that newest earlier month tab (for example within one month), or keep writing
+"Needs info: no tab for <month>" until the plan gets the month's tab?
+
+Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
+fenced answers, empty list, the stored reason, the migration).
+
 ## 397. [2026-10-10, BUILT, NOT MERGED] Wrong client and lost work: the credentials dialog, the Instagram cover, Kasper's Samples notes, TikTok's retry key, Samples Notes, a restored SyncLinear comment; dates in the team's time zone (session Digger)
 
 Bug archaeology (entry 396 and `docs/audits/2026-10-10-bug-archaeology.md`). Browser changes only. Each fix has a guard that fails on the code before it.

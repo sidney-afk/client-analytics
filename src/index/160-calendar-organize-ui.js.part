@@ -1058,9 +1058,21 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        teammate's card lands before the one on screen (or one is archived),
        the same scrollLeft shows a different card and the board jumps by a
        card width. So every scrolled box in the body, and the page itself,
-       remembers the first card or day in view and where it sat, and the
-       repaint puts that same card back in the same place. The pixel offset
-       stays the fallback when that card is gone. */
+       remembers the first few cards or days in view and where they sat, and
+       the repaint puts them back in the same place. The pixel offset stays
+       the fallback when none of them is left.
+
+       Never follow ONE card. When the refresh moves the card in view itself
+       (rescheduled in Review, reordered in the Sheet, scheduled out of the
+       Unscheduled tray, a phone day folded away), following it jumped the
+       board by many cards (OPEN_REPAIRS 396). A card or day landing ahead of
+       the view moves every remembered item by the same amount; a relocated
+       card moves alone. So the board follows a move that at least two
+       remembered items agree on. A single item decides only when it is the
+       only one left that moved less than the box plus its own size (a phone
+       Sheet card is taller than the screen, so a one-card shift there is
+       already bigger than the box). An item with no box left (folded,
+       display:none) counts as gone. */
     const CAL_SCROLL_KEYS = ['data-pid', 'data-cal-review-pid', 'data-iso', 'data-cal-move'];
     const CAL_SCROLL_KEY_SEL = CAL_SCROLL_KEYS.map(a => '[' + a + ']').join(',');
     function _calScrollKey(el) {
@@ -1091,25 +1103,64 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const r = el.getBoundingClientRect();
         return { left: r.left, top: r.top, right: r.left + el.clientWidth, bottom: r.top + el.clientHeight };
     }
-    function _calScrollAnchor(scope, el) {
-        const box = _calScrollBox(el);
+    const CAL_SCROLL_ANCHORS = 6;
+    // The first few cards or days in view, outermost only: a Sheet card's
+    // fields carry its data-pid too, and must not outvote the cards around it.
+    function _calScrollAnchors(scope, el) {
+        const box = _calScrollBox(el), out = [];
         for (const item of scope.querySelectorAll(CAL_SCROLL_KEY_SEL)) {
+            const outer = item.parentElement ? item.parentElement.closest(CAL_SCROLL_KEY_SEL) : null;
+            if (outer && outer !== scope && scope.contains(outer)) continue;
             const r = item.getBoundingClientRect();
             if (!r.width && !r.height) continue;
             if (r.right <= box.left + 1 || r.bottom <= box.top + 1 || r.left >= box.right || r.top >= box.bottom) continue;
             const key = _calScrollKey(item);
-            if (key) return { key, dx: r.left - box.left, dy: r.top - box.top };
+            if (key) out.push({ key, dx: r.left - box.left, dy: r.top - box.top, w: r.width, h: r.height });
+            if (out.length >= CAL_SCROLL_ANCHORS) break;
         }
-        return null;
+        return out.length ? out : null;
+    }
+    // How far each remembered item now sits from where it was. An item that
+    // is gone, or has no box (a phone day folded into a run is display:none
+    // and measures 0,0 wherever the page is), is left out. One that moved
+    // further than the box plus its own size is marked far: a relocated card.
+    function _calAnchorShifts(scope, el, anchors, page) {
+        const box = _calScrollBox(el), w = box.right - box.left, h = box.bottom - box.top, out = [];
+        for (const a of anchors) {
+            const item = scope.querySelector(_calScrollKeySel(a.key));
+            if (!item || !item.getClientRects().length) continue;
+            const r = item.getBoundingClientRect();
+            const dx = page ? 0 : Math.round(r.left - box.left - a.dx), dy = Math.round(r.top - box.top - a.dy);
+            out.push({ a, dx, dy, far: Math.abs(dx) > w + a.w || Math.abs(dy) > h + a.h });
+        }
+        return out;
+    }
+    // The move most remembered items agree on (within 2px), the smaller one
+    // on a tie. With no two agreeing, the one item that is not far decides;
+    // otherwise nothing does and the pixel offset stands.
+    function _calAnchorConsensus(shifts) {
+        let best = null;
+        for (const s of shifts) {
+            const group = shifts.filter(o => Math.abs(o.dx - s.dx) <= 2 && Math.abs(o.dy - s.dy) <= 2);
+            if (!best || group.length > best.group.length
+                || (group.length === best.group.length && Math.abs(s.dx) + Math.abs(s.dy) < Math.abs(best.s.dx) + Math.abs(best.s.dy))) best = { s, group };
+        }
+        if (best && best.group.length < 2) {
+            const near = shifts.filter(o => !o.far);
+            best = near.length === 1 ? { s: near[0], group: near } : null;
+        }
+        if (!best) return null;
+        const mid = list => list.slice().sort((p, q) => p - q)[(list.length - 1) >> 1];
+        return { group: best.group.map(g => g.a), dx: mid(best.group.map(g => g.dx)), dy: mid(best.group.map(g => g.dy)) };
     }
     function _calCaptureScroll(body) {
         const boxes = [];
         body.querySelectorAll('*').forEach(el => {
             if (!el.scrollLeft && !el.scrollTop) return;
             const path = _calScrollerPath(el, body);
-            if (path) boxes.push({ path, x: el.scrollLeft, y: el.scrollTop, anchor: _calScrollAnchor(el, el) });
+            if (path) boxes.push({ path, x: el.scrollLeft, y: el.scrollTop, anchors: _calScrollAnchors(el, el) });
         });
-        return { boxes, page: { x: window.scrollX, y: window.scrollY, anchor: _calScrollAnchor(body, null) } };
+        return { boxes, page: { x: window.scrollX, y: window.scrollY, anchors: _calScrollAnchors(body, null) } };
     }
     function _calRestoreScroll(body, snap) {
         if (!snap) return;
@@ -1117,11 +1168,16 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             if (again) { if (el && !el.isConnected) return; }
             else if (el) { el.scrollLeft = rec.x; el.scrollTop = rec.y; }
             else window.scrollTo({ left: rec.x, top: rec.y, behavior: 'instant' });
-            if (!rec.anchor) return;
-            const item = (el || body).querySelector(_calScrollKeySel(rec.anchor.key));
-            if (!item) return;
-            const r = item.getBoundingClientRect(), box = _calScrollBox(el);
-            const dx = Math.round(r.left - box.left - rec.anchor.dx), dy = Math.round(r.top - box.top - rec.anchor.dy);
+            // The second look re-measures only the items the first one agreed
+            // on, so a late-settling card cannot swap which items lead. When
+            // the first look found no agreement (heights still settling by a
+            // few pixels), the second one asks all of them again.
+            const anchors = (again && rec.held) ? rec.held : rec.anchors;
+            if (!anchors || !anchors.length) return;
+            const pick = _calAnchorConsensus(_calAnchorShifts(el || body, el, anchors, !el));
+            if (!again) rec.held = pick ? pick.group : null;
+            if (!pick) return;
+            const { dx, dy } = pick;
             if (!dx && !dy) return;
             // The page itself only follows its own vertical axis: a card's
             // sideways move belongs to the strip around it, restored first.

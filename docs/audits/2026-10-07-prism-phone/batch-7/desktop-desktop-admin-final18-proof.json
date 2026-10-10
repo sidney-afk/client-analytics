@@ -1,0 +1,456 @@
+{
+  "runs": [
+    {
+      "name": "desktop-admin-final18-cold-before",
+      "exit": 0,
+      "command": [
+        "node",
+        "docs/syncview-design/tests/kasper-admin-expanded-browser.js",
+        "--dump-styles",
+        "--desktop",
+        "--width=1440",
+        "--height=900",
+        "--states=clients,clients-empty,clients-archived-empty,clients-loading,clients-create-menu,clients-create-manager-menu,clients-create-empty,clients-create-loading,client-onboarding-open,client-onboarding-step-menu,client-onboarding-loading,client-manager-menu",
+        "--out=${EVIDENCE}\\desktop-admin-final18-cold-before",
+        "--capture-before",
+        "--before-root=${EVIDENCE}-main"
+      ],
+      "log": "${EVIDENCE}\\desktop-admin-final18-cold-before.log"
+    },
+    {
+      "name": "desktop-admin-final18-cold-after",
+      "exit": 0,
+      "command": [
+        "node",
+        "docs/syncview-design/tests/kasper-admin-expanded-browser.js",
+        "--dump-styles",
+        "--desktop",
+        "--width=1440",
+        "--height=900",
+        "--states=clients,clients-empty,clients-archived-empty,clients-loading,clients-create-menu,clients-create-manager-menu,clients-create-empty,clients-create-loading,client-onboarding-open,client-onboarding-step-menu,client-onboarding-loading,client-manager-menu",
+        "--out=${EVIDENCE}\\desktop-admin-final18-cold-after"
+      ],
+      "log": "${EVIDENCE}\\desktop-admin-final18-cold-after.log"
+    },
+    {
+      "name": "desktop-admin-final18-warm-before",
+      "exit": 0,
+      "command": [
+        "node",
+        "docs/syncview-design/tests/kasper-admin-expanded-browser.js",
+        "--dump-styles",
+        "--desktop",
+        "--width=1440",
+        "--height=900",
+        "--states=clients,clients-empty,clients-archived-empty,clients-loading,clients-create-menu,clients-create-manager-menu,clients-create-empty,clients-create-loading,client-onboarding-open,client-onboarding-step-menu,client-onboarding-loading,client-manager-menu",
+        "--out=${EVIDENCE}\\desktop-admin-final18-warm-before",
+        "--warm-desktop",
+        "--capture-before",
+        "--before-root=${EVIDENCE}-main"
+      ],
+      "log": "${EVIDENCE}\\desktop-admin-final18-warm-before.log"
+    },
+    {
+      "name": "desktop-admin-final18-warm-after",
+      "exit": 0,
+      "command": [
+        "node",
+        "docs/syncview-design/tests/kasper-admin-expanded-browser.js",
+        "--dump-styles",
+        "--desktop",
+        "--width=1440",
+        "--height=900",
+        "--states=clients,clients-empty,clients-archived-empty,clients-loading,clients-create-menu,clients-create-manager-menu,clients-create-empty,clients-create-loading,client-onboarding-open,client-onboarding-step-menu,client-onboarding-loading,client-manager-menu",
+        "--out=${EVIDENCE}\\desktop-admin-final18-warm-after",
+        "--warm-desktop"
+      ],
+      "log": "${EVIDENCE}\\desktop-admin-final18-warm-after.log"
+    }
+  ],
+  "pairs": [
+    {
+      "name": "clients-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "9d5219b727bc8ef97e6e21dfd5344646630d9efc76fa2b1287feb861ad5bc924",
+      "after": "9d5219b727bc8ef97e6e21dfd5344646630d9efc76fa2b1287feb861ad5bc924"
+    },
+    {
+      "name": "clients-empty-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "6035e4a89cb9739b73cff6a8e0502b3122124e54671dc8d4310cdc9903a8af38",
+      "after": "6035e4a89cb9739b73cff6a8e0502b3122124e54671dc8d4310cdc9903a8af38"
+    },
+    {
+      "name": "clients-archived-empty-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "9e5fd48c216f68d4591cdd087389b0680a1d859126ca5e77f288ea469bbe741d",
+      "after": "9e5fd48c216f68d4591cdd087389b0680a1d859126ca5e77f288ea469bbe741d"
+    },
+    {
+      "name": "clients-create-menu-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "1951ba9c71f0a10daaf3024140e967b407037ce3e918ca3dc59f2d2b88ee1871",
+      "after": "1951ba9c71f0a10daaf3024140e967b407037ce3e918ca3dc59f2d2b88ee1871"
+    },
+    {
+      "name": "clients-create-manager-menu-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "1951ba9c71f0a10daaf3024140e967b407037ce3e918ca3dc59f2d2b88ee1871",
+      "after": "1951ba9c71f0a10daaf3024140e967b407037ce3e918ca3dc59f2d2b88ee1871"
+    },
+    {
+      "name": "clients-create-empty-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "1951ba9c71f0a10daaf3024140e967b407037ce3e918ca3dc59f2d2b88ee1871",
+      "after": "1951ba9c71f0a10daaf3024140e967b407037ce3e918ca3dc59f2d2b88ee1871"
+    },
+    {
+      "name": "clients-create-loading-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "4d6b8dc13030a0ee3da49d81f5aa1d2fde16c121b748f31b502fab1dd7f98437",
+      "after": "4d6b8dc13030a0ee3da49d81f5aa1d2fde16c121b748f31b502fab1dd7f98437"
+    },
+    {
+      "name": "clients-loading-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "9f19221dc17f4d095650f6f62f2024741d893e21ed75a91a2b1d6fa604a3a040",
+      "after": "9f19221dc17f4d095650f6f62f2024741d893e21ed75a91a2b1d6fa604a3a040"
+    },
+    {
+      "name": "client-manager-menu-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "3d308920c88c573f20a0429155fcfc9dc48a7126151916360d9745c803b3c019",
+      "after": "3d308920c88c573f20a0429155fcfc9dc48a7126151916360d9745c803b3c019"
+    },
+    {
+      "name": "client-onboarding-open-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "7f6cd66b19bd584a3613e9c94375b4414a3bb0996566a8f20430fc4cdfb8ccc1",
+      "after": "7f6cd66b19bd584a3613e9c94375b4414a3bb0996566a8f20430fc4cdfb8ccc1"
+    },
+    {
+      "name": "client-onboarding-step-menu-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "41d300955a68a9c86826c9cc1bb58e5a63d1db9b846b0f9592c9e48736629df2",
+      "after": "41d300955a68a9c86826c9cc1bb58e5a63d1db9b846b0f9592c9e48736629df2"
+    },
+    {
+      "name": "client-onboarding-loading-light-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "22d6a41e8e9a1eff56be8c69f4907ead5033b2bcdaff88ff3afe9c98d0486615",
+      "after": "22d6a41e8e9a1eff56be8c69f4907ead5033b2bcdaff88ff3afe9c98d0486615"
+    },
+    {
+      "name": "clients-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "4f008b1aca2d1557358836d13a6479f375b004e206b53cf610b42ba79d063be4",
+      "after": "4f008b1aca2d1557358836d13a6479f375b004e206b53cf610b42ba79d063be4"
+    },
+    {
+      "name": "clients-empty-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "3eb69603966768c4560bd99c76631ae752ff840db79fdfca90e89391e8bc5235",
+      "after": "3eb69603966768c4560bd99c76631ae752ff840db79fdfca90e89391e8bc5235"
+    },
+    {
+      "name": "clients-archived-empty-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "012d1dd06ec37322e6bbe4d4b88c488237f30e4e35bfb188c9fe1e98164a989a",
+      "after": "012d1dd06ec37322e6bbe4d4b88c488237f30e4e35bfb188c9fe1e98164a989a"
+    },
+    {
+      "name": "clients-create-menu-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "508d26c86d7ec96377f6707c3df3153dd04c079764a2a963f574d8ea6b964777",
+      "after": "508d26c86d7ec96377f6707c3df3153dd04c079764a2a963f574d8ea6b964777"
+    },
+    {
+      "name": "clients-create-manager-menu-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "508d26c86d7ec96377f6707c3df3153dd04c079764a2a963f574d8ea6b964777",
+      "after": "508d26c86d7ec96377f6707c3df3153dd04c079764a2a963f574d8ea6b964777"
+    },
+    {
+      "name": "clients-create-empty-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "508d26c86d7ec96377f6707c3df3153dd04c079764a2a963f574d8ea6b964777",
+      "after": "508d26c86d7ec96377f6707c3df3153dd04c079764a2a963f574d8ea6b964777"
+    },
+    {
+      "name": "clients-create-loading-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "8d6cba28f6b366240f0a65b8f82c45aa0a26e1e08b745da80579144683c9262b",
+      "after": "8d6cba28f6b366240f0a65b8f82c45aa0a26e1e08b745da80579144683c9262b"
+    },
+    {
+      "name": "clients-loading-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "40747977dcb8aa59773618d44d65c0493ec3ce9965eb6c85021389ab97a42405",
+      "after": "40747977dcb8aa59773618d44d65c0493ec3ce9965eb6c85021389ab97a42405"
+    },
+    {
+      "name": "client-manager-menu-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "ec2cde0953f6fed609f46b3bccbcc741771393526cad1dc2257190385dd5f4c6",
+      "after": "ec2cde0953f6fed609f46b3bccbcc741771393526cad1dc2257190385dd5f4c6"
+    },
+    {
+      "name": "client-onboarding-open-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "34edd8ad7a8f4fdd808bfae93223735f99e4caf2438119eb853b34860600f2c9",
+      "after": "34edd8ad7a8f4fdd808bfae93223735f99e4caf2438119eb853b34860600f2c9"
+    },
+    {
+      "name": "client-onboarding-step-menu-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "371a227fb99b3089335dab8e6d85005efda5bb442b5d2a6092bb3ef6b1c36291",
+      "after": "371a227fb99b3089335dab8e6d85005efda5bb442b5d2a6092bb3ef6b1c36291"
+    },
+    {
+      "name": "client-onboarding-loading-dark-1440.png",
+      "warm": "cold",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "1fce2dc3cfd8198c0748665f63653feebd6fc448486254118a47e525f07432c2",
+      "after": "1fce2dc3cfd8198c0748665f63653feebd6fc448486254118a47e525f07432c2"
+    },
+    {
+      "name": "clients-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "3a11a4cf5454b4440f5e48cadac427bd6a4fa44a4e9e0df23b52beb8336e6d08",
+      "after": "3a11a4cf5454b4440f5e48cadac427bd6a4fa44a4e9e0df23b52beb8336e6d08"
+    },
+    {
+      "name": "clients-empty-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "8111e93acb8d6c2976f95d3c535a14f3488ba3833fc571a04c9cf359286ca38e",
+      "after": "8111e93acb8d6c2976f95d3c535a14f3488ba3833fc571a04c9cf359286ca38e"
+    },
+    {
+      "name": "clients-archived-empty-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "3d2b1474e92b7e80d3c5f7bc37eb4ea77e593328e435ca6329a11bbc9a59411e",
+      "after": "3d2b1474e92b7e80d3c5f7bc37eb4ea77e593328e435ca6329a11bbc9a59411e"
+    },
+    {
+      "name": "clients-create-menu-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "eb4e18f0896a95ca562bc5d1b1a6ba7283b841492d3062c3b8f203e5e3910a9c",
+      "after": "eb4e18f0896a95ca562bc5d1b1a6ba7283b841492d3062c3b8f203e5e3910a9c"
+    },
+    {
+      "name": "clients-create-manager-menu-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "eb4e18f0896a95ca562bc5d1b1a6ba7283b841492d3062c3b8f203e5e3910a9c",
+      "after": "eb4e18f0896a95ca562bc5d1b1a6ba7283b841492d3062c3b8f203e5e3910a9c"
+    },
+    {
+      "name": "clients-create-empty-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "eb4e18f0896a95ca562bc5d1b1a6ba7283b841492d3062c3b8f203e5e3910a9c",
+      "after": "eb4e18f0896a95ca562bc5d1b1a6ba7283b841492d3062c3b8f203e5e3910a9c"
+    },
+    {
+      "name": "clients-create-loading-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "05acfa2f2660886aed81a386c91743a57f68cb9a52b4ea9cfd5e302c051f2aac",
+      "after": "05acfa2f2660886aed81a386c91743a57f68cb9a52b4ea9cfd5e302c051f2aac"
+    },
+    {
+      "name": "clients-loading-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "7e7aec1ec2d88cfc8c8c69d8f665e1238a824ab07e4caef21becda089657e070",
+      "after": "7e7aec1ec2d88cfc8c8c69d8f665e1238a824ab07e4caef21becda089657e070"
+    },
+    {
+      "name": "client-manager-menu-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "3d308920c88c573f20a0429155fcfc9dc48a7126151916360d9745c803b3c019",
+      "after": "3d308920c88c573f20a0429155fcfc9dc48a7126151916360d9745c803b3c019"
+    },
+    {
+      "name": "client-onboarding-open-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "7f6cd66b19bd584a3613e9c94375b4414a3bb0996566a8f20430fc4cdfb8ccc1",
+      "after": "7f6cd66b19bd584a3613e9c94375b4414a3bb0996566a8f20430fc4cdfb8ccc1"
+    },
+    {
+      "name": "client-onboarding-step-menu-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "41d300955a68a9c86826c9cc1bb58e5a63d1db9b846b0f9592c9e48736629df2",
+      "after": "41d300955a68a9c86826c9cc1bb58e5a63d1db9b846b0f9592c9e48736629df2"
+    },
+    {
+      "name": "client-onboarding-loading-light-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "22d6a41e8e9a1eff56be8c69f4907ead5033b2bcdaff88ff3afe9c98d0486615",
+      "after": "22d6a41e8e9a1eff56be8c69f4907ead5033b2bcdaff88ff3afe9c98d0486615"
+    },
+    {
+      "name": "clients-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "d26c9034cbf9ef64e71e49c4720ec7264b93fb8694703e5359b6901f72227968",
+      "after": "d26c9034cbf9ef64e71e49c4720ec7264b93fb8694703e5359b6901f72227968"
+    },
+    {
+      "name": "clients-empty-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "6361e4094197342768e1deb3343fb38d7f66be0d1f3527d4c56b008edd141aae",
+      "after": "6361e4094197342768e1deb3343fb38d7f66be0d1f3527d4c56b008edd141aae"
+    },
+    {
+      "name": "clients-archived-empty-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "71dbce562e257dcc8c8f3e9983cf55564a3bbd802e82426c7e8b1a02f48abe81",
+      "after": "71dbce562e257dcc8c8f3e9983cf55564a3bbd802e82426c7e8b1a02f48abe81"
+    },
+    {
+      "name": "clients-create-menu-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "08e93e555c6ec812752f1a857d820813ea439580834232c715ebc499db7415eb",
+      "after": "08e93e555c6ec812752f1a857d820813ea439580834232c715ebc499db7415eb"
+    },
+    {
+      "name": "clients-create-manager-menu-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "08e93e555c6ec812752f1a857d820813ea439580834232c715ebc499db7415eb",
+      "after": "08e93e555c6ec812752f1a857d820813ea439580834232c715ebc499db7415eb"
+    },
+    {
+      "name": "clients-create-empty-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "08e93e555c6ec812752f1a857d820813ea439580834232c715ebc499db7415eb",
+      "after": "08e93e555c6ec812752f1a857d820813ea439580834232c715ebc499db7415eb"
+    },
+    {
+      "name": "clients-create-loading-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "399b944fe48a0fefd5aed9a2db3651c17d6ca4a2634fc2f4401974735ef1576d",
+      "after": "399b944fe48a0fefd5aed9a2db3651c17d6ca4a2634fc2f4401974735ef1576d"
+    },
+    {
+      "name": "clients-loading-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "8ef0acd8088effac41582e2a14b575716ed1ed01a07d10dc5023883b4b2fec4a",
+      "after": "8ef0acd8088effac41582e2a14b575716ed1ed01a07d10dc5023883b4b2fec4a"
+    },
+    {
+      "name": "client-manager-menu-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "ec2cde0953f6fed609f46b3bccbcc741771393526cad1dc2257190385dd5f4c6",
+      "after": "ec2cde0953f6fed609f46b3bccbcc741771393526cad1dc2257190385dd5f4c6"
+    },
+    {
+      "name": "client-onboarding-open-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "34edd8ad7a8f4fdd808bfae93223735f99e4caf2438119eb853b34860600f2c9",
+      "after": "34edd8ad7a8f4fdd808bfae93223735f99e4caf2438119eb853b34860600f2c9"
+    },
+    {
+      "name": "client-onboarding-step-menu-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "371a227fb99b3089335dab8e6d85005efda5bb442b5d2a6092bb3ef6b1c36291",
+      "after": "371a227fb99b3089335dab8e6d85005efda5bb442b5d2a6092bb3ef6b1c36291"
+    },
+    {
+      "name": "client-onboarding-loading-dark-1440.png",
+      "warm": "warm",
+      "pngIdentical": true,
+      "styleIdentical": true,
+      "before": "1fce2dc3cfd8198c0748665f63653feebd6fc448486254118a47e525f07432c2",
+      "after": "1fce2dc3cfd8198c0748665f63653feebd6fc448486254118a47e525f07432c2"
+    }
+  ]
+}

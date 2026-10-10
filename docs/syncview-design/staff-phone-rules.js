@@ -123,7 +123,12 @@
             });
             if (active.length) lock(); else unlock();
             returnTo = liveTrigger(returnTo);
+            // Native close handlers can repaint and focus their current
+            // trigger before this observer runs. Preserve that deliberate
+            // restoration, including a picker kept open across a resize.
+            const focused = liveTrigger(document.activeElement);
             if (returnTo
+                && (!focused || focused === document.body || focused === document.documentElement)
                 && (!active.length || active.some(el => el.contains(returnTo)))) returnTo.focus({ preventScroll: true });
         }
         function liveTrigger(trigger) {

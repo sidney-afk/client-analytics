@@ -1,0 +1,76 @@
+# Before and after
+
+Main fixture before; accepted batch 7 after. All images personally reviewed at native scale. Open [the side-by-side gallery](gallery-before-after.html) or the complete [full/fresh gallery](gallery-all.html).
+
+| Surface / state | Before | After |
+|---|---|---|
+| analytics-loading | [PNG](images/77705eecedba221e950400c251cda450f93357ae5a87f0e93b65b99f26a6731a.png) | [PNG](images/bf809d45564de652abaeec1424d5b148d810c954c2376ad706c023b1c8e0b4af.png) |
+| analytics-overview | [PNG](images/7cca3a3d462c13f1973a1d78f865ff1ec376ed17dc3bfb13e9b74849a49971ab.png) | [PNG](images/c20b45b7bc936cd61955e5e807d6b52197dca41264ef4bb7fa6d1d0d9496700d.png) |
+| analytics-pin | [PNG](images/83c1ba10af67162d4995e090229731172cc5e3e35e9531e00bb066909822272e.png) | [PNG](images/bc662f8d67f1bc0b7d189c14498ab6a520c4ba2bf902e47d092aa41acf6841a2.png) |
+| calendar-alt-caption-menu | [PNG](images/e1cae4588a2da87177a5e39e326d33d7f067c6ebd8d0cf8c6c3294df93a65c2a.png) | [PNG](images/1c72601998170ca351333af79f6307fdaa8e13486a13c2b76f7e9639572abdee.png) |
+| calendar-loading | [PNG](images/6d8579f9459cacefad62354d422c5fe4cc0fde42ce524dc4529f060427714313.png) | [PNG](images/7a544bb5a6049ce2c162cadcb8835e9ef7705dda72b71c24cdbd5aab18cb77db.png) |
+| calendar-long-content | [PNG](images/a0e7ce18ec814c33d502bc9153b46ea6f2c7660530915b77844d8ebbf1b7b889.png) | [PNG](images/b569cc9ed3be2bcba9e019af28c1b1028a7a7d8ba335a3f0fbaab93726491315.png) |
+| calendar-month | [PNG](images/6c280d44dfa8472a1993295a4acbb70fa8d0159de1848fb3587e73701f6b761e.png) | [PNG](images/10d4a60d78a276582fb971d5daf36303a0f3d0f3f301bfdecc3994a880885ca9.png) |
+| calendar-thumbnail-prompt-normal | [PNG](images/107c520ef9b2f308673441d85a94bb393a84b69d12bbe3dda723c20058cc0a2e.png) | [PNG](images/f87ce39742bf4f44374989e7beee472c92b711fa0c48b3028e224b38c44a39dc.png) |
+| linear-detail-asset-edit | [PNG](images/7e3a3abbe4a1ad2cd5b22454d6042ee1c8ae06b4f665b66f2b8821c0663677b2.png) | [PNG](images/ae419d88e1e31305c77659ab5647c85966efd563e9b69afa6f823f028bf6c4de.png) |
+| linear-detail-description-edit | [PNG](images/68c28f8241f2a9bb922691887f444c5aae56dffb7dbe3a380dcd4984251e1c21.png) | [PNG](images/84875df6c1e58b227a4b84243796e142ba77060f217df9bc908fbef664c52348.png) |
+| linear-detail | [PNG](images/99edd7607abbc79105efb689609003670a1144e102618e724f3a2665751ead00.png) | [PNG](images/4db905919817e2c11ac87cc9c9865a2d2543dc0de863c9523a0086633b858387.png) |
+| samples-loading | [PNG](images/4d4e4820ba2bd6d89f72fb2008b31a6a9e9ad0a07426d6d84f210753664edec2.png) | [PNG](images/f9602d4176a919bfc5572475814b939b60ef26d25d32f256cd60598a890fa0cb.png) |
+| samples-long-content | [PNG](images/c4d35cafc471c891488ced97e6756da49cb1d27b86183dd5cfd68a1d320e2498.png) | [PNG](images/a931ebad4a06a5349cd4181f38633d34daf4d71185702f5805915e304436382b.png) |
+| tiktok-no-account | [PNG](images/0b85f525770e3d1b4f8f0a00336f11c375c4db3fc891871409a0c0023454cee4.png) | [PNG](images/4ed85f2b7c5d0c12cef009b5e262dc69c61aa37b5952ea21ba13e43630ae3d75.png) |
+| today-loading | [PNG](images/39ce197e63540c80ee451b2018c820729356526c1d646cf31cc6e0b10ca65bb8.png) | [PNG](images/03623cb43a2023b3f3ea09ce0cd93da9358e5f9d1ad808972ebd21916f701b2d.png) |
+| workload-loading | [PNG](images/019705fc396fedee9b036ebd6870fbf222ed22441529d18b50c2758b83621926.png) | [PNG](images/019705fc396fedee9b036ebd6870fbf222ed22441529d18b50c2758b83621926.png) |
+| workload-plan-due-horizontal-0-0 | [PNG](images/5b87efee214cc1e38a070c22ba55fe62f695ea1c680925d5c218d90e9990af20.png) | [PNG](images/782af31bc66fe2103872bc8d6f87931c8a72abe88f2c2d15da39aa5a2fba2f4e.png) |
+| workload-plan-due-horizontal-0-1 | [PNG](images/3c892208182edefe78c183793e73571f5aff9ab35078cf5dc9d20d4c97163a0f.png) | [PNG](images/df20c924f8d9a2b77235ed69bf71bdb65593bd1dfe88f0f53f8a5dd3cb1ac490.png) |
+| workload-plan-due-horizontal-0-2 | [PNG](images/707e447625abda88684c2886c94b1fdcd5647a077896c5eb4b9913e3a8037ab5.png) | [PNG](images/9b36df3b1f5121b9855be3d9d11c4ca84c6d0eeef8ac7ce168524ca0c18d3bfe.png) |
+| workload-plan-due-horizontal-0-3 | [PNG](images/8258f0c22254e59e7922ddd78deb60f6a6b0f0bdac66f07dd2049e30862ce90c.png) | [PNG](images/cc7133d5acab0ca60027bb3564fa2eb1d04275d960310ebe99d88d3ae625f034.png) |
+| workload-plan-due | [PNG](images/3fa37f7ada36ef7663505388f836355ac48e837160826170a75dc9f4272ce068.png) | [PNG](images/840645dfcac2cc17cd1ddc8acc2431b716ff3fb82ff6783384611553d707c049.png) |
+| workload-popover | [PNG](images/067ee00b5b0cfee69b61a905316d2dfaa595478edff9b510f6e7c617c9135794.png) | [PNG](images/1c594d3a57b6ab66d7cb7292be1b0c1f8bd5551aabcab84352bb44355811b875.png) |
+| client-manager-menu | [PNG](images/989495f20dda45d9ff73f55fa39f94ec1ae245446552bfd1f52de3682b3d0289.png) | [PNG](images/9b9bc585ac74c0342e256f4cd71de1f96354cf8ca61130be1c48c3ed93fd9ef1.png) |
+| client-onboarding-open | [PNG](images/b11e68e11e8081a97b1194ea5c07307977511f79891fb0c1458856b2fb80f14e.png) | [PNG](images/b11e68e11e8081a97b1194ea5c07307977511f79891fb0c1458856b2fb80f14e.png) |
+| clients-create-manager-menu | [PNG](images/73c179fc45fd8fceccc182faa1493ff8723a656b438b8b00bd213b743f719492.png) | [PNG](images/e6c1b34f0d734d0b17e5be0c2dffdce8b0b7c7be714400d75f047bd308c4226a.png) |
+| clients-create-menu | [PNG](images/8800de40ddfd07c3e1651f9cc63e63a84d7b1521e095e7adc21444574db99127.png) | [PNG](images/f1ce24d839d333e5b8636a322b989e457bf300c8272ed04bbd7d40edfc943b7d.png) |
+| clients-loading | [PNG](images/6d5e1a9c2bf902db0f86be64210c23b1a342426ea61aae9325c7a6fed671eec5.png) | [PNG](images/6d5e1a9c2bf902db0f86be64210c23b1a342426ea61aae9325c7a6fed671eec5.png) |
+| month | [PNG](images/2dda4c6c17c38306e43d28660962f55855ca733999f84f14d228ea1fee8ef78a.png) | [PNG](images/096d1e5db1dacd85637905946e57a6534b301fb7e577842b8ebc45cf9af51a91.png) |
+| review | [PNG](images/a97b8954151399d70cf4bfc5f697ca5935a059c423fd2a8f3f448ccf6a65cb00.png) | [PNG](images/a97b8954151399d70cf4bfc5f697ca5935a059c423fd2a8f3f448ccf6a65cb00.png) |
+| review-queue | [PNG](images/048d7bf5fcb06dd626173cbc5418b79785c6cc4932117768e5bbbb5b99789b76.png) | [PNG](images/048d7bf5fcb06dd626173cbc5418b79785c6cc4932117768e5bbbb5b99789b76.png) |
+| sheet | [PNG](images/5e8ef8546eec9ecc2ba2f77aee23e8d61971f14be0550e83fe28f138d1daf2d2.png) | [PNG](images/3cc88e2c6c4ff1fb6283d4fe2024dbe353ceca625d3e764d4d7ec64c92586052.png) |
+| week | [PNG](images/93801feaf70dd2e61221e5d8b7f0791366dc89d7cabdb5b7e4a0d62f152be293.png) | [PNG](images/93801feaf70dd2e61221e5d8b7f0791366dc89d7cabdb5b7e4a0d62f152be293.png) |
+| calendar-caption-prompt-empty | [PNG](images/f9123a374bbb4c41a7d6cfee26955bbcd73b2929491bc30c65b831f9f23e8964.png) | [PNG](images/c74c512f841496c745c8ecf475910136a45644fb3af4759ff5fda9b21420e092.png) |
+| calendar-transcript-required | [PNG](images/c68abae425f90bbf293eb1b269ef4bfb60f183cb92ac9e88e160a3d942ff3ba2.png) | [PNG](images/05c8934a42ae310fe7e05d6dfbcec321fa23f010d11bd987f4fbe0e6af349a72.png) |
+| linear-detail-comment-draft | [PNG](images/1de4cbaba6b04cc4853bd42044fe1e62ea1671c2e30262b3293456747e5e0488.png) | [PNG](images/4d9bbb77ec7ed47fad391fc5bca01a4c737accf7050dc65aec81b93238e91a71.png) |
+| linear-detail-empty | [PNG](images/ee01d7a7e3e7e80a1edbf51090dba4787ae39e23ef108283d3db3d876ca3149a.png) | [PNG](images/45a87661eb976ac25c2d1106a35dcd7223a491be438262f64322d2797e08a769.png) |
+| linear-detail-menu | [PNG](images/87913ea38fa14bbcd4fe8daa6afaedbc2c1a8f67615eaac309ae2bddeddbff0c.png) | [PNG](images/d1ce548178e8b678e109bf56fa4941275e92a28a09132ec509b4acc310aa5994.png) |
+| archive-confirm | [PNG](images/f36e67a73252e0ccbf9003beddee9db43afd7010cfd632e41ec1616617214851.png) | [PNG](images/cef4b949ab223c51856f1b7ba0f8cbb124abe94dd885889d88067173b5b48134.png) |
+| archived-rows | [PNG](images/50377b14213a05b4e38e2cbb78a8c0c58fa015739745195ca1d28bb995e1609d.png) | [PNG](images/7046a8efbff5e117dd1f335f5902056ac1ea0e79e1245c93e0c13d474f369a41.png) |
+| create-post | [PNG](images/dad4880c5ba8a1fbff803dbaec1af9f7ca35c869c7f0cad0334b17ec91828e09.png) | [PNG](images/d6d38945dc8c258b7c40b51b55218a4f327d4beda645c57d635fecda7efeb928.png) |
+| create-thumbnail | [PNG](images/c7734bcb9ed650368b061febb460f9ff60da0cd740a8ed595b179c508feaf439.png) | [PNG](images/b6d295c789b0ed42945483e16584e2c01e5a4a894197cbbaa704a954a3a56e07.png) |
+| month | [PNG](images/2dda4c6c17c38306e43d28660962f55855ca733999f84f14d228ea1fee8ef78a.png) | [PNG](images/096d1e5db1dacd85637905946e57a6534b301fb7e577842b8ebc45cf9af51a91.png) |
+| organize | [PNG](images/8a6dc9678cb9b282b78e36ddc4377011750cdd6f699417d365ba37044207de8a.png) | [PNG](images/7f8093ea731d1f8b4359d206dacc3afbabdf7cb3408b49089d61ba5cb3ef704e.png) |
+| quick-jump | [PNG](images/d9b7ecee293d04bd01a13516c23cdccc807f8716d16e674a647a1f0fc54c0ef4.png) | [PNG](images/fc77aa030205bb6ad67485155901157656f397ad55db895bdda3ec233a15b771.png) |
+| review | [PNG](images/a97b8954151399d70cf4bfc5f697ca5935a059c423fd2a8f3f448ccf6a65cb00.png) | [PNG](images/a97b8954151399d70cf4bfc5f697ca5935a059c423fd2a8f3f448ccf6a65cb00.png) |
+| review-queue | [PNG](images/048d7bf5fcb06dd626173cbc5418b79785c6cc4932117768e5bbbb5b99789b76.png) | [PNG](images/048d7bf5fcb06dd626173cbc5418b79785c6cc4932117768e5bbbb5b99789b76.png) |
+| sheet | [PNG](images/5e8ef8546eec9ecc2ba2f77aee23e8d61971f14be0550e83fe28f138d1daf2d2.png) | [PNG](images/3cc88e2c6c4ff1fb6283d4fe2024dbe353ceca625d3e764d4d7ec64c92586052.png) |
+| week | [PNG](images/93801feaf70dd2e61221e5d8b7f0791366dc89d7cabdb5b7e4a0d62f152be293.png) | [PNG](images/93801feaf70dd2e61221e5d8b7f0791366dc89d7cabdb5b7e4a0d62f152be293.png) |
+| long-content | [PNG](images/6d261d53598442465c32f39968bc7a82f948763de4adf2ede0f37bead1513e54.png) | [PNG](images/6d261d53598442465c32f39968bc7a82f948763de4adf2ede0f37bead1513e54.png) |
+| many | [PNG](images/548fbd222b3975460b61a0bb4926f65629dbf074d63f5a570bdec8454dcb592a.png) | [PNG](images/548fbd222b3975460b61a0bb4926f65629dbf074d63f5a570bdec8454dcb592a.png) |
+| month | [PNG](images/ec6f77ad0f9269e270398257c5fe0765e3b35b4237451d20f6e976445c117e40.png) | [PNG](images/ec6f77ad0f9269e270398257c5fe0765e3b35b4237451d20f6e976445c117e40.png) |
+| organizer | [PNG](images/56f742a313f3cedb2c943894b2f3d6ae276e45f46a73ee40be8ec265a968faa2.png) | [PNG](images/36fe3bcd992bf152263b8276a4506c1010a6ce78f70a4fe054fcde7c16bf6a68.png) |
+| review | [PNG](images/7798eb4ede27fb4c6b13e974fa0eef84173c065ba15c9c1eb712a6e2f61a7a60.png) | [PNG](images/7798eb4ede27fb4c6b13e974fa0eef84173c065ba15c9c1eb712a6e2f61a7a60.png) |
+| review-alt-caption | [PNG](images/7798eb4ede27fb4c6b13e974fa0eef84173c065ba15c9c1eb712a6e2f61a7a60.png) | [PNG](images/7798eb4ede27fb4c6b13e974fa0eef84173c065ba15c9c1eb712a6e2f61a7a60.png) |
+| review-queue | [PNG](images/f81daf909feacf910310df7a35d882982513abbd1657f5317ddb033a9255bcdc.png) | [PNG](images/f81daf909feacf910310df7a35d882982513abbd1657f5317ddb033a9255bcdc.png) |
+| week | [PNG](images/2e3a6f81dc40cff6fb83c1236d39d8f252e398af4acbb735b16975bd46260e7d.png) | [PNG](images/2e3a6f81dc40cff6fb83c1236d39d8f252e398af4acbb735b16975bd46260e7d.png) |
+| analytics-empty | [PNG](images/cf8bd2808cf385ade9bb38ef09b36f1d63ccffd17cbfd5bf8707769077a0f077.png) | [PNG](images/6d6383cb6a2d36b8ad21f78bb023a8766a12d53049958cc2ed875aef9b5c5b1d.png) |
+| analytics-invalid-link | [PNG](images/e451bee751d7c476db2ef7c357b44b8a9785c63d62ef514b58f87a9cd3021380.png) | [PNG](images/e451bee751d7c476db2ef7c357b44b8a9785c63d62ef514b58f87a9cd3021380.png) |
+| analytics-retry-restored | [PNG](images/cf8bd2808cf385ade9bb38ef09b36f1d63ccffd17cbfd5bf8707769077a0f077.png) | [PNG](images/6d6383cb6a2d36b8ad21f78bb023a8766a12d53049958cc2ed875aef9b5c5b1d.png) |
+| analytics-single | [PNG](images/28dd49a85d3e7f1fda886c05ec6fc1e6db63fc8f04402a27b2532ea3bac5cdd3.png) | [PNG](images/28dd49a85d3e7f1fda886c05ec6fc1e6db63fc8f04402a27b2532ea3bac5cdd3.png) |
+| analytics-verify-error | [PNG](images/6f0d299d96cd42c5a3103ccc330a92216f6d40f2ceaa9c4cc018d88ed25f4c62.png) | [PNG](images/6f0d299d96cd42c5a3103ccc330a92216f6d40f2ceaa9c4cc018d88ed25f4c62.png) |
+| samples-invalid-link | [PNG](images/e451bee751d7c476db2ef7c357b44b8a9785c63d62ef514b58f87a9cd3021380.png) | [PNG](images/e451bee751d7c476db2ef7c357b44b8a9785c63d62ef514b58f87a9cd3021380.png) |
+| samples-list | [PNG](images/e31df93289f4b0426a933ae8506a8673a2f198210fa3a1618d8b338d0a676b54.png) | [PNG](images/e31df93289f4b0426a933ae8506a8673a2f198210fa3a1618d8b338d0a676b54.png) |
+| samples-long-content | [PNG](images/de4bea2f99989f3c0d875c1d9197a9edec9e72eed327a0e1fd0c64f3211f32bc.png) | [PNG](images/de4bea2f99989f3c0d875c1d9197a9edec9e72eed327a0e1fd0c64f3211f32bc.png) |
+| samples-many | [PNG](images/54710cb04014ea3a5eaf688805ae65a38eaa85cc0a27d2416c97fb27c4294eea.png) | [PNG](images/54710cb04014ea3a5eaf688805ae65a38eaa85cc0a27d2416c97fb27c4294eea.png) |
+| samples-queue | [PNG](images/59d52b2c228b134eb062ec8012d35f00d696ad859e4edbd95dd746d571beba5d.png) | [PNG](images/59d52b2c228b134eb062ec8012d35f00d696ad859e4edbd95dd746d571beba5d.png) |
+| samples-retry-restored | [PNG](images/66532af76e6d9a77c86b9ffacc80b9f5a52e7cb936758579a5bfc097ef7af05f.png) | [PNG](images/59d52b2c228b134eb062ec8012d35f00d696ad859e4edbd95dd746d571beba5d.png) |
+| samples-review | [PNG](images/66532af76e6d9a77c86b9ffacc80b9f5a52e7cb936758579a5bfc097ef7af05f.png) | [PNG](images/66532af76e6d9a77c86b9ffacc80b9f5a52e7cb936758579a5bfc097ef7af05f.png) |
+| samples-sheet | [PNG](images/7cd631d48cbf35168602e43b414cd696685c5a9a6dd685fa1abcece4a11dd968.png) | [PNG](images/61c389871019714a585cbacbe89c7213df856701a523273062aa58dd78e259a9.png) |
+| samples-verify-error | [PNG](images/6f0d299d96cd42c5a3103ccc330a92216f6d40f2ceaa9c4cc018d88ed25f4c62.png) | [PNG](images/6f0d299d96cd42c5a3103ccc330a92216f6d40f2ceaa9c4cc018d88ed25f4c62.png) |

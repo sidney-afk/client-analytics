@@ -1,0 +1,23 @@
+@media (max-width:767px) {
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap {--wl-editor-rail:112px;--wl-timeline-days-min:1200px;}
+ html.fph-on[data-fph="workload"] .workload-timeline-header,html.fph-on[data-fph="workload"] .workload-timeline-stage {min-width:calc(var(--wl-editor-rail) + var(--wl-timeline-days-min));}
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap::before {content:"Swipe to see every workday and deadline.";display:block;position:sticky;left:0;box-sizing:border-box;width:calc(100vw - 104px);margin-bottom:12px;font-size:13px;line-height:1.5;color:var(--text-secondary);}
+ html.fph-on[data-fph="workload"] .workload-timeline-editor-kicker,html.fph-on[data-fph="workload"] .workload-timeline-editor-name,html.fph-on[data-fph="workload"] .workload-timeline-weekday {font-size:13px;color:var(--text-secondary);}
+ html.fph-on[data-fph="workload"] .workload-timeline-plan-chip {font-size:14px;}
+ html.fph-on .sv-phone-client-sheet .sv-client-search::placeholder,html.fph-on .sv-phone-client-sheet .sv-client-empty {color:var(--text-secondary);opacity:1;font-size:13px;}
+}
+@media (max-width:767px) {
+ html.fph-on[data-fph="workload"] .workload-grid .workload-plan-item, html.fph-on[data-fph="workload"] .wl-popover .workload-plan-item {font-size:13px;}
+ html.fph-on[data-fph="workload"] .wl-popover .wl-deadline-tag {font-size:13px;color:var(--text-secondary);}
+ html.fph-on .sv-phone-client-sheet .sv-client-search::placeholder {font-size:16px;}
+}
+@media (max-width:767px) {
+ html.fph-on[data-fph="workload"] .workload-grid .wl-deadline-tag {font-size:13px;color:var(--text-secondary);}
+}
+@media (max-width:767px) {
+ html.fph-on .sv-phone-client-sheet .sv-client-none {font-size:13px;color:var(--text-secondary);opacity:1;}
+}
+@media (max-width:767px) {
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap .workload-plan-item {font-size:13px;}
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap .wl-deadline-tag {font-size:13px;color:var(--text-secondary);}
+}

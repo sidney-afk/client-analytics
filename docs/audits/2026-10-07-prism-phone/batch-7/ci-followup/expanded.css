@@ -1,0 +1,4 @@
+@media (max-width:767px) {
+ body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-search::placeholder {color:var(--text-secondary);opacity:1;font-size:16px;}
+ body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-none {color:var(--text-secondary);opacity:1;font-size:13px;}
+}

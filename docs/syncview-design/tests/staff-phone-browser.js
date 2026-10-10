@@ -123,7 +123,7 @@ async function installBackend(ctx, editor) {
       scenario.writes.push(m + ' ' + p); return json(route, { ok: false, error: 'refused_in_phone_harness' }, 403);
     }
     if (/\/functions\/v1\/key-verify/.test(p)) {
-      const member = editor ? { id: 'qa_editor', name: 'Casey Fixture', role: 'editor', team: 'video' } : { id: 'qa_staff', name: 'Casey Fixture', role: 'admin', team: null };
+      const member = editor ? { id: 'qa_editor', name: 'QA Editor', role: 'editor', team: 'video' } : { id: 'qa_staff', name: 'QA Editor', role: 'admin', team: null };
       return json(route, { ok: true, role: member.role, member });
     }
     if (/\/rest\/v1\/templates/.test(p)) {
@@ -160,7 +160,7 @@ async function installBackend(ctx, editor) {
       return json(route, /status=in\.\((?:approved|kasper|client|smm)|status_at=gte/.test(q) && /approved/.test(q) ? DONE : DELIVERABLES);
     }
     if (/\/rest\/v1\/calendar_posts/.test(p)) return json(route, scenario.today === 'empty' ? [] : POSTS);
-    if (/\/rest\/v1\/team_members/.test(p)) return json(route, [{ email: 'casey@example.invalid' }]);
+    if (/\/rest\/v1\/team_members/.test(p)) return json(route, [{ email: 'qa-editor@example.invalid' }]);
     if (/\/rest\/v1\/syncview_runtime_flags/.test(p)) return json(route, []);
     if (/\/spreadsheets\//.test(p)) return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body: '' });
     return json(route, []);
@@ -378,8 +378,8 @@ if (require.main === module) (async () => {
       await seedStaffGate(ctx);
       if (st.editor) {
         await ctx.addInitScript(() => { try { localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({ key: 'qa-staff-gate-key', role: 'editor',
-          member: { id: 'qa_editor', name: 'Casey Fixture', role: 'editor', team: 'video' }, verified_at: new Date().toISOString() })); } catch (e) {} });
-        await ctx.route('**/functions/v1/key-verify', r => json(r, { ok: true, role: 'editor', member: { id: 'qa_editor', name: 'Casey Fixture', role: 'editor', team: 'video' } }));
+          member: { id: 'qa_editor', name: 'QA Editor', role: 'editor', team: 'video' }, verified_at: new Date().toISOString() })); } catch (e) {} });
+        await ctx.route('**/functions/v1/key-verify', r => json(r, { ok: true, role: 'editor', member: { id: 'qa_editor', name: 'QA Editor', role: 'editor', team: 'video' } }));
       }
       await ctx.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
       const page = await ctx.newPage();

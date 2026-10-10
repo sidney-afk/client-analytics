@@ -94,10 +94,48 @@ add('clients', 'clients', (data, row) => { _caState.rows = [row]; _caState.loade
 add('clients-empty', 'clients', () => { _caState.rows = []; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = null; _caPaint(); });
 add('clients-archived-empty', 'clients', (data,row) => { Object.assign(_caState,{rows:[{...row,archived_at:'2026-10-01T10:00:00Z'}],loaded:true,loading:false,error:null,selected:null,search:'',searchOpen:false,listOpen:false,showArchived:false}); _caRender(); });
 add('clients-create-menu','clients',()=>{Object.assign(_caState,{rows:[],loaded:true,loading:false,error:null,selected:null,search:'',searchOpen:false,listOpen:false});_caRender();},async page=>{
+  await page.route('**/functions/v1/client-onboarding',r=>r.fulfill({status:200,headers:CORS,contentType:'application/json',body:JSON.stringify({ok:true,managers:[{slug:'fixture-manager',name:'Example manager',slack_id:true},{slug:'fixture-manager-two',name:'Example manager two',slack_id:true}]})}));
   if(desktop) await page.locator('#caNewBtn').click(); else await page.locator('#caNewBtn').tap();
   expect(await page.locator('.cn-dialog').isVisible(),'Clients: New client opens the native dialog from an empty list');
 });
-add('clients-loading', 'clients', () => { _caState.rows = []; _caState.loaded = false; _caState.loading = true; _caState.error = null; _caState.selected = null; _caPaint(); });
+for (const label of ['clients-create-manager-menu','clients-create-empty','clients-create-loading']) {
+ add(label,'clients',tests.find(t=>t.label==='clients-create-menu').setup,async page=>{
+  await page.route('**/functions/v1/client-onboarding',async r=>{
+   if(label==='clients-create-loading'){await page.waitForEvent('close',{timeout:0});return;}
+   return r.fulfill({status:200,headers:CORS,contentType:'application/json',body:JSON.stringify({ok:true,managers:label==='clients-create-empty'?[]:[{slug:'fixture-manager',name:'Example manager',slack_id:true},{slug:'fixture-manager-two',name:'Example manager two',slack_id:true}]})});
+  });
+  await page.locator('#caNewBtn').click();
+  await page.locator('.cn-dialog').waitFor();
+  if(label==='clients-create-manager-menu') {
+   if(desktop || before){await page.waitForFunction(()=>document.querySelectorAll('#cnManager option').length===3);return;}
+   await page.locator('#cnManagerBtn:not([disabled])').waitFor();
+   await page.locator('#cnManagerBtn').tap();
+   await page.locator('#cnManagerMenu').waitFor({state:'visible'});
+  } else if(!desktop && !before) {
+   if(label==='clients-create-empty') await page.waitForFunction(()=>Array.isArray(_cnState.managers));
+   await page.getByRole('combobox',{name:'Social media manager'}).waitFor();
+   expect(await page.locator('#cnManagerBtn').isDisabled(),label+': unavailable manager choices stay disabled');
+   expect(await page.locator('#cnManagerLabel').innerText()===(label.endsWith('loading')?'Loading managers\u2026':'No managers available'),label+': loading and empty managers have distinct honest labels');
+  }
+ });
+}
+add('clients-loading', 'clients', null, async page => {
+  let release;const held=new Promise(resolve=>{release=resolve;});
+  page.__releaseClientsLoad=release;
+  await page.route('**/functions/v1/analytics-read',async route=>{
+    const body=route.request().postDataJSON();
+    if(body?.action!=='list_client_profiles')return route.fallback();
+    await held;
+    if(!page.isClosed())await route.fulfill({status:200,headers:CORS,contentType:'application/json',body:JSON.stringify({ok:true,clients:[],authority:{video:'syncview',graphics:'syncview'}})});
+  });
+  await page.evaluate(()=>{
+    _kasperGotoTab('review');
+    _caState.rows=[];_caState.loaded=false;_caState.loading=false;_caState.error=null;_caState.selected=null;
+    _kasperGotoTab('clients');
+  });
+  await page.waitForFunction(()=>_caState.loading===true);
+  await page.getByText('Loading clients\u2026',{exact:true}).waitFor();
+});
 add('client-detail', 'clients', (data, row) => { _caState.rows = [row]; _caState.loaded = true; _caState.loading = false; _caState.error = null; _caState.selected = row.slug; _caPaint(); });
 add('clients-error', 'clients', () => { _caState.rows = []; _caState.loading = false; _caState.loaded = false; _caState.error = 'The client list could not load. Refresh to try again.'; _caPaint(); });
 // Every menu starts from its own native state; preceding Edit/History cases
@@ -130,6 +168,17 @@ add('clients-search-menu','clients',clientMenus,async page=>{
 add('client-manager-menu','clients',clientMenus,async page=>{
   await page.locator('#caMgrBtn').click();
   expect(await page.locator('#caMgrPop .ca-mgr-opt').count()===2,'Clients: native manager menu contains the fictional roster');
+  if(!before && !desktop) {
+    const phoneCopy="One manager per client. Changes appear in the client's history.";
+    expect(await page.locator('.ca-mgr-foot').textContent()===phoneCopy,'Clients: phone manager footer describes the history');
+    const viewport=page.viewportSize();
+    await page.setViewportSize({width:1440,height:900});
+    await page.waitForFunction(()=>!document.documentElement.classList.contains('pocket-admin-phone'));
+    expect((await page.locator('.ca-mgr-foot').textContent()).includes('the Sheet copy follows'),'Clients: desktop manager footer is restored');
+    await page.setViewportSize(viewport);
+    await page.waitForFunction(()=>document.querySelector('.ca-mgr-foot')?.classList.contains('pocket-admin-manager-copy'));
+    expect(await page.locator('.ca-mgr-foot').textContent()===phoneCopy,'Clients: phone manager footer returns after resizing');
+  }
   await page.keyboard.press('Escape');
   expect(await page.locator('#caMgrPop').count()===0,'Clients: Escape closes the manager menu');
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -192,6 +241,32 @@ add('client-research-open','clients',clientMenus,async page=>{
   await fold.locator('summary').click();
   expect(!(await fold.evaluate(node=>node.open)),'Clients: native research disclosure closes');
   await fold.locator('summary').click();
+});
+for(const kind of ['open','step-menu','loading']) add('client-onboarding-'+kind,'clients',clientMenus,async page=>{
+  await page.route('**/functions/v1/client-onboarding',async route=>{
+    const body=route.request().postDataJSON();
+    expect(body.action==='get'&&body.slug==='phone-fixture','Clients: checklist uses the native read for the selected fictional profile');
+    if(kind==='loading'){await page.waitForEvent('close',{timeout:0});return;}
+    return route.fulfill({status:200,headers:CORS,json:{ok:true,resources:{present:{email_present:true,instagram_present:true},stored:[]},steps:[
+      {step_key:'fixture_step',position:1,label:'Check the filming plan',required:true,status:'todo',kind:'manual',responsible:'owner'},
+      {step_key:'fixture_optional',position:2,label:'Add supporting references',required:false,status:'done',kind:'manual',responsible:'manager'}
+    ]}});
+  });
+  await page.evaluate(()=>_cbReload());
+  const fold=page.locator('details[data-ca-fold=onboarding]');
+  await fold.locator('summary').click();
+  if(kind==='loading')await page.locator('#cbChecklist .cb-lead').getByText('Loading\u2026',{exact:true}).waitFor();
+  else {
+    await page.locator('#cbChecklist [data-step=fixture_step]').waitFor();
+    if(kind==='step-menu') {
+      await page.locator('[data-step=fixture_step]').getByRole('button',{name:'Mark done',exact:true})[desktop?'click':'tap']();
+      await page.locator('#cbEv_fixture_step').fill('Fictional plan checked');
+      await page.locator('[data-step=fixture_step]').getByRole('button',{name:'Cancel',exact:true})[desktop?'click':'tap']();
+      expect(await page.locator('#cbEv_fixture_step').count()===0,'Clients: cancelling the native checklist editor closes it');
+      await page.locator('[data-step=fixture_step]').getByRole('button',{name:'Skip with a note',exact:true})[desktop?'click':'tap']();
+      await page.locator('#cbNote_fixture_step').fill('Fictional optional follow-up');
+    }
+  }
 });
 add('quiz-empty', 'quiz-leads');
 add('quiz', 'quiz-leads', () => { _kqlState.leads = [{ response_id: 'fixture-lead', contact_name: 'Example lead', contact_email: 'lead@example.invalid', result_category: 'consistency', created_at: '2026-10-01T10:00:00Z', answers: { q1: 3, q2: 4 } }]; _kqlState.loaded = true; _kqlState.loading = false; _kqlState.error = null; _kqlPaint(); });
@@ -317,16 +392,20 @@ async function capture(page,label,width,theme) {
     while (walker.nextNode()) { const n = walker.currentNode; if (!n.parentElement.closest('style,script')) {const text=n.textContent.replace(/\bKasper\b/g,'Reviewer');if(text!==n.textContent)n.textContent=text;} }
     document.querySelectorAll('[aria-label],[title],[placeholder]').forEach(n => { for (const attr of ['aria-label','title','placeholder']) if (n.hasAttribute(attr)) n.setAttribute(attr,n.getAttribute(attr).replace(/\bKasper\b/g,'Reviewer')); });
     document.querySelectorAll('#kasperContent video').forEach(video => { video.pause();video.poster='https://images.example.invalid/phone.png'; });
-    document.activeElement?.blur();
+    // Preserve phone menu/editor focus: blurring to body before keyboard
+    // actions produces an artificial Escape failure outside the dialog.
+    if (!window.matchMedia('(max-width: 767px)').matches) document.activeElement?.blur();
   });
   await page.evaluate(() => document.fonts.ready);
   // Public-label substitution schedules the native header fit on animation
   // frames. Measure its settled geometry, as the PNG capture does, rather
   // than fingerprinting the old label's temporarily retained pill width.
   await page.evaluate(() => new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-  if(!before && !desktop && ['clients-list-menu','clients-search-menu'].includes(label)) {
+  if(!before && !desktop && ['clients-list-menu','clients-search-menu','clients-loading'].includes(label)) {
     const heading=await page.locator('.pocket-admin-heading').boundingBox();
     expect(heading && heading.y>=0 && heading.height>=40 && heading.y+heading.height<=heightFor(width,arg('height')),label+': settled capture keeps the native phone heading fully visible');
+    expect(await page.locator('.pocket-admin-heading h1').innerText()==='Clients',label+': native heading identifies the Clients screen');
+    for(const selector of ['#caSearch','#caAllBtn','#caNewBtn']) expect(await page.locator(selector).isVisible(),label+': header control remains visible '+selector);
   }
   const metrics = await page.evaluate(() => {
     const visible = n => n.checkVisibility({ checkVisibilityCSS: true }) && n.getBoundingClientRect().height > 0;
@@ -337,7 +416,7 @@ async function capture(page,label,width,theme) {
     for(let node=heading;node;node=node.parentElement){const r=node.getBoundingClientRect();headingAncestors.push({tag:node.tagName,id:node.id,className:node.className,y:r.y,height:r.height,scrollTop:node.scrollTop});}
     const rgb=value=>value.match(/[\d.]+/g).map(Number);
     const luminance=c=>c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
-    const clientsSupporting=[...document.querySelectorAll('.ca-field dt,.ca-field dt label,.ca-empty,.ca-mgr-count,.ca-mgr-foot,.ca-drop-head>span,.ca-opt-sub,.ca-row-sub,.ca-fold-tag,.ca-prov,.ca-hist-when,.ca-status,.ca-land-label,.ca-hs-band .cb-lead')].filter(visible).map(node=>{
+    const clientsSupporting=[...document.querySelectorAll('.ca-field dt,.ca-field dt label,.ca-empty,.ca-mgr-count,.ca-mgr-foot,.ca-drop-head>span,.ca-opt-sub,.ca-row-sub,.ca-fold-tag,.ca-prov,.ca-hist-when,.ca-status,.ca-land-label,.ca-hs-band .cb-lead,.cn-label,.cn-lead,.cn-hint,.cn-opt,.cn-dialog .sv-select-trigger,.cn-dialog .sv-select-option,#caOnboarding .cb-lead,#caOnboarding .cb-res-sub,#caOnboarding .cb-step-sub,#caOnboarding .cb-badge,#caOnboarding .cb-pill,#caOnboarding .cb-form-label,#caOnboarding .cb-res-group h5,#caOnboarding .cb-summary')].filter(visible).map(node=>{
       let background=[255,255,255,1];
       for(let parent=node;parent;parent=parent.parentElement){const color=rgb(getComputedStyle(parent).backgroundColor);if(color.length===3||color[3]===1){background=color;break;}}
       const style=getComputedStyle(node),foreground=luminance(rgb(style.color)),back=luminance(background);
@@ -368,13 +447,14 @@ async function capture(page,label,width,theme) {
       }
     }
     fs.mkdirSync(out,{recursive:true});
-    const overlay = await page.locator('dialog[open], .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup, .kasper-more.open, #staffAccountPopover:not([hidden]), .ca-scrim').count();
+    const overlay = await page.locator('dialog[open], .cn-dialog, .cal-import-overlay.open, .kasper-lightbox.open, .dp-popup, .kasper-more.open, #staffAccountPopover:not([hidden]), .ca-scrim').count();
     if(!desktop && !overlay) await page.screenshot({path:path.join(out,label+'-'+theme+'-'+width+'-viewport.png'),fullPage:false,animations:'disabled'});
     // Chrome mobile fullPage clips short pages in the emulator. Use the real
     // viewport for those; expand only when there is content below it.
     const longPage=await page.evaluate(()=>Math.max(document.documentElement.scrollHeight,document.body.scrollHeight)>innerHeight+1);
-    const png=await page.screenshot({path:path.join(out,label+'-'+theme+'-'+width+'.png'),fullPage:!overlay&&longPage,animations:'disabled'});
+    const png=await require('../../../qa/client-phone/native-captures').capture(page,{path:path.join(out,label+'-'+theme+'-'+width+'.png'),fullPage:!overlay&&longPage,animations:'disabled'});
     if(!desktop && !overlay) expect(png.readUInt32BE(16)===width && png.readUInt32BE(20)>=heightFor(width,arg('height')),label+': ordinary phone capture retains its full viewport dimensions');
+
   }
 }
 async function open(browser,origin,width,theme) {
@@ -413,6 +493,7 @@ async function open(browser,origin,width,theme) {
     await ctx.route('https://fonts.googleapis.com/**',r => r.fulfill({status:200,contentType:'text/css',body:css}));
   }
   const page = await ctx.newPage();
+  require('../../../qa/client-phone/native-captures').prepareCaptures(page);
   page.setDefaultTimeout(5000);
   const errors = []; page.on('pageerror',e => errors.push(e.message));
   await page.goto(origin+'/#kasper',{waitUntil:'domcontentloaded'});
@@ -664,6 +745,34 @@ async function runMain() {
               }
             }
             await capture(page,t.label,width,theme);
+            if(t.label==='clients-loading') {
+              if(!before&&!desktop) {
+                await page.locator('.pocket-admin-heading button[aria-haspopup=dialog]').tap();
+                expect(await page.locator('dialog[open]').isVisible(),'Clients: Tabs remain usable during the native pending initial read');
+                await page.keyboard.press('Escape');
+              }
+              page.__releaseClientsLoad();
+              await page.waitForFunction(()=>_caState.loaded&&!_caState.loading);
+              expect(await page.locator('#caSearch').isVisible()&&await page.locator('#caAllBtn').isVisible()&&await page.locator('#caNewBtn').isVisible(),'Clients: initial read completion preserves every shell action');
+              if(!before&&!desktop)expect(await page.locator('.pocket-admin-heading h1').innerText()==='Clients','Clients: pending-to-loaded transition retains its native heading');
+            }
+            if(!before && !desktop && t.label==='clients-create-manager-menu') {
+              await page.keyboard.press('Escape');
+              expect(await page.locator('.cn-dialog').isVisible() && await page.locator('#cnManagerBtn').getAttribute('aria-expanded')==='false','Clients: first Escape closes only the manager picker');
+              expect(await page.locator('#cnManagerBtn').evaluate(n=>n===document.activeElement),'Clients: closing the picker returns focus to its trigger');
+              await page.keyboard.press('ArrowDown');await page.keyboard.press('End');await page.keyboard.press('Enter');
+              expect(await page.locator('#cnManager').inputValue()==='fixture-manager-two' && await page.evaluate(()=>_cnState.manager)==='fixture-manager-two','Clients: keyboard selection updates the native manager state');
+              await page.setViewportSize({width:1440,height:900});
+              await page.waitForFunction(()=>!!document.querySelector('select#cnManager'));
+              expect(await page.locator('select#cnManager').count()===1 && await page.locator('#cnManager').inputValue()==='fixture-manager-two','Clients: desktop restores the native select and selected manager');
+              await page.setViewportSize({width,height:heightFor(width,arg('height'))});
+              await page.locator('#cnManagerBtn').waitFor();
+              expect(await page.locator('#cnManagerBtn').count()===1 && await page.locator('#cnManager').inputValue()==='fixture-manager-two','Clients: returning to the phone retains the selected manager');
+              await page.locator('#cnManagerBtn').tap();await page.locator('#cnTitle').tap();
+              expect(await page.locator('#cnManagerBtn').getAttribute('aria-expanded')==='false','Clients: tapping another field dismisses the manager picker');
+              await page.keyboard.press('Escape');
+              expect(!(await page.locator('.cn-dialog').isVisible()),'Clients: the next Escape dismisses the form');
+            }
             if(!before && !desktop && t.label==='clients-create-menu') {
               await page.getByRole('button',{name:'Cancel',exact:true}).tap();
               expect(!(await page.locator('.cn-dialog').isVisible()),'Clients: Cancel dismisses the native New client dialog');

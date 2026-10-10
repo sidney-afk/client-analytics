@@ -133,6 +133,10 @@ async function main() {
     ...process.env,
     SUPABASE_URL: `http://127.0.0.1:${port}`,
     SUPABASE_ANON_KEY: 'fixture-key-not-a-real-credential',
+    // The fixture roster is deliberately tiny; the real-roster floor (an empty
+    // read is "could not run", OPEN_REPAIRS 398) does not apply to it.
+    IDENTITY_ROSTER_MIN_SLUGS: '0',
+    IDENTITY_ROSTER_MIN_NAMES: '0',
   };
 
   try {

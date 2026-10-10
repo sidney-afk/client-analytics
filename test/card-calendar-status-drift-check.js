@@ -236,6 +236,16 @@ ok(verdictFor('post-0016', 'video') === 'pre_bridge',
   const e = resettle([candidate], caughtUp, freshDlv, mapNative);
   ok(e.survivors.every(r => !Object.prototype.hasOwnProperty.call(r, 'client')),
     'resettled rows carry no client either');
+
+  // A card id another client also uses (OPEN_REPAIRS 398): the re-read must
+  // judge the card that holds this deliverable, not whichever row came first.
+  const twin = { id: 'post-race', client: 'otherclient', status: 'active',
+    video_status: 'Approved', graphic_status: '', video_deliverable_id: 'dlv-other', graphic_deliverable_id: '' };
+  const f = resettle([candidate], { 'post-race': [twin, stillBehind['post-race']] }, freshDlv, mapNative);
+  ok(f.survivors.length === 1 && f.settled === 0,
+    'real drift on a card whose id another client shares survives the re-read');
+  const g = resettle([candidate], { 'post-race': [twin, caughtUp['post-race']] }, freshDlv, mapNative);
+  ok(g.survivors.length === 0 && g.settled === 1, 'and a caught-up one still settles');
 }
 
 /* ---- a passing run must not contradict its own listing ----
@@ -284,6 +294,17 @@ ok(naOld && naOld.bucket === 'opted_out', 'an N/A slot from before go-live is N/
 ok(classifySlot({ id: 'post-na', client: 'sidneylaruel', status: 'active', video_status: 'N/A-ish', video_deliverable_id: 'dlv-x' },
   SLOTS.find(x => x.component === 'video'), naDlv('dlv-x', 'approved', '2026-10-06T21:45:04Z'), mapNative).bucket === 'drift',
   'only the exact N/A value opts out; anything else that disagrees after go-live is still drift');
+
+/* PAGED READS NEED A TOTAL ORDER (OPEN_REPAIRS 398). calendar_posts is keyed by
+   (client, id) and some ids repeat across clients, so paging by id alone could
+   read a card twice or skip it at a page boundary. */
+{
+  const text = fs.readFileSync(SRC, 'utf8');
+  ok(/PAGE_ORDER = \{ calendar_posts: 'client\.asc,id\.asc' \}/.test(text)
+    && /'&order=' \+ \(PAGE_ORDER\[table\] \|\| 'id\.asc'\)/.test(text)
+    && !/'&order=id\.asc&limit='/.test(text),
+    'calendar_posts is paged in its key order (client, id), never by the shared id alone');
+}
 
 if (failures) {
   console.error('\n' + failures + ' card/calendar drift check assertion(s) failed');

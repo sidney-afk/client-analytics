@@ -840,8 +840,19 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
   const requestId = String(res.data.request_id || "");
   if (!res.ok || !requestId) {
     const why = hfError(res);
-    await client.from("hf_generations").update({ status: "submit_failed", error: why, updated_at: new Date().toISOString() }).eq("id", rowId);
-    return { text: "Higgsfield refused the request: " + why };
+    /* Only a 4xx with no job id is a refusal. A 5xx (a gateway timing out after
+       Higgsfield took the job) or a success with no job id may have started a
+       paid job: it is recorded as submit_unknown, which stays in the ten-minute
+       duplicate check and the monthly budget, so asking again cannot start and
+       pay for a second job. Before 2026-10-10 every such answer was
+       submit_failed, outside both (OPEN_REPAIRS 398). */
+    const refused = (res.status >= 400 && res.status < 500) || !Deno.env.get("HIGGSFIELD_KEY");
+    await client.from("hf_generations").update({ status: refused ? "submit_failed" : "submit_unknown", error: why, updated_at: new Date().toISOString() }).eq("id", rowId);
+    return {
+      text: refused
+        ? "Higgsfield refused the request: " + why
+        : "Higgsfield did not confirm the request (" + why + "). It may have started and may be charged, so do not send it again: ask for team_usage in a few minutes to see whether it is there.",
+    };
   }
   await client.from("hf_generations").update({ request_id: requestId, status: String(res.data.status || "queued"), updated_at: new Date().toISOString() }).eq("id", rowId);
   return { text: `Started: ${BY_ID.get(id)!.name}, ${money(usd)}.\njob_id: ${requestId}\nNow call wait_for_job with this job_id.`, jobId: requestId };

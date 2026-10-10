@@ -129,5 +129,14 @@ const noEvents = classify([halfLinked], SYNCVIEW, {}, FLIP);
 ok(noEvents.totals.actionable === 1 && noEvents.totals.post_flip === 0,
   'a slot with no link_set event is actionable but never counted as post-flip');
 
+// Paged reads need a total order (OPEN_REPAIRS 398): calendar_posts by its key
+// (client, id), its events by (ts, id).
+{
+  const text = require('fs').readFileSync(SRC, 'utf8');
+  ok(/PAGE_ORDER = \{ calendar_posts: 'client\.asc,id\.asc' \}/.test(text) && !/'&order=id\.asc&limit='/.test(text)
+    && /'&order=ts\.asc,id\.asc&limit='/.test(text),
+    'calendar_posts is paged by (client, id) and link events by (ts, id), never by a shared id or a shared time alone');
+}
+
 if (failures) { console.error('\ncalendar-native-link-gap-check checks FAILED: ' + failures); process.exit(1); }
 console.log('\ncalendar native-link gap classifier checks passed');

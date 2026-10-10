@@ -135,6 +135,18 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/functions\/v1\/calendar-upsert/.test(HANDLER) && /post: \{ id: job\.postId, caption: job\.caption \}/.test(HANDLER), 'the caption is saved through calendar-upsert with the n8n body');
   const runBody = HANDLER.slice(HANDLER.indexOf('async function run('), HANDLER.indexOf('addEventListener("beforeunload"'));
   ok(runBody.indexOf('checkCancel(job);') < runBody.indexOf('writeCaption(job') && runBody.lastIndexOf('checkCancel(job)') < runBody.indexOf('saveCaption(job)'), 'cancel is checked before writing and again before saving');
+  // A caption typed and saved while the job ran is kept (OPEN_REPAIRS 400): the card is read again after the last
+  // cancel check and before the save; a caption there, or a failed read, saves nothing and hands back no caption.
+  ok(/from\("calendar_posts"\)\.select\("caption"\)\s*\.eq\("client", job\.client\)\.eq\("id", job\.postId\)\.maybeSingle\(\)/.test(HANDLER), 'the card\'s caption is read with the service client, by client and card');
+  const readAt = runBody.indexOf('await savedCaption(job)');
+  ok(readAt > runBody.lastIndexOf('checkCancel(job)') && readAt < runBody.indexOf('saveCaption(job)'), 'the card is read after the last cancel check and before the save');
+  ok(/if \(onCard === null\) \{ job\.caption = ""; throw new Error\(CARD_UNREADABLE\); \}/.test(runBody), 'a failed card read saves nothing and hands back no caption');
+  ok(/if \(onCard && onCard !== clean\(job\.caption\)\) \{ job\.caption = ""; throw new Error\(KEPT_THEIRS\); \}/.test(runBody), 'a caption already on the card is kept: nothing saved, no caption handed back');
+  ok(/if \(!onCard && !\(await saveCaption\(job\)\)\) throw new Error\(SAVE_FAILED\);/.test(runBody), 'only an empty card is saved to');
+  const startSrc = C180.slice(C180.indexOf('async function _calCapJobStart('), C180.indexOf('function _calCapJobSettle('));
+  ok(/^async function _calCapJobStart\(job\) \{[\s\S]{0,200}if \(!job\.force && _calCapJobLiveCaption\(job\)\) \{\s*_calCapJobSettle\(job, 'cancelled'[\s\S]{0,160}return;\s*\}\s*job\.status = 'running';/.test(startSrc), 'the page drops a queued job whose card got a caption, before anything is sent');
+  const liveSrc = C180.slice(C180.indexOf('function _calCapJobLiveCaption('), C180.indexOf('async function _calCapJobStart('));
+  ok(/ta \? ta\.value : \(pe && pe\.caption != null \? pe\.caption : \(post \? post\.caption : ''\)\)/.test(liveSrc), 'the live caption is the box, then a pending edit, then the saved card');
   ok(/\.from\("caption_jobs"\)\.insert\(first\.patch\)/.test(HANDLER) && /"23505"\) return json\(\{ ok: false, error: "This caption job was already started" \}, 409\)/.test(HANDLER), 'the first row is an insert: an existing job id is refused');
   ok(/EdgeRuntime[\s\S]{0,200}waitUntil\(work\)/.test(HANDLER) && /accepted: true/.test(HANDLER), 'the request answers at once and the run continues in the background');
   ok(/BUDGET_MS = 370 \* 1000/.test(HANDLER), 'the run stops itself inside the 400 second limit');

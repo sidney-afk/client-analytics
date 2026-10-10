@@ -294,8 +294,13 @@ function resettle(candidates, freshCards, freshDeliverables, mapNative) {
   const survivors = [];
   let settled = 0;
   for (const d of candidates || []) {
-    const card = (freshCards || {})[d.post_id];
     const slot = SLOTS.find(s => s.component === d.component);
+    /* A card id can repeat across clients (about 40 rows did on 2026-10-10),
+       and drift rows carry no client (the report is public). So the re-read
+       card is the one whose slot still holds this row's deliverable; only when
+       none does and the id is unique is the single row used (OPEN_REPAIRS 398). */
+    const reread = [].concat((freshCards || {})[d.post_id] || []);
+    const card = slot ? (reread.find(r => clean(r && r[slot.deliverableColumn]) === d.deliverable_id) || (reread.length === 1 ? reread[0] : null)) : null;
     if (!card || !slot) { settled++; continue; }
     const deliverable = (freshDeliverables || {})[clean(card[slot.deliverableColumn])];
     const verdict = classifySlot(card, slot, deliverable, mapNative);
@@ -367,10 +372,15 @@ async function rest(pathAndQuery) {
   return res.json();
 }
 
+/* Paged reads need a TOTAL order: calendar_posts is keyed by (client, id) and
+   about 40 of its 16,000 rows share an id with another client's row, so
+   `order=id` alone let a tie straddle a page boundary and a card be read twice
+   or not at all (Today had the same defect, OPEN_REPAIRS 376; this one is 398). */
+const PAGE_ORDER = { calendar_posts: 'client.asc,id.asc' };
 async function pageAll(table, select, extra = '', size = 500) {
   const out = [];
   for (let offset = 0; offset < 200000; offset += size) {
-    const page = await rest(table + '?select=' + select + extra + '&order=id.asc&limit=' + size + '&offset=' + offset);
+    const page = await rest(table + '?select=' + select + extra + '&order=' + (PAGE_ORDER[table] || 'id.asc') + '&limit=' + size + '&offset=' + offset);
     out.push(...page);
     if (page.length < size) break;
   }
@@ -450,7 +460,7 @@ async function main() {
       const freshCards = {};
       for (const row of await rest('calendar_posts?select=id,client,status,video_status,graphic_status,'
         + 'video_deliverable_id,graphic_deliverable_id&id=in.(' + cardIds.map(encodeURIComponent).join(',') + ')')) {
-        freshCards[clean(row.id)] = row;
+        (freshCards[clean(row.id)] = freshCards[clean(row.id)] || []).push(row);
       }
       const freshDlv = {};
       for (const row of await rest('deliverables?select=id,status,status_at,origin,card_id,client_slug'

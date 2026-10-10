@@ -23,6 +23,13 @@
  * client list comes from the database (a client link the numbers read is not
  * on for asks for its own row only); the review queue's manager map comes
  * from smm-weekly-reports, never from the Social Media Managers tab.
+ * And with the roster switch on (OPEN_REPAIRS 398): one failed analytics-read
+ * on a client link is a retryable analytics state, never "We could not verify
+ * this link", keeps the client's saved calendar and samples copies, and Try
+ * again sends exactly one new request (default landing, and Calendar then the
+ * Analytics tab); the SMM weekly report form opened with no saved staff
+ * identity reads the client list again once the SMM signs in and repaints the
+ * open picker. Roster off: unchanged in each case.
  * No request leaves the machine.
  */
 const fs = require('fs');
@@ -216,6 +223,187 @@ async function staffScenario(browser, origin, name, flag, efMode, opts = {}) {
   return { name, seen, got, errors };
 }
 
+/* ONE FAILED READ ON A CLIENT LINK (OPEN_REPAIRS 398). analytics-read answers
+ * 500 the first time and the good answer after that. With the roster switch
+ * on, that one failure used to say "We could not verify this link" and wipe
+ * the client's saved calendar and samples copies (default landing), or keep
+ * the failure for the whole visit so Try again never asked again (Calendar,
+ * then the Analytics tab). The link was verified; only the read failed. */
+const CAL_CACHE_KEY = 'syncview_calCache_v2:' + SLUG;
+const SXR_CACHE_KEY = 'syncview_sxr_cache_v2_' + SLUG;
+async function clientRetryScenario(browser, origin, name, flag, view) {
+  const seen = { sheets: [], ef: 0 };
+  const ctx = await browser.newContext();
+  await ctx.route('**/*', async route => {
+    const r = route.request(); const u = new URL(r.url());
+    if (r.url().startsWith(origin)) return route.continue();
+    if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+    const json = (body, status = 200) => route.fulfill({ status, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
+    if (u.pathname === '/functions/v1/client-token-verify') {
+      let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      if (b.slug !== SLUG || b.token !== TOKEN) return json({ ok: true, valid: false });
+      return json({ ok: true, valid: true, allowed: true, slug: SLUG, display_name: CLIENT, view: b.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' });
+    }
+    if (u.pathname === '/functions/v1/analytics-read') {
+      seen.ef++;
+      if (seen.ef === 1) return json({ ok: false, error: 'read_failed' }, 500);
+      return json(dbAnswer('full'));
+    }
+    if (u.pathname === '/rest/v1/syncview_runtime_flags') {
+      const rows = [];
+      if (flag && /analytics_mirror_read_enabled/.test(decodeURIComponent(u.search))) rows.push({ key: 'analytics_mirror_read_enabled', value: flag });
+      return json(rows);
+    }
+    if (u.pathname === '/rest/v1/clients') return json([{ slug: SLUG, kind: 'client', active: true }]);
+    if (/\/rest\/v1\//.test(u.pathname)) return json([]);
+    if (/\/functions\/v1\/|\/webhook\//.test(u.pathname)) return json({});
+    if (/docs\.google\.com/.test(u.host)) {
+      const tab = u.searchParams.get('sheet');
+      seen.sheets.push(tab);
+      const body = tab === 'Metrics' ? METRICS_CSV : tab === 'Clients Info' ? CLIENTS_CSV : tab === 'TopVideos' ? TOPVIDS_CSV : '';
+      return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body });
+    }
+    return route.abort();
+  });
+  // This client's saved calendar and samples copies, seeded once.
+  await ctx.addInitScript(([calKey, sxrKey]) => {
+    try {
+      if (sessionStorage.getItem('__mirrorSeeded')) return;
+      sessionStorage.setItem('__mirrorSeeded', '1');
+      localStorage.setItem(calKey, JSON.stringify({ seeded: 'calendar' }));
+      localStorage.setItem(sxrKey, JSON.stringify({ seeded: 'samples' }));
+    } catch (e) {}
+  }, [CAL_CACHE_KEY, SXR_CACHE_KEY]);
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 160)));
+  const q = { c: CLIENT, t: TOKEN }; if (view) q.v = view;
+  await page.goto(`${origin}/index.html?${new URLSearchParams(q)}`, { waitUntil: 'domcontentloaded' });
+  const settled = () => page.waitForFunction(() => !!document.querySelector('#content [data-client-entry-state], #content [data-client-extras-state="error"], #content .detail-hero'), null, { timeout: 20000 }).catch(() => {});
+  const state = () => page.evaluate(([calKey, sxrKey]) => {
+    const c = document.getElementById('content');
+    const entry = c && c.querySelector('[data-client-entry-state]');
+    const extras = c && c.querySelector('[data-client-extras-state="error"]');
+    return {
+      entry: entry ? entry.getAttribute('data-client-entry-state') : '',
+      extrasError: !!extras,
+      text: c ? c.innerText.replace(/\s+/g, ' ').slice(0, 200) : '',
+      hero: !!(c && c.querySelector('.detail-hero')),
+      followers: (typeof allData !== 'undefined' && (allData.find(r => r.date) || {}).ig_followers) || '',
+      calCache: localStorage.getItem(calKey) !== null,
+      sxrCache: localStorage.getItem(sxrKey) !== null,
+    };
+  }, [CAL_CACHE_KEY, SXR_CACHE_KEY]);
+  if (view === 'calendar') {
+    await page.waitForSelector('button.view-tab-btn:has-text("Analytics")', { timeout: 20000 });
+    await page.waitForTimeout(800);   // let the background read fail first
+    await page.click('button.view-tab-btn:has-text("Analytics")');
+  }
+  await settled();
+  await page.waitForTimeout(300);
+  const out = { name, first: await state(), efFirst: seen.ef, retry: null };
+  const tryAgain = await page.$('#content [data-client-extras-state="error"] button');
+  if (tryAgain) {
+    const before = seen.ef;
+    await tryAgain.click();
+    await page.waitForFunction(() => !!document.querySelector('#content .detail-hero'), null, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    out.retry = Object.assign({ newReads: seen.ef - before }, await state());
+  }
+  out.sheets = seen.sheets; out.errors = errors;
+  await ctx.close();
+  return out;
+}
+
+/* THE WEEKLY REPORT FORM AFTER A LATE SIGN-IN (OPEN_REPAIRS 398). The page
+ * opens with no saved staff identity (it skips the sign-in gate), so its first
+ * read of the client list has no key. With the roster switch on it then had
+ * nothing to show but the built-in names, even after the SMM signed in. The
+ * keyed analytics-read answer is held until the picker is open, to prove the
+ * open list is repainted when the full client list lands. */
+const SMM_DB_ONLY = 'Zeta Mirror Fixture';
+const SMM_MEMBER = { id: 'mirror_smm_1', name: 'Mirror Fixture Smm', role: 'smm', team: null, active: true };
+async function smmScenario(browser, origin, name, flag) {
+  const seen = { sheets: [], reads: [], signedIn: false };
+  let releaseRead;
+  const held = new Promise(resolve => { releaseRead = resolve; });
+  const ctx = await browser.newContext();
+  await ctx.route('**/*', async route => {
+    const r = route.request(); const u = new URL(r.url());
+    if (r.url().startsWith(origin)) return route.continue();
+    if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+    const json = (body, status = 200) => route.fulfill({ status, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
+    if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role: 'smm', member: SMM_MEMBER });
+    if (u.pathname === '/rest/v1/team_members') return json([SMM_MEMBER]);
+    if (u.pathname === '/functions/v1/analytics-read') {
+      let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      const keyed = !!r.headers()['x-syncview-key'];
+      seen.reads.push({ scope: b.scope || 'client', keyed, afterSignIn: seen.signedIn });
+      if (!keyed) return json({ ok: false, error: 'unauthorized' }, 401);
+      if (b.scope !== 'overview') return json({ ok: false, error: 'read_failed' }, 500);
+      await held;
+      const now = new Date().toISOString();
+      return json({ ok: true, principal: 'staff', scope: 'overview', latest_metrics_date: DAY,
+        receipts: { metrics: { complete: true, full_snapshot: true, created_at: now }, client_profiles: { complete: true, full_snapshot: true, created_at: now } },
+        data: { metrics: { columns: STAFF_METRIC_COLUMNS, rows: [[DAY, SMM_DB_ONLY, DB_FOLLOWERS, '200']] },
+          client_profiles: [{ slug: 'zetamirrorfixture', display_name: SMM_DB_ONLY, extra: {} }] } });
+    }
+    if (u.pathname === '/functions/v1/smm-weekly-reports') {
+      return json({ ok: true, managers: [{ slug: 'mirror-fixture-smm', name: SMM_MEMBER.name, active: true, source_clients: [SMM_DB_ONLY] }], also_sees: [], current_week_start: '2026-10-05' });
+    }
+    if (u.pathname === '/rest/v1/syncview_runtime_flags') {
+      const rows = [];
+      if (flag && /analytics_mirror_read_enabled/.test(decodeURIComponent(u.search))) rows.push({ key: 'analytics_mirror_read_enabled', value: flag });
+      return json(rows);
+    }
+    if (/\/rest\/v1\//.test(u.pathname)) return json([]);
+    if (/\/functions\/v1\/|\/webhook\//.test(u.pathname)) return json({});
+    if (/docs\.google\.com/.test(u.host)) {
+      const tab = u.searchParams.get('sheet');
+      seen.sheets.push(tab);
+      const body = tab === 'Metrics' ? `"date","client_name","ig_followers"\n"${DAY}","${SMM_DB_ONLY}","100"\n`
+        : tab === 'Clients Info' ? `"client_name","instagram_handle"\n"${SMM_DB_ONLY}","fixture"\n` : '';
+      return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body });
+    }
+    return route.abort();
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 160)));
+  const out = { name };
+  try {
+    await page.goto(`${origin}/index.html#smm-weekly-report`, { waitUntil: 'domcontentloaded' });
+    // The real sign-in card, opened by the form's own options read.
+    await page.waitForSelector('#staffIdentityForm', { timeout: 20000 });
+    await page.waitForTimeout(800);   // the keyless boot read has finished by now
+    await page.evaluate(({ id }) => {
+      const m = document.getElementById('staffIdentityMember'); m.value = id; m.dispatchEvent(new Event('change', { bubbles: true }));
+    }, { id: SMM_MEMBER.id });
+    await page.fill('#staffIdentityKey', 'synthetic-mirror-smm-key');
+    seen.signedIn = true;
+    await page.click('#staffIdentitySubmit');
+    await page.waitForSelector('#srpClientSearch', { timeout: 20000 });
+    // Open the picker on the part of the name, before the client list lands.
+    await page.fill('#srpClientSearch', 'Zeta Mirror');
+    await page.waitForTimeout(300);
+    out.beforeRelease = await page.evaluate(() => [...document.querySelectorAll('#srpClientResults .srp-search-option')].map(e => e.textContent.trim()));
+    releaseRead();
+    await page.waitForFunction(name => [...document.querySelectorAll('#srpClientResults .srp-search-option')].some(e => e.textContent.trim() === name),
+      SMM_DB_ONLY, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    out.got = await page.evaluate(name => ({
+      results: [...document.querySelectorAll('#srpClientResults .srp-search-option')].map(e => e.textContent.trim()),
+      resultsOpen: (document.getElementById('srpClientResults') || {}).style?.display === 'block',
+      inRoster: getClientRoster().includes(name),
+    }), SMM_DB_ONLY);
+  } finally {
+    releaseRead();
+    out.seen = seen; out.errors = errors;
+    await ctx.close();
+  }
+  return out;
+}
+
 (async () => {
   const server = await serve();
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -303,6 +491,55 @@ async function staffScenario(browser, origin, name, flag, efMode, opts = {}) {
     const rsSheet = await staffScenario(browser, origin, 'staff roster off, managers', { enabled: true }, 'full', { managers: true });
     expect(rsSheet.seen.allSheets.includes('Social Media Managers') && rsSheet.got.managers && rsSheet.got.managers.size === 0,
       'without the roster key the manager map still reads the Sheet tab (Today asks the door on its own, so its calls are not counted here)');
+
+    // ---- one failed read on a client link, and the weekly report form after a late sign-in (OPEN_REPAIRS 398) ----
+    const VERIFY_TITLE = 'We could not verify this link';
+    const rLand = await clientRetryScenario(browser, origin, 'roster on, read fails once', ROSTER, null);
+    expect(rLand.first.entry === '' && !rLand.first.text.includes(VERIFY_TITLE),
+      'roster on, one failed read on the default landing: not shown as a failed link (got entry=' + rLand.first.entry + ' "' + rLand.first.text.slice(0, 80) + '")');
+    expect(rLand.first.extrasError && rLand.first.text.includes('We could not load your analytics'),
+      'roster on, one failed read on the default landing: the retryable analytics state is shown (got "' + rLand.first.text.slice(0, 80) + '")');
+    expect(rLand.first.calCache && rLand.first.sxrCache, 'roster on, one failed read: the client\'s saved calendar and samples copies are kept');
+    expect(rLand.retry && rLand.retry.newReads === 1, 'roster on, default landing: Try again sends exactly one new analytics-read request (got ' + (rLand.retry ? rLand.retry.newReads : 'no Try again button') + ')');
+    expect(rLand.retry && rLand.retry.hero && !rLand.retry.extrasError && rLand.retry.followers === DB_FOLLOWERS,
+      'roster on, default landing: Try again recovers the analytics with the database numbers (got ' + JSON.stringify(rLand.retry) + ')');
+    expect(rLand.retry && rLand.retry.calCache && rLand.retry.sxrCache, 'roster on, default landing: the saved copies are still there after the retry');
+    expect(!rLand.sheets.includes('Clients Info'), 'roster on, one failed read: Clients Info is still never downloaded');
+
+    const rCal = await clientRetryScenario(browser, origin, 'roster on, calendar, Analytics', ROSTER, 'calendar');
+    expect(rCal.first.extrasError, 'roster on, calendar link then Analytics after one failed read: the retryable analytics state (got ' + JSON.stringify(rCal.first) + ')');
+    expect(rCal.retry && rCal.retry.newReads === 1, 'roster on, calendar link then Analytics: Try again sends exactly one new analytics-read request (got ' + (rCal.retry ? rCal.retry.newReads : 'no Try again button') + ')');
+    expect(rCal.retry && rCal.retry.hero && !rCal.retry.extrasError && rCal.retry.followers === DB_FOLLOWERS,
+      'roster on, calendar link then Analytics: Try again recovers (got ' + JSON.stringify(rCal.retry) + ')');
+    expect(!rCal.sheets.includes('Clients Info'), 'roster on, calendar link: Clients Info is still never downloaded');
+
+    const oLand = await clientRetryScenario(browser, origin, 'roster off, read fails once', { enabled: true }, null);
+    expect(oLand.first.hero && !oLand.first.extrasError && oLand.first.entry === '' && oLand.efFirst === 1 && oLand.first.followers === SHEET_FOLLOWERS,
+      'roster off, one failed read: the page loads from the Sheets as before (got ' + JSON.stringify(oLand.first) + ' reads=' + oLand.efFirst + ')');
+    expect(oLand.first.calCache && oLand.first.sxrCache, 'roster off: the saved copies are kept (control for the seeding)');
+    const oCal = await clientRetryScenario(browser, origin, 'roster off, calendar, Analytics', { enabled: true }, 'calendar');
+    expect(oCal.first.hero && !oCal.first.extrasError && oCal.efFirst === 1, 'roster off, calendar link then Analytics: loads from the Sheets as before (got ' + JSON.stringify(oCal.first) + ')');
+
+    const smOn = await smmScenario(browser, origin, 'weekly form, roster on', ROSTER);
+    const smKeyedAfter = (smOn.seen.reads || []).filter(x => x.scope === 'overview' && x.keyed && x.afterSignIn).length;
+    expect(smKeyedAfter === 1, 'weekly form, roster on: one keyed client-list read after sign-in (got ' + JSON.stringify(smOn.seen.reads) + ')');
+    expect(smOn.got && smOn.got.inRoster && smOn.got.resultsOpen && smOn.got.results.includes(SMM_DB_ONLY),
+      'weekly form, roster on: the open client picker is repainted with the database-only client (before ' + JSON.stringify(smOn.beforeRelease) + ', after ' + JSON.stringify(smOn.got) + ')');
+    expect(!smOn.seen.sheets.includes('Clients Info'), 'weekly form, roster on: Clients Info is never downloaded');
+    const smOff = await smmScenario(browser, origin, 'weekly form, roster off', { enabled: true });
+    expect((smOff.seen.reads || []).length === 0 && smOff.got && smOff.got.results.includes(SMM_DB_ONLY) && smOff.seen.sheets.includes('Clients Info'),
+      'weekly form, roster off: unchanged, the list comes from the Clients Info tab and no extra read is sent (got ' + JSON.stringify({ reads: smOff.seen.reads, got: smOff.got, sheets: smOff.seen.sheets }) + ')');
+
+    for (const s of [rLand, rCal, oLand, oCal]) {
+      console.log(`  ${s.name.padEnd(28)} first=${s.first.entry ? 'entry:' + s.first.entry : s.first.extrasError ? 'analytics-error' : s.first.hero ? 'analytics' : '-'} reads=${s.efFirst}`
+        + (s.retry ? ` retry: +${s.retry.newReads} read ${s.retry.hero ? 'analytics' : s.retry.extrasError ? 'analytics-error' : '-'} followers=${s.retry.followers || '-'}` : '')
+        + ` saved copies=${s.first.calCache && s.first.sxrCache ? 'kept' : 'WIPED'}`);
+      if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
+    }
+    for (const s of [smOn, smOff]) {
+      console.log(`  ${s.name.padEnd(28)} reads=${JSON.stringify(s.seen.reads)} before=${JSON.stringify(s.beforeRelease)} after=${JSON.stringify(s.got && s.got.results)}`);
+      if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
+    }
 
     for (const s of [rNo, rFail, rOnly, rOff]) {
       console.log(`  ${s.name.padEnd(28)} analytics-read=${s.seen.ef} sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);

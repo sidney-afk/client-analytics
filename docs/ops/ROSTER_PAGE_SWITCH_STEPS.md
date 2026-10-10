@@ -15,6 +15,10 @@ The page still downloaded both tabs itself. After the switch below it never does
   "could not load" state instead of reading the Sheet. A client link gets only its own row from the
   database (before, its fallback downloaded the whole Clients Info tab into the client's browser),
   also when the numbers read is not on for that link (it then asks for its own row only).
+  If a client link's read fails, the client sees "We could not load your analytics" with Try again,
+  which asks once more; the link is not called invalid and the client's saved calendar copy stays.
+  The SMM weekly report pages, which open before sign-in, read the client list again once the SMM
+  signs in (OPEN_REPAIRS 398).
 - **Numbers.** Unchanged rule: if the database copy of the numbers is missing or older than 3 days,
   only the Metrics tab is read from the Sheet. Clients Info is not read with it any more.
 - **Review queue managers.** Kasper's queue and the Samples queue read the manager list from

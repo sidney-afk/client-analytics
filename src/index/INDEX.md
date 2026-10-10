@@ -12,7 +12,7 @@
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 7373 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
+| 7 | `040-shared-briefs.js.part` | 2174 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2364 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
@@ -33,7 +33,7 @@
 | 25 | `099-staff-phone-bar.js.part` | 472 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 26 | `100-onboarding-staff-controls.js.part` | 2412 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
-| 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
+| 28 | `112-smm-weekly-reports.js.part` | 731 | These pages open without the sign-in gate, so the page's first read of |
 | 29 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
 | 30 | `120-calendar-flags-write-repair.js.part` | 3458 | The members a flag value offers, or null when it offers no member list at |
 | 31 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
@@ -56,7 +56,7 @@
 | 48 | `230-production-create-comments.js.part` | 2784 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 49 | `240-production-description.js.part` | 2717 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 51 | `260-production-refresh-boot.js.part` | 2832 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 53 | `280-samples-cards-notes.js.part` | 3020 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

@@ -2323,6 +2323,24 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         }catch(err){
             if(_isClientLink){
                 if(!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+                // The link passed client-token-verify before init() ran. With
+                // the client list in the database, a failed analytics read
+                // leaves no client row (analytics_roster_unavailable): that is
+                // a failed read, not a failed link. Show the analytics retry
+                // state (render() reaches it through the extras gate) and keep
+                // this client's saved calendar and samples copies (OPEN_REPAIRS 398).
+                const cap=_syncviewClientEntryCapability;
+                if(err&&err.message==='analytics_roster_unavailable'&&cap&&cap.verified){
+                    try{
+                        document.getElementById('selectorWrap').style.display='none';
+                        document.getElementById('pageSub').style.display='none';
+                        document.getElementById('pageTitle').textContent='Your Analytics';
+                        document.querySelector('header.header').style.display='none';
+                        clientViewTab[cap.client]=cap.view==='brief'?'brief':'analytics';
+                        render(cap.client,true);
+                        return;
+                    }catch(e){console.warn('[SyncView] client analytics retry state failed',e);}
+                }
                 _syncviewInvalidClientLinkScreen({retryable:true});
                 return;
             }

@@ -1452,6 +1452,12 @@ import {
             return null;
         });
         _analyticsMirrorLoad = { run: clientEntryRun, promise };
+        // A failed read is not remembered (the staff path's rule): the stages
+        // already waiting share this answer, and Try again asks once more
+        // instead of being handed the same failure for the rest of the visit.
+        // A null that only means "switch off" or "no token" sent nothing, so
+        // asking again sends nothing either (OPEN_REPAIRS 398).
+        promise.then(r => { if (!r && _analyticsMirrorLoad && _analyticsMirrorLoad.promise === promise) _analyticsMirrorLoad = null; });
         return promise;
     }
 
@@ -1577,7 +1583,40 @@ import {
         return promise;
     }
 
+    /* THE CLIENT LIST AFTER A LATE SIGN-IN (OPEN_REPAIRS 398). The SMM weekly
+       report pages open without the sign-in gate, so the page's first read of
+       the client list can run before anyone has signed in. With the roster
+       switch on, that read has no key to ask analytics-read with and, in a
+       fresh browser, no saved copy, so it fails and the client pickers keep
+       the built-in names. Once a verified staff identity exists, a page calls
+       this: if the newest staff read failed for want of a client list, it is
+       read once more (with the key now) and the chrome that depends on it is
+       redrawn. Resolves true only when that second read landed. */
+    let _analyticsRosterMissing = false;
+    let _analyticsStaffEssentialsLoad = null;   // the page's first staff read (fetchAll)
+    let _analyticsRosterRetry = null;
+    function _analyticsRetryMissingRoster(){
+        if (_analyticsRosterRetry) return _analyticsRosterRetry;
+        if (_analyticsIsClientSession()) return Promise.resolve(false);
+        // Wait for the first read to finish: a sign-in can beat its answer.
+        const retry = Promise.resolve(_analyticsStaffEssentialsLoad).catch(() => {}).then(() => {
+            const ident = _syncviewStaffIdentityForHeaders();
+            if (!_analyticsRosterMissing || !ident || !ident.key) return false;
+            return fetchEssentials().then(() => {
+                try { _applyAllDataDependentChrome(); } catch (e) {}
+                return true;
+            }, err => {
+                console.warn('[SyncView] client list read after sign-in failed:', err && err.message);
+                return false;
+            });
+        });
+        _analyticsRosterRetry = retry;
+        retry.then(() => { if (_analyticsRosterRetry === retry) _analyticsRosterRetry = null; });
+        return retry;
+    }
+
     async function fetchEssentials(clientEntryRun){
+        if(!clientEntryRun)_analyticsRosterMissing=false;
         const mirror=await _analyticsMirrorRead(clientEntryRun);
         if(mirror&&mirror.ess){
             if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
@@ -1599,7 +1638,10 @@ import {
             // A client link: its own row from the database, nothing else.
             let clients=clientEntryRun?(mirror&&mirror.clients):(staff&&staff.clients);
             if(!clients&&!clientEntryRun){const saved=_analyticsCacheRead();clients=saved&&Array.isArray(saved.clients)&&saved.clients.length?saved.clients:null;}
-            if(!clients)throw new Error('analytics_roster_unavailable');
+            if(!clients){
+                if(!clientEntryRun)_analyticsRosterMissing=true;   // see _analyticsRetryMissingRoster
+                throw new Error('analytics_roster_unavailable');
+            }
             const mr=await fetch(METRICS_URL,requestOpts);
             if(!mr.ok)throw new Error('analytics_essentials_http');
             const metricsText=await mr.text();
@@ -1715,7 +1757,7 @@ import {
         // fast boot only needs that client roster to restore its active client,
         // staff toolbar, and deferred deep links. Unrelated analytics extras may
         // be slow or fail independently.
-        const essentials = clientEntryRun ? _syncviewClientEssentials(clientEntryRun) : fetchEssentials();
+        const essentials = clientEntryRun ? _syncviewClientEssentials(clientEntryRun) : (_analyticsStaffEssentialsLoad = fetchEssentials());
         const hold = typeof _analyticsExtrasHold !== 'undefined' ? _analyticsExtrasHold : null;
         const extras = (!clientEntryRun && hold)
             ? hold.promise.then(() => fetchExtras(clientEntryRun))
@@ -2111,7 +2153,7 @@ export {
   _analyticsHoldExtras, _analyticsHydrateFromCache, _analyticsHydrateFromIdb, _analyticsIdbDelete,
   _analyticsLiveApplied, _analyticsMetricFmt, _analyticsMetricNumber, _analyticsPlatformReceipt,
   _analyticsPlatformVisible, _analyticsProviderFailed, _analyticsRefreshCurrentView,
-  _analyticsReleaseExtras, _analyticsRosterFromDatabase, _analyticsStateBadge, _analyticsSyncCachedNote,
+  _analyticsReleaseExtras, _analyticsRetryMissingRoster, _analyticsRosterFromDatabase, _analyticsStateBadge, _analyticsSyncCachedNote,
   _analyticsTrustedReference, _clientBriefTabAvailable, _hookSaveKey, _nextFetchExtrasAttempt,
   _safeWeekViewDelta, _setAllData, _setBriefs, _setClientEssentialsLoad, _setClientMap,
   _setClientViewTab, _setContentSummaryState, _setCurrentClientHistory, _setFetchExtrasPromise,

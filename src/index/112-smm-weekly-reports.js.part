@@ -1,3 +1,4 @@
+import { _analyticsRetryMissingRoster } from './040-shared-briefs.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { WL_CLIENT_NAMES, getClientRoster, wlNormalizeClient } from './070-core-client-names.js';
 import { CAL_SUPABASE_ANON_KEY, SMM_WEEKLY_REPORTS_URL, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
@@ -212,6 +213,23 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _srpState.loadError = e.message || 'Could not load the form.';
             _srpPaintForm();
         }
+        _srpRefreshRosterAfterSignIn();
+    }
+    /* These pages open without the sign-in gate, so the page's first read of
+       the client list may have run before anyone signed in, and with the list
+       in the database that read had nothing to ask with: the pickers showed
+       only the built-in names. The sign-in has happened by now (the options
+       and reports reads need it), so ask once more and repaint an open list
+       (OPEN_REPAIRS 398). Nothing is asked when the first read worked. */
+    function _srpRefreshRosterAfterSignIn() {
+        _analyticsRetryMissingRoster().then(loaded => {
+            if (!loaded) return;
+            [['srpClientSearch', 'srpClientResults'], ['srpClientFilter', 'srpClientFilterResults']].forEach(([inputId, resultsId]) => {
+                const input = document.getElementById(inputId);
+                const results = document.getElementById(resultsId);
+                if (input && results && results.style.display === 'block') _srpPaintClientResults(input.value, resultsId);
+            });
+        }, () => {});
     }
     function _srpPaintFormShell(text) {
         const mount = document.getElementById('smmWeeklyReportMount');
@@ -515,6 +533,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         try {
             await _syncviewRequireStaffIdentity('weekly-report-manage');
             if (seq !== _srpLoadSeq) return;
+            _srpRefreshRosterAfterSignIn();
             const saved = _srpSavedRead(viewKey);
             if (saved) {
                 if (!_srpState.managersLoaded && saved.options) {

@@ -31991,3 +31991,68 @@ should the step use that newest earlier month tab (for example within one month)
 
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
+
+## 398. [2026-10-10, BUILT, NOT MERGED] Client links after the client list moved to the database: one failed read no longer says "could not verify this link" or wipes the saved copy; Try again retries; the weekly report form gets the full client list after sign-in (session Sweep, site assurance)
+
+**What was wrong.** Since the switch `analytics_mirror_read_enabled` gained `"roster": "database"`
+(2026-10-09 18:31 UTC, OPEN_REPAIRS 374, `docs/ops/ROSTER_PAGE_SWITCH_STEPS.md`), a client link gets
+its own client row only from the `analytics-read` answer, and the page never reads the Clients Info tab.
+That left two gaps.
+
+1. **Client review link (Tier 0).** If that one call failed (a dropped request on a weak phone
+   connection, the 8-second timeout, a 500), the client link had no client row and the page:
+   - on the default link (Analytics) showed "We could not verify this link ... No client data was
+     loaded" and erased the client's saved calendar and samples copies, although the link check had
+     already passed;
+   - on a calendar link, then the Analytics tab, showed "We could not load your analytics" with a
+     Try again button that never asked again: the failed answer was kept for the whole visit, so every
+     click got the same failure with no new request until a reload.
+
+   Before the switch the same failure quietly fell back to the Sheets.
+2. **SMM weekly report form (Tier 2).** The form opens without the sign-in gate. In a browser with no
+   saved staff sign-in (a phone, a fresh browser), the page's first read of the client list ran before
+   the SMM signed in, had no key, and failed; nothing read it again after sign-in. The client search
+   offered only the 30 built-in names: 13 of the 36 active clients were missing and 7 former ones were
+   shown, so a missing client could not be reported on.
+
+Not seen live yet (read only, 2026-10-10): every client-link call to `analytics-read` in the function
+logs since the switch answered 200 (24 calls, slowest 1.45 s), and no weekly report has been sent
+since the switch (the last one is from 2026-09-25). Both are
+latent: they need one dropped request, or a browser that never signed in.
+
+**Change** (page only; client save paths untouched).
+- `src/index/040-shared-briefs.js.part`: a failed client-link read is no longer kept for the visit
+  (the staff read already worked this way). The essentials and extras waiting on it still share the
+  one answer; Try again then sends one new request. A "no answer" that only means the switch is off or
+  there is no link token sent nothing, so asking again sends nothing either.
+- `src/index/260-production-refresh-boot.js.part`: on a verified client link, a read that left no
+  client row (`analytics_roster_unavailable`) now shows the normal analytics retry state ("We could not
+  load your analytics ... Try again", the wording the Analytics tab already uses) and keeps the client's
+  saved copies. A real link-check failure still shows the old screen.
+- `src/index/040-shared-briefs.js.part` and `src/index/112-smm-weekly-reports.js.part`: when the page's
+  staff read of the client list failed for want of a list, the weekly report form and the weekly reports
+  page read it once more after sign-in (with the key) and repaint an open client list. Nothing is asked
+  when the first read worked, and nothing changes with the switch off.
+- Not done, on purpose: letting a client link fall back to a bare row holding only its name (from the
+  link check) so the Metrics Sheet could still feed the page. It would hide the failure behind a page
+  without the client's handles and About text, and it changes the roster design; the owner can ask for it.
+- Unchanged: a Metrics Sheet failure on the default client link still shows the old "could not verify"
+  screen. That predates the switch and is not part of this fix.
+
+**Guards.** `docs/syncview-design/tests/analytics-mirror-read-browser.js` (already in
+`calendar-unit-tests.yml`) gains six offline scenarios where `analytics-read` fails once, then answers:
+- roster on, default link: no "could not verify this link", the saved calendar and samples copies are
+  kept, Try again sends exactly one new request and shows the database numbers;
+- roster on, calendar link then the Analytics tab: Try again sends exactly one new request and recovers;
+- roster off, both: unchanged, the page loads from the Sheets;
+- weekly report form with no saved sign-in, roster on: one keyed client-list read after sign-in, and
+  the open client search is repainted with a client only the database knows; Clients Info never read;
+- the same with the roster off: unchanged, the list comes from the Clients Info tab, no extra read.
+
+On main every roster-on assertion fails (default link: "We could not verify this link", saved copies
+wiped, no Try again; calendar link: Try again +0 requests; weekly form: 0 reads after sign-in, "No
+clients found"). With the fix all pass, and the roster-off scenarios read the same before and after.
+Also run: `test/analytics-essentials-http.js`, `qa/boot/client-entry-sequence.js` (23 groups),
+`client-link-split-key-browser.js`, `entry-links-boot-browser.js`, `node test/run-all.js`.
+
+**Owner step.** Merge. Nothing to deploy, no switch to change.

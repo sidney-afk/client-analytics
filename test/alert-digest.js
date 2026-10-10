@@ -117,6 +117,46 @@ const manualRed = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': 
   { id: 1, event: 'schedule', status: 'completed', conclusion: 'success', updated_at: '2026-10-02T16:00:00Z' }] }, nowMs: NOW, sources: digest.WORKFLOW_SOURCES.filter(s => s.key === 'backup') });
 ok(manualRed.length === 0, 'a manual red test run is not a production incident');
 
+// --- the database timer's runs are production runs too (OPEN_REPAIRS 403)
+// Since 2026-10-09 the on-time run of every judged workflow is a workflow_dispatch
+// the database timer starts, titled "... (db-timer)". The digest used to read
+// event=schedule only, so it judged health from GitHub's late copies alone.
+{
+  const backup = digest.WORKFLOW_SOURCES.filter(s => s.key === 'backup');
+  const T = (id, event, title, conclusion, created, updated = created) =>
+    ({ id, event, display_title: title, status: 'completed', conclusion, created_at: created, updated_at: updated, head_branch: 'main' });
+  const timerRed = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': [
+    T(31, 'workflow_dispatch', 'Track-B private backup (db-timer)', 'failure', '2026-10-02T12:23:01Z', '2026-10-02T12:31:00Z'),
+    T(30, 'schedule', 'Track-B private backup (schedule)', 'success', '2026-10-02T10:04:00Z', '2026-10-02T10:12:00Z')] }, nowMs: NOW, sources: backup });
+  ok(timerRed.length === 1 && timerRed[0].key === 'workflow_red:backup' && timerRed[0].evidence === 'run:31',
+    'a failed timer run, newest, is red even when an older schedule run passed');
+  const timerGreen = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': [
+    T(33, 'workflow_dispatch', 'Track-B private backup (db-timer)', 'success', '2026-10-02T16:23:01Z', '2026-10-02T16:31:00Z'),
+    T(32, 'schedule', 'Track-B private backup (schedule)', 'success', '2026-10-02T08:52:00Z', '2026-10-02T09:00:00Z')] }, nowMs: NOW, sources: backup });
+  ok(timerGreen.length === 0, 'a fresh timer success counts: an 8-hour-old schedule success beside it is no longer "stale"');
+  const manualOverTimerRed = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': [
+    T(36, 'workflow_dispatch', 'Track-B private backup (manual)', 'success', '2026-10-02T16:40:00Z', '2026-10-02T16:50:00Z'),
+    T(35, 'workflow_dispatch', 'Track-B private backup (db-timer)', 'failure', '2026-10-02T12:23:01Z', '2026-10-02T12:31:00Z')] }, nowMs: NOW, sources: backup });
+  ok(manualOverTimerRed.length === 1 && manualOverTimerRed[0].key === 'workflow_red:backup',
+    'a manual green run still cannot hide a failed timer run');
+  // The guard stands a late GitHub copy down when the timer already ran its slot: that
+  // run concludes "success" having done nothing, so it must not hide the timer's red run.
+  const stoodDown = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': [
+    T(38, 'schedule', 'Track-B private backup (schedule)', 'success', '2026-10-02T16:44:00Z', '2026-10-02T16:44:40Z'),
+    T(37, 'workflow_dispatch', 'Track-B private backup (db-timer)', 'failure', '2026-10-02T12:23:01Z', '2026-10-02T12:31:00Z')] }, nowMs: NOW, sources: backup });
+  ok(stoodDown.length === 1 && stoodDown[0].key === 'workflow_red:backup' && stoodDown[0].evidence === 'run:37',
+    'a schedule copy the guard stood down is not evidence: the timer\'s failure stays red');
+  const fellBack = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': [
+    T(40, 'schedule', 'Track-B private backup (schedule)', 'success', '2026-10-02T16:44:00Z', '2026-10-02T16:52:00Z'),
+    T(39, 'workflow_dispatch', 'Track-B private backup (db-timer)', 'failure', '2026-10-02T06:23:01Z', '2026-10-02T06:31:00Z')] }, nowMs: NOW, sources: backup });
+  ok(fellBack.length === 0, 'when the timer missed its slot, the GitHub copy really ran, and its success counts');
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/alert-digest.js'), 'utf8');
+  const readRunsSrc = src.slice(src.indexOf('async function readRuns('), src.indexOf('\n}\n', src.indexOf('async function readRuns(')));
+  ok(!/event=schedule/.test(readRunsSrc) && !/status=completed/.test(readRunsSrc) && /display_title: run\.display_title/.test(readRunsSrc)
+    && Number((/per_page=(\d+)/.exec(readRunsSrc) || [])[1]) >= 50,
+  'the digest reads every recent run with its title (in-progress timer runs included), not the schedule runs alone');
+}
+
 // --- workflow rules
 const sources = digest.WORKFLOW_SOURCES;
 const red = digest.workflowProblems({ runsByFile: { 'dawn-check.yml': [{ id: 7, status: 'completed', conclusion: 'failure', updated_at: '2026-10-02T16:00:00Z' }] }, nowMs: NOW, sources: sources.filter(s => s.key === 'dawn_check') });

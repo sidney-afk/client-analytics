@@ -18,9 +18,11 @@
  * WHAT COUNTS AS A PROBLEM (all read-only):
  *   1. a watched lane of scripts/monitoring-watchdog.js has not checked in, or
  *      checked in with ok:false (covers the Samples and Calendar nightlies);
- *   2. the latest completed run of a watched workflow is red, or its last
- *      success is too old (backup, dawn check, daily analytics copy, quota
- *      watchdog);
+ *   2. the latest completed production run of a watched workflow is red, or
+ *      its last success is too old (backup, dawn check, daily analytics copy,
+ *      quota watchdog). A production run is the database timer's on-time run
+ *      ("(db-timer)" in its title) or a GitHub schedule run that really ran;
+ *      a manual run is not one (see productionRuns);
  *   3. a daily analytics job (metrics, Top Videos) that is LIVE recorded a failed
  *      safety check for the day (a client with no result, a platform failed at the
  *      provider, frozen Instagram), or its check has stopped running.
@@ -36,8 +38,10 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const path = require('node:path');
 const relay = require('./monitoring-alert-relay');
 const watchdog = require('./monitoring-watchdog');
+const scheduleGuard = require('./schedule-fallback-guard');
 
 const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/+$/, '');
 const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -139,13 +143,46 @@ function laneProblems({ heartbeatRows, nowMs, lanes }) {
   return problems;
 }
 
-/** Workflow problems, from each workflow's recent completed runs (newest first). */
+/** The workflow file's own cron, read from the checkout (null when it has none). */
+function workflowCron(file) {
+  try {
+    return scheduleGuard.workflowCrons(fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', file), 'utf8'))[0] || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+/*
+ * The runs that say something about production health, newest first (OPEN_REPAIRS 403).
+ *
+ * Since 2026-10-09 the database timer starts each of these workflows on time through
+ * workflow_dispatch, and names that run "<workflow> (db-timer)". Those are production
+ * runs. A manual or test run ("(manual)") says nothing about production health and is
+ * left out, as before. GitHub still delivers each workflow's own `schedule:` hours late;
+ * when the timer already started that slot, the guard job stands the copy down and the
+ * run ends "success" having done nothing, so it is not evidence either way. The same
+ * function the guard uses (scripts/schedule-fallback-guard.js) decides which copies
+ * those were, so the two can never disagree. A schedule run the timer did not cover
+ * really ran (the timer missed), and counts. `runs` is every recent run, in progress
+ * included, because a copy can be stood down by a timer run that is still running.
+ */
+function productionRuns(runs, cron) {
+  const all = (runs || []).filter(Boolean);
+  return all.filter(run => {
+    if (run.status !== 'completed') return false;
+    if (scheduleGuard.isDbTimerRun(run)) return true;
+    if (run.event && run.event !== 'schedule') return false;
+    if (!cron) return true;
+    return !scheduleGuard.timerCovered({ cron, runs: all, atMs: Date.parse(clean(run.created_at)), branch: run.head_branch }).covered;
+  });
+}
+
+/** Workflow problems, from each workflow's recent runs (newest first). */
 function workflowProblems({ runsByFile, nowMs, sources = WORKFLOW_SOURCES }) {
   const problems = [];
   for (const source of sources) {
-    // Scheduled runs only: a manual or test run says nothing about production health.
-    const runs = (runsByFile[source.file] || [])
-      .filter(run => run && run.status === 'completed' && (!run.event || run.event === 'schedule'));
+    const cron = source.cron === undefined ? workflowCron(source.file) : source.cron;
+    const runs = productionRuns(runsByFile[source.file] || [], cron);
     if (!runs.length) {
       problems.push({ key: `workflow_stale:${source.key}`, severity: source.severity, evidence: 'no_run', text: source.stale });
       continue;
@@ -329,13 +366,17 @@ async function readRuns(sources = WORKFLOW_SOURCES) {
   if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required to read workflow runs');
   const out = {};
   for (const source of sources) {
+    // Every event, in progress included: the timer's on-time runs are workflow_dispatch
+    // runs, and productionRuns needs them all to tell which schedule copies stood down.
+    // 50 runs is several days of the busiest one (the 6-hourly backup).
     const response = await fetch(
-      `${GITHUB_API}/repos/${REPO}/actions/workflows/${source.file}/runs?per_page=10&status=completed&event=schedule`,
+      `${GITHUB_API}/repos/${REPO}/actions/workflows/${source.file}/runs?per_page=50&exclude_pull_requests=true`,
       { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
     if (!response.ok) throw new Error(`GitHub runs for ${source.file} HTTP ${response.status}`);
     const body = await response.json();
     out[source.file] = (body.workflow_runs || []).map(run => ({
       id: run.id, event: run.event, status: run.status, conclusion: run.conclusion, updated_at: run.updated_at, created_at: run.created_at,
+      display_title: run.display_title, head_branch: run.head_branch,
     }));
   }
   return out;
@@ -479,5 +520,5 @@ if (require.main === module) {
 module.exports = {
   MAX_LISTED, NOT_COVERED, OWN_LANE, STATE_ACTION, SHADOW_STATE_ACTION, WORKFLOW_SOURCES,
   COLLECT_DATASETS, collectProblems,
-  compare, evaluate, fingerprint, isOn, laneProblems, postDigest, renderMessage, run, workflowProblems,
+  compare, evaluate, fingerprint, isOn, laneProblems, postDigest, productionRuns, renderMessage, run, workflowProblems,
 };

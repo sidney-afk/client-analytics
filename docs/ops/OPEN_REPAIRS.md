@@ -32023,31 +32023,55 @@ asserts it). Calendar history rows say source `auto-posted`, actor `SyncView aut
 Production side's history keeps the gateway's own source and names the roster member set in
 `CALENDAR_AUTO_POSTED_ACTOR`: the gateway accepts only a roster member, and there is no robot member.
 A refused work item stops that card before the card save; a partly done card is picked up again after
-its quiet hour.
+its quiet hour. **A person's undo wins (owner, 2026-10-10):** a card that already has an `auto-posted`
+status history row is never moved again, so a person who sets one back to Scheduled is not overruled
+(enforced in the due list and checked again by the function before anything moves).
 
 **Switch.** `syncview_runtime_flags.calendar_auto_posted` = `{"clients": []}` (off; `"*"` = all). A
 client that is off is never returned by the due list. Read-only due list `calendar_auto_posted_due`,
 key check against the Vault secret `calendar_auto_posted_key`, all functions revoked from the four
 roles then granted to `service_role` only; the timer's "anything due" check is owner only.
 
+**What reaches the due list (Lighthouse review, 2026-10-10).** The permanent rules are in the SQL, not
+only in the function, so cards that can never flip cannot fill the oldest-first page of 20 and starve
+newer posts: every part Scheduled, Posted or N/A with at least one Scheduled; every Scheduled video or
+thumbnail part either unlinked or with a work item that exists and is `scheduled`; never moved by the
+job before. The test proves 25 such old cards plus one good newer card return the good one.
+
+**Stops for good (fail closed).** When a run cannot prove its Calendar save recorded `auto-posted`
+(`calendar_upsert_source_not_deployed` or `calendar_history_unconfirmed`), the function calls
+`calendar_auto_posted_halt`, which empties the client list and records `halted` (reason, time,
+previous list); the response says `halted: true` (or `halt_failed: true`). Independently, and with no
+write at all, the database stops the due list and the timer as soon as a calendar history row by the
+job's actor carries any source but `auto-posted` after the switch row last changed. Either stop holds
+until someone writes the switch again on purpose.
+
 **calendar-upsert needs a one-line live delta.** Live calendar-upsert (v83, the frozen un-gated
 source, not the repo's index.ts) keeps only `linear`, `reconcile` or `ui` as a source and turns
 anything else into `ui`. `scripts/calendar-upsert-live-delta.js` adds `auto-posted` to that list on
-the exact live source (refuses unless the anchor line occurs once). Measured on v83: index.ts sha256
-`67511f67...` before, `1b5f4f8d...` after. Nothing else changes. Until it is deployed the job's first
-card save would record `ui`, so the job checks the source after its first save of every run and stops
-with `calendar_upsert_source_not_deployed` instead of carrying on; no history receipt at all stops it
-too (`calendar_history_unconfirmed`). The card is also re-read before any work item moves: a card
+the exact live source. It refuses unless the live index.ts hashes to `--expect-sha` (measured on v83,
+2026-10-10: `67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185`), refuses any input
+containing `authorizeBrowserWrite` (the repo's gated source), refuses an output folder inside the
+repository, and prints the after-hash (`959a4fb3ce44082496976f839cd1b0614f8fd04e96fe7a3e582ac6be07672fad`
+for v83). Its `--check` mode is the post-deploy proof. There is no `supabase functions deploy` route:
+deploying the repo's calendar-upsert source brings back the 401 outage on every client link. Nothing
+else changes. Until the delta is live the job's first card save would record `ui`; the job checks the
+source after its first save of a run and stops for good (above). The card is also re-read before any work item moves: a card
 whose day, links, parts or version changed since the due list was read is left alone. Gateway
 request ids are reduced to the characters production-write accepts (Codex review on the PR).
 
-**Proof.** `node test/calendar-auto-posted.js`: 71 checks. The overall rule equals the page's own
+**Proof.** `node test/calendar-auto-posted.js`: 96 checks. The overall rule equals the page's own
 `computeOverallStatus` over 2,744 part combinations; Eastern dates across both daylight-saving nights;
 every skip reason; a whole run against fakes (work items before the card, conflict base read after the
 pushes, a refused push stops the card, a conflict is not counted as flipped, a dry run writes nothing,
-a `ui` source stops the run); and the migration in a throwaway PostgreSQL 16 (refuses without the
+a `ui` source or a missing receipt stops it for good and says so, a failed halt is reported, a card
+moved once is never moved again); the delta script's refusals and its post-deploy check; and the
+migration in a throwaway PostgreSQL 16 (refuses without the
 Vault key, idempotent, one 15-minute timer row, switch off returns nothing, test client on returns
-only the ended quiet Scheduled cards, `*` returns all, browser roles refused). **Live, test client
+only the ended quiet Scheduled cards and never one moved before, `*` returns all, the SQL parts rule
+equals the page's over 1,000 combinations, 25 stuck old cards do not starve a good newer one, a halt
+and a mislabelled row each stop the due list and the timer, a deliberate switch write resumes, browser
+roles refused). **Live, test client
 only:** a throwaway unlinked card was created through calendar-upsert as Scheduled on 2026-10-08, then
 saved with the job's exact body and headers: a stale conflict base was refused (`conflict: true`), the
 fresh base turned all three parts and the overall Posted, and history rows were written, with source
@@ -32060,13 +32084,20 @@ exactly the one past-due post.
 1. Vault: `select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'calendar_auto_posted_key');`
 2. Edge secret `CALENDAR_AUTO_POSTED_ACTOR` = the exact roster name of one active admin
    (`ROLE_KEY_ADMIN` is already set for production-write and is reused).
-3. Deploy `calendar-upsert` = live source plus the delta: save the live function JSON, run
-   `node scripts/calendar-upsert-live-delta.js <live.json> <out-dir>`, deploy those files with
-   verify_jwt off. Rollback: redeploy the saved JSON.
-4. Deploy `calendar-auto-posted` (deploy-single-function lane on the merged SHA, or by hand, verify_jwt off).
+3. Deploy `calendar-upsert` = live source plus the delta, never the repo source: save the live
+   function JSON (MCP `get_edge_function`; keep it, it is the rollback), run
+   `node scripts/calendar-upsert-live-delta.js <live.json> <out-dir-outside-the-repo> --expect-sha=67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185`,
+   deploy exactly those files with MCP `deploy_edge_function`, same names and entrypoint,
+   `verify_jwt: false`. Then save the live JSON again and run
+   `node scripts/calendar-upsert-live-delta.js --check <live-after.json> --expect-sha=959a4fb3ce44082496976f839cd1b0614f8fd04e96fe7a3e582ac6be07672fad`;
+   it must print `CHECK OK`. Rollback: redeploy the saved JSON unchanged, `verify_jwt: false`.
+4. Deploy `calendar-auto-posted` (deploy-single-function lane on the merged SHA, or by hand),
+   `verify_jwt: false`.
 5. Apply `migrations/2026-10-10-calendar-auto-posted.sql`.
 6. Ping and dry run with the Vault key in `x-calendar-auto-posted-key`: `{"action":"ping"}` must say
    `"ready":true`; `{"action":"dry_run"}` lists what would flip (card ids and counts only).
 7. Switch on for the test client only: `{"clients": ["<test client slug>"]}`. It needs a Scheduled post
    whose day has ended and that nobody touched for an hour; the test client had none on 2026-10-10.
+If it stopped itself, `value.halted.reason` says why; fix that, then write the switch again.
 Rollback: switch back to `{"clients": []}` (next tick), then `select cron.unschedule('calendar-auto-posted-tick');`.
+Posts it already flipped stay Posted; a person who sets one back is never overruled.

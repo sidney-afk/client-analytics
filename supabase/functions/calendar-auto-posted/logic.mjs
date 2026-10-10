@@ -181,6 +181,10 @@ function bump(map, key) {
 //   saveCard(client, id, patch, baseAt)   calendar-upsert; { ok, conflict, error }
 //   sourceOf(client, id, sinceIso)  "auto-posted" | "other" | "none": the source on the
 //                                   card's calendar history rows written since sinceIso
+//   movedBefore(client, id)         true when the card already has an "auto-posted" status
+//                                   history row: a person's undo wins, never move it again
+//   halt(reason)                    stop for good: empties the switch's client list and records
+//                                   why (calendar_auto_posted_halt); { ok }
 //   now(), sleep(ms)
 //   dryRun                          plan only, write nothing
 export async function runTick(deps, opts = {}) {
@@ -209,6 +213,9 @@ export async function runTick(deps, opts = {}) {
     try { before = await deps.readCard(client, id); } catch (_e) { before = null; }
     if (!before) { bump(out.failed, "card_read_failed"); continue; }
     if (!unchangedSinceDue(row, before)) { bump(out.skipped, "changed_while_running"); continue; }
+    let moved;
+    try { moved = await deps.movedBefore(client, id); } catch (_e) { moved = null; }
+    if (moved !== false) { bump(moved === true ? out.skipped : out.failed, moved === true ? "already_auto_posted" : "history_read_failed"); continue; }
 
     const sinceIso = new Date(deps.now().getTime() - 1000).toISOString();
     let pushFailed = "";
@@ -243,9 +250,19 @@ export async function runTick(deps, opts = {}) {
         await deps.sleep(1000);
         try { seen = await deps.sourceOf(client, id, sinceIso); } catch (_e) { seen = "none"; }
       }
-      // No receipt is no evidence either: stop rather than carry on unrecorded.
-      if (seen === "other") { out.ok = false; out.error = "calendar_upsert_source_not_deployed"; break; }
-      if (seen === "none") { out.ok = false; out.error = "calendar_history_unconfirmed"; break; }
+      // No receipt is no evidence either. Either way stop FOR GOOD, not just
+      // for this run: otherwise every 15-minute run would mislabel one more
+      // flip. The database also stops on its own once it sees a mislabelled row
+      // (calendar_auto_posted_stopped), so a failed halt write still stops it.
+      if (seen === "other" || seen === "none") {
+        out.ok = false;
+        out.error = seen === "other" ? "calendar_upsert_source_not_deployed" : "calendar_history_unconfirmed";
+        let halted;
+        try { halted = await deps.halt(out.error); } catch (_e) { halted = null; }
+        out.halted = !!(halted && halted.ok === true);
+        if (!out.halted) out.halt_failed = true;
+        break;
+      }
     }
   }
   return out;

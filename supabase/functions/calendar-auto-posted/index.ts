@@ -2,12 +2,17 @@
 //
 // Turns a Calendar post from "Scheduled" to "Posted" once its scheduled day has
 // ended in US Eastern time (rule, path and history in ./logic.mjs; OPEN_REPAIRS
-// 394). Called only by the pg_cron job calendar-auto-posted-tick every 15
+// 395). Called only by the pg_cron job calendar-auto-posted-tick every 15
 // minutes (migrations/2026-10-10-calendar-auto-posted.sql), never by a browser.
 //
 // Off unless the runtime flag calendar_auto_posted lists the client ("*" = all);
 // the database's calendar_auto_posted_due() returns nothing for a client that is
 // off, so an off client is never read further, let alone written.
+//
+// Fails closed: when a run cannot prove its Calendar save recorded source
+// "auto-posted", it stops for good (calendar_auto_posted_halt empties the
+// client list; the response says halted). A card it moved once is never moved
+// again, so a person's undo wins.
 //
 // Writes go through the same two functions a person's click uses, over HTTP:
 // production-write (work items) and calendar-upsert (the card). This function
@@ -111,6 +116,16 @@ function deps(db: SupabaseClient, url: string, anonKey: string, adminKey: string
       } catch (_e) {
         return { ok: false, error: "calendar_unreachable" };
       }
+    },
+    movedBefore: async (client: string, id: string) => {
+      const { data, error } = await db.from("calendar_post_events").select("id")
+        .eq("client", client).eq("post_id", id).eq("source", SOURCE).eq("action", "status_change").limit(1);
+      if (error || !Array.isArray(data)) throw new Error("history_read_failed");
+      return data.length > 0;
+    },
+    halt: async (reason: string) => {
+      const { error } = await db.rpc("calendar_auto_posted_halt", { p_reason: reason });
+      return { ok: !error };
     },
     // Only rows calendar-upsert writes count here ("ui" or this run's source);
     // the bridge's own rows ("native-bridge") are not evidence either way.

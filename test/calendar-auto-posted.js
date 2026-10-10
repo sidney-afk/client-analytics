@@ -158,6 +158,8 @@ function grabLine(source, re) {
         return { ok: true };
       },
       sourceOf: async () => opts.source || 'auto-posted',
+      movedBefore: async (_client, id) => (opts.movedBefore || []).includes(id),
+      halt: async (reason) => { calls.push(['halt', reason]); return { ok: !opts.haltFails }; },
     };
   }
   {
@@ -202,6 +204,20 @@ function grabLine(source, re) {
     const f = fakes([card(), card({ id: 'p_test_2' })], { source: 'none' });
     const r = await L.runTick(f, {});
     ok('run: stops when the history receipt cannot be confirmed', r.ok === false && r.error === 'calendar_history_unconfirmed' && !f.calls.some(c => c[1] === 'p_test_2'));
+    ok('run: an unconfirmed receipt stops it FOR GOOD (halt called, reported)', r.halted === true
+      && f.calls.some(c => c[0] === 'halt' && c[1] === 'calendar_history_unconfirmed'));
+  }
+  {
+    const f = fakes([card()], { source: 'other', haltFails: true });
+    const r = await L.runTick(f, {});
+    ok('run: a failed halt write is reported, never hidden', r.ok === false && r.halted === false && r.halt_failed === true);
+  }
+  {
+    const f = fakes([card(), card({ id: 'p_test_2' })], { movedBefore: ['p_test_1'] });
+    const r = await L.runTick(f, {});
+    ok('run: a card the job moved once is never moved again (a person\'s undo wins)',
+      r.skipped.already_auto_posted === 1 && !f.calls.some(c => c[1] === 'p_test_1' && (c[0] === 'push' || c[0] === 'save'))
+      && r.flipped_ids.join() === 'p_test_2');
   }
   {
     const P = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/production-write/policy.mjs')).href);
@@ -216,6 +232,8 @@ function grabLine(source, re) {
     ok('run: stops after one card if calendar-upsert records "ui" (delta not deployed)',
       r.ok === false && r.error === 'calendar_upsert_source_not_deployed' && r.flipped === 1
       && !f.calls.some(c => c[1] === 'p_test_2'));
+    ok('run: a "ui" receipt stops it FOR GOOD (halt called, reported)', r.halted === true
+      && f.calls.some(c => c[0] === 'halt' && c[1] === 'calendar_upsert_source_not_deployed'));
   }
 
   /* ---- static wiring ---- */
@@ -233,7 +251,11 @@ function grabLine(source, re) {
   const migCode = mig.split('\n').filter(l => !/^\s*--/.test(l)).join('\n');
   ok('switch defaults off', migCode.includes(`('calendar_auto_posted', '{"clients": []}'::jsonb`) && migCode.includes('on conflict (key) do nothing'));
   ok('migration writes no Calendar or work-item row', !/(update|insert\s+into|delete\s+from)\s+public\.(calendar_posts|deliverables|calendar_post_events)/i.test(migCode));
-  ok('every function revoked from all four roles', (migCode.match(/from public, anon, authenticated, service_role;/g) || []).length === 5);
+  ok('every function revoked from all four roles', (migCode.match(/from public, anon, authenticated, service_role;/g) || []).length === 9);
+  ok('the timer and due list both honour the stop', migCode.includes('and (select not public.calendar_auto_posted_stopped())')
+    && migCode.includes('where (select not public.calendar_auto_posted_stopped())'));
+  ok('the only flag write turns the job OFF (empty client list)', /set value = jsonb_build_object\(\s*'clients', '\[\]'::jsonb/.test(migCode));
+  ok('rollback note: a person\'s undo is never overruled', mig.includes('never overruled') && !mig.includes('a person can set them back like any other post'));
   ok('timer every 15 minutes, only when needed', migCode.includes(`'calendar-auto-posted-tick', '*/15 * * * *'`) && migCode.includes('where public.calendar_auto_posted_tick_needed()'));
   ok('due list is exactly Scheduled and Eastern time', migCode.includes(`p.status = 'Scheduled'`) && migCode.includes(`now() at time zone 'America/New_York'`));
 
@@ -250,6 +272,39 @@ function grabLine(source, re) {
   refused = false;
   try { D.applyDelta(D.ANCHOR + '\n' + D.ANCHOR); } catch (_e) { refused = true; }
   ok('delta: refuses two anchors', refused);
+  const script = read('scripts/calendar-upsert-live-delta.js');
+  ok('delta script: no supabase CLI deploy route, verify_jwt false stated', !/--no-verify-jwt/.test(script)
+    && script.includes('there is deliberately no `supabase functions deploy` route') && script.includes('verify_jwt: false'));
+  {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-delta-'));
+    const crypto = require('node:crypto');
+    const liveSrc = 'export const x = 1;\n' + D.ANCHOR + '\n';
+    const write = (name, files, extra = {}) => {
+      const f = path.join(tmp, name);
+      fs.writeFileSync(f, JSON.stringify({ version: 83, verify_jwt: false, files, ...extra }));
+      return f;
+    };
+    const live = write('live.json', [{ name: 'functions/calendar-upsert/index.ts', content: liveSrc }]);
+    const before = crypto.createHash('sha256').update(liveSrc).digest('hex');
+    const attempt = (args) => { const log = console.log; const err = console.error; console.log = () => {}; console.error = () => {}; try { return D.main(args); } catch (e) { return 'refused: ' + e.message; } finally { console.log = log; console.error = err; } };
+    ok('delta script: refuses without --expect-sha', attempt([live, path.join(tmp, 'o1')]) === 2);
+    ok('delta script: refuses a hash mismatch', /is not the expected/.test(String(attempt([live, path.join(tmp, 'o2'), '--expect-sha=' + 'a'.repeat(64)]))));
+    ok('delta script: refuses an out-dir inside the repository', /inside the repository/.test(String(attempt([live, path.join(ROOT, 'tmp-delta-out'), '--expect-sha=' + before])))
+      && !fs.existsSync(path.join(ROOT, 'tmp-delta-out')));
+    const gated = write('gated.json', [{ name: 'functions/calendar-upsert/index.ts', content: 'authorizeBrowserWrite();\n' + D.ANCHOR + '\n' }]);
+    ok('delta script: refuses input carrying authorizeBrowserWrite', /authorizeBrowserWrite/.test(String(attempt([gated, path.join(tmp, 'o3'), '--expect-sha=' + before]))));
+    ok('delta script: writes the patched files on the measured hash', attempt([live, path.join(tmp, 'o4'), '--expect-sha=' + before]) === 0);
+    const patched = fs.readFileSync(path.join(tmp, 'o4/functions/calendar-upsert/index.ts'), 'utf8');
+    const after = crypto.createHash('sha256').update(patched).digest('hex');
+    const liveAfter = write('after.json', [{ name: 'functions/calendar-upsert/index.ts', content: patched }]);
+    ok('delta script: post-deploy check passes on the after-hash', attempt(['--check', liveAfter, '--expect-sha=' + after]) === 0);
+    ok('delta script: post-deploy check fails on the old source', /not the expected after-hash/.test(String(attempt(['--check', live, '--expect-sha=' + after]))));
+    const jwtOn = write('jwt.json', [{ name: 'functions/calendar-upsert/index.ts', content: patched }], { verify_jwt: true });
+    ok('delta script: post-deploy check fails when verify_jwt is not false', /must be false/.test(String(attempt(['--check', jwtOn, '--expect-sha=' + after]))));
+    ok('delta script: documents the measured v83 hashes', script.includes('67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185')
+      && script.includes('959a4fb3ce44082496976f839cd1b0614f8fd04e96fe7a3e582ac6be07672fad'));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 
   /* ---- 2. PostgreSQL ---- */
   const PG_BIN = '/usr/lib/postgresql/16/bin';
@@ -295,7 +350,7 @@ function grabLine(source, re) {
           video_status text, graphic_status text, caption_status text, linear_issue_id text, graphic_linear_issue_id text,
           video_deliverable_id text, graphic_deliverable_id text, primary key (client, id));
         create table public.deliverables(id text primary key, status text, updated_at timestamptz);
-        create table public.calendar_post_events(id bigserial, client text, post_id text, ts timestamptz, source text, action text);
+        create table public.calendar_post_events(id bigserial, client text, post_id text, ts timestamptz, source text, action text, actor text);
         grant usage on schema public to anon, authenticated, service_role;
         grant select on all tables in schema public to service_role;`);
       const noKey = run('t', migration, true);
@@ -329,11 +384,61 @@ function grabLine(source, re) {
       ok('switch off: nothing is due', due() === '');
       ok('switch off: the timer does not call the function', q(`select public.calendar_auto_posted_tick_needed()`) === 'f');
       q(`update syncview_runtime_flags set value = '{"clients": ["test-client-a"]}' where key = 'calendar_auto_posted'`);
-      ok('test client on: only the ended, quiet, exactly-Scheduled cards (own history rows do not block)', due() === 'due,own_event');
+      ok('test client on: only the ended, quiet, exactly-Scheduled cards, never one the job moved before', due() === 'due');
       ok('test client on: the timer calls the function', q(`select public.calendar_auto_posted_tick_needed()`) === 't');
       ok('due row carries the work item status and time', q(`set role service_role; select video_deliverable_status from public.calendar_auto_posted_due(50) where id = 'due';`).split('\n').pop() === 'scheduled');
       q(`update syncview_runtime_flags set value = '{"clients": ["*"]}' where key = 'calendar_auto_posted'`);
-      ok('"*": every client', due() === 'due,elsewhere,own_event');
+      ok('"*": every client', due() === 'due,elsewhere');
+
+      // The SQL parts rule equals the page's rule over every triple of the usual vocabulary.
+      const vocab = ['Scheduled', 'Posted', 'N/A', 'Approved', 'Tweaks Needed', '', ' scheduled ', 'POSTED', 'In Progress', 'Client Approval'];
+      const triples = [];
+      for (const a of vocab) for (const b of vocab) for (const c of vocab) triples.push([a, b, c]);
+      const lit = (v) => "'" + v.replace(/'/g, "''") + "'";
+      const sqlParts = q('select string_agg(public.calendar_auto_posted_parts_ok(v, g, c)::text, \',\' order by n) from (values '
+        + triples.map((t, i) => `(${i}, ${lit(t[0])}, ${lit(t[1])}, ${lit(t[2])})`).join(',') + ') x(n, v, g, c);').split(',');
+      const jsParts = triples.map(t => String(L.overallStatus({ video_status: t[0], graphic_status: t[1], caption_status: t[2] }) === 'Scheduled'));
+      ok('SQL parts rule equals the page rule over ' + triples.length + ' triples', sqlParts.join() === jsParts.join());
+
+      // 25 old cards that can never flip, then one good newer card: the good one must still come back.
+      const old = `to_char(${ET} - 30, 'YYYY-MM-DD')`;
+      const stamp = `to_char(now() - interval '2 days', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
+      const bad = [];
+      for (let i = 0; i < 25; i++) {
+        const kind = i % 5;
+        const id = 'stuck_' + String(i).padStart(2, '0');
+        if (kind === 0) bad.push(`('test-client-b', '${id}', 'Scheduled', ${old}, ${stamp}, 'Scheduled','Scheduled','Tweaks Needed', '', '', null, null)`);
+        if (kind === 1) bad.push(`('test-client-b', '${id}', 'Scheduled', ${old}, ${stamp}, 'Scheduled','Scheduled','Scheduled', 'https://linear.app/x/issue/A-${i}', '', null, null)`);
+        if (kind === 2) bad.push(`('test-client-b', '${id}', 'Scheduled', ${old}, ${stamp}, 'Scheduled','Scheduled','Scheduled', '', '', 'd_missing_${i}', null)`);
+        if (kind === 3) bad.push(`('test-client-b', '${id}', 'Scheduled', ${old}, ${stamp}, 'Scheduled','Scheduled','Scheduled', '', '', null, 'd_posted')`);
+        if (kind === 4) bad.push(`('test-client-b', '${id}', 'Scheduled', ${old}, ${stamp}, 'Scheduled','Scheduled','Scheduled', '', '', null, null)`);
+      }
+      q(`insert into deliverables values ('d_posted', 'posted', now() - interval '2 days'), ('d_good', 'scheduled', now() - interval '2 days');
+         insert into calendar_posts values ${bad.join(',\n')},
+           ('test-client-b', 'newer_good', 'Scheduled', to_char(${ET} - 1, 'YYYY-MM-DD'), ${stamp}, 'Scheduled','Scheduled','N/A', '', '', 'd_good', null);
+         insert into calendar_post_events(client, post_id, ts, source, action, actor)
+           select 'test-client-b', id, now() - interval '3 days', 'auto-posted', 'status_change', 'SyncView auto-post'
+             from calendar_posts where client = 'test-client-b' and id in ('stuck_04','stuck_09','stuck_14','stuck_19','stuck_24');`);
+      const page20 = q(`set role service_role; select string_agg(id, ',' order by id) from public.calendar_auto_posted_due(20) where client = 'test-client-b';`).split('\n').pop();
+      ok('25 never-flippable old cards do not starve a newer good one (page of 20 returns it)', page20 === 'newer_good');
+      ok('item rule: a Posted part ignores its work item; a Scheduled one needs it scheduled',
+        q(`select public.calendar_auto_posted_item_ok('Posted', 'd_x', '', false, null)::text || public.calendar_auto_posted_item_ok('Scheduled', '', '', false, null)::text
+             || public.calendar_auto_posted_item_ok('Scheduled', '', 'https://x', false, null)::text || public.calendar_auto_posted_item_ok('scheduled', 'd', '', true, 'Scheduled')::text`) === 'truetruefalsetrue');
+
+      // Fail closed. (a) A halt empties the list and keeps the old one; nothing is due afterwards.
+      q(`set role service_role; select public.calendar_auto_posted_halt('calendar_history_unconfirmed');`);
+      const halted = JSON.parse(q(`select value::text from syncview_runtime_flags where key = 'calendar_auto_posted'`));
+      ok('halt: client list emptied, reason and previous list kept', JSON.stringify(halted.clients) === '[]'
+        && halted.halted.reason === 'calendar_history_unconfirmed' && JSON.stringify(halted.halted.previous_clients) === '["*"]');
+      q(`update syncview_runtime_flags set value = '{"clients": ["*"], "halted": {"reason": "x"}}' where key = 'calendar_auto_posted'`);
+      ok('halt: even with clients listed, a halted switch returns nothing and the timer stays quiet', due() === '' && q(`select public.calendar_auto_posted_tick_needed()`) === 'f');
+      // (b) No write at all: a mislabelled row by the job's actor after the switch last changed stops it.
+      q(`update syncview_runtime_flags set value = '{"clients": ["*"]}', updated_at = now() - interval '1 minute' where key = 'calendar_auto_posted'`);
+      ok('turned on again: due again', due() === 'due,elsewhere,newer_good');
+      q(`insert into calendar_post_events(client, post_id, ts, source, action, actor) values ('other-client', 'x', now(), 'ui', 'status_change', 'SyncView auto-post');`);
+      ok('a "ui" row by the job stops it with no write (due list empty, timer quiet)', due() === '' && q(`select public.calendar_auto_posted_tick_needed()`) === 'f');
+      q(`update syncview_runtime_flags set value = '{"clients": ["*"]}', updated_at = now() + interval '1 second' where key = 'calendar_auto_posted'`);
+      ok('a deliberate new switch write retires the old marker', due() === 'due,elsewhere,newer_good');
       const anon = run('t', `set role anon; select * from public.calendar_auto_posted_due(5);`, true);
       const auth = run('t', `set role authenticated; select public.calendar_auto_posted_key_ok(repeat('k', 64));`, true);
       ok('browser roles cannot call it', anon.status !== 0 && /permission denied/.test(anon.stderr) && auth.status !== 0);

@@ -7,7 +7,7 @@
  *      value list; Eastern dates across both daylight-saving changes; the per-card decision; a whole
  *      run against fakes (work item first, then the card with a conflict base, a refusal stops
  *      the card, a dry run writes nothing, a "ui" source stops the run); static wiring (the
- *      function writes no table itself, the switch defaults off, the four roles are revoked, the
+ *      function writes no table directly (its move record goes through the claim and release functions), the switch defaults off, the four roles are revoked, the
  *      migration writes no status); the calendar-upsert live delta script.
  *   2. With PostgreSQL 16 (required with CAL_AUTO_POSTED_REQUIRE_POSTGRES=1): runs the migration in
  *      a throwaway cluster with stand-ins for the tables it reads and for vault/cron, and proves
@@ -303,7 +303,7 @@ function grabLine(source, re) {
   /* ---- static wiring ---- */
   const fn = read('supabase/functions/calendar-auto-posted/index.ts');
   const logic = read('supabase/functions/calendar-auto-posted/logic.mjs');
-  ok('function writes no table itself (no insert/update/upsert/delete)', !/\.(insert|update|upsert|delete)\(/.test(fn + logic));
+  ok('function writes no table directly (no insert/update/upsert/delete; its move record goes through claim and release)', !/\.(insert|update|upsert|delete)\(/.test(fn + logic));
   ok('function moves work items through production-write and cards through calendar-upsert',
     fn.includes('/functions/v1/production-write') && fn.includes('/functions/v1/calendar-upsert'));
   ok('production-write body is the Calendar status pick with a compare-and-set',

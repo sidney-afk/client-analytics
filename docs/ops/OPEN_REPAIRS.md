@@ -32192,6 +32192,202 @@ rebuild after its rebase.
 
 **Owner step:** merge. Nothing to deploy.
 
+## 403. [2026-10-10, BUILT, NOT MERGED] Scheduled jobs: the GitHub copy runs only when the timer missed, the combined message sees timer runs, and the thumbnail titles timer is watched (session Sweep, site assurance)
+
+Three findings about the 2026-10-09 move of every scheduled job onto Supabase's timer (OPEN_REPAIRS 390,
+PR 2019), each confirmed by two independent read-only checks on 2026-10-10.
+
+**1. Every scheduled job ran twice.** The 17 workflows the database timer dispatches kept their
+`schedule:` blocks "as a fallback", but GitHub kept delivering them too, 4 to 7 hours late. Counted from
+2026-10-09 18:20 to about 15:30 UTC the next day: 41 late GitHub copies ran beside the timer's runs. What
+that did:
+- The Samples nightly failed once and paged twice (06:00 timer run, 12:18 GitHub copy; the relay took both).
+- Two Calendar E2E runs worked on the test client at the same time (the 14:18 GitHub copy and a 14:59
+  manual run); neither nightly had a concurrency group.
+- The 6-hourly private backup ran 7 times in about 21 hours instead of 4; nothing prunes the extra backups.
+- The roster sync applied twice on 2026-10-10 (06:41 and 13:03; no changes either time).
+- From Monday the dawn check would have run and paged twice each weekday, and the polish gate's late
+  copy would have cancelled the timer's run (its group has cancel-in-progress on).
+- A copy that passed in the afternoon also un-latched a failing nightly's incident, so the next morning's
+  same failure paged again.
+
+**2. The combined problem message could not see the timer's runs.** `scripts/alert-digest.js` read only
+`event=schedule` runs of the four workflows it judges (backup, dawn check, Sheets daily copy, n8n quota
+check), so it judged them from GitHub's late copies alone: a failed timer backup followed by a passing
+late copy was never reported, and on 2026-10-10 a "no backup within 7 hours" was due from 05:54 to 06:12
+while timer backups had passed at 00:23 and 06:23. It is in shadow (`ALERT_DIGEST_ENABLED` unset), so no
+live alert was wrong, but it would have been the day it is switched on.
+
+**3. The per-minute thumbnail titles timer could fail in silence.** `thumbnail-titles-tick` calls the
+function through `net.http_post`, which only queues the request, so `cron.job_run_details` says
+"succeeded" whatever the function answers (1,384 of 1,384 in 30 hours). A 401, a 500, a boot error or a
+missing AI key would leave every new thumbnail without its brief, with nothing reading the queue and pg_net
+keeping responses about 6 hours. Healthy today: 0 items stuck, 0 never queued.
+
+**What changed (source only).**
+1. **The GitHub copy is a real fallback.** New reusable workflow
+   `.github/workflows/schedule-fallback-guard.yml`, the first job of all 17 dispatched workflows (the same
+   six lines in each). On a GitHub schedule run it asks (with `scripts/schedule-fallback-guard.js`)
+   whether the timer already started the same workflow for the newest slot of its cron that was due; if so,
+   every other job is skipped and nothing runs, pages or writes. If the timer missed the slot (or the
+   question cannot be answered) the copy runs exactly as before, so a dead timer still falls back from
+   the first slot it misses. Only the timer's run for the newest due slot counts, never the slot before
+   it: a copy that arrives less than five minutes after its slot and finds no timer run yet waits until
+   slot + five minutes (never longer), looks once more for that slot only, and runs if it is still
+   missing. (The first version of this pull request let the slot before count inside those five minutes,
+   so a timer that died between two slots lost a whole run whenever GitHub delivered promptly: yesterday's
+   08:00 Calendar nightly would have covered today's 08:03 copy, Friday's dawn check Monday's, one backup
+   the next. Found in review.) Each API call gives up after 30 seconds and the guard job's limit is 12
+   minutes, so the wait can never time the guard out, which would skip the job. Any other event (timer,
+   manual, push, pull request) goes
+   straight through. To tell runs apart, each workflow now names its runs: "(db-timer)" for the timer in
+   the eight workflows with a `source` input, "(workflow_dispatch)" for any dispatch of the nine with no
+   inputs (the timer sends them none, so a timer run and a manual one are the same run).
+   `monitoring-deadman.yml` and `monitoring-crosscheck.yml` are untouched (they observe the timer).
+   Replayed read only against the GitHub API on 14 real late copies of six workflows from 2026-10-09/10
+   (backup, roster sync, both nightlies, notification sender, combined message), with the new run names
+   applied to the timer's runs: all 14 would have stood down, each check listing 1 or 2 runs.
+2. **One test-client browser run at a time.** The jobs of the Samples nightly, the Calendar nightly and
+   the dawn check that hold the test-client key share one concurrency group, `test-client-e2e`, never
+   cancelled mid-run. GitHub keeps at most one job WAITING per group: a third run arriving while one runs
+   and one waits cancels the waiting one (it shows as cancelled, and a cancelled nightly writes no
+   heartbeat, so its lane goes stale and pages after 36 hours). At the timer's 06:00 / 08:00 / 11:30 times
+   that needs a manual run on top of two long ones.
+3. **The polish gate's groups are per event** (`production-polish-<ref>-<event>`), so a late copy can no
+   longer cancel the timer's run; pushes to main still replace each other, as do a pull request's.
+4. **The combined message counts timer runs.** It reads every recent run (50 per workflow, in-progress
+   included) with its title. A production run is a "(db-timer)" run, or a GitHub schedule run the timer had
+   not covered (the same function the guard uses decides, so a copy the guard stood down, which ends
+   "success" having done nothing, can never hide the timer's failure). Manual runs stay excluded.
+5. **The dead-man's switch takes a thumbnail titles census** (`supabase/functions/_shared/monitoring-watchdog-core.mjs`,
+   so the 15-minute database-timer host and the two GitHub hosts all run it). Only while the
+   `thumbnail_titles` switch lists a client, counts only: `thumbnail_titles_stuck` = queue rows of a
+   switched-on client pending or running for more than 30 minutes, plus new empty thumbnails the enqueue
+   step should have queued and did not (a function answering 401 never queues anything); it pages once and
+   latches, and resets quietly at zero. `thumbnail_titles_gave_up` = items that ended failed, or needs info
+   with `generation_failed`, per UTC day; each day pages once. Latches go under their own action
+   (`monitoring_watchdog_census_latch`), and a census that cannot read or page never fails the pass: the
+   error is in the result and the heartbeat is still written. Not a heartbeat lane on purpose: the tick
+   only calls the function when there is work, so a fixed max age would page every quiet night. The F27
+   reconciler closure pin for the core file was re-taken from the committed bytes (membership unchanged).
+
+**Guards** (each failed on main before the change):
+- `test/github-dispatch-timer.js`: every dispatched workflow has the run name, the guard job byte for byte,
+  and every other job gated on it (directly or through a gated job); input-free workflows stay input-free;
+  the three test-client jobs share the group; the polish gate's group is per event; the guard's decision
+  on the measured runs (Samples 06:00 vs 12:18, backup 18:23 vs 22:45, a dead timer, a manual run, a
+  cancelled run, Monday vs Friday for the dawn check) and its fail-open paths. On main: 59 failures with
+  the guard script present, a load failure without it.
+- `test/schedule-fallback-guard.js`: a prompt copy is never covered by the slot before (daily 08:00:
+  yesterday vs 08:03 today; dawn check: Friday vs Monday 11:33; backup: 06:23 vs 12:25), both in the check
+  and in the guard job, which waits once until slot + five minutes and then runs the copy; a slow timer's
+  run found after the wait stands the copy down; a late copy never waits; the wait is capped whatever the
+  runner's clock says; a failed second look, a failed wait or a timed-out call runs the copy; the job's
+  time limit covers the worst case. Against the first version of the guard: 20 of 29 checks fail,
+  among them the check and the guard job decision for each of the three scenarios.
+- `test/alert-digest.js`: a failed timer run newest beside an older schedule success is red; a fresh timer
+  success beside an 8-hour-old schedule success is not stale; a manual green run cannot hide a failed timer
+  run; a stood-down copy cannot hide the timer's failure; the reader keeps every event. On main: 5 failures.
+- `test/monitoring-watchdog-tick.js`: a row pending 45 minutes is a problem, with the switch off there is
+  none, a client the switch leaves off is not stuck, an unqueued thumbnail is, give-ups speak once a day,
+  the page is counts only, a census read failure still completes the pass, a dry run pages nothing. On
+  main: the census functions do not exist.
+
+**Owner steps, in order:**
+1. Merge the pull request. From then on the late GitHub copies stand down, and the combined message (still
+   in shadow) judges the timer's runs. The census starts running from the two GitHub dead-man hosts.
+2. Redeploy `monitoring-watchdog-tick` (its shared core changed) through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = main's tip SHA after the merge. Until then
+   only the GitHub hosts take the census, every few hours.
+3. Nothing to apply in SQL, no secret, no variable. The first census pass may page once for the previous
+   day's give-ups, if there were any.
+
+Rollback: revert the pull request (both copies run again, as before), then redeploy `monitoring-watchdog-tick`
+from the reverted main.
+
+## 400. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED] Generate caption: never overwrite a caption written while the job ran; Brain voice found for a client whose short name has '&' (session Sweep, site assurance)
+
+**What was wrong (1 of 2, silent data loss).** Since 2026-10-09 19:33 UTC every client's Generate caption
+runs on the `caption-generate` function. When its caption was ready it saved it through `calendar-upsert`
+without looking at the card first, and `calendar-upsert` only checks for a newer version when the caller
+sends one, so the save always went through. A caption someone typed and saved on the card while the job was
+queued or running was replaced by the generated one, with no warning. The page only protected what was on
+the screen ("never clobber text the user typed"), not the saved card. The page also had its own hole: a
+bulk Generate runs two cards at a time and the rest wait in a queue, and a waiting card was sent when its
+turn came without checking whether someone had typed a caption on it in the meantime.
+
+Scenario: select three empty cards, press Generate; while the first two are generating, type a caption on
+the third and click away (it autosaves). Before: the third card's job was still sent a minute later, and
+its generated caption replaced the typed one in the database. The same happened to a single card typed into
+while its own job was running (from another tab, or the typed text saved before the job finished).
+
+**What was wrong (2 of 2).** The Brain voice (and the "Caption style" section the caption writer uses, and
+the title style behind thumbnail titles and the Higgsfield connector's `client_style`) is found by matching
+the client's short name to a folder in the Synchro Brain. The match dropped every character that is not a
+letter or a digit, so a short name with "&" lost it ("alpha&beta" became "alphabeta"), while the Brain
+folder spells it out ("alpha-and-beta" is "alphaandbeta"). The one active client whose short name contains
+'&' never got its voice: captions and its seeded thumbnail title prompt were written without it, and
+`client_style` said it had no Brain folder. The display-name fallback went through the same match and
+failed the same way.
+
+**What changed.**
+- `supabase/functions/caption-generate/index.ts`: just before the save (after the last cancel check) the
+  function reads the card's caption from `calendar_posts` with the service client. A caption already there
+  is kept: nothing is sent to `calendar-upsert`, and the job ends in error with "A caption was written on
+  this card while this one was being generated, so that one was kept." If the card cannot be read, nothing
+  is saved either ("...could not be checked before saving, so nothing was saved. Try again."). In both
+  cases the job row carries NO caption, because the page saves a caption it finds on an error row when its
+  own box is empty, and a tab that never saw the typed text would have put it back. An empty card (or one
+  with only spaces) is saved to as before. `calendar-upsert` is not changed and no base is sent.
+- `src/index/180-calendar-native-post-media.js.part`: before a queued job is sent, the page reads the
+  card's caption the same way the Generate button does (the box, then an unsaved edit, then the saved
+  card). If there is one, the job is dropped as cancelled with "Not generated: a caption was written on
+  this card while it waited, so that one was kept." and nothing is sent. This covers bulk Generate and
+  jobs restored after a refresh. The queue now recounts the running jobs for each card it starts, so a
+  dropped job never lets a third one run at once.
+- `supabase/functions/brain/parse.mjs` `findClientFolder`: tries the short name with "&" read as "and"
+  first, then the old form, so every match that worked still works. Shared by `brain`, `caption-generate`
+  and the Higgsfield connector (and through it `thumbnail-titles` and `thumbnail-title-prompts`).
+  `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md` has a row for it.
+
+**Guards (each failed on the old code, passes now).**
+- `qa/caption-generate/function-run.ts` (Deno, the function's own code with stand-ins; manual, not in CI):
+  a caption typed on the card while the job runs is kept, no `calendar-upsert` call, error row with no
+  caption; the same on the transcript path; a failed card read saves nothing; a blank card still gets the
+  caption. Before: `FAIL: typed while running: no calendar-upsert save for that card`. 33 checks now.
+- `test/caption-generate-browser.js` (CI, offline browser): bulk Generate on three cards, a caption typed
+  and autosaved on the waiting third: `caption-generate` is never called for it, the typed caption stays,
+  the other two still get theirs. Before: `FAIL queued: caption-generate is never called for the card that
+  got a typed caption (1 call(s))`.
+- `test/caption-generate-source.js`: the read sits after the last cancel check and before the save; both
+  refusals clear the caption; the page drops a captioned queued job before anything is sent.
+- `test/brain-parse.js`: a slug and a display name with "&" find the "-and-" folder; a folder that drops
+  the "&" or uses a dash still matches; a name without "&" does not grow an "and".
+
+**Not done, said plainly.** Nothing was deployed or run against the live backend. A caption saved in the
+few milliseconds between the function's read and its save can still be replaced; closing that needs
+`calendar-upsert` to take a caption base, and it is frozen.
+
+**Owner steps.**
+1. Merge the pull request (the page change goes live with it, through GitHub Pages).
+2. Deploy, from main's tip SHA after the merge, one run per function through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml :
+   `caption-generate`, `brain`, `higgsfield-mcp`, `thumbnail-titles`, `thumbnail-title-prompts`.
+   (`thumbnail-titles` from main also carries entry 394; 394 says it works before its migration too.)
+3. Higgsfield connector, per `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md`: one real call on the live
+   connector after the deploy. `client_style` for the client whose short name has "&" is free and is the
+   one this change touches: it should now return that client's Brain guidance, not "has no folder in the
+   Synchro Brain yet". No tool names or descriptions changed, so the connector does not need re-adding.
+4. Refresh that client's thumbnail title prompt default through the function's own seed path, not by
+   writing the table: the timer's call to `thumbnail-titles` with the body `{"action":"seed"}` instead of
+   `{"action":"tick"}`. It refreshes only the default prompts (a prompt staff saved is never touched). Then
+   open that client's "Thumbnail title prompt" in the Calendar menu: the default should now carry its Brain
+   title style.
+5. Optional live check of the first fix, on the test client `sidneylaruel` only: press Generate on an
+   empty card with a Frame.io link, type a caption on that card and click away while it runs. The card
+   keeps the typed caption and shows "...so that one was kept."
+
 ## 402. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED, SWITCH OFF] Scheduled posts turn Posted by themselves after their day (session Herald)
 
 **Problem.** Every Scheduled to Posted change on a Calendar post was made by hand. Measured read-only
@@ -32218,7 +32414,7 @@ the job ran. Parts already Posted or N/A stay as they are; the title is never to
 2. The card is re-read and the rest (caption, any unlinked part, the overall) is saved through
    `calendar-upsert` with the fresh change time as the conflict base, so a person's save in between
    wins.
-The job reads with the service role but writes no table itself (`test/calendar-auto-posted.js`
+The job reads with the service role and writes only its own move record, through the claim and release functions; it writes no other table directly (`test/calendar-auto-posted.js`
 asserts it). Calendar history rows say source `auto-posted`, actor `SyncView auto-post`. The
 Production side's history keeps the gateway's own source and names the roster member set in
 `CALENDAR_AUTO_POSTED_ACTOR`: the gateway accepts only a roster member, and there is no robot member.
@@ -32318,3 +32514,4 @@ exactly the one past-due post.
 If it stopped itself, `value.halted.reason` says why; fix that, then write the switch again.
 Rollback: switch back to `{"clients": []}` (next tick), then `select cron.unschedule('calendar-auto-posted-tick');`.
 Posts it already flipped stay Posted; a person who sets one back is never overruled.
+

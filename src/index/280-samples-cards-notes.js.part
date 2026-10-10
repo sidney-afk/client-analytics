@@ -3002,7 +3002,7 @@ import {
         _sxrToggleCommentDone, _sxrToggleShowResolved, closeSxrComments, openSxrComments
     });
 export {
-  _sxrApplyAutoStatus, _sxrApprovalBadgeCount, _sxrAutoResolveDestStatus, _sxrAwaitCardSave, _sxrMergePostComments,
+  _SXR_ROLLBACK_FIELDS, _sxrApplyAutoStatus, _sxrApprovalBadgeCount, _sxrAutoResolveDestStatus, _sxrAwaitCardSave, _sxrMergePostComments,
   _sxrCanonicalCommentsFor, _sxrClientVisibleLegacyRows, _sxrCommentRole, _sxrCommentsBtnHtml,
   _sxrCommentsFor, _sxrCommentsForView, _sxrCurrentAuthor, _sxrDeleteComment, _sxrFlushAllPending,
   _sxrFlushCardSave, _sxrFmtCommentTime, _sxrIsBusy, _sxrIsClientReady, _sxrLastLocalWriteAt,

@@ -25,6 +25,8 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      SYNCVIEW_NIGHTLY_PROBES: ${{ github.event.inputs.probes || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,13 +44,19 @@ jobs:
           # The SMM role key, as a repository secret (owner, 2026-10-09). The role
           # keys also live in the `production` environment, but that environment
           # needs an approval per run, which a nightly cannot wait for; the
-          # issuer, the staff writers and p96 all accept a role key.
+          # issuer and the staff writers accept a role key.
           SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
-          # An ACTIVE admin/SMM roster name the staff key's role resolves to.
-          # p96_description_image_upload binds the live writer to it and FAILS
-          # without it; nothing else reads it. Never committed, secret only.
+          SYNCVIEW_NIGHTLY_SKIP: p96_description_image_upload
+        run: node qa/run-probes.js
+      # p96 is the exception: its upload function only pairs an admin roster name with the admin key, and there is no test SMM on the roster.
+      - name: Run p96 description image upload (admin key)
+        if: ${{ !cancelled() }}
+        env:
+          PROBE_ATTEMPTS: '3'
+          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          # An ACTIVE admin roster name; p96 binds the live writer to it. Secret only.
           SYNCVIEW_STAFF_ACTOR: ${{ secrets.SYNCVIEW_STAFF_ACTOR }}
-          SYNCVIEW_NIGHTLY_PROBES: ${{ github.event.inputs.probes || '' }}
+          SYNCVIEW_NIGHTLY_ONLY: p96_description_image_upload
         run: node qa/run-probes.js
       # A red nightly must PAGE, not just email (owner directive 2026-07-17 —
       # the samples nightly sat red four nights with nobody consuming the

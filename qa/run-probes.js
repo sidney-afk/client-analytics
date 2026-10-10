@@ -25,6 +25,8 @@ const {
 } = require('./test-client-entry.js');
 const {
   NIGHTLY_PROBES_ENV,
+  NIGHTLY_SKIP_ENV,
+  NIGHTLY_ONLY_ENV,
   parseProbeSelection,
 } = require('./nightly-input.js');
 
@@ -35,6 +37,11 @@ const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 240000);
 const PORT = 8000;
 
 function resolveProbeList() {
+  const skip = new Set(parseProbeSelection(process.env[NIGHTLY_SKIP_ENV]));
+  const only = new Set(parseProbeSelection(process.env[NIGHTLY_ONLY_ENV]));
+  return resolveProbeListUnfiltered().filter(n => !skip.has(n) && (!only.size || only.has(n)));
+}
+function resolveProbeListUnfiltered() {
   const cliNames = process.argv.slice(2).filter(Boolean);
   if (cliNames.length) return parseProbeSelection(cliNames.join(' '));
   const dispatchNames = parseProbeSelection(process.env[NIGHTLY_PROBES_ENV]);
@@ -70,13 +77,15 @@ async function waitForOwnedServer(child, failed, ms = 30000) {
 }
 
 (async () => {
-  const probes = resolveProbeList();
-  if (!probes.length) { console.error('No probes to run.'); process.exit(2); }
-  const missing = probes.filter(f => !fs.existsSync(path.join(PROBES, f)));
+  const selected = resolveProbeListUnfiltered();
+  const missing = selected.filter(f => !fs.existsSync(path.join(PROBES, f)));
   if (missing.length) {
     console.error('Unknown probe selection: ' + missing.join(', '));
     process.exit(2);
   }
+  const probes = resolveProbeList();
+  if (!probes.length && selected.length) { console.log('Every selected probe runs in another step.'); process.exit(0); }
+  if (!probes.length) { console.error('No probes to run.'); process.exit(2); }
   if (await serverUp()) {
     console.error('Port :' + PORT + ' is already occupied; refusing to send protected client URLs to an unowned server.');
     process.exit(2);

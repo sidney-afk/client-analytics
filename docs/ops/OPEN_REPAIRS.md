@@ -31992,6 +31992,154 @@ should the step use that newest earlier month tab (for example within one month)
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
 
+## 396. [2026-10-10, BUILT, NOT MERGED] Calendar keep-in-place: a refresh that moves the card in view no longer drags the board after it (session Sweep, site assurance)
+
+**What was wrong.** The fix in 393 (#2029) made a background refresh (realtime change, the fallback
+poll, a tab return) remember the first card or day in view and put that one card back where it was.
+That is right when something lands ahead of the view, but when the refresh moves that card itself,
+the board chased it to its new place. It happens whenever a teammate reschedules the card at the top
+of Review, reorders the Sheet, or schedules a post out of the Unscheduled tray, on the staff Calendar
+and on the client's review link. The first card in view is often only partly on screen, or is the
+first Unscheduled tray post, which sits above the month grid. On phones there was a second slip: a
+day that lost its only post folds away (it is hidden, so it measures as zero size at the top-left of
+the screen), the restore still counted it as found, and the page was pushed by twice that day's
+offset.
+
+**Measured in a real browser** (offline fixture, fictional client, one background refresh where a
+teammate's change moves the first card in view). Before this fix:
+- Desktop Month at the top of the page with an Unscheduled tray, first tray post scheduled onto the
+  24th: the page jumped from 0 to 852 px, so the month header went off the top of the screen.
+- Desktop Sheet, the first card in the strip dragged to the end: the strip jumped from 3384 to 9424 px,
+  about 18 cards. The next card moved 6374 px sideways.
+- Desktop SMM Review, the first card in view rescheduled later: 997 to 2239 px. The next card moved
+  1378 px.
+- Client review link on a phone, the first card in view rescheduled later: 1008 to 1895 px. The next
+  card moved 1313 px.
+- Phone Month, the first day in view lost its only post and folded: the page was pushed 60 px for a day
+  sitting 30 px above the screen, so the next day moved 172 px.
+
+All of these were worse than the one-card jump 393 fixed. After this fix, every other card or day that
+was in view stays exactly where it was (0 px) in all five cases.
+
+**What changed** (`src/index/160-calendar-organize-ui.js.part`).
+- **Several cards are remembered, not one.** Each scrolled box, and the page, now remembers up to six
+  cards or days in view, outermost only (a Sheet card's fields carry its id too and must not outvote
+  the cards around it).
+- **A move is followed only when two cards agree on it.** After the repaint the pixel offset goes back
+  first. Then the restore measures how far each remembered item moved, and follows only a move at
+  least two of them agree on (within 2 px). Something landing ahead of the view moves every item by
+  the same amount, so 393's case stays fixed. A relocated card moves alone and is outvoted.
+- **When no two agree,** a single item decides only if it is the only one left that moved less than
+  the box plus its own size. Otherwise the pixel offset stands. The fix sketch dropped any move bigger
+  than the box, but phone Sheet cards are taller than the screen, so that broke 393's own phone Sheet
+  case.
+- **A folded or hidden item counts as gone.** On a phone the next visible day is used instead.
+- **The next-frame check re-measures only the items the first check agreed on.** If the first check
+  found no agreement because heights were still settling, the next frame asks all of them again.
+
+**Guards.** `docs/syncview-design/tests/calendar-refresh-scroll-browser.js` gained five "moved card"
+cases: (a) desktop Month with a tray at the top, the first tray post gets a date in the shown month;
+(b) desktop Sheet, the first card in view moves to the end; (c) desktop SMM Review, the first card in
+view is rescheduled later; (d) the client review link on a phone, the first card in view is
+rescheduled later; (e) phone Month, the first day in view loses its only post and folds. Each one
+fails on the old code with the numbers above and passes on the fix. The eight "card lands ahead"
+checks from 393 still pass (13/13). The test runs in `calendar-unit-tests.yml` as before.
+
+**Not done:** not run against the live test client, because the staff Calendar needs a real staff
+sign-in, which this sandbox does not have.
+
+**Owner step:** merge. There is nothing to deploy beyond the page itself (no function, no migration).
+
+## 399. [2026-10-10, BUILT, NOT MERGED, NOT APPLIED, NOT DEPLOYED] PTO Member setup now leaves a record: who changed a start date or the PTO switch, and what it was before (session Sweep, site assurance)
+
+**What was wrong.** In Kasper > Time Off, the Member setup form saves a team member's PTO start date
+and the "PTO enabled" switch. The pto function worked out which admin was saving and then threw that
+away, and the database function it called (`pto_set_member_start_v1`) simply overwrote the member's
+row. Nothing recorded who made the change, what the old values were, or (after the next save) when.
+Every other PTO write already names its actor: decisions (`decided_by`), cancellations
+(`cancelled_by`), adjustments (`created_by`). Member setup was the one that did not. Measured read
+only on 2026-10-10: no member-setup change has happened since go-live, so nothing was lost yet; the
+gap would have hit on the next save.
+
+**Why it matters.** The start date drives every balance: when paid leave starts (60 days after it),
+which accrual rate applies, every wellness grant and the yearly cap. Switching PTO off makes the
+member's card show zeros and refuses their requests. Either change moves someone's balance, and the
+owner's rule (cross-tier invariant 3 in `docs/QUALITY_TIERS.md`) is that HR and balance values never
+change without an audit trail. `docs/testing/ASSURANCE_LEDGER.md` also claimed every PTO write had a
+receipt; that line is corrected to point here.
+
+**What changed.**
+- `migrations/2026-10-10-pto-member-setup-audit.sql` (additive, safe to run twice): a new table,
+  `pto_member_events`, with one row per Member setup save that creates a PTO profile or actually
+  changes the start date or the switch: who (the verified admin's roster name), the start date and
+  switch before (empty on first setup) and after, and when. A save that changes nothing writes
+  nothing. It is written only by a new database function, `pto_set_member_start_v2`, which keeps all
+  of v1's checks (active roster member, the "someone else changed this" check, no start-date change
+  once leave history exists), refuses a blank name, and writes the record in the same transaction
+  as the change: if the record cannot be written, the change does not happen either. Access: RLS on,
+  no policies, every privilege revoked from all four roles (public, anon, authenticated,
+  service_role), then service_role may only READ the table and run v2. Nobody can insert, edit or
+  delete a record directly. v1 is left in place for now, because the live function still calls it.
+- `migrations/2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql`: run only after the new function
+  is deployed. It takes v1 away from all four roles, so nothing can change a start date without a
+  record. It refuses to run if v2 is not there yet.
+- `supabase/functions/pto/index.ts`: Member setup now passes the verified admin and calls v2 with
+  their name. The response the page gets is unchanged. If the function is ever deployed before the
+  migration, Member setup answers "paused until the member-setup record migration is applied" (503)
+  and writes nothing; it never falls back to the old write.
+- `.github/workflows/deploy-pto-edge-functions.yml`: the PTO lane's schema latch moved from
+  `transactional-writes-v1` to `member-setup-audit-v1`, so the new function cannot be deployed until
+  the owner confirms the migration (this is how the lane says "this function needs new SQL").
+- Docs: `docs/features/PTO_TRACKER.md` (table list, action table, latch), `migrations/README.md`,
+  `docs/ops/NEW_STAFF_ONBOARDING.md`, `docs/testing/ASSURANCE_LEDGER.md` (cross-tier invariant 3
+  line corrected).
+- Deliberately NOT changed: the page and `qa/pto-lifecycle/mock-backend.js`. Any byte change to the
+  files in `qa/pto-lifecycle/` or to the Time Off lines of the page makes the published
+  101-screenshot leave evidence packet stale (`test/leave-evidence-fingerprint-coupling.js` and the
+  PTO UI lane go red), and re-publishing it needs a human review of every screenshot: re-running the
+  lane here produced 0 of 101 byte-identical screenshots. The mocked lane never exercises Member
+  setup, so mirroring the record there is left for the next time that packet is regenerated anyway.
+
+**Guards (fail on main 5b6bc517, pass here).**
+- New `test/pto-member-setup-audit.js` (unit suite): 29 offline checks on the function, the two SQL
+  files and the deploy latch (25 fail on main), plus a disposable PostgreSQL 16 run (when PostgreSQL
+  16 is installed, as in CI) that applies the real PTO migrations with Supabase's default privileges,
+  applies this one twice, and replays first setup, no-op save, date change, stale form, blank and
+  null name, inactive member, the history lock, switching PTO off, and a forced record failure that
+  must roll the change back. It measures each of the four roles: anon, authenticated and public can
+  do nothing to the table; service_role can only read it; only service_role can run v2; after step 2
+  no role can run v1. 62 checks in all.
+- `test/pto-accrual.js`: the start-date call must be v2 with the actor (v1 gone from the function),
+  and the latch must be `member-setup-audit-v1`.
+
+**Owner steps, in the PTO lane's order.**
+1. Merge. The merge carries PTO SQL, so the automatic PTO deploy holds itself and nothing deploys.
+   Until step 4, any other push that changes only the pto function will fail at the latch and deploy
+   nothing; that is expected.
+2. In the Supabase SQL editor, run `migrations/2026-10-10-pto-member-setup-audit.sql`, then the
+   READBACK query at the bottom of that file. Expect: the table exists, RLS on, 0 policies; anon,
+   authenticated and public false everywhere; service_role select true, every write false; v2
+   execute true for service_role only; v1 still true for service_role. Append a value-free receipt
+   (no names, ids or dates per person) to `EXECUTION_LOG.md`.
+3. Set the Actions repository variable `PTO_SCHEMA_CONTRACT` to `member-setup-audit-v1`
+   (Settings > Secrets and variables > Actions > Variables) and read it back.
+4. Deploy `pto` from main's tip: open
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-pto-edge-functions.yml,
+   Run workflow on `main`, tick `migration_readback_confirmed`. Do not merge anything between noting
+   main's tip SHA and this dispatch. Then, in Member setup, pick any member who is already set up
+   (the form fills in their current values) and save without changing anything: it should say "PTO
+   member saved", and `select count(*) from public.pto_member_events` should stay 0 (a save that
+   changes nothing writes nothing; the next real change will add the first row).
+5. In the SQL editor, run `migrations/2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql`, then
+   its READBACK query: all four values false.
+
+**Rollback.** Keep `pto_member_events`; it is the record of who changed what. If step 5 was applied,
+first run `grant execute on function public.pto_set_member_start_v1(uuid, date, boolean, bigint) to
+service_role;` so the old function can write again. Then revert this change to
+`supabase/functions/pto/index.ts` and to the workflow latch on main, set `PTO_SCHEMA_CONTRACT` back to
+`transactional-writes-v1`, and dispatch the PTO lane as in step 4. Dropping v2 afterwards is optional
+(`drop function if exists public.pto_set_member_start_v2(uuid, date, boolean, bigint, text);`).
+
 ## 398. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED] Server and ops: the Instagram client lookup and Cancel, Higgsfield's unconfirmed creates, an unreadable Pages source, an empty roster, the drift robot's paging (session Digger)
 
 Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Each fix has a guard that fails on the code before it.

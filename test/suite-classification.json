@@ -567,6 +567,7 @@
     "pto-control-behavior.js",
     "pto-fingerprint-slice.js",
     "pto-lifecycle-harness.js",
+    "pto-member-setup-audit.js",
     "pto-ui-wiring.js",
     "public-b1-artifact.js",
     "public-intake-open-submission.js",

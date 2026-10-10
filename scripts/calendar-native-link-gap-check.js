@@ -140,10 +140,15 @@ async function rest(path) {
   return res.json();
 }
 
+/* Paged reads need a TOTAL order: calendar_posts is keyed by (client, id) and
+   about 40 of its 16,000 rows share an id with another client's row, so
+   `order=id` alone let a tie straddle a page boundary and a card be read twice
+   or not at all (Today had the same defect, OPEN_REPAIRS 376; this one is 398). */
+const PAGE_ORDER = { calendar_posts: 'client.asc,id.asc' };
 async function pageAll(table, select, extra = '', size = 500) {
   const out = [];
   for (let offset = 0; offset < 100000; offset += size) {
-    const page = await rest(table + '?select=' + select + extra + '&order=id.asc&limit=' + size + '&offset=' + offset);
+    const page = await rest(table + '?select=' + select + extra + '&order=' + (PAGE_ORDER[table] || 'id.asc') + '&limit=' + size + '&offset=' + offset);
     out.push(...page);
     if (page.length < size) break;
   }
@@ -166,7 +171,7 @@ async function main() {
   for (let offset = 0; offset < 100000; offset += PAGE) {
     const page = await rest('calendar_post_events'
       + '?select=post_id,component,ts,actor&action=eq.link_set'
-      + '&order=ts.asc&limit=' + PAGE + '&offset=' + offset);
+      + '&order=ts.asc,id.asc&limit=' + PAGE + '&offset=' + offset);
     for (const ev of page) {
       const key = clean(ev.post_id) + '|' + clean(ev.component);
       if (!clean(ev.post_id) || !clean(ev.component)) continue;

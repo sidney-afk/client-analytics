@@ -7,6 +7,8 @@
     "tiktok-create-keeps-key.js",
     "tiktok-source-unknown-default.js",
     "date-only-team-zone.js",
+    "higgsfield-create-unconfirmed.js",
+    "pages-deploy-source-unreadable.js",
     "production-write-comment-round.js",
     "staff-phone-rules-source.js",
     "staff-calendar-phone-css-scope.js",
@@ -1645,7 +1647,7 @@
       "file": "caption-generate-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks Generate caption on desktop and phone size: switch off keeps the n8n call unchanged; switch on uses the caption-generate function and the transcript box.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks Generate caption on desktop and phone size: switch off keeps the n8n call unchanged; switch on uses the caption-generate function and the transcript box; a caption typed on a card waiting in the bulk queue is kept and that card is never sent.",
       "reproduce": "node test/caption-generate-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

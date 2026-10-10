@@ -105,8 +105,16 @@ jobs:
         run: |
           # "workflow" = the owner switched the source to GitHub Actions;
           # "legacy" = still "Deploy from a branch"; "unknown" = not readable.
-          src=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type' 2>/dev/null || echo unknown)
-          [ -n "$src" ] || src=unknown
+          # Read it up to three times: one failed API call must not decide
+          # whether main goes live.
+          # Only "workflow" or "legacy" counts as read: on an HTTP error gh prints
+          # the error body (not the --jq value), so anything else is unknown.
+          src=unknown
+          for attempt in 1 2 3; do
+            if out=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type' 2>/dev/null); then src="$out"; else src=unknown; fi
+            case "$src" in workflow|legacy) break ;; *) src=unknown ;; esac
+            [ "$attempt" = 3 ] || sleep $((attempt * 5))
+          done
           echo "source=$src" >> "$GITHUB_OUTPUT"
           {
             echo "### Pages source: \`$src\`"
@@ -114,7 +122,18 @@ jobs:
             elif [ "$src" = legacy ]; then echo "Still the branch build. This run built and checked the site and deploys nothing."
             else echo "Could not read the Pages source, so nothing is deployed."; fi
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$src" = unknown ]; then echo "::warning::Could not read the Pages source; the deploy job is skipped."; fi
+          # On a push to main an unreadable source used to skip the deploy with
+          # a green run, so a merged fix stayed off the live site and nothing
+          # said so (OPEN_REPAIRS 398; the lane-ticker of 2026-10-09 failed the
+          # same quiet way). On main that is now a red run; a pull request,
+          # which never deploys, only warns.
+          if [ "$src" = unknown ]; then
+            if [ "${{ github.event_name }}" != pull_request ] && [ "${{ github.ref }}" = refs/heads/main ]; then
+              echo "::error::Could not read the Pages source after three tries, so main was NOT deployed. Re-run this workflow; if it repeats, check Settings > Pages."
+              exit 1
+            fi
+            echo "::warning::Could not read the Pages source; the deploy job is skipped."
+          fi
 
       - name: Upload the site folder (kept one day, never deployed from here)
         uses: actions/upload-pages-artifact@v3

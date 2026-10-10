@@ -123,7 +123,7 @@ still owner-gated, and it is the half that matters most.
 
 1. Existing client links keep working — un-gated writer posture intact (⛔ freeze honored; zero flag flips claimed since 07-16 per log).
 2. No silent data loss — F44 durable receipts live (server + browser); Samples F73 reload-loss is a **navigation** loss, tracked above. **Run 2 (07-19): the samples drag-reorder silent-loss (F141) is closed repo-side — the EF now reports the true matched-row count and the client fails closed on `updated < items.length` (guards `a2-writer-edge-source.js` + `sxr-reorder-failclosed.js`); EF redeploy + owner-gated n8n-fallback mirror still owed.**
-3. HR/audit trail — PTO writes carry `flag_flips`/event receipts; before/after hash proof 07-16.
+3. HR/audit trail — PTO requests, decisions, cancellations and adjustments carry their actor and time (`decided_by`/`cancelled_by`/`created_by`); the `pto_v1` switch carries a `flag_flips` receipt; before/after hash proof 07-16. **Corrected 2026-10-10 (session Sweep):** this line used to say all PTO writes carry receipts. Member setup (start date and the PTO switch) recorded no actor and no prior value; the record is built in OPEN_REPAIRS 399 (not merged, applied or deployed as of this correction).
 4. Dark lanes stay dark — `write_ui_reroute_clients` TEST-only per 07-15 health check; locked tables re-probed 401 this run (`filming_plans`, `thumbnail_media_revisions`, `social_media_managers`, `smm_weekly_reports`, `pto_*`, onboarding/sales intake).
 5. A fixed bug gets a guard — enforced per-fix; this run's F73 fix ships with the reworked `boot-gate-parity` semantic guard.
 

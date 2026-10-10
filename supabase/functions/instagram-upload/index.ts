@@ -21,7 +21,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 import {
-  applyCreateResponse, applyResults, buildCreate, clientAllowed, clientKey, expectedAccountId, needsRefresh,
+  applyCreateResponse, applyResults, buildCreate, cancelInPostForMe, clientAllowed, expectedAccountId, findClientProfile, needsRefresh,
   platformMismatch, publicRow, refreshCandidates,
 } from "./logic.mjs";
 
@@ -112,9 +112,9 @@ Deno.serve(async (req) => {
       if (existing && existing.post_id) return json({ ok: existing.status !== "failed", id: existing.id, status: existing.status, scheduled_for: existing.scheduled_for, row: publicRow(existing) });
 
       // The account must be the one on file for this client: a caller cannot swap in another client's account.
-      const { data: profile, error: pErr } = await db.from("client_profiles").select("extra").eq("slug", clientKey(row.client)).is("archived_at", null).maybeSingle();
+      const { data: profiles, error: pErr } = await db.from("client_profiles").select("slug,display_name,extra").is("archived_at", null);
       if (pErr) throw pErr;
-      const expected = expectedAccountId(profile);
+      const expected = expectedAccountId(findClientProfile(profiles || [], row.client));
       if (!expected) return json({ ok: false, error: "The synced Clients Info copy has no Instagram account for this client yet. It refreshes daily; run the Sheets copy lane to refresh it now." }, 409);
       if (expected !== row.account_id) return json({ ok: false, error: "That account is not the one on file for this client." }, 403);
 
@@ -171,8 +171,12 @@ Deno.serve(async (req) => {
       if (!row) return json({ ok: false, error: "not found" }, 404);
       if (action === "status") return json({ ok: true, row: publicRow(await refresh(row)) });
       if (row.status !== "scheduled" || !row.post_id) return json({ ok: false, error: "Only a scheduled post can be cancelled." }, 409);
-      const del = await pfm(pfmKey, "DELETE", "/social-posts/" + encodeURIComponent(row.post_id));
-      if (!del.ok && del.status !== 404) return json({ ok: false, error: "Post For Me did not cancel the post. Try again." }, 502);
+      const outcome = await cancelInPostForMe((m: string, p: string) => pfm(pfmKey, m, p), row.post_id);
+      if (outcome === "already_posted") {
+        try { await refresh(row); } catch (_e) { /* the next list or status read settles the row */ }
+        return json({ ok: false, error: "Already posted, could not cancel." }, 409);
+      }
+      if (outcome !== "cancelled") return json({ ok: false, error: "Post For Me did not cancel the post. Try again." }, 502);
       const nowIso = new Date().toISOString();
       const { error: upErr } = await db.from("instagram_uploads").update({ status: "cancelled", updated_at: nowIso }).eq("id", id);
       if (upErr) throw upErr;

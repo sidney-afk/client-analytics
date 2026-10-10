@@ -1,0 +1,5 @@
+@media (max-width:767px) {
+ #calView[data-pocket-staff-phone] .cal-skeleton-loader .sv-skeleton {--sv-skel-base:var(--border);--sv-skel-sheen:var(--border-light);}
+ #calView[data-pocket-staff-phone] .cal-skeleton-thumb {height:104px;}
+ #calView[data-pocket-staff-phone] .cal-skeleton-loader::before {content:"Loading your calendar...";display:block;align-self:flex-start;font-size:14px;color:var(--text-secondary);padding-bottom:12px;}
+}

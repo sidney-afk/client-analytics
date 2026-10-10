@@ -2,6 +2,8 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "higgsfield-create-unconfirmed.js",
+    "pages-deploy-source-unreadable.js",
     "production-write-comment-round.js",
     "staff-phone-rules-source.js",
     "staff-calendar-phone-css-scope.js",

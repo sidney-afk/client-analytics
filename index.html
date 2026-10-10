@@ -9656,6 +9656,8 @@
             body:has(.pocket-staff-bar):has(.pto-wrap) .confirm-box-actions .brief-action-btn { flex: 1; min-width: 44px; min-height: 48px; padding: 10px; font-size: 14px; border-radius: 12px; }
 
             /* ---- Today ---- */
+            body:has(.pocket-staff-bar) .tdy-skel .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--border-light); }
+            body:has(.pocket-staff-bar) .tdy-skel::before { content: "Loading your day..."; display: block; color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; }
             body:has(.pocket-staff-bar) .tdy { max-width: none; margin: 0; padding: 0 0 24px; }
             body:has(.pocket-staff-bar) .tdy-top { position: relative; flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
             /* On the date's own line, so it never pushes the page down or up. */
@@ -9901,6 +9903,8 @@
             body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-pop { position: static !important; inset: auto !important; visibility: visible; width: 100%; max-width: none; max-height: none; padding: 0; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
             body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-results { max-height: 55dvh; overflow-y: auto; }
             body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-search { min-height: 44px; font-size: 16px; }
+            body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-search::placeholder { color: var(--text-secondary); opacity: 1; font-size: 16px; }
+            body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-none { color: var(--text-secondary); opacity: 1; font-size: 13px; }
             body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-row { min-height: 48px; font-size: 15px; }
             body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-forget { min-width: 44px; min-height: 44px; }
             body:has(.pocket-staff-bar) .sv-phone-client-sheet .sv-client-clear { min-width: 44px; min-height: 44px; }
@@ -10372,6 +10376,9 @@
             html.fph-on[data-fph="workload"] .workload-overview-status-clients { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; min-width: 0; }
             html.fph-on[data-fph="workload"] .wl-now-client-chip { font-size: 14px; gap: 8px; padding: 0 14px; justify-content: flex-start; }
             html.fph-on[data-fph="workload"] .wl-now-client-chip-count { font-size: 13px; }
+            html.fph-on[data-fph="workload"] .fph-workload-post { display:block; font-size:13px; font-weight:500; line-height:1.5; white-space:normal; overflow-wrap:anywhere; }
+            html.fph-on[data-fph="workload"] .wl-now-client-chip:has(.fph-workload-post) { padding-top:8px; padding-bottom:8px; max-width:100%; }
+            html.fph-on[data-fph="workload"] .workload-overview-status::before, html.fph-on[data-fph="workload"] .wl-loose-client-head, html.fph-on[data-fph="workload"] .wl-loose-parent-title, html.fph-on[data-fph="workload"] .workload-section-label, html.fph-on[data-fph="workload"] .wl-client-search-input::placeholder { color:var(--text-secondary); font-size:13px; opacity:1; }
             /* Calendar header: title and refresh share one row; navigation and view switch sit under the dates; filters are a small tidy grid. */
             html.fph-on[data-fph="workload"] .workload-calendar-heading { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
             html.fph-on[data-fph="workload"] .workload-calendar-heading h2 { flex: 1; min-width: 0; margin: 0; font-size: 20px; letter-spacing: -0.5px; text-align: left; }
@@ -10601,6 +10608,44 @@ html.fph-on[data-fph="home"] .m-delta.down,html.fph-on[data-fph="home"] .gain-de
 html.fph-on[data-fph="home"] .m-delta.flat,html.fph-on[data-fph="home"] .m-delta.none,html.fph-on[data-fph="home"] .gain-delta.flat{background:var(--field-bg);color:var(--text-secondary);}
 html.fph-on[data-fph="home"] .gain-chip-label,html.fph-on[data-fph="home"] .gains-bar-label,html.fph-on[data-fph="home"] .gains-platform-name{font-size:13px;}
 html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[data-fph="home"] .platform-section .analytics-state-badge{font-size:13px;background:var(--field-bg);color:var(--text-secondary);border-color:var(--border);}
+}
+@media (max-width:767px) {
+ html.fph-on[data-fph="production"] .prod-asset-value a[href] { display:inline-flex; align-items:center; min-height:44px; min-width:44px; font-size:14px; color:var(--text-primary); text-decoration:underline; text-underline-offset:3px; }
+ html.fph-on[data-fph="production"] .prod-asset-label { font-size:13px; }
+ html.fph-on[data-fph="production"] .prod-asset-state { font-size:13px; color:var(--text-primary); }
+ html.fph-on[data-fph="production"] .prod-assets-title { font-size:13px; }
+ html.fph-on[data-fph="production"] .prod-feedback-status { font-size:13px; color:var(--text-secondary); }
+ html.fph-on[data-fph="production"] body:has(.prod-pop) .prod-tip { display:none; }
+}
+@media (max-width:767px){html.fph-on[data-fph="home"] [data-analytics-pending]{font-size:13px!important;color:var(--text-secondary)!important;}}
+@media (max-width:767px) {
+ html.fph-on[data-fph="production"] .prod-assets-input {min-height:44px;}
+ html.fph-on[data-fph="production"] .prod-description-action,
+ html.fph-on[data-fph="production"] .prod-assets-action {font-size:13px;}
+ html.fph-on[data-fph="production"] .prod-description-rich[contenteditable] {min-height:96px;font-size:16px;padding:12px;box-sizing:border-box;}
+ html.fph-on[data-fph="production"] .prod-description-hint {font-size:13px;color:var(--text-secondary);}
+ html.fph-on[data-fph="home"] .pin-selector-item,
+ html.fph-on[data-fph="home"] .search-suggestion {min-height:44px;font-size:14px;}
+ html.fph-on[data-fph="home"] .pin-selector-title,
+ html.fph-on[data-fph="home"] .pin-selector-count {font-size:13px;color:var(--text-secondary);}
+ html.fph-on[data-fph="home"] .pin-selector-dropdown {width:min(320px,calc(100vw - 32px));}
+ html.fph-on[data-fph="home"] .pin-selector-count {white-space:nowrap;}
+}
+@media (max-width:767px) {
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap { --wl-editor-rail:112px; --wl-timeline-days-min:1200px; }
+ html.fph-on[data-fph="workload"] .workload-timeline-header,
+ html.fph-on[data-fph="workload"] .workload-timeline-stage { min-width:calc(var(--wl-editor-rail) + var(--wl-timeline-days-min)); }
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap::before { content:"Swipe to see every workday and deadline."; display:block; position:sticky; left:0; box-sizing:border-box; width:calc(100vw - 104px); margin-bottom:12px; font-size:13px; line-height:1.5; color:var(--text-secondary); }
+ html.fph-on[data-fph="workload"] .workload-timeline-editor-kicker,
+ html.fph-on[data-fph="workload"] .workload-timeline-editor-name,
+ html.fph-on[data-fph="workload"] .workload-timeline-weekday { font-size:13px; color:var(--text-secondary); }
+ html.fph-on[data-fph="workload"] .workload-timeline-plan-chip { font-size:14px; }
+ html.fph-on[data-fph="workload"] .workload-grid .workload-plan-item { font-size:13px; }
+ html.fph-on[data-fph="workload"] .workload-grid .wl-deadline-tag { font-size:13px; color:var(--text-secondary); }
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap .workload-plan-item { font-size:13px; }
+ html.fph-on[data-fph="workload"] .workload-timeline-wrap .wl-deadline-tag { font-size:13px; color:var(--text-secondary); }
+ html.fph-on .sv-phone-client-sheet .sv-client-search::placeholder { color:var(--text-secondary); opacity:1; font-size:16px; }
+ html.fph-on .sv-phone-client-sheet .sv-client-none { color:var(--text-secondary); opacity:1; font-size:13px; }
 }
         /* FINCH-PHONE:END */
 
@@ -11103,10 +11148,29 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             body:has(#calView[data-pocket-staff-phone]) { --sv-phone-active-surface: var(--surface-raised); }
             body:has(#calView[data-pocket-staff-phone]):where([data-theme=dark] body) { --sv-phone-active-surface: var(--border); }
         }
+        @media (max-width:767px) {
+            #calView[data-pocket-staff-phone] .cal-skeleton-loader .sv-skeleton { --sv-skel-base:var(--border); --sv-skel-sheen:var(--border-light); }
+            #calView[data-pocket-staff-phone] .cal-skeleton-thumb { height:104px; }
+            #calView[data-pocket-staff-phone] .cal-skeleton-loader { padding:20px 0; align-items:stretch; justify-content:flex-start; width:100%; }
+            #calView[data-pocket-staff-phone] .cal-skeleton-loader::before { content:"Loading your calendar..."; display:block; align-self:flex-start; font-size:14px; color:var(--text-secondary); padding-bottom:12px; }
+            #calView[data-pocket-staff-phone] .cal-skeleton-toolbar { display:none; }
+            #calView[data-pocket-staff-phone] .cal-skeleton-strip { padding:0; min-height:0; }
+            #calView[data-pocket-staff-phone] .cal-skeleton-card { flex:0 0 100%; }
+            #calView[data-pocket-staff-phone] .cal-skeleton-card:nth-child(n+2) { display:none; }
+            #calView[data-pocket-staff-phone] .cal-month-wrap .cal-month-grid .cal-month-cell.today:not(.out) { min-height:78px; }
+        }
         /* STAFF-CALENDAR-PHONE:END */
 
         /* STAFF-SAMPLES-PHONE:BEGIN */
         @media (max-width: 767px) {
+            #sxrView[data-pocket-staff-samples] .cal-skeleton-loader { padding: 20px 0; align-items: stretch; justify-content: flex-start; width: 100%; }
+            #sxrView[data-pocket-staff-samples] .cal-skeleton-loader::before { content: "Loading samples..."; display: block; align-self: flex-start; font-size: 14px; color: var(--text-secondary); }
+            #sxrView[data-pocket-staff-samples] .cal-skeleton-review { width: 100%; gap: 16px; }
+            #sxrView[data-pocket-staff-samples] .cal-skeleton-review-card { grid-template-columns: 68px minmax(0, 1fr); width: 100%; box-sizing: border-box; border-radius: 22px; padding: 18px 16px; }
+            #sxrView[data-pocket-staff-samples] .cal-skeleton-review-thumb { width: 68px; height: 82px; }
+            #sxrView[data-pocket-staff-samples] .cal-skeleton-review-card > .sv-skeleton-pill { grid-column: 2; min-height: 44px; }
+            #sxrView[data-pocket-staff-samples] .cal-skeleton-loader .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--border-light); }
+            #sxrView[data-pocket-staff-samples] .sxr-cd-input::placeholder { color: var(--text-secondary); opacity: 1; }
             body:has(#sxrView[data-pocket-staff-samples]) > .header { display: none; }
             body:has(#sxrView[data-pocket-staff-samples]) .main { padding-top: max(20px, env(safe-area-inset-top)); }
             body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples] > .view-tab-toggle { display: none; }
@@ -11721,6 +11785,10 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
  html.pocket-admin-phone #kasperContent .ca-detail { font-size:14px; line-height:1.65; }
  html.pocket-admin-phone #kasperContent :is(.ca-resource-title,.ca-resource-sub,.ca-label,.cb-resource-label,.cb-resource-sub) { font-size:12px; line-height:1.6; }
  html.pocket-admin-phone #kasperContent :is(.ca-field dt,.ca-field dt label,.ca-empty,.ca-mgr-count,.ca-mgr-foot,.ca-drop-head>span,.ca-opt-sub,.ca-row-sub,.ca-fold-tag,.ca-prov,.ca-hist-when,.ca-status,.ca-land-label,.ca-hs-band .cb-lead) { font-size:13px; line-height:1.6; color:var(--text-secondary); }
+ html.pocket-admin-phone #caOnboarding :is(.cb-lead,.cb-res-sub,.cb-step-sub,.cb-step-line,.cb-form-label,.cb-res-group h5,.cb-summary,.cb-badge) { font-size:13px; color:var(--text-secondary); opacity:1; }
+ html.pocket-admin-phone #caOnboarding .cb-pill { font-size:13px; }
+ html.pocket-admin-phone #caOnboarding .cb-pill.is-not_applicable { color:var(--text-secondary); }
+ html.pocket-admin-phone #caOnboarding :is(.cb-res-label,.cb-step-label,.cb-section h4) { font-size:14px; color:var(--text-primary); }
  html.pocket-admin-phone #kasperContent .kad-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
  html.pocket-admin-phone #kasperContent .kad-stat { margin:0; }
 }
@@ -11870,6 +11938,17 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
  html.pocket-admin-phone #kasperContent .sp-table td:nth-child(9)::before { content:'App version'; }
 }
 @media (max-width:767px){html.pocket-admin-phone #caHead{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}html.pocket-admin-phone #caSearchWrap{grid-column:1/-1;width:100%;}html.pocket-admin-phone #caNewBtn{width:auto;padding:0 14px;margin:0;justify-content:center;}html.pocket-admin-phone #caNewBtn span{display:inline;}html.pocket-admin-phone #caAllBtn{width:100%;justify-content:center;}}
+@media (max-width:767px) {
+ html.pocket-admin-phone .cn-dialog .sv-select-trigger { font-size:16px; font-weight:500; min-height:48px; }
+ html.pocket-admin-phone .cn-dialog .sv-select-option { font-size:16px; font-weight:500; min-height:44px; white-space:normal; overflow-wrap:anywhere; }
+ html.pocket-admin-phone .cn-dialog .sv-select.is-disabled { opacity:1; }
+ html.pocket-admin-phone .cn-dialog .sv-select.is-disabled .sv-select-trigger { color:var(--text-secondary); }
+ html.pocket-admin-phone .cn-dialog .cn-label { display:flex; flex-wrap:wrap; gap:0 6px; font-size:13px; line-height:1.5; color:var(--text-primary); }
+ html.pocket-admin-phone .cn-dialog .cn-lead { font-size:14px; line-height:1.6; color:var(--text-secondary); }
+ html.pocket-admin-phone .cn-dialog .cn-hint, html.pocket-admin-phone .cn-dialog .cn-opt { font-size:13px; line-height:1.5; color:var(--text-secondary); }
+ html.pocket-admin-phone .cn-dialog .ca-input::placeholder { color:var(--text-secondary); opacity:1; }
+ html.pocket-admin-phone .cn-dialog .cn-slug:empty { display:none; }
+}
 /* POCKET-ADMIN-PHONE:END */
 
 /* STAFF-PHONE-RULES:BEGIN */
@@ -11939,6 +12018,136 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .cc-password-wrap .cc-pass-toggle { position: static; transform: none; flex-shrink: 0; }
 }
 /* STAFF-PHONE-RULES:END */
+
+/* PRISM-COMMON-PHONE:BEGIN - reviewed Expanded loading and detail states. */
+@media (max-width:767px) {
+ html.fph-on[data-fph="home"] #pinDropCloseBtn svg {width:18px;height:18px;color:var(--text-secondary);}
+ html.fph-on[data-fph="production"] .prod-detail-skeleton .sv-skeleton {--sv-skel-base:color-mix(in srgb,var(--text-secondary) 28%,var(--field-bg));--sv-skel-sheen:var(--border-light);}
+ html.fph-on[data-fph="production"] .prod-detail-skeleton::before {content:"Loading card detail...";display:block;font-size:14px;color:var(--text-secondary);margin-bottom:16px;}
+ html.sv-staff-phone .tdy-cl-lab {font-size:13px;color:var(--text-secondary);}
+ html.fph-on[data-fph="workload"] :is(.wl-loose-client-name,.wl-loose-parent-ident,.wl-loose-parent-title) {font-size:13px;color:var(--text-secondary);}
+ html.fph-on[data-fph="workload"] .workload-skeleton-grid::before {content:"Loading saved workdays...";display:block;grid-column:1/-1;font-size:14px;color:var(--text-secondary);}
+ html.boot-client :is(#calView:has(.pocket-client-calendar),#sxrView[data-pocket-client-phone="samples"]) .cal-skeleton-loader {padding:20px;align-items:stretch;width:100%;box-sizing:border-box;}
+ html.boot-client :is(#calView:has(.pocket-client-calendar),#sxrView[data-pocket-client-phone="samples"]) .cal-skeleton-loader .sv-skeleton {--sv-skel-base:var(--border);--sv-skel-sheen:var(--border-light);}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-loader:not(.pocket-cal-timeline-loading)::before {content:"Loading your calendar...";display:block;font-size:14px;color:var(--text-secondary);padding-bottom:12px;}
+ html.boot-client #sxrView[data-pocket-client-phone="samples"] .cal-skeleton-loader::before {content:"Loading samples...";display:block;font-size:14px;color:var(--text-secondary);padding-bottom:12px;}
+ html.boot-client :is(#calView:has(.pocket-client-calendar),#sxrView[data-pocket-client-phone="samples"]) .cal-skeleton-review {width:100%;gap:16px;}
+ html.boot-client :is(#calView:has(.pocket-client-calendar),#sxrView[data-pocket-client-phone="samples"]) .cal-skeleton-review-card {display:grid;grid-template-columns:68px minmax(0,1fr);width:100%;padding:18px 16px;box-sizing:border-box;border-radius:22px;}
+ html.boot-client :is(#calView:has(.pocket-client-calendar),#sxrView[data-pocket-client-phone="samples"]) .cal-skeleton-review-thumb {width:68px;height:82px;}
+ html.boot-client :is(#calView:has(.pocket-client-calendar),#sxrView[data-pocket-client-phone="samples"]) .cal-skeleton-review-card>.sv-skeleton-pill {grid-column:2;min-height:44px;}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-toolbar {display:none;}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-strip {width:100%;gap:0;}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-card {width:100%;flex:0 0 100%;}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-card:not(:first-child) {display:none;}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-thumb {height:104px;}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-status {background:var(--border);}
+ body:has(:is(#calView[data-pocket-staff-phone],#sxrView[data-pocket-staff-samples],.pocket-client-calendar,#sxrView[data-pocket-client-phone="samples"])) .cal-preview-overlay :is(.cal-preview-label,.cal-preview-meta,.cal-client-comp-pill) {font-size:13px;color:var(--text-secondary);}
+ body:has(:is(#calView[data-pocket-staff-phone],#sxrView[data-pocket-staff-samples],.pocket-client-calendar,#sxrView[data-pocket-client-phone="samples"])) .cal-preview-val a {display:inline-flex;align-items:center;min-height:44px;min-width:44px;font-size:14px;text-decoration:underline;overflow-wrap:anywhere;}
+ :is(.pocket-cal-menu,#calView[data-pocket-staff-phone]) .cal-organize .dropdown-item:has(.cal-month-filter-tag) {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+ :is(.pocket-cal-menu,#calView[data-pocket-staff-phone]) .cal-month-filter-tag {font-size:13px;color:var(--text-secondary);white-space:nowrap;}
+ :is(#calView[data-pocket-staff-phone],#sxrView[data-pocket-staff-samples],html.boot-client #calView:has(.pocket-client-calendar),html.boot-client #sxrView[data-pocket-client-phone="samples"]) :is(.cal-link-input,.cal-fld-name,.cal-fld-cap,.cal-fld-cta,.sxr-cd-input)::placeholder {color:var(--text-secondary);opacity:1;}
+ html.boot-client #calView:has(.pocket-client-calendar) .cal-date-txt {color:var(--text-secondary);}
+ html.boot-client [data-pocket-client-phone="analytics"] .analytics-detail-skeleton .sv-skeleton {--sv-skel-base:var(--border);--sv-skel-sheen:var(--border-light);}
+ html.boot-client [data-pocket-client-phone="analytics"] .analytics-detail-skeleton::before {content:"Loading analytics...";display:block;font-size:14px;color:var(--text-secondary);margin-bottom:16px;}
+ html.boot-client [data-pocket-client-phone="analytics"] .analytics-detail-skeleton :is(.gains-bar,.analytics-skel-top-videos,.analytics-skel-chart) {display:none;}
+ html.boot-client [data-pocket-client-phone="analytics"] .analytics-skel-platform {min-height:0;}
+ html.boot-client [data-pocket-client-phone="analytics"] .analytics-skel-metrics {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+ html.boot-client [data-pocket-client-phone="analytics"] .analytics-skel-metric {display:flex;flex-direction:column;gap:8px;min-width:0;}
+ html.boot-client [data-pocket-client-phone="analytics"] [data-analytics-pending] {font-size:13px!important;color:var(--text-secondary)!important;}
+ #calView[data-pocket-staff-phone] .pocket-cal-timeline-loading::before {display:none;}
+ #calView[data-pocket-staff-phone] .pocket-cal-timeline-loading {min-height:0;padding:20px;display:flex;flex-direction:column;gap:18px;background:var(--white);border:1px solid var(--border-light);border-radius:18px;}
+ #calView[data-pocket-staff-phone] .pocket-cal-timeline-loading-label {color:var(--text-secondary);font-size:14px;line-height:1.5;}
+ #calView[data-pocket-staff-phone] .pocket-cal-timeline-loading-rows {width:100%;display:flex;flex-direction:column;gap:14px;}
+ #calView[data-pocket-staff-phone] .pocket-cal-timeline-loading-row {display:flex;align-items:center;gap:14px;min-width:0;}
+ #calView[data-pocket-staff-phone] .pocket-cal-timeline-loading-day {width:38px;height:38px;border-radius:12px;flex-shrink:0;}
+ #calView[data-pocket-staff-phone] .pocket-cal-timeline-loading-lines {flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+}
+
+/* PRISM-COMMON-PHONE:END */
+
+/* PRISM-CAPTION-PHONE:BEGIN — reviewed Expanded native prototype. */
+@media(max-width:767px){
+html.sv-staff-phone :is(.cal-altcap-add,.cal-cap-tab){font-size:13px;color:var(--text-secondary);min-height:44px;}
+html.sv-staff-phone .cal-altcap-add svg{width:14px;height:14px;}
+html.sv-staff-phone .cal-cap-tab-x{width:44px;height:44px;margin:0;opacity:1;color:var(--text-secondary);}
+html.sv-staff-phone .cal-cap-tab-x svg{width:14px;height:14px;}
+html.sv-staff-phone .cal-cap-tab-chev svg{width:12px;height:12px;}
+body:has(#calView[data-pocket-staff-phone]) .cal-cap-tab-menu-head{font-size:13px;color:var(--text-secondary);}
+body:has(#calView[data-pocket-staff-phone]) .cal-cap-tab-menu-item{font-size:14px;min-height:44px;}
+html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-secondary);opacity:1;}
+}@media(max-width:767px){html.boot-client .cal-review-cap-head{font-size:13px;}}
+
+/* PRISM-CAPTION-PHONE:END */
+
+/* PRISM-TITLE-PHONE:BEGIN — reviewed Expanded wrapping title editor. */
+@media(max-width:767px){
+ :is(#calView[data-pocket-staff-phone],#sxrView[data-pocket-staff-samples]) textarea[data-pocket-title] { resize:none; overflow:hidden; line-height:1.5; min-height:44px; white-space:pre-wrap; overflow-wrap:anywhere; }
+ :is(#calView[data-pocket-staff-phone],#sxrView[data-pocket-staff-samples]) .cal-title-name-wrap:has(textarea[data-pocket-title]) .cal-title-fade {display:none;}
+}
+/* PRISM-TITLE-PHONE:END */
+
+/* PRISM-PROMPT-PHONE: body-mounted Calendar editors use the phone type scale. */
+@media (max-width: 767px) {
+ body:has(#calView[data-pocket-staff-phone]) .cal-prompt-head-text h3 { font-size: 18px; line-height: 1.3; }
+ body:has(#calView[data-pocket-staff-phone]) :is(.cal-prompt-head-text p,.cal-prompt-hint) { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+ body:has(#calView[data-pocket-staff-phone]) .cal-prompt-banner { font-size: 13px; line-height: 1.5; }
+ body:has(#calView[data-pocket-staff-phone]) .cal-prompt-textarea::placeholder { color: var(--text-secondary); opacity: 1; }
+ #calView[data-pocket-staff-phone] .cal-cap-tx { font-size: 13px; min-height: 44px; }
+}
+
+/* PRISM-COMPOSER-PHONE: readable feedback drafts without desktop shortcut hints. */
+@media (max-width: 767px) {
+ html.fph-on[data-fph="production"] body { height: 100dvh; display: flex; flex-direction: column; }
+ html.fph-on[data-fph="production"] .fph-bar { flex-shrink: 0; }
+ html.fph-on[data-fph="production"] .main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+ html.fph-on[data-fph="production"] #prodRoot { flex: 1; min-height: 0; margin-bottom: 12px; }
+ html.fph-on[data-fph="production"] #content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+ html.fph-on[data-fph="production"] .prod-view { height: auto; }
+ html.fph-on[data-fph="production"] :is(.prod-main,.prod-detail) { min-height: 0; }
+ html.fph-on[data-fph="production"] .prod-detail-main { min-height: 0; align-items: flex-start; }
+ html.fph-on[data-fph="production"] .prod-detail-inner { padding-bottom: 24px; }
+ html.fph-on[data-fph="production"] .prod-composer-input { min-height: 96px; }
+ html.fph-on[data-fph="production"] .prod-composer-input::placeholder,
+ html.fph-on[data-fph="home"] .search-bar-input::placeholder { color: var(--text-secondary); opacity: 1; }
+ html.fph-on[data-fph="production"] .prod-composer-actions .prod-write-state:not(.is-error) { color: var(--text-secondary); font-size: 13px; opacity: 1; }
+ html.fph-on[data-fph="production"] :is(.prod-composer-submit,.prod-composer-audience) { font-size: 14px; }
+ html.fph-on[data-fph="production"] [data-prod-keyboard-hint] { display: none; }
+}
+
+/* PRISM-ANALYTICS-CONTROLS-PHONE: consistent icon and supporting-label scale. */
+@media (max-width:767px) {
+ html.fph-on[data-fph="home"] .card-head [title] svg {width:18px;height:18px;}
+ html.fph-on[data-fph="home"] .card-head :is(a[title],span[title],.card-eye-btn) {color:var(--text-secondary)!important;}
+ html.fph-on[data-fph="home"] .card-head .card-date {font-size:13px;}
+ html.fph-on[data-fph="home"] .pin-add-btn>span {font-size:13px!important;opacity:1!important;color:var(--text-secondary);}
+ html.fph-on[data-fph="home"] [data-analytics-period] {font-size:13px!important;}
+ html.fph-on[data-fph="home"] :is([data-analytics-period][aria-pressed="false"],.view-toggle-btn:not(.active)) {color:var(--text-secondary)!important;}
+}
+
+/* PRISM-DETAIL-WORDS-PHONE */
+@media (max-width:767px) {html.fph-on[data-fph="production"] .prod-mi .kbd {display:none;}}
+
+/* PRISM-CALENDAR-HELP-PHONE: Expanded helper contrast and touch wording. */
+@media (max-width: 767px) {
+ html.sv-staff-phone .cal-import-head p,
+ html.sv-staff-phone :is(.cal-import-drop-sub,.cal-native-name-optional,.cal-org-sec,.cal-org-toggle .cal-org-toggle-sub),
+ html.sv-staff-phone .sv-jump-empty { color:var(--text-secondary); font-size:13px; line-height:1.5; }
+ html.sv-staff-phone .cal-import-overlay :is(input,textarea)::placeholder { color:var(--text-secondary); opacity:1; }
+ html.sv-staff-phone .sv-jump-foot { display:none; }
+}
+
+@media (max-width:767px) {
+  html.fph-on[data-fph="tiktok-upload"] :is(.tk-q-day,.tk-q-meta,.tk-queue-title) { font-size:13px;line-height:1.5;color:var(--text-secondary); }
+  html.fph-on[data-fph="tiktok-upload"] .tk-q-meta { flex-wrap:wrap;gap:3px 8px;white-space:normal;overflow:visible; }
+  html.fph-on[data-fph="tiktok-upload"] .tk-queue-item { grid-template-columns:80px minmax(0,1fr);gap:4px 10px; }
+  html.fph-on[data-fph="tiktok-upload"] .tk-q-day { text-transform:none;letter-spacing:0; }
+}
+
+/* Expanded Calendar helpers, client organizer and archive metadata. */
+@media (max-width:767px) {
+ html.boot-client :is(.cal-org-sec,.cal-org-toggle .cal-org-toggle-sub),
+ html.sv-staff-phone .arx-row-meta {font-size:13px;line-height:1.5;color:var(--text-secondary);}
+}
     </style>
 </head>
 <body>
@@ -12505,9 +12714,9 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-ac57558dcc06.js";
-        var PARTS = ["js/sv-01-core-015efd824d0d.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-64559afef782.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-971f603c7306.js","js/sv-12-synclinear-8af19c0e5b14.js","js/sv-13-core-131c794b1a50.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
-        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-6a22ae787f05.js","tiktok":"js/sv-14-tiktok-48de5e91de41.js","kasper":"js/sv-16-kasper-e0e36dceeac8.js"};
+        var FULL = "js/sv-full-8d454620017e.js";
+        var PARTS = ["js/sv-01-core-7f2bd7216cd3.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-6e6c487455c6.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-b17251688361.js","js/sv-12-synclinear-9eb075c02a8d.js","js/sv-13-core-5910dec1209d.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-cac24a0637b7.js","tiktok":"js/sv-14-tiktok-48de5e91de41.js","kasper":"js/sv-16-kasper-fd558b17e192.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

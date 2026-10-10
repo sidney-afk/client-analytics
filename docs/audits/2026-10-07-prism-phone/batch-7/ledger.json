@@ -1,0 +1,30 @@
+{
+  "mainCommit": "5b6bc5172a1efffd679b683702fcd26bd93edb67",
+  "highestNumber": 394,
+  "nextFree": 395,
+  "existingDuplicates": {
+    "13": 2,
+    "14": 2,
+    "22": 2,
+    "23": 2,
+    "175": 4,
+    "176": 3,
+    "177": 2,
+    "180": 2
+  },
+  "policy": "Preserve main ledger whole; append one unique entry. Existing duplicate headings are historical and outside this batch.",
+  "newEntry": 395,
+  "newDuplicateNumbers": [],
+  "mainPreservedWhole": true,
+  "previousEntryNumber": 394,
+  "reservedNumbers": {
+    "394": "PR #2030 (MERGED)"
+  },
+  "reservationCheck": {
+    "pr": 2030,
+    "commit": "0395402c99e2a90cb3a20e19dd6231e8b740c2e3",
+    "state": "MERGED",
+    "addedNumbers": [],
+    "newCollisions": []
+  }
+}

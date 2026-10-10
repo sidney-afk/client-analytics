@@ -1,0 +1,4 @@
+@media(max-width:767px){
+ textarea[data-pocket-title] { resize:none; overflow:hidden; line-height:1.5; min-height:44px; white-space:pre-wrap; overflow-wrap:anywhere; }
+ .cal-title-name-wrap:has(textarea[data-pocket-title]) .cal-title-fade {display:none;}
+}

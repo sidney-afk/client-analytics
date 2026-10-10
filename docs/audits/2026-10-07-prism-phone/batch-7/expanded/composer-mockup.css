@@ -1,0 +1,18 @@
+/* PRISM-COMPOSER-PHONE: readable feedback drafts without desktop shortcut hints. */
+@media (max-width: 767px) {
+ html.fph-on[data-fph="production"] body { height: 100dvh; display: flex; flex-direction: column; }
+ html.fph-on[data-fph="production"] .fph-bar { flex-shrink: 0; }
+ html.fph-on[data-fph="production"] .main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+ html.fph-on[data-fph="production"] #prodRoot { flex: 1; min-height: 0; margin-bottom: 12px; }
+ html.fph-on[data-fph="production"] #content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+ html.fph-on[data-fph="production"] .prod-view { height: auto; }
+ html.fph-on[data-fph="production"] :is(.prod-main,.prod-detail) { min-height: 0; }
+ html.fph-on[data-fph="production"] .prod-detail-main { min-height: 0; align-items: flex-start; }
+ html.fph-on[data-fph="production"] .prod-detail-inner { padding-bottom: 24px; }
+ html.fph-on[data-fph="production"] .prod-composer-input { min-height: 96px; }
+ html.fph-on[data-fph="production"] .prod-composer-input::placeholder,
+ html.fph-on[data-fph="home"] .search-bar-input::placeholder { color: var(--text-secondary); opacity: 1; }
+ html.fph-on[data-fph="production"] .prod-composer-actions .prod-write-state:not(.is-error) { color: var(--text-secondary); font-size: 13px; opacity: 1; }
+ html.fph-on[data-fph="production"] :is(.prod-composer-submit,.prod-composer-audience) { font-size: 14px; }
+ html.fph-on[data-fph="production"] [data-prod-keyboard-hint] { display: none; }
+}

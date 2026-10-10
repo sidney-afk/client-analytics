@@ -24,7 +24,7 @@ const measurements = [];
 let checks = 0;
 if (process.argv.includes('--list')) {
   const names = [
-    ...['list','review','tabs','lightbox','save-error','sending','approve-sending','sheet','notes','notes-unlinked','more','confirm','queue','loading','read-error','invalid-link','verify-error','retry-restored',
+    ...['list','review','long-content','many','tabs','lightbox','save-error','sending','approve-sending','sheet','notes','notes-unlinked','more','confirm','queue','loading','read-error','invalid-link','verify-error','retry-restored',
       ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state => 'comparison-' + state)].map(state => ({lane:'client-links-expanded',name:'samples-'+state,tab:'samples'})),
     ...['single','tabs','more','about','empty','loading','read-error','invalid-link','verify-error','retry-restored'].map(state => ({lane:'client-links-expanded',name:'analytics-'+state,tab:'analytics'})),
   ];
@@ -60,7 +60,7 @@ async function shot(page, label) {
   const name = label + '-' + requestedTheme;
   const dimensions = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, fullHeight: document.documentElement.scrollHeight }));
   await page.screenshot({ path: path.join(shots, name + '-viewport.png'), animations: 'disabled' });
-  await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: !overlay && dimensions.fullHeight > dimensions.height, animations: 'disabled' });
+  await require('../../../qa/client-phone/native-captures').capture(page,{ path: path.join(shots, name + '.png'), fullPage: !overlay && dimensions.fullHeight > dimensions.height, animations: 'disabled' });
   captures.push({ label, requestedTheme, effectiveTheme: await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light'), ...dimensions, file: name + '.png', viewportFile: name + '-viewport.png' });
 }
 async function entryErrors(page, width, prefix) {
@@ -92,6 +92,18 @@ async function fixture(browser, origin, width) {
   await installFixture(ctx, origin, row, writes, 'samples');
   await ctx.addInitScript(theme => localStorage.setItem('syncview_theme', theme), requestedTheme);
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+  // A successful source write must be visible to the native confirmation read.
+  // The generic fixture's {ok:true} without persistence leaves this request pending.
+  await ctx.route('**/functions/v1/sample-review-upsert',route=>{
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers:cors});
+    const body=route.request().postDataJSON();
+    assert(body.sample?.id===row.id,'Source write stays on the fictional sample');
+    writes.push({method:route.request().method(),path:new URL(route.request().url()).pathname,body:route.request().postData()});
+    Object.assign(row,body.sample,{updated_at:new Date().toISOString()});
+    // The writer stores tweak JSON; browser-only parsed aliases are not columns.
+    for(const component of ['video','graphic']) if(Object.hasOwn(body.sample,component+'_tweaks')) delete row[component+'_comments'];
+    return route.fulfill({status:200,headers:cors,json:{ok:true,sample:row}});
+  });
   await ctx.route('**/rest/v1/deliverables?**', route => route.fulfill({ status: 200, headers: cors, json: [
     { id: videoId, card_id: row.id, client_slug: row.client, team: 'video', origin: 'samples' },
     { id: graphicId, card_id: row.id, client_slug: row.client, team: 'graphics', origin: 'samples' },
@@ -131,6 +143,7 @@ async function fixture(browser, origin, width) {
 async function samples(browser, origin, width) {
   const { ctx, row, writes } = await fixture(browser, origin, width);
   const page = await ctx.newPage();
+  require('../../../qa/client-phone/native-captures').prepareCaptures(page);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + '/index.html?c=Phone%20Fixture%20Client&t=synthetic-phone-token&v=sample-reviews&sxr=1', { waitUntil: 'domcontentloaded' });
@@ -139,6 +152,17 @@ async function samples(browser, origin, width) {
   await shot(page, 'samples-list-' + width);
   await card.locator('.kcard-expand-btn').click();
   await shot(page, 'samples-review-' + width);
+  const originalPosts=await page.evaluate(()=>sxrState.posts);
+  for(const kind of ['long-content','many']) {
+    await page.evaluate(({kind,original})=>{
+      const row={...original[0],name:'A longer fictional sample title about making a calmer start to the day with enough room for every important detail'};
+      sxrState.posts=kind==='many'?Array.from({length:12},(_,i)=>({...row,id:i?row.id+'-fixture-'+i:row.id,name:row.name+' '+(i+1)})):[row];
+      _sxrReviewState.drafts[row.id+'|graphic']='A longer fictional change request that must retain all its words and leave its action reachable. '.repeat(16);
+      _sxrRenderBody();
+    },{kind,original:originalPosts});
+    await measure(page,'samples-'+kind+'-'+width);await shot(page,'samples-'+kind+'-'+width);
+  }
+  await page.evaluate(posts=>{sxrState.posts=posts;delete _sxrReviewState.drafts[posts[0].id+'|graphic'];_sxrRenderBody();},originalPosts);
   if (!before) {
     await measure(page, 'samples-review-' + width);
     ok(await card.locator('.cal-review-panel:visible').count() === 2, 'Video and Thumbnail must both remain visible');
@@ -294,8 +318,12 @@ async function samples(browser, origin, width) {
     await card.locator('[data-comp=graphic] textarea').fill('Please simplify the thumbnail text.');
     await card.locator('[data-comp=graphic] .cal-review-tweak-btn').click();
     await page.waitForFunction(() => !_sxrReviewState.saving['s_phone_fixture_1|graphic']);
+    await page.waitForFunction(() => _writeUiLegacyOutboxItems('sxr').length===0);
+    ok(!(await page.locator('#confirmOverlay.active').count()),'The exact saved tweak must confirm without a late refusal');
     ok(writes.some(write => /Please simplify the thumbnail text/.test(write.body)), 'Request change did not send the exact note');
   }
+  // This is a separate seeded state; let the preceding action toast finish.
+  await page.waitForFunction(()=>!document.querySelector('.sv-toast.show'));
   await page.evaluate(() => { sxrState.posts = []; sxrState.view = 'review'; _sxrRenderShell(); _sxrRenderBody(); });
   await shot(page, 'samples-queue-' + width);
   if (!before) {
@@ -326,6 +354,7 @@ async function analytics(browser, origin, width, emptyCase = false) {
     data: { metrics: emptyCase ? [] : [{ date: day, client_name: 'Phone Fixture Client', ig_followers: '2450', ig_avg_views: '16300', ig_avg_likes: '620', tiktok_followers: '8100', tiktok_avg_plays: '9600', yt_subscribers: '12800', yt_total_views: '390000' }], top_videos: [], market_research_briefs: [], content_summaries: [], client_profile: { slug: 'phonefixtureclient', display_name: 'Phone Fixture Client', content_description: 'A fictional account for phone layout checks.' } },
   }) }));
   const page = await ctx.newPage();
+  require('../../../qa/client-phone/native-captures').prepareCaptures(page);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const url = origin + '/index.html?c=Phone%20Fixture%20Client&t=synthetic-phone-token';

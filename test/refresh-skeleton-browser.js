@@ -116,9 +116,18 @@ async function skeletons(page) {
       const ctx = await newContext(browser, viewport);
       for (const [addr, want] of ROUTES) {
         const page = await ctx.newPage();
+        // A new visit to the bare address opens Today (#1798, 2026-09-27);
+        // Analytics is what a refresh on it shows, so start from its history entry.
+        if (want === 'analytics') await page.addInitScript(() => { try { if (!history.state) history.replaceState({ nav: 'home', client: null }, ''); } catch (e) {} });
         await page.goto(base + addr, { waitUntil: 'domcontentloaded' });
         const first = await skeletons(page);
-        for (const [how, act] of [['reload', () => page.reload({ waitUntil: 'domcontentloaded' })], ['update-banner refresh', () => page.evaluate(() => location.reload())]]) {
+        for (const [how, act] of [['reload', () => page.reload({ waitUntil: 'domcontentloaded' })], ['update-banner refresh', async () => {
+          // location.reload() does not wait: read the NEW document once its
+          // scripts have run (the split files load after the skeletons settle).
+          const t = await page.evaluate(() => performance.timeOrigin);
+          await page.evaluate(() => location.reload());
+          await page.waitForFunction(t => performance.timeOrigin !== t && document.readyState === 'complete' && typeof currentNav !== 'undefined', t, { timeout: 30000 }).catch(() => {});
+        }]]) {
           await act();
           const r = await skeletons(page);
           const label = `${device} ${addr.replace(C, '<client>')} ${how}`;

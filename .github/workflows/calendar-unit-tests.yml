@@ -388,6 +388,167 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/tiktok-poll-backoff-browser.js
 
+  browser-guards:
+    # Offline browser regression guards that no workflow ran until 2026-10-10
+    # (OPEN_REPAIRS 396). Each was written as the proof of a fix and then never
+    # started again; run on that day's main, 9 of 30 had drifted to failing and
+    # one (clean-urls) was catching a real crash: a fresh Kasper sub-tab address
+    # showed an admin "Could not load data". Fully mocked: no backend, no
+    # credentials. Every step runs even after an earlier one fails, so one red
+    # run names every broken guard. test/browser-guards-wired.js (unit job)
+    # fails when a browser test is added that no workflow runs.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright into a temp prefix (package.json untouched)
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Dialogs stay open on a press that starts inside them (OPEN_REPAIRS 215)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/dialog-backdrop-press-browser.js
+      - name: Clean addresses reach their screens, Kasper sub-tabs included
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/clean-urls-browser.js
+      - name: A Kasper sub-tab address opens even when the later script files are slow
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/kasper-deep-link-split-race-browser.js
+      - name: A refresh paints the right skeleton and keeps the tab
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/refresh-skeleton-browser.js
+      - name: Calendar and Samples, an edit stays with its client
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-edit-stays-with-its-client-browser.js
+      - name: Calendar and Samples, a failed save, archive or reschedule says so
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-samples-save-honesty-browser.js
+      - name: Calendar and Samples link boxes, Escape and Enter
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-link-box-keys-browser.js
+      - name: Client review, approve and request changes on the client link
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/client-review-write-browser.js
+      - name: Card rename, read-only for clients, synced for staff
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/rename-sync-browser.js
+      - name: Today, Open card carries the card in the address
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/today-open-card-address-browser.js
+      - name: Workload, signed out shows no board
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/workload-signed-out-browser.js
+      - name: Workload, test-client cards only when chosen
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/workload-test-clients-browser.js
+      - name: Save problems page reads the refusal log
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/save-problems-browser.js
+      - name: Refused-write beacon from the built page
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node --require ./test/helpers/single-file-index.js test/linear-exit-write-diagnostics-browser.js
+      - name: Staff gate stub refuses invented keys beside the fake gateway
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/staff-gate-stub-refusal-local.js
+      - name: Kasper board, urgent cards arrive with a draft open
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/kasper-board-browser.js
+      - name: Kasper hiring renders on open and reload
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/kasper-hiring-reload-browser.js
+      - name: Production rows keep long ids inside the row
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/prod-row-cell-overflow.js
+      - name: Production list scrolls inside its frame
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/prod-list-scroll-containment.js
+      - name: TikTok upload through the functions
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/tiktok-upload-browser.js
+      - name: TikTok upload steps
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/tiktok-upload-steps-browser.js
+      - name: TikTok upload layout
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node --require ./test/helpers/single-file-index.js test/tiktok-upload-redesign-browser.js
+      - name: TikTok Cancel stops the post
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/tiktok-cancel-browser.js
+      - name: TikTok queue, a failed first read is not an empty queue
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/tiktok-queue-first-read-browser.js
+      - name: TikTok queue, overdue rows say so
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/tiktok-overdue-status-browser.js
+      - name: TikTok preview clears when the form empties
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/tiktok-preview-empty-clearance-browser.js
+      - name: Instagram cover image
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/instagram-cover-browser.js
+      - name: Instagram and TikTok switch
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/instagram-platform-switch-browser.js
+
 
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build

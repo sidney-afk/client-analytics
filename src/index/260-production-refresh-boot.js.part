@@ -1906,6 +1906,18 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                click (or Back) can land first; the click wins. */
             const _bootNavEpoch=_syncviewNavEpoch;
             const _bootOwnsNav=()=>_syncviewNavEpoch===_bootNavEpoch;
+            /* Kasper's sub-tab names (_kasperResolveSubtab, 305) load in a later
+               file than this one when the page loads in parts (PR 1848). init
+               waits only for the early staff check, so a fresh /kasper/<subtab>
+               could reach its branch before that file had run, throw, and show
+               an admin "Could not load data" (OPEN_REPAIRS 396). Waiting for
+               the parse to finish costs nothing once it has. */
+            const _bootKasperSubtab=async(sub)=>{
+                if(typeof _kasperResolveSubtab!=='function'&&document.readyState==='loading'){
+                    await new Promise(r=>document.addEventListener('DOMContentLoaded',r,{once:true}));
+                }
+                return typeof _kasperResolveSubtab==='function'?_kasperResolveSubtab(sub):'';
+            };
             // The staff identity IS the door (2026-09-10), so this both
             // verifies and gates. Painting the cover is not enough: Codex
             // caught that in review. init() used to run on past this await, so
@@ -2177,7 +2189,12 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     // Admin access already confirmed (gated by _kasperHashLanding).
                     if (hashRaw.startsWith('kasper/')) {
                         const sub = hashRaw.slice('kasper/'.length);
-                        const key = _kasperResolveSubtab(sub);
+                        const key = await _bootKasperSubtab(sub);
+                        if (!_bootOwnsNav()) {
+                            // Someone clicked a tab during the wait, as at the exits above.
+                            dataPromise.catch(err => console.warn('[SyncView] background fetchAll failed', err));
+                            return;
+                        }
                         if (key) _kasperState.tab = key;
                     }
                     navTo('kasper', false);
@@ -2299,7 +2316,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
-                const key=_kasperResolveSubtab(sub); if(key) _kasperState.tab=key;
+                const key=await _bootKasperSubtab(sub); if(!_bootOwnsNav())return;
+                if(key) _kasperState.tab=key;
                 navTo('kasper',false);return;
             }
             if(hash.startsWith('calendar/')){

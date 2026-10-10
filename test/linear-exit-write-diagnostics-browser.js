@@ -48,7 +48,12 @@ assert(source.includes("/functions/v1/write-diagnostics"), 'built page does not 
 // The hardcoded 409 of the September 12 preparation must not come back.
 assert(!/status:\s*409\b/.test(func(source, '_writeRefusalBeacon')), 'beacon must send the real status, never a hardcoded one');
 
-const names = ['_writeUiDiagnosticIds', '_writeRefusalBeacon', '_writeUiQueueDiagnostic', '_calReplyDraftsLoad', '_calReplyDraftsPersist'];
+// The beacon's own helpers. It swallows every error (a report must never break
+// a save), so a helper missing here makes it send nothing rather than throw:
+// #1792 and #1796 (2026-09-27/28) added four, and this test then failed for
+// two weeks unseen because no workflow ran it (OPEN_REPAIRS 396).
+const names = ['_writeUiDiagnosticIds', '_writeRefusalAppVersion', '_writeRefusalNewId', '_writeRefusalAttemptId',
+  '_writeRefusalIsNetworkFailure', '_writeRefusalBeacon', '_writeUiQueueDiagnostic', '_calReplyDraftsLoad', '_calReplyDraftsPersist'];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -84,6 +89,11 @@ const names = ['_writeUiDiagnosticIds', '_writeRefusalBeacon', '_writeUiQueueDia
         + constant('WRITE_REFUSAL_BEACON_IDS')
         + constant('WRITE_REFUSAL_BEACON_MAX')
         + 'let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;'
+        + constant('WRITE_REFUSAL_ATTEMPT_MS')
+        + constant('_writeRefusalStaged')
+        + constant('WRITE_REFUSAL_NETWORK_MESSAGE')
+        // A page with no verified staff identity: the beacon sends no role key.
+        + 'function _syncviewStaffIdentityForHeaders() { return null; }'
         + constant('CAL_REPLY_DRAFTS_PREFIX')
         + constant('CAL_REPLY_DRAFT_MAX')
         + names.map((name) => func(source, name)).join('\n'),

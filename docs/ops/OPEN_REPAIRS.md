@@ -31991,3 +31991,85 @@ should the step use that newest earlier month tab (for example within one month)
 
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
+
+## 395. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED] Generate caption: never overwrite a caption written while the job ran; Brain voice found for a client whose short name has '&' (session Sweep, site assurance)
+
+**What was wrong (1 of 2, silent data loss).** Since 2026-10-09 19:33 UTC every client's Generate caption
+runs on the `caption-generate` function. When its caption was ready it saved it through `calendar-upsert`
+without looking at the card first, and `calendar-upsert` only checks for a newer version when the caller
+sends one, so the save always went through. A caption someone typed and saved on the card while the job was
+queued or running was replaced by the generated one, with no warning. The page only protected what was on
+the screen ("never clobber text the user typed"), not the saved card. The page also had its own hole: a
+bulk Generate runs two cards at a time and the rest wait in a queue, and a waiting card was sent when its
+turn came without checking whether someone had typed a caption on it in the meantime.
+
+Scenario: select three empty cards, press Generate; while the first two are generating, type a caption on
+the third and click away (it autosaves). Before: the third card's job was still sent a minute later, and
+its generated caption replaced the typed one in the database. The same happened to a single card typed into
+while its own job was running (from another tab, or the typed text saved before the job finished).
+
+**What was wrong (2 of 2).** The Brain voice (and the "Caption style" section the caption writer uses, and
+the title style behind thumbnail titles and the Higgsfield connector's `client_style`) is found by matching
+the client's short name to a folder in the Synchro Brain. The match dropped every character that is not a
+letter or a digit, so a short name with "&" lost it ("alpha&beta" became "alphabeta"), while the Brain
+folder spells it out ("alpha-and-beta" is "alphaandbeta"). The one active client whose short name contains
+'&' never got its voice: captions and its seeded thumbnail title prompt were written without it, and
+`client_style` said it had no Brain folder. The display-name fallback went through the same match and
+failed the same way.
+
+**What changed.**
+- `supabase/functions/caption-generate/index.ts`: just before the save (after the last cancel check) the
+  function reads the card's caption from `calendar_posts` with the service client. A caption already there
+  is kept: nothing is sent to `calendar-upsert`, and the job ends in error with "A caption was written on
+  this card while this one was being generated, so that one was kept." If the card cannot be read, nothing
+  is saved either ("...could not be checked before saving, so nothing was saved. Try again."). In both
+  cases the job row carries NO caption, because the page saves a caption it finds on an error row when its
+  own box is empty, and a tab that never saw the typed text would have put it back. An empty card (or one
+  with only spaces) is saved to as before. `calendar-upsert` is not changed and no base is sent.
+- `src/index/180-calendar-native-post-media.js.part`: before a queued job is sent, the page reads the
+  card's caption the same way the Generate button does (the box, then an unsaved edit, then the saved
+  card). If there is one, the job is dropped as cancelled with "Not generated: a caption was written on
+  this card while it waited, so that one was kept." and nothing is sent. This covers bulk Generate and
+  jobs restored after a refresh. The queue now recounts the running jobs for each card it starts, so a
+  dropped job never lets a third one run at once.
+- `supabase/functions/brain/parse.mjs` `findClientFolder`: tries the short name with "&" read as "and"
+  first, then the old form, so every match that worked still works. Shared by `brain`, `caption-generate`
+  and the Higgsfield connector (and through it `thumbnail-titles` and `thumbnail-title-prompts`).
+  `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md` has a row for it.
+
+**Guards (each failed on the old code, passes now).**
+- `qa/caption-generate/function-run.ts` (Deno, the function's own code with stand-ins; manual, not in CI):
+  a caption typed on the card while the job runs is kept, no `calendar-upsert` call, error row with no
+  caption; the same on the transcript path; a failed card read saves nothing; a blank card still gets the
+  caption. Before: `FAIL: typed while running: no calendar-upsert save for that card`. 33 checks now.
+- `test/caption-generate-browser.js` (CI, offline browser): bulk Generate on three cards, a caption typed
+  and autosaved on the waiting third: `caption-generate` is never called for it, the typed caption stays,
+  the other two still get theirs. Before: `FAIL queued: caption-generate is never called for the card that
+  got a typed caption (1 call(s))`.
+- `test/caption-generate-source.js`: the read sits after the last cancel check and before the save; both
+  refusals clear the caption; the page drops a captioned queued job before anything is sent.
+- `test/brain-parse.js`: a slug and a display name with "&" find the "-and-" folder; a folder that drops
+  the "&" or uses a dash still matches; a name without "&" does not grow an "and".
+
+**Not done, said plainly.** Nothing was deployed or run against the live backend. A caption saved in the
+few milliseconds between the function's read and its save can still be replaced; closing that needs
+`calendar-upsert` to take a caption base, and it is frozen.
+
+**Owner steps.**
+1. Merge the pull request (the page change goes live with it, through GitHub Pages).
+2. Deploy, from main's tip SHA after the merge, one run per function through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml :
+   `caption-generate`, `brain`, `higgsfield-mcp`, `thumbnail-titles`, `thumbnail-title-prompts`.
+   (`thumbnail-titles` from main also carries entry 394; 394 says it works before its migration too.)
+3. Higgsfield connector, per `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md`: one real call on the live
+   connector after the deploy. `client_style` for the client whose short name has "&" is free and is the
+   one this change touches: it should now return that client's Brain guidance, not "has no folder in the
+   Synchro Brain yet". No tool names or descriptions changed, so the connector does not need re-adding.
+4. Refresh that client's thumbnail title prompt default through the function's own seed path, not by
+   writing the table: the timer's call to `thumbnail-titles` with the body `{"action":"seed"}` instead of
+   `{"action":"tick"}`. It refreshes only the default prompts (a prompt staff saved is never touched). Then
+   open that client's "Thumbnail title prompt" in the Calendar menu: the default should now carry its Brain
+   title style.
+5. Optional live check of the first fix, on the test client `sidneylaruel` only: press Generate on an
+   empty card with a Frame.io link, type a caption on that card and click away while it runs. The card
+   keeps the typed caption and shows "...so that one was kept."

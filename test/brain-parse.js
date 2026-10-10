@@ -12,6 +12,12 @@ const fs = require('fs');
   assert.strictEqual(findClientFolder(['alpha-beta'], 'Alpha Beta'), 'alpha-beta');
   assert.strictEqual(findClientFolder(['alpha-beta'], 'nope'), null);
   assert.strictEqual(findClientFolder(['alpha-beta'], ''), null);
+  // A short name with "&": brain folders spell it "and" (OPEN_REPAIRS 395). Fictional names only.
+  assert.strictEqual(findClientFolder(['alpha-and-beta', 'gamma'], 'alpha&beta'), 'alpha-and-beta', 'a slug with & finds the folder that spells it "and"');
+  assert.strictEqual(findClientFolder(['alpha-and-beta'], 'Alpha & Beta'), 'alpha-and-beta', 'a display name with & finds it too');
+  assert.strictEqual(findClientFolder(['alphabeta'], 'alpha&beta'), 'alphabeta', 'a folder that simply drops the & still matches');
+  assert.strictEqual(findClientFolder(['alpha-beta'], 'alpha&beta'), 'alpha-beta', 'so does one with a dash for it');
+  assert.strictEqual(findClientFolder(['alpha-and-beta'], 'alphabeta'), null, 'a slug without & does not grow an "and"');
 
   const md = [
     '# Fixture: editing', '',

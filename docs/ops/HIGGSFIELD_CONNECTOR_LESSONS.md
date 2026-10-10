@@ -40,3 +40,4 @@ every time a bug reaches the team; never rewrite old rows.
 | 2026-09 | A test Canva design was picked instead of the client's real file | Selection rule did not know the naming patterns or exclude tests | 6 |
 | 2026-09-30 | Every GPT Image edit (expression fix recipe) failed | Kept sending `input_fidelity`, which the 2.5 models refuse; no live edit was made after the model switch | 1, 3 |
 | 2026-10-01 | Seedance 2.0 (and 9 other models) could not be priced, so Claude suggested switching models | Higgsfield describes their prices in new sentence shapes (per generated second, video tokens, image tokens); the connector read only one shape | 7 |
+| 2026-10-10 | `client_style` said the one client whose short name has "&" had no Synchro Brain folder, so its voice never reached thumbnail titles (or the caption writer) | Brain folders spell "&" as "and"; the folder match dropped the "&" instead, so the two names never met (found in a site check, OPEN_REPAIRS 395) | 6 |

@@ -31992,7 +31992,7 @@ should the step use that newest earlier month tab (for example within one month)
 Tests: `test/thumbnail-titles-source.js` 117 checks (week tabs with the names above, bracketed prose,
 fenced answers, empty list, the stored reason, the migration).
 
-## 395. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED] Generate caption: never overwrite a caption written while the job ran; Brain voice found for a client whose short name has '&' (session Sweep, site assurance)
+## 400. [2026-10-10, BUILT, NOT MERGED, NOT DEPLOYED] Generate caption: never overwrite a caption written while the job ran; Brain voice found for a client whose short name has '&' (session Sweep, site assurance)
 
 **What was wrong (1 of 2, silent data loss).** Since 2026-10-09 19:33 UTC every client's Generate caption
 runs on the `caption-generate` function. When its caption was ready it saved it through `calendar-upsert`

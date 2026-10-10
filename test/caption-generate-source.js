@@ -135,7 +135,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/functions\/v1\/calendar-upsert/.test(HANDLER) && /post: \{ id: job\.postId, caption: job\.caption \}/.test(HANDLER), 'the caption is saved through calendar-upsert with the n8n body');
   const runBody = HANDLER.slice(HANDLER.indexOf('async function run('), HANDLER.indexOf('addEventListener("beforeunload"'));
   ok(runBody.indexOf('checkCancel(job);') < runBody.indexOf('writeCaption(job') && runBody.lastIndexOf('checkCancel(job)') < runBody.indexOf('saveCaption(job)'), 'cancel is checked before writing and again before saving');
-  // A caption typed and saved while the job ran is kept (OPEN_REPAIRS 395): the card is read again after the last
+  // A caption typed and saved while the job ran is kept (OPEN_REPAIRS 400): the card is read again after the last
   // cancel check and before the save; a caption there, or a failed read, saves nothing and hands back no caption.
   ok(/from\("calendar_posts"\)\.select\("caption"\)\s*\.eq\("client", job\.client\)\.eq\("id", job\.postId\)\.maybeSingle\(\)/.test(HANDLER), 'the card\'s caption is read with the service client, by client and card');
   const readAt = runBody.indexOf('await savedCaption(job)');

@@ -212,7 +212,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         c.note = 'Copying the Calendar thumbnail…'; _igRenderForm();
         /* The copy belongs to this client and this card. A client change (or
            another card) while it runs retires it: before 2026-10-10 it landed
-           as the next client's Reel cover (OPEN_REPAIRS 397). */
+           as the next client's Reel cover (OPEN_REPAIRS 404). */
         const client = igState.client;
         const current = () => igState.client === client && _igCover().cardId === cardId;
         try {

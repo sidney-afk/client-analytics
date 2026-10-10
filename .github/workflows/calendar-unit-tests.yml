@@ -387,7 +387,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/tiktok-poll-backoff-browser.js
-      # Wrong client and lost work (OPEN_REPAIRS 397): a result decided its client after an await.
+      # Wrong client and lost work (OPEN_REPAIRS 404): a result decided its client after an await.
       - name: Client credentials dialog shows and edits only its own client
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

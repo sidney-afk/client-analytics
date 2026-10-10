@@ -1012,7 +1012,7 @@ import {
                        before the answer) keeps that send's request id, so a second
                        press replays the same comment instead of posting a second
                        one; the server derives the comment id from it. Only for the
-                       exact text it was minted for (OPEN_REPAIRS 397). */
+                       exact text it was minted for (OPEN_REPAIRS 404). */
                     if (kept.meta.requestId && String(kept.meta.sentBody || '') === kept.text) fresh.requestId = String(kept.meta.requestId);
                 }
                 _prodState.commentDrafts.set(id, fresh);

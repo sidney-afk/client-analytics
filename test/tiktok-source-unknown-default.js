@@ -2,7 +2,7 @@
 /*
  * REGRESSION GUARD: when the TikTok upload switch cannot be read and this
  * browser never saw an answer, uploads take the live path (the functions), not
- * the n8n webhooks that were switched off on 2026-10-08 (OPEN_REPAIRS 397,
+ * the n8n webhooks that were switched off on 2026-10-08 (OPEN_REPAIRS 404,
  * Digger bug archaeology 2026-10-10). A browser that saw a value keeps it, so
  * a rollback to n8n still holds through a failed read.
  *

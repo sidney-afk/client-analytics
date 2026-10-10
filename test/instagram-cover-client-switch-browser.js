@@ -1,7 +1,7 @@
 'use strict';
 /*
  * The Instagram form's Calendar cover belongs to the client it was picked for.
- * Found 2026-10-10 (Digger, bug archaeology, OPEN_REPAIRS 397), the shape of
+ * Found 2026-10-10 (Digger, bug archaeology, OPEN_REPAIRS 404), the shape of
  * OPEN_REPAIRS 375 (a result decided its client after an await):
  *
  *   Pick a Calendar card on client A. While "Copying the Calendar thumbnail…"

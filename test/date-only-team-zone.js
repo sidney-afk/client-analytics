@@ -1,7 +1,7 @@
 'use strict';
 /*
  * REGRESSION GUARD: date-only values read in the team's time zone (UTC-6)
- * (OPEN_REPAIRS 397, Digger bug archaeology 2026-10-10). `new Date('YYYY-MM-DD')`
+ * (OPEN_REPAIRS 404, Digger bug archaeology 2026-10-10). `new Date('YYYY-MM-DD')`
  * is UTC midnight, which is the evening before for the team. Two places shown
  * to people got that wrong:
  *

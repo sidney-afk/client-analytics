@@ -1,7 +1,7 @@
 'use strict';
 /*
  * REGRESSION GUARD: Samples Notes, Mark done / Reopen on a linked sample, has
- * the Calendar twin's guard (OPEN_REPAIRS 397, Digger bug archaeology
+ * the Calendar twin's guard (OPEN_REPAIRS 404, Digger bug archaeology
  * 2026-10-10, the "fixed on one twin only" pattern).
  *
  * Run:  node --require ./test/helpers/single-file-index.js test/samples-notes-lifecycle-busy.js

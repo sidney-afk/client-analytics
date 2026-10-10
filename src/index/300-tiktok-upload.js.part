@@ -109,7 +109,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
        switches). A read that fails keeps the last answer this browser saw,
        so a blip can never send one upload to the Sheet and the next to the
        table; a browser that never read it takes the functions, the live path
-       since 2026-10-07 (OPEN_REPAIRS 397). A read that answers with no row
+       since 2026-10-07 (OPEN_REPAIRS 404). A read that answers with no row
        still means 'n8n': the switch was never set, the world before the
        cut-over (the row exists live).
        Three answers: 'supabase' (everything through the function),
@@ -139,7 +139,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             // Nothing read and nothing saved: the functions, the live path since
             // 2026-10-07. The n8n TikTok workflows were switched off on 2026-10-08,
             // so guessing 'n8n' sent a new device's upload to a dead webhook
-            // (OPEN_REPAIRS 397). A browser that saw a rollback keeps it.
+            // (OPEN_REPAIRS 404). A browser that saw a rollback keeps it.
             value = last === 'supabase' || last === 'n8n+table' || last === 'n8n' ? last : 'supabase';
         } else {
             try { localStorage.setItem(TK_SOURCE_LAST_KEY, value); } catch {}
@@ -1876,15 +1876,16 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         return JSON.stringify([tkState.client, tkState.profile, tkState.title, tkState.options, tkState.schedule.postNow, tkState.schedule.at, tkState.schedule.tz, tkState.mediaType, files]);
     }
 
-    /* Whether a create answer leaves the post possibly made, so the next Submit
-       must reuse the same key (the function then adopts the post it finds
-       instead of making a second one). Only a success or a 4xx is a clear
-       answer. A 5xx, no JSON, and also HTTP 200 with a failed row: the
-       function stores a Post For Me timeout or 5xx as a failed row and answers
-       200, though Post For Me may have taken the post. Before 2026-10-10 that
-       answer dropped the key, so pressing Submit again could post twice; the
-       Instagram twin was corrected for the same answer on 2026-10-08
-       (OPEN_REPAIRS 384 item 2; this one is 397). */
+    // Whether a create answer leaves the post possibly made, so the next Submit
+    // must reuse the same key (the function then adopts the post it finds
+    // instead of making a second one). Only a success or a 4xx is a clear
+    // answer. A 5xx, no JSON, and also HTTP 200 with a failed row: the
+    // function stores a Post For Me timeout or 5xx as a failed row and answers
+    // 200, though Post For Me may have taken the post. Before 2026-10-10 that
+    // answer dropped the key, so pressing Submit again could post twice; the
+    // Instagram twin was corrected for the same answer on 2026-10-08
+    // (OPEN_REPAIRS 384 item 2; this one is 404). Line comments on purpose:
+    // test/comment-strip-is-honest.js measures a region of this file.
     function _tkCreateAnswerKeepsKey(out) {
         if (!out || out.ok) return false;
         return !(out.status >= 400 && out.status < 500);
@@ -1937,8 +1938,17 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             tkState.progress = 0;
             _tkRecordFailure('tiktok_upload', out.json && out.json.ok === false && out.status < 300 ? 0 : out.status);
             const err = out.json && (out.json.error || (out.json.row && out.json.row.error));
-            tkState.error = err ? `Upload failed: ${err}` : (out.status >= 200 && out.status < 300 ? 'Post For Me rejected this post. Try again.' : `Upload failed (HTTP ${out.status || 'no response'}). Try again.`);
-            if (tkState.retryCreate) tkState.error += ' Press Submit again without changing anything: it finishes this same post and cannot post it twice.';
+            const answered = out.status >= 200 && out.status < 300;
+            tkState.error = err ? `Upload failed: ${err}` : (answered ? 'Post For Me rejected this post. Try again.' : `Upload failed (HTTP ${out.status || 'no response'}). Try again.`);
+            if (tkState.retryCreate && answered) {
+                // Post For Me answered "failed": a real refusal (fix what it
+                // names), or a timeout the function stored the same way (the
+                // post may exist). The page cannot tell which, so say both.
+                tkState.error = (err ? `Upload failed: ${String(err).replace(/[\s.]+$/, '')}.` : 'Post For Me did not take this post.')
+                    + ' If that names something to change, change it and submit again. If not, press Submit again without changing anything: that finishes this same post and cannot post it twice.';
+            } else if (tkState.retryCreate) {
+                tkState.error += ' Press Submit again without changing anything: it finishes this same post and cannot post it twice.';
+            }
             _tkRenderForm();
             return;
         }

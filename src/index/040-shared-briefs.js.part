@@ -1796,7 +1796,7 @@ import {
     // UTC-6) the 1st then read as the last day of the previous month, so a 1st
     // of the month row "matched" last week's row and its just-reset monthly
     // counter was subtracted from last month's total, a large negative "This
-    // week" on the 1st of every month (OPEN_REPAIRS 397). Read the month from
+    // week" on the 1st of every month (OPEN_REPAIRS 404). Read the month from
     // the text itself.
     function _analyticsRowMonth(d){
         const m=/^(\d{4})-(\d{2})-\d{2}/.exec(String(d||'').trim());

@@ -265,6 +265,7 @@ const EXCLUDED = {
     _sxrCommentsForAction: 'Samples-only; the calendar has no _calCommentsForAction at all — same open question',
     _sxrPostLinearComment: 'the Samples transport 105.3 repaired; the calendar gates one level up, in _calAppendComment',
     _calRenderCommentsModal: 'reads gate readiness only to draw comment actions disabled while the canonical thread loads (refusal-log triage 2026-09-25, calendar-only refusals); not a write operation',
+    _sxrRenderCommentsModal: 'reads gate readiness only to draw comment actions disabled while the canonical thread loads (the Samples twin of _calRenderCommentsModal, OPEN_REPAIRS 404); not a write operation',
 };
 
 function gateCallers() {

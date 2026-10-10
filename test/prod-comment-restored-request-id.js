@@ -2,7 +2,7 @@
 /*
  * REGRESSION GUARD: a SyncLinear comment restored after the tab closed or
  * reloaded mid-send keeps that send's request id, so pressing Comment again
- * cannot post it twice (OPEN_REPAIRS 397, Digger bug archaeology 2026-10-10).
+ * cannot post it twice (OPEN_REPAIRS 404, Digger bug archaeology 2026-10-10).
  *
  * Run:  node --require ./test/helpers/single-file-index.js test/prod-comment-restored-request-id.js
  *

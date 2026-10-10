@@ -177,7 +177,7 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
     ok(mount(Object.assign(idle(), { file: { size: 1 } }), 'Beta').client === 'Alpha', 'Instagram: so does one with a video attached');
     ok(mount(Object.assign(idle(), { client: null }), 'Beta').client === 'Beta', 'Instagram: a form with no client takes the top-bar client, as before');
     const carded = mount(Object.assign(idle(), { title: 'From the card', titleFromCard: 'From the card' }), 'Beta');
-    ok(carded.client === 'Beta' && carded.title === '', 'Instagram: a caption only a Calendar card filled in does not hold the form, and leaves with the old client (OPEN_REPAIRS 397)');
+    ok(carded.client === 'Beta' && carded.title === '', 'Instagram: a caption only a Calendar card filled in does not hold the form, and leaves with the old client (OPEN_REPAIRS 404)');
   } catch (e) { ok(false, 'this block could not run: ' + String(e && e.message || e).slice(0, 120)); }
 
   finished = true;

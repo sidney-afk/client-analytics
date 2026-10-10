@@ -59,9 +59,9 @@
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 53 | `280-samples-cards-notes.js.part` | 3047 | SURFACE 3: the save engine |
-| 54 | `290-samples-writes-review.js.part` | 1975 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 55 | `299-instagram-upload.js.part` | 762 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
-| 56 | `300-tiktok-upload.js.part` | 2416 | TIKTOK UPLOAD MODULE |
+| 56 | `300-tiktok-upload.js.part` | 2426 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 791 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 59 | `320-core-kasper-subtabs.js.part` | 20 | — |

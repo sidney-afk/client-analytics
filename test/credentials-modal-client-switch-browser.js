@@ -2,7 +2,7 @@
 /*
  * The per-client credentials dialog (Calendar "..." > Client credentials) shows
  * and edits only the client it is open for. Found 2026-10-10 (Digger, bug
- * archaeology, OPEN_REPAIRS 397), same shape as the wrong-client saves of
+ * archaeology, OPEN_REPAIRS 404), same shape as the wrong-client saves of
  * OPEN_REPAIRS 375: something decided after an await which client it belonged to.
  *
  *   1. Close the dialog while client A's list is still loading and open it for

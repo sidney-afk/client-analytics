@@ -2000,7 +2000,7 @@ import {
        Mark done / Reopen still in flight) renders the actions disabled, as the
        Calendar does (PR 1642 and its busy mark). Without it a second click, or an
        Edit, Reply or Delete before the read, was refused with
-       canonical_comment_read_required (OPEN_REPAIRS 397). */
+       canonical_comment_read_required (OPEN_REPAIRS 404). */
     function _sxrCommentActionsHtml(c, isReply, threadReady = true) {
         if (c.deleted) return '';
         const wait = threadReady ? '' : ' disabled aria-disabled="true"';
@@ -2267,7 +2267,7 @@ import {
         if (canonicalGate.linked) {
             /* Same order as the Calendar twin: the card's actions stay disabled
                while this write is out, the thread is re-read and redrawn when it
-               lands, and only then does the slower notes save run (OPEN_REPAIRS 397). */
+               lands, and only then does the slower notes save run (OPEN_REPAIRS 404). */
             if (post._sxrCommentActionBusy) return;
             post._sxrCommentActionBusy = true;
             _sxrCaptureModalDrafts();

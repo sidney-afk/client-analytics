@@ -1515,21 +1515,9 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
     }
-    /* `draft` is the text he typed for this action (a note, a change request).
-       The callers empty his box before calling, so every road that ends
-       without saving puts it back -- unless he has typed something new since.
-       Before 2026-10-10 only the catch below did, and only for a change
-       request: a refused check read, someone else's change, a blocked repair
-       or a failed plain Comment lost his words from the thread and the box at
-       once (OPEN_REPAIRS 397; the Calendar twin, 330, already kept them). */
-    async function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment, afterPersist, draft) {
-        const key = pid + '|' + comp;
-        const giveBack = () => {
-            const text = String(draft == null ? (linearComment || '') : draft);
-            if (text && !String(_sxrKasperState.drafts[key] || '').trim()) _sxrKasperState.drafts[key] = text;
-        };
-        const it = _sxrKasperFindItem(pid); if (!it) { giveBack(); return; }
-        if (_sxrKasperState.saving[key]) { giveBack(); return; }
+    async function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment, afterPersist) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; if (_sxrKasperState.saving[key]) return;
         _sxrKasperState.writeGen++;
         const p = it.post;
         const cachedRepair = p._writeUiKasperRepair
@@ -1542,7 +1530,6 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                the Codex finding on the guard above (PR 1278); same fix. */
             showNotify('Reload before another action', 'A prior source repair needs receipt verification; reload before another action.');
             _writeUiQueueDiagnostic('sxr', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
-            giveBack();
             _sxrKasperRepaint(pid);
             return;
         }
@@ -1562,7 +1549,6 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             const fresh = await _sxrKasperReadFresh(it.slug, p.id);
             if (!fresh) {
                 Object.assign(p, before);
-                giveBack();
                 _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: your ' + String(COMP_LABELS[comp] || comp).toLowerCase() + ' decision could not be checked against the current card (the read failed). Nothing was changed. Reload the card and decide again.');
                 _sxrKasperState.saving[key] = false;
                 _sxrKasperRepaint(pid);
@@ -1571,7 +1557,6 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             }
             if (Object.prototype.hasOwnProperty.call(fresh, statusKey) && String(fresh[statusKey] == null ? '' : fresh[statusKey]) !== String(before[statusKey] == null ? '' : before[statusKey])) {
                 Object.assign(p, before);
-                giveBack();
                 for (const k of ['video_status', 'graphic_status', 'status', 'updated_at']) if (fresh[k] !== undefined) p[k] = fresh[k];
                 _kasperSetSaveAlert(p.id, p.name, it.client, 'conflict',
                     'Not saved: someone else changed this card after your screen loaded, so your decision was not applied (the '
@@ -1701,7 +1686,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         } catch (e) {
             if (!gatewayCommitted) {
                 Object.assign(p, before);
-                giveBack();
+                if (linearComment) _sxrKasperState.drafts[key] = linearComment;
             } else {
                 try { checkpointRepair(); } catch (checkpointError) {}
             }
@@ -1807,7 +1792,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: false, audience: 'internal', body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
             _sxrSetCommentsFor(p, comp, list);
             return { [comp + '_tweaks']: _sxrStringifyComments(list) };
-        }, undefined, undefined, body);
+        });
     }
     // "Finish reviewing" — explicit hand-off. Guard: every component decided.
     // Clean approve-all → Approved history; any change request → stamped finished

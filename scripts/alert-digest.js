@@ -153,7 +153,7 @@ function workflowCron(file) {
 }
 
 /*
- * The runs that say something about production health, newest first (OPEN_REPAIRS 397).
+ * The runs that say something about production health, newest first (OPEN_REPAIRS 403).
  *
  * Since 2026-10-09 the database timer starts each of these workflows on time through
  * workflow_dispatch, and names that run "<workflow> (db-timer)". Those are production

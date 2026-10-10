@@ -382,6 +382,7 @@
     "monitoring-watchdog.js",
     "monitoring-watchdog-tick.js",
     "github-dispatch-timer.js",
+    "schedule-fallback-guard.js",
     "n8n-execution-quota-watchdog.js",
     "n8n-native-urgent-draft.js",
     "native-assignee-catalog-dryrun.js",

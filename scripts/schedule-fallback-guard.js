@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * THE GITHUB SCHEDULE COPY RUNS ONLY WHEN THE DATABASE TIMER MISSED (OPEN_REPAIRS 397).
+ * THE GITHUB SCHEDULE COPY RUNS ONLY WHEN THE DATABASE TIMER MISSED (OPEN_REPAIRS 403).
  *
  * Since 2026-10-09 the database timer (pg_cron through pg_net,
  * migrations/2026-10-09-github-workflow-dispatch-timer.sql) starts every
@@ -36,17 +36,25 @@
  * A cancelled timer run does not count: when the copy replaced it in a
  * concurrency group, the copy has to do the work.
  *
- * THE WINDOW. Let S1 be the newest cron slot at or before the copy was created.
- * The timer's run for S1 normally exists a few seconds after S1, so the copy
- * looks for a timer run created from S1 (two minutes early, for clock skew)
- * up to its own creation. When the copy was created less than five minutes
- * after S1 the timer may not have dispatched S1 yet, so the slot before it
- * also counts. The first slot the timer misses therefore lets the next copy
- * run; a fixed "1.5 x cadence" window would have stood a daily copy down for a
- * whole day after the timer died.
+ * THE WINDOW. Let S be the newest cron slot at or before the copy was created.
+ * Only the timer's run for S counts, never the run for the slot before it: a
+ * run created from S (two minutes early, for clock skew) up to the later of
+ * the copy's own creation and S + five minutes. The timer's run normally
+ * exists a few seconds after S. When the copy arrives less than five minutes
+ * after S and finds no run yet, the guard waits until S + five minutes (never
+ * longer than five minutes) and looks once more, for S only. An earlier
+ * version let the slot before S count inside those five minutes, so a timer
+ * that died between two slots lost a whole run whenever GitHub delivered
+ * promptly: yesterday's 08:00 timer run "covered" today's 08:03 copy, Friday's
+ * dawn check covered Monday's, the previous backup covered the next. A fixed
+ * "1.5 x cadence" window would have done the same for a whole day.
  *
- * FAIL OPEN. Any doubt (an unreadable cron, an API error, no slot found) means
- * run=true: the copy behaves as it did before this guard existed.
+ * FAIL OPEN. Any doubt (an unreadable cron, an API error or timeout, no slot
+ * found, a wait that fails) means run=true: the copy behaves as it did before
+ * this guard existed. Each API call gives up after 30 seconds and the wait is
+ * capped, so the guard job always ends well inside its timeout; a guard job
+ * that timed out would skip the caller's jobs, which is the one way to fail
+ * closed.
  *
  * PUBLIC SAFETY. Prints run numbers, times and a reason code only.
  */
@@ -55,6 +63,7 @@ const DUE_GRACE_MINUTES = 5;
 const EARLY_TOLERANCE_MINUTES = 2;
 const LOOKBACK_MINUTES = 35 * 24 * 60;
 const MINUTE = 60000;
+const REQUEST_TIMEOUT_MS = 30000;
 
 const TIMER_TITLE = /\((db-timer|workflow_dispatch)\)$/;
 const DB_TIMER_TITLE = /\(db-timer\)$/;
@@ -125,19 +134,15 @@ function latestSlot(cron, atMs) {
 }
 
 /**
- * The earliest creation time a timer run may have and still cover a copy
- * created at `atMs`. Null when no slot can be found (the caller then runs).
+ * When a timer run must have been created to cover a copy created at `atMs`:
+ * for the newest slot that was due, and only that slot (see THE WINDOW). Null
+ * when no slot can be found (the caller then runs).
  */
 function coverWindow(cron, atMs) {
   const parsed = typeof cron === 'string' ? parseCron(cron) : cron;
-  const s1 = latestSlot(parsed, atMs);
-  if (s1 == null) return null;
-  let slot = s1;
-  if (atMs - s1 < DUE_GRACE_MINUTES * MINUTE) {
-    const s0 = latestSlot(parsed, s1 - MINUTE);
-    if (s0 != null) slot = s0;
-  }
-  return { slot, latest_slot: s1, from: slot - EARLY_TOLERANCE_MINUTES * MINUTE, to: atMs };
+  const slot = latestSlot(parsed, atMs);
+  if (slot == null) return null;
+  return { slot, from: slot - EARLY_TOLERANCE_MINUTES * MINUTE, to: Math.max(atMs, slot + DUE_GRACE_MINUTES * MINUTE) };
 }
 
 // ------------------------------------------------------------------ runs
@@ -202,13 +207,21 @@ function workflowCrons(source) {
 async function getJson(url, token, fetchImpl) {
   const response = await fetchImpl(url, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`github_http_${response.status}`);
   return response.json();
 }
 
-/** The decision for this run. Never throws: any error means run=true. */
-async function decide({ env = process.env, fetchImpl = fetch } = {}) {
+function pause(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * The decision for this run. Never throws: any error means run=true. `now` and
+ * `sleep` are the clock and the wait, replaceable in tests.
+ */
+async function decide({ env = process.env, fetchImpl = fetch, now = Date.now, sleep = pause } = {}) {
   if (clean(env.GITHUB_EVENT_NAME) !== 'schedule') return { run: true, reason: 'not_schedule' };
   try {
     const cron = clean(env.SCHEDULE_CRON);
@@ -224,10 +237,21 @@ async function decide({ env = process.env, fetchImpl = fetch } = {}) {
     // window is listed, so the answer stays a few runs even for a 5-minute lane.
     const second = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
     const range = encodeURIComponent(`${second(window.from)}..${second(window.to)}`);
-    const list = await getJson(
-      `${api}/actions/workflows/${encodeURIComponent(String(own.workflow_id))}/runs?event=workflow_dispatch&created=${range}&per_page=100&exclude_pull_requests=true`,
-      token, fetchImpl);
-    const verdict = timerCovered({ cron, runs: list.workflow_runs, atMs, branch: clean(own.head_branch) });
+    const check = async () => {
+      const list = await getJson(
+        `${api}/actions/workflows/${encodeURIComponent(String(own.workflow_id))}/runs?event=workflow_dispatch&created=${range}&per_page=100&exclude_pull_requests=true`,
+        token, fetchImpl);
+      return timerCovered({ cron, runs: list.workflow_runs, atMs, branch: clean(own.head_branch) });
+    };
+    let verdict = await check();
+    // A copy that arrived less than five minutes after its slot may be ahead of
+    // the timer. Wait until slot + five minutes (capped, whatever the clocks
+    // say) and look once more, for this slot only.
+    const waitMs = Math.min(window.to - now(), DUE_GRACE_MINUTES * MINUTE);
+    if (!verdict.covered && waitMs > 0) {
+      await sleep(waitMs);
+      verdict = { ...(await check()), waited_ms: waitMs };
+    }
     return { run: !verdict.covered, ...verdict };
   } catch (error) {
     return { run: true, reason: 'guard_error', error: clean(error && error.message).replace(/[^a-z0-9_]/gi, '_').slice(0, 60) };
@@ -251,6 +275,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  DUE_GRACE_MINUTES, EARLY_TOLERANCE_MINUTES,
+  DUE_GRACE_MINUTES, EARLY_TOLERANCE_MINUTES, REQUEST_TIMEOUT_MS,
   countsAsTimerRun, coverWindow, cronMatches, decide, isDbTimerRun, latestSlot, parseCron, runTitle, timerCovered, workflowCrons,
 };

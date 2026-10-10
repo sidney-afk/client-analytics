@@ -24,7 +24,7 @@ on:
 
 jobs:
   schedule-guard:
-    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).
     uses: ./.github/workflows/schedule-fallback-guard.yml
     permissions:
       actions: read
@@ -34,7 +34,7 @@ jobs:
     needs: schedule-guard
     if: needs.schedule-guard.outputs.run == 'true'
     # One browser run on the test client at a time: the Samples and Calendar
-    # nightlies and the dawn check share this queue (OPEN_REPAIRS 397).
+    # nightlies and the dawn check share this queue (OPEN_REPAIRS 403).
     concurrency:
       group: test-client-e2e
       cancel-in-progress: false

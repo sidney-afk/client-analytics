@@ -703,7 +703,7 @@ export async function runCheck(io) {
 }
 
 /*
- * OUTCOME CENSUS: THUMBNAIL TITLES (OPEN_REPAIRS 397).
+ * OUTCOME CENSUS: THUMBNAIL TITLES (OPEN_REPAIRS 403).
  *
  * The per-minute pg_cron job `thumbnail-titles-tick`
  * (migrations/2026-10-09-thumbnail-titles.sql) calls the thumbnail-titles

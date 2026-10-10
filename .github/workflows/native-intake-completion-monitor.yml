@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   schedule-guard:
-    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).
     uses: ./.github/workflows/schedule-fallback-guard.yml
     permissions:
       actions: read

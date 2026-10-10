@@ -198,7 +198,7 @@ for (const row of rows) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. THE SCHEDULE COPY IS A REAL FALLBACK (OPEN_REPAIRS 397).
+// 5. THE SCHEDULE COPY IS A REAL FALLBACK (OPEN_REPAIRS 403).
 //
 // The `schedule:` blocks were kept "as a fallback", but GitHub kept delivering
 // them, hours late, so every dispatched job ran twice: on 2026-10-10 the
@@ -220,7 +220,7 @@ const RUN_NAME_SOURCE = 'run-name: ${{ github.workflow }} (${{ inputs.source || 
 const RUN_NAME_PLAIN = 'run-name: ${{ github.workflow }} (${{ github.event_name }})';
 const GUARD_JOB = [
   '  schedule-guard:',
-  '    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).',
+  '    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).',
   '    uses: ./.github/workflows/schedule-fallback-guard.yml',
   '    permissions:',
   '      actions: read',
@@ -343,8 +343,10 @@ ok(/^ {2}group: production-polish-\$\{\{ github\.ref \}\}-\$\{\{ github\.event_n
     runs: [run(4, 'Samples E2E (nightly) (db-timer)', '2026-10-10T06:00:02Z', { head_branch: 'feature' })], branch: 'main' }).covered,
   'a timer-looking run on another branch does not count');
   ok(guard.timerCovered({ cron: '*/5 * * * *', atMs: at('2026-10-10T12:03:00Z'),
-    runs: [run(5, 'Native notification sender (workflow_dispatch)', '2026-10-10T11:55:02Z')] }).covered,
-  'a no-input workflow: any dispatched run is the timer\'s run; within five minutes of a slot the slot before still counts');
+    runs: [run(5, 'Native notification sender (workflow_dispatch)', '2026-10-10T12:00:02Z')] }).covered
+    && !guard.timerCovered({ cron: '*/5 * * * *', atMs: at('2026-10-10T12:03:00Z'),
+      runs: [run(5, 'Native notification sender (workflow_dispatch)', '2026-10-10T11:55:02Z')] }).covered,
+  'a no-input workflow: any dispatched run is the timer\'s run, but only for this slot; within five minutes of a slot the slot before never counts');
   ok(!guard.timerCovered({ cron: '*/5 * * * *', atMs: at('2026-10-10T12:03:00Z'),
     runs: [run(6, 'Native notification sender (workflow_dispatch)', '2026-10-10T11:50:02Z')] }).covered,
   'two missed 5-minute slots: the copy runs');
@@ -370,11 +372,14 @@ ok(/^ {2}group: production-polish-\$\{\{ github\.ref \}\}-\$\{\{ github\.event_n
     return { ok: true, json: async () => ({ workflow_runs: runs }) };
   };
   const timerRun = { id: 1, event: 'workflow_dispatch', display_title: 'X (db-timer)', created_at: '2026-10-10T06:00:02Z', head_branch: 'main', conclusion: 'success' };
-  const stand = await guard.decide({ env, fetchImpl: fakeFetch([timerRun]) });
+  // The clock is pinned and any wait is refused: a copy six hours late never waits.
+  const clock = { now: () => Date.parse('2026-10-10T12:18:05Z'), sleep: async () => { throw new Error('no wait expected'); } };
+  const stand = await guard.decide({ env, fetchImpl: fakeFetch([timerRun]), ...clock });
   ok(stand.run === false && stand.reason === 'timer_ran', 'decide: a schedule copy whose slot the timer ran stands down');
   ok(urls.some(u => /\/actions\/workflows\/7\/runs\?event=workflow_dispatch&created=2026-10-10T05%3A58%3A00Z\.\.2026-10-10T12%3A18%3A02Z&/.test(u)),
     'decide: it lists only this workflow\'s dispatched runs between the slot and the copy');
-  ok((await guard.decide({ env, fetchImpl: fakeFetch([]) })).run === true, 'decide: no timer run, the copy runs');
+  const missed = await guard.decide({ env, fetchImpl: fakeFetch([]), ...clock });
+  ok(missed.run === true && missed.reason === 'timer_missed', 'decide: no timer run, the copy runs (at once: it is hours past its slot)');
   ok((await guard.decide({ env: { ...env, GITHUB_EVENT_NAME: 'workflow_dispatch' }, fetchImpl: async () => { throw new Error('no call'); } })).run === true,
     'decide: anything but a schedule run goes ahead without a call');
   const broken = await guard.decide({ env, fetchImpl: async () => ({ ok: false, status: 502 }) });

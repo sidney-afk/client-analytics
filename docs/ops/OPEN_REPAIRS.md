@@ -32140,7 +32140,7 @@ service_role;` so the old function can write again. Then revert this change to
 `transactional-writes-v1`, and dispatch the PTO lane as in step 4. Dropping v2 afterwards is optional
 (`drop function if exists public.pto_set_member_start_v2(uuid, date, boolean, bigint, text);`).
 
-## 397. [2026-10-10, BUILT, NOT MERGED] Scheduled jobs: the GitHub copy runs only when the timer missed, the combined message sees timer runs, and the thumbnail titles timer is watched (session Sweep, site assurance)
+## 403. [2026-10-10, BUILT, NOT MERGED] Scheduled jobs: the GitHub copy runs only when the timer missed, the combined message sees timer runs, and the thumbnail titles timer is watched (session Sweep, site assurance)
 
 Three findings about the 2026-10-09 move of every scheduled job onto Supabase's timer (OPEN_REPAIRS 390,
 PR 2019), each confirmed by two independent read-only checks on 2026-10-10.
@@ -32178,8 +32178,16 @@ keeping responses about 6 hours. Healthy today: 0 items stuck, 0 never queued.
    six lines in each). On a GitHub schedule run it asks (with `scripts/schedule-fallback-guard.js`)
    whether the timer already started the same workflow for the newest slot of its cron that was due; if so,
    every other job is skipped and nothing runs, pages or writes. If the timer missed the slot (or the
-   question cannot be answered) the copy runs exactly as before, so a dead timer still falls back: the
-   first missed slot lets the next copy run. Any other event (timer, manual, push, pull request) goes
+   question cannot be answered) the copy runs exactly as before, so a dead timer still falls back from
+   the first slot it misses. Only the timer's run for the newest due slot counts, never the slot before
+   it: a copy that arrives less than five minutes after its slot and finds no timer run yet waits until
+   slot + five minutes (never longer), looks once more for that slot only, and runs if it is still
+   missing. (The first version of this pull request let the slot before count inside those five minutes,
+   so a timer that died between two slots lost a whole run whenever GitHub delivered promptly: yesterday's
+   08:00 Calendar nightly would have covered today's 08:03 copy, Friday's dawn check Monday's, one backup
+   the next. Found in review.) Each API call gives up after 30 seconds and the guard job's limit is 12
+   minutes, so the wait can never time the guard out, which would skip the job. Any other event (timer,
+   manual, push, pull request) goes
    straight through. To tell runs apart, each workflow now names its runs: "(db-timer)" for the timer in
    the eight workflows with a `source` input, "(workflow_dispatch)" for any dispatch of the nine with no
    inputs (the timer sends them none, so a timer run and a manual one are the same run).
@@ -32218,6 +32226,13 @@ keeping responses about 6 hours. Healthy today: 0 items stuck, 0 never queued.
   on the measured runs (Samples 06:00 vs 12:18, backup 18:23 vs 22:45, a dead timer, a manual run, a
   cancelled run, Monday vs Friday for the dawn check) and its fail-open paths. On main: 59 failures with
   the guard script present, a load failure without it.
+- `test/schedule-fallback-guard.js`: a prompt copy is never covered by the slot before (daily 08:00:
+  yesterday vs 08:03 today; dawn check: Friday vs Monday 11:33; backup: 06:23 vs 12:25), both in the check
+  and in the guard job, which waits once until slot + five minutes and then runs the copy; a slow timer's
+  run found after the wait stands the copy down; a late copy never waits; the wait is capped whatever the
+  runner's clock says; a failed second look, a failed wait or a timed-out call runs the copy; the job's
+  time limit covers the worst case. Against the first version of the guard: 20 of 29 checks fail,
+  among them the check and the guard job decision for each of the three scenarios.
 - `test/alert-digest.js`: a failed timer run newest beside an older schedule success is red; a fresh timer
   success beside an 8-hour-old schedule success is not stale; a manual green run cannot hide a failed timer
   run; a stood-down copy cannot hide the timer's failure; the reader keeps every event. On main: 5 failures.

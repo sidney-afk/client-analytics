@@ -1,7 +1,7 @@
 name: Schedule fallback guard
 
 # Called as the first job of every workflow the database timer dispatches
-# (migrations/2026-10-09-github-workflow-dispatch-timer.sql, OPEN_REPAIRS 397).
+# (migrations/2026-10-09-github-workflow-dispatch-timer.sql, OPEN_REPAIRS 403).
 #
 # The timer starts those workflows on time through workflow_dispatch. They keep
 # their own `schedule:` block as a fallback, and GitHub still delivers it, hours
@@ -22,7 +22,11 @@ on:
 jobs:
   decide:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # A copy that arrives within five minutes of its slot waits up to five
+    # minutes for the timer's run, and each API call gives up after 30 seconds.
+    # A guard job that timed out would skip the caller's jobs (fail closed), so
+    # this stays well above that worst case.
+    timeout-minutes: 12
     permissions:
       actions: read
       contents: read

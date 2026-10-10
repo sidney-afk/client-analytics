@@ -117,7 +117,7 @@ const manualRed = digest.workflowProblems({ runsByFile: { 'track-b-backup.yml': 
   { id: 1, event: 'schedule', status: 'completed', conclusion: 'success', updated_at: '2026-10-02T16:00:00Z' }] }, nowMs: NOW, sources: digest.WORKFLOW_SOURCES.filter(s => s.key === 'backup') });
 ok(manualRed.length === 0, 'a manual red test run is not a production incident');
 
-// --- the database timer's runs are production runs too (OPEN_REPAIRS 397)
+// --- the database timer's runs are production runs too (OPEN_REPAIRS 403)
 // Since 2026-10-09 the on-time run of every judged workflow is a workflow_dispatch
 // the database timer starts, titled "... (db-timer)". The digest used to read
 // event=schedule only, so it judged health from GitHub's late copies alone.

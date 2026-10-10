@@ -233,7 +233,7 @@ const allFresh = Object.fromEntries(WATCHED.map(lane => [lane.key, 1]));
   }
 
   // -------------------------------------------------------------------------
-  // 4b. The thumbnail titles census (OPEN_REPAIRS 397).
+  // 4b. The thumbnail titles census (OPEN_REPAIRS 403).
   //
   // The per-minute thumbnail-titles timer records "succeeded" whatever the
   // function answers, and nothing read its queue, so a 401, a 500 or a missing

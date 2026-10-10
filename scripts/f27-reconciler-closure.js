@@ -376,7 +376,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // Hashes from `git show HEAD:<path> | sha256sum` on the committed files.
   'supabase/functions/_shared/monitoring-alert-relay-core.mjs':
     'bb849ff825b1445f780167038af50b03617a85da76a14f1f692fcb2897e95edf',
-  // Re-pinned 2026-10-10 (OPEN_REPAIRS 397): the --check pass gained the
+  // Re-pinned 2026-10-10 (OPEN_REPAIRS 403): the --check pass gained the
   // counts-only thumbnail titles census (reads the switch, the title queue and
   // recent empty thumbnails; pages and latches under its own event action; never
   // fails the pass). Still read/alert only: no import, command, entrypoint,
@@ -384,7 +384,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // unchanged. Hash from `git show HEAD:<path> | sha256sum` on the committed
   // file, never typed by hand. (Previous pin: d6068810...)
   'supabase/functions/_shared/monitoring-watchdog-core.mjs':
-    'be908761a6e20e2d2bf742e9842346a4e458a0a9ac974af2cfddad67ffc1009e',
+    '093d48485ca759c7573cbd79739baab04809e7585296ade7f76432fa8d03964e',
 });
 const HASH_ALGORITHM =
   'sha256(path-byte-length:path\\ncontent-byte-length:raw-git-blob-bytes\\n) over sorted paths';

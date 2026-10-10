@@ -23,14 +23,14 @@ on:
 concurrency:
   # One group per event: the late GitHub schedule copy used to land in the
   # group of the run the database timer had started and cancel it
-  # (OPEN_REPAIRS 397). Pushes to main still replace each other, and so do
+  # (OPEN_REPAIRS 403). Pushes to main still replace each other, and so do
   # the pushes of one pull request.
   group: production-polish-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   schedule-guard:
-    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 397).
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).
     uses: ./.github/workflows/schedule-fallback-guard.yml
     permissions:
       actions: read

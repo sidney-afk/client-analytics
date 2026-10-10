@@ -50,7 +50,11 @@ jobs:
           CURRENT_SHA: ${{ github.sha }}
           MIGRATION_READBACK_CONFIRMED: ${{ inputs.migration_readback_confirmed }}
           SCHEMA_CONTRACT: ${{ vars.PTO_SCHEMA_CONTRACT }}
-          REQUIRED_SCHEMA_CONTRACT: transactional-writes-v1
+          # member-setup-audit-v1: the function calls pto_set_member_start_v2
+          # (migrations/2026-10-10-pto-member-setup-audit.sql, OPEN_REPAIRS 399).
+          # Set the repository variable to this value only after that migration
+          # is applied and read back. It supersedes transactional-writes-v1.
+          REQUIRED_SCHEMA_CONTRACT: member-setup-audit-v1
         run: |
           should_deploy=true
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then

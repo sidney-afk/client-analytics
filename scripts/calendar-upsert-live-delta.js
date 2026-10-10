@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * calendar-upsert: the ONE-LINE live delta for the auto-posted timer (OPEN_REPAIRS 395).
+ * calendar-upsert: the ONE-LINE live delta for the auto-posted timer (OPEN_REPAIRS 402).
  *
  * calendar-upsert is frozen: the repo's index.ts is NOT what runs (it re-applies the client-link
  * gate, see its header). A change ships as "the exact live source plus the delta". This script is
@@ -23,7 +23,7 @@
  *      authorizeBrowserWrite (that is the repo's gated source, which 401s every client link), the
  *      anchor line is not there exactly once, or <out-dir> is inside this repository (the output
  *      must never sit where it could be committed or deployed as repo source). Prints the after-hash.
- *      For v83 the after-hash is 959a4fb3ce44082496976f839cd1b0614f8fd04e96fe7a3e582ac6be07672fad.
+ *      For v83 the after-hash is 7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843.
  *   3. Deploy exactly those files with Supabase MCP deploy_edge_function: name calendar-upsert, the
  *      same file names and entrypoint as the live JSON, and verify_jwt: false (EXPLICITLY false; the
  *      live function has always run with JWT checking off, and turning it on refuses client links).
@@ -41,7 +41,7 @@ const crypto = require('node:crypto');
 
 const ANCHOR = '  const source = rawSource === "linear" || rawSource === "reconcile" ? rawSource : "ui";';
 const PATCHED = '  const source = rawSource === "linear" || rawSource === "reconcile" || rawSource === "auto-posted" ? rawSource : "ui";';
-const NOTE = '  // "auto-posted": the calendar-auto-posted timer (OPEN_REPAIRS 395). Live delta, scripts/calendar-upsert-live-delta.js.';
+const NOTE = '  // "auto-posted": the calendar-auto-posted timer (OPEN_REPAIRS 402). Live delta, scripts/calendar-upsert-live-delta.js.';
 
 function applyDelta(source) {
   const text = String(source);

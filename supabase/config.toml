@@ -60,7 +60,7 @@ verify_jwt = false
 [functions.caption-prompts-save]
 verify_jwt = false
 
-# Calendar auto-posted (OPEN_REPAIRS 395). Called only by the pg_cron timer with the
+# Calendar auto-posted (OPEN_REPAIRS 402). Called only by the pg_cron timer with the
 # x-calendar-auto-posted-key header (Vault calendar_auto_posted_key), checked by the database.
 [functions.calendar-auto-posted]
 verify_jwt = false

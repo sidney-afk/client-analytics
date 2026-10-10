@@ -2,7 +2,7 @@
 //
 // Turns a Calendar post from "Scheduled" to "Posted" once its scheduled day has
 // ended in US Eastern time (rule, path and history in ./logic.mjs; OPEN_REPAIRS
-// 395). Called only by the pg_cron job calendar-auto-posted-tick every 15
+// 402). Called only by the pg_cron job calendar-auto-posted-tick every 15
 // minutes (migrations/2026-10-10-calendar-auto-posted.sql), never by a browser.
 //
 // Off unless the runtime flag calendar_auto_posted lists the client ("*" = all);
@@ -33,7 +33,7 @@
 //                                  Production history names this person.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { ACTOR_LABEL, CARD_FIELDS, DEFAULT_LIMIT, requestIdFor, runTick, SOURCE } from "./logic.mjs";
+import { ACTOR_LABEL, actorMatches, CARD_FIELDS, DEFAULT_LIMIT, requestIdFor, runTick, SOURCE } from "./logic.mjs";
 
 type Json = Record<string, unknown>;
 
@@ -123,6 +123,16 @@ function deps(db: SupabaseClient, url: string, anonKey: string, adminKey: string
       if (error || !Array.isArray(data)) throw new Error("history_read_failed");
       return data.length > 0;
     },
+    claim: async (client: string, id: string, version: string) => {
+      const { data, error } = await db.rpc("calendar_auto_posted_claim", { p_client: client, p_post_id: id, p_card_version: version });
+      if (error) throw new Error("claim_failed");
+      return data === true;
+    },
+    release: async (client: string, id: string) => {
+      const { error } = await db.rpc("calendar_auto_posted_release", { p_client: client, p_post_id: id });
+      if (error) throw new Error("release_failed");
+      return true;
+    },
     halt: async (reason: string) => {
       const { error } = await db.rpc("calendar_auto_posted_halt", { p_reason: reason });
       return { ok: !error };
@@ -158,7 +168,18 @@ Deno.serve(async (req) => {
   const missing = [!anonKey && "SUPABASE_ANON_KEY", !adminKey && "ROLE_KEY_ADMIN", !actor && "CALENDAR_AUTO_POSTED_ACTOR"].filter(Boolean);
 
   if (action === "ping") {
-    return json({ ok: true, pong: "calendar-auto-posted", ready: missing.length === 0, missing });
+    // The gateway accepts only a roster member, so a wrong name would show only
+    // at the first live tick; check it here. Counts only, never a name.
+    let actorMatchesAdmins = 0;
+    let rosterRead = true;
+    if (actor) {
+      const { data, error } = await db.from("team_members").select("name,role,active").eq("active", true);
+      if (error || !Array.isArray(data)) rosterRead = false;
+      else actorMatchesAdmins = actorMatches(actor, data as Json[]);
+    }
+    const actorOk = rosterRead && actorMatchesAdmins === 1;
+    if (actor && !actorOk) missing.push(rosterRead ? "CALENDAR_AUTO_POSTED_ACTOR (must match exactly one active admin)" : "roster_unreadable");
+    return json({ ok: true, pong: "calendar-auto-posted", ready: missing.length === 0, missing, actor_matches_active_admins: actorMatchesAdmins });
   }
   if (action !== "tick" && action !== "dry_run") return json({ ok: false, error: "unknown action" }, 400);
   if (action === "tick" && missing.length) return json({ ok: false, error: "not_configured", missing }, 500);

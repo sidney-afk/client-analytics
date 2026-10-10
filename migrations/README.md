@@ -59,7 +59,8 @@ executes these files (see `README.md` › Repository layout).
 
 - **`2026-10-10-calendar-auto-posted.sql`** is source-only until Lighthouse applies it, after
   the `calendar-auto-posted` function and the one-line `calendar-upsert` live delta are deployed
-  (OPEN_REPAIRS 395). It adds the `calendar_auto_posted` switch (off), a read-only due list,
+  (OPEN_REPAIRS 402). It adds the `calendar_auto_posted` switch (off), the job's own record of the cards it moved
+  (`calendar_auto_posted_moves`, written only through two service-role functions), a read-only due list,
   the key check and the 15-minute timer, and refuses to run until the Vault secret
   `calendar_auto_posted_key` exists. It writes no status: the function flips posts through
   `production-write` and `calendar-upsert`. `test/calendar-auto-posted.js` measures it.
@@ -81,6 +82,18 @@ executes these files (see `README.md` › Repository layout).
   `thumbnail_title_queue.last_error`, so an item that ends `generation_failed` says why. Apply it
   BEFORE deploying the matching `thumbnail-titles`; the function falls back to the old four-argument
   call if it is deployed first. Revokes from all four roles.
+
+- **`2026-10-10-pto-member-setup-audit.sql`** and
+  **`2026-10-10-pto-member-setup-audit-step2-revoke-v1.sql`** are source-only until the owner
+  applies them (OPEN_REPAIRS 399). The first adds `pto_member_events`, an append-only record of PTO
+  Member setup (who created a profile or changed its start date or PTO switch, before, after,
+  when), and `pto_set_member_start_v2`, which keeps v1's checks, refuses a blank actor and writes
+  the record in the same transaction. RLS on, no policies, every privilege revoked from all four
+  roles, then SELECT on the table and EXECUTE on v2 for `service_role` only; nobody may insert,
+  update or delete a record directly. Apply it BEFORE deploying `pto` (the lane's latch is now
+  `member-setup-audit-v1`); the new function refuses with a 503 rather than fall back to v1. The
+  step-2 file revokes v1 from all four roles and is applied only AFTER that deploy.
+  `test/pto-member-setup-audit.js` measures both on a disposable PostgreSQL 16.
 
 - **`2026-10-09-thumbnail-titles.sql`** is APPLIED (session Sorter, 2026-10-09,
   OPEN_REPAIRS 391, with the backfill counter's variable rename the file now

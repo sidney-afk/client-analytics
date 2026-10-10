@@ -1,6 +1,6 @@
 'use strict';
 /*
- * calendar-auto-posted (OPEN_REPAIRS 395): a Scheduled Calendar post turns Posted by itself once
+ * calendar-auto-posted (OPEN_REPAIRS 402): a Scheduled Calendar post turns Posted by itself once
  * its scheduled day has ended in US Eastern time, through the same server calls a click makes.
  *
  *   1. Offline: the overall-status rule equals the page's own functions over every triple of a
@@ -141,8 +141,9 @@ function grabLine(source, re) {
       pushWorkItem: async (push, ctx) => {
         calls.push(['push', ctx.id, push.component, push.expected_status]);
         if (opts.refusePush) return { ok: false, error: 'write_conflict' };
-        const c = cards.get(ctx.id);           // the bridge, in the same step
+        const c = cards.get(ctx.id);           // the bridge, in the same step: part AND overall
         c[push.component + '_status'] = 'Posted';
+        c.status = L.overallStatus(c);
         c.updated_at = new Date(clock).toISOString();
         return { ok: true };
       },
@@ -159,6 +160,16 @@ function grabLine(source, re) {
       },
       sourceOf: async () => opts.source || 'auto-posted',
       movedBefore: async (_client, id) => (opts.movedBefore || []).includes(id),
+      claims: opts.claims || new Map((opts.claimedBefore || []).map(id => [id, 'moved'])),
+      claim: async function (_client, id) {
+        calls.push(['claim', id]);
+        if (opts.claimFails) throw new Error('down');
+        const was = this.claims.get(id);
+        if (was && was !== 'incomplete') return false;
+        this.claims.set(id, 'moved');
+        return true;
+      },
+      release: async function (_client, id) { calls.push(['release', id]); if (this.claims.get(id) === 'moved') this.claims.set(id, 'incomplete'); return true; },
       halt: async (reason) => { calls.push(['halt', reason]); return { ok: !opts.haltFails }; },
     };
   }
@@ -166,9 +177,9 @@ function grabLine(source, re) {
     const f = fakes([card()]);
     const r = await L.runTick(f, {});
     const order = f.calls.map(c => c[0]).join();
-    ok('run: card re-checked, work items moved, card re-read, then saved', order === 'read,push,push,read,save');
+    ok('run: card re-checked, claimed in the job\'s own record, work items moved, card re-read, then saved', order === 'read,claim,push,push,read,save');
     ok('run: the card save uses the card change time read AFTER the pushes',
-      f.calls[4][3] === f.cards.get('p_test_1').updated_at && f.calls[4][3] !== OLD);
+      f.calls[5][3] === f.cards.get('p_test_1').updated_at && f.calls[5][3] !== OLD);
     ok('run: card ends Posted with every part Posted', f.cards.get('p_test_1').status === 'Posted'
       && ['video', 'graphic', 'caption'].every(c => f.cards.get('p_test_1')[c + '_status'] === 'Posted'));
     ok('run: counted, ids only', r.ok && r.flipped === 1 && r.flipped_ids.join() === 'p_test_1' && !JSON.stringify(r).includes('test-client-a'));
@@ -213,6 +224,59 @@ function grabLine(source, re) {
     ok('run: a failed halt write is reported, never hidden', r.ok === false && r.halted === false && r.halt_failed === true);
   }
   {
+    // The shape Lighthouse reproduced: video N/A, caption N/A, thumbnail Scheduled with a work item.
+    // The bridge finishes the whole card, the Calendar save is empty and skipped, so NO
+    // "auto-posted" history row is ever written. Only the job's own record protects the undo.
+    const thumbOnly = card({ id: 'p_thumb', video_status: 'N/A', caption_status: 'N/A', video_deliverable_id: '' });
+    const claims = new Map();
+    const f1 = fakes([thumbOnly], { claims });
+    const r1 = await L.runTick(f1, {});
+    ok('thumbnail-only: moved once by the bridge alone (no Calendar save, so no history row)',
+      r1.flipped === 1 && !f1.calls.some(c => c[0] === 'save') && f1.cards.get('p_thumb').status === 'Posted' && claims.get('p_thumb') === 'moved');
+    // A person sets it back to Scheduled; an hour later the due list (if it ever offered it) runs again.
+    const undone = card({ id: 'p_thumb', video_status: 'N/A', caption_status: 'N/A', video_deliverable_id: '' });
+    const f2 = fakes([undone], { claims });
+    const r2 = await L.runTick(f2, {});
+    ok('thumbnail-only: after a person sets it back, the next tick leaves it alone',
+      r2.flipped === 0 && r2.skipped.already_auto_posted === 1 && !f2.calls.some(c => c[0] === 'push' || c[0] === 'save')
+      && f2.cards.get('p_thumb').status === 'Scheduled');
+  }
+  {
+    const claims = new Map();
+    const f = fakes([card()], { refusePush: true, claims });
+    await L.runTick(f, {});
+    ok('a refused first work item hands the claim back (card not Posted), so a later tick may try again',
+      claims.get('p_test_1') === 'incomplete' && f.calls.some(c => c[0] === 'release'));
+    const f2 = fakes([card()], { claims });
+    const r2 = await L.runTick(f2, {});
+    ok('the later tick does move it', r2.flipped === 1 && claims.get('p_test_1') === 'moved');
+  }
+  {
+    const f = fakes([card()], { claimFails: true });
+    const r = await L.runTick(f, {});
+    ok('no claim, no move: a failed record write leaves the card untouched', r.failed.claim_failed === 1 && !f.calls.some(c => c[0] === 'push' || c[0] === 'save'));
+  }
+  {
+    const claims = new Map();
+    const f = fakes([card()], { conflict: true, claims });
+    await L.runTick(f, {});
+    ok('a refused card save after the work items moved: released only because a fresh read shows it not Posted',
+      claims.get('p_test_1') === 'incomplete');
+  }
+  {
+    const P = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/production-write/policy.mjs')).href);
+    const names = ['Ana Pérez', '  ana perez ', 'O\'Neil-Smith', 'x@y.co', 'ÉMILE', ''];
+    ok('ping: roster-name match is the gateway\'s own normalizeActor', names.every(n => L.normalizeActor(n) === P.normalizeActor(n)));
+    const roster = [
+      { name: 'Ana Perez', role: 'admin', active: true }, { name: 'Ana Perez', role: 'smm', active: true },
+      { name: 'Bo Lee', role: 'admin', active: false }, { name: 'Cy Doe', role: 'admin', active: true }, { name: 'Cy Doe', role: 'admin', active: true },
+    ];
+    ok('ping: exactly one active admin, inactive and other roles do not count, duplicates show as 2',
+      L.actorMatches('ana pérez', roster) === 1 && L.actorMatches('Bo Lee', roster) === 0 && L.actorMatches('Cy Doe', roster) === 2 && L.actorMatches('', roster) === 0);
+  }
+  ok('ping reports ready:false unless the actor is exactly one active admin',
+    read('supabase/functions/calendar-auto-posted/index.ts').includes('const actorOk = rosterRead && actorMatchesAdmins === 1;'));
+  {
     const f = fakes([card(), card({ id: 'p_test_2' })], { movedBefore: ['p_test_1'] });
     const r = await L.runTick(f, {});
     ok('run: a card the job moved once is never moved again (a person\'s undo wins)',
@@ -251,7 +315,11 @@ function grabLine(source, re) {
   const migCode = mig.split('\n').filter(l => !/^\s*--/.test(l)).join('\n');
   ok('switch defaults off', migCode.includes(`('calendar_auto_posted', '{"clients": []}'::jsonb`) && migCode.includes('on conflict (key) do nothing'));
   ok('migration writes no Calendar or work-item row', !/(update|insert\s+into|delete\s+from)\s+public\.(calendar_posts|deliverables|calendar_post_events)/i.test(migCode));
-  ok('every function revoked from all four roles', (migCode.match(/from public, anon, authenticated, service_role;/g) || []).length === 9);
+  ok('every function revoked from all four roles', (migCode.match(/from public, anon, authenticated, service_role;/g) || []).length === 12);
+  ok('the record table: RLS on, revoked from all four roles, written only through the claim and release functions',
+    migCode.includes('alter table public.calendar_auto_posted_moves enable row level security;')
+    && migCode.includes('revoke all on table public.calendar_auto_posted_moves from public, anon, authenticated, service_role;')
+    && !/grant (insert|update|delete|all)[^;]*calendar_auto_posted_moves/i.test(migCode));
   ok('the timer and due list both honour the stop', migCode.includes('and (select not public.calendar_auto_posted_stopped())')
     && migCode.includes('where (select not public.calendar_auto_posted_stopped())'));
   ok('the only flag write turns the job OFF (empty client list)', /set value = jsonb_build_object\(\s*'clients', '\[\]'::jsonb/.test(migCode));
@@ -302,7 +370,7 @@ function grabLine(source, re) {
     const jwtOn = write('jwt.json', [{ name: 'functions/calendar-upsert/index.ts', content: patched }], { verify_jwt: true });
     ok('delta script: post-deploy check fails when verify_jwt is not false', /must be false/.test(String(attempt(['--check', jwtOn, '--expect-sha=' + after]))));
     ok('delta script: documents the measured v83 hashes', script.includes('67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185')
-      && script.includes('959a4fb3ce44082496976f839cd1b0614f8fd04e96fe7a3e582ac6be07672fad'));
+      && script.includes('7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843'));
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
@@ -439,6 +507,29 @@ function grabLine(source, re) {
       ok('a "ui" row by the job stops it with no write (due list empty, timer quiet)', due() === '' && q(`select public.calendar_auto_posted_tick_needed()`) === 'f');
       q(`update syncview_runtime_flags set value = '{"clients": ["*"]}', updated_at = now() + interval '1 second' where key = 'calendar_auto_posted'`);
       ok('a deliberate new switch write retires the old marker', due() === 'due,elsewhere,newer_good');
+
+      // The job's own record: the thumbnail-only card Lighthouse reproduced. Its bridge-only move
+      // writes no history row, so only the record keeps a person's undo from being overruled.
+      q(`insert into deliverables values ('d_thumb', 'scheduled', now() - interval '2 days');
+         insert into calendar_posts values ('test-client-c', 'thumb_only', 'Scheduled', to_char(${ET} - 1, 'YYYY-MM-DD'), ${stamp}, 'N/A','Scheduled','N/A', '', '', null, 'd_thumb');`);
+      const dueC = () => q(`set role service_role; select coalesce(string_agg(id, ','), '') from public.calendar_auto_posted_due(50) where client = 'test-client-c';`).split('\n').pop();
+      ok('thumbnail-only card is due before the job touches it', dueC() === 'thumb_only');
+      ok('claim: first claim yes, second no', q(`set role service_role; select public.calendar_auto_posted_claim('test-client-c', 'thumb_only', 'v1')::text || public.calendar_auto_posted_claim('test-client-c', 'thumb_only', 'v1')::text;`).split('\n').pop() === 'truefalse');
+      // The bridge finished it, then a person set it back to Scheduled long enough ago to be quiet.
+      q(`update calendar_posts set status = 'Scheduled', graphic_status = 'Scheduled', updated_at = ${stamp} where client = 'test-client-c' and id = 'thumb_only';`);
+      ok('a person set it back: the next tick does not see it (no history row needed)', dueC() === ''
+        && q(`select count(*) from calendar_post_events where client = 'test-client-c'`) === '0');
+      ok('release only turns an open claim into "incomplete", and the card may then be tried again',
+        q(`set role service_role; select public.calendar_auto_posted_release('test-client-c', 'thumb_only')::text || public.calendar_auto_posted_release('test-client-c', 'thumb_only')::text;`).split('\n').pop() === 'truefalse'
+        && dueC() === 'thumb_only'
+        && q(`set role service_role; select public.calendar_auto_posted_claim('test-client-c', 'thumb_only', 'v2')::text;`).split('\n').pop() === 'true'
+        && q(`select attempts || ' ' || card_version || ' ' || coalesce(outcome, 'open') from calendar_auto_posted_moves where post_id = 'thumb_only'`) === '2 v2 open'
+        && dueC() === '');
+      const directWrite = run('t', `set role service_role; insert into public.calendar_auto_posted_moves (client, post_id) values ('x', 'y');`, true);
+      const anonClaim = run('t', `set role anon; select public.calendar_auto_posted_claim('x', 'y', 'v');`, true);
+      const authRelease = run('t', `set role authenticated; select public.calendar_auto_posted_release('x', 'y');`, true);
+      ok('the record is written only through claim and release: no direct insert, browser roles refused',
+        directWrite.status !== 0 && anonClaim.status !== 0 && authRelease.status !== 0);
       const anon = run('t', `set role anon; select * from public.calendar_auto_posted_due(5);`, true);
       const auth = run('t', `set role authenticated; select public.calendar_auto_posted_key_ok(repeat('k', 64));`, true);
       ok('browser roles cannot call it', anon.status !== 0 && /permission denied/.test(anon.stderr) && auth.status !== 0);

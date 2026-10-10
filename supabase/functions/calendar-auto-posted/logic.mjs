@@ -1,7 +1,7 @@
 // calendar-auto-posted: the decision and the run, with no network and no
 // database of its own, so test/calendar-auto-posted.js can drive it under Node.
 //
-// THE RULE (owner, 2026-10-10, OPEN_REPAIRS 395). A Calendar post whose overall
+// THE RULE (owner, 2026-10-10, OPEN_REPAIRS 402). A Calendar post whose overall
 // status is exactly "Scheduled" turns "Posted" by itself once its scheduled day
 // has ended in US Eastern time. Nothing else is ever touched: any other status,
 // a card whose parts disagree with its overall, a card or work item a person
@@ -104,6 +104,23 @@ export function unchangedSinceDue(row, fresh) {
   return ["status", "updated_at", "video_status", "graphic_status", "caption_status"].every(k => clean(row[k]) === clean(fresh[k]));
 }
 
+// The gateway's own roster-name match (production-write policy normalizeActor);
+// test/calendar-auto-posted.js checks the two agree.
+export function normalizeActor(value) {
+  let text = clean(value).toLowerCase();
+  try { text = text.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch (_e) { /* ASCII still matches */ }
+  return text.replace(/[^a-z0-9@.]+/g, "");
+}
+
+// Ping: the configured actor must be exactly one ACTIVE admin, or the gateway
+// refuses every work-item move ("roster_actor_not_unique").
+export function actorMatches(actor, members) {
+  const want = normalizeActor(actor);
+  if (!want) return 0;
+  return (members || []).filter(m => m && m.active === true && clean(m.role).toLowerCase() === "admin"
+    && normalizeActor(m.name) === want).length;
+}
+
 const WORK_ITEM = { video: { id: "video_deliverable_id", link: "linear_issue_id", status: "video_deliverable_status", at: "video_deliverable_updated_at" },
   graphic: { id: "graphic_deliverable_id", link: "graphic_linear_issue_id", status: "graphic_deliverable_status", at: "graphic_deliverable_updated_at" } };
 
@@ -183,6 +200,10 @@ function bump(map, key) {
 //                                   card's calendar history rows written since sinceIso
 //   movedBefore(client, id)         true when the card already has an "auto-posted" status
 //                                   history row: a person's undo wins, never move it again
+//   claim(client, id, version)      the job's own record, before anything changes: true =
+//                                   go ahead, false = moved before (calendar_auto_posted_claim)
+//   release(client, id)             hand a claim back after a fresh read showed the attempt
+//                                   left the card not Posted (calendar_auto_posted_release)
 //   halt(reason)                    stop for good: empties the switch's client list and records
 //                                   why (calendar_auto_posted_halt); { ok }
 //   now(), sleep(ms)
@@ -217,13 +238,30 @@ export async function runTick(deps, opts = {}) {
     try { moved = await deps.movedBefore(client, id); } catch (_e) { moved = null; }
     if (moved !== false) { bump(moved === true ? out.skipped : out.failed, moved === true ? "already_auto_posted" : "history_read_failed"); continue; }
 
+    // The job's own record, written BEFORE anything changes: a card claimed
+    // here is never offered again, so a person who sets it back wins, even
+    // when the status bridge finishes the card and no Calendar save (and so no
+    // "auto-posted" history row) ever happens.
+    let claimed;
+    try { claimed = await deps.claim(client, id, clean(row.updated_at)); } catch (_e) { claimed = null; }
+    if (claimed !== true) { bump(claimed === false ? out.skipped : out.failed, claimed === false ? "already_auto_posted" : "claim_failed"); continue; }
+    // Hand the card back only when a fresh read proves this attempt did not
+    // leave it Posted; anything uncertain keeps it out for good.
+    const releaseIfNotPosted = async () => {
+      let after;
+      try { after = await deps.readCard(client, id); } catch (_e) { after = null; }
+      if (after && clean(after.status) !== "Posted") {
+        try { await deps.release(client, id); } catch (_e) { /* stays claimed: safe */ }
+      }
+    };
+
     const sinceIso = new Date(deps.now().getTime() - 1000).toISOString();
     let pushFailed = "";
     for (const push of plan.pushes) {
       const r = await deps.pushWorkItem(push, { client, id });
       if (!r || r.ok !== true) { pushFailed = clean(r && r.error) || "push_failed"; break; }
     }
-    if (pushFailed) { bump(out.failed, "work_item:" + pushFailed); continue; }
+    if (pushFailed) { bump(out.failed, "work_item:" + pushFailed); await releaseIfNotPosted(); continue; }
 
     let fresh;
     try { fresh = await deps.readCard(client, id); } catch (_e) { fresh = null; }
@@ -234,6 +272,7 @@ export async function runTick(deps, opts = {}) {
       const saved = await deps.saveCard(client, id, patch, clean(fresh.updated_at));
       if (!saved || saved.ok !== true) {
         bump(out.failed, saved && saved.conflict ? "card_conflict" : "card:" + (clean(saved && saved.error) || "save_failed"));
+        await releaseIfNotPosted();
         continue;
       }
     }

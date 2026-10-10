@@ -2,6 +2,11 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "samples-notes-lifecycle-busy.js",
+    "tiktok-create-keeps-key.js",
+    "tiktok-source-unknown-default.js",
+    "date-only-team-zone.js",
+    "samples-kasper-draft-kept.js",
     "production-write-comment-round.js",
     "staff-phone-rules-source.js",
     "staff-calendar-phone-css-scope.js",
@@ -717,6 +722,22 @@
     "finch-phone-css-scope.js"
   ],
   "profiles": [
+    {
+      "file": "instagram-cover-client-switch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/instagram-cover-client-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "credentials-modal-client-switch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/credentials-modal-client-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
     {
       "file": "write-refusal-page-traffic-postgres.js",
       "route": "isolated_postgres",

@@ -1967,7 +1967,7 @@ import {
                     '<a class="prod-comment-attachment" href="' + _sxrEscAttr(item.url) + '" target="_blank" rel="noopener noreferrer">' + _sxrEsc(item.name || 'Attachment') + '</a>'
                 ).join('') + '</div>'
                 : '';
-            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"><div class="cal-cm-avatar ${roleCls}">${_sxrEsc(initial)}</div><div class="cal-cm-body-col"><div class="cal-cm-head-line"><span class="cal-cm-author">${_sxrEsc(author)}</span>${typeTag}${lock}<span class="cal-cm-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${doneTag}${compLabel}</div><div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _sxrEsc(c.body || '')}${editedTag}${attachments}</div></div>${_sxrCommentActionsHtml(c, isReply)}</div>`;
+            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"><div class="cal-cm-avatar ${roleCls}">${_sxrEsc(initial)}</div><div class="cal-cm-body-col"><div class="cal-cm-head-line"><span class="cal-cm-author">${_sxrEsc(author)}</span>${typeTag}${lock}<span class="cal-cm-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${doneTag}${compLabel}</div><div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _sxrEsc(c.body || '')}${editedTag}${attachments}</div></div>${_sxrCommentActionsHtml(c, isReply, !c.canonical || (!post._sxrCommentActionBusy && _prodCanonicalCommentGate(post, comp || c.component).ready))}</div>`;
         };
         const renderThread = (entry) => { const replies = _sxrCommentReplies(entry.list, entry.root.id); return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-thread="${entry.root.id}">${renderRow(entry.root, false, entry.comp)}${replies.map(r => renderRow(r, true, entry.comp)).join('')}</div>`; };
         const emptyMsg = _sxrShowResolved
@@ -1996,19 +1996,26 @@ import {
     }
     function _sxrCanDeleteComment(c) { return _sxrCommentRole() === 'smm' || c.role === 'client'; }
     function _sxrCanResolveComment() { return _sxrCommentRole() === 'smm'; }
-    function _sxrCommentActionsHtml(c, isReply) {
+    /* `threadReady` false (a linked note whose thread has not been read yet, or a
+       Mark done / Reopen still in flight) renders the actions disabled, as the
+       Calendar does (PR 1642 and its busy mark). Without it a second click, or an
+       Edit, Reply or Delete before the read, was refused with
+       canonical_comment_read_required (OPEN_REPAIRS 397). */
+    function _sxrCommentActionsHtml(c, isReply, threadReady = true) {
         if (c.deleted) return '';
+        const wait = threadReady ? '' : ' disabled aria-disabled="true"';
+        const waitTitle = title => threadReady ? title : 'Notes are still loading';
         const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
         const checkIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const undoIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
         const trashIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
         const rootId = isReply ? c.parent_id : c.id;
-        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_sxrBeginReply(${_sxrJsArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
-        const editBtn = c.canonical && c.can_edit ? `<button class="cal-cm-action" type="button" onclick="_sxrBeginCommentEdit(${_sxrJsArg(c.id)})" title="Edit"><span>Edit</span></button>` : '';
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button"${wait} onclick="_sxrBeginReply(${_sxrJsArg(rootId)})" title="${waitTitle('Reply')}">${replyIco}<span>Reply</span></button>`;
+        const editBtn = c.canonical && c.can_edit ? `<button class="cal-cm-action" type="button"${wait} onclick="_sxrBeginCommentEdit(${_sxrJsArg(c.id)})" title="${waitTitle('Edit')}"><span>Edit</span></button>` : '';
         const canResolve = c.canonical ? c.can_resolve : (_sxrCanResolveComment() && _sxrMsgIsTweak(c));
-        const doneBtn = (!isReply && canResolve) ? (c.done ? `<button class="cal-cm-action is-done-on" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>` : `<button class="cal-cm-action" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`) : '';
+        const doneBtn = (!isReply && canResolve) ? (c.done ? `<button class="cal-cm-action is-done-on" type="button"${wait} onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="${waitTitle('Reopen')}">${undoIco}<span>Reopen</span></button>` : `<button class="cal-cm-action" type="button"${wait} onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="${waitTitle('Mark thread done')}">${checkIco}<span>Mark done</span></button>`) : '';
         const canDelete = c.canonical ? c.can_delete : _sxrCanDeleteComment(c);
-        const delBtn = canDelete ? `<button class="cal-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_sxrJsArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>` : '';
+        const delBtn = canDelete ? `<button class="cal-cm-action is-danger" type="button"${wait} onclick="_sxrDeleteComment(${_sxrJsArg(c.id)})" title="${waitTitle('Delete')}">${trashIco}<span>Delete</span></button>` : '';
         if (!replyBtn && !editBtn && !doneBtn && !delBtn) return '';
         return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
     }
@@ -2258,8 +2265,28 @@ import {
         if (deferToChooser) { _sxrResolveLastTweak(pid, comp, rootId); return; }
         const canonicalGate = _prodCanonicalCommentGate(post, comp);
         if (canonicalGate.linked) {
+            /* Same order as the Calendar twin: the card's actions stay disabled
+               while this write is out, the thread is re-read and redrawn when it
+               lands, and only then does the slower notes save run (OPEN_REPAIRS 397). */
+            if (post._sxrCommentActionBusy) return;
+            post._sxrCommentActionBusy = true;
+            _sxrCaptureModalDrafts();
+            _sxrRenderCommentsModal();
+            const done = () => {
+                post._sxrCommentActionBusy = false;
+                if (_sxrOpenCommentsPid === pid) { _sxrCaptureModalDrafts(); _sxrRenderCommentsModal(); }
+            };
             _writeUiCommitCardCommentLifecycle('sxr', post, comp, root, wasDone ? 'unresolve' : 'resolve')
-                .then(receipt => receipt && _writeUiPersistCanonicalCommentProjection('sxr', post, comp));
+                .then(async receipt => {
+                    if (receipt) {
+                        try {
+                            await _prodComments.readCanonical(_writeUiNativeId(post, comp), { replace: true });
+                            await _prodProjectCanonicalCardComments('sxr', post.id);
+                        } catch (e) {}
+                    }
+                    done();
+                    if (receipt) _writeUiPersistCanonicalCommentProjection('sxr', post, comp);
+                }, done);
             return;
         }
         if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }

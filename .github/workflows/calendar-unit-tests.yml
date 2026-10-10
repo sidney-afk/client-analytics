@@ -387,6 +387,15 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/tiktok-poll-backoff-browser.js
+      # Wrong client and lost work (OPEN_REPAIRS 397): a result decided its client after an await.
+      - name: Client credentials dialog shows and edits only its own client
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/credentials-modal-client-switch-browser.js
+      - name: Instagram Calendar cover stays with the client it was picked for
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/instagram-cover-client-switch-browser.js
 
 
   split-preview:

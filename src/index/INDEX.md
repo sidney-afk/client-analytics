@@ -12,7 +12,7 @@
 | 4 | `010-styles-foundation.css.part` | 3944 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 7373 | Templates view |
 | 6 | `030-body-shell.html.part` | 561 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 2132 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
+| 7 | `040-shared-briefs.js.part` | 2147 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2364 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
@@ -58,14 +58,14 @@
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 51 | `260-production-refresh-boot.js.part` | 2814 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3098 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 53 | `280-samples-cards-notes.js.part` | 3020 | SURFACE 3: the save engine |
-| 54 | `290-samples-writes-review.js.part` | 1960 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 55 | `299-instagram-upload.js.part` | 741 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
-| 56 | `300-tiktok-upload.js.part` | 2397 | TIKTOK UPLOAD MODULE |
+| 53 | `280-samples-cards-notes.js.part` | 3047 | SURFACE 3: the save engine |
+| 54 | `290-samples-writes-review.js.part` | 1975 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 55 | `299-instagram-upload.js.part` | 762 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
+| 56 | `300-tiktok-upload.js.part` | 2416 | TIKTOK UPLOAD MODULE |
 | 57 | `305-core-kasper-shared.js.part` | 791 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
 | 58 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
 | 59 | `320-core-kasper-subtabs.js.part` | 20 | — |
-| 60 | `321-kasper-dashboard-replies.js.part` | 3058 | The Samples subtab was folded into Review (samples are listed in the |
+| 60 | `321-kasper-dashboard-replies.js.part` | 3078 | The Samples subtab was folded into Review (samples are listed in the |
 | 61 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 62 | `323-kasper-dashboard-tail.js.part` | 932 | Review Session |
 | 63 | `324-client-onboarding-panel.js.part` | 738 | talking to the functions (admin only; the server checks the key and the member again) |

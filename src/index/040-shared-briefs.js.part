@@ -1791,17 +1791,32 @@ import {
     // reset on the 1st, so a simple subtraction breaks when the reference row is
     // in a different calendar month.  In that case we fall back to summing the
     // daily gained_today values over the past 7 days.
+    // The calendar month a row's date names. Row dates are date-only ISO
+    // strings, which `new Date` reads as UTC midnight: west of UTC (the team is
+    // UTC-6) the 1st then read as the last day of the previous month, so a 1st
+    // of the month row "matched" last week's row and its just-reset monthly
+    // counter was subtracted from last month's total, a large negative "This
+    // week" on the 1st of every month (OPEN_REPAIRS 397). Read the month from
+    // the text itself.
+    function _analyticsRowMonth(d){
+        const m=/^(\d{4})-(\d{2})-\d{2}/.exec(String(d||'').trim());
+        if(m) return m[1]+'-'+m[2];
+        const x=new Date(d); return isNaN(x)?'':x.getFullYear()+'-'+(x.getMonth()+1);
+    }
     function _safeWeekViewDelta(todayRow, refRow, clientName, monthlyKey, dailyKey){
         if(!refRow) return null;
-        const td=new Date(todayRow.date), rd=new Date(refRow.date);
-        if(td.getFullYear()===rd.getFullYear()&&td.getMonth()===rd.getMonth()){
+        const td=new Date(todayRow.date);
+        const tm=_analyticsRowMonth(todayRow.date);
+        if(tm&&tm===_analyticsRowMonth(refRow.date)){
             return n(todayRow[monthlyKey])-n(refRow[monthlyKey]);
         }
         const hist=clientHistory(clientName);
         const cutoff=new Date(td); cutoff.setDate(cutoff.getDate()-7);
         let sum=0,has=false;
+        // The 7 days after the reference day, as the same-month subtraction
+        // counts (the reference day's own gain is before the week).
         for(let i=hist.length-1;i>=0;i--){
-            if(new Date(hist[i].date)<cutoff) break;
+            if(new Date(hist[i].date)<=cutoff) break;
             const v=n(hist[i][dailyKey]);
             if(v){sum+=v;has=true;}
         }

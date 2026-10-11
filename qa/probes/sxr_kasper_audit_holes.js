@@ -1,7 +1,7 @@
 // sxr_kasper_audit_holes.js — REGRESSION guard for BUG-5 (fixed 2026-07-02;
 // see OVERNIGHT_TEST_REPORT RUN 2). Flipped from characterization to assert the
 // FIX: Kasper approve now STAMPS kasper_approved_at, and Kasper UNDO now PUSHES
-// the reverted status to (mocked) Linear so the issue isn't left stale.
+// the reverted status to the work item (Linear until its retirement) so it isn't left stale.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 /* EXPECTED RED UNTIL MIGRATED, and deliberately not pinned to the legacy lane.
@@ -48,9 +48,14 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     let landed = false;
     for (let i = 0; i < 25 && !landed; i++) { const r = row(id, 'video_status'); landed = !!r && r.video_status === 'Client Approval'; if (!landed) await sleep(1000); }
     t(landed, 'kasper approve landed (Client Approval)');
+    // Linear is retired: the status now reaches the sample's VIDEO work item through the
+    // gateway (faked in the harness), which is what this checks (OPEN_REPAIRS 392).
+    const NW = require('../native_work_item_fixture.js');
+    const vid = NW.nativeDeliverableId(id, 'video');
+    const statusSent = (label) => NW.statusCalls(kp.context()._nativeGatewayCalls || [], vid).some(c => String(c.status || '') === label);
     let pushed = false;
-    for (let i = 0; i < 12 && !pushed; i++) { pushed = linearCalls().some(c => c.path === 'linear-set-status' && JSON.stringify(c.payload || {}).includes('Client Approval')); if (!pushed) await sleep(1000); }
-    t(pushed, 'approve pushed Client Approval to the (mocked) Linear issue');
+    for (let i = 0; i < 12 && !pushed; i++) { pushed = statusSent('client_approval'); if (!pushed) await sleep(1000); }
+    t(pushed, 'approve sent Client Approval to the video work item');
 
     // BUG-5a FIX: kasper_approved_at IS stamped by the samples approve
     let stamped = false;
@@ -67,8 +72,8 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
 
     // …BUG-5b FIX: undo now pushes the reverted status to (mocked) Linear
     let revertPushed = false;
-    for (let i = 0; i < 12 && !revertPushed; i++) { revertPushed = linearCalls().some(c => c.path === 'linear-set-status' && JSON.stringify(c.payload || {}).includes('"Kasper Approval"')); if (!revertPushed) await sleep(1000); }
-    t(revertPushed, 'BUG-5b FIX: undo pushes the reverted status (Kasper Approval) to Linear', revertPushed ? '' : 'no revert push captured');
+    for (let i = 0; i < 12 && !revertPushed; i++) { revertPushed = statusSent('kasper_approval'); if (!revertPushed) await sleep(1000); }
+    t(revertPushed, 'BUG-5b FIX: undo sends the reverted status (Kasper Approval) to the video work item', revertPushed ? '' : 'no revert status captured');
 
     // ── GATE (2026-09-05, PR 1278): approving a component with NO media ──────
     // The first draft of this guard wrote its reason to a store the samples

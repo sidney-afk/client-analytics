@@ -32,10 +32,16 @@ const PID = 'p_gate_' + TS;
     r = await Q.rawRow(PID, 'video_status');
     S.ok(r.video_status === 'For SMM Approval', 'client CANNOT approve a For-SMM-Approval component either');
 
-    // but the client CAN approve the component on their surface (Client Approval)
-    await Q.clientApprove(cli, PID, 'graphic');
-    r = await Q.pollRaw(PID, x => x.graphic_status === 'Approved', 'graphic_status', 12000);
-    S.ok(r.graphic_status === 'Approved', 'client CAN approve the component on their surface (graphic → Approved)');
+    // but the client CAN approve a component on their surface (Client Approval).
+    // Proven on the CAPTION: a video or thumbnail decision changes its work item, and
+    // this throwaway card has none, so the app rightly refuses those
+    // (native_link_required, since the native cutover). The caption has no work item
+    // of its own, so it is the part a seeded card can take (as the dawn check does).
+    await Q.up({ id: PID, caption_status: 'Client Approval', status: 'Client Approval' });
+    await Q.waitForPost(cli, PID, "p=>p.caption_status==='Client Approval'");
+    await Q.clientApprove(cli, PID, 'caption');
+    r = await Q.pollRaw(PID, x => x.caption_status === 'Approved', 'caption_status', 12000);
+    S.ok(r.caption_status === 'Approved', 'client CAN approve the component on their surface (caption → Approved)');
 
     S.ok(cli._errs.length === 0, 'no JS errors (' + JSON.stringify(cli._errs.slice(0, 3)) + ')');
   } finally {

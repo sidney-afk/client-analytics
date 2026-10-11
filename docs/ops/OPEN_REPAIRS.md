@@ -32672,8 +32672,16 @@ possible ad-scripts doc in Drive. No plan link was changed.
 **Risk of the month fallback.** Numbering restarts every month, so a bare "Video 3" read from a neighbouring month's tab can be a
 different video than the one meant. The fallback is therefore noted on the row, and the first run should be one client, read by a person.
 
-**Release order.** 1. Apply `migrations/2026-10-11-thumbnail-titles-requeue.sql`. 2. Deploy `thumbnail-titles` from main through
+**Release order.** 0. Prerequisite, checked live 2026-10-11: `migrations/2026-10-10-thumbnail-titles-error-record.sql` is applied (`thumbnail_title_apply` has
+the five-argument form). Without it the deployed function falls back to the old call and silently drops `last_error`, including the borrowed-tab note, so
+check it first: `select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'thumbnail_title_apply'` must end in `p_error text`.
+1. Apply `migrations/2026-10-11-thumbnail-titles-requeue.sql`. 2. Deploy `thumbnail-titles` from main through
 `deploy-single-function`. 3. Dry run `select * from thumbnail_titles_requeue_needs_info(array['no_match','no_month_tab','generation_failed'])`,
 then apply for one client, then the rest. Nothing else changes; the page does not change.
 
-Tests: `test/thumbnail-titles-source.js` 144 checks (neighbour months and year wrap, ambiguity, long plans, template headers, the re-queue SQL).
+**After review (Codex, same day).** Two tabs for the post's own month (or the next) now stop the search instead of moving on to another month; the
+note names the borrowed tab's own month (a September post on the August tab says August 2026); the re-queue clears a description only when it is EXACTLY
+one of the robot's seven lines (checked at selection and again at the moment of clearing), so a line a person added to is kept. All 17 robot lines
+live match; none match once text is appended.
+
+Tests: `test/thumbnail-titles-source.js` 190 checks (neighbour months and year wrap, ambiguity, long plans, template headers, the re-queue SQL and its line patterns).

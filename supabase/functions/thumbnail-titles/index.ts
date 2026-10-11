@@ -31,6 +31,7 @@ import { planTabs, tabMonth } from "../higgsfield-mcp/clientinfo.ts";
 import {
   clientOn,
   effectivePrompt,
+  borrowedMonthLabel,
   monthLabel,
   needsInfoLine,
   normalizedText,
@@ -226,7 +227,7 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
     for (const post of posts) {
       const line = resolveLine(post, answer.titles.get(post.key) || "", planNormalized);
       // A tab borrowed from the next or previous month is noted in last_error (a code and a month, never plan text).
-      const note = post.via ? `tab_${post.via}: ${monthLabel(post.createdAt)}` : "";
+      const note = post.via ? `tab_${post.via}: ${borrowedMonthLabel(post.createdAt, post.via)}` : "";
       const state = await apply(db, post.job.deliverable_id, line.text, line.state, line.outcome, note);
       counts[state] = Number(counts[state] || 0) + 1;
       if (post.via) counts[`tab_${post.via}`] = Number(counts[`tab_${post.via}`] || 0) + 1;

@@ -172,7 +172,8 @@ export function pickWeekTab(list, createdAt) {
 }
 
 // The month tab for one month (0 to 11) of one year, by tab name first, then by the month the tab's
-// text talks about most. Week tabs are never month tabs. Two tabs that both fit are ambiguous: none.
+// text talks about most. Week tabs are never month tabs. Returns { tab, ambiguous }: two tabs that
+// both fit give no tab and ambiguous = true, which is NOT the same as "no tab for that month".
 function monthTabFor(list, monthIndex, year, tabMonthOf, createdAt) {
   const month = MONTHS[monthIndex];
   const yearOk = (label) => {
@@ -181,16 +182,27 @@ function monthTabFor(list, monthIndex, year, tabMonthOf, createdAt) {
   };
   const monthTabs = list.filter((t) => !weekStart(t.name, createdAt));
   const byName = monthTabs.filter((t) => String(t.name || "").toLowerCase().includes(month) && yearOk(t.name));
-  if (byName.length === 1) return byName[0];
+  let ambiguous = byName.length > 1;
+  if (byName.length === 1) return { tab: byName[0], ambiguous: false };
   if (byName.length > 1) {
     const exactYear = byName.filter((t) => String(t.name).includes(String(year)));
-    if (exactYear.length === 1) return exactYear[0];
+    if (exactYear.length === 1) return { tab: exactYear[0], ambiguous: false };
   }
   const byText = monthTabs.filter((t) => {
     const label = String((tabMonthOf ? tabMonthOf(t.text) : "") || "").toLowerCase();
     return label.startsWith(month) && yearOk(label);
   });
-  return byText.length === 1 ? byText[0] : null;
+  if (byText.length === 1) return { tab: byText[0], ambiguous: false };
+  return { tab: null, ambiguous: ambiguous || byText.length > 1 };
+}
+
+// The month a borrowed tab belongs to, from the post's date and the offset: a September post that
+// uses the previous month's tab is "August 2026". Used for the note stored with the row.
+export function borrowedMonthLabel(createdAt, via) {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return "";
+  const shift = via === "next_month" ? 1 : via === "previous_month" ? -1 : 0;
+  return monthLabel(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + shift, 1)));
 }
 
 // Pick the filming-plan tab for the month the post was created in. The house
@@ -201,7 +213,9 @@ function monthTabFor(list, monthIndex, year, tabMonthOf, createdAt) {
 // single tab, that tab. Plans are often written late or early, so when the
 // post's own month has no tab the NEXT month's tab is tried, then the PREVIOUS
 // month's; `via` says which one was used ("next_month" or "previous_month").
-// Nothing that fits is reported, never guessed: a wrong tab means a wrong video.
+// If two tabs fit the post's own month (or a neighbour) the answer is "no tab",
+// never a quiet move to another month. Nothing that fits is reported, never
+// guessed: a wrong tab means a wrong video.
 export function pickTab(tabs, createdAt, tabMonthOf) {
   const list = (tabs || []).filter((t) => String(t.text || "").trim());
   if (!list.length) return { tab: null, reason: "plan_empty", via: "" };
@@ -210,14 +224,16 @@ export function pickTab(tabs, createdAt, tabMonthOf) {
   const monthIndex = when.getUTCMonth();
   const year = when.getUTCFullYear();
   const own = monthTabFor(list, monthIndex, year, tabMonthOf, createdAt);
-  if (own) return { tab: own, reason: "", via: "" };
+  if (own.tab) return { tab: own.tab, reason: "", via: "" };
   const week = pickWeekTab(list, createdAt);
   if (week) return { tab: week, reason: "", via: "" };
   if (list.length === 1) return { tab: list[0], reason: "", via: "" };
+  if (own.ambiguous) return { tab: null, reason: "no_month_tab", via: "" };
   const next = monthTabFor(list, (monthIndex + 1) % 12, monthIndex === 11 ? year + 1 : year, tabMonthOf, createdAt);
-  if (next) return { tab: next, reason: "", via: "next_month" };
+  if (next.tab) return { tab: next.tab, reason: "", via: "next_month" };
+  if (next.ambiguous) return { tab: null, reason: "no_month_tab", via: "" };
   const previous = monthTabFor(list, (monthIndex + 11) % 12, monthIndex === 0 ? year - 1 : year, tabMonthOf, createdAt);
-  if (previous) return { tab: previous, reason: "", via: "previous_month" };
+  if (previous.tab) return { tab: previous.tab, reason: "", via: "previous_month" };
   return { tab: null, reason: "no_month_tab", via: "" };
 }
 

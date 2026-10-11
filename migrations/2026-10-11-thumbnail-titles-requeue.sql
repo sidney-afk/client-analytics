@@ -7,7 +7,8 @@
 --   thumbnail_titles_requeue_needs_info(p_outcomes text[], p_client_slug text default null, p_apply boolean default false)
 --     * only queue rows in state needs_info with an outcome in p_outcomes (and the one client, when given);
 --     * a description that is already empty is left as it is (the row just goes back to pending); one that
---       still STARTS WITH the robot's own "Needs info: " text is cleared first. A description a person has
+--       is EXACTLY one of the robot's own "Needs info: ..." lines is cleared first (a whole-line match, checked
+--       again at the moment of clearing; a line a person appended to or reworded is not a match). A description a person has
 --       written or edited since is never touched, and that row is left alone (and not counted);
 --     * the clearing is recorded in deliverable_events like every other robot write;
 --     * p_apply = false (the default) changes nothing and returns counts per outcome.
@@ -20,6 +21,17 @@ create or replace function public.thumbnail_titles_requeue_needs_info(p_outcomes
 returns table(outcome text, items integer)
 language plpgsql set search_path = public, pg_catalog as $$
 declare r record; cleared integer;
+  -- The robot's own lines, whole and exact (see NEEDS_INFO_TEXT in thumbnail-titles/logic.mjs). A line a person
+  -- has added to, shortened or reworded matches none of these and is never cleared.
+  v_lines constant text[] := array[
+    '^Needs info: no filming plan is linked to this client in SyncView, so no thumbnail title was written\. Add the title here by hand\.$',
+    '^Needs info: the client''s filming plan could not be opened \(it may not be shared by link\), so no thumbnail title was written\. Add the title here by hand\.$',
+    '^Needs info: the client''s filming plan is empty, so no thumbnail title was written\. Add the title here by hand\.$',
+    '^Needs info: the client''s filming plan has no tab for [A-Za-z ]{1,30}[0-9]{0,4}, so no thumbnail title was written\. Add the title here by hand\.$',
+    '^Needs info: this post could not be matched to a video in the filming plan( \(post "[^"]{0,80}"\))?, so no thumbnail title was written\. Add the title here by hand\.$',
+    '^Needs info: the suggested title did not use the filming plan''s own words, so it was not used\. Add the title here by hand\.$',
+    '^Needs info: a thumbnail title could not be generated after several tries\. Add the title here by hand\.$'
+  ];
 begin
   if p_outcomes is null or cardinality(p_outcomes) = 0 then
     raise exception 'thumbnail_titles_requeue_needs_info_outcomes_required';
@@ -35,11 +47,11 @@ begin
      and (p_client_slug is null or q.client_slug = p_client_slug)
      and d.kind = 'thumbnail'
      and d.status not in ('canceled', 'duplicate')
-     and (coalesce(btrim(d.brief), '') = '' or d.brief like 'Needs info: %');
+     and (coalesce(btrim(d.brief), '') = '' or d.brief ~ any(v_lines));
   if p_apply then
     for r in select t.deliverable_id from _tt_requeue t loop
       perform set_config('app.event_written', '1', true);
-      update public.deliverables set brief = '' where id = r.deliverable_id and brief like 'Needs info: %';
+      update public.deliverables set brief = '' where id = r.deliverable_id and brief ~ any(v_lines);
       get diagnostics cleared = row_count;
       if cleared = 1 then
         insert into public.deliverable_events (deliverable_id, batch_id, client_slug, actor, role, action, from_status, to_status, source, payload)
@@ -48,6 +60,11 @@ begin
           from public.deliverables d where d.id = r.deliverable_id;
       end if;
       perform set_config('app.event_written', '', true);
+      -- Changed by a person since the selection: leave it alone, and out of the count.
+      if cleared = 0 and exists (select 1 from public.deliverables d where d.id = r.deliverable_id and coalesce(btrim(d.brief), '') <> '') then
+        delete from _tt_requeue where deliverable_id = r.deliverable_id;
+        continue;
+      end if;
       update public.thumbnail_title_queue
          set state = 'pending', attempts = 0, outcome = null, lease_until = null, last_error = null, updated_at = now()
        where deliverable_id = r.deliverable_id and state = 'needs_info';

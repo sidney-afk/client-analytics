@@ -227,14 +227,38 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
 
   // The function records a borrowed tab without storing plan text.
   const fnTab = read('supabase/functions/thumbnail-titles/index.ts');
-  ok(/via: picked\.via/.test(fnTab) && /tab_\$\{post\.via\}: \$\{monthLabel\(post\.createdAt\)\}/.test(fnTab), 'a borrowed tab is noted as a code and a month');
+  ok(/via: picked\.via/.test(fnTab) && /tab_\$\{post\.via\}: \$\{borrowedMonthLabel\(post\.createdAt, post\.via\)\}/.test(fnTab), 'a borrowed tab is noted as a code and ITS month');
+  eq(L.borrowedMonthLabel('2026-09-28T10:00:00Z', 'previous_month'), 'August 2026', 'a September post on the previous tab says August');
+  eq(L.borrowedMonthLabel('2026-10-30T10:00:00Z', 'next_month'), 'November 2026', 'an October post on the next tab says November');
+  eq(L.borrowedMonthLabel('2026-12-20T10:00:00Z', 'next_month'), 'January 2027', 'the year rolls over');
+  eq(L.borrowedMonthLabel('2026-01-05T10:00:00Z', 'previous_month'), 'December 2025', 'the year rolls back');
+  // Two tabs for the post's own month: no move to another month.
+  eq(L.pickTab([{ id: 'a', name: 'October', text: 'x' }, { id: 'b', name: 'October copy', text: 'y' }, { id: 'n', name: 'November', text: 'z' }], '2026-10-09T10:00:00Z', () => '').reason, 'no_month_tab', 'ambiguous own month does not borrow November');
+  eq(L.pickTab([{ id: 'a', name: 'November', text: 'x' }, { id: 'b', name: 'November copy', text: 'y' }, { id: 'p', name: 'September', text: 'z' }], '2026-10-09T10:00:00Z', () => '').reason, 'no_month_tab', 'ambiguous next month does not fall to the previous one');
   ok(/planHasVideos\(picked\.tab\.text\)/.test(fnTab), 'the function uses the template check');
 
   // The re-queue function: dry run by default, only the robot's own line or an empty description, service role only.
   const sql3 = read('migrations/2026-10-11-thumbnail-titles-requeue.sql');
   ok(/p_apply boolean default false/.test(sql3) && /if p_apply then/.test(sql3), 'the re-queue defaults to a dry run');
-  ok(/coalesce\(btrim\(d\.brief\), ''\) = '' or d\.brief like 'Needs info: %'/.test(sql3), 'a description a person wrote is never selected');
-  ok(/brief = '' where id = r\.deliverable_id and brief like 'Needs info: %'/.test(sql3), 'only the robot\'s own line is cleared');
+  ok(/coalesce\(btrim\(d\.brief\), ''\) = '' or d\.brief ~ any\(v_lines\)/.test(sql3), 'a description a person wrote is never selected');
+  ok(/brief = '' where id = r\.deliverable_id and brief ~ any\(v_lines\)/.test(sql3), 'only the robot\'s own whole line is cleared');
+  ok(!/like 'Needs info/.test(sql3.replace(/--.*$/gm, '')), 'no prefix test is left');
+  // Every line the robot can write matches one of the whole-line patterns; edited lines match none.
+  const patterns = [...sql3.matchAll(/^\s+'(\^Needs info: .*\$)',?$/gm)].map((m) => new RegExp(m[1].replace(/''/g, "'")));
+  eq(patterns.length, 7, 'one pattern per robot line');
+  const robotLines = [
+    L.needsInfoLine('no_plan'), L.needsInfoLine('plan_unreadable'), L.needsInfoLine('plan_empty'), L.needsInfoLine('not_grounded'), L.needsInfoLine('generation_failed'),
+    L.needsInfoLine('no_month_tab', { month: 'October 2026' }), L.needsInfoLine('no_month_tab', {}),
+    L.needsInfoLine('no_match', {}), L.needsInfoLine('no_match', { post: 'Video 3 - Something "quoted"'.replace(/"/g, '') }),
+  ];
+  for (const line of robotLines) ok(patterns.some((r) => r.test(line)), 'robot line is recognised: ' + line.slice(0, 40));
+  for (const line of robotLines) {
+    ok(!patterns.some((r) => r.test(line + ' Also: ask Kasper.')), 'a line with text appended is not cleared');
+    ok(!patterns.some((r) => r.test('Please check. ' + line)), 'a line with text before it is not cleared');
+    ok(!patterns.some((r) => r.test(line.replace('Add the title', 'Add a title'))), 'a reworded line is not cleared');
+  }
+  ok(!patterns.some((r) => r.test('Needs info: I will write this one myself')), 'a person starting with the same words is not cleared');
+  ok(/if cleared = 0 and exists/.test(sql3), 'a description changed meanwhile is left alone');
   ok(/q\.state = 'needs_info'/.test(sql3) && /set state = 'pending', attempts = 0/.test(sql3), 'only needs_info rows go back to pending with fresh tries');
   ok(/revoke all on function public\.thumbnail_titles_requeue_needs_info\(text\[\], text, boolean\) from public, anon, authenticated, service_role/.test(sql3), 'closed to all four roles');
   ok(/grant execute on function public\.thumbnail_titles_requeue_needs_info\(text\[\], text, boolean\) to service_role/.test(sql3), 'then opened to the service role only');

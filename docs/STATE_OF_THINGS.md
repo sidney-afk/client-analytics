@@ -238,7 +238,7 @@ hiring senders when the editor hire closes.
   67 open Needs info items on real clients (39 no match, 21 no month tab, 4 empty plan, 2 no plan, 1 failed). Causes: long plans cut
   at 20,000 characters, a plan with no tab for the post's month (now falls back to the next, then the previous month), plans that
   are only a header (now reported as an empty plan), numbering that restarts in a second list, and posts that are not plan videos.
-  Release: apply `migrations/2026-10-11-thumbnail-titles-requeue.sql`, deploy `thumbnail-titles` (lane `deploy-single-function`),
+  Release (the 2026-10-10 error-record migration is already applied, checked 2026-10-11): apply `migrations/2026-10-11-thumbnail-titles-requeue.sql`, deploy `thumbnail-titles` (lane `deploy-single-function`),
   then dry-run and run the re-queue. Owner decisions open: see the entry.
 - **Thumbnail titles (OPEN_REPAIRS 391): LIVE.** Switch `thumbnail_titles` = `{"clients":["*"]}` since 2026-10-09 19:48 UTC
   (checked 2026-10-10); backfill ran 2026-10-09 (queue: 33 titles written, 111 Needs info lines, 3 skipped as already

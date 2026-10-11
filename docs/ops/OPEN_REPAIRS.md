@@ -32682,6 +32682,6 @@ then apply for one client, then the rest. Nothing else changes; the page does no
 **After review (Codex, same day).** Two tabs for the post's own month (or the next) now stop the search instead of moving on to another month; the
 note names the borrowed tab's own month (a September post on the August tab says August 2026); the re-queue clears a description only when it is EXACTLY
 one of the robot's seven lines (checked at selection and again at the moment of clearing), so a line a person added to is kept. All 17 robot lines
-live match; none match once text is appended.
+live match; none match once text is appended. The re-queue function was also run on a scratch PostgreSQL 16 with stand-in tables: the dry run changed nothing; apply re-queued the empty and exact-line rows and left a line with text appended and a person's text alone.
 
 Tests: `test/thumbnail-titles-source.js` 190 checks (neighbour months and year wrap, ambiguity, long plans, template headers, the re-queue SQL and its line patterns).

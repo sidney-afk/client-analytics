@@ -20,7 +20,7 @@ begin;
 create or replace function public.thumbnail_titles_requeue_needs_info(p_outcomes text[], p_client_slug text default null, p_apply boolean default false)
 returns table(outcome text, items integer)
 language plpgsql set search_path = public, pg_catalog as $$
-declare r record; cleared integer;
+declare r record; cleared integer; v_rows jsonb; v_skipped text[] := '{}';
   -- The robot's own lines, whole and exact (see NEEDS_INFO_TEXT in thumbnail-titles/logic.mjs). A line a person
   -- has added to, shortened or reworded matches none of these and is never cleared.
   v_lines constant text[] := array[
@@ -36,10 +36,7 @@ begin
   if p_outcomes is null or cardinality(p_outcomes) = 0 then
     raise exception 'thumbnail_titles_requeue_needs_info_outcomes_required';
   end if;
-  create temp table if not exists _tt_requeue (deliverable_id text, outcome text) on commit drop;
-  delete from _tt_requeue;
-  insert into _tt_requeue
-  select q.deliverable_id, q.outcome
+  select coalesce(jsonb_agg(jsonb_build_object('id', q.deliverable_id, 'o', q.outcome)), '[]'::jsonb) into v_rows
     from public.thumbnail_title_queue q
     join public.deliverables d on d.id = q.deliverable_id
    where q.state = 'needs_info'
@@ -49,28 +46,31 @@ begin
      and d.status not in ('canceled', 'duplicate')
      and (coalesce(btrim(d.brief), '') = '' or d.brief ~ any(v_lines));
   if p_apply then
-    for r in select t.deliverable_id from _tt_requeue t loop
+    for r in select e->>'id' as id from jsonb_array_elements(v_rows) e loop
       perform set_config('app.event_written', '1', true);
-      update public.deliverables set brief = '' where id = r.deliverable_id and brief ~ any(v_lines);
+      update public.deliverables set brief = '' where id = r.id and brief ~ any(v_lines);
       get diagnostics cleared = row_count;
       if cleared = 1 then
         insert into public.deliverable_events (deliverable_id, batch_id, client_slug, actor, role, action, from_status, to_status, source, payload)
         select d.id, d.batch_id, d.client_slug, 'SyncView thumbnail titles', 'system', 'description_change', d.status, d.status, 'system',
                jsonb_build_object('surface', 'thumbnail_titles', 'outcome', 'requeue', 'description_length', 0)
-          from public.deliverables d where d.id = r.deliverable_id;
+          from public.deliverables d where d.id = r.id;
       end if;
       perform set_config('app.event_written', '', true);
       -- Changed by a person since the selection: leave it alone, and out of the count.
-      if cleared = 0 and exists (select 1 from public.deliverables d where d.id = r.deliverable_id and coalesce(btrim(d.brief), '') <> '') then
-        delete from _tt_requeue where deliverable_id = r.deliverable_id;
+      if cleared = 0 and exists (select 1 from public.deliverables d where d.id = r.id and coalesce(btrim(d.brief), '') <> '') then
+        v_skipped := v_skipped || r.id;
         continue;
       end if;
       update public.thumbnail_title_queue
          set state = 'pending', attempts = 0, outcome = null, lease_until = null, last_error = null, updated_at = now()
-       where deliverable_id = r.deliverable_id and state = 'needs_info';
+       where deliverable_id = r.id and state = 'needs_info';
     end loop;
   end if;
-  return query select t.outcome, count(*)::integer from _tt_requeue t group by t.outcome order by 2 desc;
+  return query select e->>'o', count(*)::integer
+                 from jsonb_array_elements(v_rows) e
+                where not ((e->>'id') = any(v_skipped))
+                group by 1 order by 2 desc;
 end $$;
 
 revoke all on function public.thumbnail_titles_requeue_needs_info(text[], text, boolean) from public, anon, authenticated, service_role;

@@ -241,7 +241,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   const sql3 = read('migrations/2026-10-11-thumbnail-titles-requeue.sql');
   ok(/p_apply boolean default false/.test(sql3) && /if p_apply then/.test(sql3), 'the re-queue defaults to a dry run');
   ok(/coalesce\(btrim\(d\.brief\), ''\) = '' or d\.brief ~ any\(v_lines\)/.test(sql3), 'a description a person wrote is never selected');
-  ok(/brief = '' where id = r\.deliverable_id and brief ~ any\(v_lines\)/.test(sql3), 'only the robot\'s own whole line is cleared');
+  ok(/brief = '' where id = r\.id and brief ~ any\(v_lines\)/.test(sql3), 'only the robot\'s own whole line is cleared');
   ok(!/like 'Needs info/.test(sql3.replace(/--.*$/gm, '')), 'no prefix test is left');
   // Every line the robot can write matches one of the whole-line patterns; edited lines match none.
   const patterns = [...sql3.matchAll(/^\s+'(\^Needs info: .*\$)',?$/gm)].map((m) => new RegExp(m[1].replace(/''/g, "'")));

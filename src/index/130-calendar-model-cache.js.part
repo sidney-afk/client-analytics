@@ -5,8 +5,8 @@ import {
 import { currentNav } from './065-core-nav-intake-state.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
 import {
-  _calIsTitleReviewOn, _calLoadCommentsField, _calNormStatus, _calTitleEngaged, _calUpsertFetch,
-  computeOverallStatus
+  CAL_STATUSES, _calIsTitleReviewOn, _calLoadCommentsField, _calNormStatus, _calTitleEngaged,
+  _calUpsertFetch, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { closeCalImport } from './134-calendar-prefs-mount.js';
@@ -774,6 +774,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         lastSel: null,
         monthFilter: null,
         statusFilter: 'all',
+        cardStatusFilter: { mode: 'show', picks: [] },   // overall card status: show only / hide these (see _calNormCardStatusFilter)
         // How the Sheet strip is ordered: 'manual' (the drag-and-drop order
         // stored in order_index — the default and the only mode that existed
         // before) or 'date' (auto-organized by scheduled date). See
@@ -1052,6 +1053,29 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calPostInStatusFilter(p, s) {
         if (!s || s === 'all') return true;
         return s === 'scheduled' ? _calPostHasDate(p) : !_calPostHasDate(p);
+    }
+    /* Card status filter (STATE_OF_THINGS D3). Filters every Calendar view by
+       each card's OVERALL status: the roll-up that p.status already carries
+       (computeOverallStatus writes it, the status chip reads it). This reads that
+       value and never recomputes it, so the filter can't drift from the chip.
+       Two modes over one list of picks: 'show' keeps only the picked statuses,
+       'hide' drops them. No picks means the filter is off, whichever mode is set.
+       Staff only; the client link never applies it. */
+    function _calNormCardStatusFilter(v) {
+        const raw = (v && Array.isArray(v.picks)) ? v.picks : [];
+        return {
+            mode: (v && v.mode === 'hide') ? 'hide' : 'show',
+            picks: CAL_STATUSES.filter(s => raw.includes(s))
+        };
+    }
+    function _calCardStatusFilterOn(f) {
+        return _calNormCardStatusFilter(f).picks.length > 0;
+    }
+    function _calPostInCardStatusFilter(p, f) {
+        const n = _calNormCardStatusFilter(f);
+        if (!n.picks.length) return true;
+        const hit = n.picks.includes(_calNormStatus(p && p.status));
+        return n.mode === 'hide' ? !hit : hit;
     }
     /* Sheet ordering mode. 'manual' is the historical behaviour — the strip is
        ordered by order_index, which drag-and-drop writes to the sheet. 'date'
@@ -1395,15 +1419,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 export {
   CAL_CONFLICT_WINDOW_MS, CAL_FILTERS_KEY, CAL_PINS_KEY, CAL_PLATFORM_BY_KEY, CAL_PREFS_KEY,
   CAL_SAVE_DEBOUNCE_MS, CAL_SETTINGS_DEFAULTS, _calAbandonLinkOnCalendarExit,
-  _calBulkColorSwatchesHtml, _calBumpThumbRev, _calCanDragCards, _calCapBlockHtml, _calCapSecMeta,
+  _calBulkColorSwatchesHtml, _calBumpThumbRev, _calCanDragCards, _calCardStatusFilterOn, _calCapBlockHtml, _calCapSecMeta,
   _calColorTagHtml, _calCommentsFor, _calCommentsForView, _calCompLinked, _calCurrentMonthIso,
   _calEnabledPlatformsLocal, _calFailedNewCards, _calFocusRequest, _calFocusRequestLoadFailed,
   _calHideOwnToast, _calIsAutoSortOn, _calIsCollabOn, _calIsStaleLinearRegress, _calLinearUrlFor,
   _calLoadLocalSettings, _calLocalRecentSaves, _calMigratePostShape, _calMonthLabel,
   _calMsgAudience, _calMsgIsTweak, _calNextTweakRound, _calNoLinearPush, _calNormMonthFilter,
-  _calNormSortMode, _calNormStatusFilter, _calOrganizerSort, _calPendingDeepLink, _calPendingEdits,
+  _calNormCardStatusFilter, _calNormSortMode, _calNormStatusFilter, _calOrganizerSort, _calPendingDeepLink, _calPendingEdits,
   _calPillDisplayStatus, _calPlatformsStripHtml, _calPostColor, _calPostHasDate,
-  _calPostInMonthFilter, _calPostInStatusFilter, _calPostPlatforms, _calRecentSaveFields,
+  _calPostInCardStatusFilter, _calPostInMonthFilter, _calPostInStatusFilter, _calPostPlatforms, _calRecentSaveFields,
   _calRecentSaveReconcile, _calReconcileSettings, _calReviewCapCardHtml, _calSaveInFlight,
   _calSaveLocalSettings, _calSaveSettings, _calSaveTimers, _calSetCommentsFor, _calSetFocusRequest,
   _calSetFocusRequestLoadFailed, _calSetPendingDeepLink, _calShiftMonthIso,

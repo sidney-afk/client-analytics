@@ -87,7 +87,11 @@ here with where it stopped, so it can be restarted.
   the overall card status, including EXCLUDE (for example hide every approved post). "Overall status" means the
   card's existing computed overall status (the roll-up of video, graphic and caption that the card already shows;
   title review stays out of it, as designed). The filter reads that value; it does not redefine its inputs.
-  Nothing built yet.
+  **Built 2026-10-11 by session Sieve, in review (one PR, not merged).** A "Status" pill beside Organize in Sheet,
+  Month and Week (not Review, not the client link): Show only or Hide, any set of the nine overall statuses, remembered
+  per client with the month and dated/undated filters, and a strip above the cards says what is on with a one-tap Clear
+  (on a phone the pill sits in the More sheet and the strip is what shows). Test:
+  `node docs/syncview-design/tests/calendar-card-status-filter-browser.js`.
 - **Open question raised 2026-10-01:** Analytics "views in 30 days" and "views gained today" look too high for at
   least one large client (the stored source rows themselves carry the large numbers, so the page shows what the
   daily metrics job wrote). Needs an accuracy check of how that job counts views before the analytics switch-on.

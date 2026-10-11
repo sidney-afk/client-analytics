@@ -2,6 +2,10 @@
 
 const NIGHTLY_PROBES_ENV = 'SYNCVIEW_NIGHTLY_PROBES';
 const NIGHTLY_SCENARIO_ENV = 'SYNCVIEW_NIGHTLY_SCN';
+// Probes a workflow step leaves out of its run (same name rules as the selection).
+const NIGHTLY_SKIP_ENV = 'SYNCVIEW_NIGHTLY_SKIP';
+// The only probes a workflow step runs, out of whatever was selected.
+const NIGHTLY_ONLY_ENV = 'SYNCVIEW_NIGHTLY_ONLY';
 const MAX_DISPATCH_INPUT = 4096;
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
@@ -34,6 +38,8 @@ function parseScenarioFilter(value) {
 module.exports = {
   NIGHTLY_PROBES_ENV,
   NIGHTLY_SCENARIO_ENV,
+  NIGHTLY_SKIP_ENV,
+  NIGHTLY_ONLY_ENV,
   parseProbeSelection,
   parseScenarioFilter,
 };

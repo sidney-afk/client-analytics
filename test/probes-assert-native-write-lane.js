@@ -198,13 +198,6 @@ const OUTSIDE_MANIFEST = {
     // beats wrong. The marker below has to be present so the state is declared in the file.
     expectedRed: 'EXPECTED RED UNTIL MIGRATED'
   },
-  'qa/probes/sxr_kasper_audit_holes.js': {
-    polarity: 'present',
-    witness: "pushed = linearCalls().some(c => c.path === 'linear-set-status'",
-    // NOT legacy-pinned, same reason: its contract is approve/undo persistence, which is
-    // production behaviour. EXPECTED RED until migrated.
-    expectedRed: 'EXPECTED RED UNTIL MIGRATED'
-  },
   'qa/ef-writepath/10-status-linear.js': {
     polarity: 'present',
     witness: 's.ok(toExpect.length >= 1,',
@@ -219,6 +212,12 @@ const OUTSIDE_MANIFEST = {
   'qa/ef-writepath/13-settings.js': {
     polarity: 'zero',
     witness: 's.ok(pushes.length === 0,'
+  },
+  // Migrated 2026-10-10 (OPEN_REPAIRS 392): its approve/undo checks now read the native
+  // gateway; the one Linear line left asserts that the media gate sends NOTHING there.
+  'qa/probes/sxr_kasper_audit_holes.js': {
+    polarity: 'zero',
+    witness: "t(!linearCalls().some(c => c.path === 'linear-set-status'), 'GATE: no status push reached Linear');"
   },
   // plumbing = routes or records the webhooks but asserts nothing about them. Checked by
   // absence rather than by a witness: no assertion line in the file may mention them.

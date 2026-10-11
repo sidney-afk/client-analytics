@@ -15,7 +15,7 @@ offline browser regression tests ran in no workflow and 9 had drifted to
 failing, one of them catching a real crash (a fresh Kasper sub-tab address
 showed an admin "Could not load data"). Shipped as ledger 404 (#2038, wrong
 client and lost work on the page), 398 (#2039, server and ops; owner deployed
-higgsfield-mcp and instagram-upload) and 405 (the guards and the Kasper crash);
+higgsfield-mcp and instagram-upload) and 406 (the guards and the Kasper crash);
 two findings were left to #2037 and #2033, which fixed them more completely.
 Cycle 4's sweep left five candidates unverified when the session was
 re-scoped; they are listed with the pattern matrix, seen ledger and proof

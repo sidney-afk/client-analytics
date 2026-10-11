@@ -121,8 +121,12 @@ function samplesReviewTree(comp) {
                 // F140 OWNER RULING (2026-07-17): Samples matches Calendar.
                 // Kasper may stack change requests, then Finish must hand the
                 // card to the SMM. A disabled Finish here is a regression.
-                key: 'finish', title: 'Kasper finishes reviewing → Sent to SMM',
-                steps: [['kasper.finish'], ['expectKasperCard', 'finished']],
+                // Owner decision 2026-09-27: a finished SAMPLE leaves his queue
+                // until a new version puts a part back at Kasper Approval (it no
+                // longer sits under "Tweaks pending" with "Sent to SMM"). So the
+                // hand-off is proven by the saved stamp plus the card leaving.
+                key: 'finish', title: 'Kasper finishes reviewing → handed to the SMM, leaves his queue',
+                steps: [['kasper.finish'], ['expectStamped', 'kasper_finished_at'], ['expect', sub, 'Tweaks Needed'], ['expectKasperCard', 'absent']],
               },
               {
                 key: 'resolve_back', title: 'SMM resolves → chooser → back to Kasper → Kasper approves',

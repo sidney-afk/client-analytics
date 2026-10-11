@@ -2,7 +2,7 @@
 /*
  * A fresh open of a Kasper sub-tab address (/kasper/<subtab>, #kasper/<subtab>)
  * reaches that sub-tab even when the later script files are still on their
- * way. Found 2026-10-10 (Digger, bug archaeology, OPEN_REPAIRS 405) by
+ * way. Found 2026-10-10 (Digger, bug archaeology, OPEN_REPAIRS 406) by
  * test/clean-urls-browser.js, which no workflow had ever run.
  *
  * Since the page loads in parts (#1848, 2026-09-29), boot (fragment 260,

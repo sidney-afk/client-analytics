@@ -44,6 +44,7 @@
 //                                      — DOM assert on the CLIENT surface thread text
 //   expectKasperCard(state)            — DOM assert on the Kasper queue:
 //                                        'present'|'absent'|'finished'
+//   expectStamped(col)                 — the DB column holds a value (any non-empty one)
 const L = require('./sxr_courier_lib.js');
 const { smm, kasper, client, up, supa, poll, appErrs, linearCalls, resetLinearCalls } = L;
 
@@ -1011,6 +1012,14 @@ async function runScenario(browser, scn, shotDir, doShots) {
       else if (verb === 'client.request') { const p = await actors.client(); res = await clientAct(p, name, args[0], 'request', args[1]); await shot(p, 'client-request'); }
       else if (verb === 'client.comment') { const p = await actors.client(); res = await clientAct(p, name, args[0], 'comment', args[1]); await shot(p, 'client-comment'); }
       else if (verb === 'expect') { const okk = await waitCol(id, args[0], args[1]); note(okk, `expect ${args[0]}=${args[1]}`, okk ? '' : 'got ' + (row(id, args[0]) || {})[args[0]]); continue; }
+      else if (verb === 'expectStamped') {
+        // A stamp whose exact value the browser chooses (a time), so only "it was saved" is asserted.
+        const t0 = Date.now(); let r = null;
+        while (Date.now() - t0 < 15000) { r = row(id, args[0]); if (r && r[args[0]]) break; await new Promise(s => setTimeout(s, 400)); }
+        const okk = !!(r && r[args[0]]);
+        note(okk, `expectStamped ${args[0]}`, okk ? '' : 'got ' + JSON.stringify(r && r[args[0]]));
+        continue;
+      }
       else if (verb === 'expectPill') {
         // DOM assert on the SMM sheet: the component's sub-status pill shows the
         // expected status IN PLACE — no reload between the action and this check.

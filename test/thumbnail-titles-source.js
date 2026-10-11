@@ -23,9 +23,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(L.N8N_TITLE_PROMPT.includes('write a title (2-5 words)'), 'n8n length rule kept');
   ok(L.N8N_TITLE_PROMPT.includes('NO descriptions, NO filler words, NO clinical language'), 'n8n tone rule kept');
   eq(L.defaultPromptFor(''), L.N8N_TITLE_PROMPT, 'no style: plain n8n prompt');
-  const withStyle = L.defaultPromptFor('## Hooks (voice)\nShort and warm.');
-  ok(withStyle.startsWith(L.N8N_TITLE_PROMPT) && withStyle.includes(L.STYLE_HEADER) && withStyle.endsWith('Short and warm.'), 'style appended');
-  ok(L.defaultPromptFor('x'.repeat(9000)).length <= L.N8N_TITLE_PROMPT.length + L.STYLE_HEADER.length + L.STYLE_MAX_CHARS + 4, 'style capped');
+  const withStyle = L.defaultPromptFor([{ file: 'voice', heading: 'Hooks', body: 'Never use the word "quietly".' }]);
+  ok(withStyle.startsWith(L.N8N_TITLE_PROMPT + '\n\n' + L.STYLE_HEADER) && withStyle.includes('Never use the word "quietly".'), 'style section appended after the n8n instruction');
   ok(L.STYLE_EXCLUDE.test('Communication') && L.STYLE_EXCLUDE.test('How she talks to us') && !L.STYLE_EXCLUDE.test('Banned-Openings'), 'agency-communication facts left out');
 
   // Saved prompt wins, then the seeded default, then the plain instruction.

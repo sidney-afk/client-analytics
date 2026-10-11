@@ -201,7 +201,9 @@ here with where it stopped, so it can be restarted.
      archived (needs the sealed capture and an owner deploy).
    - **Daily real-browser client check from a local session, Samples included,
      noting odd loads, pop-ups and delays** (owner 2026-09-22). The shipped
-     morning check is headless on GitHub and has no Samples flow.
+     morning check is headless on GitHub. **2026-10-09 (session Gatekeeper, OPEN_REPAIRS 392, in PR):
+     it now includes a client Samples approve** on the test client's sample with real work items (staff sends it
+     with a real sign-in, the client approves, staff puts it back). It reads the SMM role key from the repository secret `ROBOT_ROLE_KEY_SMM` (entry 392). The local-session half is still open.
    - **Write down how to prompt local sessions to use the app's Browser pane
      instead of Chrome** (owner 2026-09-23, "write this somewhere").
    - **Public-key reads of `calendar_posts` and `sample_reviews`, phases 1 and 2**
@@ -244,8 +246,11 @@ hiring senders when the editor hire closes.
   personal data sitting in a third-party tool.
 - **2026-10-15: assurance-ledger lane goes red again.** Four quality-tier rows
   were restated, not re-proven, and reach 90 days on about 2026-10-15
-  (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
-  access from the owner's machine. The separate "Linear access extension to
+  (OPEN_REPAIRS 205a). **2026-10-09 (session Gatekeeper, OPEN_REPAIRS 392, in PR): the three Tier 0 rows
+  (client links, link issuance, client thumbnails) were re-proven on the live site, test client, 12 of 12
+  (`node qa/dawn/tier0-live-proof.js`), plus Calendar staff writes and Samples + Kasper; the State column is
+  restamped 2026-10-09.** Still past their window: submit intake, staff sign-in, the Linear mirror row, PTO,
+  Templates, Filming plans, Weekly reports (re-prove or retire before the lane's 90-day line). The separate "Linear access extension to
   2026-10-15" is moot: all Linear keys were revoked on 2026-09-23.
 - **Slack alerts become one message (owner said yes, 2026-09-28): BUILT 2026-10-02, merged, switch off (OPEN_REPAIRS 328; measured
   2026-10-09: the 09:37 UTC run printed `ALERT_DIGEST_ENABLED` empty, so it is still shadow).**
@@ -289,10 +294,23 @@ hiring senders when the editor hire closes.
   **2026-10-08 (OPEN_REPAIRS 373, session Mend): Calendar E2E, Samples E2E and the drift check.** Robot causes
   fixed in test code (fake-key refusal shadowing the fake gateway; fake-key 401s on staff reads signing the robot
   out, which since admin-only Kasper sends it to Home; notes sent before their thread loads; two probes on
+<<<<<<< HEAD
+  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Owner steps left:
+  apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
+  test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
+  preflight's two pins at that migration before the next Section 4 dispatch.
+  **2026-10-09 (OPEN_REPAIRS 392, session Gatekeeper, in PR):** Calendar run 112 (first with 373's fixes) was 21 of 67
+  red. Fixed: probe cards now carry fixture work items with a faked gateway that holds its status (13 probes), p85, p92,
+  p94; p89, p90, p91 retired (they drive the staff blank-card funnel production no longer reaches). Samples: Kasper Undo
+  was a real bug (fixed); Finish expectation follows the owner's 2026-09-27 rule; robot servers answer like Pages. p28,
+  p29, p30, p36 stay (they test native routing). The robots now read the SMM role key from the repository secret `ROBOT_ROLE_KEY_SMM` (owner decision; the
+  `production` environment keeps its approval rule). Owner check: `SYNCVIEW_STAFF_ACTOR` names an active SMM.
+=======
   retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Measured 2026-10-09: the migration is
   applied from the LF copy (both routine bodies match the preflight pins, OPEN_REPAIRS 381), the test-client repair ran,
   and the pins are re-pointed (today's Section 4 run passed its preflight). Left: the `SYNCVIEW_STAFF_KEY` repository
   secret holds a role key (p96); a secret cannot be read, so the next Calendar and Samples nightly runs show it.
+>>>>>>> origin/main
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

@@ -49,8 +49,13 @@ async function kasperCardState(page, cid) {
     t(landed, 'kasper request landed (Tweaks Needed)');
     await kp.evaluate((cid) => { _sxrKasperDismiss(cid); }, idR);
     await sleep(3000);
+    // Owner decision 2026-09-27: a sample he finishes LEAVES his queue (no "Sent to SMM"
+    // row) until a new version puts a part back at Kasper Approval. So "finished" is the
+    // saved stamp plus the card leaving (OPEN_REPAIRS 392).
+    let stamped = false; for (let i = 0; i < 20 && !stamped; i++) { const r = supa('id=eq.' + idR + '&select=kasper_finished_at'); stamped = !!(r[0] && r[0].kasper_finished_at); if (!stamped) await sleep(1000); }
+    t(stamped, 'after Finish: the finish stamp is saved');
     const stFin = await kasperCardState(kp, idR);
-    t(stFin === 'finished', 'after Finish: card partitions as finished ("Sent to SMM")', 'state=' + stFin);
+    t(stFin === 'absent', 'after Finish: the sample leaves his queue', 'state=' + stFin);
     // SMM replies (a NEW MESSAGE lands after the finish stamp)…
     const sp = await smm(browser);
     await sp.waitForFunction((cid) => !!document.querySelector(`#sxrStrip .cal-card[data-pid="${cid}"]`), idR, { timeout: 15000 });
@@ -62,22 +67,20 @@ async function kasperCardState(page, cid) {
       const send = document.querySelector('#sxrCommentsOverlay .cal-cm-send'); if (send && !send.disabled) send.click();
     });
     await sleep(5000);
-    // …and on SAMPLES the finished card STAYS finished (BUG-7 FIX). Poll until the
-    // queue's in-memory post actually CONTAINS the new message, THEN assert it is
-    // still partitioned as finished (not pulled back to Waiting).
-    let stAfter = 'absent', sawMsg = false;
-    for (let i = 0; i < 25; i++) {
+    // The note is saved on the sample itself (the finished sample is no longer in his queue
+    // to read it from, so it is read from the database).
+    let sawMsg = false;
+    for (let i = 0; i < 15 && !sawMsg; i++) { const r = supa('id=eq.' + idR + '&select=video_tweaks'); sawMsg = !!(r[0] && /new cut uploaded/.test(r[0].video_tweaks || '')); if (!sawMsg) await sleep(1000); }
+    t(sawMsg, 'new SMM message landed on the finished sample');
+    // …and the finished sample does NOT come back to Waiting on a reply (BUG-7 FIX).
+    let stAfter = 'absent';
+    for (let i = 0; i < 4; i++) {
       await kp.evaluate(() => { if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
       await sleep(2500);
-      const seen = await kp.evaluate((cid) => {
-        const it = (typeof _sxrKasperFindItem === 'function') && _sxrKasperFindItem(cid);
-        if (!it) return { found: false };
-        return { found: true, hasMsg: String(it.post.video_tweaks || JSON.stringify(it.post.comments || '')).includes('new cut uploaded'), fin: _sxrKasperIsFinished(it.post) };
-      }, idR);
-      if (seen.found && seen.hasMsg) { sawMsg = true; stAfter = seen.fin ? 'finished' : 'present'; break; }
+      stAfter = await kasperCardState(kp, idR);
+      if (stAfter !== 'absent') break;
     }
-    t(sawMsg, 'new SMM message landed on the finished card');
-    t(stAfter === 'finished', 'BUG-7 FIX: a new message does NOT resurface a FINISHED card (stays in Tweaks pending; parity with calendar)', 'state=' + stAfter);
+    t(stAfter === 'absent', 'BUG-7 FIX: a new message does NOT resurface a FINISHED sample', 'state=' + stAfter);
 
     // ---------- 3a. GA default-ON: no param → enabled, "Samples" nav visible ----------
     const defPage = await open(browser, '/index.html');   // NO sxr param at all

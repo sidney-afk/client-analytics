@@ -1911,7 +1911,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                it reads (KASPER_SUBTABS, 320) in another. init waits only for the
                early staff check, so a fresh /kasper/<subtab> could reach its
                branch before either had run, throw, and show an admin "Could not
-               load data" (OPEN_REPAIRS 405). Testing for the resolver alone is
+               load data" (OPEN_REPAIRS 406). Testing for the resolver alone is
                not enough (its file can run while the list's is still on its
                way), so wait for the parse to finish: it costs nothing once it has. */
             const _bootKasperSubtab=async(sub)=>{

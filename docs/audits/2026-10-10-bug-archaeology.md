@@ -12,15 +12,15 @@ n8n workflow was read or edited; the only live access was read-only SQL counts.
 
 Three branches carry the work (ledger entries 405, 404, 398):
 
-- **405, never-run browser guards** (`claude/laughing-edison-mzgxbl`, pushed,
-  no pull request yet): a unit test that fails when a browser test exists and
+- **405, never-run browser guards** (`claude/laughing-edison-mzgxbl`): a unit test that fails when a browser test exists and
   no workflow runs it; a CI job running the 28 passing guards; six stale
   guards repaired; the Kasper deep-link crash they were hiding, fixed.
-- **404, wrong client and lost work (page)**, #2038: the credentials dialog,
+- **404, wrong client and lost work (page)**, #2038 (merged): the credentials dialog,
   the Instagram Calendar cover, the TikTok retry key and fallback, Samples
   Notes, a restored SyncLinear comment, Analytics "This week" on the 1st, the
   Ads panel dates. Kasper's Samples notes were dropped in favour of #2037.
-- **398, server and ops**, #2039: the Instagram client lookup and Cancel,
+- **398, server and ops**, #2039 (merged; `higgsfield-mcp` and
+  `instagram-upload` deployed by the owner): the Instagram client lookup and Cancel,
   Higgsfield's unconfirmed creates, an unreadable Pages source, an empty
   roster in the name check, paging order in the drift robot. The Brain "&"
   fix was dropped in favour of #2033.
@@ -186,6 +186,6 @@ after cycle 4's sweep.
 ## Verification boundary
 
 Local runs only (Node 22, Playwright 1.56.1, Chromium 141). Hosted CI on each
-pull request is the proof for the new CI job. Nothing touched a live write;
-the Brain, Instagram and title fixes need the owner's single-function deploys
-(listed in entry 398).
+pull request is the proof for the new CI job. Nothing touched a live write
+from this session; the owner deployed `higgsfield-mcp` and `instagram-upload`
+after #2039 merged and verified them live.

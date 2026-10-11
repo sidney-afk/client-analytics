@@ -163,10 +163,28 @@ const SIGN_IN_GATE = { name: 'Staff sign-in (start-up gate)', overlay: '#staffId
     return on === want;
   }, [sel, wantShown], { timeout: ms });
 
+  // Wait until the dialog has finished drawing: no loading skeleton left and
+  // the same size for three reads in a row (one second of stillness if a
+  // skeleton never clears). The credential history dialog opens 420 px tall
+  // with a skeleton and shrinks to 233 px when its read answers; on a slower
+  // runner that answer landed between choosing the press point and pressing,
+  // so the "inside" press began on the backdrop and the test blamed the page
+  // (first hosted run, PR 2044).
+  const settle = (page, sel) => page.evaluate(() => { window.__dlgSettle = null; }).then(() => page.waitForFunction(s => {
+    const ov = document.querySelector(s);
+    if (!ov) return false;
+    const shape = Array.from(ov.children).map(ch => { const b = ch.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round).join(','); }).join('|');
+    const loading = !!ov.querySelector('.sv-skeleton, [role="status"][aria-label="Loading"]');
+    const w = window.__dlgSettle || (window.__dlgSettle = { shape: '', still: 0 });
+    if (shape === w.shape) w.still++; else { w.shape = shape; w.still = 0; }
+    return w.still >= (loading ? 20 : 3);
+  }, sel, { polling: 50, timeout: 8000 })).catch(() => {});
+
   async function drive(page, c) {
     const label = c.name;
     await page.evaluate(c.open);
     await until(page, c.overlay, true, 10000).catch(() => { throw new Error(label + ': the dialog did not open (' + c.overlay + ')'); });
+    await settle(page, c.overlay);
     assert.equal(await page.evaluate(s => document.querySelector(s).hasAttribute('data-backdrop-dismiss'), c.overlay), true,
       label + ': the backdrop is not marked data-backdrop-dismiss, so it has no press guard');
 
@@ -216,6 +234,11 @@ const SIGN_IN_GATE = { name: 'Staff sign-in (start-up gate)', overlay: '#staffId
     }, c.overlay);
     assert.ok(pts.back, label + ': no visible backdrop point was found');
     assert.ok(pts.inner, label + ': no point inside the dialog was found');
+
+    // The press point must still be inside the dialog at the moment of the
+    // press; if the dialog moved, say so instead of blaming the page.
+    assert.equal(await page.evaluate(([s, x, y]) => { const ov = document.querySelector(s); const u = document.elementFromPoint(x, y); return !!u && u !== ov && ov.contains(u); }, [c.overlay, pts.inner[0], pts.inner[1]]), true,
+      label + ': the dialog moved after the press point was chosen (the test, not the page)');
 
     // 1. press inside, release on the backdrop: must stay open.
     await page.mouse.move(pts.inner[0], pts.inner[1]);

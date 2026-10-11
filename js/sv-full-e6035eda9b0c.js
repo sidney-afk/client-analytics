@@ -27271,6 +27271,7 @@
         lastSel: null,
         monthFilter: null,
         statusFilter: 'all',
+        cardStatusFilter: { mode: 'show', picks: [] },   // overall card status: show only / hide these (see _calNormCardStatusFilter)
         // How the Sheet strip is ordered: 'manual' (the drag-and-drop order
         // stored in order_index — the default and the only mode that existed
         // before) or 'date' (auto-organized by scheduled date). See
@@ -27549,6 +27550,29 @@
     function _calPostInStatusFilter(p, s) {
         if (!s || s === 'all') return true;
         return s === 'scheduled' ? _calPostHasDate(p) : !_calPostHasDate(p);
+    }
+    /* Card status filter (STATE_OF_THINGS D3). Filters every Calendar view by
+       each card's OVERALL status: the roll-up that p.status already carries
+       (computeOverallStatus writes it, the status chip reads it). This reads that
+       value and never recomputes it, so the filter can't drift from the chip.
+       Two modes over one list of picks: 'show' keeps only the picked statuses,
+       'hide' drops them. No picks means the filter is off, whichever mode is set.
+       Staff only; the client link never applies it. */
+    function _calNormCardStatusFilter(v) {
+        const raw = (v && Array.isArray(v.picks)) ? v.picks : [];
+        return {
+            mode: (v && v.mode === 'hide') ? 'hide' : 'show',
+            picks: CAL_STATUSES.filter(s => raw.includes(s))
+        };
+    }
+    function _calCardStatusFilterOn(f) {
+        return _calNormCardStatusFilter(f).picks.length > 0;
+    }
+    function _calPostInCardStatusFilter(p, f) {
+        const n = _calNormCardStatusFilter(f);
+        if (!n.picks.length) return true;
+        const hit = n.picks.includes(_calNormStatus(p && p.status));
+        return n.mode === 'hide' ? !hit : hit;
     }
     /* Sheet ordering mode. 'manual' is the historical behaviour — the strip is
        ordered by order_index, which drag-and-drop writes to the sheet. 'date'
@@ -28398,7 +28422,7 @@
     function _calFiltersRead() {
         try { const m = JSON.parse(localStorage.getItem(CAL_FILTERS_KEY) || '{}'); return (m && typeof m === 'object') ? m : {}; } catch { return {}; }
     }
-    /* Hydrate calState.monthFilter/statusFilter from the named client's saved
+    /* Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved
        entry (defaults: current month / all content when none saved yet). Call
        on mount and on every client switch, BEFORE rendering the filter pills. */
     function _calLoadClientFilters(name) {
@@ -28406,6 +28430,7 @@
         const row = (slug && _calFiltersRead()[slug]) || {};
         calState.monthFilter  = _calNormMonthFilter(row.month);
         calState.statusFilter = _calNormStatusFilter(row.status);
+        calState.cardStatusFilter = _calNormCardStatusFilter(row.cs);
         // Ordering mode rides along with the filters: per-client, per-device,
         // and never sent to the backend. It changes only what THIS viewer sees,
         // so one SMM auto-organizing their view can't reorder anyone else's.
@@ -28416,7 +28441,7 @@
         if (!slug) return;
         try {
             const m = _calFiltersRead();
-            m[slug] = { month: calState.monthFilter, status: calState.statusFilter, sort: calState.sortMode };
+            m[slug] = { month: calState.monthFilter, status: calState.statusFilter, cs: _calNormCardStatusFilter(calState.cardStatusFilter), sort: calState.sortMode };
             localStorage.setItem(CAL_FILTERS_KEY, JSON.stringify(m));
         } catch {}
     }
@@ -35148,10 +35173,11 @@
             queueMicrotask(() => { if (menus.more.open && state.kebab) state.kebab.node.hidden = false; });
         }, true);
         const arrange = () => {
-            for (const node of root.querySelectorAll('.cal-toolbar .cal-organize, .cal-toolbar .cal-zoom, .cal-toolbar .cal-kebab-wrap')) {
+            for (const node of root.querySelectorAll('.cal-toolbar .cal-organize, .cal-toolbar .cal-status-filter, .cal-toolbar .cal-zoom, .cal-toolbar .cal-kebab-wrap')) {
                 state.moved.push({ node, parent: node.parentNode, next: node.nextSibling });
                 const next = node.classList.contains('cal-organize')
-                    ? moreBody.querySelector('.cal-zoom, .cal-kebab-wrap')
+                    ? moreBody.querySelector('.cal-status-filter, .cal-zoom, .cal-kebab-wrap')
+                    : node.classList.contains('cal-status-filter') ? moreBody.querySelector('.cal-zoom, .cal-kebab-wrap')
                     : node.classList.contains('cal-zoom') ? moreBody.querySelector('.cal-kebab-wrap') : null;
                 moreBody.insertBefore(node, next);
                 const kebab = node.querySelector('#calKebabMenu');
@@ -35234,6 +35260,7 @@
         _calRenderBody({ preserveScroll: true });
     }
     function _calRefreshOrganize() {
+        _calRefreshCardStatus();
         const mid = document.querySelector('.cal-toolbar-mid');
         if (!mid) return;
         const existing = (_calStaffPhoneActive() || _calPhoneClient()) ? document.querySelector('#calView .cal-organize') : mid.querySelector('.cal-organize');
@@ -35258,6 +35285,163 @@
             else mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle'));
         }
     }
+    /* ── Card status filter (STATE_OF_THINGS D3) ─────────────────────────
+       A second toolbar pill beside Organize that filters Sheet, Month and Week
+       by each card's OVERALL status (the roll-up the status chip shows; see
+       _calNormCardStatusFilter). Show only keeps the picked statuses, Hide drops
+       them. Staff only: the client link never renders or applies it.
+       When it is on it says so twice: the pill turns solid with a summary, and a
+       slim strip above the cards (_calCardStatusStripHtml) names the filter with
+       a one-tap Clear. The strip is what a phone shows, since the pill lives in
+       the More sheet there. */
+    function _calCardStatusAvailable() {
+        // Not in the Calendar embedded inside Analytics: that surface has its own phone layout and keeps the toolbar it had.
+        return !!calState.client && !_isClientLink && !calState.embedded && calState.view !== 'review' && calState.view !== 'smmreview';
+    }
+    function _calCardStatusLive() {
+        return !_isClientLink && !calState.embedded && _calCardStatusFilterOn(calState.cardStatusFilter);
+    }
+    /* One predicate for every view. A card opened from the review queue
+       (focusPid) is forced through, same as the other Sheet filters. */
+    function _calPostPassesCardStatus(p) {
+        if (!_calCardStatusLive()) return true;
+        if (p && p.id === calState.focusPid) return true;
+        return _calPostInCardStatusFilter(p, calState.cardStatusFilter);
+    }
+    function _calCardStatusSummary() {
+        const f = _calNormCardStatusFilter(calState.cardStatusFilter);
+        if (!f.picks.length) return 'Status';
+        const what = f.picks.length === 1 ? _calStatusLabel(f.picks[0]) : f.picks.length + ' statuses';
+        return (f.mode === 'hide' ? 'Hide ' : 'Only ') + what;
+    }
+    function _calCardStatusSentence() {
+        const f = _calNormCardStatusFilter(calState.cardStatusFilter);
+        const names = f.picks.map(_calStatusLabel).join(', ');
+        return (f.mode === 'hide' ? 'Hiding ' : 'Showing only ') + names;
+    }
+    function _calCardStatusStripHtml() {
+        if (!_calCardStatusAvailable() || !_calCardStatusLive()) return '';
+        return `<div class="cal-sf-strip" id="calCardStatusStrip" role="status"><span class="cal-sf-strip-txt">${_calEsc(_calCardStatusSentence())}</span><button type="button" class="cal-sf-clear" onclick="onCalCardStatusClear()">Clear</button></div>`;
+    }
+    function _calCardStatusHtml() {
+        if (!_calCardStatusAvailable()) return '';
+        const f = _calNormCardStatusFilter(calState.cardStatusFilter);
+        const on = f.picks.length > 0;
+        const chev = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
+        const ico = `<svg class="cal-org-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h12L9.5 9v3.5L6.5 14V9z"/></svg>`;
+        const mode = (val, label) => `<button type="button" class="cal-sf-mode${f.mode === val ? ' active' : ''}" role="radio" aria-checked="${f.mode === val ? 'true' : 'false'}" onclick="onCalCardStatusMode('${val}')">${label}</button>`;
+        const rows = CAL_STATUSES.map(st => {
+            const checked = f.picks.includes(st);
+            return `<button type="button" class="dropdown-item cal-sf-row${checked ? ' active' : ''}" role="menuitemcheckbox" aria-checked="${checked ? 'true' : 'false'}" data-status="${_calEscAttr(st)}" onclick="onCalCardStatusToggle(this.dataset.status)"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-${_calStatusSlug(st)}">${_calEsc(_calStatusLabel(st))}</span></button>`;
+        }).join('');
+        return `<div class="cal-month-filter cal-status-filter" id="calCardStatusWrap">
+            <button type="button" class="dropdown-trigger${on ? ' is-filtered' : ''}" id="calCardStatusBtn" onclick="_calToggleCardStatusMenu(event)" title="Show or hide cards by their overall status" aria-haspopup="menu" aria-expanded="false">
+                ${ico}<span class="cal-org-trigger-txt">${_calEsc(_calCardStatusSummary())}</span>${chev}
+            </button>
+            <div class="dropdown-menu cal-sf-menu" id="calCardStatusMenu" role="menu" aria-label="Filter cards by status">
+                <div class="cal-sf-modes" role="radiogroup" aria-label="Filter mode">${mode('show', 'Show only')}${mode('hide', 'Hide')}</div>
+                <div class="cal-org-sec">Overall status</div>
+                <div role="group" aria-label="Statuses">${rows}</div>
+                ${on ? '<div class="cal-org-sep" role="separator"></div><button type="button" class="dropdown-item cal-sf-menu-clear" role="menuitem" onclick="onCalCardStatusClear()">Clear status filter</button>' : ''}
+            </div>
+        </div>`;
+    }
+    function _calSetCardStatusOpen(open, opts) {
+        const menu = document.getElementById('calCardStatusMenu');
+        const btn = document.getElementById('calCardStatusBtn');
+        if (!menu || !btn) return;
+        menu.classList.toggle('open', !!open);
+        btn.classList.toggle('open', !!open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) _calWireCardStatusDismiss();
+        else if (opts && opts.focusTrigger) btn.focus();
+    }
+    function _calToggleCardStatusMenu(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('calCardStatusMenu');
+        if (!menu) return;
+        const open = !menu.classList.contains('open');
+        if (open) _calSetOrganizeOpen(false);
+        _calSetCardStatusOpen(open);
+    }
+    /* Same shape as the Organize menu's dismissal: capture phase, because many
+       card controls stop click propagation. */
+    let _calSfDismissWired = false;
+    function _calWireCardStatusDismiss() {
+        if (_calSfDismissWired) return;
+        _calSfDismissWired = true;
+        document.addEventListener('click', (ev) => {
+            const menu = document.getElementById('calCardStatusMenu');
+            if (!menu || !menu.classList.contains('open')) return;
+            const t = ev.target;
+            if (t && t.nodeType === 1 && !t.isConnected) return;   // node this click just re-rendered
+            const wrap = document.getElementById('calCardStatusWrap');
+            if (wrap && wrap.contains(t)) return;
+            _calSetCardStatusOpen(false);
+        }, true);
+        document.addEventListener('keydown', (ev) => {
+            if (ev.key !== 'Escape') return;
+            const menu = document.getElementById('calCardStatusMenu');
+            if (!menu || !menu.classList.contains('open')) return;
+            _calSetCardStatusOpen(false, { focusTrigger: true });
+        });
+    }
+    /* Rebuild the pill in place, keeping the menu open: picking several
+       statuses in a row shouldn't close the panel after each one. */
+    function _calRefreshCardStatus() {
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (!mid) return;
+        const phone = _calStaffPhoneActive();
+        const existing = phone ? document.querySelector('#calView .cal-status-filter') : mid.querySelector('.cal-status-filter');
+        const html = _calCardStatusHtml();
+        if (!html) { if (existing) existing.remove(); return; }
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const node = tmp.firstElementChild;
+        if (!node) return;
+        if (existing) {
+            const wasOpen = !!existing.querySelector('.dropdown-menu.open');
+            const keep = wasOpen ? (document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-status')) : null;
+            existing.replaceWith(node);
+            if (wasOpen) {
+                _calSetCardStatusOpen(true);
+                if (keep) { const again = [...node.querySelectorAll('[data-status]')].find(b => b.getAttribute('data-status') === keep); if (again) again.focus(); }
+            }
+        } else {
+            const org = mid.querySelector('.cal-organize');
+            if (org) org.after(node);
+            else {
+                const picker = !!mid.closest('.cal-toolbar.is-picker-shell');
+                mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle'));
+            }
+        }
+    }
+    /* The strip lives inside the body paint, so a card-status change repaints it
+       with the cards. Month and Week get it too; Review never does. */
+    function _calCardStatusAfterChange() {
+        _calSaveClientFilters();
+        _calRenderBody({ preserveScroll: false });
+        _calRefreshCardStatus();
+    }
+    function onCalCardStatusMode(mode) {
+        const f = _calNormCardStatusFilter(calState.cardStatusFilter);
+        calState.cardStatusFilter = { mode: mode === 'hide' ? 'hide' : 'show', picks: f.picks };
+        _calCardStatusAfterChange();
+    }
+    function onCalCardStatusToggle(status) {
+        const f = _calNormCardStatusFilter(calState.cardStatusFilter);
+        const picks = f.picks.includes(status) ? f.picks.filter(x => x !== status) : f.picks.concat(status);
+        calState.cardStatusFilter = { mode: f.mode, picks };
+        _calCardStatusAfterChange();
+    }
+    /* Clears the picks and keeps the chosen mode, so "Hide" stays "Hide" for the
+       next set of picks. */
+    function onCalCardStatusClear() {
+        const f = _calNormCardStatusFilter(calState.cardStatusFilter);
+        calState.cardStatusFilter = { mode: f.mode, picks: [] };
+        _calCardStatusAfterChange();
+    }
+
     /* Lighter path for the Order switch: update the chrome in place so the
        switch animates from off to on instead of being replaced mid-flip. */
     function _calSyncOrganizeSwitch() {
@@ -35321,6 +35505,7 @@
             && _calPostHasDate(p)
             && !_calPostInMonthFilter(p, monthFilter)
             && _calPostInStatusFilter(p, statusFilter)
+            && _calPostPassesCardStatus(p)
             && (!_isClientLink || _calIsCollabOn() || _calIsClientReady(p)));
         const RECENT_MS = 48 * 60 * 60 * 1000;
         const recentIds = new Set(cands.filter(p => {
@@ -35413,6 +35598,7 @@
     function onCalClearFilters() {
         calState.monthFilter = 'all';
         calState.statusFilter = 'all';
+        calState.cardStatusFilter = { mode: _calNormCardStatusFilter(calState.cardStatusFilter).mode, picks: [] };
         _calSaveClientFilters();
         _calRenderBody({ preserveScroll: false });
         _calRefreshOrganize();
@@ -35580,6 +35766,7 @@
                 <div class="cal-toolbar-mid">
                     ${pickerShell ? toggleHtml : ''}
                     ${_calOrganizeHtml()}
+                    ${_calCardStatusHtml()}
                     ${_calClientLinksHtml()}
                     ${pickerShell ? '' : toggleHtml}
                     <div class="cal-zoom" id="calZoomCtl" title="Card size">
@@ -36263,11 +36450,12 @@
            to the last paint of this same body, which is what the first
            authority read usually turns out to be ~100 ms after first paint. */
         const skipIfUnchanged = !!(opts && opts.skipIfUnchanged);
-        const viewHtml = (calState.view === 'review' || calState.view === 'smmreview') ? renderCalReview()
+        const viewHtmlRaw = (calState.view === 'review' || calState.view === 'smmreview') ? renderCalReview()
             : calState.view === 'organizer' ? renderCalOrganizer()
             : calState.view === 'month' ? renderCalMonth()
             : calState.view === 'week' ? renderCalWeek()
             : null;
+        const viewHtml = viewHtmlRaw == null ? null : _calCardStatusStripHtml() + viewHtmlRaw;
         if (skipIfUnchanged && viewHtml != null && lastPaint.el === body
             && lastPaint.view === calState.view && lastPaint.html === viewHtml) {
             _calLastBodyPaint = lastPaint;
@@ -37504,13 +37692,14 @@
                 || (statusFilter === 'unscheduled' && !_calPostHasDate(p))
                 || _calPostInMonthFilter(p, monthFilter))
             .filter(p => p.id === calState.focusPid || _calPostInStatusFilter(p, statusFilter))
-            .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p));
+            .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p))
+            .filter(_calPostPassesCardStatus);
         _calOrganizerSort(posts);
         const empty = posts.length === 0;
         // When a filter is hiding everything but there ARE posts behind it,
         // surface that — otherwise the user sees the "Add the first post" hero
         // and thinks the calendar is genuinely empty.
-        const anyFilterActive = monthFilter !== 'all' || statusFilter !== 'all';
+        const anyFilterActive = monthFilter !== 'all' || statusFilter !== 'all' || _calCardStatusLive();
         const hiddenByFilter = empty && anyFilterActive && calState.posts.length > 0;
         // Cards hidden by the month filter are surfaced as the ⓘ chip next to
         // the month pill (see _calHiddenMonthWarnings / _calSyncMonthWarnIcon)
@@ -37528,6 +37717,7 @@
         const canAddCard = !_isClientLink || _calIsCollabOn();
         const filterEmptyTitle = (() => {
             const m = monthFilter !== 'all', sc = statusFilter === 'scheduled', un = statusFilter === 'unscheduled';
+            if (_calCardStatusLive()) return 'No posts match the status filter';
             if (m && sc) return `No scheduled posts for ${_calMonthLabel(monthFilter)}`;
             if (m && un) return 'No unscheduled posts'; // unscheduled posts have no month
             if (m)       return `No posts scheduled for ${_calMonthLabel(monthFilter)}`;
@@ -38292,10 +38482,12 @@
         _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel, _calOnLinkBlur,
         _calOnLinkInput, _calOnLinkKey, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError,
         _calOpenLink, _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
-        _calToggleClientLinks, _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop,
-        _calUpdateTabScroll, _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen,
-        _thumbCompareSignIn, calZoom, onCalClearFilters, onCalMonthFilterChange, onCalSortModeToggle,
-        onCalStatusFilterChange, onCalTabAddClick, onCalTabClick, onCalTabRemove, onCalViewChange
+        _calToggleCardStatusMenu, _calToggleClientLinks, _calToggleImportActions, _calToggleKebab,
+        _calToggleMonthWarnPop, _calUpdateTabScroll, _thumbCompareClose, _thumbCompareImgError,
+        _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn, calZoom, onCalCardStatusClear,
+        onCalCardStatusMode, onCalCardStatusToggle, onCalClearFilters, onCalMonthFilterChange,
+        onCalSortModeToggle, onCalStatusFilterChange, onCalTabAddClick, onCalTabClick, onCalTabRemove,
+        onCalViewChange
     });
     function _calMoveLinkConfirm(pid) {
         const mv = _calPendingLinkMove[pid];
@@ -44422,6 +44614,7 @@
         for (const p of calState.posts) {
             if (!p.scheduled_date) continue;
             if (hideUnready && !_calIsClientReady(p)) continue;
+            if (!_calPostPassesCardStatus(p)) continue;
             const d = String(p.scheduled_date).slice(0,10);
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
@@ -44430,7 +44623,7 @@
         // the client sees it too once Collaborative mode is on, so they can pull
         // a piece onto a day (or swap it in) themselves. Off → no tray, since a
         // client with no drag rights could only stare at it.
-        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
         const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
@@ -44492,6 +44685,7 @@
         for (const p of calState.posts) {
             if (!p.scheduled_date) continue;
             if (hideUnready && !_calIsClientReady(p)) continue;
+            if (!_calPostPassesCardStatus(p)) continue;
             const d = String(p.scheduled_date).slice(0,10);
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
@@ -44503,7 +44697,7 @@
         const weekRuns = _calPhoneEmptyRuns(days.slice(_CAL_WEEK_BUFFER, _CAL_WEEK_BUFFER + 7), iso => iso !== todayISO && !(byDate.get(iso) || []).length);
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
-        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
         return `<div class="cal-week-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calWeekShift(-1)" title="Previous week">‹</button>
@@ -67150,20 +67344,6 @@
                click (or Back) can land first; the click wins. */
             const _bootNavEpoch=_syncviewNavEpoch;
             const _bootOwnsNav=()=>_syncviewNavEpoch===_bootNavEpoch;
-            /* Kasper's sub-tab names load in later files than this one when the
-               page loads in parts (PR 1848): the resolver (305) in one, the list
-               it reads (KASPER_SUBTABS, 320) in another. init waits only for the
-               early staff check, so a fresh /kasper/<subtab> could reach its
-               branch before either had run, throw, and show an admin "Could not
-               load data" (OPEN_REPAIRS 408). Testing for the resolver alone is
-               not enough (its file can run while the list's is still on its
-               way), so wait for the parse to finish: it costs nothing once it has. */
-            const _bootKasperSubtab=async(sub)=>{
-                if(document.readyState==='loading'){
-                    await new Promise(r=>document.addEventListener('DOMContentLoaded',r,{once:true}));
-                }
-                return typeof _kasperResolveSubtab==='function'?_kasperResolveSubtab(sub):'';
-            };
             // The staff identity IS the door (2026-09-10), so this both
             // verifies and gates. Painting the cover is not enough: Codex
             // caught that in review. init() used to run on past this await, so
@@ -67435,12 +67615,7 @@
                     // Admin access already confirmed (gated by _kasperHashLanding).
                     if (hashRaw.startsWith('kasper/')) {
                         const sub = hashRaw.slice('kasper/'.length);
-                        const key = await _bootKasperSubtab(sub);
-                        if (!_bootOwnsNav()) {
-                            // Someone clicked a tab during the wait, as at the exits above.
-                            dataPromise.catch(err => console.warn('[SyncView] background fetchAll failed', err));
-                            return;
-                        }
+                        const key = _kasperResolveSubtab(sub);
                         if (key) _kasperState.tab = key;
                     }
                     navTo('kasper', false);
@@ -67562,8 +67737,7 @@
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
-                const key=await _bootKasperSubtab(sub); if(!_bootOwnsNav())return;
-                if(key) _kasperState.tab=key;
+                const key=_kasperResolveSubtab(sub); if(key) _kasperState.tab=key;
                 navTo('kasper',false);return;
             }
             if(hash.startsWith('calendar/')){
@@ -89759,4 +89933,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-268eeb79c73a.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-e6035eda9b0c.js");

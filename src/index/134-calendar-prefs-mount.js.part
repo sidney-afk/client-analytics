@@ -5,7 +5,7 @@ import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.js';
 import {
   CAL_FILTERS_KEY, CAL_PINS_KEY, CAL_PREFS_KEY, _calFocusRequest, _calHideOwnToast,
-  _calNormMonthFilter, _calNormSortMode, _calNormStatusFilter, _calPendingDeepLink,
+  _calNormCardStatusFilter, _calNormMonthFilter, _calNormSortMode, _calNormStatusFilter, _calPendingDeepLink,
   _calPendingEdits, _calSaveTimers, _calSetFocusRequest, _calSetPendingDeepLink, _calSyncUrlCard,
   _calSyncUrlClient, calClientSlug, calState
 } from './130-calendar-model-cache.js';
@@ -35,7 +35,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calFiltersRead() {
         try { const m = JSON.parse(localStorage.getItem(CAL_FILTERS_KEY) || '{}'); return (m && typeof m === 'object') ? m : {}; } catch { return {}; }
     }
-    /* Hydrate calState.monthFilter/statusFilter from the named client's saved
+    /* Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved
        entry (defaults: current month / all content when none saved yet). Call
        on mount and on every client switch, BEFORE rendering the filter pills. */
     function _calLoadClientFilters(name) {
@@ -43,6 +43,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const row = (slug && _calFiltersRead()[slug]) || {};
         calState.monthFilter  = _calNormMonthFilter(row.month);
         calState.statusFilter = _calNormStatusFilter(row.status);
+        calState.cardStatusFilter = _calNormCardStatusFilter(row.cs);
         // Ordering mode rides along with the filters: per-client, per-device,
         // and never sent to the backend. It changes only what THIS viewer sees,
         // so one SMM auto-organizing their view can't reorder anyone else's.
@@ -53,7 +54,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!slug) return;
         try {
             const m = _calFiltersRead();
-            m[slug] = { month: calState.monthFilter, status: calState.statusFilter, sort: calState.sortMode };
+            m[slug] = { month: calState.monthFilter, status: calState.statusFilter, cs: _calNormCardStatusFilter(calState.cardStatusFilter), sort: calState.sortMode };
             localStorage.setItem(CAL_FILTERS_KEY, JSON.stringify(m));
         } catch {}
     }

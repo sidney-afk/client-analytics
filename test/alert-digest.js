@@ -26,7 +26,7 @@ ok(demo.problems.length === 3, 'demo lists three open problems');
 ok(demo.new_count === 2 && demo.should_post, 'two are new, so it speaks');
 ok(/^SyncView needs attention: 3 open problems \(2 new\)\n1\. Backup:/.test(demo.message), 'header counts problems and new ones; the backup (severity 2) is first');
 ok(!/—/.test(demo.message), 'the message has no long dashes');
-ok(demo.message.includes('Samples nightly: last scheduled test failed. Run 41000000001.'), 'nightly failure is in plain words with a run number');
+ok(demo.message.includes('Samples nightly: the last two scheduled tests failed. Run 41000000001.'), 'a confirmed nightly failure (two in a row) is in plain words with the newest run number');
 
 // --- quiet when fine
 const healthy = evalFx({

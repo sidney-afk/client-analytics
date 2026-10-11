@@ -368,8 +368,16 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // (listed above). Still read/alert only. Hash from
   // `git show HEAD:scripts/monitoring-watchdog.js | sha256sum` on the committed
   // file, never typed by hand. (Previous pin: d0290cb9...)
+  // Re-pinned 2026-10-11 (OPEN_REPAIRS 407): the GitHub host's io also passes
+  // GITHUB_REF_NAME, so each heartbeat records the branch it came from, and the
+  // export list gained the confirmed-failure constants, PRODUCTION_REF and
+  // productionRuns.
+  // Still read/alert only: no import, command, entrypoint, or
+  // reconcile/apply/flag/authority path; closure membership unchanged. Hash
+  // from `git show HEAD:<path> | sha256sum` on the committed file, never typed
+  // by hand. (Previous pin: b2d1c28f...)
   'scripts/monitoring-watchdog.js':
-    'b2d1c28f933f99829bb638f97f2d943fd726d1f3d45ec8fdb5d3e42dd6ac0d6e',
+    '18ee22545844fd9b0425e23ba4771e2fa87ccfffa5daadc23d3a59bb887683e3',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
   // Both entered 2026-10-09 (OPEN_REPAIRS 388), see the membership note above.
@@ -383,8 +391,14 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // environment read, or reconcile/apply/flag/authority path; closure membership
   // unchanged. Hash from `git show HEAD:<path> | sha256sum` on the committed
   // file, never typed by hand. (Previous pin: d6068810...)
+  // Re-pinned 2026-10-11 (OPEN_REPAIRS 407): the "ran and failed" page needs a
+  // confirmed failure (two production runs in a row); a second per-lane
+  // heartbeat read returns the production history; a heartbeat records the
+  // host's branch when given. Still read/alert only; closure membership unchanged. Hash from
+  // `git show HEAD:<path> | sha256sum` on the committed file, never typed by
+  // hand. (Previous pin: 093d4848...)
   'supabase/functions/_shared/monitoring-watchdog-core.mjs':
-    '093d48485ca759c7573cbd79739baab04809e7585296ade7f76432fa8d03964e',
+    'cf3663a2bb6d2ad33c079288d74c8eaabc4450c4ea58ab3d91c8b56281c2f754',
 });
 const HASH_ALGORITHM =
   'sha256(path-byte-length:path\\ncontent-byte-length:raw-git-blob-bytes\\n) over sorted paths';

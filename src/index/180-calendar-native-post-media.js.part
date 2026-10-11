@@ -36,7 +36,7 @@ import { _calPushStatusToLinear } from './140-calendar-legacy-outbox.js';
 import { _calCacheWrite, _calSetLastLocalWriteAt, loadCalendarPosts } from './150-calendar-hydration-import.js';
 import {
   _CAL_WEEK_BUFFER, _calDeriveThumbInfo, _calIsBlankId, _calIsClientReady, _calMiniLinkBadgeHtml,
-  _calPhoneClient, _calRenderBody, _calStaffPhoneActive, _calThumbIconSvg, _calThumbImgTag
+  _calPhoneClient, _calPostPassesCardStatus, _calRenderBody, _calStaffPhoneActive, _calThumbIconSvg, _calThumbImgTag
 } from './160-calendar-organize-ui.js';
 import {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
@@ -2804,6 +2804,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         for (const p of calState.posts) {
             if (!p.scheduled_date) continue;
             if (hideUnready && !_calIsClientReady(p)) continue;
+            if (!_calPostPassesCardStatus(p)) continue;
             const d = String(p.scheduled_date).slice(0,10);
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
@@ -2812,7 +2813,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         // the client sees it too once Collaborative mode is on, so they can pull
         // a piece onto a day (or swap it in) themselves. Off → no tray, since a
         // client with no drag rights could only stare at it.
-        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
         const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
@@ -2874,6 +2875,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         for (const p of calState.posts) {
             if (!p.scheduled_date) continue;
             if (hideUnready && !_calIsClientReady(p)) continue;
+            if (!_calPostPassesCardStatus(p)) continue;
             const d = String(p.scheduled_date).slice(0,10);
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
@@ -2885,7 +2887,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const weekRuns = _calPhoneEmptyRuns(days.slice(_CAL_WEEK_BUFFER, _CAL_WEEK_BUFFER + 7), iso => iso !== todayISO && !(byDate.get(iso) || []).length);
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
-        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
         return `<div class="cal-week-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calWeekShift(-1)" title="Previous week">‹</button>

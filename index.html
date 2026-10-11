@@ -5075,6 +5075,27 @@
             .cal-org-toggle .cal-org-toggle-name { transition: none; }
             .cal-org-toggle .cal-kebab-switch, .cal-org-toggle .cal-kebab-switch::after { transition: none; }
         }
+        /* Card status filter pill (Show only / Hide by overall status). Same
+           chrome as Organize; the strip is the always-visible "a filter is on"
+           signal with a one-tap Clear (it is what a phone shows). */
+        .cal-status-filter .dropdown-trigger { gap: 7px; }
+        .cal-status-filter .cal-org-ico { width: 15px; height: 15px; display: block; flex-shrink: 0; opacity: 0.75; }
+        .cal-status-filter .dropdown-trigger.is-filtered .cal-org-ico { opacity: 0.9; }
+        .cal-status-filter .cal-org-trigger-txt { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-status-filter .dropdown-menu { min-width: 236px; max-height: min(460px, 70vh); overflow-y: auto; }
+        .cal-sf-modes { display: flex; gap: 2px; margin: 2px 4px 6px; padding: 3px; border-radius: 99px; background: var(--bg); }
+        .cal-sf-mode { flex: 1 1 0; padding: 7px 10px; border: 0; border-radius: 99px; background: transparent; font-family: inherit; font-size: 0.74rem; font-weight: 700; color: var(--text-muted); cursor: pointer; }
+        .cal-sf-mode.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_06); }
+        .cal-sf-mode:focus-visible, .cal-sf-row:focus-visible, .cal-sf-clear:focus-visible, .cal-sf-menu-clear:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-ring); }
+        .cal-status-filter .cal-sf-row { justify-content: flex-start; gap: 10px; }
+        .cal-sf-box { width: 16px; height: 16px; flex: 0 0 16px; box-sizing: border-box; border: 1.5px solid var(--border); border-radius: 5px; background: var(--white); position: relative; }
+        .cal-sf-row.active .cal-sf-box { background: var(--text-primary); border-color: var(--text-primary); }
+        .cal-sf-row.active .cal-sf-box::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .cal-sf-row .cal-status { align-self: center; }
+        .cal-sf-menu-clear { color: var(--text-secondary); font-weight: 700; }
+        .cal-sf-strip { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 6px 8px 6px 14px; border: 1px solid var(--border); border-radius: 99px; background: var(--bg); font-size: 0.76rem; font-weight: 600; color: var(--text-primary); }
+        .cal-sf-strip-txt { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-sf-clear { flex: 0 0 auto; padding: 5px 12px; border: 0; border-radius: 99px; background: var(--text-primary); color: var(--white); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         /* SMM quick-links to the client's own social profiles — an icon button
            in the calendar toolbar that drops down the client's accounts, each
            opening in a new tab. Sourced from the Clients Info sheet. */
@@ -10734,6 +10755,10 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu-head h2 { flex: 1; margin: 0; font-size: 20px; font-weight: 800; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu-head button { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); color: var(--text-primary); font: inherit; font-size: 24px; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .view-tab-toggle { display: flex; flex-direction: column; width: 100%; border: 0; padding: 0; gap: 8px; background: none; }
+            body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .cal-sf-mode { min-height: 44px; font-size: 14px; }
+            body:has(#calView[data-pocket-staff-phone]) #calView[data-pocket-staff-phone] .cal-sf-strip { min-height: 48px; margin: 0 0 14px; padding: 2px 4px 2px 16px; border-radius: 14px; font-size: 14px; }
+            body:has(#calView[data-pocket-staff-phone]) #calView[data-pocket-staff-phone] .cal-sf-strip-txt { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+            body:has(#calView[data-pocket-staff-phone]) #calView[data-pocket-staff-phone] .cal-sf-clear { min-width: 64px; min-height: 44px; border-radius: 11px; font-size: 14px; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .view-tab-btn { flex: none; width: 100%; min-height: 52px; justify-content: flex-start; border-radius: 12px; padding: 0 16px; font-size: 16px; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu-body { display: flex; flex-direction: column; gap: 16px; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu-body .cal-zoom { display: flex; align-self: flex-start; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); height: auto; padding: 4px; }
@@ -10741,8 +10766,10 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu-body .cal-zoom-ico { display: none; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu-body .cal-zoom button { min-width: 44px; min-height: 44px; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu-empty { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
-            body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu:has(.cal-organize) .pocket-staff-cal-menu-empty { display: none; }
-            body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .cal-organize { display: block; width: 100%; }
+            body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu:has(.cal-organize) .pocket-staff-cal-menu-empty,
+            body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu:has(.cal-status-filter) .pocket-staff-cal-menu-empty { display: none; }
+            body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .cal-organize,
+            body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .cal-status-filter { display: block; width: 100%; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .dropdown-trigger { min-height: 48px; width: 100%; justify-content: space-between; padding: 0 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 14px; }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .dropdown-menu { display: none; position: static; min-width: 0; width: 100%; max-height: 45dvh; box-sizing: border-box; margin-top: 8px; box-shadow: none; border: 1px solid var(--border); }
             body:has(#calView[data-pocket-staff-phone]) .pocket-staff-cal-menu .dropdown-menu.open { display: block; opacity: 1; visibility: visible; transform: none; transition: none; }
@@ -12714,8 +12741,8 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-268eeb79c73a.js";
-        var PARTS = ["js/sv-01-core-f113b7cff656.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-6e6c487455c6.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-b17251688361.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-8c46fbde1526.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
+        var FULL = "js/sv-full-5f5d2ff71774.js";
+        var PARTS = ["js/sv-01-core-f113b7cff656.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-6e6c487455c6.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-d4c9a1301ca1.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-8c46fbde1526.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-f875bf67ce73.js"];
         var LAZY = {"templates":"js/sv-02-templates-1f8752debcf4.js","workload":"js/sv-04-workload-cac24a0637b7.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-237a450afbd4.js"};
         var FORCE = null;
         var CLIENTS = true;

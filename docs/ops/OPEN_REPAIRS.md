@@ -32838,3 +32838,78 @@ live match; none match once text is appended. The re-queue function was also run
 
 Tests: `test/thumbnail-titles-source.js` 190 checks (neighbour months and year wrap, ambiguity, long plans, template headers, the re-queue SQL and its line patterns).
 
+## 407. [2026-10-11, BUILT, NOT MERGED, NOT DEPLOYED] Monitoring: "ran and failed" pages only a confirmed failure (two runs in a row); a branch run never confirms or ends one (session Sweep)
+
+**Owner rule (2026-10-11):** Slack alerts only on a failure that is confirmed. The dead-man's switch paged
+"SyncView monitoring: 1 lane(s) RAN and reported failure" on a lane's newest heartbeat alone, so a single
+red run paged.
+
+**What the record shows about the 2026-10-11 page.** Read only, `deliverable_events`: the Samples nightly
+wrote `ok:false` on every run on main from at least 2026-10-01 to 2026-10-11 (60 of its 63 runs in 60 days
+failed). The 12:34 run on 2026-10-11 was not a pass: it was GitHub's late schedule copy standing down
+(OPEN_REPAIRS 403), 10 seconds long, writing no heartbeat. The failing incident had been latched since
+2026-09-29; a manual run on a branch under review, carrying an unmerged fix, passed on 2026-10-10 at 16:56
+and un-latched it at 17:00, so the next main failure (06:20) paged again. The nightly is genuinely red on
+main until that fix merges.
+
+**What changed (source only).**
+1. `supabase/functions/_shared/monitoring-watchdog-core.mjs`: a lane pages as failing only when its two most
+   recent production runs both failed, the newer one fresh (`CONFIRMING_FAILED_RUNS = 2`). One failure then a
+   pass, one failure with no second run yet, and fail, pass, fail page nothing; a single failure is listed in
+   the check's output as `awaiting_confirmation`. A lane that keeps failing pages once, on its second failure,
+   and latches; as before, only a fresh passing run ends the incident, so a new confirmed failure after it
+   pages again and a lone failure never ends one. The stale page is unchanged: it still reads only each lane's
+   newest beat, through the same request as before.
+2. A run is one heartbeat per run handle, newest first. Each heartbeat now records the branch it came from
+   (`ref`, from `GITHUB_REF_NAME` in `scripts/monitoring-watchdog.js`); a beat from any branch but `main`
+   still proves the lane ran but never confirms, hides or ends a failure. Beats written before this carry no
+   `ref` and count as before.
+3. A second request per lane reads its newest 10 production beats (`HEARTBEAT_HISTORY_PER_LANE`), filtered to
+   `main` (or no `ref`) in the database before the limit, so branch runs can never push a main run out of the
+   window. The PostgREST filter was checked read only against the live table.
+4. The page's full text now says "RAN and reported failure on their last 2 runs in a row"; the short summary
+   the relay shows is unchanged, so two failing lanes still fit by name.
+5. `scripts/alert-digest.js` (still in shadow) reads the same history and judges the same way, so it can
+   neither page on one failure nor go blind to failures; its line reads "the last two scheduled tests failed".
+6. The F27 reconciler closure pins for the core and `scripts/monitoring-watchdog.js` were re-taken from the
+   committed bytes (membership unchanged).
+
+**Replay on the real heartbeats, last 60 days (read only, all branches, as the old rule saw them):** 31 "ran
+and failed" pages under the old rule, 19 under the new one; the 12 dropped were all a single failure followed
+by a pass. Every lane that had a real failure streak still pages; none goes silent.
+
+**Mixed versions are safe.** After the merge the two GitHub hosts run the new rule at once, while the tick keeps
+the old one until it is redeployed (and the reverse after a rollback). Both share one latch. Because only a pass
+ends a failing latch in either version, the old host pages a single failure at most once and the new host never
+resets it; an earlier draft of this change reset it on "one failure after a pass" and the two would have
+re-paged every 15 minutes (found in review, replayed, fixed, now a test).
+
+**Guards.** New `test/monitoring-confirmed-failure.js` (47 checks): fail then pass, two fails, fail pass fail,
+one fail alone; staleness identical whether the decision gets a lane's history or only its newest beat (56
+combinations); branch and pull request runs, and 12 branch runs between two main failures; two beats from one
+run; the latch; `runCheck` night by night against a fake database and relay (night 1 no page, night 2 one page,
+night 3 latched, a pass ends it, one failure after it no page, a second pages; fail then pass pages nothing); the
+22-night and 26-night silences replayed (one page each, on night 2); the 2026-10-10/11 sequence replayed (no
+page); old and new rules running side by side (at most one page); both nightlies named in the relay summary;
+the combined message. Against main's code, one failure alone and fail, pass, fail page, which these checks
+refuse; putting back either defect found in review fails them too. `test/monitoring-lane-failing.js` and
+`test/monitoring-watchdog.js` updated to the new rule.
+
+**Not changed, for the owner:** the Samples and Calendar nightlies still carry their own "Page the SyncView Bot
+on scheduled failure" step, which posts straight to `SLACK_ALERT_WEBHOOK` on every single failed timer run,
+separately from the dead-man's switch. That secret is set (the GitHub watchdog hosts page through it), so those
+steps still alert on one failure. Removing them would leave the dead-man's switch as the only failure page for
+the nightlies; that is an owner call, not made here.
+
+**Owner steps:**
+1. Merge the pull request. The two GitHub watchdog hosts use the new rule from their next run.
+2. Redeploy `monitoring-watchdog-tick` (its shared core changed) through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = main's tip SHA after the merge.
+3. Nothing to apply in SQL, no secret, no variable.
+
+Known limit: a lane that alternates fail, pass, fail, pass never pages as failing; the stale page still
+catches a lane that stops. Rollback: revert the pull request and redeploy `monitoring-watchdog-tick` from the
+reverted main.
+
+

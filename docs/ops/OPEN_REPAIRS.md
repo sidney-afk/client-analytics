@@ -32645,3 +32645,35 @@ Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Browser c
 
 Items 7 and 8 came from cycle 2's sweep of fixes made on one twin only, item 9 from cycle 3's sweep of ambiguous answers. Kasper's Samples notes, found in the same run, are left to #2037, which fixes them more completely. Both browser guards run in the `entry-links-boot` job.
 **Way back:** revert the pull request and rebuild the fragments.
+
+## 405. [2026-10-11, BUILT, NOT MERGED, NOT APPLIED, NOT DEPLOYED] Thumbnail titles: why 67 items stayed "Needs info", and the fixes that are safe (session Finder)
+
+**Measured 2026-10-11** (read only, `thumbnail_title_queue`, test client excluded): 67 open items on 13 clients:
+39 no match (8 clients), 21 no month tab (3 clients), 4 empty plan (2), 2 no plan (1), 1 generation failed.
+57 of the 67 descriptions are empty; 9 still hold the robot's line; 1 holds text a person wrote.
+
+**Causes, by pattern (no client names in the repo; the per-client list was given in chat).**
+1. *The linked plan is only a header.* Two clients' no-match items (21) and the empty-plan items (4) sit on a plan that is the
+   house template with no videos in it (no later tab, no newer doc in Drive). A header just over the 300 character floor went to
+   the model and came back "no match". Now a tab under 1,500 characters with no numbered entry is reported as an empty plan.
+2. *Long plans cut at 20,000 characters.* The model only saw the first 20,000 characters, and several stuck videos (15 to 20)
+   start past that. The cut is now 120,000 characters.
+3. *Numbering that restarts.* Some plans repeat 1, 2, 3... in a hooks or notes section or a pasted older list. The prompt now says
+   a video number means the first main list, and that an irregular numbering is left out, not guessed.
+4. *No tab for the post's month.* Plans were written late. `pickTab` now tries the post's month, week tabs, the next month,
+   then the previous month, and returns `via`. A borrowed tab is noted in `last_error` as `tab_next_month: <month>` or
+   `tab_previous_month: <month>` (a code and a month, never plan text). Two months away is still reported, never guessed.
+5. *Posts that are not plan videos* (holiday and event posts, a carousel the plan does not have, a post named by a bare number whose
+   title does not match any script). Correctly left empty; they need a person.
+
+**Not built, owner decisions.** (a) Items whose newest month tab is two or more months before the post stay "no month tab".
+(b) Two clients' linked plans are empty templates and no replacement was found in Drive; one client with no plan linked has a
+possible ad-scripts doc in Drive. No plan link was changed.
+**Risk of the month fallback.** Numbering restarts every month, so a bare "Video 3" read from a neighbouring month's tab can be a
+different video than the one meant. The fallback is therefore noted on the row, and the first run should be one client, read by a person.
+
+**Release order.** 1. Apply `migrations/2026-10-11-thumbnail-titles-requeue.sql`. 2. Deploy `thumbnail-titles` from main through
+`deploy-single-function`. 3. Dry run `select * from thumbnail_titles_requeue_needs_info(array['no_match','no_month_tab','generation_failed'])`,
+then apply for one client, then the rest. Nothing else changes; the page does not change.
+
+Tests: `test/thumbnail-titles-source.js` 144 checks (neighbour months and year wrap, ambiguity, long plans, template headers, the re-queue SQL).

@@ -51,7 +51,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
     { id: 't.b', name: 'October 2026', text: 'October plan text' },
   ];
   eq(L.pickTab(tabs, '2026-10-09T10:00:00Z', () => '').tab.id, 't.b', 'October tab by name');
-  eq(L.pickTab(tabs, '2026-11-02T10:00:00Z', () => '').reason, 'no_month_tab', 'no November tab: reported');
+  eq(L.pickTab(tabs, '2026-12-02T10:00:00Z', () => '').reason, 'no_month_tab', 'no December tab and none next to it: reported');
   eq(L.pickTab([{ id: '', name: '', text: 'only tab' }], '2026-11-02T10:00:00Z', () => '').tab.text, 'only tab', 'single tab used');
   eq(L.pickTab([], '2026-10-09', () => '').reason, 'plan_empty', 'no text: plan empty');
   eq(L.pickTab([{ id: 'x', name: '', text: 'a' }, { id: 'y', name: '', text: 'October October' }], '2026-10-09', (t) => (/October/.test(t) ? 'October' : '')).tab.id, 'y', 'month from the text');
@@ -187,5 +187,56 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   const sql2 = read('migrations/2026-10-10-thumbnail-titles-error-record.sql');
   ok(/p_error text default null/.test(sql2) && /last_error = case when final_state in \('written', 'needs_info'\) then nullif\(left\(coalesce\(p_error, ''\), 300\), ''\)/.test(sql2), 'the apply function stores the reason');
   ok(/drop function if exists public\.thumbnail_title_apply\(text, text, text, text\)/.test(sql2) && /revoke all on function public\.thumbnail_title_apply\(text, text, text, text, text\) from public, anon, authenticated, service_role/.test(sql2), 'old signature dropped, new one revoked from all four roles');
+
+  // Plans written late or early: the post's own month wins; else the NEXT month's tab, else the PREVIOUS month's,
+  // and the result says which one was used. Two months away is still reported, never guessed.
+  const lateTabs = [
+    { id: 'aug', name: 'August 2026', text: 'August plan' },
+    { id: 'may', name: 'May 2026', text: 'May plan' },
+    { id: 'idea', name: 'Ideas', text: 'ideas' },
+  ];
+  const lateAug = L.pickTab(lateTabs, '2026-09-28T10:00:00Z', () => '');
+  eq([lateAug.tab.id, lateAug.via, lateAug.reason], ['aug', 'previous_month', ''], 'a September post uses the August tab and says so');
+  eq(L.pickTab(lateTabs, '2026-10-09T10:00:00Z', () => '').reason, 'no_month_tab', 'an October post with only an August tab: two months away is not guessed');
+  eq(L.pickTab(lateTabs, '2026-08-20T10:00:00Z', () => '').via, '', 'the own month is not a fallback');
+  const earlyTabs = [{ id: 'nov', name: 'November', text: 'Nov plan' }, { id: 'mar', name: 'March', text: 'Mar plan' }];
+  const earlyNov = L.pickTab(earlyTabs, '2026-10-30T10:00:00Z', () => '');
+  eq([earlyNov.tab.id, earlyNov.via], ['nov', 'next_month'], 'an October post uses a plan written ahead in the November tab');
+  eq(L.pickTab([{ id: 'jan', name: 'January 2027', text: 'x' }, { id: 'n', name: 'Notes', text: 'y' }], '2026-12-20T10:00:00Z', () => '').via, 'next_month', 'December rolls to January of the next year');
+  eq(L.pickTab([{ id: 'dec', name: 'December 2025', text: 'x' }, { id: 'n', name: 'Notes', text: 'y' }], '2026-01-05T10:00:00Z', () => '').via, 'previous_month', 'January rolls back to December of the year before');
+  eq(L.pickTab([{ id: 'dec', name: 'December 2026', text: 'x' }, { id: 'n', name: 'Notes', text: 'y' }], '2026-01-05T10:00:00Z', () => '').reason, 'no_month_tab', 'a December of the wrong year is not the previous month');
+  const both = L.pickTab([{ id: 'sep', name: 'September', text: 'x' }, { id: 'nov', name: 'November', text: 'y' }, { id: 'n', name: 'Notes', text: 'z' }], '2026-10-09T10:00:00Z', () => '');
+  eq([both.tab.id, both.via], ['nov', 'next_month'], 'both neighbours exist: the next month is tried first');
+  eq(L.pickTab([{ id: 'oct', name: 'October', text: 'x' }, { id: 'sep', name: 'September', text: 'y' }], '2026-10-09T10:00:00Z', () => '').via, '', 'the own month beats a neighbour');
+  eq(L.pickTab([{ id: 'a', name: 'August', text: 'x' }, { id: 'b', name: 'August (copy)', text: 'y' }, { id: 'n', name: 'Notes', text: 'z' }], '2026-09-09T10:00:00Z', () => '').reason, 'no_month_tab', 'two August tabs: ambiguous, never guessed');
+
+  // Long plans: the high-numbered videos sit late in the tab and must reach the model.
+  ok(L.PLAN_PROMPT_MAX_CHARS >= 100000, 'the prompt carries long plans');
+  const longPlan = 'x'.repeat(30000) + ' VIDEO-AT-THE-END';
+  ok(L.userMessage('P', [{ key: 'p1', videoNumber: 20 }], longPlan).includes('VIDEO-AT-THE-END'), 'a video past character 20,000 is sent');
+  ok(L.userMessage('P', [{ key: 'p1' }], 'y'.repeat(200000)).length < L.PLAN_PROMPT_MAX_CHARS + 1000, 'still capped');
+  ok(/first, main list/.test(L.SYSTEM_PROMPT) && /too irregular/.test(L.SYSTEM_PROMPT), 'repeated numbering and irregular numbering are handled by leaving the post out');
+
+  // A header-only template is not a plan with videos.
+  const header = 'Image\n\nSome Client\nFilming Plan\n\n' + '='.repeat(60) + '\n\nGeneral framework:\n* Preferably wear solid colors as it makes the subtitles more readable (for example black, white, or navy blue)\n* Advised word count: 150-180 words\n' + '='.repeat(60);
+  ok(header.length >= L.MIN_PLAN_CHARS && !L.planHasVideos(header), 'a template header just over the old 300 character floor is empty');
+  ok(!L.planHasVideos('short'), 'tiny text is empty');
+  ok(L.planHasVideos(header + '\n1. First video\nHook: Something to say about it\n'), 'a numbered entry makes it a plan');
+  ok(L.planHasVideos(header + '\nSCRIPT 3: A title\n'), 'SCRIPT N entries count');
+  ok(L.planHasVideos(header + ' filler'.repeat(300)), 'a long tab is a plan whatever its format');
+
+  // The function records a borrowed tab without storing plan text.
+  const fnTab = read('supabase/functions/thumbnail-titles/index.ts');
+  ok(/via: picked\.via/.test(fnTab) && /tab_\$\{post\.via\}: \$\{monthLabel\(post\.createdAt\)\}/.test(fnTab), 'a borrowed tab is noted as a code and a month');
+  ok(/planHasVideos\(picked\.tab\.text\)/.test(fnTab), 'the function uses the template check');
+
+  // The re-queue function: dry run by default, only the robot's own line or an empty description, service role only.
+  const sql3 = read('migrations/2026-10-11-thumbnail-titles-requeue.sql');
+  ok(/p_apply boolean default false/.test(sql3) && /if p_apply then/.test(sql3), 'the re-queue defaults to a dry run');
+  ok(/coalesce\(btrim\(d\.brief\), ''\) = '' or d\.brief like 'Needs info: %'/.test(sql3), 'a description a person wrote is never selected');
+  ok(/brief = '' where id = r\.deliverable_id and brief like 'Needs info: %'/.test(sql3), 'only the robot\'s own line is cleared');
+  ok(/q\.state = 'needs_info'/.test(sql3) && /set state = 'pending', attempts = 0/.test(sql3), 'only needs_info rows go back to pending with fresh tries');
+  ok(/revoke all on function public\.thumbnail_titles_requeue_needs_info\(text\[\], text, boolean\) from public, anon, authenticated, service_role/.test(sql3), 'closed to all four roles');
+  ok(/grant execute on function public\.thumbnail_titles_requeue_needs_info\(text\[\], text, boolean\) to service_role/.test(sql3), 'then opened to the service role only');
   console.log(`thumbnail-titles-source: ${checks} checks passed`);
 })().catch((e) => { console.error(e); process.exit(1); });

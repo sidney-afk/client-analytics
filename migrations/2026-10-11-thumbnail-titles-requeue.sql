@@ -1,4 +1,4 @@
--- Thumbnail titles: put "Needs info" items back in the queue (OPEN_REPAIRS 405). Follows
+-- Thumbnail titles: put "Needs info" items back in the queue (OPEN_REPAIRS 406). Follows
 -- 2026-10-10-thumbnail-titles-error-record.sql.
 --
 -- A "Needs info: ..." line sits in the work item's description, and the robot only writes into an

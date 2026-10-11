@@ -26,6 +26,10 @@ const state = (smm, id) => smm.evaluate(async (a) => {
     await sleep(1500);
     await Q.up({ id: B, name: 'COL-B ' + TS, graphic_linear_issue_id: SK, video_status: 'Approved', status: 'Approved', thumbnail_url: 'https://via.placeholder.com/320x180.png' });
     await Q.pollRaw(B, r => (r.graphic_linear_issue_id || '') === SK, 'graphic_linear_issue_id');
+    // Linear is retired (_calDupeKey): a shared old Linear link is no longer a
+    // collision; a shared SyncView work item is. So B names A's fixture thumbnail
+    // work item, which is what the warning now guards (OPEN_REPAIRS 392).
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: B, components: ['graphic'], sharesWith: A }]);
 
     // BOTH active cards are visible — neither is silently hidden
     const a1 = await state(smm, A), b1 = await state(smm, B);

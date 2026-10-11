@@ -8,14 +8,18 @@ const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_m61_' + TS;
 const CMT = 'CLIENT-COMMENT-' + TS, REQ = 'CLIENT-CHANGEREQ-' + TS, REP = 'CLIENT-REPLY-' + TS;
 
-const modalPost = (page, pid, o) => page.evaluate((a) => {
+// Wait for the notes thread first, as p60 does (OPEN_REPAIRS 373): until it has
+// loaded the app refuses a note with "Notes are still loading", so the client's
+// plain comment never reached caption_tweaks (OPEN_REPAIRS 392).
+const NW = require('../native_work_item_fixture.js');
+const modalPost = async (page, pid, o) => { if (!o.replyTo) await NW.waitForNoteThread(page, pid, o.comp || 'caption'); return page.evaluate((a) => {
   if (_calOpenCommentsPid !== a.pid) openCalComments(a.pid);
   if (a.replyTo) { _calBeginReply(a.replyTo); }
   else { _calReplyTarget = null; if (a.comp) _calSetComposeComp(a.comp); if (a.isTweak != null) _calSetComposeIsTweak(!!a.isTweak); }
   const ta = document.getElementById('calCommentComposer'); if (!ta) return 'NO_COMPOSER';
   ta.value = a.body;
   try { _calSubmitComposer(); return 'ok'; } catch (e) { return 'ERR ' + e.message; }
-}, { pid, ...o });
+}, { pid, ...o }); };
 const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid, comp + '_tweaks'); let a = []; try { a = JSON.parse(r[comp + '_tweaks'] || '[]'); } catch (e) {} const m = a.find(c => (c.body || '').includes(needle) && !c.parent_id); return m ? m.id : null; };
 
 (async () => {
@@ -38,7 +42,7 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
     S.ok(r.caption_status === 'Client Approval', 'plain comment did NOT change status (still Client Approval)');
     let cap = JSON.parse(r.caption_tweaks || '[]');
     let mc = cap.find(c => (c.body || '').includes(CMT));
-    S.ok(mc && mc.role === 'client' && mc.audience === 'client' && mc.is_tweak === false, 'comment: role client / audience client / not a tweak');
+    S.ok(mc && mc.role === 'client' && mc.audience === 'client' && mc.is_tweak === false, 'comment: role client / audience client / not a tweak (got ' + JSON.stringify(mc && { role: mc.role, audience: mc.audience, is_tweak: mc.is_tweak }) + ')');
 
     // 2) request-a-change → caption flips to Tweaks Needed
     S.ok(await modalPost(cli, PID, { comp: 'caption', isTweak: true, body: REQ }) === 'ok', 'client request-a-change posted');

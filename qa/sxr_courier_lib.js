@@ -399,7 +399,20 @@ function nodePost(url, obj, extraHeaders) {
   try { return JSON.parse(out); } catch { return { _raw: out }; }
 }
 // Seed/save a sample via the live upsert webhook (the same write the FE makes).
+// A NEW seed (it names itself) that does not mention its media gets a placeholder video
+// and thumbnail link, as every real piece has. Since 2026-09-05 a part with nothing to
+// review cannot be approved or moved on ("Nothing to review yet"), so seeds without media
+// had every status step refused (Samples probes, OPEN_REPAIRS 392). A seed that sets
+// asset_url or thumbnail_url itself, even to '', is left exactly as written.
+function withSeedMedia(row) {
+  if (!row || !row.id || !row.name) return row;
+  const out = Object.assign({}, row);
+  if (!('asset_url' in out)) out.asset_url = 'https://frame.io/x/' + row.id;
+  if (!('thumbnail_url' in out)) out.thumbnail_url = 'https://i.ytimg.com/vi/x/hqdefault.jpg';
+  return out;
+}
 function up(sample, base) {
+  sample = withSeedMedia(sample);
   return nodePost(SXR_UPSERT, { client: 'sidneylaruel', sample, comments_base_at: base || '' },
     STAFF_KEY ? { 'x-syncview-key': STAFF_KEY } : null);
 }
@@ -767,6 +780,13 @@ async function _ctx(browser, opts) {
   // Probe-registered native work items (qa/native_work_item_fixture.js), also
   // after the catch-all so their calendar/samples reads are answered first.
   await require('./native_work_item_fixture.js').applyProbeWorkItems(ctx);
+  // Those fixture work items need their gateway, as in qa/probes/lib.js: without it a
+  // status save reached the real production-write with the harness's invented key and
+  // was refused (OPEN_REPAIRS 373), so the sample's own row was never written and
+  // seven Samples probes failed the night their step first ran (OPEN_REPAIRS 392).
+  // Not on the legacy lane, which never calls the gateway.
+  // The calls it answered stay on the context, for a probe that asserts what was sent.
+  if (!writeUiRerouteLegacy) ctx._nativeGatewayCalls = await require('./native_work_item_fixture.js').stubNativeGateway(ctx);
   return ctx;
 }
 async function open(browser, urlPath, opts) {
@@ -834,6 +854,7 @@ async function client(browser, name = 'Sidney Laruel', token, opts) {
 // live writer, required if it is ever re-gated).
 const CAL_UPSERT = SUPA + '/functions/v1/calendar-upsert';
 function upCal(post, base) {
+  post = withSeedMedia(post);
   return nodePost(CAL_UPSERT, { client: 'sidneylaruel', post, comments_base_at: base || '' },
     STAFF_KEY ? { 'x-syncview-key': STAFF_KEY } : null);
 }

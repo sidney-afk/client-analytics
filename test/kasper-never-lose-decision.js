@@ -465,6 +465,34 @@ async function samplesNeverOverwrite() {
   assert.strictEqual(c.calls.alerts.length, 1, 'and he is told');
   assert.strictEqual(c.p.video_status, 'Kasper Approval', 'the card is left as it was');
 }
+async function samplesUndoOfHisOwnApprove() {
+  /* Samples nightly 2026-10-09: Undo set the card back to Kasper Approval BEFORE the
+     check, so the check compared that against the server's Client Approval (his own
+     approve) and refused every Undo as someone else's change. */
+  const fresh = { updated_at: '2026-10-01T16:00:09.000Z', status: 'Client Approval', video_status: 'Client Approval', graphic_status: 'Client Approval' };
+  const a = samplesSandbox({ fresh });
+  vm.runInContext(must('_sxrKasperUndoApprove'), a.s);
+  a.s._sxrKasperRenderQueue = () => {};
+  a.s._sxrKasperState.history = [];
+  Object.assign(a.p, { video_status: 'Client Approval', graphic_status: 'Client Approval', status: 'Client Approval' });
+  a.s._sxrKasperUndoApprove(a.it, 'video', 'Kasper Approval', null);
+  await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));
+  const conflicts = a.calls.alerts.filter(x => x[3] === 'conflict');
+  assert.strictEqual(conflicts.length, 0, 'his own approve is not reported as someone else\'s change (got ' + JSON.stringify(conflicts.map(x => x[4])) + ')');
+  assert.strictEqual(a.calls.status, 1, 'the Undo reaches the write (the sandbox stops it there)');
+  assert.strictEqual(a.calls.edits && a.calls.edits.video_status, 'Kasper Approval', 'back to Kasper Approval');
+  /* and the guard still holds for Undo: a part someone else moved after his approve is not taken back */
+  const b = samplesSandbox({ fresh: Object.assign({}, fresh, { video_status: 'Approved', status: 'Approved' }) });
+  vm.runInContext(must('_sxrKasperUndoApprove'), b.s);
+  b.s._sxrKasperRenderQueue = () => {};
+  b.s._sxrKasperState.history = [];
+  Object.assign(b.p, { video_status: 'Client Approval', graphic_status: 'Client Approval', status: 'Client Approval' });
+  b.s._sxrKasperUndoApprove(b.it, 'video', 'Kasper Approval', null);
+  await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));
+  assert.strictEqual(b.calls.status + b.calls.upsert, 0, 'a client approval that landed after his approve is not undone');
+  assert.strictEqual(b.calls.alerts.length, 1, 'and he is told');
+  assert.strictEqual(b.calls.alerts[0][3], 'conflict', b.calls.alerts[0][4]);
+}
 async function samplesFinishAndCloseAreNotQuiet() {
   for (const which of ['_sxrKasperDismiss', '_sxrKasperClose']) {
     const calls = { alerts: [], rendered: 0 };
@@ -652,6 +680,7 @@ async function localMarksExpireAndUrgentWins() {
   await runCase('clients the list does not know are reported, not dropped', unlistedClientsAreReported);
   await runCase('Tweaks pending opens by default; roster growth reloads', sectionsAndReload);
   await runCase('Samples: a decision never overwrites someone else\'s change', samplesNeverOverwrite);
+  await runCase('Samples: Undo of his own approve is sent, not refused as a conflict', samplesUndoOfHisOwnApprove);
   await runCase('Samples: a refused Finish or Close is reported and undone', samplesFinishAndCloseAreNotQuiet);
   await runCase('browser-only Finish and Close marks expire; an urgent ping wins', localMarksExpireAndUrgentWins);
   await runCase('a refused Close is not undone by its own removal animation', refusedCloseIsNotRemovedByItsOwnAnimation);

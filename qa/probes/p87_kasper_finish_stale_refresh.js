@@ -106,10 +106,17 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
   await ctx.route('**docs.google.com/spreadsheets/**', route =>
     route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS })
       : route.fulfill({ status: 200, contentType: 'text/csv', headers: CORS, body: 'client_name,social_media_manager\n' }));
-  await ctx.route('**/webhook/calendar-upsert-post', route => {
+  // Card saves moved from the n8n webhook to the calendar-upsert Edge Function
+  // (2026-10-07). Answering only the webhook let Finish's save reach the LIVE
+  // function, where it did not land, so Finish was undone and steps 1-2 failed
+  // (OPEN_REPAIRS 392). Both addresses get the same echo; nothing is written.
+  const echoUpsert = route => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     let post = {}; try { post = (JSON.parse(route.request().postData() || '{}').post) || {}; } catch (e) {}
     return jsonFulfill(route, { ok: true, post });
-  });
+  };
+  await ctx.route('**/webhook/calendar-upsert-post', echoUpsert);
+  await ctx.route('**/functions/v1/calendar-upsert', echoUpsert);
   await ctx.route('**/rest/v1/calendar_posts**', route => jsonFulfill(route, serverRows));
 
   const page = await ctx.newPage();

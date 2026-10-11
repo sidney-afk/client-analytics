@@ -83,7 +83,7 @@ executes these files (see `README.md` › Repository layout).
   BEFORE deploying the matching `thumbnail-titles`; the function falls back to the old four-argument
   call if it is deployed first. Revokes from all four roles.
 
-- **`2026-10-11-thumbnail-titles-requeue.sql`** is source-only until applied (OPEN_REPAIRS 405).
+- **`2026-10-11-thumbnail-titles-requeue.sql`** is source-only until applied (OPEN_REPAIRS 406).
   Adds `thumbnail_titles_requeue_needs_info(outcomes, client, apply)`: puts "Needs info" thumbnail
   items back in the queue, clearing only the robot's own exact line (never a person's text). Dry run by
   default (counts only). Service role only; revokes from all four roles. Needs

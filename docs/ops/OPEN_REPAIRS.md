@@ -32010,9 +32010,12 @@ morning check also as `SYNCVIEW_ROLE_KEY`). No environment is used. A role key i
 there is no test SMM on the roster, so the two flows that act as that person cannot use the SMM key: key-verify and
 description-image-upload both require the roster role to match the key's role (401 `role_mismatch`, 403
 `roster_actor_not_unique`). p96 (Calendar nightly) and the morning check's Samples approve now each run in a step of their
-own with `SYNCVIEW_STAFF_KEY` (the admin key) and the actor; every other step stays on `ROBOT_ROLE_KEY_SMM` with no actor.
+own with `ROBOT_ROLE_KEY_ADMIN` (the admin role key, a repository secret the owner added 2026-10-11) and the actor; every
+other step stays on `ROBOT_ROLE_KEY_SMM` with no actor. `SYNCVIEW_STAFF_KEY` is not a role key (p96 got `401 invalid_staff_key`
+with it, run 38072601369), so no robot reads it.
 The morning check's Samples step writes its result to a file and the main step reports it, so it is still one report.
-`test/robot-key-actor-pairing.js` fails if any workflow step pairs the SMM key with the admin roster name.
+`test/robot-key-actor-pairing.js` fails if any workflow step pairs the SMM key with the admin roster name, or if a robot
+workflow reads `SYNCVIEW_STAFF_KEY`.
 **Way back:** revert the PR.
 
 ## 393. [2026-10-09, BUILT, NOT MERGED] Calendar board jumps sideways (and up and down) when it refreshes on its own

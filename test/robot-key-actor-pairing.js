@@ -107,7 +107,7 @@ const split = `jobs:
         run: node x.js
       - name: admin
         env:
-          SYNCVIEW_STAFF_KEY: \${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_STAFF_KEY: \${{ secrets.ROBOT_ROLE_KEY_ADMIN }}
           SYNCVIEW_STAFF_ACTOR: \${{ secrets.SYNCVIEW_STAFF_ACTOR }}
         run: node x.js
 `;
@@ -125,11 +125,29 @@ for (const f of fs.readdirSync(WF).filter(f => /\.ya?ml$/.test(f)).sort()) {
 // The scanner must actually see the robots' SMM steps, or it proves nothing.
 assert.ok(smmSteps >= 3, 'the scanner finds the SMM-key steps (Calendar, Samples, dawn check)');
 
+// The robots never read SYNCVIEW_STAFF_KEY: it is not a role key (p96 got
+// 401 invalid_staff_key with it, 2026-10-10). Admin steps read
+// ROBOT_ROLE_KEY_ADMIN, every other robot step ROBOT_ROLE_KEY_SMM.
+const ROBOTS = ['calendar-e2e-nightly.yml', 'samples-e2e-nightly.yml', 'dawn-check.yml'];
+const LEGACY = /secrets\.SYNCVIEW_STAFF_KEY\b/;
+const ADMIN = /secrets\.ROBOT_ROLE_KEY_ADMIN\b/;
+assert.ok(LEGACY.test('K: ${{ secrets.SYNCVIEW_STAFF_KEY }}') && !LEGACY.test('K: ${{ secrets.SYNCVIEW_STAFF_KEY_X }}'), 'the legacy-key pattern matches that secret and only it');
+for (const f of ROBOTS) {
+  const yaml = fs.readFileSync(path.join(WF, f), 'utf8');
+  const live = yaml.split(/\r?\n/).filter(l => !/^\s*#/.test(l));
+  assert.ok(!live.some(l => LEGACY.test(l)), `${f} reads secrets.SYNCVIEW_STAFF_KEY; robots use ROBOT_ROLE_KEY_SMM or ROBOT_ROLE_KEY_ADMIN`);
+  for (const s of stepEnvs(yaml)) {
+    const env = s.env.filter(l => !/^\s*#/.test(l));
+    if (env.some(l => ADMIN.test(l))) assert.ok(env.some(l => ACTOR.test(l)), `${f} step "${s.step}" holds the admin key without the admin actor`);
+  }
+}
+
 // The two exceptions keep their admin key and actor, in steps of their own.
 for (const [f, stepName] of [['calendar-e2e-nightly.yml', 'Run p96 description image upload (admin key)'],
   ['dawn-check.yml', 'Samples approve (admin key, scoped to sidneylaruel)']]) {
   const s = stepEnvs(fs.readFileSync(path.join(WF, f), 'utf8')).find(x => x.step === stepName);
   assert.ok(s, `${f} has its admin-key step`);
-  assert.ok(s.env.some(l => /secrets\.SYNCVIEW_STAFF_KEY\b/.test(l)) && s.env.some(l => ACTOR.test(l)), `${f}: that step pairs the admin key with the admin actor`);
+  assert.ok(s.env.some(l => /SYNCVIEW_STAFF_KEY:\s*\$\{\{\s*secrets\.ROBOT_ROLE_KEY_ADMIN\s*\}\}/.test(l)) && s.env.some(l => ACTOR.test(l)), `${f}: that step pairs the admin role key with the admin actor`);
+  assert.ok(!s.env.some(l => /SYNCVIEW_ROLE_KEY:/.test(l)) || s.env.some(l => /SYNCVIEW_ROLE_KEY:\s*\$\{\{\s*secrets\.ROBOT_ROLE_KEY_ADMIN\s*\}\}/.test(l)), `${f}: that step's role key is the admin role key too`);
 }
-console.log(`robot-key-actor-pairing: ${checked} workflows, ${smmSteps} SMM-key steps, no admin actor beside the SMM key ✅`);
+console.log(`robot-key-actor-pairing: ${checked} workflows, ${smmSteps} SMM-key steps, no admin actor beside the SMM key, robots on role keys only ✅`);

@@ -68,7 +68,7 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           PROBE_ATTEMPTS: '3'
-          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_ADMIN }}
           # An ACTIVE admin roster name; p96 binds the live writer to it. Secret only.
           SYNCVIEW_STAFF_ACTOR: ${{ secrets.SYNCVIEW_STAFF_ACTOR }}
           SYNCVIEW_NIGHTLY_ONLY: p96_description_image_upload

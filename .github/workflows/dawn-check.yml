@@ -56,8 +56,8 @@ jobs:
         env:
           SXR_COURIER: '0'
           DAWN_ONLY: samples-approve
-          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
-          SYNCVIEW_ROLE_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_ADMIN }}
+          SYNCVIEW_ROLE_KEY: ${{ secrets.ROBOT_ROLE_KEY_ADMIN }}
           SYNCVIEW_ACTOR: ${{ secrets.SYNCVIEW_STAFF_ACTOR }}
         run: node qa/dawn/dawn-check.js
       - name: Run the dawn check (serves app, scoped to sidneylaruel)

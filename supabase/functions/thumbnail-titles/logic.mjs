@@ -20,15 +20,228 @@ export const N8N_TITLE_PROMPT = [
   "- NO descriptions, NO filler words, NO clinical language",
 ].join("\n");
 
-export const STYLE_HEADER = "This client's title style, from the Synchro Brain voice file:";
-export const STYLE_MAX_CHARS = 5000;
+export const STYLE_HEADER = "This client's style:";
 // Facts about how the client talks to the agency, not how their content reads.
 export const STYLE_EXCLUDE = /communication|talks? to us|relationship|source status|historical/i;
 
-// The default prompt for one client: the n8n instruction, then the client's
-// written title style when the Brain has one. Staff edit the result.
-export function defaultPromptFor(styleText) {
-  const style = String(styleText || "").trim().slice(0, STYLE_MAX_CHARS).trim();
+// ---------------------------------------------------------------------------
+// The cleaner. The Brain's voice file is written for people who audit it: every
+// line carries where it came from, which call, which segment, which date. None
+// of that helps a title, and it buries the rules. This turns the written facts
+// into a short style section with plain code, so the same file always gives the
+// same prompt. Nothing here summarises or rewrites a sentence: it keeps a
+// sentence whole (minus its source notes) or leaves it out, and a boundary
+// sentence is never left out.
+// ---------------------------------------------------------------------------
+
+// A line that only says where something came from or how sure the Brain is.
+const PROVENANCE_ALWAYS = /\bread off\b|\bthis part is\b|\bprompt row\b|\bnobody has (?:said|stated)\b|\bnothing (?:he|she|they) (?:has )?stated\b|\bhas never commented\b|\beverything above\b|\bin here\b|\bsupersede|\.(?:mp4|mov|md)\b|\bsource-authored\b|\bnot (?:measured|owner-approved)\b/i;
+const PROVENANCE = /\bnot a complete\b|\bhistorical preference\b|source status|\bretrieved\b|\bcaptured\b|verbatim excerpt|source-authored|\bnot (?:measured|approved|owner-approved)\b|\bsegments? \d|^evidence\b|captionprompts|clients info|\bgemini\b|\bread from words only\b|\brule 6\b|\baccepted by\b|\bproposal\b|\binference\b|\bundated\b|\bnobody has stated\b|\bfathom\b|\bframe\.io\b|\bwas not captured\b|\bnot recorded\b|\bthese are (?:kasper|sidney)/i;
+// A parenthetical or tail that is a reference, not content.
+const REF_PAREN = /\b(?:19|20)\d\d\b|\bsegments?\b|\bnative\b|\bfathom\b|\bslack\b|\bsyncview\b|\bframe\.io\b|\bcalendar\b|\bcall\b|\btranscript\b|inputs\/|\.(?:mp4|md|mov)\b|\b\d+ of \d+\b|\bsource\b|\bV\d\b|\d\d:\d\d|^\s*\d\d-\d\d\s*$|^\s*\d+\s*$/i;
+const MONTH_RE = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+const DATE_PIECES = [
+  new RegExp(`\\b(?:on |since |from |in |by |between )?${MONTH_RE}\\.? \\d{1,2}(?:st|nd|rd|th)?(?:,? (?:19|20)\\d\\d)?(?: (?:and|to|through) ${MONTH_RE}?\\.? ?\\d{1,2}(?:st|nd|rd|th)?)?\\b`, "gi"),
+  new RegExp(`\\b(?:on |since |from |in |by |between )?${MONTH_RE}\\.? (?:19|20)\\d\\d\\b`, "gi"),
+  /\b(?:on |since |from |between |and |to |until )?(?:19|20)\d\d-\d\d-\d\d\b/gi,
+  /\b(?:19|20)\d\d\b/g,
+];
+
+// Rules about what NOT to do or what the client will not have. Wide on
+// purpose: a false hit costs one line of prompt, a miss costs a rule.
+export const BOUNDARY = /\b(?:never|don'?t|do not|doesn'?t want|does not want|didn'?t want|did not want|must not|mustn'?t|should not|shouldn'?t|cannot|can'?t|won'?t|will not|avoid(?:s|ed|ing)?|refus(?:e|es|ed|al)|reject(?:s|ed|ing)?|banned?|forbid(?:s|den)?|off[- ]limits|boundar(?:y|ies)|not (?:hers|his|theirs|okay|allowed|comfortable)|no (?:swearing|profanity|emoji|eyes emoji)|nothing is banned|without (?:her|his|their) (?:approval|ok|consent)|stop(?:s|ped)? using|confidential|privacy|private|sensitive|off the record|not (?:to be )?(?:named|mentioned|shared|disclosed|used|public)|leave(?:s)? out|keep(?:s)? out)\b|^\W*no [a-z]/i;
+// A choice between two wordings, only a rule when a word is quoted.
+const PREFERENCE = /\b(?:she|he|they|[A-Z][a-z]+) (?:wanted|wants|prefers?|preferred|asked for|chose)\b[^.]*\b(?:instead of|rather than|to)\b|\bprefers?\b/;
+// Of the rules, the ones about privacy, names and labels (the hardest limits).
+const HARD_LIMIT = /\b(?:privacy|private|confidential|medical|diagnos\w*|patients?|names?|labels?|calls? (?:her|him|them|it)|referr?(?:ed|ing)|boundar(?:y|ies)|intimate|exposed|family|kids?|children|husband|wife|partner|religio\w*|politic\w*)\b/i;
+const TONE_WORDS = /\b(?:warm|warmth|direct|blunt|playful|calm|gentle|confident|conversational|humou?r|funny|witty|sincere|honest|vulnerab\w*|authoritative|casual|formal|clinical|upbeat|candid|nurturing|empathetic|bold|punchy|faith|grounded|tender|empath\w*|unapologetic\w*|soften\w*)\b/i;
+const HOOK_WORDS = /\b(?:hooks?|titles?|headlines?|cover text|on-screen text|sentence case|all caps|lowercase|capitali[sz]\w*|pov)\b/i;
+const GEOMETRY = /\b(?:box|plate|font|colou?r|px|pixel|hex|placement|cent(?:re|er)|stroke|shadow|serif|safe zone|corner|rounded|gradient|logo|watermark|subtitles?|percent|frame height|banner|pill|panel|sticker|arrows?|overlay|green screen|split[- ]screen|zoom)\b|#[0-9a-f]{6}|\d+ ?%/i;
+
+// Labels ("Pace.", "**Eye line and address.**") that head a line. The delivery
+// ones describe how the person looks and moves on camera, read off video by a
+// model: an inference about delivery, so only a sentence that states a rule
+// (never, avoid, refuses ...) is kept from them.
+const DELIVERY_LABEL = /^(?:pace|pauses?(?: and emphasis)?|eye line(?: and address)?|face and gestures|scripted or natural|delivery(?:\b.*)?|against the caption voice|read from words only.*|how (?:they|he|she) close|sentence length and rhythm|swearing)$/i;
+const TONE_LABEL = /^(?:tone|energy|voice|attitude|personality|register|humou?r|how (?:they|he|she) address(?:es)? the viewer|what (?:she|he|they) sounds? like.*)$/i;
+const WORD_LABEL = /^(?:words(?: (?:and|&) phrases)?(?: (?:she|he|they) uses?)?|vocabulary(?: and signature phrases)?|signature phrases?|phrases)$/i;
+const AVOID_LABEL = /^(?:words(?: and (?:patterns|openings))? (?:(?:she|he|they) )?(?:avoids?|to avoid)|avoid|banned.*)$/i;
+const HOOK_LABEL = /^(?:how (?:they|he|she) open|openings?|hooks?|written hooks?|titles?|top hook text)$/i;
+
+const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9À-ɏ ]+/g, " ").replace(/\s+/g, " ").trim();
+
+// Splits at sentence ends but never inside a quotation.
+export function splitSentences(text) {
+  const out = [];
+  let cur = "", open = false, paren = 0;
+  const t = String(text || "");
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    cur += ch;
+    if (ch === "“") open = true;
+    else if (ch === "”") open = false;
+    else if (ch === '"') open = !open;
+    else if (ch === "(") paren++;
+    else if (ch === ")" && paren > 0) paren--;
+    if (!open && !paren && /[.!?]/.test(ch) && /\s/.test(t[i + 1] || " ")) {
+      const next = t.slice(i + 1).trimStart()[0] || "";
+      const abbr = /\b(?:vs|e\.g|i\.e|etc|approx|dr|mr|mrs|ms)\.$/i.test(cur.trim()) || /[\]_]\.$/.test(cur);
+      if (!abbr && (next === "" || /[A-Z"“*‘'(]/.test(next))) { out.push(cur.trim()); cur = ""; }
+    }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+// One sentence with its source notes taken off: markdown marks, reference
+// parentheses, dates. Quotations are put aside first and restored untouched.
+export function cleanSentence(raw) {
+  const quotes = [];
+  let s = String(raw || "").replace(/<!--[\s\S]*?-->/g, " ").replace(/^\s*(?:[-*>]\s+|\d+\.\s+)+/, "");
+  s = s.replace(/\s*\b(?:in |from |see |per )?client\.[a-z0-9-]+\.[a-z0-9.-]*[a-z0-9]/gi, "");
+  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[`*]{1,3}/g, "");
+  s = s.replace(/(?:“[^”]*”|"[^"]*")/g, (m) => { quotes.push(m); return `\u0001${quotes.length - 1}\u0001`; });
+  s = s.replace(/\s*\(([^()]*)\)/g, (m, inner) => (REF_PAREN.test(inner.replace(/\u0001\d+\u0001/g, "")) ? "" : m));
+  for (const re of DATE_PIECES) s = s.replace(re, "");
+  s = s.replace(/^\s*from [a-z]+\.[a-z-]+:\s*/i, "");
+  s = s.replace(/^\s*(?:addition|added|superseded in part|updated?)\b[^:]{0,60}:\s*/i, "")
+    .replace(/\s+(?:on|in|since|from|by|between|and)\s*(?=[,;:.]|$)/gi, "")
+    .replace(/\s+([,;:.!?])/g, "$1").replace(/([,;:])\s*(?=[,;:.])/g, "").replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/\u0001(\d+)\u0001/g, (m, i) => quotes[Number(i)]).replace(/^[,;:.\s]+/, "").trim();
+  return s;
+}
+
+// "**Pace.** Calm..." or "Pace. Calm..." -> { label: "pace", rest: "Calm..." }.
+function splitLabel(line) {
+  const t = String(line || "").replace(/^\s*(?:[-*]\s+)/, "").trim();
+  let m = /^\*\*([^*]{2,80}?)\*\*[:.]?\s*(.*)$/.exec(t);
+  if (!m) m = /^([A-Z][A-Za-z' ,/&-]{2,60}?)\.\s+(?=[A-Z"“*])(.*)$/.exec(t);
+  if (!m || !m[2]) return { label: "", rest: t };
+  return { label: m[1].trim().replace(/[.:]+$/, "").toLowerCase(), rest: m[2].trim() };
+}
+
+const TITLE_CASE = (t) => t[0].toUpperCase() + t.slice(1);
+const stripQuotes = (t) => t.replace(/(?:“[^”]*”|"[^"]*")/g, " ");
+// A rule is a rule when the person said it, not when a quoted sample of their speech contains the word.
+export const isRule = (t) => { const bare = stripQuotes(t); return BOUNDARY.test(bare) || PREFERENCE.test(bare); };
+// A quoted example this long is a sample of the voice, not a word they use: first 12 words kept.
+const shortQuote = (t) => t.replace(/“([^”]*)”|"([^"]*)"/g, (q, a, b) => {
+  const words = (a || b || "").trim().split(/\s+/);
+  return words.length > 12 ? `“${words.slice(0, 12).join(" ")}…”` : q;
+});
+
+// The Brain wraps long lines by hand. A block is one bullet or one paragraph,
+// with its wrapped lines joined back together.
+function blocks(body) {
+  const out = [];
+  let cur = "";
+  for (const line of String(body || "").replace(/\r\n/g, "\n").split("\n")) {
+    const text = line.trim();
+    if (!text || /^#/.test(text)) { if (cur) out.push(cur); cur = ""; continue; }
+    if (/^(?:[-*]\s|\d+\.\s)/.test(text) || (cur && /^>/.test(cur) !== /^>/.test(text))) { if (cur) out.push(cur); cur = text; continue; }
+    cur = cur ? `${cur} ${text.replace(/^>\s?/, "")}` : text;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+// Every kept sentence of the facts, cleaned, in source order. `kind` comes from
+// the line's label ("tone", "words", "avoid", "hooks", or "" for plain prose)
+// and `line` ties the sentences of one line together.
+export function styleSentences(facts) {
+  const out = [];
+  let line = 0;
+  for (const f of facts || []) {
+    for (const raw of blocks(f.body)) {
+      line++;
+      const { label, rest } = splitLabel(raw);
+      const kind = DELIVERY_LABEL.test(label) ? "delivery" : TONE_LABEL.test(label) ? "tone" : WORD_LABEL.test(label) ? "words" : AVOID_LABEL.test(label) ? "avoid"
+        : HOOK_LABEL.test(label) ? "hooks" : "";
+      // A label that is itself a rule ("Never the word ...") is part of the sentence.
+      const body = label && isRule(label) && !AVOID_LABEL.test(label) ? `${TITLE_CASE(label)}. ${rest}` : rest;
+      for (const piece of splitSentences(body)) {
+        const text = cleanSentence(piece);
+        if (PROVENANCE_ALWAYS.test(text) || (PROVENANCE.test(text) && !isRule(text))) continue;
+        if (text.replace(/[^A-Za-z]/g, "").length < 12) continue;
+        out.push({ text, kind, label, line, heading: String(f.heading || ""), file: String(f.file || "") });
+      }
+    }
+  }
+  return out;
+}
+
+// Drops a sentence already said: equal, or contained in a longer one.
+function dedupe(items) {
+  const keys = items.map((i) => norm(i.text));
+  return items.filter((it, idx) => !keys.some((k, j) => j !== idx && k.length > keys[idx].length && k.includes(keys[idx]))
+    && keys.indexOf(keys[idx]) === idx);
+}
+
+const LINE_MAX = 320;
+
+// Quoted words and phrases the client really says, from lines about vocabulary.
+// Whole quoted sentences are examples, not words, and are skipped.
+function quotedPhrases(sentences) {
+  const seen = new Set(), out = [];
+  for (const s of sentences) {
+    const about = s.kind === "words" || /\b(?:vocabulary|signature phrases?|catchphrases?|slang|favou?rite words?)\b/i.test(s.text);
+    if (!about || isRule(s.text)) continue;
+    for (const m of s.text.matchAll(/“([^”]{2,60})”|"([^"]{2,60})"/g)) {
+      const q = (m[1] || m[2]).trim().replace(/[.,;:]+$/, "");
+      if (q.split(/\s+/).length > 7 || q.length < 3 || /^\d+$/.test(q) || seen.has(q.toLowerCase())) continue;
+      seen.add(q.toLowerCase());
+      out.push(q);
+    }
+  }
+  return out;
+}
+
+// The sentences of one labelled line, joined, as long as they fit.
+function lineText(items, withLabel) {
+  let text = "";
+  for (const it of items) {
+    const next = shortQuote(it.text);
+    if (text && (text + " " + next).length > LINE_MAX) break;
+    text = text ? `${text} ${next}` : next;
+  }
+  const label = withLabel && items[0].label ? `${TITLE_CASE(items[0].label)}: ` : "";
+  return text && text.length > 12 ? label + text : "";
+}
+
+// The style section: tone, words they use, how hooks are written, what to
+// avoid, and every boundary. Tone, words and hooks are trimmed to the most
+// useful lines; avoid and boundary lines are never trimmed.
+export function styleSectionFor(facts) {
+  const all = dedupe(styleSentences(facts));
+  const rules = { boundary: [], avoid: [] }, tone = new Map(), hooks = new Map();
+  for (const s of all) {
+    if (isRule(s.text) || s.kind === "avoid") {
+      (HARD_LIMIT.test(stripQuotes(s.text)) ? rules.boundary : rules.avoid).push(s.text);
+      continue;
+    }
+    if (s.kind === "delivery") continue;
+    const toneLine = s.kind === "tone" || (s.file === "voice" && !s.kind && TONE_WORDS.test(s.text) && s.text.length <= LINE_MAX);
+    const hookLine = (s.kind === "hooks" || HOOK_WORDS.test(s.text)) && !GEOMETRY.test(s.text);
+    const into = toneLine ? tone : hookLine ? hooks : null;
+    if (into) into.set(s.line, [...(into.get(s.line) || []), s]);
+  }
+  const words = quotedPhrases(all);
+  const parts = [];
+  const block = (title, items) => { if (items.length) parts.push(`${title}\n${items.map((i) => `- ${i}`).join("\n")}`); };
+  block("Tone:", [...tone.values()].map((v) => lineText(v, false)).filter(Boolean).slice(0, 5));
+  block("Words and phrases they use:", words.length ? [words.slice(0, 24).map((w) => `“${w}”`).join(", ")] : []);
+  block("How hooks and titles are written:", [...hooks.values()].map((v) => lineText(v, true)).filter(Boolean).slice(0, 5));
+  block("Avoid:", rules.avoid);
+  block("Boundaries (never break these):", rules.boundary);
+  return parts.join("\n\n");
+}
+
+// The default prompt for one client: the n8n instruction word for word, then
+// the client's short style section when the Brain has written facts. A bare
+// string is read as one unlabelled fact. Staff edit the result.
+export function defaultPromptFor(facts) {
+  const list = typeof facts === "string" ? (facts.trim() ? [{ file: "voice", heading: "", body: facts }] : []) : facts;
+  const style = styleSectionFor(list);
   return style ? `${N8N_TITLE_PROMPT}\n\n${STYLE_HEADER}\n\n${style}` : N8N_TITLE_PROMPT;
 }
 

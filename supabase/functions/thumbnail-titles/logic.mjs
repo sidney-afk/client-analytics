@@ -49,7 +49,7 @@ const DATE_PIECES = [
 
 // Rules about what NOT to do or what the client will not have. Wide on
 // purpose: a false hit costs one line of prompt, a miss costs a rule.
-export const BOUNDARY = /\b(?:never|don'?t|do not|doesn'?t want|does not want|didn'?t want|did not want|must not|mustn'?t|should not|shouldn'?t|cannot|can'?t|won'?t|will not|avoid(?:s|ed|ing)?|refus(?:e|es|ed|al)|reject(?:s|ed|ing)?|banned?|forbid(?:s|den)?|off[- ]limits|boundar(?:y|ies)|not (?:hers|his|theirs|okay|allowed|comfortable)|no (?:swearing|profanity|emoji|eyes emoji)|nothing is banned|without (?:her|his|their) (?:approval|ok|consent)|stop(?:s|ped)? using|confidential|privacy|private|sensitive|off the record|not (?:to be )?(?:named|mentioned|shared|disclosed|used|public)|leave(?:s)? out|keep(?:s)? out)\b|^\W*no [a-z]/i;
+export const BOUNDARY = /\b(?:never|don'?t|do not|doesn'?t want|does not want|didn'?t want|did not want|must not|mustn'?t|should not|shouldn'?t|cannot|can'?t|won'?t|will not|avoid(?:s|ed|ing)?|refus(?:e|es|ed|al)|reject(?:s|ed|ing)?|banned?|forbid(?:s|den)?|off[- ]limits|boundar(?:y|ies)|not (?:hers|his|theirs|okay|allowed|comfortable)|no (?:swearing|profanity|emoji|eyes emoji)|nothing is banned|without (?:her|his|their) (?:approval|ok|consent)|stop(?:s|ped)? using|drop|confidential|privacy|private|sensitive|off the record|not (?:to be )?(?:named|mentioned|shared|disclosed|used|public)|leave(?:s)? out|keep(?:s)? out)\b|^\W*no [a-z]/i;
 // A choice between two wordings, only a rule when a word is quoted.
 const PREFERENCE = /\b(?:she|he|they|[A-Z][a-z]+) (?:wanted|wants|prefers?|preferred|asked for|chose)\b[^.]*\b(?:instead of|rather than|to)\b|\bprefers?\b/;
 // Of the rules, the ones about privacy, names and labels (the hardest limits).
@@ -62,7 +62,7 @@ const GEOMETRY = /\b(?:box|plate|font|colou?r|px|pixel|hex|placement|cent(?:re|e
 // ones describe how the person looks and moves on camera, read off video by a
 // model: an inference about delivery, so only a sentence that states a rule
 // (never, avoid, refuses ...) is kept from them.
-const DELIVERY_LABEL = /^(?:pace|pauses?(?: and emphasis)?|eye line(?: and address)?|face and gestures|scripted or natural|delivery(?:\b.*)?|against the caption voice|read from words only.*|how (?:they|he|she) close|swearing)$/i;
+const DELIVERY_LABEL = /^(?:pace|pauses?(?: and emphasis)?|eye line(?: and address)?|face and gestures|scripted or natural|delivery(?:\b.*)?|read from words only.*|how (?:they|he|she) close|swearing)$/i;
 const TONE_LABEL = /^(?:tone|energy|sentence length and rhythm|voice|attitude|personality|register|humou?r|how (?:they|he|she) address(?:es)? the viewer|what (?:she|he|they) sounds? like.*)$/i;
 const WORD_LABEL = /^(?:words(?: (?:and|&) phrases)?(?: (?:she|he|they) uses?)?|vocabulary(?: and signature phrases)?|signature phrases?|phrases)$/i;
 const AVOID_LABEL = /^(?:words(?: and (?:patterns|openings))? (?:(?:she|he|they) )?(?:avoids?|to avoid)|avoid|banned.*)$/i;
@@ -99,11 +99,11 @@ export function cleanSentence(raw) {
   const quotes = [];
   let s = String(raw || "").replace(/<!--[\s\S]*?-->/g, " ").replace(/^\s*(?:[-*>]\s+|\d+\.\s+)+/, "");
   s = s.replace(/\s*\b(?:in |from |see |per )?client\.[a-z0-9-]+\.[a-z0-9.-]*[a-z0-9]/gi, "");
-  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[`*]{1,3}/g, "");
+  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`([^`]+)`/g, "“$1”").replace(/[`*]{1,3}/g, "");
   s = s.replace(/(?:“[^”]*”|"[^"]*")/g, (m) => { quotes.push(m); return `\u0001${quotes.length - 1}\u0001`; });
   s = s.replace(/\s*\(([^()]*)\)/g, (m, inner) => (REF_PAREN.test(inner.replace(/\u0001\d+\u0001/g, "")) ? "" : m));
   for (const re of DATE_PIECES) s = s.replace(re, "");
-  s = s.replace(/^\s*from [a-z]+\.[a-z-]+:\s*/i, "");
+  s = s.replace(/^\s*from [a-z]+\.[a-z-]+:\s*/i, "").replace(/^\s*(?:historical )?(?:evidence|source)\b[^:]{0,40}:\s*/i, "");
   s = s.replace(/^\s*(?:addition|added|superseded in part|updated?)\b[^:]{0,60}:\s*/i, "")
     .replace(/\s+(?:on|in|since|from|by|between|and)\s*(?=[,;:.]|$)/gi, "")
     .replace(/\s+([,;:.!?])/g, "$1").replace(/([,;:])\s*(?=[,;:.])/g, "").replace(/\s{2,}/g, " ").trim();
@@ -111,24 +111,66 @@ export function cleanSentence(raw) {
   return s;
 }
 
-// "**Pace.** Calm..." or "Pace. Calm..." -> { label: "pace", rest: "Calm..." }.
+// A sentence joined by a semicolon is two statements: each is judged on its own.
+function splitClauses(sentence) {
+  const parts = [];
+  let cur = "", open = false, paren = 0;
+  for (let i = 0; i < sentence.length; i++) {
+    const ch = sentence[i];
+    if (ch === "“") open = true; else if (ch === "”") open = false; else if (ch === '"') open = !open;
+    else if (ch === "(") paren++; else if (ch === ")" && paren > 0) paren--;
+    if (ch === ";" && !open && !paren && cur.trim().length >= 20 && sentence.slice(i + 1).trim().length >= 20) { parts.push(cur.trim() + "."); cur = ""; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
+// "**Pace.** Calm..." or "Pace. Calm..." -> { label: "pace", raw: "Pace", rest: "Calm..." }.
 function splitLabel(line) {
   const t = String(line || "").replace(/^\s*(?:[-*]\s+)/, "").trim();
   let m = /^\*\*([^*]{2,80}?)\*\*[:.]?\s*(.*)$/.exec(t);
   if (!m) m = /^([A-Z][A-Za-z' ,/&-]{2,60}?)\.\s+(?=[A-Z"“*])(.*)$/.exec(t);
-  if (!m || !m[2]) return { label: "", rest: t };
-  return { label: m[1].trim().replace(/[.:]+$/, "").toLowerCase(), rest: m[2].trim() };
+  if (!m || !m[2]) return { label: "", raw: "", rest: t };
+  const raw = m[1].trim().replace(/[.:]+$/, "");
+  return { label: raw.toLowerCase(), raw, rest: m[2].trim() };
 }
 
 const TITLE_CASE = (t) => t[0].toUpperCase() + t.slice(1);
 const stripQuotes = (t) => t.replace(/(?:“[^”]*”|"[^"]*")/g, " ");
-// A rule is a rule when the person said it, not when a quoted sample of their speech contains the word.
+// A prohibition or a stated wish, outside any quotation (a quoted sample of speech that holds the word is no rule).
+const STRONG = /^\W*never\b|\b(?:drop|do not|don'?t|must not|should not|shouldn'?t|avoid(?:s|ed)?|refus\w*|reject(?:s|ed)?|banned?|forbid\w*)\b/i;
 export const isRule = (t) => { const bare = stripQuotes(t); return BOUNDARY.test(bare) || PREFERENCE.test(bare); };
 // A quoted example this long is a sample of the voice, not a word they use: first 12 words kept.
 const shortQuote = (t) => t.replace(/“([^”]*)”|"([^"]*)"/g, (q, a, b) => {
   const words = (a || b || "").trim().split(/\s+/);
   return words.length > 12 ? `“${words.slice(0, 12).join(" ")}…”` : q;
 });
+
+// Avoid and Boundaries hold only instructions about what to write. A rule
+// sentence that is really something else is left out, with the reason.
+const NOT_WRITING = [
+  ["visual", /\b(?:subtitles?|fonts?|colou?rs?|gold|serif|hex|highlights?|thumbnails?|covers?|screen grabs?|images?|photos?|plates?|boxes|safe zone|stroke|shadow|gradient|logo|overlay)\b/i],
+  ["delivery", /\b(?:on camera|camera|lens|eye line|eye contact|gestures?|pace|words a minute|pauses?|fillers?|talking head)\b/i],
+  ["research", /\b(?:who to ask|next step|the (?:real )?open question|unresolved|loose end|nobody|never (?:been |yet )?(?:decided|made|written|stated|said|spoken|filled|objected)|not (?:written|stated|recorded|verified|established|a rule|permission|a complete)|do(?:es)? not (?:establish|prove|verify|describe|mix)|do not extrapolate|named no|is not asking|kept here|deliberately|own-word evidence|evidence (?:for|that)|the source|this (?:fact|file|page|record)|no row exists|no caption prompt|has never commented|inference|both brands|two different (?:writers|voices))\b/i],
+  ["past", /\b(?:caught|was told|were told|crossed it|logged as|handed the decision|reworded|published|posted|shipped|before we started|corrections? from|review (?:note|comment)s?|our (?:hook|scripts?|captions?) (?:said|used|crossed)|every caption (?:was|were)|rejected (?:the same caption|captions?\b|a caption))\b/i],
+];
+export function notWritingReason(text) {
+  const bare = stripQuotes(text);
+  for (const [why, re] of NOT_WRITING) if (re.test(bare)) return why;
+  return "";
+}
+
+// Content words of a line, for spotting a line already said in the same section.
+const words = (t) => new Set(norm(t).split(" ").filter((w) => w.length > 3 || /^\d+$/.test(w) || w === "not" || w === "no"));
+function dedupeLines(lines) {
+  const sets = lines.map(words);
+  return lines.filter((_l, i) => !lines.some((_m, j) => {
+    if (i === j || !sets[i].size) return false;
+    const covered = [...sets[i]].filter((w) => sets[j].has(w)).length / sets[i].size;
+    return covered >= 0.95 && (sets[j].size > sets[i].size || (sets[j].size === sets[i].size && j < i));
+  }));
+}
 
 // The Brain wraps long lines by hand. A block is one bullet or one paragraph,
 // with its wrapped lines joined back together.
@@ -138,32 +180,41 @@ function blocks(body) {
   for (const line of String(body || "").replace(/\r\n/g, "\n").split("\n")) {
     const text = line.trim();
     if (!text || /^#/.test(text)) { if (cur) out.push(cur); cur = ""; continue; }
-    if (/^(?:[-*]\s|\d+\.\s)/.test(text) || (cur && /^>/.test(cur) !== /^>/.test(text))) { if (cur) out.push(cur); cur = text; continue; }
+    if (/^(?:[-*]\s|\d+\.\s|\*\*[^*]{2,80}\*\*)/.test(text) || (cur && /^>/.test(cur) !== /^>/.test(text))) { if (cur) out.push(cur); cur = text; continue; }
     cur = cur ? `${cur} ${text.replace(/^>\s?/, "")}` : text;
   }
   if (cur) out.push(cur);
   return out;
 }
 
+// A fact whose heading is a list of things to avoid: each bold label in it is a rule.
+const RULE_HEADING = /avoid|banned|never/i;
+
 // Every kept sentence of the facts, cleaned, in source order. `kind` comes from
-// the line's label ("tone", "words", "avoid", "hooks", or "" for plain prose)
-// and `line` ties the sentences of one line together.
+// the line's label ("tone", "words", "avoid", "hooks", "delivery", "rule", or ""
+// for plain prose) and `line` ties the sentences of one line together.
 export function styleSentences(facts) {
   const out = [];
   let line = 0;
   for (const f of facts || []) {
     for (const raw of blocks(f.body)) {
       line++;
-      const { label, rest } = splitLabel(raw);
+      const { label, raw: labelRaw, rest } = splitLabel(raw);
       const kind = DELIVERY_LABEL.test(label) ? "delivery" : TONE_LABEL.test(label) ? "tone" : WORD_LABEL.test(label) ? "words" : AVOID_LABEL.test(label) ? "avoid"
         : HOOK_LABEL.test(label) ? "hooks" : "";
-      // A label that is itself a rule ("Never the word ...") is part of the sentence.
-      const body = label && isRule(label) && !AVOID_LABEL.test(label) ? `${TITLE_CASE(label)}. ${rest}` : rest;
-      for (const piece of splitSentences(body)) {
+      const meta = { label, line, heading: String(f.heading || ""), file: String(f.file || "") };
+      // A label that is itself a rule ("Never the word ...", or any label in a list of things to avoid) is a sentence of its own.
+      if (label && !kind && (isRule(labelRaw) || RULE_HEADING.test(f.heading || ""))) {
+        const text = cleanSentence(`${labelRaw}.`);
+        if (text.replace(/[^A-Za-z]/g, "").length >= 6) out.push({ text: TITLE_CASE(text), kind: "rule", ...meta });
+        // What follows a rule label is its evidence (who asked, when, in what words), not a second rule.
+        if (!isRule(labelRaw)) meta.evidence = true;
+      }
+      for (const piece of splitSentences(rest).flatMap(splitClauses)) {
         const text = cleanSentence(piece);
         if (PROVENANCE_ALWAYS.test(text) || (PROVENANCE.test(text) && !isRule(text))) continue;
         if (text.replace(/[^A-Za-z]/g, "").length < 12) continue;
-        out.push({ text, kind, label, line, heading: String(f.heading || ""), file: String(f.file || "") });
+        out.push({ text: TITLE_CASE(text), kind: meta.evidence && !isRule(text) ? "evidence" : kind, ...meta });
       }
     }
   }
@@ -178,63 +229,99 @@ function dedupe(items) {
 }
 
 const LINE_MAX = 320;
+// A reviewer's or the team's comment, not the client's own words.
+const REVIEWER = /\b(?:they|he|she|we|kasper|eva|luke|ludmila|team|client)\s+(?:said|asked|wrote|requested|told|rejected)\b|\basked for\b|\bplease\b|:\)|\bshould be\b|\bcould we\b/i;
 
-// Quoted words and phrases the client really says, from lines about vocabulary.
-// Whole quoted sentences are examples, not words, and are skipped.
-function quotedPhrases(sentences) {
-  const seen = new Set(), out = [];
-  for (const s of sentences) {
-    const about = s.kind === "words" || /\b(?:vocabulary|signature phrases?|catchphrases?|slang|favou?rite words?)\b/i.test(s.text);
-    if (!about || isRule(s.text)) continue;
-    for (const m of s.text.matchAll(/“([^”]{2,60})”|"([^"]{2,60})"/g)) {
-      const q = (m[1] || m[2]).trim().replace(/[.,;:]+$/, "");
-      if (q.split(/\s+/).length > 10 || q.length < 3 || /^\d+$/.test(q) || seen.has(q.toLowerCase())) continue;
-      seen.add(q.toLowerCase());
-      out.push(q);
-    }
-  }
-  return out;
-}
-
-// The sentences of one labelled line, joined, as long as they fit.
-function lineText(items, withLabel) {
+// The sentences of one labelled line, joined, as long as they fit. A sentence
+// that states a prohibition never goes over the edge: it becomes a line of its own.
+function lineTexts(items, withLabel) {
+  const out = [];
   let text = "";
   for (const it of items) {
     const next = shortQuote(it.text);
-    if (text && (text + " " + next).length > LINE_MAX) break;
+    if (text && (text + " " + next).length > LINE_MAX) {
+      if (!isRule(it.text)) continue;
+      out.push(text);
+      text = next;
+      continue;
+    }
     text = text ? `${text} ${next}` : next;
   }
-  const label = withLabel && items[0].label ? `${TITLE_CASE(items[0].label)}: ` : "";
-  return text && text.length > 12 ? label + text : "";
+  if (text) out.push(text);
+  const label = withLabel && items[0].label && !isRule(items[0].label) ? `${TITLE_CASE(items[0].label)}: ` : "";
+  return out.filter((t) => t.length > 12).map((t, i) => (i === 0 ? label + t : t));
+}
+
+// Trims a list of lines to `max`, but a line that states a prohibition is never the one trimmed.
+function capKeepingRules(lines, max) {
+  const rule = lines.map((l) => isRule(l));
+  const room = Math.max(2, max - rule.filter(Boolean).length);
+  let seen = 0;
+  return lines.filter((_l, i) => rule[i] || ++seen <= room);
+}
+
+// Every line of the style section, and every line left out with the reason.
+export function styleParts(facts) {
+  const all = dedupe(styleSentences(facts));
+  const rules = { boundary: [], avoid: [] }, tone = new Map(), hooks = new Map(), vocab = new Map(), dropped = [];
+  for (const s of all) {
+    if (s.kind === "delivery") { dropped.push({ text: s.text, why: "delivery" }); continue; }
+    if (s.kind === "evidence") { dropped.push({ text: s.text, why: "evidence for a rule" }); continue; }
+    const bare = stripQuotes(s.text);
+    const preferenceOnly = !BOUNDARY.test(bare) && PREFERENCE.test(bare) && s.kind !== "rule" && s.kind !== "avoid";
+    // A line headed as tone, words or hooks stays there unless it states a plain prohibition.
+    const stays = (s.kind === "tone" || s.kind === "words" || s.kind === "hooks") && !STRONG.test(bare);
+    const rule = !stays && (s.kind === "rule" || s.kind === "avoid" || isRule(s.text)) && !(preferenceOnly && !/“|"/.test(s.text));
+    if (rule) {
+      const why = notWritingReason(s.text);
+      if (why) { dropped.push({ text: s.text, why }); continue; }
+      (HARD_LIMIT.test(bare) ? rules.boundary : rules.avoid).push(s.text);
+      continue;
+    }
+    if (s.kind === "words") {
+      if (REVIEWER.test(s.text)) { dropped.push({ text: s.text, why: "reviewer comment, not their words" }); continue; }
+      vocab.set(s.line, [...(vocab.get(s.line) || []), s]);
+      continue;
+    }
+    const why = notWritingReason(s.text);
+    if (why === "research" || why === "past") { dropped.push({ text: s.text, why }); continue; }
+    const toneLine = s.kind === "tone" || preferenceOnly || (s.file === "voice" && !s.kind && TONE_WORDS.test(s.text) && s.text.length <= LINE_MAX);
+    const hookLine = (s.kind === "hooks" || HOOK_WORDS.test(s.text)) && !GEOMETRY.test(s.text);
+    const into = toneLine ? tone : hookLine ? hooks : null;
+    if (into) into.set(s.line, [...(into.get(s.line) || []), s]);
+  }
+  const vocabLines = dedupeLines([...vocab.values()].flatMap((v) => lineTexts(v, false))).slice(0, 3);
+  // Quoted words from vocabulary sentences that the lines above do not already show.
+  const shown = vocabLines.join(" ");
+  const seen = new Set(), phrases = [];
+  for (const v of vocab.values()) for (const s of v) for (const m of s.text.matchAll(/“([^”]{2,60})”|"([^"]{2,60})"/g)) {
+    const q = (m[1] || m[2]).trim().replace(/[.,;:]+$/, "");
+    if (q.split(/\s+/).length > 10 || q.length < 3 || /^\d+$/.test(q) || REVIEWER.test(q) || seen.has(q.toLowerCase()) || shown.includes(q)) continue;
+    seen.add(q.toLowerCase());
+    phrases.push(q);
+  }
+  return {
+    tone: capKeepingRules(dedupeLines([...tone.values()].flatMap((v) => lineTexts(v, false))), 6),
+    words: [...(phrases.length ? [phrases.slice(0, 24).map((w) => `“${w}”`).join(", ")] : []), ...vocabLines],
+    hooks: capKeepingRules(dedupeLines([...hooks.values()].flatMap((v) => lineTexts(v, true))), 5),
+    avoid: dedupeLines(rules.avoid),
+    boundary: dedupeLines(rules.boundary),
+    dropped,
+  };
 }
 
 // The style section: tone, words they use, how hooks are written, what to
 // avoid, and every boundary. Tone, words and hooks are trimmed to the most
 // useful lines; avoid and boundary lines are never trimmed.
 export function styleSectionFor(facts) {
-  const all = dedupe(styleSentences(facts));
-  const rules = { boundary: [], avoid: [] }, tone = new Map(), hooks = new Map(), vocab = new Map();
-  for (const s of all) {
-    if (isRule(s.text) || s.kind === "avoid") {
-      (HARD_LIMIT.test(stripQuotes(s.text)) ? rules.boundary : rules.avoid).push(s.text);
-      continue;
-    }
-    if (s.kind === "delivery") continue;
-    if (s.kind === "words") { vocab.set(s.line, [...(vocab.get(s.line) || []), s]); continue; }
-    const toneLine = s.kind === "tone" || (s.file === "voice" && !s.kind && TONE_WORDS.test(s.text) && s.text.length <= LINE_MAX);
-    const hookLine = (s.kind === "hooks" || HOOK_WORDS.test(s.text)) && !GEOMETRY.test(s.text);
-    const into = toneLine ? tone : hookLine ? hooks : null;
-    if (into) into.set(s.line, [...(into.get(s.line) || []), s]);
-  }
-  const words = quotedPhrases(all);
+  const p = styleParts(facts);
   const parts = [];
   const block = (title, items) => { if (items.length) parts.push(`${title}\n${items.map((i) => `- ${i}`).join("\n")}`); };
-  block("Tone:", [...tone.values()].map((v) => lineText(v, false)).filter(Boolean).slice(0, 5));
-  const vocabLines = [...vocab.values()].map((v) => lineText(v, false)).filter(Boolean).slice(0, 3);
-  block("Words and phrases they use:", [...(words.length ? [words.slice(0, 24).map((w) => `“${w}”`).join(", ")] : []), ...vocabLines]);
-  block("How hooks and titles are written:", [...hooks.values()].map((v) => lineText(v, true)).filter(Boolean).slice(0, 5));
-  block("Avoid:", rules.avoid);
-  block("Boundaries (never break these):", rules.boundary);
+  block("Tone:", p.tone);
+  block("Words and phrases they use:", p.words);
+  block("How hooks and titles are written:", p.hooks);
+  block("Avoid:", p.avoid);
+  block("Boundaries (never break these):", p.boundary);
   return parts.join("\n\n");
 }
 

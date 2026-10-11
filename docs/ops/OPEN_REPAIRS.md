@@ -32658,7 +32658,13 @@ facts and returns the five base rules word for word, then a short "This client's
 phrases they use (quoted), How hooks and titles are written, Avoid, and Boundaries. No AI step: it splits the facts
 into sentences, takes the source notes off each (reference brackets, dates, fact ids), drops provenance lines and
 repeats, and sorts what is left by plain patterns, so the same Brain file always gives the same prompt.
-- Avoid and Boundaries are never trimmed or capped; Tone, Words and Hooks are.
+- Avoid and Boundaries hold only instructions about what to write. Descriptions of past posts, notes about
+  subtitles, fonts, colours, thumbnail images and screen grabs, on-camera delivery notes and research commentary
+  (who to ask, what was never decided, what the source does or does not prove) are left out. A sentence that
+  mixes both is split at the semicolon and each half judged alone. Avoid and Boundaries are never capped.
+- Words and phrases are the client's own words; a reviewer's comment is never listed as a phrase. Repeated
+  lines within a section are shown once. Tone and Hooks are trimmed, but a line that states a prohibition is
+  never the one trimmed.
 - A sentence is kept whole or left out; nothing is reworded.
 - Lines about on-camera delivery (pace, eye line, gestures) are read off video by a model and are not title rules;
   only a sentence in them that states a rule is kept.

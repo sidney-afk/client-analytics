@@ -81,7 +81,7 @@ const missing = (boundaries, prompt) => boundaries.filter((b) => !flat(prompt).i
   // What helps a title stays.
   ok(prompt.includes('Her tone is warm, grounded and direct.'), 'tone sentence kept');
   ok(/Warm and plainspoken/.test(prompt), 'labelled tone kept');
-  for (const w of ['slow down', 'tiny steps', 'gentle', 'your body knows']) ok(prompt.includes(`“${w}”`), `phrase "${w}" listed`);
+  for (const w of ['slow down', 'tiny steps', 'gentle', 'your body knows']) ok(prompt.includes(`"${w}"`) || prompt.includes(`“${w}”`), `phrase "${w}" listed`);
   ok(!/130 words a minute/.test(prompt) && !/lens/.test(prompt), 'on-camera delivery read off video is not a title rule');
 
   // Every boundary survives, and the check itself can fail.
@@ -117,6 +117,44 @@ const missing = (boundaries, prompt) => boundaries.filter((b) => !flat(prompt).i
 
   // Sentences split on full stops but not inside a quotation or brackets.
   eq(L.splitSentences('One. Two "a. b" c. Three (x. Y) z.'), ['One.', 'Two "a. b" c.', 'Three (x. Y) z.'], 'splitting respects quotes and brackets');
+
+  // Avoid and Boundaries hold only instructions about what to write.
+  const mixed = L.defaultPromptFor([
+    { file: 'voice', heading: 'Words and openings to avoid', body: [
+      '- **Never the word "quietly".** Said on a call: *"Never use the word quietly"*.',
+      '- **Capitalise Lord.** She asked for this by name: *"Looks good, but Lord should be capitalized please :)"*.',
+    ].join('\n') },
+    { file: 'voice', heading: 'Caption voice', body: [
+      'Every caption was one line plus five `Check out Pat`, `Don\'t miss out on Pat` posts.',
+      'The bridge line is reworded every time even though its job never changes.',
+      'Kasper rejected the same caption three times for jumping to the app.',
+      'Nobody has said in writing who wrote them, so do not assume it was her.',
+      'Do not extrapolate one general list; ask Sam for the rule.',
+    ].join('\n') },
+    { file: 'editing', heading: 'Subtitles', body: [
+      'Subtitles are white text with PURPLE highlights (never yellow), in a bold font.',
+      'Keep subtitles in the safe zone; avoid caps-lock titles and write hooks exactly as phrased.',
+      'Do not use a bounce animation on subtitles.',
+    ].join('\n') },
+    { file: 'editing', heading: 'Thumbnails', body: 'The image should be a screen grab of the video, never a generated picture.' },
+    { file: 'voice', heading: 'On camera', body: ['**Eye line and address.** Never looks into the lens.', '**Pace.** Slow, never rushed.'].join('\n') },
+  ]);
+  const avoidAndBoundaries = mixed.slice(mixed.indexOf('Avoid:'));
+  ok(avoidAndBoundaries.includes('Never the word "quietly".'), 'a label that is a rule is kept');
+  ok(avoidAndBoundaries.includes('Capitalise Lord.'), 'a rule label in a list of things to avoid is kept as the rule');
+  ok(!/Looks good|capitalized please/.test(mixed), 'a reviewer comment is not a rule and not a phrase');
+  ok(/avoid caps-lock titles/i.test(avoidAndBoundaries) && !/safe zone/.test(mixed), 'a mixed sentence keeps its title rule and loses its subtitle half');
+  for (const gone of ['one line plus five', 'reworded every time', 'rejected the same caption', 'Nobody has said', 'extrapolate', 'PURPLE', 'bounce', 'screen grab', 'lens', 'rushed']) {
+    ok(!mixed.includes(gone), `not an instruction about what to write: ${gone}`);
+  }
+
+  // No repeated line within a section.
+  const dup = L.defaultPromptFor([{ file: 'voice', heading: 'Rules', body: ['- Do not rank believers or say who is saved.', '- **Do not rank believers.** She asked.', '- Do not rank believers or say who is saved!'].join('\n') }]);
+  eq(dup.split('\n').filter((l) => /rank believers/i.test(l)).length, 1, 'a rule said three ways appears once');
+
+  // Words and phrases are the client's own words.
+  const own = L.defaultPromptFor([{ file: 'voice', heading: 'Words', body: '**Words she uses.** "heal", "tiny steps". Capitals for reverence, they said: "Lord should be capitalized please".' }]);
+  ok(own.includes('"heal"') && !own.includes('capitalized please'), "only the client's own words are listed as phrases");
 
   // Shorter than the old text for a realistic fact set, never longer than it plus the base rules by much.
   const oldStyle = FACTS.map((f) => `## ${f.heading} (${f.file})\n${f.body}`).join('\n\n');

@@ -10,9 +10,9 @@ those was catching a real crash (a fresh Kasper sub-tab address showed an admin
 "Could not load data"). Nothing was deployed, applied, merged or switched; no
 n8n workflow was read or edited; the only live access was read-only SQL counts.
 
-Three branches carry the work (ledger entries 406, 404, 398):
+Three branches carry the work (ledger entries 408, 404, 398):
 
-- **406, never-run browser guards** (`claude/laughing-edison-mzgxbl`): a unit test that fails when a browser test exists and
+- **408, never-run browser guards** (`claude/laughing-edison-mzgxbl`): a unit test that fails when a browser test exists and
   no workflow runs it; a CI job running the 28 passing guards; six stale
   guards repaired; the Kasper deep-link crash they were hiding, fixed.
 - **404, wrong client and lost work (page)**, #2038 (merged): the credentials dialog,
@@ -61,8 +61,8 @@ Samples notes).
 
 | # | Finding | Evidence | Guard (fails on the old code) | PR |
 |---|---|---|---|---|
-| 1 | 30 offline browser regression tests ran in no workflow; 9 failed on main | ran all 30 locally on `1be8547` | `test/browser-guards-wired.js` (lists all 30 on the old tree) | 406 |
-| 2 | A fresh `/kasper/<subtab>` crashed boot when the staff check beat the later script files (since #1848): "Could not load data … _kasperResolveSubtab is not defined", and, once that was fixed, "KASPER_SUBTABS is not defined" (its list is in a third file) | reproduced deterministically with the later files held 1.5 s, together and one at a time | `test/kasper-deep-link-split-race-browser.js`; `test/clean-urls-browser.js` now passes | 406 |
+| 1 | 30 offline browser regression tests ran in no workflow; 9 failed on main | ran all 30 locally on `1be8547` | `test/browser-guards-wired.js` (lists all 30 on the old tree) | 408 |
+| 2 | A fresh `/kasper/<subtab>` crashed boot when the staff check beat the later script files (since #1848): "Could not load data … _kasperResolveSubtab is not defined", and, once that was fixed, "KASPER_SUBTABS is not defined" (its list is in a third file) | reproduced deterministically with the later files held 1.5 s, together and one at a time | `test/kasper-deep-link-split-race-browser.js`; `test/clean-urls-browser.js` now passes | 408 |
 | 3 | Credentials dialog closed while A's list loaded, reopened for B: B showed A's logins, and Edit moved A's login to B | real browser, real page | `test/credentials-modal-client-switch-browser.js` part 1 | 404 |
 | 4 | Credentials Edit, Reveal and Copy read the Kasper store's older copy (the 2026-08-22 fix reached Mark reviewed only): an old password copied, and saved back | real browser | same test, part 2 | 404 |
 | 5 | Instagram: a client change during a Calendar thumbnail copy made A's thumbnail B's Reel cover; A's card caption stayed | real browser | `test/instagram-cover-client-switch-browser.js` | 404 |
@@ -80,7 +80,7 @@ Samples notes).
 | 17 | Instagram Cancel trusted its own "scheduled" row and marked a post cancelled after a 2xx or 404 with no read-back (cycle 2, twin of the TikTok cancel) | code | cases in `test/instagram-upload-source.js` | 398 |
 | 18 | A SyncLinear comment restored after a reload mid-send minted a new request id and could post twice (cycle 3) | real functions; server derives the comment id from the request id | `test/prod-comment-restored-request-id.js` | 404 |
 | 19 | Higgsfield recorded a gateway 5xx or a missing job id as refused, outside the duplicate check and the budget: a retry could pay for a second job (cycle 3) | code | `test/higgsfield-create-unconfirmed.js` | 398 |
-| 20 | Six stale guards (beacon helpers, TikTok selector, rename mock, dialog inventory, client review on phones, refresh timing) | each run before and after | the guards themselves, now in CI | 406 |
+| 20 | Six stale guards (beacon helpers, TikTok selector, rename mock, dialog inventory, client review on phones, refresh timing) | each run before and after | the guards themselves, now in CI | 408 |
 
 ## Confirmed, not fixed here (owner one-liners)
 
@@ -169,7 +169,7 @@ at the start of an archaeology run".
 
 **Cycle 4.** Goal unchanged. Running the refresh-skeleton guard ten times
 showed 2 failures, both the Kasper crash by a second road (its list,
-`KASPER_SUBTABS`, is in a third split file): confirmed and fixed in 406, and
+`KASPER_SUBTABS`, is in a third split file): confirmed and fixed in 408, and
 the guard now holds each later file back alone. The sweep (saved drafts
 that lose their send identity, paid answers read as refusals) returned six
 candidates; one duplicates row 15. Not yet verified when the owner re-scoped

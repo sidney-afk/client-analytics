@@ -32748,7 +32748,7 @@ Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Browser c
 
 Items 7 and 8 came from cycle 2's sweep of fixes made on one twin only, item 9 from cycle 3's sweep of ambiguous answers. Kasper's Samples notes, found in the same run, are left to #2037, which fixes them more completely. Both browser guards run in the `entry-links-boot` job.
 
-## 406. [2026-10-10, BUILT, NOT MERGED] Thirty browser regression tests that no workflow ran; nine had drifted to failing, one was catching a real Kasper crash (session Digger)
+## 408. [2026-10-10, BUILT, NOT MERGED] Thirty browser regression tests that no workflow ran; nine had drifted to failing, one was catching a real Kasper crash (session Digger)
 
 Bug archaeology over entries 331 to 393 (session Digger; entries 404 and 398 carry the other fixes of the same run).
 

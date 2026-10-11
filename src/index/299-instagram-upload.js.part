@@ -37,6 +37,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         file: null,
         objectUrl: null,
         title: '',
+        titleFromCard: '',           // the caption a Calendar card filled in, while unedited
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
@@ -170,21 +171,34 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             return await new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('convert failed')), 'image/jpeg', 0.92));
         } finally { URL.revokeObjectURL(url); }
     }
-    async function _igSetCoverImage(input, name, source, cardId) {
+    async function _igSetCoverImage(input, name, source, cardId, stillCurrent) {
+        const current = typeof stillCurrent === 'function' ? stillCurrent : () => true;
         const c = _igCover();
         let blob = input;
         if (source === 'upload' && !/^image\/(jpeg|png)$/.test(blob.type || '')) { c.note = 'The cover must be a JPEG or PNG image.'; _igRenderForm(); return; }
-        try { blob = await _igToJpegOrPng(blob); } catch (e) { c.note = 'That image could not be read. Try a JPEG or PNG.'; _igRenderForm(); return; }
+        try { blob = await _igToJpegOrPng(blob); } catch (e) { if (!current()) return; c.note = 'That image could not be read. Try a JPEG or PNG.'; _igRenderForm(); return; }
+        if (!current()) return;
         if (blob.size > IG_COVER_MAX_BYTES) { c.note = 'That image is over ' + _igDeps.formatBytes(IG_COVER_MAX_BYTES) + '. Use a smaller JPEG or PNG.'; _igRenderForm(); return; }
-        _igCoverClear(true);
         const url = URL.createObjectURL(blob);
         const size = await _igImageSize(url);
+        if (!current()) { try { URL.revokeObjectURL(url); } catch (e) {} return; }
+        _igCoverClear(true);
         const cur = _igCover();
         cur.blob = blob; cur.url = url; cur.name = name || 'cover'; cur.source = source; cur.cardId = cardId || ''; cur.mode = 'image';
         cur.dims = size ? size.w + '×' + size.h : '';
         // Not 9:16 is a heads-up, not a block: the image still posts and Instagram crops it.
         cur.note = (size && Math.abs(size.w / size.h - IG_COVER_RATIO) > 0.02) ? 'This image is ' + size.w + '×' + size.h + ', not 9:16. Instagram will crop it to fit.' : '';
         _igRenderForm(); _igRenderPreview();
+    }
+    /* What a client change takes away: a Calendar cover (and the card it came
+       from, which also retires a copy still in flight) and a caption that card
+       filled in, if nobody edited it. Typed text stays. */
+    function _igLeaveClient() {
+        igState.error = null; igState.notice = null;
+        if (igState.cover.source === 'calendar') _igCoverClear(true);
+        igState.cover.cardId = ''; igState.cover.note = '';
+        if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
+        igState.titleFromCard = '';
     }
     async function _igUseCalendarCard(cardId) {
         const c = _igCover();
@@ -193,14 +207,22 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (!card) return;
         c.cardId = cardId;
         // The card's caption fills the caption box, but only while that box is empty: typed text is never overwritten.
-        if (!igState.title.trim() && card.caption) igState.title = card.caption.slice(0, IG_MAX_CAPTION);
+        if (!igState.title.trim() && card.caption) { igState.title = card.caption.slice(0, IG_MAX_CAPTION); igState.titleFromCard = igState.title; }
         if (!card.thumb) { c.note = 'This card has no thumbnail yet' + (card.caption ? ', so only its caption was used.' : '.'); _igRenderForm(); return; }
         c.note = 'Copying the Calendar thumbnail…'; _igRenderForm();
+        /* The copy belongs to this client and this card. A client change (or
+           another card) while it runs retires it: before 2026-10-10 it landed
+           as the next client's Reel cover (OPEN_REPAIRS 404). */
+        const client = igState.client;
+        const current = () => igState.client === client && _igCover().cardId === cardId;
         try {
             const resp = await fetch(card.thumb, { mode: 'cors', credentials: 'omit', cache: 'force-cache' });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            await _igSetCoverImage(await resp.blob(), 'calendar-thumbnail', 'calendar', cardId);
+            const blob = await resp.blob();
+            if (!current()) return;
+            await _igSetCoverImage(blob, 'calendar-thumbnail', 'calendar', cardId, current);
         } catch (e) {
+            if (!current()) return;
             _igCover().note = "Couldn't copy that Calendar thumbnail (the browser was not allowed to read it). Upload the image instead.";
             _igCover().cardId = cardId;
             _igRenderForm();
@@ -416,7 +438,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } igState.error = null; igState.notice = null; if (igState.cover.source === 'calendar') _igCoverClear(true); igState.cover.cardId = ''; igState.cover.note = ''; _igRenderForm(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } _igLeaveClient(); _igRenderForm(); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
@@ -570,7 +592,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
-            igState.title = '';
+            igState.title = ''; igState.titleFromCard = '';
             _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
             igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
             igState.queueTab = 'upcoming';
@@ -701,14 +723,13 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
            kept that one for the whole session: pick another client in the top
            bar and the top bar and the TikTok side said B while this form, empty,
            still said A, and a video attached then went to A's Instagram. */
-        const igIdle = !igState.file && !String(igState.title || '').trim() && !igState.submitting;
+        // A caption a Calendar card filled in, unedited, is not a post being written.
+        const igIdle = !igState.file && !igState.submitting
+            && (!String(igState.title || '').trim() || (!!igState.titleFromCard && igState.title === igState.titleFromCard));
         if (shared && (WL_CLIENT_NAMES || []).includes(shared) && (!igState.client || (igIdle && igState.client !== shared))) {
-            if (igState.client && igState.client !== shared) {
-                igState.error = null; igState.notice = null;
-                if (igState.cover.source === 'calendar') _igCoverClear(true);
-                igState.cover.cardId = ''; igState.cover.note = '';
-            }
+            const leaving = igState.client && igState.client !== shared;
             igState.client = shared;
+            if (leaving) _igLeaveClient();
         }
         _igMounted = true;
         const form = document.getElementById('igFormCol'), right = document.getElementById('igRightCol');

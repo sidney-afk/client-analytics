@@ -70,9 +70,11 @@ A later approved retirement must establish all of these with measured evidence: 
 ```text
 SyncView needs attention — 3 open problems (1 new)
 1. Backup: no verified recovery backup within 7 hours.
-2. Calendar nightly: last scheduled test failed. Run: <run reference>.
+2. Calendar nightly: the last two scheduled tests failed. Run: <run reference>.
 3. Monitoring: a retained lane has not checked in within its window.
 ```
+
+Since 2026-10-11 (OPEN_REPAIRS 407) a lane failure is listed only once the lane's next run confirms it, as in the dead-man's switch; one red run alone is not a problem yet.
 
 Retained producers write public-safe open/update/resolve incident state; a consolidator reads all open incidents and sends one current digest only for a new problem, severity increase, or material evidence change. A deterministic fingerprint suppresses unchanged repeats. Healthy checks and recoveries are quiet. The manual self-test is separate. The consolidator itself needs an independently observable fallback, or its failure would look like healthy quiet. The relay must render the complete bounded digest rather than silently truncate incidents.
 

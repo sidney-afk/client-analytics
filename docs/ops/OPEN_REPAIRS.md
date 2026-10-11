@@ -31915,6 +31915,109 @@ iPhone width when opened.
 
 Rollback: block at the bottom of `migrations/2026-10-09-thumbnail-titles.sql`.
 
+## 392. [2026-10-09, BUILT, NOT MERGED] Client paths re-proven on the live site; Samples Kasper Undo fixed; Calendar and Samples robots back on the paths production takes (session Gatekeeper)
+
+**Samples nightly, 6 of 210 red (run 99).** Four Kasper paths, two causes:
+- *Undo: a real product bug.* `_sxrKasperUndoApprove` set the card back to Kasper Approval on screen and only then called
+  `_sxrKasperApplyAndPersist`, whose stale-screen check (entry 316, PR 1916, 2026-10-01) compares the card on screen with the
+  server. The server held his own Client Approval, so every Undo of a Kasper approve on Samples was refused as "someone else
+  changed this card" (screenshot of the live refusal, test client, 2026-10-09). Fix: Undo no longer pre-sets the card; the
+  check runs first and the save sets it. A client approval that lands after his approve is still not undone. Test:
+  `test/kasper-never-lose-decision.js` "Samples: Undo of his own approve" fails on the old code with the live message.
+- *Finish: a stale robot expectation.* Owner decision 2026-09-27: a sample he finishes leaves his queue (no "Sent to SMM" row).
+  The tree path and `kasper_finish_video` now prove the saved `kasper_finished_at` stamp, the status, and the card leaving.
+- *Two create-then-reload scenarios:* the page shows clean addresses (`/sample-reviews/<slug>`); the robots served it with
+  Python's plain file server, which answers such a path with a bare 404 where GitHub Pages answers `404.html` (which forwards
+  into the app). `qa/pages_static_server.py` answers like Pages; `qa/master.js`, `qa/run-probes.js` and the morning check use it.
+
+**Calendar nightly.** Run 111 (2026-10-08, before entry 373's fixes merged): 28 of 67. Run 112 (2026-10-09, with them): 21 of 67.
+p28, p29, p30 and p36 pass and stay: despite "linear" in their names they test the native write routing production takes
+(rewritten 2026-09-08). p59, p68, p82 and p87 test live features too. What was left, by cause:
+- *Thirteen probes moved a video or thumbnail on a seeded card with no work item* (p42, p43, p43b, p44, p45, p48, p53,
+  p87_kasper_finish_stale_refresh, p71, p59, p57, p66, p82). Every production card has work items; since the native cutover a
+  decision on a part with none is refused, and since 373 the invented key's call to the real gateway is refused too, so the
+  card's own row was never written. `qa/probes/lib.js` now gives every new seed fixture work items and fakes the gateway in
+  every probe browser, as p28 and the Samples tree already did (`noWorkItems: true` opts a seed out). One more layer: after
+  a committed write the page reads the work item back to confirm it, and the fixture answered that read with no status, so
+  the write stopped with `native_replay_status_unavailable` (measured on p42). The fixture work item now holds the status the
+  faked gateway last accepted. p42 then passed locally; the full-list result is in the PR.
+- *p92* did the same on Samples (fake gateway added; 10/10 locally). *p85* proved the client approve on a thumbnail with no
+  work item; it now uses the caption, which has none of its own (the gate checks are unchanged). *p94* read `location.hash`,
+  empty under clean addresses; it reads `svRoute.hash()` (6/6). *p61* is left to the full-list result in the PR.
+- *Retired: p89, p90, p91.* They click the staff "+" and type into the blank card it used to make. For a client on the native
+  lane "+" opens Create Post, which makes the work items first; every active client and the test client are on it, and an
+  unreadable roster fails toward it, so production cannot reach that funnel. Files kept; reason in the manifest; Create Post is
+  covered by `docs/syncview-design/tests/prod-write-gateway-browser.js`. `qa/master.js`'s fast profile uses p92 and p94 instead.
+- *p96:* the robot's staff key was not a role key; it now reads `ROBOT_ROLE_KEY_SMM` (below).
+
+**Tier 0 re-proven on the live site** (`qa/dawn/tier0-live-proof.js`, 12 of 12, test client only): real staff sign-in and
+Share with client (issuer 200); the link in a fresh profile loads Calendar and Samples, thumbnails draw, client approve and
+request-changes save and hold, the client approves a sample thumbnail with real work items (staff sends it from the real sheet
+and puts it back). Ledger rows restamped to 2026-10-09; no row overstates.
+
+**Morning check: Samples approve added** (owner 2026-09-22). A throwaway sample cannot take a client decision
+(`native_link_required`, measured), so it uses the test client's one sample with real work items through
+`qa/dawn/native-sample-roundtrip.js`. Needs a role key and the roster name; without them it reports "not run" (⚠️), never passed.
+
+**Second pass, after the full Calendar list ran locally on the merged branch.** Every probe but the ones below then failed
+only on this sandbox's realtime socket, which answers 500 here and works in CI (the "0 JS errors" line; p49 and p70 test
+realtime itself). The rest, each a robot cause:
+- *p34*: two of its cards are meant to have no work item; they now opt out (`noWorkItems: true`) of the library default.
+- *p61*: the client's note was refused with "Notes are still loading"; it now waits for the thread as p60 does (373).
+- *p71*: "computed overall on a fresh surface" read the staff tab's copy without reloading it; it reloads first.
+- *p82*: since Linear was retired a shared old Linear link is deliberately not a collision (`_calDupeKey`); the twin card
+  now shares the first card's fixture work item (`sharesWith` in the fixture), which is what the warning guards.
+- *p87_kasper_finish_stale_refresh*: it faked the old n8n save address; saves go to `calendar-upsert` since 2026-10-07, so
+  Finish's save reached the live function, did not land, and Finish was undone. Both addresses are now faked (it writes nothing).
+- *p96* passes with the SMM role key and a roster name (run locally with both).
+- *p31, p38*: the live switch `caption_generate_ef_clients` was set to all clients at 19:33 UTC on 2026-10-09, so caption
+  generation now calls the `caption-generate` function; the probes faked only the n8n address. Both addresses are faked now.
+- *Samples nightly scenarios:* the eight create_* scenarios drive the same retired "+" funnel on Samples
+  (`addSxrBlankCard` -> Create Post for every enrolled client) and ran only because scenarios use the legacy lane; retired
+  from the nightly list in `qa/master.js` (still defined, still run by `--profile=full`). The nightly keeps clean_both,
+  smm_request_video, client_approve_video and the 24 tree paths.
+
+**Third pass, 2026-10-10: the Samples nightly's probe step.** The owner's run on the branch (38061795202) was the first in
+weeks to pass the master lanes, so the step after them ran for the first time since the native cutover: 7 of 8 red. Causes,
+all in the robots:
+- The Samples probe library never faked the work-item gateway (`qa/sxr_courier_lib.js` now does, as `qa/probes/lib.js`
+  does; not on the legacy lane the scenarios use), and new seeds had no video or thumbnail link, so every approval was
+  refused with "Nothing to review yet" (the 2026-09-05 content rule). New seeds now get placeholder links unless they set
+  their own (the content-rule probe sets them empty on purpose). Two samples (`sxr_concurrency`) and one Calendar card
+  (`cal_realtime_twin`) also get fixture work items, as a real one has.
+- `sxr_kasper_audit_holes` checked pushes to the retired Linear webhooks; it now checks the status reaching the video
+  work item (in its native form, `client_approval`). `sxr_gating_flags` expected the "Sent to SMM" row; it now follows the
+  owner's 2026-09-27 rule (finish stamp saved, the sample leaves the queue and a reply does not bring it back).
+- **Damage, repaired:** `sxr_cold_open` clicks the staff "+", which for an enrolled client opens Create Post and adds no
+  card, so in that run it typed its name into the last EXISTING sample (the test client's one sample with real work items),
+  and archived it (15:14 UTC). Only the sample row and the work-item titles changed; both work items kept their statuses.
+  The sample was un-archived through `sample-review-upsert` (back to Tweaks Needed); its old name is not recorded anywhere,
+  so it keeps the probe's name, which its work-item titles also carry now. The probe now stops if no NEW card appears, and
+  it left the nightly list (it drives the retired funnel).
+Calendar nightly on the branch (run 38061783375): 63 of 64 probes passed. The one failure, p96, is the secret's value:
+`SYNCVIEW_STAFF_ACTOR` matches more than one roster person (`403 roster_actor_not_unique`); it needs a name only one active
+SMM has, exactly as the sign-in list shows it. p96 passed locally with such a name. Owner step.
+Locally after the fixes: 6 of the 7 remaining probes pass. `cal_realtime_twin` cannot be proven here (its first step needs
+the realtime socket, which this sandbox lacks); its CI failure, the status save, was the missing work item.
+
+**The robots' key (owner decision 2026-10-09).** The role keys live in the `production` environment, which needs an
+approval per run (`.github/workflows/deploy-client-review-link.yml`; its last run waited 2 min 23 s), so a nightly cannot
+use it, and the approval rule stays exactly as it is. The owner added the repository secret `ROBOT_ROLE_KEY_SMM` (the SMM
+role key). The Calendar nightly, the Samples nightly and the morning check now read it as `SYNCVIEW_STAFF_KEY` (and the
+morning check also as `SYNCVIEW_ROLE_KEY`). No environment is used. A role key is what the robots ran with locally all day
+(the sandbox's staff key is one). `client-signoff-reconcile.yml` was not asked about and still reads `SYNCVIEW_STAFF_KEY`.
+**Correction (2026-10-10): the admin actor stays with the admin key.** `SYNCVIEW_STAFF_ACTOR` is the admin roster name and
+there is no test SMM on the roster, so the two flows that act as that person cannot use the SMM key: key-verify and
+description-image-upload both require the roster role to match the key's role (401 `role_mismatch`, 403
+`roster_actor_not_unique`). p96 (Calendar nightly) and the morning check's Samples approve now each run in a step of their
+own with `ROBOT_ROLE_KEY_ADMIN` (the admin role key, a repository secret the owner added 2026-10-11) and the actor; every
+other step stays on `ROBOT_ROLE_KEY_SMM` with no actor. `SYNCVIEW_STAFF_KEY` is not a role key (p96 got `401 invalid_staff_key`
+with it, run 38072601369), so no robot reads it.
+The morning check's Samples step writes its result to a file and the main step reports it, so it is still one report.
+`test/robot-key-actor-pairing.js` fails if any workflow step pairs the SMM key with the admin roster name, or if a robot
+workflow reads `SYNCVIEW_STAFF_KEY`.
+**Way back:** revert the PR.
+
 ## 393. [2026-10-09, BUILT, NOT MERGED] Calendar board jumps sideways (and up and down) when it refreshes on its own
 
 **What was wrong.** Reported by the owner on 2026-10-09: sitting still on the staff Calendar, the
@@ -32645,3 +32748,150 @@ Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Browser c
 
 Items 7 and 8 came from cycle 2's sweep of fixes made on one twin only, item 9 from cycle 3's sweep of ambiguous answers. Kasper's Samples notes, found in the same run, are left to #2037, which fixes them more completely. Both browser guards run in the `entry-links-boot` job.
 **Way back:** revert the pull request and rebuild the fragments.
+
+## 405. [2026-10-11, BUILT, NOT MERGED, NOT DEPLOYED] Thumbnail titles: a shorter, cleaner default prompt for every client, built by plain code (session Scribe)
+
+**Why.** The default thumbnail title prompt was the five base rules plus the first 5,000 characters of the client's
+Synchro Brain voice file, copied as it stands. That text carries source notes, call and segment references, dates,
+"source status" lines and repeats, so staff could not read it, and the 5,000 character cut could land in the middle of
+a rule: a boundary written late in the file was silently never shown to the model.
+
+**What changed.** `defaultPromptFor` (`supabase/functions/thumbnail-titles/logic.mjs`) now takes the client's written
+facts and returns the five base rules word for word, then a short "This client's style" section: Tone, Words and
+phrases they use (quoted), How hooks and titles are written, Avoid, and Boundaries. No AI step: it splits the facts
+into sentences, takes the source notes off each (reference brackets, dates, fact ids), drops provenance lines and
+repeats, and sorts what is left by plain patterns, so the same Brain file always gives the same prompt.
+- Avoid and Boundaries hold only instructions about what to write. Descriptions of past posts, notes about
+  subtitles, fonts, colours, thumbnail images and screen grabs, on-camera delivery notes and research commentary
+  (who to ask, what was never decided, what the source does or does not prove) are left out. A sentence that
+  mixes both is split at the semicolon and each half judged alone. Avoid and Boundaries are never capped.
+- Words and phrases are the client's own words; a reviewer's comment is never listed as a phrase. Repeated
+  lines within a section are shown once. Tone and Hooks are trimmed, but a line that states a prohibition is
+  never the one trimmed.
+- A sentence is kept whole or left out; nothing is reworded.
+- Lines about on-camera delivery (pace, eye line, gestures) are read off video by a model and are not title rules;
+  only a sentence in them that states a rule is kept.
+- `titleStyleFacts` also returns the facts, and `seed.ts` passes them in. Nothing about which clients are seeded
+  changed: the seed writes `default_prompt` only and never touches a saved `prompt`.
+- Test `test/thumbnail-title-style.js` (invented text only) fails if a boundary line is lost.
+
+**Release.** Merging deploys nothing. Deploy `thumbnail-titles`, `thumbnail-title-prompts` and `higgsfield-mcp`
+(they share `clientinfo.ts`), then run the seed action so every client without a saved prompt gets the new default.
+The live default of a client is read from the table, so re-seeding the table alone already changes what the next
+title run uses.
+
+## 406. [2026-10-11, BUILT, NOT MERGED, NOT APPLIED, NOT DEPLOYED] Thumbnail titles: why 67 items stayed "Needs info", and the fixes that are safe (session Finder)
+
+**Measured 2026-10-11** (read only, `thumbnail_title_queue`, test client excluded): 67 open items on 13 clients:
+39 no match (8 clients), 21 no month tab (3 clients), 4 empty plan (2), 2 no plan (1), 1 generation failed.
+57 of the 67 descriptions are empty; 9 still hold the robot's line; 1 holds text a person wrote.
+
+**Causes, by pattern (no client names in the repo; the per-client list was given in chat).**
+1. *The linked plan is only a header.* Two clients' no-match items (21) and the empty-plan items (4) sit on a plan that is the
+   house template with no videos in it (no later tab, no newer doc in Drive). A header just over the 300 character floor went to
+   the model and came back "no match". Now a tab under 1,500 characters with no numbered entry is reported as an empty plan.
+2. *Long plans cut at 20,000 characters.* The model only saw the first 20,000 characters, and several stuck videos (15 to 20)
+   start past that. The cut is now 120,000 characters.
+3. *Numbering that restarts.* Some plans repeat 1, 2, 3... in a hooks or notes section or a pasted older list. The prompt now says
+   a video number means the first main list, and that an irregular numbering is left out, not guessed.
+4. *No tab for the post's month.* Plans were written late. `pickTab` now tries the post's month, week tabs, the next month,
+   then the previous month, and returns `via`. A borrowed tab is noted in `last_error` as `tab_next_month: <month>` or
+   `tab_previous_month: <month>` (a code and a month, never plan text). Two months away is still reported, never guessed.
+5. *Posts that are not plan videos* (holiday and event posts, a carousel the plan does not have, a post named by a bare number whose
+   title does not match any script). Correctly left empty; they need a person.
+
+**Not built, owner decisions.** (a) Items whose newest month tab is two or more months before the post stay "no month tab".
+(b) Two clients' linked plans are empty templates and no replacement was found in Drive; one client with no plan linked has a
+possible ad-scripts doc in Drive. No plan link was changed.
+**Risk of the month fallback.** Numbering restarts every month, so a bare "Video 3" read from a neighbouring month's tab can be a
+different video than the one meant. The fallback is therefore noted on the row, and the first run should be one client, read by a person.
+
+**Release order.** 0. Prerequisite, checked live 2026-10-11: `migrations/2026-10-10-thumbnail-titles-error-record.sql` is applied (`thumbnail_title_apply` has
+the five-argument form). Without it the deployed function falls back to the old call and silently drops `last_error`, including the borrowed-tab note, so
+check it first: `select pg_get_function_identity_arguments(oid) from pg_proc where proname = 'thumbnail_title_apply'` must end in `p_error text`.
+1. Apply `migrations/2026-10-11-thumbnail-titles-requeue.sql`. 2. Deploy `thumbnail-titles` from main through
+`deploy-single-function`. 3. Dry run `select * from thumbnail_titles_requeue_needs_info(array['no_match','no_month_tab','generation_failed'])`,
+then apply for one client, then the rest. Nothing else changes; the page does not change.
+
+**After review (Codex, same day).** Two tabs for the post's own month (or the next) now stop the search instead of moving on to another month; the
+note names the borrowed tab's own month (a September post on the August tab says August 2026); the re-queue clears a description only when it is EXACTLY
+one of the robot's seven lines (checked at selection and again at the moment of clearing), so a line a person added to is kept. All 17 robot lines
+live match; none match once text is appended. The re-queue function was also run on a scratch PostgreSQL 16 with stand-in tables: the dry run changed nothing; apply re-queued the empty and exact-line rows and left a line with text appended and a person's text alone.
+
+Tests: `test/thumbnail-titles-source.js` 190 checks (neighbour months and year wrap, ambiguity, long plans, template headers, the re-queue SQL and its line patterns).
+
+## 407. [2026-10-11, BUILT, NOT MERGED, NOT DEPLOYED] Monitoring: "ran and failed" pages only a confirmed failure (two runs in a row); a branch run never confirms or ends one (session Sweep)
+
+**Owner rule (2026-10-11):** Slack alerts only on a failure that is confirmed. The dead-man's switch paged
+"SyncView monitoring: 1 lane(s) RAN and reported failure" on a lane's newest heartbeat alone, so a single
+red run paged.
+
+**What the record shows about the 2026-10-11 page.** Read only, `deliverable_events`: the Samples nightly
+wrote `ok:false` on every run on main from at least 2026-10-01 to 2026-10-11 (60 of its 63 runs in 60 days
+failed). The 12:34 run on 2026-10-11 was not a pass: it was GitHub's late schedule copy standing down
+(OPEN_REPAIRS 403), 10 seconds long, writing no heartbeat. The failing incident had been latched since
+2026-09-29; a manual run on a branch under review, carrying an unmerged fix, passed on 2026-10-10 at 16:56
+and un-latched it at 17:00, so the next main failure (06:20) paged again. The nightly is genuinely red on
+main until that fix merges.
+
+**What changed (source only).**
+1. `supabase/functions/_shared/monitoring-watchdog-core.mjs`: a lane pages as failing only when its two most
+   recent production runs both failed, the newer one fresh (`CONFIRMING_FAILED_RUNS = 2`). One failure then a
+   pass, one failure with no second run yet, and fail, pass, fail page nothing; a single failure is listed in
+   the check's output as `awaiting_confirmation`. A lane that keeps failing pages once, on its second failure,
+   and latches; as before, only a fresh passing run ends the incident, so a new confirmed failure after it
+   pages again and a lone failure never ends one. The stale page is unchanged: it still reads only each lane's
+   newest beat, through the same request as before.
+2. A run is one heartbeat per run handle, newest first. Each heartbeat now records the branch it came from
+   (`ref`, from `GITHUB_REF_NAME` in `scripts/monitoring-watchdog.js`); a beat from any branch but `main`
+   still proves the lane ran but never confirms, hides or ends a failure. Beats written before this carry no
+   `ref` and count as before.
+3. A second request per lane reads its newest 10 production beats (`HEARTBEAT_HISTORY_PER_LANE`), filtered to
+   `main` (or no `ref`) in the database before the limit, so branch runs can never push a main run out of the
+   window. The PostgREST filter was checked read only against the live table.
+4. The page's full text now says "RAN and reported failure on their last 2 runs in a row"; the short summary
+   the relay shows is unchanged, so two failing lanes still fit by name.
+5. `scripts/alert-digest.js` (still in shadow) reads the same history and judges the same way, so it can
+   neither page on one failure nor go blind to failures; its line reads "the last two scheduled tests failed".
+6. The F27 reconciler closure pins for the core and `scripts/monitoring-watchdog.js` were re-taken from the
+   committed bytes (membership unchanged).
+
+**Replay on the real heartbeats, last 60 days (read only, all branches, as the old rule saw them):** 31 "ran
+and failed" pages under the old rule, 19 under the new one; the 12 dropped were all a single failure followed
+by a pass. Every lane that had a real failure streak still pages; none goes silent.
+
+**Mixed versions are safe.** After the merge the two GitHub hosts run the new rule at once, while the tick keeps
+the old one until it is redeployed (and the reverse after a rollback). Both share one latch. Because only a pass
+ends a failing latch in either version, the old host pages a single failure at most once and the new host never
+resets it; an earlier draft of this change reset it on "one failure after a pass" and the two would have
+re-paged every 15 minutes (found in review, replayed, fixed, now a test).
+
+**Guards.** New `test/monitoring-confirmed-failure.js` (47 checks): fail then pass, two fails, fail pass fail,
+one fail alone; staleness identical whether the decision gets a lane's history or only its newest beat (56
+combinations); branch and pull request runs, and 12 branch runs between two main failures; two beats from one
+run; the latch; `runCheck` night by night against a fake database and relay (night 1 no page, night 2 one page,
+night 3 latched, a pass ends it, one failure after it no page, a second pages; fail then pass pages nothing); the
+22-night and 26-night silences replayed (one page each, on night 2); the 2026-10-10/11 sequence replayed (no
+page); old and new rules running side by side (at most one page); both nightlies named in the relay summary;
+the combined message. Against main's code, one failure alone and fail, pass, fail page, which these checks
+refuse; putting back either defect found in review fails them too. `test/monitoring-lane-failing.js` and
+`test/monitoring-watchdog.js` updated to the new rule.
+
+**Not changed, for the owner:** the Samples and Calendar nightlies still carry their own "Page the SyncView Bot
+on scheduled failure" step, which posts straight to `SLACK_ALERT_WEBHOOK` on every single failed timer run,
+separately from the dead-man's switch. That secret is set (the GitHub watchdog hosts page through it), so those
+steps still alert on one failure. Removing them would leave the dead-man's switch as the only failure page for
+the nightlies; that is an owner call, not made here.
+
+**Owner steps:**
+1. Merge the pull request. The two GitHub watchdog hosts use the new rule from their next run.
+2. Redeploy `monitoring-watchdog-tick` (its shared core changed) through
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml with
+   `function` = `monitoring-watchdog-tick` and `commit_sha` = main's tip SHA after the merge.
+3. Nothing to apply in SQL, no secret, no variable.
+
+Known limit: a lane that alternates fail, pass, fail, pass never pages as failing; the stale page still
+catches a lane that stops. Rollback: revert the pull request and redeploy `monitoring-watchdog-tick` from the
+reverted main.
+
+

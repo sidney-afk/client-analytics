@@ -66,7 +66,11 @@ jobs:
         env:
           SXR_COURIER: '0'   # open egress on CI runners — no curl courier needed
           # Client openers resolve in-process and pass the token explicitly.
-          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          # The SMM role key, as a repository secret (owner, 2026-10-09). The role
+          # keys also live in the `production` environment, but that environment
+          # needs an approval per run, which a nightly cannot wait for; the
+          # issuer, the staff writers and p96 all accept a role key.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
           SYNCVIEW_NIGHTLY_SCN: ${{ github.event.inputs.scn || '' }}
         run: node qa/master.js --lane=unit,parity,realtime,scenarios,tree
       - name: Samples probes (regression guards + races + linear + realtime)
@@ -75,9 +79,13 @@ jobs:
           PROBE_ATTEMPTS: '1'
           # The shared runner owns a silent static server, rejects pre-existing
           # port occupants, and gives this issuer key only to probe processes.
-          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_STAFF_KEY: ${{ secrets.ROBOT_ROLE_KEY_SMM }}
+          # sxr_cold_open left this list on 2026-10-10 (OPEN_REPAIRS 392): it clicks the
+          # staff "+" and types into the blank card it used to make; for an enrolled client
+          # "+" opens Create Post, so the probe typed into and archived an EXISTING test
+          # sample instead. It now refuses to touch an existing card.
           SYNCVIEW_NIGHTLY_PROBES: >-
-            sxr_bug_repros sxr_concurrency sxr_gating_flags sxr_cold_open
+            sxr_bug_repros sxr_concurrency sxr_gating_flags
             sxr_kasper_audit_holes sxr_realtime_twin
             sxr_client_persist_guard cal_realtime_twin
         run: node qa/run-probes.js

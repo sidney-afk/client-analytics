@@ -515,13 +515,16 @@ function base() {
       ['expectKasperCard', 'present'],
     ] });
 
-  // Kasper Finish reviewing — decided card hands off to the SMM ("Sent to SMM")
-  S.push({ key: 'kasper_finish_video', title: 'Kasper requests change then Finish reviewing → Sent to SMM',
+  // Kasper Finish reviewing — decided card hands off to the SMM. Owner decision
+  // 2026-09-27: a finished sample leaves his queue (no "Sent to SMM" row), so the
+  // hand-off is proven by the saved stamp plus the card leaving.
+  S.push({ key: 'kasper_finish_video', title: 'Kasper requests change then Finish reviewing → handed to the SMM',
     seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
     steps: [
       ['kasper.request', 'video', 'tighten the intro'], ['expect', 'video_status', 'Tweaks Needed'],
       ['kasper.finish'],
-      ['expectKasperCard', 'finished'],
+      ['expectStamped', 'kasper_finished_at'],
+      ['expectKasperCard', 'absent'],
     ] });
 
   // Kasper Close (X). Actual behaviour (both calendars, by design): a closed card

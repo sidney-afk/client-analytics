@@ -75977,8 +75977,12 @@
         if (!item) return;
         _sxrKasperState.history = (_sxrKasperState.history || []).filter(e => e.id !== entryId);
         const p = item.post;
-        p[comp + '_status'] = prevStatus;
-        p.status = computeSampleOverallStatus(p);
+        /* The card is NOT set back to prevStatus here. _sxrKasperApplyAndPersist checks the part
+           against the server before it writes (OPEN_REPAIRS 316), using the card as it is on
+           screen as the baseline. Setting it back first made that baseline Kasper Approval while
+           the server held his own Client Approval, so every Undo was refused as "someone else
+           changed this card" (Samples nightly, 2026-10-09). The mutate below sets it, after the
+           check, and repaints. */
         if (!_sxrKasperFindItem(p.id)) _sxrKasperState.items.push(item);
         _sxrKasperRenderQueue();
         _sxrKasperApplyAndPersist(p.id, comp, current => {
@@ -89929,4 +89933,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-f611ca759486.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-e6035eda9b0c.js");

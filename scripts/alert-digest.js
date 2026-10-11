@@ -17,7 +17,9 @@
  *
  * WHAT COUNTS AS A PROBLEM (all read-only):
  *   1. a watched lane of scripts/monitoring-watchdog.js has not checked in, or
- *      checked in with ok:false (covers the Samples and Calendar nightlies);
+ *      checked in with ok:false on its last two production runs in a row (one
+ *      failure waits for the next run to confirm it, as the dead-man's switch
+ *      does, OPEN_REPAIRS 407; covers the Samples and Calendar nightlies);
  *   2. the latest completed production run of a watched workflow is red, or
  *      its last success is too old (backup, dawn check, daily analytics copy,
  *      quota watchdog). A production run is the database timer's on-time run
@@ -129,13 +131,14 @@ function laneProblems({ heartbeatRows, nowMs, lanes }) {
     });
   }
   for (const row of decision.failing) {
+    const run = runNumber((row.failed_runs || [])[0] || row.last_run_id);
     problems.push({
       key: `lane_failing:${row.lane}`,
       severity: 1,
-      evidence: `run:${runNumber(row.last_run_id)}`,
+      evidence: `run:${run}`,
       text: NIGHTLY_NAMES[row.lane]
-        ? `${NIGHTLY_NAMES[row.lane]}: last scheduled test failed. Run ${runNumber(row.last_run_id)}.`
-        : `${row.label}: the last scheduled run failed. Run ${runNumber(row.last_run_id)}.`,
+        ? `${NIGHTLY_NAMES[row.lane]}: the last two scheduled tests failed. Run ${run}.`
+        : `${row.label}: the last two scheduled runs failed. Run ${run}.`,
     });
   }
   // `healthy` rows from a lane that is stale are already in `stale` (latch rows
@@ -356,10 +359,18 @@ async function supaInsertEvent(action, payload) {
 
 async function readHeartbeats() {
   const lanes = watchdog.activeLanes().filter(lane => lane.key !== OWN_LANE);
-  const perLane = await Promise.all(lanes.map(lane => supaGet(
-    `deliverable_events?select=id,ts,payload&action=eq.${watchdog.HEARTBEAT_ACTION}`
-    + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=1`)));
-  return perLane.flat();
+  const base = lane => `deliverable_events?select=id,ts,payload&action=eq.${watchdog.HEARTBEAT_ACTION}`
+    + `&payload->>lane=eq.${encodeURIComponent(lane.key)}`;
+  // The newest beat of any branch (staleness, as before) plus the lane's recent
+  // production beats: a failure counts only once the next run on main confirms
+  // it, read exactly as the dead-man's switch reads it (OPEN_REPAIRS 407).
+  const perLane = await Promise.all(lanes.map(lane => Promise.all([
+    supaGet(`${base(lane)}&order=id.desc&limit=1`),
+    supaGet(`${base(lane)}&or=(payload->>ref.is.null,payload->>ref.eq.${watchdog.PRODUCTION_REF})`
+      + `&order=id.desc&limit=${watchdog.HEARTBEAT_HISTORY_PER_LANE}`),
+  ])));
+  const seen = new Set();
+  return perLane.flat(2).filter(row => row && !seen.has(row.id) && seen.add(row.id));
 }
 
 async function readRuns(sources = WORKFLOW_SOURCES) {

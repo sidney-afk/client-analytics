@@ -123,14 +123,14 @@ function gh(path: string, raw = false): Promise<Response> {
 // The written voice and title facts for one client slug, or the reason there
 // are none. Shared with the thumbnail-titles functions, which seed each
 // client's thumbnail title prompt from the same facts this connector shows.
-export async function titleStyleFacts(clientSlug: string, clientName = "", exclude: RegExp | null = null): Promise<{ text: string; reason: string }> {
-  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return { text: "", reason: "brain_not_connected" };
+export async function titleStyleFacts(clientSlug: string, clientName = "", exclude: RegExp | null = null): Promise<{ text: string; reason: string; facts: Array<{ file: string; heading: string; body: string }> }> {
+  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return { text: "", reason: "brain_not_connected", facts: [] };
   const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
   const list = await gh(`contents/clients?ref=${ref}`);
-  if (!list.ok) return { text: "", reason: `brain_unreadable_${list.status}` };
+  if (!list.ok) return { text: "", reason: `brain_unreadable_${list.status}`, facts: [] };
   const folders = ((await list.json()) as Array<{ name: string; type: string }>).filter((i) => i.type === "dir").map((i) => i.name);
   const folder = findClientFolder(folders, clientSlug) || (clientName ? findClientFolder(folders, clientName) : null);
-  if (!folder) return { text: "", reason: "no_brain_folder" };
+  if (!folder) return { text: "", reason: "no_brain_folder", facts: [] };
   const read = async (file: string) => {
     const r = await gh(`contents/clients/${folder}/${file}.md?ref=${ref}`, true);
     return r.ok ? await r.text() : "";
@@ -140,10 +140,10 @@ export async function titleStyleFacts(clientSlug: string, clientName = "", exclu
     ...parseBrainFacts(voice, "voice"),
     ...parseBrainFacts(editing, "editing").filter((f: { heading: string }) => TITLE_FACTS.test(f.heading) && !/font|colou?r|spec/i.test(f.heading)),
   ].filter((f: { status: string; body: string; heading: string }) => f.status === "written" && f.body && !(exclude && exclude.test(f.heading)));
-  if (!facts.length) return { text: "", reason: "no_written_facts" };
+  if (!facts.length) return { text: "", reason: "no_written_facts", facts: [] };
   const text = facts.map((f: { file: string; heading: string; spec: string; body: string }) =>
     `## ${f.heading} (${f.file})\n${f.body}`).join("\n\n");
-  return { text: text.slice(0, BRIEF_MAX_CHARS), reason: "" };
+  return { text: text.slice(0, BRIEF_MAX_CHARS), reason: "", facts: facts.map((f: { file: string; heading: string; body: string }) => ({ file: f.file, heading: f.heading, body: f.body })) };
 }
 
 export async function clientStyle(db: SupabaseClient, client: string): Promise<string> {

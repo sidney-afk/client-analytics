@@ -31,7 +31,7 @@ import { planTabs, tabMonth } from "../higgsfield-mcp/clientinfo.ts";
 import {
   clientOn,
   effectivePrompt,
-  MIN_PLAN_CHARS,
+  borrowedMonthLabel,
   monthLabel,
   needsInfoLine,
   normalizedText,
@@ -40,6 +40,7 @@ import {
   parseTitles,
   JSON_ONLY_FOLLOWUP,
   pickTab,
+  planHasVideos,
   postNameFor,
   resolveLine,
   shortError,
@@ -55,7 +56,7 @@ const PROVIDER_TIMEOUT_MS = 60_000;
 
 type Json = Record<string, unknown>;
 type Job = { deliverable_id: string; client_slug: string; attempts: number };
-type Post = { key: string; job: Job; videoNumber: number | null; postName: string; createdAt: string };
+type Post = { key: string; job: Job; videoNumber: number | null; postName: string; createdAt: string; via: string };
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -196,14 +197,14 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
       counts[state] = Number(counts[state] || 0) + 1;
       continue;
     }
-    if (picked.tab.text.trim().length < MIN_PLAN_CHARS) {
+    if (!planHasVideos(picked.tab.text)) {
       const state = await apply(db, job.deliverable_id, needsInfoLine("plan_empty"), "needs_info", "plan_empty");
       counts[state] = Number(counts[state] || 0) + 1;
       continue;
     }
     const name = cardName.get(clean(row.card_id)) || "";
     const videoNumber = numberFromCardName(name) ?? numberFromItemTitle(clean(row.title), perBatch.get(clean(row.batch_id)) || 0);
-    const post: Post = { key: `p${i + 1}`, job, videoNumber, postName: postNameFor(name, clean(row.title)), createdAt: clean(row.created_at) };
+    const post: Post = { key: `p${i + 1}`, job, videoNumber, postName: postNameFor(name, clean(row.title)), createdAt: clean(row.created_at), via: picked.via || "" };
     const key = picked.tab.id || picked.tab.name || "only";
     if (!groups.has(key)) groups.set(key, { tab: picked.tab, posts: [] });
     groups.get(key)!.posts.push(post);
@@ -225,8 +226,11 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
     const planNormalized = normalizedText(tab.text);
     for (const post of posts) {
       const line = resolveLine(post, answer.titles.get(post.key) || "", planNormalized);
-      const state = await apply(db, post.job.deliverable_id, line.text, line.state, line.outcome);
+      // A tab borrowed from the next or previous month is noted in last_error (a code and a month, never plan text).
+      const note = post.via ? `tab_${post.via}: ${borrowedMonthLabel(post.createdAt, post.via)}` : "";
+      const state = await apply(db, post.job.deliverable_id, line.text, line.state, line.outcome, note);
       counts[state] = Number(counts[state] || 0) + 1;
+      if (post.via) counts[`tab_${post.via}`] = Number(counts[`tab_${post.via}`] || 0) + 1;
     }
   }
 }

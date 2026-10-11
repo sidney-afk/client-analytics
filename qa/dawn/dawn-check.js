@@ -7,6 +7,8 @@
 //
 //   1 client approve          (clean client context, lands on the Review tab)
 //   2 client request changes  (clean client context)
+//   2b client approves a SAMPLE on the Samples link (owner asked 2026-09-22;
+//      staff sends it with a real sign-in, needs SYNCVIEW_ROLE_KEY + SYNCVIEW_ACTOR)
 //   3 staff card save         ("Saved, syncing" → saved, or straight to saved)
 //   4 card rename             (linked sub-issue title follows, then restored)
 //   5 Workload open time      6 SyncLinear first rows   7 Analytics first numbers
@@ -36,6 +38,7 @@ const { D, buildReport } = require('./dawn-report.js');
 const { readCoverage } = require('./templates-coverage.js');
 const { readSampleSync, GRACE_MINUTES } = require('./sample-sync.js');
 const H = require('../probes/ot4_lib.js');
+const { nativeSampleRoundTrip } = require('./native-sample-roundtrip.js');
 const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
 
 const TEST_SLUG = 'sidneylaruel';
@@ -55,6 +58,7 @@ const BASELINE = {
 
 fs.mkdirSync(OUT, { recursive: true });
 const results = [];
+let sampleRestored = null;   // null: the Samples flow did not touch the sample
 const violations = [];
 function record(key, r) { results.push(Object.assign({ key }, r)); }
 
@@ -137,6 +141,45 @@ async function clientFlows(browser, seeds) {
   if (errs.length) record('client-errors', { ok: false, detail: D.appErrors(errs.length), shot: await shot(p, 'client-errors', true) });
   await p.context().close();
   return landed;
+}
+
+// ---- flow 2b: the client Samples link (owner asked 2026-09-22) -------------
+// A throwaway sample cannot take a client decision: a sample part's status lives
+// on its work item, and a part with none is refused (native_link_required). So the
+// flow uses the test client's one sample with real work items: staff (really
+// signed in) sends its thumbnail to the client, the client approves it on the
+// Samples link, staff puts it back (native-sample-roundtrip.js). That needs a
+// staff ROLE key and the roster name it signs in as; without both it is reported
+// as not run, never as passed.
+//
+// The workflow runs it in its own step (DAWN_ONLY=samples-approve): the sign-in
+// card needs a key whose role matches the roster name (key-verify role_mismatch
+// otherwise), and the actor is an admin, so that step alone holds the admin key.
+// It writes its result to SAMPLES_RESULT; the main step, on the SMM key with no
+// actor, reads it back so the report stays one report.
+const ACTOR = String(process.env.SYNCVIEW_ACTOR || '').trim();
+const ONLY = String(process.env.DAWN_ONLY || '').trim();
+const SAMPLES_RESULT = path.join(OUT, 'samples-approve.json');
+function samplesFromOwnStep() {
+  let saved = null;
+  try { saved = JSON.parse(fs.readFileSync(SAMPLES_RESULT, 'utf8')); } catch {}
+  if (!saved || !Array.isArray(saved.results)) { record('samples-approve', { ok: false, detail: D.failedAt('own-step') }); return; }
+  for (const r of saved.results) if (['samples-approve', 'samples-errors'].includes(r.key)) results.push(r);
+  sampleRestored = saved.restored === undefined ? null : saved.restored;
+}
+async function clientSamplesFlow(browser) {
+  if (!HAS_ROLE_KEY || !ACTOR) { record('samples-approve', { ok: true, blocked: true, detail: D.samplesNoKey() }); return; }
+  const entry = require('../test-client-entry.js');
+  const token = await entry.currentTestClientToken();
+  const openClient = (pg) => entry.gotoTestClientEntry(pg, { origin: ORIGIN, view: 'sample-reviews', name: entry.TEST_CLIENT.name, token, gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 } });
+  const r = await nativeSampleRoundTrip({ browser, origin: ORIGIN, openClient, roleKey: ROLE_KEY, actor: ACTOR, guard,
+    shot: (pg, key) => shot(pg, key, true) });
+  if (r.step === 'target') { record('samples-approve', { ok: false, detail: D.failedAt('target') }); return; }
+  const ok = r.ok;
+  record('samples-approve', { ok, ms: ok ? r.ms : null,
+    detail: ok ? D.sampleApproveOk(r.landedMs || 0, r.cards) : D.failedAt(r.step), shot: r.shot || null });
+  if (r.clientErrors) record('samples-errors', { ok: false, detail: D.appErrors(r.clientErrors) });
+  sampleRestored = r.restored;
 }
 
 // ---- flows 3 + 4: staff calendar ------------------------------------------
@@ -322,14 +365,38 @@ function report(started, calMs) {
   return { md, safe };
 }
 
+// The Samples approve alone, for its own workflow step. Never fails the step:
+// the main step reports the result (or its absence) as the samples check.
+async function samplesOnly() {
+  const server = process.env.DAWN_NO_SERVER === '1' ? null
+    : spawn(process.platform === 'win32' ? 'python' : 'python3', [path.join(__dirname, '..', 'pages_static_server.py'), '8000'], { cwd: path.join(__dirname, '..', '..'), stdio: 'ignore' });
+  await new Promise(r => setTimeout(r, 1500));
+  let browser = null;
+  try {
+    browser = await launch();
+    await clientSamplesFlow(browser);
+  } catch (e) {
+    console.error('dawn-check: samples step stopped early (' + ((e && e.name) || 'Error') + ')');
+    record('samples-approve', { ok: false, detail: D.failedAt('error') });
+  } finally {
+    try { if (browser) await browser.close(); } catch {}
+    if (server) server.kill();
+  }
+  if (violations.length) record('samples-approve', { ok: false, detail: D.failedAt('guard') });
+  fs.writeFileSync(SAMPLES_RESULT, JSON.stringify({ results, restored: sampleRestored }));
+  console.log('dawn-check: samples step ' + (results.every(r => r.ok) ? 'passed' : 'failed') + '; reported by the main step.');
+  process.exit(0);
+}
+
 (async () => {
   if (!String(process.env.SYNCVIEW_STAFF_KEY || '').trim()) {
     console.error('dawn-check: SYNCVIEW_STAFF_KEY is not set (staff writes and the client link need it).');
     process.exit(2);
   }
   const started = Date.now();
+  if (ONLY === 'samples-approve') return samplesOnly();
   const server = process.env.DAWN_NO_SERVER === '1' ? null
-    : spawn(process.platform === 'win32' ? 'python' : 'python3', ['-m', 'http.server', '8000'], { cwd: path.join(__dirname, '..', '..'), stdio: 'ignore' });
+    : spawn(process.platform === 'win32' ? 'python' : 'python3', [path.join(__dirname, '..', 'pages_static_server.py'), '8000'], { cwd: path.join(__dirname, '..', '..'), stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 1500));
   const seeds = {
     approve: { id: `p_dawn_a_${TS}`, name: `Dawn approve ${TS}` },
@@ -345,6 +412,7 @@ function report(started, calMs) {
     seedReviewCard(seeds.save.id, seeds.save.name, 'In Progress');
     for (const s of Object.values(seeds)) await H.pollRow(() => rowCal(s.id, 'id'), r => !!r.id, POLL);
     await clientFlows(browser, seeds);
+    if (process.env.DAWN_SAMPLES_OWN_STEP === '1') samplesFromOwnStep(); else await clientSamplesFlow(browser);
     calMs = await staffFlows(browser, seeds, renameTarget);
     await timeTab(browser, 'workload', '/index.html#workload', () => !!document.querySelector('.workload-plan-item-content'));
     await timeTab(browser, 'synclinear', '/index.html?prod=1', () => !!document.querySelector('#prodRoot .prod-row'));
@@ -363,7 +431,7 @@ function report(started, calMs) {
     if (renameTarget) { try { rr = await restoreRename(browser, renameTarget); } catch (e) { rr = { ok: false }; } }
     try { await browser.close(); } catch {}
     if (server) server.kill();
-    record('cleanup', { ok: !bad.length && rr.ok && !violations.length,
+    record('cleanup', { ok: !bad.length && rr.ok && sampleRestored !== false && !violations.length,
       detail: D.cleanup(Object.keys(seeds).length - bad.length, Object.keys(seeds).length, !!renameTarget, rr.card !== false, rr.sub !== false, violations.length) });
   }
   const { md, safe } = report(started, calMs);

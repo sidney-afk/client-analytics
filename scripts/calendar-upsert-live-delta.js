@@ -18,19 +18,21 @@
  * function with `supabase functions download` into a folder outside the checkout, records every
  * file's sha256, refuses unless the live verify_jwt is false, runs --dir-apply below, deploys ONLY
  * that patched copy with --no-verify-jwt, downloads again and runs --dir-verify, and redeploys the
- * downloaded original if the deploy or the verification fails. If live already carries the delta it
+ * downloaded original if the deploy or the verification fails or the run is cancelled there (then
+ * checks every file with --dir-match and verify_jwt false again). If live already carries the delta it
  * says "already applied" and deploys nothing. Nothing hand-copies the source any more, and there is
  * no route that deploys the repo's supabase/functions/calendar-upsert (it re-gates client links and
  * brought back the 401 outage on every client review link, 2026-07-15, twice).
  *
- * Hashes (measured from live v83, 2026-10-10): before
+ * Hashes (measured from the live v83 code, 2026-10-10; live now reports it as version 84 because a
+ * secret change bumped every function's number, code unchanged): before
  * 67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185; after (with the OPEN_REPAIRS 402
  * note line) 7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843. They are the lane's
  * input defaults.
  *
  * Modes:
  *   Directory modes (used by the lane; hashes and paths only, never source text): --snapshot,
- *   --dir-state, --dir-apply, --dir-verify; documented beside dirMain below.
+ *   --dir-state, --dir-apply, --dir-verify, --dir-match; documented beside dirMain below.
  *   JSON modes (a live JSON saved from Supabase MCP get_edge_function, for a read-only look):
  *     node scripts/calendar-upsert-live-delta.js <live.json> <out-dir> --expect-sha=<before-hash>
  *     node scripts/calendar-upsert-live-delta.js --check <live-after.json> --expect-sha=<after-hash>
@@ -146,30 +148,38 @@ function main(argv) {
 //                                             index.ts is <after>, every other file is
 //                                             byte-identical to the snapshot, no file
 //                                             added or lost
+//   --dir-match <dir> --snapshot=<file>       every file, index.ts included, is
+//                                             byte-identical to the snapshot (rollback check)
+// Only supabase/functions/** is read; the CLI's supabase/.temp and the config stub
+// are ignored.
 // Every mode refuses a folder inside this repository and any tree that contains
 // authorizeBrowserWrite (the repo's gated source).
 const ENTRY = 'supabase/functions/calendar-upsert/index.ts';
-const CONFIG_STUB = 'supabase/config.toml';
+const FUNCTIONS_ROOT = 'supabase/functions';
 
 function fileSha(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+// Only the function source is walked: supabase/functions/**. The CLI writes its own
+// state beside it (supabase/.temp/linked-project.json, supabase/.temp/cli-latest)
+// and the lane writes supabase/config.toml; those can differ between two downloads
+// of the same code, so they are never hashed, compared or copied.
 function walk(dir) {
   const out = [];
+  const root = path.join(dir, FUNCTIONS_ROOT);
   const visit = (abs) => {
     for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
       const full = path.join(abs, entry.name);
       if (entry.isSymbolicLink()) throw new Error('refusing a symbolic link in the live tree: ' + path.relative(dir, full));
       if (entry.isDirectory()) visit(full);
-      else if (entry.isFile()) {
-        const rel = path.relative(dir, full).split(path.sep).join('/');
-        // The CLI's project stub, written by the lane so download and deploy run; not function source.
-        if (rel !== CONFIG_STUB) out.push(rel);
-      }
+      else if (entry.isFile()) out.push(path.relative(dir, full).split(path.sep).join('/'));
     }
   };
-  visit(dir);
+  if (fs.existsSync(root)) {
+    if (fs.lstatSync(root).isSymbolicLink()) throw new Error('refusing a symbolic link in the live tree: ' + FUNCTIONS_ROOT);
+    visit(root);
+  }
   return out.sort();
 }
 
@@ -234,7 +244,7 @@ function dirMain(mode, argv) {
     if (!HEX64.test(a.expectSha) || !HEX64.test(a.expectAfter)) throw new Error('--dir-apply needs --expect-sha and --expect-after');
     if (!outDir) throw new Error('--dir-apply needs <live-dir> <out-dir>');
     if (insideRepo(outDir)) throw new Error('out-dir is inside the repository');
-    if (fs.existsSync(outDir) && walk(outDir).length) throw new Error('out-dir must be new or hold only the CLI project stub');
+    if (fs.existsSync(outDir) && walk(outDir).length) throw new Error('out-dir must be new or hold no function source yet');
     const files = liveTree(liveDir);
     const before = fileSha(path.join(liveDir, ENTRY));
     if (before !== a.expectSha) throw new Error(`live index.ts sha256 ${before} is not the expected ${a.expectSha}`);
@@ -266,6 +276,21 @@ function dirMain(mode, argv) {
     }
     if (problems.length) throw new Error('live verification failed: ' + problems.join('; '));
     console.log(`VERIFY OK: index.ts ${now[ENTRY]}; ${Object.keys(now).length - 1} other file(s) byte-identical to the pre-deploy download`);
+    return 0;
+  }
+  if (mode === '--dir-match') {
+    if (!a.snapshot) throw new Error('--dir-match needs --snapshot=<file>');
+    const before = JSON.parse(fs.readFileSync(a.snapshot, 'utf8')).files || {};
+    if (!Object.keys(before).length) throw new Error('the snapshot lists no files');
+    const now = snapshot(a.positional[0]);
+    const problems = [];
+    for (const f of new Set([...Object.keys(before), ...Object.keys(now)])) {
+      if (!(f in now)) problems.push('missing: ' + f);
+      else if (!(f in before)) problems.push('new: ' + f);
+      else if (now[f] !== before[f]) problems.push('changed: ' + f);
+    }
+    if (problems.length) throw new Error('not the snapshot: ' + problems.join('; '));
+    console.log(`MATCH OK: all ${Object.keys(now).length} file(s) byte-identical to the snapshot, index.ts ${now[ENTRY]}`);
     return 0;
   }
   throw new Error('unknown mode ' + mode);

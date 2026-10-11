@@ -10,7 +10,11 @@
  *     nothing ever deploys the repo's supabase/functions/calendar-upsert;
  *   - verify_jwt must be false before and after; a second download must match by hash;
  *   - idempotent: "already applied" deploys nothing;
- *   - a rollback step redeploys the step-1 original when the deploy or the verification fails.
+ *   - the Supabase CLI is pinned to the version every other production lane uses;
+ *   - only supabase/functions/** is hashed or copied (the CLI's supabase/.temp state is not);
+ *   - a rollback step redeploys the step-1 original when the deploy or the verification fails or
+ *     the run is cancelled there, then checks every file and verify_jwt, and always says when
+ *     the rollback did not verify.
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -39,6 +43,10 @@ ok('dispatch only: no push, schedule, pull_request or workflow_run trigger',
   /^\s{2}workflow_dispatch:/m.test(onBlock) && !/^\s{2}(push|schedule|pull_request|pull_request_target|workflow_run):/m.test(onBlock));
 ok('runs in the production environment', /^\s{4}environment: production$/m.test(wf));
 ok('typed confirmation is required', wf.includes('if [ "$CONFIRM" != "DEPLOY LIVE CALENDAR-UPSERT DELTA" ]'));
+ok('the Supabase CLI is pinned to 2.109.0, never latest', /uses: supabase\/setup-cli@v1\n\s+with:\n\s+version: 2\.109\.0\n/.test(wf)
+  && !/version:\s*latest/.test(wf));
+ok('input descriptions say v83 code, reported as version 84', (wf.match(/v83 code, reported as version 84/g) || []).length === 2
+  && !/live v83/.test(wf));
 ok('input defaults are the measured v83 hashes', wf.includes(`default: ${BEFORE}`) && wf.includes(`default: ${AFTER}`)
   && script.includes(BEFORE) && script.includes(AFTER));
 const steps = wf.split(/\n      - /).slice(1);
@@ -67,10 +75,17 @@ const gated = (name) => { const s = steps.find(x => x.startsWith('name: ' + name
 ok('idempotent: apply, deploy and verify run only when live is the before-hash',
   gated('2. Apply') && gated('3. Deploy') && gated('4. Download again') && wf.includes('already applied: live index.ts is $EXPECT_AFTER; nothing deployed'));
 const rollback = steps.find(s => s.startsWith('name: 5. ROLLBACK'));
-ok('rollback: redeploys the step-1 original when the deploy or the verification fails, then fails the run',
-  !!rollback && rollback.includes("if: failure() && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure') && steps.verify.outcome != 'success'")
+ok('rollback: runs on failure or cancel of step 3 or 4 (always() plus outcomes), then fails the run',
+  !!rollback && rollback.includes("if: always() && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure' || steps.deploy.outcome == 'cancelled') && steps.verify.outcome != 'success'")
   && rollback.includes('--workdir "$LIVE_DIR" --no-verify-jwt') && /exit 1\s*$/.test(rollback.trim()));
-ok('rollback proves itself by re-downloading', !!rollback && rollback.includes('--dir-state "$ROLLBACK_DIR"') && rollback.includes('ROLLBACK DID NOT VERIFY'));
+const rollbackRun = rollback ? rollback.slice(rollback.indexOf('run: |')) : '';
+ok('rollback: no set -e, so the verdict always prints even when its deploy fails',
+  !!rollback && !/^\s*set -[a-z]*e/m.test(rollbackRun) && /functions deploy calendar-upsert[^\n]*\|\| \{ ok=0;/.test(rollbackRun)
+  && rollbackRun.indexOf('ROLLBACK DID NOT VERIFY') > rollbackRun.indexOf('functions deploy') && /if \[ "\$ok" != "1" \]; then\n\s+echo "::error::ROLLBACK DID NOT VERIFY/.test(rollbackRun));
+ok('rollback proves every file against the step-1 snapshot by re-downloading', !!rollback
+  && rollback.includes('--dir-match "$ROLLBACK_DIR" --snapshot="$SNAPSHOT"') && !rollback.includes('--dir-state'));
+ok('rollback re-checks verify_jwt is false after the redeploy', !!rollback
+  && rollback.includes("/functions/calendar-upsert") && rollback.includes('live verify_jwt is $jwt after the rollback'));
 ok('the deploy manifest knows the lane and keeps the frozen note',
   read('scripts/ef-deploy-manifest.js').includes("file: '.github/workflows/calendar-upsert-live-delta.yml'")
   && /\| `calendar-upsert` \| \[calendar-upsert-live-delta\]/.test(read('docs/ops/EF_DEPLOY_MANIFEST.md'))
@@ -93,19 +108,20 @@ const tree = (dir, files) => {
 };
 const entrySrc = 'import { x } from "../_shared/thumbnail-revisions.ts";\nfunction actorFrom() {\n' + D.ANCHOR + '\n}\n';
 const shared = 'export const x = 1;\n';
-const live = tree(path.join(tmp, 'live'), { 'supabase/functions/calendar-upsert/index.ts': entrySrc, 'supabase/functions/_shared/thumbnail-revisions.ts': shared, 'supabase/config.toml': 'project_id = "x"\n' });
+const live = tree(path.join(tmp, 'live'), { 'supabase/functions/calendar-upsert/index.ts': entrySrc, 'supabase/functions/_shared/thumbnail-revisions.ts': shared, 'supabase/config.toml': 'project_id = "x"\n', 'supabase/.temp/linked-project.json': '{"ref":"one"}', 'supabase/.temp/cli-latest': 'v2.109.0' });
 const before = sha(entrySrc);
 const patchedText = D.applyDelta(entrySrc).text;
 const after = sha(patchedText);
 const quiet = (fn) => { const l = console.log; console.log = () => {}; try { return fn(); } catch (e) { return 'refused: ' + e.message; } finally { console.log = l; } };
 const snap = D.snapshot(live);
-ok('snapshot: every function file hashed, the CLI project stub ignored',
+ok('snapshot: every function file hashed, the CLI project stub and .temp state ignored',
   Object.keys(snap).join() === 'supabase/functions/_shared/thumbnail-revisions.ts,supabase/functions/calendar-upsert/index.ts' && snap['supabase/functions/calendar-upsert/index.ts'] === before);
 const snapFile = path.join(tmp, 'snap.json');
 fs.writeFileSync(snapFile, JSON.stringify({ files: snap }));
 const out = path.join(tmp, 'patched');
 ok('apply: patched copy hashes to the after-hash', quiet(() => D.dirMain('--dir-apply', [live, out, '--expect-sha=' + before, '--expect-after=' + after])) === 0
   && sha(fs.readFileSync(path.join(out, 'supabase/functions/calendar-upsert/index.ts'))) === after);
+ok('apply: the CLI state in supabase/.temp is not copied into the patched folder', !fs.existsSync(path.join(out, 'supabase/.temp')));
 ok('apply: refuses when the after-hash does not match', /not the expected after-hash/.test(String(quiet(() => D.dirMain('--dir-apply', [live, path.join(tmp, 'p2'), '--expect-sha=' + before, '--expect-after=' + 'b'.repeat(64)])))));
 ok('apply: refuses a live source that is not the before-hash', /is not the expected/.test(String(quiet(() => D.dirMain('--dir-apply', [live, path.join(tmp, 'p3'), '--expect-sha=' + 'c'.repeat(64), '--expect-after=' + after])))));
 ok('apply: refuses an output folder inside the repository', /inside the repository/.test(String(quiet(() => D.dirMain('--dir-apply', [live, path.join(ROOT, 'tmp-lane-out'), '--expect-sha=' + before, '--expect-after=' + after]))))
@@ -119,13 +135,20 @@ ok('a download missing an imported file is refused', /not in the downloaded tree
 ok('state: before, then after, else refused',
   quiet(() => D.dirMain('--dir-state', [live, '--expect-sha=' + before, '--expect-after=' + after])) === 0
   && /neither/.test(String(quiet(() => D.dirMain('--dir-state', [live, '--expect-sha=' + 'd'.repeat(64), '--expect-after=' + after])))));
-ok('verify: passes on the patched tree', quiet(() => D.dirMain('--dir-verify', [out, '--snapshot=' + snapFile, '--expect-after=' + after])) === 0);
+tree(out, { 'supabase/config.toml': 'project_id = "y"\n', 'supabase/.temp/linked-project.json': '{"ref":"two","name":"other"}', 'supabase/.temp/cli-latest': 'v2.200.0' });
+ok('verify: passes on the patched tree even when its supabase/.temp differs from the step-1 download', quiet(() => D.dirMain('--dir-verify', [out, '--snapshot=' + snapFile, '--expect-after=' + after])) === 0);
 ok('verify: fails when live still has the old index.ts', /index.ts is/.test(String(quiet(() => D.dirMain('--dir-verify', [live, '--snapshot=' + snapFile, '--expect-after=' + after])))));
 fs.writeFileSync(path.join(out, 'supabase/functions/_shared/thumbnail-revisions.ts'), shared + '// drift\n');
 ok('verify: fails when any other file changed', /changed after deploy/.test(String(quiet(() => D.dirMain('--dir-verify', [out, '--snapshot=' + snapFile, '--expect-after=' + after])))));
 fs.writeFileSync(path.join(out, 'supabase/functions/_shared/thumbnail-revisions.ts'), shared);
 fs.writeFileSync(path.join(out, 'supabase/functions/_shared/extra.ts'), 'x');
 ok('verify: fails when a file was added', /new after deploy/.test(String(quiet(() => D.dirMain('--dir-verify', [out, '--snapshot=' + snapFile, '--expect-after=' + after])))));
+fs.rmSync(path.join(out, 'supabase/functions/_shared/extra.ts'));
+const rolled = tree(path.join(tmp, 'rolled'), { 'supabase/functions/calendar-upsert/index.ts': entrySrc, 'supabase/functions/_shared/thumbnail-revisions.ts': shared, 'supabase/.temp/cli-latest': 'v9' });
+ok('match: a rolled-back tree equal to the snapshot passes, whatever its .temp holds', quiet(() => D.dirMain('--dir-match', [rolled, '--snapshot=' + snapFile])) === 0);
+ok('match: still-patched index.ts fails the rollback check', /changed: supabase\/functions\/calendar-upsert\/index.ts/.test(String(quiet(() => D.dirMain('--dir-match', [out, '--snapshot=' + snapFile])))));
+fs.writeFileSync(path.join(rolled, 'supabase/functions/_shared/thumbnail-revisions.ts'), shared + '// drift\n');
+ok('match: any other changed file fails the rollback check', /changed: supabase\/functions\/_shared/.test(String(quiet(() => D.dirMain('--dir-match', [rolled, '--snapshot=' + snapFile])))));
 fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log(`\n${passed} passed, ${failed} failed`);

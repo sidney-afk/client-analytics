@@ -17,12 +17,12 @@ on:
   workflow_dispatch:
     inputs:
       expect_before_sha:
-        description: sha256 of the live calendar-upsert index.ts before the delta (live v83, measured 2026-10-10)
+        description: sha256 of the live calendar-upsert index.ts before the delta (v83 code, reported as version 84, measured 2026-10-10)
         required: true
         type: string
         default: 67511f6763a2e3b7edd951ce473e5b3fa878c53cbf4d25e2efd564d3f2e91185
       expect_after_sha:
-        description: sha256 the patched index.ts must have (measured from live v83 with the OPEN_REPAIRS 402 note line)
+        description: sha256 the patched index.ts must have (measured from the v83 code, reported as version 84, with the OPEN_REPAIRS 402 note line)
         required: true
         type: string
         default: 7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843
@@ -74,7 +74,7 @@ jobs:
           node-version: '22'
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.0
       - name: Prepare work folders OUTSIDE the checkout
         shell: bash
         run: |
@@ -152,18 +152,29 @@ jobs:
           if [ "$jwt" != "false" ]; then echo "::error::live verify_jwt is $jwt after the deploy"; exit 1; fi
           echo "- Live version after: \`$(echo "$meta" | jq -r '.version')\`, verify_jwt false: PASS" >> "$GITHUB_STEP_SUMMARY"
       - name: 5. ROLLBACK - put the step-1 original back
-        if: failure() && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure') && steps.verify.outcome != 'success'
+        # always(): a run cancelled during step 3 or 4 must roll back too, so
+        # cancelled counts like failure. Never runs when step 3 was skipped.
+        if: always() && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'failure' || steps.deploy.outcome == 'cancelled') && steps.verify.outcome != 'success'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         shell: bash
         run: |
-          set -euo pipefail
-          echo "::error::The delta did not verify. Redeploying the original live source downloaded in step 1."
-          cd "$LIVE_DIR"
-          supabase functions deploy calendar-upsert --project-ref "$PROJECT_REF" --workdir "$LIVE_DIR" --no-verify-jwt --use-api
-          supabase functions download calendar-upsert --project-ref "$PROJECT_REF" --workdir "$ROLLBACK_DIR" --use-api
-          node scripts/calendar-upsert-live-delta.js --dir-state "$ROLLBACK_DIR" --expect-sha="$EXPECT_BEFORE" --expect-after="$EXPECT_AFTER" | grep -qx before \
-            && echo "ROLLED BACK: live index.ts is the original $EXPECT_BEFORE again" | tee -a "$GITHUB_STEP_SUMMARY" \
-            || { echo "::error::ROLLBACK DID NOT VERIFY: check calendar-upsert by hand now (client review links)"; exit 1; }
+          # No set -e: every check below runs and the verdict always prints,
+          # even when the rollback deploy itself fails.
+          set -uo pipefail
+          echo "::error::The delta did not verify (or the run was cancelled). Redeploying the original live source downloaded in step 1."
+          ok=1
+          cd "$LIVE_DIR" || ok=0
+          supabase functions deploy calendar-upsert --project-ref "$PROJECT_REF" --workdir "$LIVE_DIR" --no-verify-jwt --use-api || { ok=0; echo "::error::the rollback deploy command failed"; }
+          supabase functions download calendar-upsert --project-ref "$PROJECT_REF" --workdir "$ROLLBACK_DIR" --use-api || { ok=0; echo "::error::the rollback download failed"; }
+          node scripts/calendar-upsert-live-delta.js --dir-match "$ROLLBACK_DIR" --snapshot="$SNAPSHOT" | tee -a "$GITHUB_STEP_SUMMARY" || ok=0
+          jwt="$(curl -sS -f "https://api.supabase.com/v1/projects/$PROJECT_REF/functions/calendar-upsert" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" | jq -r '.verify_jwt')" || jwt="unreadable"
+          if [ "$jwt" != "false" ]; then ok=0; echo "::error::live verify_jwt is $jwt after the rollback"; fi
+          if [ "$ok" != "1" ]; then
+            echo "::error::ROLLBACK DID NOT VERIFY: check calendar-upsert by hand now (client review links)"
+            echo "ROLLBACK DID NOT VERIFY: check calendar-upsert by hand now (client review links)" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "ROLLED BACK: every live file matches the step-1 download again, verify_jwt false" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "::error::Run failed and was rolled back; nothing changed live."
           exit 1

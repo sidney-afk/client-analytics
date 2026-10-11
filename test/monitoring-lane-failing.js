@@ -42,6 +42,7 @@ const NOW = Date.parse('2026-08-07T12:00:00.000Z');
 const LANE = 'production_write_drill';
 const OTHER = 'monitoring_watchdog';
 
+// Each beat is its own run (a run handle per beat), as each scheduled run is.
 const beat = (lane, { ok: okFlag = true, minutesAgo = 5 } = {}) => ({
   id: `${lane}-${minutesAgo}-${okFlag}`,
   ts: new Date(NOW - minutesAgo * 60000).toISOString(),
@@ -49,9 +50,12 @@ const beat = (lane, { ok: okFlag = true, minutesAgo = 5 } = {}) => ({
     lane,
     ok: okFlag,
     at: new Date(NOW - minutesAgo * 60000).toISOString(),
-    run_id: '1:1',
+    run_id: `${1000 + minutesAgo}:1`,
   },
 });
+// Two failed runs in a row, the newer one fresh: a CONFIRMED failure
+// (OPEN_REPAIRS 405). One red run alone no longer pages.
+const twoFailures = lane => [beat(lane, { ok: false, minutesAgo: 5 }), beat(lane, { ok: false, minutesAgo: 65 })];
 const latch = (lane, state, kind) => ({
   id: `latch-${lane}-${kind}-${state}`,
   ts: new Date(NOW).toISOString(),
@@ -65,11 +69,16 @@ const decide = (heartbeatRows, latchRows = []) => watchdogDecision({
 const quiet = LANES.filter(lane => lane.key !== LANE).map(lane => beat(lane.key));
 
 // --- 1. The 22 nights ------------------------------------------------------
-const failed = decide([...quiet, beat(LANE, { ok: false })]);
+// Since OPEN_REPAIRS 405 a failure pages once the next run confirms it, so the
+// 22 red drill runs would have paged on the second, not stayed silent.
+const failed = decide([...quiet, ...twoFailures(LANE)]);
 ok(failed.failing.map(row => row.lane).includes(LANE),
-  'a fresh heartbeat carrying ok:false pages — the exact signal 22 red drill runs emitted unheard');
+  'two fresh heartbeats in a row carrying ok:false page — the exact signal 22 red drill runs emitted unheard');
 ok(!failed.stale.map(row => row.lane).includes(LANE),
   'it does NOT also page as stale: the lane ran, it just failed');
+const once = decide([...quiet, beat(LANE, { ok: false })]);
+ok(once.failing.length === 0 && once.awaiting_confirmation.map(row => row.lane).includes(LANE),
+  'one red run alone does not page: it waits for the next run, and says so');
 
 // --- 2. It stays a heartbeat check, not a success check --------------------
 const healthy = decide([...quiet, beat(LANE, { ok: true })]);
@@ -90,14 +99,14 @@ ok(!staleRows.failing.map(row => row.lane).includes(LANE),
 // key, a lane already latched as stale would swallow the page saying it came
 // back and is now failing — the transition an operator most needs.
 const staleLatched = decide(
-  [...quiet, beat(LANE, { ok: false })],
+  [...quiet, ...twoFailures(LANE)],
   [latch(LANE, 'latched')],
 );
 ok(staleLatched.failing.map(row => row.lane).includes(LANE),
   'an existing STALE latch does not suppress the failing page');
 
 const failLatched = decide(
-  [...quiet, beat(LANE, { ok: false })],
+  [...quiet, ...twoFailures(LANE)],
   [latch(LANE, 'latched', FAILING_KIND)],
 );
 ok(failLatched.failing.length === 0,
@@ -128,16 +137,16 @@ ok(failingPage.type === 'monitoring_lane_failing' && stalePage.type === 'monitor
   'the two incidents carry different types — different causes, different responses');
 ok(failingPage.summaryParts[0] === `lanes${failed.failing.length}`,
   'counts come first, so a relay-truncated line still says how many lanes failed');
-ok(/RAN and reported failure/.test(failingPage.text) && failingPage.text.includes(LANE),
-  'the text names what happened and which lane');
+ok(/RAN and reported failure on their last 2 runs in a row/.test(failingPage.text) && failingPage.text.includes(LANE),
+  'the text names what happened, that it is confirmed, and which lane');
 ok(failingPage.team === 'monitoring' && Array.isArray(failingPage.details.lanes),
   'the page carries only lane keys — no client, row or payload content');
 
 // --- 6. Several lanes at once ------------------------------------------------
 const both = decide([
   ...LANES.filter(lane => ![LANE, OTHER].includes(lane.key)).map(lane => beat(lane.key)),
-  beat(LANE, { ok: false }),
-  beat(OTHER, { ok: false }),
+  ...twoFailures(LANE),
+  ...twoFailures(OTHER),
 ]);
 ok(both.failing.length === 2, 'every failing lane is reported, not just the first');
 

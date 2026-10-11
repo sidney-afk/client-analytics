@@ -51,7 +51,7 @@ const SLACK_WEBHOOK = String(process.env.SLACK_ALERT_WEBHOOK || '');
 const GITHUB_RUN_ID = String(process.env.GITHUB_RUN_ID || 'local');
 const GITHUB_RUN_ATTEMPT = String(process.env.GITHUB_RUN_ATTEMPT || '1');
 // The branch this run is on (`main` for the timer and the schedule). A beat
-// from any other branch never confirms or ends a failure (OPEN_REPAIRS 405).
+// from any other branch never confirms or ends a failure (OPEN_REPAIRS 407).
 const GITHUB_REF_NAME = String(process.env.GITHUB_REF_NAME || '');
 const DRY_RUN = /^(1|true|yes)$/i.test(process.env.MONITORING_WATCHDOG_DRY_RUN || '');
 const RUN_HANDLE = `${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}`;

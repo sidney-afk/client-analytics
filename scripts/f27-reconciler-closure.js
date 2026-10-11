@@ -368,7 +368,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // (listed above). Still read/alert only. Hash from
   // `git show HEAD:scripts/monitoring-watchdog.js | sha256sum` on the committed
   // file, never typed by hand. (Previous pin: d0290cb9...)
-  // Re-pinned 2026-10-11 (OPEN_REPAIRS 405): the GitHub host's io also passes
+  // Re-pinned 2026-10-11 (OPEN_REPAIRS 407): the GitHub host's io also passes
   // GITHUB_REF_NAME, so each heartbeat records the branch it came from, and the
   // export list gained the confirmed-failure constants, PRODUCTION_REF and
   // productionRuns.
@@ -391,7 +391,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // environment read, or reconcile/apply/flag/authority path; closure membership
   // unchanged. Hash from `git show HEAD:<path> | sha256sum` on the committed
   // file, never typed by hand. (Previous pin: d6068810...)
-  // Re-pinned 2026-10-11 (OPEN_REPAIRS 405): the "ran and failed" page needs a
+  // Re-pinned 2026-10-11 (OPEN_REPAIRS 407): the "ran and failed" page needs a
   // confirmed failure (two production runs in a row); a second per-lane
   // heartbeat read returns the production history; a heartbeat records the
   // host's branch when given. Still read/alert only; closure membership unchanged. Hash from

@@ -19,14 +19,14 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
   const retired = await NW.captureRetiredWebhooks(smm.context());
   const gateway = await NW.stubNativeGateway(smm.context());
   try {
-    await Q.up({ id: NOLINK, name: 'SA-NL ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
+    await Q.up({ noWorkItems: true, id: NOLINK, name: 'SA-NL ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
     require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: LINK, components: ['video', 'graphic'] }]); await Q.up({ id: LINK, name: 'SA-LK ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress',
       linear_issue_id: 'https://linear.app/sidtest/issue/SAV-' + TS, graphic_linear_issue_id: 'https://linear.app/sidtest/issue/SAG-' + TS,
       // A move into an approval state is refused on an empty component (owner
       // rule 2026-09-05, `_kasperCompReviewable`), so the linked card carries
       // a video and a thumbnail, as a real card at this point does.
       thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/g.mp4' });
-    await Q.up({ id: TERM, name: 'SA-TM ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
+    await Q.up({ noWorkItems: true, id: TERM, name: 'SA-TM ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
     for (const id of [NOLINK, LINK, TERM]) await Q.pollRaw(id, r => r.id === id, 'id');
     await Q.pollRaw(LINK, r => String(r.linear_issue_id || '').includes('SAV-' + TS), 'linear_issue_id', 14000);
     await Q.waitForPost(smm, NOLINK); await Q.waitForPost(smm, LINK); await Q.waitForPost(smm, TERM);

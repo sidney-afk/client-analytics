@@ -54,7 +54,7 @@ const beat = (lane, { ok: okFlag = true, minutesAgo = 5 } = {}) => ({
   },
 });
 // Two failed runs in a row, the newer one fresh: a CONFIRMED failure
-// (OPEN_REPAIRS 405). One red run alone no longer pages.
+// (OPEN_REPAIRS 407). One red run alone no longer pages.
 const twoFailures = lane => [beat(lane, { ok: false, minutesAgo: 5 }), beat(lane, { ok: false, minutesAgo: 65 })];
 const latch = (lane, state, kind) => ({
   id: `latch-${lane}-${kind}-${state}`,
@@ -69,7 +69,7 @@ const decide = (heartbeatRows, latchRows = []) => watchdogDecision({
 const quiet = LANES.filter(lane => lane.key !== LANE).map(lane => beat(lane.key));
 
 // --- 1. The 22 nights ------------------------------------------------------
-// Since OPEN_REPAIRS 405 a failure pages once the next run confirms it, so the
+// Since OPEN_REPAIRS 407 a failure pages once the next run confirms it, so the
 // 22 red drill runs would have paged on the second, not stayed silent.
 const failed = decide([...quiet, ...twoFailures(LANE)]);
 ok(failed.failing.map(row => row.lane).includes(LANE),

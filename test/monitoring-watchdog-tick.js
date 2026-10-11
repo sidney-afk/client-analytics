@@ -178,7 +178,7 @@ const allFresh = Object.fromEntries(WATCHED.map(lane => [lane.key, 1]));
       'a healthy tick is a completed check');
     ok(log.pages.length === 0, 'all lanes fresh: nobody is paged');
     // Two reads per lane (its newest beat, and its production history that
-    // confirms a failure, OPEN_REPAIRS 405), +1 latch read, +1 read of the
+    // confirms a failure, OPEN_REPAIRS 407), +1 latch read, +1 read of the
     // thumbnail_titles switch (the census below stops there while the switch
     // lists no client, as it does in this fixture).
     ok(log.reads.length === 2 * WATCHED.length + 2,

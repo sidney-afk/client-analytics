@@ -383,7 +383,7 @@ export function newestHeartbeats(rows) {
 }
 
 /*
- * A FAILURE PAGES ONLY ONCE IT IS CONFIRMED (owner rule 2026-10-11, OPEN_REPAIRS 405).
+ * A FAILURE PAGES ONLY ONCE IT IS CONFIRMED (owner rule 2026-10-11, OPEN_REPAIRS 407).
  *
  * The "ran and failed" page used to fire on a lane's newest heartbeat alone,
  * so one red run paged, and a page could not tell a one-off from a real break.
@@ -679,7 +679,7 @@ export async function readState(io) {
    * One bounded request per lane is exact by construction and cannot rot as
    * cadences change.
    *
-   * A second request per lane (OPEN_REPAIRS 405) reads its production history,
+   * A second request per lane (OPEN_REPAIRS 407) reads its production history,
    * the newest HEARTBEAT_HISTORY_PER_LANE beats from main (or written before
    * beats named their branch), which is what confirms a failure. The branch
    * filter runs in the database, before the limit, so runs on other branches
@@ -793,7 +793,7 @@ export async function runCheck(io) {
     healthy: decision.healthy.map(row => ({ lane: row.lane, age_minutes: row.age_minutes, suppressed: row.suppressed })),
     failing: decision.failing.map(row => row.lane),
     // A single failure, not yet confirmed by the lane's next run: stated on
-    // every pass so it is visible, and never paged (OPEN_REPAIRS 405).
+    // every pass so it is visible, and never paged (OPEN_REPAIRS 407).
     awaiting_confirmation: decision.awaiting_confirmation.map(row => row.lane),
     recovered_failing: decision.recovered_failing.map(row => row.lane),
     paged: Boolean(receipt),

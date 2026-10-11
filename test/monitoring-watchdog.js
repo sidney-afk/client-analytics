@@ -398,7 +398,7 @@ const LINEAR_SECRET = /\bLINEAR_[A-Z0-9_]+\b/;
       && /payload->>lane=eq\.\$\{encodeURIComponent\(lane\.key\)\}/.test(readStateSource)
       && /order=id\.desc&limit=1/.test(readStateSource),
   'the heartbeat read asks each WATCHED lane for its own newest beat, keyed on the lane');
-  // OPEN_REPAIRS 405: a failure pages only once the next run confirms it, so a
+  // OPEN_REPAIRS 407: a failure pages only once the next run confirms it, so a
   // second per-lane read returns the lane's production history, filtered to
   // main in the database before its own small bound.
   const history = /export const HEARTBEAT_HISTORY_PER_LANE = (\d+);/.exec(source);

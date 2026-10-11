@@ -1,6 +1,6 @@
 'use strict';
 /*
- * A FAILURE PAGES ONLY ONCE IT IS CONFIRMED (owner rule 2026-10-11, OPEN_REPAIRS 405).
+ * A FAILURE PAGES ONLY ONCE IT IS CONFIRMED (owner rule 2026-10-11, OPEN_REPAIRS 407).
  *
  * The dead-man's switch used to page "RAN and reported failure" on a lane's
  * newest heartbeat alone, so one red run paged. The rule now: the "ran and

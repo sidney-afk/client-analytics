@@ -74,7 +74,7 @@ SyncView needs attention — 3 open problems (1 new)
 3. Monitoring: a retained lane has not checked in within its window.
 ```
 
-Since 2026-10-11 (OPEN_REPAIRS 405) a lane failure is listed only once the lane's next run confirms it, as in the dead-man's switch; one red run alone is not a problem yet.
+Since 2026-10-11 (OPEN_REPAIRS 407) a lane failure is listed only once the lane's next run confirms it, as in the dead-man's switch; one red run alone is not a problem yet.
 
 Retained producers write public-safe open/update/resolve incident state; a consolidator reads all open incidents and sends one current digest only for a new problem, severity increase, or material evidence change. A deterministic fingerprint suppresses unchanged repeats. Healthy checks and recoveries are quiet. The manual self-test is separate. The consolidator itself needs an independently observable fallback, or its failure would look like healthy quiet. The relay must render the complete bounded digest rather than silently truncate incidents.
 

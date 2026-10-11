@@ -19,7 +19,7 @@
  *   1. a watched lane of scripts/monitoring-watchdog.js has not checked in, or
  *      checked in with ok:false on its last two production runs in a row (one
  *      failure waits for the next run to confirm it, as the dead-man's switch
- *      does, OPEN_REPAIRS 405; covers the Samples and Calendar nightlies);
+ *      does, OPEN_REPAIRS 407; covers the Samples and Calendar nightlies);
  *   2. the latest completed production run of a watched workflow is red, or
  *      its last success is too old (backup, dawn check, daily analytics copy,
  *      quota watchdog). A production run is the database timer's on-time run
@@ -363,7 +363,7 @@ async function readHeartbeats() {
     + `&payload->>lane=eq.${encodeURIComponent(lane.key)}`;
   // The newest beat of any branch (staleness, as before) plus the lane's recent
   // production beats: a failure counts only once the next run on main confirms
-  // it, read exactly as the dead-man's switch reads it (OPEN_REPAIRS 405).
+  // it, read exactly as the dead-man's switch reads it (OPEN_REPAIRS 407).
   const perLane = await Promise.all(lanes.map(lane => Promise.all([
     supaGet(`${base(lane)}&order=id.desc&limit=1`),
     supaGet(`${base(lane)}&or=(payload->>ref.is.null,payload->>ref.eq.${watchdog.PRODUCTION_REF})`

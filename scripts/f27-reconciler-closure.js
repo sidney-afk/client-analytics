@@ -377,7 +377,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // from `git show HEAD:<path> | sha256sum` on the committed file, never typed
   // by hand. (Previous pin: b2d1c28f...)
   'scripts/monitoring-watchdog.js':
-    'f9bee9bc874493e991ab5bfef8aad0709c1ca027dae60c4a29911bbd42bf4e0b',
+    '18ee22545844fd9b0425e23ba4771e2fa87ccfffa5daadc23d3a59bb887683e3',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
   // Both entered 2026-10-09 (OPEN_REPAIRS 388), see the membership note above.
@@ -398,7 +398,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // `git show HEAD:<path> | sha256sum` on the committed file, never typed by
   // hand. (Previous pin: 093d4848...)
   'supabase/functions/_shared/monitoring-watchdog-core.mjs':
-    '268b997ab4633948d9ecfc28f2c98c790164ea2a0ba74dacf11958ae394b90bd',
+    'cf3663a2bb6d2ad33c079288d74c8eaabc4450c4ea58ab3d91c8b56281c2f754',
 });
 const HASH_ALGORITHM =
   'sha256(path-byte-length:path\\ncontent-byte-length:raw-git-blob-bytes\\n) over sorted paths';

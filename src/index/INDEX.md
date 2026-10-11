@@ -44,7 +44,7 @@
 | 36 | `134-calendar-prefs-mount.js.part` | 1092 | Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved |
 | 37 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 38 | `150-calendar-hydration-import.js.part` | 2292 | For a card linked to a real sub-issue (not a parent), return which of |
-| 39 | `160-calendar-organize-ui.js.part` | 3447 | Card status filter (STATE_OF_THINGS D3) |
+| 39 | `160-calendar-organize-ui.js.part` | 3448 | Card status filter (STATE_OF_THINGS D3) |
 | 40 | `170-calendar-links-status.js.part` | 3442 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 41 | `180-calendar-native-post-media.js.part` | 3273 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |

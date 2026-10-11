@@ -233,10 +233,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        a one-tap Clear. The strip is what a phone shows, since the pill lives in
        the More sheet there. */
     function _calCardStatusAvailable() {
-        return !!calState.client && !_isClientLink && calState.view !== 'review' && calState.view !== 'smmreview';
+        // Not in the Calendar embedded inside Analytics: that surface has its own phone layout and keeps the toolbar it had.
+        return !!calState.client && !_isClientLink && !calState.embedded && calState.view !== 'review' && calState.view !== 'smmreview';
     }
     function _calCardStatusLive() {
-        return !_isClientLink && _calCardStatusFilterOn(calState.cardStatusFilter);
+        return !_isClientLink && !calState.embedded && _calCardStatusFilterOn(calState.cardStatusFilter);
     }
     /* One predicate for every view. A card opened from the review queue
        (focusPid) is forced through, same as the other Sheet filters. */

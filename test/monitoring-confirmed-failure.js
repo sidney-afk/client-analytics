@@ -21,6 +21,7 @@
 const core = require('../scripts/monitoring-watchdog.js');
 const coreModule = require('../supabase/functions/_shared/monitoring-watchdog-core.mjs');
 const digest = require('../scripts/alert-digest.js');
+const { relayPayload } = require('../supabase/functions/_shared/monitoring-alert-relay-core.mjs');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -30,7 +31,9 @@ const {
   HEARTBEAT_ACTION,
   HEARTBEAT_HISTORY_PER_LANE,
   LATCH_ACTION,
+  PRODUCTION_REF,
   activeLanes,
+  failingPageSpec,
   productionRuns,
   watchdogDecision,
 } = core;
@@ -163,8 +166,10 @@ ok(CONFIRMING_FAILED_RUNS === 2, 'a failure is confirmed by two runs in a row');
   const passed = decide(nights('FFP'), [latch(LANE, 'latched', FAILING_KIND)]);
   ok(lanesOf(passed.recovered_failing).includes(LANE), 'a pass ends the incident');
   const failAfterPass = decide(nights('FFPF'), [latch(LANE, 'latched', FAILING_KIND)]);
-  ok(lanesOf(failAfterPass.recovered_failing).includes(LANE) && failAfterPass.failing.length === 0,
-    'one failure after a pass is no longer a confirmed failure: the incident ends and nothing pages');
+  ok(failAfterPass.failing.length === 0 && failAfterPass.recovered_failing.length === 0,
+    'one failure after an unseen pass pages nothing, and a lone failure never ends an incident (only a pass does)');
+  const lone = decide(nights('PF'), [latch(LANE, 'latched', FAILING_KIND)]);
+  ok(lone.recovered_failing.length === 0, 'an existing failing latch is kept while the newest production run failed');
 }
 
 // --- 5. End to end: runCheck against a fake database and relay ----------------
@@ -181,7 +186,10 @@ function fakeEstate() {
       const limit = Number((/[?&]limit=(\d+)/.exec(query) || [])[1] || 1000);
       if (query.includes(`action=eq.${HEARTBEAT_ACTION}`)) {
         const lane = decodeURIComponent((/payload->>lane=eq\.([^&]+)/.exec(query) || [])[1] || '');
-        return state.heartbeats.filter(row => row.payload.lane === lane).sort((a, b) => b.id - a.id).slice(0, limit);
+        const production = query.includes(`&or=(payload->>ref.is.null,payload->>ref.eq.${PRODUCTION_REF})`);
+        return state.heartbeats
+          .filter(row => row.payload.lane === lane && (!production || !row.payload.ref || row.payload.ref === PRODUCTION_REF))
+          .sort((a, b) => b.id - a.id).slice(0, limit);
       }
       if (query.includes(`action=eq.${LATCH_ACTION}`)) return state.latches.slice().sort((a, b) => b.id - a.id).slice(0, limit);
       return [];
@@ -227,10 +235,60 @@ function fakeEstate() {
     const n6 = await estate.night(false);
     ok(n6.paged.length === 1, 'night 6 fails again: a new confirmed incident pages');
     const heartbeatQueries = estate.state.queries.filter(query => query.includes(`action=eq.${HEARTBEAT_ACTION}`));
-    ok(heartbeatQueries.length > 0 && heartbeatQueries.every(query => query.includes(`&limit=${HEARTBEAT_HISTORY_PER_LANE}`) && /payload->>lane=eq\./.test(query)),
-      `every heartbeat read is per lane and asks for the newest ${HEARTBEAT_HISTORY_PER_LANE} beats`);
+    const newestReads = heartbeatQueries.filter(query => query.endsWith('&order=id.desc&limit=1'));
+    const historyReads = heartbeatQueries.filter(query => query.includes(`&or=(payload->>ref.is.null,payload->>ref.eq.${PRODUCTION_REF})&order=id.desc&limit=${HEARTBEAT_HISTORY_PER_LANE}`));
+    ok(heartbeatQueries.every(query => /payload->>lane=eq\./.test(query)) && newestReads.length === historyReads.length
+      && newestReads.length + historyReads.length === heartbeatQueries.length && newestReads.every(query => !query.includes('or=(')),
+      `each lane gets two reads: its newest beat of any branch (staleness, unchanged) and its newest ${HEARTBEAT_HISTORY_PER_LANE} production beats`);
     ok(estate.state.heartbeats.filter(row => row.payload.lane === LANE).every(row => row.payload.ref === 'main'),
       'a heartbeat written with a known branch records it');
+  }
+
+  {
+    const estate = fakeEstate();
+    const n1 = await estate.night(false);
+    const n2 = await estate.night(true);
+    ok(n1.paged.length === 0 && n2.paged.length === 0, 'runCheck, the owner\'s case: a failed night then a passing one pages nothing');
+  }
+
+  // Many branch runs between two main failures cannot hide the confirmed failure.
+  {
+    const estate = fakeEstate();
+    await estate.night(false);
+    for (let i = 0; i < 12; i++) await estate.night(true, { ref: 'review-branch' });
+    const after = await estate.night(false);
+    ok(after.paged.length === 1, '12 passing branch runs between two main failures: the confirmed failure still pages (branch beats are filtered before the read limit)');
+  }
+
+  // MIXED VERSIONS. Between the merge and the tick's redeploy (and again after
+  // a rollback) one host runs main's old rule and the other this one, on one
+  // shared latch. The old rule pages a single failure; this one must not reset
+  // that latch, or the two would re-page it every 15 minutes.
+  async function oldRuleCheck(estate) {
+    const newest = estate.state.heartbeats.filter(row => row.payload.lane === LANE).sort((a, b) => b.id - a.id)[0];
+    const latchRow = estate.state.latches.filter(row => row.payload.lane === LANE && row.payload.incident_kind === FAILING_KIND).sort((a, b) => b.id - a.id)[0];
+    const latched = Boolean(latchRow) && latchRow.payload.incident_state === 'latched';
+    const insert = async state => estate.io().insertEvent(LATCH_ACTION, { lane: LANE, incident_kind: FAILING_KIND, incident_state: state });
+    if (newest && newest.payload.ok === false && !latched) {
+      estate.state.pages.push({ type: 'monitoring_lane_failing', text: 'old rule' });
+      await insert('latched');
+      return 1;
+    }
+    if (newest && newest.payload.ok !== false && latched) await insert('reset');
+    return 0;
+  }
+  for (const order of ['old tick first', 'new host first']) {
+    const estate = fakeEstate();
+    await estate.night(false); await estate.night(true); await estate.night(false); // F, P, F: one unconfirmed failure
+    const pagesBefore = estate.state.pages.filter(page => page.type === 'monitoring_lane_failing').length;
+    let pages = 0;
+    for (let round = 0; round < 4; round++) {
+      estate.state.now += 15 * MIN;
+      if (order === 'old tick first') { pages += await oldRuleCheck(estate); await coreModule.runCheck(estate.io()); }
+      else { await coreModule.runCheck(estate.io()); pages += await oldRuleCheck(estate); }
+    }
+    const newPages = estate.state.pages.filter(page => page.type === 'monitoring_lane_failing' && page.text !== 'old rule').length - pagesBefore;
+    ok(pages <= 1 && newPages === 0, `mixed versions (${order}): one unconfirmed failure pages at most once in 4 rounds (old rule ${pages}, new rule ${newPages})`);
   }
 
   // The two silences this file exists to prevent, replayed night by night.
@@ -269,6 +327,15 @@ function fakeEstate() {
   ok(/const GITHUB_REF_NAME = String\(process\.env\.GITHUB_REF_NAME \|\| ''\);/.test(host) && /ref: GITHUB_REF_NAME,/.test(host),
     'the GitHub host passes GITHUB_REF_NAME as the heartbeat branch');
 
+  // The relay shows only a ~96-character summary: both nightlies still fit by name.
+  const page = relayPayload(failingPageSpec([
+    { lane: 'samples_e2e_nightly', age_minutes: 25 },
+    { lane: 'calendar_e2e_nightly', age_minutes: 1405 },
+  ]));
+  ok(page.issue_identifier.includes('samples_e2e_nightly') && page.issue_identifier.includes('calendar_e2e_nightly') && !/plus\d+more/.test(page.issue_identifier),
+    `both failing nightlies are named in the relay summary (${page.issue_identifier})`);
+  ok(/on their last 2 runs in a row/.test(page.text), 'and the full text says the failure is confirmed');
+
   // --- 6. The combined message judges the same way ----------------------------
   const nowIso = new Date(NOW).toISOString();
   const others = WATCHED.filter(lane => !['alert_digest', LANE].includes(lane.key)).map(lane => beat(lane.key));
@@ -278,8 +345,10 @@ function fakeEstate() {
   const problem = two.find(item => item.key === `lane_failing:${LANE}`);
   ok(problem && /the last two scheduled tests failed/.test(problem.text), `and reports a confirmed one (${nowIso})`);
   const digestSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'alert-digest.js'), 'utf8');
-  ok(/order=id\.desc&limit=\$\{watchdog\.HEARTBEAT_HISTORY_PER_LANE\}/.test(digestSource),
-    'and reads the same per-lane history as the dead-man\'s switch');
+  ok(/&order=id\.desc&limit=1`/.test(digestSource)
+      && /&or=\(payload->>ref\.is\.null,payload->>ref\.eq\.\$\{watchdog\.PRODUCTION_REF\}\)`/.test(digestSource)
+      && /&order=id\.desc&limit=\$\{watchdog\.HEARTBEAT_HISTORY_PER_LANE\}`/.test(digestSource),
+    'and reads the same two per-lane windows as the dead-man\'s switch');
 
   console.log(failures ? `\n${failures} confirmed-failure check(s) failed` : '\nMonitoring confirmed-failure checks passed');
   process.exit(failures ? 1 : 0);

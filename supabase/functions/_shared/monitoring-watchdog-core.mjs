@@ -407,9 +407,10 @@ export function newestHeartbeats(rows) {
  * Staleness is untouched: it still reads only the newest beat of any branch.
  */
 export const CONFIRMING_FAILED_RUNS = 2;
-// Beats read per lane: enough to find two production runs even when a few
-// branch runs or a repeated beat sit between them. One request per lane, as
-// readState explains; never a window shared between lanes.
+// Production beats read per lane: enough for two runs even when a run beat
+// more than once. Branch beats are filtered out in the database before this
+// bound (see readState); one request per lane, never a window shared between
+// lanes.
 export const HEARTBEAT_HISTORY_PER_LANE = 10;
 export const PRODUCTION_REF = 'main';
 
@@ -537,10 +538,13 @@ export function watchdogDecision({ heartbeatRows, historyRows = heartbeatRows, l
      * And only a CONFIRMED failure pages (see CONFIRMING_FAILED_RUNS): the
      * lane's two most recent production runs both failed, the newer one fresh.
      * A single failure is reported in `awaiting_confirmation` and pages
-     * nothing. The failing latch follows the confirmed state: it ends when the
-     * newest production run is fresh and the failure is no longer confirmed
-     * (a pass, or one failure after a pass), so the next confirmed failure
-     * pages again. A branch run never ends it.
+     * nothing. A failing latch ends only when the newest production run is a
+     * fresh PASS, exactly as before this rule, so the next confirmed failure
+     * pages again and a lone failure never ends an incident. That also keeps a
+     * host still running the old rule (the tick until it is redeployed, or any
+     * host after a rollback) from fighting this one over the latch: one
+     * resetting what the other just paged would re-page every 15 minutes. A
+     * branch run never ends it.
      */
     const runs = history.get(lane.key) || [];
     const recent = runs.slice(0, CONFIRMING_FAILED_RUNS);
@@ -549,7 +553,7 @@ export function watchdogDecision({ heartbeatRows, historyRows = heartbeatRows, l
     const isFailing = judged && recent.length === CONFIRMING_FAILED_RUNS && recent.every(run => run.ok === false);
     const wasFailingLatched = latched.get(latchKey(FAILING_KIND, lane.key)) === true;
     if (isFailing && !wasFailingLatched) failing.push({ ...row, failed_runs: recent.map(run => run.run_id) });
-    else if (!isFailing && wasFailingLatched && judged) recoveredFailing.push(row);
+    else if (!isFailing && wasFailingLatched && judged && recent[0].ok === true) recoveredFailing.push(row);
     if (judged && !isFailing && recent[0].ok === false) awaitingConfirmation.push({ ...row, failed_runs: [recent[0].run_id] });
   }
   return { stale, recovered, healthy, failing, recovered_failing: recoveredFailing, awaiting_confirmation: awaitingConfirmation };
@@ -594,10 +598,13 @@ export function stalePageSpec(rows, runHandle = 'local:1') {
  * reading the detail.
  */
 export function failingPageSpec(rows, runHandle = 'local:1') {
-  const detail = rows.map(row => `${row.lane}=failed${CONFIRMING_FAILED_RUNS}x/${row.age_minutes}m`);
+  const detail = rows.map(row => `${row.lane}=failed/${row.age_minutes}m`);
   return {
     type: 'monitoring_lane_failing',
-    summaryParts: [`lanes${rows.length}`, 'ran_but_failed', `${CONFIRMING_FAILED_RUNS}_runs_in_a_row`, ...detail],
+    // The relay shows only the ~96-character summary, so it stays as it was
+    // (counts, then lane names); this page type now always means a confirmed
+    // failure, and the full text says so.
+    summaryParts: [`lanes${rows.length}`, 'ran_but_failed', ...detail],
     team: 'monitoring',
     count: rows.length,
     runId: `${runHandle}:deadman`,
@@ -672,18 +679,25 @@ export async function readState(io) {
    * One bounded request per lane is exact by construction and cannot rot as
    * cadences change.
    *
-   * Each request returns the lane's newest HEARTBEAT_HISTORY_PER_LANE beats
-   * (OPEN_REPAIRS 405): the first is the newest beat, which alone decides
-   * staleness exactly as before, and the rest are the history that confirms a
-   * failure. The bound is per lane, so a chatty lane still cannot evict a
-   * daily one.
+   * A second request per lane (OPEN_REPAIRS 405) reads its production history,
+   * the newest HEARTBEAT_HISTORY_PER_LANE beats from main (or written before
+   * beats named their branch), which is what confirms a failure. The branch
+   * filter runs in the database, before the limit, so runs on other branches
+   * can never push a main run out of the window. The first request is
+   * untouched and alone decides staleness.
    */
   const watched = activeLanes();
-  const [perLane, latchRows] = await Promise.all([
+  const [heartbeatRows, historyRows, latchRows] = await Promise.all([
     Promise.all(watched.map(lane => io.restRows(
       `deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}`
-      + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=${HEARTBEAT_HISTORY_PER_LANE}`,
-    ))).then(lists => lists.map(rows => (Array.isArray(rows) ? rows : []))),
+      + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=1`,
+    ))).then(perLane => perLane.flat()),
+    Promise.all(watched.map(lane => io.restRows(
+      `deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}`
+      + `&payload->>lane=eq.${encodeURIComponent(lane.key)}`
+      + `&or=(payload->>ref.is.null,payload->>ref.eq.${PRODUCTION_REF})`
+      + `&order=id.desc&limit=${HEARTBEAT_HISTORY_PER_LANE}`,
+    ))).then(perLane => perLane.flat()),
     // x20, not x10: latch rows now come in two kinds per lane, and the window
     // has to still contain the newest row of EVERY (kind, lane) pair even when
     // one lane flaps far more than the rest. Too small a window silently reads
@@ -691,8 +705,6 @@ export async function readState(io) {
     // minutes.
     io.restRows(`deliverable_events?select=id,ts,payload&action=eq.${LATCH_ACTION}&order=id.desc&limit=${watched.length * 20}`),
   ]);
-  const heartbeatRows = perLane.flatMap(rows => rows.slice(0, 1));
-  const historyRows = perLane.flat();
   return { heartbeatRows, historyRows, latchRows };
 }
 

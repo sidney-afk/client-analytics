@@ -13,7 +13,7 @@
  *      `runCheck` from the same file, so the two hosts cannot disagree about
  *      which lanes exist or how old is too old.
  *   2. The function is refused without the timer key, before the body is read.
- *   3. A tick does exactly what `--check` does: one read per watched lane, a
+ *   3. A tick does exactly what `--check` does: two reads per watched lane, a
  *      page only for a newly stale lane, a latch, and the `monitoring_watchdog`
  *      beat written last, under the timer host's own actor and run handle.
  *   4. The page has the same shape the GitHub hosts send, and no secret leaves.
@@ -177,10 +177,12 @@ const allFresh = Object.fromEntries(WATCHED.map(lane => [lane.key, 1]));
     ok(response.status === 200 && body.ok === true && body.mode === 'check' && body.host === 'pg_cron',
       'a healthy tick is a completed check');
     ok(log.pages.length === 0, 'all lanes fresh: nobody is paged');
-    // +1 latch read, +1 read of the thumbnail_titles switch (the census below stops
-    // there while the switch lists no client, as it does in this fixture).
-    ok(log.reads.length === WATCHED.length + 2,
-      `one read per watched lane, one latch read and one census switch read (${log.reads.length})`);
+    // Two reads per lane (its newest beat, and its production history that
+    // confirms a failure, OPEN_REPAIRS 405), +1 latch read, +1 read of the
+    // thumbnail_titles switch (the census below stops there while the switch
+    // lists no client, as it does in this fixture).
+    ok(log.reads.length === 2 * WATCHED.length + 2,
+      `two reads per watched lane, one latch read and one census switch read (${log.reads.length})`);
     ok(log.inserts.length === 1, 'all lanes fresh: exactly one write, the beat');
     const beat = log.inserts[0];
     ok(beat.action === core.HEARTBEAT_ACTION && beat.payload.lane === 'monitoring_watchdog' && beat.payload.ok === true,

@@ -32664,16 +32664,19 @@ main until that fix merges.
 1. `supabase/functions/_shared/monitoring-watchdog-core.mjs`: a lane pages as failing only when its two most
    recent production runs both failed, the newer one fresh (`CONFIRMING_FAILED_RUNS = 2`). One failure then a
    pass, one failure with no second run yet, and fail, pass, fail page nothing; a single failure is listed in
-   the check's output as `awaiting_confirmation`. The failing latch follows the confirmed state, so a lane
-   that keeps failing pages once, on its second failure, and a new confirmed failure after a pass pages again.
-   The stale page is unchanged: it still reads only each lane's newest beat.
+   the check's output as `awaiting_confirmation`. A lane that keeps failing pages once, on its second failure,
+   and latches; as before, only a fresh passing run ends the incident, so a new confirmed failure after it
+   pages again and a lone failure never ends one. The stale page is unchanged: it still reads only each lane's
+   newest beat, through the same request as before.
 2. A run is one heartbeat per run handle, newest first. Each heartbeat now records the branch it came from
    (`ref`, from `GITHUB_REF_NAME` in `scripts/monitoring-watchdog.js`); a beat from any branch but `main`
    still proves the lane ran but never confirms, hides or ends a failure. Beats written before this carry no
    `ref` and count as before.
-3. Each lane's read returns its newest 10 beats (`HEARTBEAT_HISTORY_PER_LANE`), still one bounded request per
-   lane; staleness uses the first of them only.
-4. The page now says "RAN and reported failure on their last 2 runs in a row".
+3. A second request per lane reads its newest 10 production beats (`HEARTBEAT_HISTORY_PER_LANE`), filtered to
+   `main` (or no `ref`) in the database before the limit, so branch runs can never push a main run out of the
+   window. The PostgREST filter was checked read only against the live table.
+4. The page's full text now says "RAN and reported failure on their last 2 runs in a row"; the short summary
+   the relay shows is unchanged, so two failing lanes still fit by name.
 5. `scripts/alert-digest.js` (still in shadow) reads the same history and judges the same way, so it can
    neither page on one failure nor go blind to failures; its line reads "the last two scheduled tests failed".
 6. The F27 reconciler closure pins for the core and `scripts/monitoring-watchdog.js` were re-taken from the
@@ -32683,13 +32686,21 @@ main until that fix merges.
 and failed" pages under the old rule, 19 under the new one; the 12 dropped were all a single failure followed
 by a pass. Every lane that had a real failure streak still pages; none goes silent.
 
-**Guards.** New `test/monitoring-confirmed-failure.js` (40 checks): fail then pass, two fails, fail pass fail,
+**Mixed versions are safe.** After the merge the two GitHub hosts run the new rule at once, while the tick keeps
+the old one until it is redeployed (and the reverse after a rollback). Both share one latch. Because only a pass
+ends a failing latch in either version, the old host pages a single failure at most once and the new host never
+resets it; an earlier draft of this change reset it on "one failure after a pass" and the two would have
+re-paged every 15 minutes (found in review, replayed, fixed, now a test).
+
+**Guards.** New `test/monitoring-confirmed-failure.js` (47 checks): fail then pass, two fails, fail pass fail,
 one fail alone; staleness identical whether the decision gets a lane's history or only its newest beat (56
-combinations); branch and pull request runs; two beats from one run; the latch; `runCheck` night by night
-against a fake database and relay (night 1 no page, night 2 one page, night 3 latched, a pass ends it, one
-failure after it no page, a second pages); the 22-night and 26-night silences replayed (one page each, on night
-2); the 2026-10-10/11 sequence replayed (no page); the combined message. Against main's code, one failure alone
-and fail, pass, fail page, which these checks refuse. `test/monitoring-lane-failing.js` and
+combinations); branch and pull request runs, and 12 branch runs between two main failures; two beats from one
+run; the latch; `runCheck` night by night against a fake database and relay (night 1 no page, night 2 one page,
+night 3 latched, a pass ends it, one failure after it no page, a second pages; fail then pass pages nothing); the
+22-night and 26-night silences replayed (one page each, on night 2); the 2026-10-10/11 sequence replayed (no
+page); old and new rules running side by side (at most one page); both nightlies named in the relay summary;
+the combined message. Against main's code, one failure alone and fail, pass, fail page, which these checks
+refuse; putting back either defect found in review fails them too. `test/monitoring-lane-failing.js` and
 `test/monitoring-watchdog.js` updated to the new rule.
 
 **Not changed, for the owner:** the Samples and Calendar nightlies still carry their own "Page the SyncView Bot

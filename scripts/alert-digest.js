@@ -359,12 +359,18 @@ async function supaInsertEvent(action, payload) {
 
 async function readHeartbeats() {
   const lanes = watchdog.activeLanes().filter(lane => lane.key !== OWN_LANE);
-  const perLane = await Promise.all(lanes.map(lane => supaGet(
-    `deliverable_events?select=id,ts,payload&action=eq.${watchdog.HEARTBEAT_ACTION}`
-    + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=${watchdog.HEARTBEAT_HISTORY_PER_LANE}`)));
-  // Each lane's recent beats, not just its newest: a failure counts only once
-  // the next run confirms it, exactly as in the dead-man's switch.
-  return perLane.flat();
+  const base = lane => `deliverable_events?select=id,ts,payload&action=eq.${watchdog.HEARTBEAT_ACTION}`
+    + `&payload->>lane=eq.${encodeURIComponent(lane.key)}`;
+  // The newest beat of any branch (staleness, as before) plus the lane's recent
+  // production beats: a failure counts only once the next run on main confirms
+  // it, read exactly as the dead-man's switch reads it (OPEN_REPAIRS 405).
+  const perLane = await Promise.all(lanes.map(lane => Promise.all([
+    supaGet(`${base(lane)}&order=id.desc&limit=1`),
+    supaGet(`${base(lane)}&or=(payload->>ref.is.null,payload->>ref.eq.${watchdog.PRODUCTION_REF})`
+      + `&order=id.desc&limit=${watchdog.HEARTBEAT_HISTORY_PER_LANE}`),
+  ])));
+  const seen = new Set();
+  return perLane.flat(2).filter(row => row && !seen.has(row.id) && seen.add(row.id));
 }
 
 async function readRuns(sources = WORKFLOW_SOURCES) {

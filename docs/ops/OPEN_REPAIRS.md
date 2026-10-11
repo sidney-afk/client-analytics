@@ -32623,6 +32623,10 @@ function's number; the code is the v83 code (same ezbr), so the inputs say "v83 
 version 84". **Layout confirmed by the review:** both CLI versions download to
 `supabase/functions/calendar-upsert/index.ts` and `supabase/functions/_shared/thumbnail-revisions.ts`,
 so the entrypoint's import resolves and the "Not proven yet: layout" line above is now settled.
+(f) Lighthouse, merge review: the rollback's `cd "$LIVE_DIR"` moved the whole step out of the checkout,
+so the `node scripts/...` check after it could not be found and a good rollback would still have
+printed `ROLLBACK DID NOT VERIFY`. The rollback deploy now runs in a subshell (`( cd "$LIVE_DIR" && ... )`),
+the step stays in the checkout, and a missing LIVE_DIR counts as a failed rollback; the lane test pins it.
 
 ## 404. [2026-10-10, BUILT, NOT MERGED] Wrong client and lost work: the credentials dialog, the Instagram cover, TikTok's retry key, Samples Notes, a restored SyncLinear comment; dates in the team's time zone (session Digger)
 

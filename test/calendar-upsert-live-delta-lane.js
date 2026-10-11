@@ -80,8 +80,11 @@ ok('rollback: runs on failure or cancel of step 3 or 4 (always() plus outcomes),
   && rollback.includes('--workdir "$LIVE_DIR" --no-verify-jwt') && /exit 1\s*$/.test(rollback.trim()));
 const rollbackRun = rollback ? rollback.slice(rollback.indexOf('run: |')) : '';
 ok('rollback: no set -e, so the verdict always prints even when its deploy fails',
-  !!rollback && !/^\s*set -[a-z]*e/m.test(rollbackRun) && /functions deploy calendar-upsert[^\n]*\|\| \{ ok=0;/.test(rollbackRun)
+  !!rollback && !/^\s*set -[a-z]*e/m.test(rollbackRun) && /if ! \( cd "\$LIVE_DIR" && supabase functions deploy calendar-upsert[^\n]*\); then\n\s+ok=0;/.test(rollbackRun)
   && rollbackRun.indexOf('ROLLBACK DID NOT VERIFY') > rollbackRun.indexOf('functions deploy') && /if \[ "\$ok" != "1" \]; then\n\s+echo "::error::ROLLBACK DID NOT VERIFY/.test(rollbackRun));
+ok('rollback: the deploy runs in a subshell, so the step itself never leaves the checkout (scripts/ must still resolve)',
+  !!rollback && !/^\s*cd "\$LIVE_DIR"/m.test(rollbackRun) && /\( cd "\$LIVE_DIR" && supabase functions deploy/.test(rollbackRun)
+  && rollbackRun.indexOf('( cd "$LIVE_DIR"') < rollbackRun.indexOf('node scripts/calendar-upsert-live-delta.js --dir-match'));
 ok('rollback proves every file against the step-1 snapshot by re-downloading', !!rollback
   && rollback.includes('--dir-match "$ROLLBACK_DIR" --snapshot="$SNAPSHOT"') && !rollback.includes('--dir-state'));
 ok('rollback re-checks verify_jwt is false after the redeploy', !!rollback

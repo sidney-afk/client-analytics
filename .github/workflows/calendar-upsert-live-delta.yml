@@ -164,8 +164,12 @@ jobs:
           set -uo pipefail
           echo "::error::The delta did not verify (or the run was cancelled). Redeploying the original live source downloaded in step 1."
           ok=1
-          cd "$LIVE_DIR" || ok=0
-          supabase functions deploy calendar-upsert --project-ref "$PROJECT_REF" --workdir "$LIVE_DIR" --no-verify-jwt --use-api || { ok=0; echo "::error::the rollback deploy command failed"; }
+          # Subshell: the deploy runs from LIVE_DIR (never from the checkout, which
+          # holds the repo's calendar-upsert), while the rest of this step stays in
+          # the checkout so scripts/calendar-upsert-live-delta.js still resolves.
+          if ! ( cd "$LIVE_DIR" && supabase functions deploy calendar-upsert --project-ref "$PROJECT_REF" --workdir "$LIVE_DIR" --no-verify-jwt --use-api ); then
+            ok=0; echo "::error::the rollback deploy command failed (or LIVE_DIR was missing)"
+          fi
           supabase functions download calendar-upsert --project-ref "$PROJECT_REF" --workdir "$ROLLBACK_DIR" --use-api || { ok=0; echo "::error::the rollback download failed"; }
           node scripts/calendar-upsert-live-delta.js --dir-match "$ROLLBACK_DIR" --snapshot="$SNAPSHOT" | tee -a "$GITHUB_STEP_SUMMARY" || ok=0
           jwt="$(curl -sS -f "https://api.supabase.com/v1/projects/$PROJECT_REF/functions/calendar-upsert" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" | jq -r '.verify_jwt')" || jwt="unreadable"

@@ -1,0 +1,1208 @@
+[
+  {
+    "label": "calendar-long-content-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "4e5c6d500954e821835ce55e59c79c09b018b62c52662dde65dba94441401264",
+    "afterHash": "4e5c6d500954e821835ce55e59c79c09b018b62c52662dde65dba94441401264"
+  },
+  {
+    "label": "calendar-long-content-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "4e5c6d500954e821835ce55e59c79c09b018b62c52662dde65dba94441401264",
+    "afterHash": "4e5c6d500954e821835ce55e59c79c09b018b62c52662dde65dba94441401264"
+  },
+  {
+    "label": "calendar-long-content-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6f42ba275155a4d8a3ccae3146f88b32e7ada5c108370fc011b1bf4469bef9b5",
+    "afterHash": "6f42ba275155a4d8a3ccae3146f88b32e7ada5c108370fc011b1bf4469bef9b5"
+  },
+  {
+    "label": "calendar-long-content-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6f42ba275155a4d8a3ccae3146f88b32e7ada5c108370fc011b1bf4469bef9b5",
+    "afterHash": "6f42ba275155a4d8a3ccae3146f88b32e7ada5c108370fc011b1bf4469bef9b5"
+  },
+  {
+    "label": "samples-long-content-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "14a047a5f3708cefe81745e5001dadaf2476b1998a3900a9f7decae81aa96e74",
+    "afterHash": "14a047a5f3708cefe81745e5001dadaf2476b1998a3900a9f7decae81aa96e74"
+  },
+  {
+    "label": "samples-long-content-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "14a047a5f3708cefe81745e5001dadaf2476b1998a3900a9f7decae81aa96e74",
+    "afterHash": "14a047a5f3708cefe81745e5001dadaf2476b1998a3900a9f7decae81aa96e74"
+  },
+  {
+    "label": "samples-long-content-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6d5b8361ee89f7595a06cb296780aec309c7efeb8941581504baee6522d8b91a",
+    "afterHash": "6d5b8361ee89f7595a06cb296780aec309c7efeb8941581504baee6522d8b91a"
+  },
+  {
+    "label": "samples-long-content-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6d5b8361ee89f7595a06cb296780aec309c7efeb8941581504baee6522d8b91a",
+    "afterHash": "6d5b8361ee89f7595a06cb296780aec309c7efeb8941581504baee6522d8b91a"
+  },
+  {
+    "label": "calendar-thumbnail-prompt-normal-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "7133839b06bc01c297c4c39275c22eba5a1ecb4cfbc3cd7b343365d1b48a4869",
+    "afterHash": "7133839b06bc01c297c4c39275c22eba5a1ecb4cfbc3cd7b343365d1b48a4869"
+  },
+  {
+    "label": "calendar-thumbnail-prompt-normal-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "3067057615f20a9c845605d372400648782888c6a68e3083caa36f80b67aee06",
+    "afterHash": "3067057615f20a9c845605d372400648782888c6a68e3083caa36f80b67aee06"
+  },
+  {
+    "label": "calendar-thumbnail-prompt-normal-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "85c5de83d424f82dd7ce63db21c03c315e27cbbf94afd04daccb47a002aa7bd2",
+    "afterHash": "85c5de83d424f82dd7ce63db21c03c315e27cbbf94afd04daccb47a002aa7bd2"
+  },
+  {
+    "label": "calendar-thumbnail-prompt-normal-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "770c1a89025ce96418ab1ce26b9219b80c911b26a001636f2a015b7596c7204b",
+    "afterHash": "770c1a89025ce96418ab1ce26b9219b80c911b26a001636f2a015b7596c7204b"
+  },
+  {
+    "label": "calendar-month-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "785c41667608fe58a69fb810194b2a7dea993ae50267643d5bec823f869a77ef",
+    "afterHash": "785c41667608fe58a69fb810194b2a7dea993ae50267643d5bec823f869a77ef"
+  },
+  {
+    "label": "calendar-month-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "785c41667608fe58a69fb810194b2a7dea993ae50267643d5bec823f869a77ef",
+    "afterHash": "785c41667608fe58a69fb810194b2a7dea993ae50267643d5bec823f869a77ef"
+  },
+  {
+    "label": "calendar-month-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "c14025307864897945092c76ee64000d2ac13604249a676ce1c61999d783c11e",
+    "afterHash": "c14025307864897945092c76ee64000d2ac13604249a676ce1c61999d783c11e"
+  },
+  {
+    "label": "calendar-month-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "c14025307864897945092c76ee64000d2ac13604249a676ce1c61999d783c11e",
+    "afterHash": "c14025307864897945092c76ee64000d2ac13604249a676ce1c61999d783c11e"
+  },
+  {
+    "label": "calendar-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "4d8d50416d11911ad990852cfddb9b92cd05dc6b783318c09fbdc6f9814d523b",
+    "afterHash": "4d8d50416d11911ad990852cfddb9b92cd05dc6b783318c09fbdc6f9814d523b"
+  },
+  {
+    "label": "calendar-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "4d8d50416d11911ad990852cfddb9b92cd05dc6b783318c09fbdc6f9814d523b",
+    "afterHash": "4d8d50416d11911ad990852cfddb9b92cd05dc6b783318c09fbdc6f9814d523b"
+  },
+  {
+    "label": "calendar-loading-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "38d98bd421b9447685deb74beeca6e3a3e69bda303358f3632ece1ad492a0208",
+    "afterHash": "38d98bd421b9447685deb74beeca6e3a3e69bda303358f3632ece1ad492a0208"
+  },
+  {
+    "label": "calendar-loading-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "38d98bd421b9447685deb74beeca6e3a3e69bda303358f3632ece1ad492a0208",
+    "afterHash": "38d98bd421b9447685deb74beeca6e3a3e69bda303358f3632ece1ad492a0208"
+  },
+  {
+    "label": "calendar-week-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b882730c5e9ff579a2c96ed9343218244f7ac0764ca1f974b223c1a685633a26",
+    "afterHash": "b882730c5e9ff579a2c96ed9343218244f7ac0764ca1f974b223c1a685633a26"
+  },
+  {
+    "label": "calendar-week-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b882730c5e9ff579a2c96ed9343218244f7ac0764ca1f974b223c1a685633a26",
+    "afterHash": "b882730c5e9ff579a2c96ed9343218244f7ac0764ca1f974b223c1a685633a26"
+  },
+  {
+    "label": "calendar-week-loading-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "8644bd61169fde4369eeefe1334523243116a2293b471056aad3f5e662b7e467",
+    "afterHash": "8644bd61169fde4369eeefe1334523243116a2293b471056aad3f5e662b7e467"
+  },
+  {
+    "label": "calendar-week-loading-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "8644bd61169fde4369eeefe1334523243116a2293b471056aad3f5e662b7e467",
+    "afterHash": "8644bd61169fde4369eeefe1334523243116a2293b471056aad3f5e662b7e467"
+  },
+  {
+    "label": "samples-sheet-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "3b220e9fa44223e6d5f7adc0c72d1a78783a9d5751e1b0c9a9c36da060fd09c0",
+    "afterHash": "3b220e9fa44223e6d5f7adc0c72d1a78783a9d5751e1b0c9a9c36da060fd09c0"
+  },
+  {
+    "label": "samples-sheet-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "3b220e9fa44223e6d5f7adc0c72d1a78783a9d5751e1b0c9a9c36da060fd09c0",
+    "afterHash": "3b220e9fa44223e6d5f7adc0c72d1a78783a9d5751e1b0c9a9c36da060fd09c0"
+  },
+  {
+    "label": "samples-sheet-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d3d6b2614229fb360f4900288fbb3212f174ea5099b195ca7ecb27265ab18f6e",
+    "afterHash": "d3d6b2614229fb360f4900288fbb3212f174ea5099b195ca7ecb27265ab18f6e"
+  },
+  {
+    "label": "samples-sheet-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d3d6b2614229fb360f4900288fbb3212f174ea5099b195ca7ecb27265ab18f6e",
+    "afterHash": "d3d6b2614229fb360f4900288fbb3212f174ea5099b195ca7ecb27265ab18f6e"
+  },
+  {
+    "label": "samples-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "3f9686c14a3a16702a952ff5891cf1f1d9a9cccc22b88d49589a1e4bef9be4e8",
+    "afterHash": "3f9686c14a3a16702a952ff5891cf1f1d9a9cccc22b88d49589a1e4bef9be4e8"
+  },
+  {
+    "label": "samples-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "3f9686c14a3a16702a952ff5891cf1f1d9a9cccc22b88d49589a1e4bef9be4e8",
+    "afterHash": "3f9686c14a3a16702a952ff5891cf1f1d9a9cccc22b88d49589a1e4bef9be4e8"
+  },
+  {
+    "label": "samples-loading-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "39c63fbc077b74e6d8665fd9096c80b3f6efb1f118b01d09d9f310e11990dbfa",
+    "afterHash": "39c63fbc077b74e6d8665fd9096c80b3f6efb1f118b01d09d9f310e11990dbfa"
+  },
+  {
+    "label": "samples-loading-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "39c63fbc077b74e6d8665fd9096c80b3f6efb1f118b01d09d9f310e11990dbfa",
+    "afterHash": "39c63fbc077b74e6d8665fd9096c80b3f6efb1f118b01d09d9f310e11990dbfa"
+  },
+  {
+    "label": "client-calendar-review-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305",
+    "afterHash": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305"
+  },
+  {
+    "label": "client-calendar-review-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305",
+    "afterHash": "6ced8e0227a715dec6ba104d94873f696a72318c94551084dc6513a328e55305"
+  },
+  {
+    "label": "client-calendar-sheet-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "398ce7c6887822b96bdd052abea1419d442c61e7ac7c0025bace33a58dcf78ce",
+    "afterHash": "398ce7c6887822b96bdd052abea1419d442c61e7ac7c0025bace33a58dcf78ce"
+  },
+  {
+    "label": "client-calendar-sheet-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "398ce7c6887822b96bdd052abea1419d442c61e7ac7c0025bace33a58dcf78ce",
+    "afterHash": "398ce7c6887822b96bdd052abea1419d442c61e7ac7c0025bace33a58dcf78ce"
+  },
+  {
+    "label": "today-rings-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "97b09a580b476fa6a5eead31756b9fe1f38cb497e2bc3f17fe5090f663a3c5f6",
+    "afterHash": "97b09a580b476fa6a5eead31756b9fe1f38cb497e2bc3f17fe5090f663a3c5f6"
+  },
+  {
+    "label": "today-rings-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6d0e0bb1de97f4b2cd5067535da8b25089af32d197ada28cbc17a60f2f844530",
+    "afterHash": "6d0e0bb1de97f4b2cd5067535da8b25089af32d197ada28cbc17a60f2f844530"
+  },
+  {
+    "label": "today-all-clear-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "a54fe324fb1f12a96210bef23a240ccee23b4dfed75cd614fea4457b62ebcbd4",
+    "afterHash": "a54fe324fb1f12a96210bef23a240ccee23b4dfed75cd614fea4457b62ebcbd4"
+  },
+  {
+    "label": "today-all-clear-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "c6ecbd12e7a01902b1022307a71e7a2aaa17d8bd7cc5b913e07819ded0633710",
+    "afterHash": "c6ecbd12e7a01902b1022307a71e7a2aaa17d8bd7cc5b913e07819ded0633710"
+  },
+  {
+    "label": "today-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "5c615ca4398b08822a21259e3970be0bfc43c8b26cecc75e36e70487cef9580e",
+    "afterHash": "5c615ca4398b08822a21259e3970be0bfc43c8b26cecc75e36e70487cef9580e"
+  },
+  {
+    "label": "today-loading-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "f0913af3646b0d9c92c8ae0bf9d43fa5240283a77348b11c4317d50ebce80684",
+    "afterHash": "f0913af3646b0d9c92c8ae0bf9d43fa5240283a77348b11c4317d50ebce80684"
+  },
+  {
+    "label": "today-editor-all-clear-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "cc13ee224b1ea0d8be077e5a630e7bf69c828968fa71b215b8703e1c671ea9fe",
+    "afterHash": "cc13ee224b1ea0d8be077e5a630e7bf69c828968fa71b215b8703e1c671ea9fe"
+  },
+  {
+    "label": "today-editor-all-clear-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "435a62d353fa8977eda4956916ac36f29a39b724d7678e6fed0763f92c332210",
+    "afterHash": "435a62d353fa8977eda4956916ac36f29a39b724d7678e6fed0763f92c332210"
+  },
+  {
+    "label": "calendar-notes-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "9542acd1229807a6107a2c3b1d925a80a77ed675d68b12834ed6a356cc7e7459",
+    "afterHash": "9542acd1229807a6107a2c3b1d925a80a77ed675d68b12834ed6a356cc7e7459"
+  },
+  {
+    "label": "calendar-notes-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "e0b82383a16675ef05a3d1af02ca732ddf0dfa15adbffafa68d939497925cb22",
+    "afterHash": "e0b82383a16675ef05a3d1af02ca732ddf0dfa15adbffafa68d939497925cb22"
+  },
+  {
+    "label": "samples-notes-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "762ecd9cef5ae89495c4ac5f89bd6b34fc7e3dc3f0cb4065243ec9a4aa70cbaa",
+    "afterHash": "762ecd9cef5ae89495c4ac5f89bd6b34fc7e3dc3f0cb4065243ec9a4aa70cbaa"
+  },
+  {
+    "label": "samples-notes-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "59ec1a268a016567d8755ba05a401d4b1d37c826b56435d2ab73d3321b535350",
+    "afterHash": "59ec1a268a016567d8755ba05a401d4b1d37c826b56435d2ab73d3321b535350"
+  },
+  {
+    "label": "samples-notes-unlinked-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac",
+    "afterHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac"
+  },
+  {
+    "label": "samples-notes-unlinked-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac",
+    "afterHash": "b5b11eba477471a34ed867db9a03560cad3df8eaf7e4b3ffffdf148e2ab486ac"
+  },
+  {
+    "label": "analytics-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "593db09f0a300d4621f84bb23e6232388e71584354f86c5ab5956e67a71397ca",
+    "afterHash": "593db09f0a300d4621f84bb23e6232388e71584354f86c5ab5956e67a71397ca"
+  },
+  {
+    "label": "analytics-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "e48f0855a01c692e91544c6c4bd66b72c172c65759c3a1fe71e32dbe3c6b5f82",
+    "afterHash": "e48f0855a01c692e91544c6c4bd66b72c172c65759c3a1fe71e32dbe3c6b5f82"
+  },
+  {
+    "label": "analytics-loading-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "9d5663b57e7435dcd9d32d11c1d7d69ff539091ff0682cae7a78f58b72662e8b",
+    "afterHash": "9d5663b57e7435dcd9d32d11c1d7d69ff539091ff0682cae7a78f58b72662e8b"
+  },
+  {
+    "label": "analytics-loading-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "58b8e7d3b03ad4b07d37bd06a0c112bb34f3d88c37c21bb1c53249016fce26c1",
+    "afterHash": "58b8e7d3b03ad4b07d37bd06a0c112bb34f3d88c37c21bb1c53249016fce26c1"
+  },
+  {
+    "label": "analytics-empty-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "1e47b6763603729ce90217567a0f1554de0f3f91a7ae116c3f15ac040bf12482",
+    "afterHash": "1e47b6763603729ce90217567a0f1554de0f3f91a7ae116c3f15ac040bf12482"
+  },
+  {
+    "label": "analytics-empty-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "9eb9b9e5e728fc2358ecf10ead26776e240dc7c6e1b9f6c7f842e66bef9c7742",
+    "afterHash": "9eb9b9e5e728fc2358ecf10ead26776e240dc7c6e1b9f6c7f842e66bef9c7742"
+  },
+  {
+    "label": "analytics-empty-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "1f8a70615ce9ced66b471c8c6c78ba39555328f74cbe499cad8115eaf985a430",
+    "afterHash": "1f8a70615ce9ced66b471c8c6c78ba39555328f74cbe499cad8115eaf985a430"
+  },
+  {
+    "label": "analytics-empty-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "5c7d56af4d7d524e8da0a2928610ef6eb8542b5efbefc2adb06b7b8ac267b7fa",
+    "afterHash": "5c7d56af4d7d524e8da0a2928610ef6eb8542b5efbefc2adb06b7b8ac267b7fa"
+  },
+  {
+    "label": "analytics-pin-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "a6aa68a5b18e4ad1d8df741cc56bd0105d7269ae83e047b4555782db0d3a0fbc",
+    "afterHash": "a6aa68a5b18e4ad1d8df741cc56bd0105d7269ae83e047b4555782db0d3a0fbc"
+  },
+  {
+    "label": "analytics-pin-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d012d3fe26a3a7441c5092169808b475758d81d98db5deb1ab4c0d274ce7bb46",
+    "afterHash": "d012d3fe26a3a7441c5092169808b475758d81d98db5deb1ab4c0d274ce7bb46"
+  },
+  {
+    "label": "analytics-pin-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "e3a548ec8875da3909ef1638ad39ed0d7c6460d6f936e2c38e8433735ddb25f1",
+    "afterHash": "e3a548ec8875da3909ef1638ad39ed0d7c6460d6f936e2c38e8433735ddb25f1"
+  },
+  {
+    "label": "analytics-pin-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6fe197c17a04fb6bcbc045b4f99d4ca48f46a9486c3bbd916657d8cfd3431450",
+    "afterHash": "6fe197c17a04fb6bcbc045b4f99d4ca48f46a9486c3bbd916657d8cfd3431450"
+  },
+  {
+    "label": "analytics-search-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "3004c6ccd2342e3942b065b2d23f3e271bc92d4ad176d2160cb82ec2bb96a7c5",
+    "afterHash": "3004c6ccd2342e3942b065b2d23f3e271bc92d4ad176d2160cb82ec2bb96a7c5"
+  },
+  {
+    "label": "analytics-search-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "83699b4d0f0dba71c483af3cf4c997c9c1620d764b3f704315fe82a6de6557ec",
+    "afterHash": "83699b4d0f0dba71c483af3cf4c997c9c1620d764b3f704315fe82a6de6557ec"
+  },
+  {
+    "label": "analytics-search-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "11643df243e18dd79e38fed61d20647ed511ef0908b4cf736d8443cc340a531a",
+    "afterHash": "11643df243e18dd79e38fed61d20647ed511ef0908b4cf736d8443cc340a531a"
+  },
+  {
+    "label": "analytics-search-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "33a46d4c95f59750626aa42985349952fdfb681f5b5dadf01f5e32c42077b506",
+    "afterHash": "33a46d4c95f59750626aa42985349952fdfb681f5b5dadf01f5e32c42077b506"
+  },
+  {
+    "label": "analytics-overview-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b697b157435ae93c36b16e41af43e960aa20bf5a0e3e77415376b77d4a82b16f",
+    "afterHash": "b697b157435ae93c36b16e41af43e960aa20bf5a0e3e77415376b77d4a82b16f"
+  },
+  {
+    "label": "analytics-overview-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "7d05e63ba842beb1f634984492a383db1d764bf35968e32d31dac8a623ff12b9",
+    "afterHash": "7d05e63ba842beb1f634984492a383db1d764bf35968e32d31dac8a623ff12b9"
+  },
+  {
+    "label": "analytics-overview-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "38f85fd8673853278d42e53644105c090a9b8f4760b2ea92f15def20b6889d80",
+    "afterHash": "38f85fd8673853278d42e53644105c090a9b8f4760b2ea92f15def20b6889d80"
+  },
+  {
+    "label": "analytics-overview-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "35599cbb55d16708572ea1ece59ffad64c8e75f7808d863c0ea6a88f55cba237",
+    "afterHash": "35599cbb55d16708572ea1ece59ffad64c8e75f7808d863c0ea6a88f55cba237"
+  },
+  {
+    "label": "analytics-detail-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "e380367b1eadd31d618bc97b1dea12fd60aed4318d42bd4ce76a8adc7b77080b",
+    "afterHash": "e380367b1eadd31d618bc97b1dea12fd60aed4318d42bd4ce76a8adc7b77080b"
+  },
+  {
+    "label": "analytics-detail-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "7ecca219e6b9655950117396f00b419ec65061f3efd399ab6702392dc7dab0aa",
+    "afterHash": "7ecca219e6b9655950117396f00b419ec65061f3efd399ab6702392dc7dab0aa"
+  },
+  {
+    "label": "analytics-detail-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "e296eb88ae51d326319d2ae48616f24b500dea3fdf1d3b60e58e5d4add284ee3",
+    "afterHash": "e296eb88ae51d326319d2ae48616f24b500dea3fdf1d3b60e58e5d4add284ee3"
+  },
+  {
+    "label": "analytics-detail-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "202bbf996a5e04a881082bd47c8c756ee35c3ca506acb1fef72c48de49726f52",
+    "afterHash": "202bbf996a5e04a881082bd47c8c756ee35c3ca506acb1fef72c48de49726f52"
+  },
+  {
+    "label": "analytics-detail-dash-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "ac2bede8d092d333299ae0c76fe9b671a03109cbaa8e6254472ec5482d7fbca7",
+    "afterHash": "ac2bede8d092d333299ae0c76fe9b671a03109cbaa8e6254472ec5482d7fbca7"
+  },
+  {
+    "label": "analytics-detail-dash-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "1d469af9ddf40671afcfa59cbb308e60dfe0a70f6142bbfb36f8a6d414e425d8",
+    "afterHash": "1d469af9ddf40671afcfa59cbb308e60dfe0a70f6142bbfb36f8a6d414e425d8"
+  },
+  {
+    "label": "analytics-detail-dash-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "1c8ddedf38833246a0f12b4f508de2bcd5d783184b2051d75b7d39f4e2d861b8",
+    "afterHash": "1c8ddedf38833246a0f12b4f508de2bcd5d783184b2051d75b7d39f4e2d861b8"
+  },
+  {
+    "label": "analytics-detail-dash-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "2be08199ba69c034f2a95754208772fc300fcd0d8e222e6e062c4b6a7947f74f",
+    "afterHash": "2be08199ba69c034f2a95754208772fc300fcd0d8e222e6e062c4b6a7947f74f"
+  },
+  {
+    "label": "workload-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "8d25d7a88eef1d3eff3a8fe5eea16d1244ae203cb8fa775112d69bd626dadbaf",
+    "afterHash": "8d25d7a88eef1d3eff3a8fe5eea16d1244ae203cb8fa775112d69bd626dadbaf"
+  },
+  {
+    "label": "workload-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "62f7613c7d1a743156ab8854d8c1163bf2a3004eebc7a6d43794872a0d480c6d",
+    "afterHash": "62f7613c7d1a743156ab8854d8c1163bf2a3004eebc7a6d43794872a0d480c6d"
+  },
+  {
+    "label": "workload-loading-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "7b8c5f162e697e69b19fa984de4ac9d2b519f9e5fd1b70be06c53b9689aab430",
+    "afterHash": "7b8c5f162e697e69b19fa984de4ac9d2b519f9e5fd1b70be06c53b9689aab430"
+  },
+  {
+    "label": "workload-loading-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "f13b670a1307a70b379a3e1f84d200e0e6e0f3438c5259e7f612c8b3d8b3f859",
+    "afterHash": "f13b670a1307a70b379a3e1f84d200e0e6e0f3438c5259e7f612c8b3d8b3f859"
+  },
+  {
+    "label": "workload-month-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d790430aca7490a3ed79c673b246c3cb7f5823063823ff96e8cdaedc9b334111",
+    "afterHash": "d790430aca7490a3ed79c673b246c3cb7f5823063823ff96e8cdaedc9b334111"
+  },
+  {
+    "label": "workload-month-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "1ff995d828c662d37c14215094cf702a5cecf3d49de295d8df588c2112ba577d",
+    "afterHash": "1ff995d828c662d37c14215094cf702a5cecf3d49de295d8df588c2112ba577d"
+  },
+  {
+    "label": "workload-month-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "a1da0107adebd6a96768eb7bbadf8022da6869cef43c8e423f235d25c19cd311",
+    "afterHash": "a1da0107adebd6a96768eb7bbadf8022da6869cef43c8e423f235d25c19cd311"
+  },
+  {
+    "label": "workload-month-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "18a8e8f417eb029a9e3a855554b0c8877a524922b79b084394dd3838ec643262",
+    "afterHash": "18a8e8f417eb029a9e3a855554b0c8877a524922b79b084394dd3838ec643262"
+  },
+  {
+    "label": "workload-week-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "c32937a59ae647e2bb9897d0c087f9960133a2c73c5950029204f6fcc61d6177",
+    "afterHash": "c32937a59ae647e2bb9897d0c087f9960133a2c73c5950029204f6fcc61d6177"
+  },
+  {
+    "label": "workload-week-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "2998cda3f2434e0d293484c9897aba53838cd38d9224663717571708d3047b92",
+    "afterHash": "2998cda3f2434e0d293484c9897aba53838cd38d9224663717571708d3047b92"
+  },
+  {
+    "label": "workload-week-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "bf868a75cea0934a18775f7beb2c237a59ce36a28160cf3b6985ec4f62dc8e17",
+    "afterHash": "bf868a75cea0934a18775f7beb2c237a59ce36a28160cf3b6985ec4f62dc8e17"
+  },
+  {
+    "label": "workload-week-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "bbebc10f8a6e3cda8a83113b6555399d66ee6b87caf7747be5811f4702701955",
+    "afterHash": "bbebc10f8a6e3cda8a83113b6555399d66ee6b87caf7747be5811f4702701955"
+  },
+  {
+    "label": "workload-popover-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "ffb35613875a573fad360fd645e5ff68648da37e9e2fd1cf2d8e9cceb5c941db",
+    "afterHash": "ffb35613875a573fad360fd645e5ff68648da37e9e2fd1cf2d8e9cceb5c941db"
+  },
+  {
+    "label": "workload-popover-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6db1a1b092566b19e10699db347bad7a058009bebd2af0482196b543bab0bf9c",
+    "afterHash": "6db1a1b092566b19e10699db347bad7a058009bebd2af0482196b543bab0bf9c"
+  },
+  {
+    "label": "workload-popover-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "80a85a0a6c1ad054cdde718bc54b7f37f74e60bca5f990a7ebc31a708c7a7797",
+    "afterHash": "80a85a0a6c1ad054cdde718bc54b7f37f74e60bca5f990a7ebc31a708c7a7797"
+  },
+  {
+    "label": "workload-popover-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d74e12ba5bdbf8ae6b351286b617a40cb8b60e0958c10460f88dfed0d172b7ec",
+    "afterHash": "d74e12ba5bdbf8ae6b351286b617a40cb8b60e0958c10460f88dfed0d172b7ec"
+  },
+  {
+    "label": "workload-plan-due-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "8e89614f1592173874f856439baffafad18be5f03f6cfa39c827b7ba4a188f7a",
+    "afterHash": "8e89614f1592173874f856439baffafad18be5f03f6cfa39c827b7ba4a188f7a"
+  },
+  {
+    "label": "workload-plan-due-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "7c6d9812231f3b0b38dd6ec84be803590a1a1262668913210baa603cba2a0657",
+    "afterHash": "7c6d9812231f3b0b38dd6ec84be803590a1a1262668913210baa603cba2a0657"
+  },
+  {
+    "label": "workload-plan-due-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d727d4c33f6d4d3b9f928772e7cc700f9b00242055b923e11c6243263cc40c9f",
+    "afterHash": "d727d4c33f6d4d3b9f928772e7cc700f9b00242055b923e11c6243263cc40c9f"
+  },
+  {
+    "label": "workload-plan-due-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "50557f84302897cc5d2ab2b5438c3daf4b6e44e4d47e3a52d5bb65f9379fbf67",
+    "afterHash": "50557f84302897cc5d2ab2b5438c3daf4b6e44e4d47e3a52d5bb65f9379fbf67"
+  },
+  {
+    "label": "tiktok-client-ready-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6a4619c7942b418f625e82d64fb3a0766767367f5ef5ca542650a3531a9a10c7",
+    "afterHash": "6a4619c7942b418f625e82d64fb3a0766767367f5ef5ca542650a3531a9a10c7"
+  },
+  {
+    "label": "tiktok-client-ready-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "aafd4a87c357ed9b7081252f1cb999fabc345890dfc513448297f74cc0d668f6",
+    "afterHash": "aafd4a87c357ed9b7081252f1cb999fabc345890dfc513448297f74cc0d668f6"
+  },
+  {
+    "label": "tiktok-client-ready-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d789c24decb450b293c39db1a95acddc98b57ea5559bcc36e6c9ed970f7b6d02",
+    "afterHash": "d789c24decb450b293c39db1a95acddc98b57ea5559bcc36e6c9ed970f7b6d02"
+  },
+  {
+    "label": "tiktok-client-ready-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "ce04dd745b3f530d6bdd7f65589304d1d882f1c6aa4436f0df5c9f7fa3166784",
+    "afterHash": "ce04dd745b3f530d6bdd7f65589304d1d882f1c6aa4436f0df5c9f7fa3166784"
+  },
+  {
+    "label": "tiktok-no-account-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "79b48f79b2a61ebb4a0a6e8453f441cd111378ff2e87b2ddf5d9b6b49ea2433e",
+    "afterHash": "79b48f79b2a61ebb4a0a6e8453f441cd111378ff2e87b2ddf5d9b6b49ea2433e"
+  },
+  {
+    "label": "tiktok-no-account-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "7f21f4c611f6b170a39b392af0e8bcdecfdfdf6b063d13c6ede1c080d2ac145e",
+    "afterHash": "7f21f4c611f6b170a39b392af0e8bcdecfdfdf6b063d13c6ede1c080d2ac145e"
+  },
+  {
+    "label": "tiktok-no-account-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "ee36dbe6e5b16ca0df7ed2d0ba975ab21396ae8f248402e0d1fb634ff84cae0d",
+    "afterHash": "ee36dbe6e5b16ca0df7ed2d0ba975ab21396ae8f248402e0d1fb634ff84cae0d"
+  },
+  {
+    "label": "tiktok-no-account-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "2f761d50dbd05cae10ee67208e7c0bb9fa8fa3a1b64528aef0a6ea26dd4e83ab",
+    "afterHash": "2f761d50dbd05cae10ee67208e7c0bb9fa8fa3a1b64528aef0a6ea26dd4e83ab"
+  },
+  {
+    "label": "linear-detail-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b3847d5db1486c2fc37d6fca797766dda3471eb5d11e63238fa93ed0c2075fe1",
+    "afterHash": "b3847d5db1486c2fc37d6fca797766dda3471eb5d11e63238fa93ed0c2075fe1"
+  },
+  {
+    "label": "linear-detail-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "89884b215bed68f759c7d7253e496a389a286d25f054527fb3f793f153c163f7",
+    "afterHash": "89884b215bed68f759c7d7253e496a389a286d25f054527fb3f793f153c163f7"
+  },
+  {
+    "label": "linear-detail-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "0bf056ee3ea7bfd39df674b7c92820f1bd96a368cec5eb26b6f9fbffa29de4a4",
+    "afterHash": "0bf056ee3ea7bfd39df674b7c92820f1bd96a368cec5eb26b6f9fbffa29de4a4"
+  },
+  {
+    "label": "linear-detail-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "0e97a694732aea8c91d0b610ea7785c75bde18c675fb16daf9f289fa27665ba0",
+    "afterHash": "0e97a694732aea8c91d0b610ea7785c75bde18c675fb16daf9f289fa27665ba0"
+  },
+  {
+    "label": "linear-detail-empty-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "822f3cfafa5436227d7d40753a2bb745af5f191262f3e0b0eb56ceb013ac7e2b",
+    "afterHash": "822f3cfafa5436227d7d40753a2bb745af5f191262f3e0b0eb56ceb013ac7e2b"
+  },
+  {
+    "label": "linear-detail-empty-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b6d76f7dd6ba756d6639b95e467174b58b5f8983b53bfe45dd1e9f4382d58c92",
+    "afterHash": "b6d76f7dd6ba756d6639b95e467174b58b5f8983b53bfe45dd1e9f4382d58c92"
+  },
+  {
+    "label": "linear-detail-empty-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "743ff132e10bb0fa11f1a74aeaab774a5e5497a6ceb9d23e65908d440724f589",
+    "afterHash": "743ff132e10bb0fa11f1a74aeaab774a5e5497a6ceb9d23e65908d440724f589"
+  },
+  {
+    "label": "linear-detail-empty-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "00133ae367712f0673ff75f9d960dd3038755bc3aca29b1dcacd19c0292ce5ff",
+    "afterHash": "00133ae367712f0673ff75f9d960dd3038755bc3aca29b1dcacd19c0292ce5ff"
+  },
+  {
+    "label": "linear-detail-comment-draft-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "32ca84c66af5a57fc4db6484418c3c830c5d9f3b35e1221e2fbd76b1fd6eb7f1",
+    "afterHash": "32ca84c66af5a57fc4db6484418c3c830c5d9f3b35e1221e2fbd76b1fd6eb7f1"
+  },
+  {
+    "label": "linear-detail-comment-draft-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d38820b29598a99172c0b9ffcaad2875583304bd16766b05f84280d126261349",
+    "afterHash": "d38820b29598a99172c0b9ffcaad2875583304bd16766b05f84280d126261349"
+  },
+  {
+    "label": "linear-detail-comment-draft-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "6db203e0ce89699a2f9912c1c51749b8621ba5dafe05ecc30b1a440c7ce13c63",
+    "afterHash": "6db203e0ce89699a2f9912c1c51749b8621ba5dafe05ecc30b1a440c7ce13c63"
+  },
+  {
+    "label": "linear-detail-comment-draft-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d7abb440693208825d3f1af3956c556a4e13ba112d950b3fdbd8d4cdc810d98c",
+    "afterHash": "d7abb440693208825d3f1af3956c556a4e13ba112d950b3fdbd8d4cdc810d98c"
+  },
+  {
+    "label": "linear-detail-loading-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "991a6158ca4bf32d182587fa6e882590f408fb831d4dff4a9619a1ffa114d088",
+    "afterHash": "991a6158ca4bf32d182587fa6e882590f408fb831d4dff4a9619a1ffa114d088"
+  },
+  {
+    "label": "linear-detail-loading-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "fb6bf63fe511a4e66f3e3c47e557f87024e2faa20cdb91cd6b5c85363e2885cb",
+    "afterHash": "fb6bf63fe511a4e66f3e3c47e557f87024e2faa20cdb91cd6b5c85363e2885cb"
+  },
+  {
+    "label": "linear-detail-loading-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "70dfaa90d13805de06872e8067873b4962f1fe929b69c39ace46b642edb24111",
+    "afterHash": "70dfaa90d13805de06872e8067873b4962f1fe929b69c39ace46b642edb24111"
+  },
+  {
+    "label": "linear-detail-loading-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "fab940a252b3e8914dabeeff869685eb7fa35ec2cc8ea0d52030106308d4daa6",
+    "afterHash": "fab940a252b3e8914dabeeff869685eb7fa35ec2cc8ea0d52030106308d4daa6"
+  },
+  {
+    "label": "linear-detail-menu-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "9a84d8e2637eafda573946b0f31ff9c4ce94f20114232d1a2f2e7b662ae8f3ee",
+    "afterHash": "9a84d8e2637eafda573946b0f31ff9c4ce94f20114232d1a2f2e7b662ae8f3ee"
+  },
+  {
+    "label": "linear-detail-menu-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "48f3834e5cd5f98a337c025087411692b3652f24a809e992b064fe0964803c55",
+    "afterHash": "48f3834e5cd5f98a337c025087411692b3652f24a809e992b064fe0964803c55"
+  },
+  {
+    "label": "linear-detail-menu-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "d7c251157bb8cbe7fae6717bee02cd23b8cb437a8f93d826590a354b96106abc",
+    "afterHash": "d7c251157bb8cbe7fae6717bee02cd23b8cb437a8f93d826590a354b96106abc"
+  },
+  {
+    "label": "linear-detail-menu-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "db5453ee7e5e8bdfe18393933f18a7191b9a93fb177b9df66f182fda12f98faa",
+    "afterHash": "db5453ee7e5e8bdfe18393933f18a7191b9a93fb177b9df66f182fda12f98faa"
+  },
+  {
+    "label": "linear-detail-description-edit-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "707ab71cd63f3b9a27dded4bc43a455393a31c56a42dc5e88d0b3857ff6f574d",
+    "afterHash": "707ab71cd63f3b9a27dded4bc43a455393a31c56a42dc5e88d0b3857ff6f574d"
+  },
+  {
+    "label": "linear-detail-description-edit-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "0b876a59fe77e96fdb3317a2db15622a644efa25ed60bfc90b4000e3c5955aaf",
+    "afterHash": "0b876a59fe77e96fdb3317a2db15622a644efa25ed60bfc90b4000e3c5955aaf"
+  },
+  {
+    "label": "linear-detail-description-edit-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "a563dab862c0e6539dd4284f39e2fe5592c8fa37a32de43a2e2a4537523c386c",
+    "afterHash": "a563dab862c0e6539dd4284f39e2fe5592c8fa37a32de43a2e2a4537523c386c"
+  },
+  {
+    "label": "linear-detail-description-edit-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "8195e9646a7a669e3ecb5db6fc6236b7181efac5e0f7ca82f08ed6d2273d5894",
+    "afterHash": "8195e9646a7a669e3ecb5db6fc6236b7181efac5e0f7ca82f08ed6d2273d5894"
+  },
+  {
+    "label": "linear-detail-asset-edit-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "2dfa11190010092dd1c84e3a69ef5148f1e29691901d2e24a17eb2e311147e9e",
+    "afterHash": "2dfa11190010092dd1c84e3a69ef5148f1e29691901d2e24a17eb2e311147e9e"
+  },
+  {
+    "label": "linear-detail-asset-edit-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "71b8174772e2d5edda831a5134b009b9a67318919c8b750762701b8347ebff6b",
+    "afterHash": "71b8174772e2d5edda831a5134b009b9a67318919c8b750762701b8347ebff6b"
+  },
+  {
+    "label": "linear-detail-asset-edit-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b20bf05b0a0b84eb4f981254316b9af29589adc6591ff4fb66cced4c7adf289f",
+    "afterHash": "b20bf05b0a0b84eb4f981254316b9af29589adc6591ff4fb66cced4c7adf289f"
+  },
+  {
+    "label": "linear-detail-asset-edit-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "347925e9d3a655564934f20bc618fda6463285214db68916976ced77481d78f6",
+    "afterHash": "347925e9d3a655564934f20bc618fda6463285214db68916976ced77481d78f6"
+  }
+]

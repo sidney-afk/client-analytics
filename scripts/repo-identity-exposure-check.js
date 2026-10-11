@@ -104,6 +104,13 @@ class UnclassifiedRoster extends Error {
 /* Short or common slugs would match ordinary English and report noise as
    exposure. A slug this short is also not identifying on its own. */
 const MIN_SLUG = 5;
+/* Floors well under the real roster (36 active clients and a staff of more
+   than ten on 2026-10-10): only a read that did not see the roster is below.
+   The env overrides exist for the moved-lines test's tiny fixture roster; CI
+   sets neither. */
+const rosterFloor = (raw, fallback) => { const n = Number(raw); return raw != null && raw !== '' && Number.isFinite(n) ? n : fallback; };
+const MIN_ROSTER_SLUGS = rosterFloor(process.env.IDENTITY_ROSTER_MIN_SLUGS, 10);
+const MIN_ROSTER_NAMES = rosterFloor(process.env.IDENTITY_ROSTER_MIN_NAMES, 3);
 /* `clients` rows that are not people. Naming one of these exposes nobody, and
    gating on them makes the guard fire on ordinary code and documentation — see
    the comment in roster(). Anything outside these plus PERSON_KIND stops the
@@ -163,6 +170,18 @@ async function roster() {
     /* A single given name matches too much prose to be evidence. */
     if (name.split(/\s+/).length < 2) continue;
     terms.push({ kind: 'staff_name', term: name });
+  }
+  /* AN EMPTY ROSTER IS NOT A CLEAN ONE. Both reads use the publishable key, so
+     a row-security or grant change that hides `clients` or `team_members` from
+     it answers 200 with no rows, and an empty term list passes every diff with
+     no warning: the gate switched off with nothing said (OPEN_REPAIRS 398).
+     Far fewer terms than the agency has ever had means the read did not see
+     the roster; report "could not run" (exit 2, a visible warning in CI)
+     instead of a pass. Counts only. */
+  const slugTerms = terms.filter(t => t.kind === 'client_slug').length;
+  const nameTerms = terms.filter(t => t.kind === 'staff_name').length;
+  if (slugTerms < MIN_ROSTER_SLUGS || nameTerms < MIN_ROSTER_NAMES) {
+    throw new Error(`roster read looks empty (${slugTerms} client slugs, ${nameTerms} staff names; expected at least ${MIN_ROSTER_SLUGS} and ${MIN_ROSTER_NAMES}) — the publishable key may no longer see clients or team_members`);
   }
   return terms;
 }

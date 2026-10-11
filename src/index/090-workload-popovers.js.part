@@ -598,6 +598,7 @@ import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
         const subs = source.filter(s =>
             (s.assigneeId || '') === assigneeId &&
             (clientName === '' || (s.clientName || '') === clientName) &&
+            (!window.matchMedia('(max-width: 767px)').matches || !parentId || (s.parentId || '') === parentId) &&
             (!issueId || String(s.id || '') === issueId) &&
             (!deadlineIds.size || deadlineIds.has(String(s.id || '')))
         );
@@ -997,6 +998,13 @@ import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
         }
     }
 
+
+    // A phone post chip is narrower than the desktop client rollup. Rebuild an
+    // open native popover when crossing that boundary, preserving its anchor.
+    window.matchMedia('(max-width: 767px)').addEventListener('change', () => {
+        const anchor = wlState.popoverAnchor;
+        if (anchor && anchor.isConnected && document.getElementById('wlPopover')?.classList.contains('open')) wlOpenRollupPopover(anchor);
+    });
 
     // Workload is an on-demand area (plan: docs/plans/2026-09-28-load-per-tab-plan.md);
     // this is its last fragment, so everything it names has run by now.

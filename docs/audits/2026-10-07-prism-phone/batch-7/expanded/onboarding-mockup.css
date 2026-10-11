@@ -1,0 +1,6 @@
+@media (max-width:767px) {
+ html.pocket-admin-phone #caOnboarding :is(.cb-lead,.cb-res-sub,.cb-step-sub,.cb-step-line,.cb-form-label,.cb-res-group h5,.cb-summary,.cb-badge) { font-size:13px; color:var(--text-secondary); opacity:1; }
+ html.pocket-admin-phone #caOnboarding .cb-pill { font-size:13px; }
+ html.pocket-admin-phone #caOnboarding .cb-pill.is-not_applicable { color:var(--text-secondary); }
+ html.pocket-admin-phone #caOnboarding :is(.cb-res-label,.cb-step-label,.cb-section h4) { font-size:14px; color:var(--text-primary); }
+}

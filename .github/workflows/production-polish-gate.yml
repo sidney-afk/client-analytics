@@ -1,4 +1,5 @@
 name: Production polish gate
+run-name: ${{ github.workflow }} (${{ github.event_name }})
 
 on:
   pull_request:
@@ -20,11 +21,24 @@ on:
     - cron: '17 9 * * 1-5'
 
 concurrency:
-  group: production-polish-${{ github.ref }}
+  # One group per event: the late GitHub schedule copy used to land in the
+  # group of the run the database timer had started and cancel it
+  # (OPEN_REPAIRS 403). Pushes to main still replace each other, and so do
+  # the pushes of one pull request.
+  group: production-polish-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
+  schedule-guard:
+    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).
+    uses: ./.github/workflows/schedule-fallback-guard.yml
+    permissions:
+      actions: read
+      contents: read
+
   production-polish:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -68,7 +82,8 @@ jobs:
           fi
 
   production-polish-interaction:
-    if: github.event_name != 'pull_request'
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -110,7 +125,8 @@ jobs:
           fi
 
   production-polish-heavy:
-    if: github.event_name != 'pull_request'
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

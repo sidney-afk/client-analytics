@@ -1,0 +1,677 @@
+{
+  "sourceHash": "d6f82c15f0769a56add9a84c09652c35cf39d2f2a9808ef39d1fb1a90b87f0ac",
+  "generatedIndexHash": "ed02056afe2079c2c436140e4a86f5e53e8b7e3bd1396bef580f985d9b2ce09b",
+  "cases": [
+    {
+      "name": "calendar-long-content",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "calendar-long-content",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "calendar-long-content",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "calendar-long-content",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "samples-long-content",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "samples-long-content",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "samples-long-content",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "samples-long-content",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "calendar-thumbnail-prompt-normal",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "calendar-thumbnail-prompt-normal",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "calendar-thumbnail-prompt-normal",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "calendar-thumbnail-prompt-normal",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "calendar-month",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "calendar-month",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "calendar-month",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "calendar-month",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "calendar-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "calendar-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "calendar-loading",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "calendar-loading",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "calendar-week-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "calendar-week-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "calendar-week-loading",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "calendar-week-loading",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "samples-sheet",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "samples-sheet",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "samples-sheet",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "samples-sheet",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "samples-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "samples-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "samples-loading",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "samples-loading",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "client-calendar-review-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "client-calendar-review-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "client-calendar-sheet-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "client-calendar-sheet-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "today-rings",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "today-rings",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "today-all-clear",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "today-all-clear",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "today-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "today-loading",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "today-editor-all-clear",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "today-editor-all-clear",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "calendar-notes",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "calendar-notes",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "samples-notes",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "samples-notes",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "samples-notes-unlinked",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "samples-notes-unlinked",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "analytics-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-loading",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "analytics-loading",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "analytics-empty",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "analytics-empty",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-empty",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "analytics-empty",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "analytics-pin",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "analytics-pin",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-pin",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "analytics-pin",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "analytics-search",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "analytics-search",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-search",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "analytics-search",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "analytics-overview",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "analytics-overview",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-overview",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "analytics-overview",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "analytics-detail",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "analytics-detail",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-detail",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "analytics-detail",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "analytics-detail-dash",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "analytics-detail-dash",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "analytics-detail-dash",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "analytics-detail-dash",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "workload-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "workload-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "workload-loading",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "workload-loading",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "workload-month",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "workload-month",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "workload-month",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "workload-month",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "workload-week",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "workload-week",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "workload-week",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "workload-week",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "workload-popover",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "workload-popover",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "workload-popover",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "workload-popover",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "workload-plan-due",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "workload-plan-due",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "workload-plan-due",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "workload-plan-due",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "tiktok-client-ready",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "tiktok-client-ready",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "tiktok-client-ready",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "tiktok-client-ready",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "tiktok-no-account",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "tiktok-no-account",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "tiktok-no-account",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "tiktok-no-account",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "linear-detail",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "linear-detail",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "linear-detail",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "linear-detail",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-empty",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-empty",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-empty",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-empty",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-comment-draft",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-comment-draft",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-comment-draft",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-comment-draft",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-loading",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-loading",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-loading",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-loading",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-menu",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-menu",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-menu",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-menu",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-description-edit",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-description-edit",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-description-edit",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-description-edit",
+      "theme": "dark",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-asset-edit",
+      "theme": "light",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-asset-edit",
+      "theme": "light",
+      "warm": true
+    },
+    {
+      "name": "linear-detail-asset-edit",
+      "theme": "dark",
+      "warm": false
+    },
+    {
+      "name": "linear-detail-asset-edit",
+      "theme": "dark",
+      "warm": true
+    }
+  ],
+  "startedAt": "2026-10-09T23:57:28.148Z"
+}

@@ -26,7 +26,7 @@ const shots = process.env.POCKET_PHONE_SHOTS;
 const out = [];
 let checks = 0;
 if (process.argv.includes('--list')) {
-  const names = ['review-queue','review','thumbnail','lightbox','caption','caption-draft','save-error','sending','tabs','organizer','month','week','month-post','week-post','month-empty-today','week-empty-today','date-picker','notes','sheet-cta','more','organize','suggest-post','loading','loading-review','loading-organizer','loading-month','error','empty',
+  const names = ['review-queue','review','review-alt-caption','long-content','many','thumbnail','lightbox','caption','caption-draft','save-error','sending','tabs','organizer','month','week','month-post','week-post','month-empty-today','week-empty-today','date-picker','notes','sheet-cta','more','organize','suggest-post','loading','loading-review','loading-organizer','loading-month','error','empty',
     ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state => 'comparison-' + state)];
   console.log(JSON.stringify(names.map(name => ({lane:'client-calendar-expanded',name,tab:'calendar'}))));
   process.exit(0);
@@ -85,7 +85,7 @@ async function shot(page, label) {
   const name = label + '-' + requestedTheme;
   const dimensions = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, fullHeight: document.documentElement.scrollHeight }));
   await page.screenshot({ path: path.join(shots, name + '-viewport.png'), animations: 'disabled' });
-  await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: !overlay && dimensions.fullHeight > dimensions.height, animations: 'disabled' });
+  await require('../../../qa/client-phone/native-captures').capture(page,{ path: path.join(shots, name + '.png'), fullPage: !overlay && dimensions.fullHeight > dimensions.height, animations: 'disabled' });
   captures.push({ label, requestedTheme, effectiveTheme: await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light'), ...dimensions, file: name + '.png', viewportFile: name + '-viewport.png' });
 }
 async function run(browser, origin, width) {
@@ -127,6 +127,7 @@ async function run(browser, origin, width) {
     });
   }
   const page = await ctx.newPage();
+  require('../../../qa/client-phone/native-captures').prepareCaptures(page);
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin + '/index.html?c=Phone%20Fixture%20Client&t=synthetic-phone-token&v=calendar', { waitUntil: 'domcontentloaded' });
@@ -135,6 +136,20 @@ async function run(browser, origin, width) {
   if (!before) await measure(page, 'review-queue-' + width);
   await page.locator('.kcard-expand-btn').first().click();
   await shot(page, 'review-' + width);
+  const originalPosts=await page.evaluate(()=>calState.posts);
+  await page.evaluate(posts=>{calState.posts=posts.map((row,i)=>i===0?{...row,caption_alt:'A fictional caption for another platform.',caption_alt_platform:'linkedin'}:row);_calRenderBody();},originalPosts);
+  ok(await page.locator('.cal-review-cap-card').count()>=2,'Native dual-caption fixture must show both captions');
+  await measure(page,'review-alt-caption-'+width);await shot(page,'review-alt-caption-'+width);
+  await page.evaluate(posts=>{calState.posts=posts;_calRenderBody();},originalPosts);
+  for(const kind of ['long-content','many']) {
+    await page.evaluate(({kind,original})=>{
+      const row={...original[0],name:'A longer fictional title about making a calmer start to the day with enough room for every important detail',caption:'A longer fictional caption needs to wrap comfortably and keep its review actions within reach. '.repeat(16)};
+      calState.posts=kind==='many'?Array.from({length:12},(_,i)=>({...row,id:i?row.id+'-fixture-'+i:row.id,name:row.name+' '+(i+1)})):[row];
+      _calRenderBody();
+    },{kind,original:originalPosts});
+    await measure(page,kind+'-'+width);await shot(page,kind+'-'+width);
+  }
+  await page.evaluate(posts=>{calState.posts=posts;_calRenderBody();},originalPosts);
   if (!before) {
     await measure(page, 'review-' + width);
     ok(await page.locator('.pocket-client-calendar h1').innerText() === 'Calendar', 'Calendar title missing');
@@ -208,7 +223,7 @@ async function run(browser, origin, width) {
       await page.waitForFunction(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.complete), null, { timeout: 4000 });
       ok(await page.evaluate(() => [...document.querySelectorAll('.cal-month-pill-thumb img, .cal-week-card-thumb img')].every(i => i.loading === 'eager')), view + ': thumbnails must be fetched at once on a phone');
       ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
-      ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
+      ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? \u00b7 Nothing scheduled$/.test(r.label)), view + ': run line must name its days ' + JSON.stringify(dayRows.filter(r => r.run)));
       ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');
       const cards = page.locator(view === 'month' ? '.cal-month-pill:visible' : '.cal-week-card:visible');
       if (view === 'week' && !await cards.count()) await page.locator('.cal-nav-btn').last().click();

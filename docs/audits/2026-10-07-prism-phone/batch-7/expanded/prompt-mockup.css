@@ -1,0 +1,8 @@
+/* PRISM-PROMPT-PHONE: body-mounted Calendar editors use the phone type scale. */
+@media (max-width: 767px) {
+ body:has(#calView[data-pocket-staff-phone]) .cal-prompt-head-text h3 { font-size: 18px; line-height: 1.3; }
+ body:has(#calView[data-pocket-staff-phone]) :is(.cal-prompt-head-text p,.cal-prompt-hint) { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+ body:has(#calView[data-pocket-staff-phone]) .cal-prompt-banner { font-size: 13px; line-height: 1.5; }
+ body:has(#calView[data-pocket-staff-phone]) .cal-prompt-textarea::placeholder { color: var(--text-secondary); opacity: 1; }
+ #calView[data-pocket-staff-phone] .cal-cap-tx { font-size: 13px; min-height: 44px; }
+}

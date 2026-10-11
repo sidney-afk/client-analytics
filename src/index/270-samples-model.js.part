@@ -39,7 +39,7 @@ import { _kasperCompReviewable } from './190-calendar-approval-comments.js';
 import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
 import {
-  _sxrApprovalBadgeCount, _sxrAwaitCardSave, _sxrCommentsBtnHtml, _sxrFlushAllPending,
+  _SXR_ROLLBACK_FIELDS, _sxrApprovalBadgeCount, _sxrAwaitCardSave, _sxrCommentsBtnHtml, _sxrFlushAllPending,
   _sxrFlushCardSave, _sxrIsBusy, _sxrIsClientReady, _sxrMarkKasperSeen, _sxrMarkLocalStatus,
   _sxrMergeServerRows, _sxrOnFieldBlur, _sxrOnFieldInput, _sxrPostsEqualForRender,
   _sxrRefreshCommentsBtn, _sxrRenderBody, _sxrSchedulePendingRender, _sxrSetLastLocalWriteAt,
@@ -1723,8 +1723,20 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             _sxrPendingEdits[pid] = Object.assign({}, entry.edits, _sxrPendingEdits[pid] || {});
             delete forClient[pid];
             restored += 1;
+            /* Show it as well as save it (OPEN_REPAIRS 401, the Samples half of 384 item 5).
+               The load just painted the server's value, and a successful save only moves the
+               "Saved" icon, so the box kept the old text, and leaving that box sent the old
+               text back over the restored words. Mirror the plain fields onto the sample now,
+               as typing does; statuses stay with the save, which rolls them back on failure. */
+            const shown = (sxrState.posts || []).find(post => post && post.id === pid);
+            if (shown) {
+                Object.keys(_sxrPendingEdits[pid]).forEach(k => {
+                    if (k.charAt(0) !== '_' && _SXR_ROLLBACK_FIELDS.indexOf(k) < 0) shown[k] = _sxrPendingEdits[pid][k];
+                });
+            }
             _sxrFlushCardSave(pid);
         }
+        if (restored) { try { _svPreserveFocus(() => _sxrRenderBody({ preserveScroll: true }), document.getElementById('sxrBody')); } catch (e) {} }
         if (!Object.keys(forClient).length) delete _sxrParkedEdits[key];
         return restored;
     }

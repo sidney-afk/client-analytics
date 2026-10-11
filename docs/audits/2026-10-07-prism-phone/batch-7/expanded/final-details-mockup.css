@@ -1,0 +1,5 @@
+@media (max-width: 767px) {
+ html.fph-on[data-fph="home"] #pinDropCloseBtn svg {width:18px;height:18px;color:var(--text-secondary);}
+ html.fph-on[data-fph="production"] .prod-detail-skeleton .sv-skeleton {--sv-skel-base:var(--border);--sv-skel-sheen:var(--border-light);}
+ html.fph-on[data-fph="production"] .prod-detail-skeleton::before {content:"Loading card detail...";display:block;font-size:14px;color:var(--text-secondary);margin-bottom:16px;}
+}

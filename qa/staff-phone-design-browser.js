@@ -17,7 +17,7 @@ async function main(){
   await staff.installBackend(ctx,false);await seedStaffGate(ctx);
   await ctx.route('**/*',r=>r.request().resourceType()==='image'?r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400"><rect width="720" height="400" fill="#b5c5b5"/><path d="M0 320 200 90 430 350 570 190 720 340V400H0Z" fill="#708b79"/><circle cx="550" cy="90" r="38" fill="#f0dfb8"/></svg>'}):r.fallback());
   await ctx.addInitScript(theme=>localStorage.setItem('syncview_theme',theme),theme);
-  const p=await ctx.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
+  const p=await ctx.newPage();require('./client-phone/native-captures').prepareCaptures(p);const errors=[];p.on('pageerror',e=>errors.push(e.message));
   try{
    await p.goto(origin+'/');await p.waitForFunction(()=>typeof navTo==='function');
    await p.evaluate(names=>{WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();names.forEach(n=>WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n));},staff.NAMES);
@@ -30,7 +30,7 @@ async function main(){
    },{route,missing});await p.waitForTimeout(650);await p.evaluate(()=>document.fonts.ready);
    const card=p.locator('.cal-card[data-pid=phone_design_fixture]'),label=route+'-'+width+'-'+theme+'-'+(missing?(route==='calendar'?'warning':'missing-media'):'linked');
    if(missing&&route==='calendar')assert.match(await card.locator('.cal-smm-warn-overlay').textContent(),/No video linked/);
-   if(out){fs.mkdirSync(out,{recursive:true});await card.screenshot({path:path.join(out,label+'.png'),animations:'disabled'});}
+   if(out){fs.mkdirSync(out,{recursive:true});await require('./client-phone/native-captures').anonymizePlaceholders(p);await p.evaluate(()=>document.fonts.ready);await card.screenshot({path:path.join(out,label+'.png'),animations:'disabled'});}
    if(!before){
     await rules.assertLayout(p,label);
     const primary=card.locator('.sv-phone-card-primary'),more=card.locator('.sv-phone-card-more'),menu=card.locator('.sv-phone-card-menu');

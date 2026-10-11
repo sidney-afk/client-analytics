@@ -1,10 +1,18 @@
 // Pure helpers for the brain Edge Function, shared with the unit test.
 
-// SyncView slugs drop every non-alphanumeric; brain folders use dashes.
+// SyncView slugs drop every non-alphanumeric; brain folders use dashes and spell "&" as "and"
+// ("alpha&beta" -> "alpha-and-beta"). The "and" form is tried first, then the plain one, so a folder
+// that simply drops the "&" still matches.
 export function findClientFolder(folders, slug) {
-  const want = String(slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (!want) return null;
-  return (folders || []).find((f) => String(f).toLowerCase().replace(/[^a-z0-9]/g, "") === want) || null;
+  const s = String(slug || "").toLowerCase();
+  const keys = [s.replace(/&/g, "and").replace(/[^a-z0-9]/g, ""), s.replace(/[^a-z0-9]/g, "")];
+  const norm = (f) => String(f).toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const want of keys) {
+    if (!want) continue;
+    const hit = (folders || []).find((f) => norm(f) === want);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 // A fact is a "## Heading" followed by a <!-- brain ... --> block, then prose

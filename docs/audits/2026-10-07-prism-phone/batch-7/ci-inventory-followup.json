@@ -1,0 +1,491 @@
+{
+  "status": "PASS",
+  "sourceHash": "62570666b9a1d2f6a497af920521634bc3ba378a7f696244ba312069ae6edfe7",
+  "indexSha256": "2cdbb8273e49df32f2b2d73bb4977f403e0e835372311e0ba713f05dbd70da22",
+  "beforeCommit": "4be1cdbdeceeb71baa381dd48e09ee03ffcfd1f2",
+  "jsBundlesChanged": false,
+  "playwrightVersion": "1.56.1",
+  "originalReviewSourceHash": "d6f82c15f0769a56add9a84c09652c35cf39d2f2a9808ef39d1fb1a90b87f0ac",
+  "sourceBinding": "Original full/fresh manifests are historical proof of their original source. This correction has independent current-source receipts; no old captures were relabelled.",
+  "repairs": [
+    {
+      "surface": "linear-detail",
+      "owner": "QA fixture",
+      "cause": "A temporary adapted parent was discarded when the native detail read rebuilt the adapter from raw deliverables.",
+      "fix": "Seed native raw parent metadata before opening the child. Preserve strict markup checks, assert resolved hierarchy and exact parent/child identifiers, run at every width."
+    },
+    {
+      "surface": "client-picker",
+      "owner": "Phone CSS",
+      "cause": "The generic Templates client sheet missed the readable helper/placeholder styles already applied to the other phone entry route.",
+      "fix": "Apply existing secondary colour and 13/16 px sizes in two phone-scoped staff rules. Readability assertion unchanged."
+    }
+  ],
+  "ciInventories": [
+    {
+      "width": 390,
+      "command": [
+        "node",
+        "qa/staff-phone-final-pass.js",
+        "--all-states",
+        "--widths=390"
+      ],
+      "exit": 0,
+      "lastLines": [
+        "ok calendar-caption-prompt-normal 390 light",
+        "ok calendar-caption-prompt-normal 390 dark",
+        "ok calendar-caption-prompt-empty 390 light",
+        "ok calendar-caption-prompt-empty 390 dark",
+        "staff-phone-final-pass: 322 renders, 0 problems"
+      ],
+      "log": "${EVIDENCE}/ci-inventory-final-390.log",
+      "privateOverrides": false,
+      "headless": true
+    },
+    {
+      "width": 430,
+      "command": [
+        "node",
+        "qa/staff-phone-final-pass.js",
+        "--all-states",
+        "--widths=430"
+      ],
+      "exit": 0,
+      "lastLines": [
+        "ok calendar-caption-prompt-normal 430 light",
+        "ok calendar-caption-prompt-normal 430 dark",
+        "ok calendar-caption-prompt-empty 430 light",
+        "ok calendar-caption-prompt-empty 430 dark",
+        "staff-phone-final-pass: 322 renders, 0 problems"
+      ],
+      "log": "${EVIDENCE}/ci-inventory-final-430.log",
+      "privateOverrides": false,
+      "headless": true
+    }
+  ],
+  "desktop": {
+    "status": "PASS",
+    "provenance": {
+      "sourceHash": "62570666b9a1d2f6a497af920521634bc3ba378a7f696244ba312069ae6edfe7",
+      "before": "4be1cdbdeceeb71baa381dd48e09ee03ffcfd1f2",
+      "widths": [
+        1440
+      ],
+      "height": 900,
+      "afterFormat": "assembled single-file fixture",
+      "startedAt": "2026-10-10T14:50:46.489Z"
+    },
+    "pairs": [
+      {
+        "page": "staff-navToday",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "92d34765c129",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navCalendar",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "2c1307c5ba7e",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navSxr",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "74f962c7adaf",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTemplates",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "733b81d4d7bc",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navFilmingPlans",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "f48b008844d7",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navTiktokUpload",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "990c15e09822",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navHome",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "92d34765c129",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navWorkload",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "4764559bb615",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navProd",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "69a0a5875e6f",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navLinear",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "0d8c1e926923",
+        "attempts": 1
+      },
+      {
+        "page": "staff-navKasper",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "79ffd59d68c2",
+        "attempts": 1
+      },
+      {
+        "page": "staff-time-off",
+        "width": 1440,
+        "pixels": "identical",
+        "styles": "identical",
+        "sha": "79e48f1e84df",
+        "attempts": 1
+      }
+    ],
+    "lastLines": [
+      "ok   staff-navProd @1440: pixels identical, computed styles identical (69a0a5875e6f)",
+      "ok   staff-navLinear @1440: pixels identical, computed styles identical (0d8c1e926923)",
+      "ok   staff-navKasper @1440: pixels identical, computed styles identical (79ffd59d68c2)",
+      "ok   staff-time-off @1440: pixels identical, computed styles identical (79e48f1e84df)",
+      "",
+      "12/12 desktop shots identical to 4be1cdbdeceeb71baa381dd48e09ee03ffcfd1f2"
+    ],
+    "privateImagesPublished": false
+  },
+  "screenshotPairs": [
+    {
+      "width": 390,
+      "theme": "light",
+      "screen": "client-picker",
+      "judgment": "CLEAN: helper and placeholder readable; native sheet geometry and actions retained. Personally viewed before, Expanded and after at native size.",
+      "height": 844,
+      "before": {
+        "asset": "ci-followup/images/client-picker-390-light-before.png",
+        "sha256": "37df6df03ebe76ba1bd5b35d6cebaaf5aeeea6e2133cca25a459229a8981b666"
+      },
+      "expanded": {
+        "asset": "ci-followup/images/client-picker-390-light-expanded.png",
+        "sha256": "bc1e9ee967631575872d3f967af17f3e4f48a2251d99484888f7211ea1dedb2d"
+      },
+      "after": {
+        "asset": "ci-followup/images/client-picker-390-light-after.png",
+        "sha256": "bc1e9ee967631575872d3f967af17f3e4f48a2251d99484888f7211ea1dedb2d"
+      }
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "screen": "client-picker",
+      "judgment": "CLEAN: helper and placeholder readable; native sheet geometry and actions retained. Personally viewed before, Expanded and after at native size.",
+      "height": 844,
+      "before": {
+        "asset": "ci-followup/images/client-picker-390-dark-before.png",
+        "sha256": "68a2e505a6a2a84472d84db1567a73cfda5008d6e9b93cd061df9f7e983cd4f3"
+      },
+      "expanded": {
+        "asset": "ci-followup/images/client-picker-390-dark-expanded.png",
+        "sha256": "aa4d8688d0d0f768a9d296e4bf117eda237d30bc62d83cfd2b1fdf77de7e8f30"
+      },
+      "after": {
+        "asset": "ci-followup/images/client-picker-390-dark-after.png",
+        "sha256": "aa4d8688d0d0f768a9d296e4bf117eda237d30bc62d83cfd2b1fdf77de7e8f30"
+      }
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "screen": "client-picker",
+      "judgment": "CLEAN: helper and placeholder readable; native sheet geometry and actions retained. Personally viewed before, Expanded and after at native size.",
+      "height": 844,
+      "before": {
+        "asset": "ci-followup/images/client-picker-430-light-before.png",
+        "sha256": "4f28e99b41e7c167343b45228dc0d55cfd6092862972d6d000101498ea361020"
+      },
+      "expanded": {
+        "asset": "ci-followup/images/client-picker-430-light-expanded.png",
+        "sha256": "9f7926fe641a19e9a4c062356b5b944322e25142a838e39305eac7bebc8ca286"
+      },
+      "after": {
+        "asset": "ci-followup/images/client-picker-430-light-after.png",
+        "sha256": "9f7926fe641a19e9a4c062356b5b944322e25142a838e39305eac7bebc8ca286"
+      }
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "screen": "client-picker",
+      "judgment": "CLEAN: helper and placeholder readable; native sheet geometry and actions retained. Personally viewed before, Expanded and after at native size.",
+      "height": 844,
+      "before": {
+        "asset": "ci-followup/images/client-picker-430-dark-before.png",
+        "sha256": "15db66896f15bf02b2ced5796648db430dce3d9e6dee12878a5f91028b796523"
+      },
+      "expanded": {
+        "asset": "ci-followup/images/client-picker-430-dark-expanded.png",
+        "sha256": "1b30d5c46b0664ceab65b1d44edb09cde31e884a6eb4c6dd1e84ad43c36c8507"
+      },
+      "after": {
+        "asset": "ci-followup/images/client-picker-430-dark-after.png",
+        "sha256": "1b30d5c46b0664ceab65b1d44edb09cde31e884a6eb4c6dd1e84ad43c36c8507"
+      }
+    }
+  ],
+  "focusedEvidenceEnvironment": "Screenshot runs use local fixture font mirrors in headless Chromium. The two full CI inventories use default asset loading and no private font/chart overrides.",
+  "preservedReceipts": [
+    {
+      "name": "ci-breadcrumb-before",
+      "status": "EXPECTED FAILURE",
+      "exit": 1,
+      "lastLines": [
+        "FAIL linear-detail 390 light: child breadcrumb changed the native desktop markup",
+        "FAIL linear-detail 390 dark: child breadcrumb changed the native desktop markup",
+        "staff-phone-final-pass: 0 renders, 2 problems"
+      ]
+    },
+    {
+      "name": "ci-breadcrumb-diagnose",
+      "status": "DIAGNOSIS",
+      "exit": 0,
+      "lastLines": [
+        "{\"before\":{\"childId\":\"d-1\",\"parentId\":\"d-0\",\"adaptedParent\":\"d-0\",\"rawParent\":null},\"after\":{\"adaptedParent\":null,\"expectedParent\":\"d-0\",\"directBold\":1,\"hasParentLink\":false}}"
+      ]
+    },
+    {
+      "name": "ci-breadcrumb-fixed",
+      "status": "PASS",
+      "exit": 0,
+      "lastLines": [
+        "ok linear-detail 393 dark",
+        "ok linear-detail 412 light",
+        "ok linear-detail 412 dark",
+        "ok linear-detail 430 light",
+        "ok linear-detail 430 dark",
+        "staff-phone-final-pass: 8 renders, 0 problems"
+      ]
+    },
+    {
+      "name": "ci-picker-before",
+      "status": "REJECTED: fallback fonts",
+      "exit": 1,
+      "lastLines": [
+        "FAIL client-picker 390 light: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "FAIL client-picker 390 dark: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "FAIL client-picker 430 light: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "FAIL client-picker 430 dark: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "staff-phone-final-pass: 0 renders, 4 problems"
+      ]
+    },
+    {
+      "name": "ci-picker-expanded",
+      "status": "REJECTED: fallback fonts",
+      "exit": 1,
+      "lastLines": [
+        "FAIL client-picker 390 light: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "FAIL client-picker 390 dark: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "FAIL client-picker 430 light: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "FAIL client-picker 430 dark: Native screenshot requires every fixture font weight; fallback typography is not acceptance proof",
+        "staff-phone-final-pass: 0 renders, 4 problems"
+      ]
+    },
+    {
+      "name": "ci-picker-before-native",
+      "status": "EXPECTED FAILURE",
+      "exit": 1,
+      "lastLines": [
+        "FAIL client-picker 390 light: Client-picker prompt and placeholder stay readable: [{\"font\":16,\"opacity\":1,\"contrast\":4.607518093747377},{\"font\":12.8,\"opacity\":1,\"contrast\":2.083258629167868}]",
+        "FAIL client-picker 390 dark: Client-picker prompt and placeholder stay readable: [{\"font\":16,\"opacity\":1,\"contrast\":3.7780485596422073},{\"font\":12.8,\"opacity\":1,\"contrast\":8.512996065379797}]",
+        "FAIL client-picker 430 light: Client-picker prompt and placeholder stay readable: [{\"font\":16,\"opacity\":1,\"contrast\":4.607518093747377},{\"font\":12.8,\"opacity\":1,\"contrast\":2.083258629167868}]",
+        "FAIL client-picker 430 dark: Client-picker prompt and placeholder stay readable: [{\"font\":16,\"opacity\":1,\"contrast\":3.7780485596422073},{\"font\":12.8,\"opacity\":1,\"contrast\":8.512996065379797}]",
+        "staff-phone-final-pass: 0 renders, 4 problems"
+      ]
+    },
+    {
+      "name": "ci-picker-expanded-native",
+      "status": "PASS: design draft, not full acceptance",
+      "exit": 0,
+      "lastLines": [
+        "ok client-picker 390 light",
+        "ok client-picker 390 dark",
+        "ok client-picker 430 light",
+        "ok client-picker 430 dark",
+        "staff-phone-final-pass: 4 renders, 0 problems"
+      ]
+    },
+    {
+      "name": "ci-picker-after-native",
+      "status": "PASS",
+      "exit": 0,
+      "lastLines": [
+        "ok client-picker 390 light",
+        "ok client-picker 390 dark",
+        "ok client-picker 430 light",
+        "ok client-picker 430 dark",
+        "staff-phone-final-pass: 4 renders, 0 problems"
+      ]
+    },
+    {
+      "name": "ci-inventory-390",
+      "status": "INTERRUPTED before product correction",
+      "exit": null,
+      "lastLines": [
+        "ok instagram-frame-cover 390 light",
+        "ok instagram-frame-cover 390 dark",
+        "ok instagram-queue 390 light",
+        "ok instagram-queue 390 dark",
+        "ok analytics-detail-dash 390 light",
+        "ok analytics-detail-dash 390 dark"
+      ]
+    },
+    {
+      "name": "ci-inventory-430",
+      "status": "INTERRUPTED before product correction",
+      "exit": null,
+      "lastLines": [
+        "ok instagram-frame-cover 430 dark",
+        "ok instagram-queue 430 light",
+        "ok instagram-queue 430 dark",
+        "ok analytics-detail-dash 430 light",
+        "ok analytics-detail-dash 430 dark",
+        "ok analytics-grid 430 light"
+      ]
+    },
+    {
+      "name": "ci-followup-build",
+      "status": "PASS",
+      "exit": 0,
+      "lastLines": [
+        "build-index: js/sv-02-templates-1f8752debcf4.js (103791 bytes)",
+        "build-index: js/sv-04-workload-cac24a0637b7.js (190549 bytes)",
+        "build-index: js/sv-14-tiktok-48de5e91de41.js (130503 bytes)",
+        "build-index: js/sv-16-kasper-fd558b17e192.js (337306 bytes)",
+        "build-index: wrote index.html (1350317 bytes) from 67 fragment(s)",
+        "build-index: wrote src/index/INDEX.md"
+      ]
+    },
+    {
+      "name": "ci-followup-desktop",
+      "status": "PASS",
+      "exit": 0,
+      "lastLines": [
+        "ok   staff-navProd @1440: pixels identical, computed styles identical (69a0a5875e6f)",
+        "ok   staff-navLinear @1440: pixels identical, computed styles identical (0d8c1e926923)",
+        "ok   staff-navKasper @1440: pixels identical, computed styles identical (79ffd59d68c2)",
+        "ok   staff-time-off @1440: pixels identical, computed styles identical (79e48f1e84df)",
+        "",
+        "12/12 desktop shots identical to 4be1cdbdeceeb71baa381dd48e09ee03ffcfd1f2"
+      ]
+    },
+    {
+      "name": "ci-followup-scope",
+      "status": "PASS",
+      "exit": 0,
+      "lastLines": [
+        "staff-phone-css-scope: OK (1 block(s), 372 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))"
+      ]
+    },
+    {
+      "name": "ci-followup-artifact-source",
+      "status": "PASS",
+      "exit": 0,
+      "lastLines": [
+        "staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 63 rules phone-capped and staff-scoped"
+      ]
+    }
+  ],
+  "ledger": {
+    "mainCommit": "5b6bc5172a1efffd679b683702fcd26bd93edb67",
+    "highestNumber": 394,
+    "nextFree": 395,
+    "existingDuplicates": {
+      "13": 2,
+      "14": 2,
+      "22": 2,
+      "23": 2,
+      "175": 4,
+      "176": 3,
+      "177": 2,
+      "180": 2
+    },
+    "policy": "Preserve main ledger whole; append one unique entry. Existing duplicate headings are historical and outside this batch.",
+    "newEntry": 395,
+    "newDuplicateNumbers": [],
+    "mainPreservedWhole": true,
+    "previousEntryNumber": 394,
+    "reservedNumbers": {
+      "394": "PR #2030 (MERGED)"
+    },
+    "reservationCheck": {
+      "pr": 2030,
+      "commit": "0395402c99e2a90cb3a20e19dd6231e8b740c2e3",
+      "state": "MERGED",
+      "addedNumbers": [],
+      "newCollisions": []
+    }
+  },
+  "liveWrites": 0,
+  "headless": true,
+  "mainIntegration": {
+    "mainCommit": "5b6bc5172a1efffd679b683702fcd26bd93edb67",
+    "mergeCommit": "2d965fb5fcb675c13f6e2b6e51114103f7606117",
+    "frontendUnchanged": true,
+    "phoneHarnessExecutionUnchanged": true,
+    "note": "The main merge changed no UI fragments, bundles, index or phone harness. A subsequent comment documents the exact CI width commands and causes the final review head to run the matrix rather than skipping a merge-only delta."
+  },
+  "postMergeChecks": [
+    {
+      "name": "ci-followup-check-index-merged-main",
+      "exit": 0,
+      "lastLines": [
+        "",
+        "check-index: assembled bytes \u2014 sha256=2cdbb8273e49df32f2b2d73bb4977f403e0e835372311e0ba713f05dbd70da22 bytes=1350317",
+        "check-index: working-tree index.html \u2014 sha256=2cdbb8273e49df32f2b2d73bb4977f403e0e835372311e0ba713f05dbd70da22 bytes=1350317",
+        "check-index: committed index.html (HEAD) \u2014 sha256=2cdbb8273e49df32f2b2d73bb4977f403e0e835372311e0ba713f05dbd70da22 bytes=1350317",
+        "",
+        "check-index: OK \u2014 assembled == working tree == committed (HEAD)"
+      ]
+    },
+    {
+      "name": "ci-followup-identity-merged-main",
+      "exit": 0,
+      "lastLines": [
+        "  terms this change adds           0   (0 client slugs, 0 staff names)",
+        "  files carrying at least one      0   (any is a failure)",
+        "",
+        "  WHERE (counts only \u2014 this tool never prints what it matched):",
+        "",
+        "This change adds no client slug and no colleague's name \u2705"
+      ]
+    }
+  ]
+}

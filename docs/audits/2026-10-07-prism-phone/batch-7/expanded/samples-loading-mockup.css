@@ -1,0 +1,10 @@
+@media (max-width:767px) {
+ #sxrView[data-pocket-staff-samples] .cal-skeleton-loader {padding:20px 0;align-items:stretch;justify-content:flex-start;width:100%;}
+ #sxrView[data-pocket-staff-samples] .cal-skeleton-loader::before {content:"Loading samples...";display:block;align-self:flex-start;font-size:14px;color:var(--text-secondary);}
+ #sxrView[data-pocket-staff-samples] .cal-skeleton-review {width:100%;gap:16px;}
+ #sxrView[data-pocket-staff-samples] .cal-skeleton-review-card {grid-template-columns:68px minmax(0,1fr);width:100%;box-sizing:border-box;border-radius:22px;padding:18px 16px;}
+ #sxrView[data-pocket-staff-samples] .cal-skeleton-review-thumb {width:68px;height:82px;}
+ #sxrView[data-pocket-staff-samples] .cal-skeleton-review-card > .sv-skeleton-pill {grid-column:2;min-height:44px;}
+ #sxrView[data-pocket-staff-samples] .cal-skeleton-loader .sv-skeleton {--sv-skel-base:var(--border);--sv-skel-sheen:var(--border-light);}
+ #sxrView[data-pocket-staff-samples] .sxr-cd-input::placeholder {color:var(--text-secondary);opacity:1;}
+}

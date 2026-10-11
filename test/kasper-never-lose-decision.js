@@ -526,6 +526,80 @@ async function samplesRecomputeFromTheFreshCompanion() {
   assert.strictEqual(a.calls.status, 1, 'the decision itself still goes ahead (his part did not move)');
   assert.strictEqual(a.calls.edits.status, 'Client Approval', 'but the aggregate is recomputed from the fresh companion, not the stale one he saw (got ' + (a.calls.edits && a.calls.edits.status) + ')');
 }
+
+/* ───────────── E2. Samples: what he typed is never lost with a refused save (OPEN_REPAIRS 401) ─────────────
+   Comment, Request change and Approve after tweaks clear his box before the save starts. A refusal
+   (the part moved on the server, the freshness read failed, a cached repair, or the save itself
+   failing) repainted the card with the box empty, so his words existed nowhere. The Calendar twin
+   puts them back on every failure; Samples now does too, and never over words typed meanwhile. */
+const SXR_DRAFT_TEXT = 'Please trim the first two seconds and lift the music under the hook.';
+const sxrSettle = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setTimeout(r, 0)); };
+function samplesDraftSandbox(opts) {
+  const box = samplesSandbox(opts);
+  const { s, calls } = box;
+  Object.assign(s, {
+    _sxrMintCommentId: () => 'c_fixture', _sxrNextTweakRound: () => 1, _sxrClearStaleApprovals: () => {},
+    _writeUiQueueDiagnostic: () => {}, showNotify: (...a) => { calls.notify = (calls.notify || []).concat([a]); },
+  });
+  if (opts && opts.upsert) s._sxrUpsertFetch = async (...a) => { calls.upsert++; return opts.upsert(s, ...a); };
+  vm.runInContext([must('_sxrCommentsFor'), must('_sxrSetCommentsFor'), must('_sxrStringifyComments'),
+    must('_sxrKasperPersist'), must('_sxrKasperAddCommentComp'),
+    must('_sxrKasperRequestTweakComp'), must('_sxrKasperApproveAfterTweaksComp')].join('\n\n'), s);
+  Object.assign(box.p, { video_comments: [], comments: [], video_tweaks: '', tweaks: '', graphic_comments: [], graphic_tweaks: '' });
+  s._sxrKasperState.drafts['s1|video'] = SXR_DRAFT_TEXT;
+  return box;
+}
+const SXR_MOVED = { updated_at: '2026-10-01T16:00:09.000Z', status: 'For SMM Approval', video_status: 'For SMM Approval', graphic_status: 'Kasper Approval' };
+async function samplesWordsSurvivePartMoved() {
+  for (const which of ['_sxrKasperRequestTweakComp', '_sxrKasperApproveAfterTweaksComp']) {
+    const a = samplesDraftSandbox({ fresh: SXR_MOVED });
+    a.s[which]('s1', 'video');
+    await sxrSettle();
+    assert.strictEqual(a.calls.status + a.calls.upsert, 0, which + ': nothing is sent over a part someone else moved');
+    assert.strictEqual(a.calls.alerts.length && a.calls.alerts[0][3], 'conflict', which + ': and he is told');
+    assert.strictEqual(a.s._sxrKasperState.drafts['s1|video'], SXR_DRAFT_TEXT, which + ': his words are back in the box (got ' + JSON.stringify(a.s._sxrKasperState.drafts['s1|video']) + ')');
+  }
+}
+async function samplesWordsSurviveReadFailed() {
+  for (const which of ['_sxrKasperRequestTweakComp', '_sxrKasperApproveAfterTweaksComp']) {
+    const a = samplesDraftSandbox({ fresh: null });
+    a.s[which]('s1', 'video');
+    await sxrSettle();
+    assert.strictEqual(a.calls.status + a.calls.upsert, 0, which + ': a decision that cannot be checked is not sent');
+    assert.strictEqual(a.calls.alerts.length && a.calls.alerts[0][3], 'failed', which + ': and he is told');
+    assert.strictEqual(a.s._sxrKasperState.drafts['s1|video'], SXR_DRAFT_TEXT, which + ': his words are back in the box (got ' + JSON.stringify(a.s._sxrKasperState.drafts['s1|video']) + ')');
+  }
+  const r = samplesDraftSandbox({ fresh: SXR_MOVED });
+  r.s._kasperState.sxrRepairs = [{ id: 's1', slug: 'testslug' }];
+  r.s._sxrKasperRequestTweakComp('s1', 'video');
+  await sxrSettle();
+  assert.strictEqual(r.calls.status + r.calls.upsert, 0, 'a cached repair still blocks the action');
+  assert.strictEqual(r.s._sxrKasperState.drafts['s1|video'], SXR_DRAFT_TEXT, 'cached-repair refusal: his words are back in the box (got ' + JSON.stringify(r.s._sxrKasperState.drafts['s1|video']) + ')');
+}
+async function samplesWordsSurviveFailedComment() {
+  const a = samplesDraftSandbox({ fresh: SXR_MOVED, upsert: () => ({ ok: false, status: 503, json: async () => ({ ok: false }) }) });
+  a.s._sxrKasperAddCommentComp('s1', 'video');
+  await sxrSettle();
+  assert.strictEqual(a.calls.upsert, 1, 'the note was sent once');
+  assert.strictEqual((a.p.video_comments || []).length, 0, 'the refused note is not left in the thread');
+  assert.strictEqual(a.s._sxrKasperState.drafts['s1|video'], SXR_DRAFT_TEXT, 'his words are back in the box (got ' + JSON.stringify(a.s._sxrKasperState.drafts['s1|video']) + ')');
+  assert.strictEqual(a.calls.alerts.length, 1, 'and he is told');
+  assert.ok(/note/.test(a.calls.alerts[0][4]) && !/decision/.test(a.calls.alerts[0][4]), 'a note is called a note, not a decision: ' + a.calls.alerts[0][4]);
+}
+async function samplesSavedNoteClearsTheBox() {
+  const a = samplesDraftSandbox({ fresh: SXR_MOVED });
+  a.s._sxrKasperAddCommentComp('s1', 'video');
+  await sxrSettle();
+  assert.strictEqual(a.calls.upsert, 1, 'the note is saved');
+  assert.strictEqual(a.calls.alerts.length, 0, 'with no alert');
+  assert.strictEqual((a.p.video_comments || []).length, 1, 'it is in the thread');
+  assert.strictEqual(a.s._sxrKasperState.drafts['s1|video'], '', 'and the box is empty');
+  /* words typed while a refused save was running are his newest; they are never overwritten */
+  const b = samplesDraftSandbox({ fresh: SXR_MOVED, upsert: s => { s._sxrKasperState.drafts['s1|video'] = 'Typed while it saved'; return { ok: false, status: 503, json: async () => ({ ok: false }) }; } });
+  b.s._sxrKasperAddCommentComp('s1', 'video');
+  await sxrSettle();
+  assert.strictEqual(b.s._sxrKasperState.drafts['s1|video'], 'Typed while it saved', 'newer typing is kept (got ' + JSON.stringify(b.s._sxrKasperState.drafts['s1|video']) + ')');
+}
 async function alertsAreSavedWhenSetAndWhenAcknowledged() {
   /* Codex P2, PR 1916: setting or acknowledging an alert must write the cache, or a reload right after
      loses it / brings an acknowledged one back. */
@@ -583,6 +657,10 @@ async function localMarksExpireAndUrgentWins() {
   await runCase('a refused Close is not undone by its own removal animation', refusedCloseIsNotRemovedByItsOwnAnimation);
   await runCase('Samples: the aggregate is recomputed from the fresh companion part', samplesRecomputeFromTheFreshCompanion);
   await runCase('alerts are saved when set and when acknowledged', alertsAreSavedWhenSetAndWhenAcknowledged);
+  await runCase('Samples: part moved on the server, his typed words stay in the box', samplesWordsSurvivePartMoved);
+  await runCase('Samples: freshness read failed or a cached repair, his typed words stay in the box', samplesWordsSurviveReadFailed);
+  await runCase('Samples: a plain Comment whose save fails keeps his words and is called a note', samplesWordsSurviveFailedComment);
+  await runCase('Samples: a saved note clears the box; words typed meanwhile are never overwritten', samplesSavedNoteClearsTheBox);
   if (failures.length) { console.error('\n' + failures.length + ' failure(s).'); process.exit(1); }
   console.log('\nAll kasper-never-lose-decision assertions passed.');
 })();

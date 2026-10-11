@@ -1,0 +1,445 @@
+{
+  "drafts": [
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/caption-393-light-viewport.png",
+      "asset": "images/058421e00624a6be6285e4983fb68b53d056ca705398ed7c59bac15ea03c5f17.png",
+      "sha256": "058421e00624a6be6285e4983fb68b53d056ca705398ed7c59bac15ea03c5f17",
+      "crops": [
+        "ea77694decb3dab10418cb300694883711eb4bf7b5cda812243870d9e8cc408e"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/caption-draft-393-light-viewport.png",
+      "asset": "images/4254e1971ab1c346c98d475a49c4113f8f4eb475cd5cbcfde8ea9569ed35ab6b.png",
+      "sha256": "4254e1971ab1c346c98d475a49c4113f8f4eb475cd5cbcfde8ea9569ed35ab6b",
+      "crops": [
+        "beebcf62002958c702e227163e4016da91928691a1a7e9b6f081b20f0fd527d2"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/comparison-denied-393-light-viewport.png",
+      "asset": "images/d2516394972dfbfcad4c0008acfd7eeee7c80071f77ef1e368f36ce577bc6dfc.png",
+      "sha256": "d2516394972dfbfcad4c0008acfd7eeee7c80071f77ef1e368f36ce577bc6dfc",
+      "crops": [
+        "10c019e754b2f48ca59acc0b47328901f1d69699e4b5f52d27e2cc4a459aee0a"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/comparison-empty-393-light-viewport.png",
+      "asset": "images/2da0fb122db46a26af44fe8d58303dd27e94315c9af3698b6960a9251b667009.png",
+      "sha256": "2da0fb122db46a26af44fe8d58303dd27e94315c9af3698b6960a9251b667009",
+      "crops": [
+        "885b2801433b208d5e37121a9b43567bacb660ecbcf0d3344b995315355fc990"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/comparison-error-393-light-viewport.png",
+      "asset": "images/128c2e26b3dfc08adadc3786ed2d9c8d830e67ede6ccaf2f0ce73878292bdc98.png",
+      "sha256": "128c2e26b3dfc08adadc3786ed2d9c8d830e67ede6ccaf2f0ce73878292bdc98",
+      "crops": [
+        "4574f1f0cc227247d67194cc11b430872d5ad3d871f9071ec13decce8366a722"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/comparison-image-error-393-light-viewport.png",
+      "asset": "images/805e304116158fc342d9b3c82585f0b4badf804a7b4d4a1ad5d36eed58b881ff.png",
+      "sha256": "805e304116158fc342d9b3c82585f0b4badf804a7b4d4a1ad5d36eed58b881ff",
+      "crops": [
+        "31d48f1c2c4684e28031f3ddffbd4616e3f725d42c85ae26ed9ce28718fb592f"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/comparison-loading-393-light-viewport.png",
+      "asset": "images/c25efe9307352f68a45f4de244e3ceff44cf86b20a16e1e48d5cd2f0f03187a4.png",
+      "sha256": "c25efe9307352f68a45f4de244e3ceff44cf86b20a16e1e48d5cd2f0f03187a4",
+      "crops": [
+        "0a142261e7d7c737c2e65b3c09a8077f4e5d45e53133be9af9206f9e6d5266d2"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "remaining-draft",
+      "file": "client-calendar/comparison-pending-393-light-viewport.png",
+      "asset": "images/6bc93e7311767817b9c1c95a0417f990bd0078cdbb50a4e3ff4df26944a96c3f.png",
+      "sha256": "6bc93e7311767817b9c1c95a0417f990bd0078cdbb50a4e3ff4df26944a96c3f",
+      "crops": [
+        "158bbebddb1a19da592d631a7e6ec6d295c850066a78cb44d99f5bb1af86d78f"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47"
+      },
+      "judgments": [
+        "OPEN: Calendar prototype scope misses its native heading wrapper; loading, preview metadata and placeholders still need corrected draft."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/caption-393-light-viewport.png",
+      "asset": "images/058421e00624a6be6285e4983fb68b53d056ca705398ed7c59bac15ea03c5f17.png",
+      "sha256": "058421e00624a6be6285e4983fb68b53d056ca705398ed7c59bac15ea03c5f17",
+      "crops": [
+        "ea77694decb3dab10418cb300694883711eb4bf7b5cda812243870d9e8cc408e"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/caption-draft-393-light-viewport.png",
+      "asset": "images/4254e1971ab1c346c98d475a49c4113f8f4eb475cd5cbcfde8ea9569ed35ab6b.png",
+      "sha256": "4254e1971ab1c346c98d475a49c4113f8f4eb475cd5cbcfde8ea9569ed35ab6b",
+      "crops": [
+        "beebcf62002958c702e227163e4016da91928691a1a7e9b6f081b20f0fd527d2"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/comparison-denied-393-light-viewport.png",
+      "asset": "images/d2516394972dfbfcad4c0008acfd7eeee7c80071f77ef1e368f36ce577bc6dfc.png",
+      "sha256": "d2516394972dfbfcad4c0008acfd7eeee7c80071f77ef1e368f36ce577bc6dfc",
+      "crops": [
+        "10c019e754b2f48ca59acc0b47328901f1d69699e4b5f52d27e2cc4a459aee0a"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/comparison-empty-393-light-viewport.png",
+      "asset": "images/2da0fb122db46a26af44fe8d58303dd27e94315c9af3698b6960a9251b667009.png",
+      "sha256": "2da0fb122db46a26af44fe8d58303dd27e94315c9af3698b6960a9251b667009",
+      "crops": [
+        "885b2801433b208d5e37121a9b43567bacb660ecbcf0d3344b995315355fc990"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/comparison-error-393-light-viewport.png",
+      "asset": "images/128c2e26b3dfc08adadc3786ed2d9c8d830e67ede6ccaf2f0ce73878292bdc98.png",
+      "sha256": "128c2e26b3dfc08adadc3786ed2d9c8d830e67ede6ccaf2f0ce73878292bdc98",
+      "crops": [
+        "4574f1f0cc227247d67194cc11b430872d5ad3d871f9071ec13decce8366a722"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/comparison-image-error-393-light-viewport.png",
+      "asset": "images/805e304116158fc342d9b3c82585f0b4badf804a7b4d4a1ad5d36eed58b881ff.png",
+      "sha256": "805e304116158fc342d9b3c82585f0b4badf804a7b4d4a1ad5d36eed58b881ff",
+      "crops": [
+        "31d48f1c2c4684e28031f3ddffbd4616e3f725d42c85ae26ed9ce28718fb592f"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/comparison-loading-393-light-viewport.png",
+      "asset": "images/c25efe9307352f68a45f4de244e3ceff44cf86b20a16e1e48d5cd2f0f03187a4.png",
+      "sha256": "c25efe9307352f68a45f4de244e3ceff44cf86b20a16e1e48d5cd2f0f03187a4",
+      "crops": [
+        "0a142261e7d7c737c2e65b3c09a8077f4e5d45e53133be9af9206f9e6d5266d2"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "corrected-links-draft",
+      "file": "client-calendar/comparison-pending-393-light-viewport.png",
+      "asset": "images/6bc93e7311767817b9c1c95a0417f990bd0078cdbb50a4e3ff4df26944a96c3f.png",
+      "sha256": "6bc93e7311767817b9c1c95a0417f990bd0078cdbb50a4e3ff4df26944a96c3f",
+      "crops": [
+        "158bbebddb1a19da592d631a7e6ec6d295c850066a78cb44d99f5bb1af86d78f"
+      ],
+      "review": {
+        "sourceHash": "106b7d919a89ea32aee6dd69999ed5fea9da41f80bfdff22a0394650cd736d47",
+        "duplicateReviewReference": "review-remaining-draft.json",
+        "purpose": "Exact pixel duplicate reuse within the same mockup discovery round; no acceptance round is reused."
+      },
+      "judgments": []
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "calendar-final-expanded",
+      "file": "client-organize-393-light-viewport.png",
+      "asset": "images/5ad35391fa1c016ba7e0ed04753b2009d83257571342a5dfca86dac6b33d815e.png",
+      "sha256": "5ad35391fa1c016ba7e0ed04753b2009d83257571342a5dfca86dac6b33d815e",
+      "crops": [
+        "575a34c94ea08fda17a7e193b84cf5a672ec866f7015b0334c34b9f88531a50f"
+      ],
+      "review": {
+        "sourceHash": "c6d5de923575c18d61949fbe23f63e09704aa2a96a94107d0e1921e4d832cdce"
+      },
+      "judgments": [
+        "Approved Expanded organizer and archive: readable 13px helper labels; dates, title and actions fit both phones; clear reversible archive wording."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "tiktok-queue-draft",
+      "file": "tiktok-queue-done-light-393-viewport.png",
+      "asset": "images/617ab062658100204ac84bbaa83e9830ac362c423c7a026d168a3d2fcacd0623.png",
+      "sha256": "617ab062658100204ac84bbaa83e9830ac362c423c7a026d168a3d2fcacd0623",
+      "crops": [
+        "1b7fa078109c79dd1bfb685df7cf7bf96d37b2fba18495178b516b446ecf1bb0"
+      ],
+      "review": {
+        "sourceHash": "c6d5de923575c18d61949fbe23f63e09704aa2a96a94107d0e1921e4d832cdce"
+      },
+      "judgments": [
+        "Approved v2: natural-case dates fit beside client labels; 80 px column prevents overlap; metadata readable and wraps; all 16 newly changed native crops personally examined."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "tiktok-queue-draft",
+      "file": "tiktok-queue-upcoming-light-393-viewport.png",
+      "asset": "images/dfe5b7526a6b97ed2fabf229b4e1e66229e681f256aeeb47284a23077c689c3d.png",
+      "sha256": "dfe5b7526a6b97ed2fabf229b4e1e66229e681f256aeeb47284a23077c689c3d",
+      "crops": [
+        "8e8a3ea7176438e8d3e118a59cc8b2faab41aa86307186db92273d08833cfcdd"
+      ],
+      "review": {
+        "sourceHash": "c6d5de923575c18d61949fbe23f63e09704aa2a96a94107d0e1921e4d832cdce"
+      },
+      "judgments": [
+        "Rejected first prototype: readable metadata, but the larger uppercase TOMORROW overlaps the client. Widen date column and use natural-case dates before approval."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "analytics-wording-draft",
+      "file": "analytics-loading-light-393-viewport.png",
+      "asset": "images/278841143c25f89f1e2153f07c8e275173a6707b2ecdf429e81a3c4dd7936858.png",
+      "sha256": "278841143c25f89f1e2153f07c8e275173a6707b2ecdf429e81a3c4dd7936858",
+      "crops": [
+        "dd9b58e375c8568490dac8b8b6a6ec2b117d16355e3886171cda2abc1389351f"
+      ],
+      "review": {
+        "sourceHash": "c6d5de923575c18d61949fbe23f63e09704aa2a96a94107d0e1921e4d832cdce"
+      },
+      "judgments": [
+        "Approved: all eight native crops personally examined; clean loading wording in both themes and widths."
+      ]
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "prompt-draft-v3",
+      "file": "calendar-caption-prompt-empty-light-393-viewport.png",
+      "asset": "images/c74c512f841496c745c8ecf475910136a45644fb3af4759ff5fda9b21420e092.png",
+      "sha256": "c74c512f841496c745c8ecf475910136a45644fb3af4759ff5fda9b21420e092",
+      "judgment": "Approved Expanded prompt drafts: readable body-mounted headings, explanations and placeholders; all controls and feet contained. Native discard confirmation preserves the pasted draft. v2 visual captures approved; its failed action expectation was corrected to exercise the existing confirmation."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "prompt-draft-v3",
+      "file": "calendar-caption-prompt-normal-light-393-viewport.png",
+      "asset": "images/027c1132bee9495f4bf4287d6b94aa3b884949a9134f22e4c2ca47d62af9ca05.png",
+      "sha256": "027c1132bee9495f4bf4287d6b94aa3b884949a9134f22e4c2ca47d62af9ca05",
+      "judgment": "Approved Expanded prompt drafts: readable body-mounted headings, explanations and placeholders; all controls and feet contained. Native discard confirmation preserves the pasted draft. v2 visual captures approved; its failed action expectation was corrected to exercise the existing confirmation."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "prompt-draft-v3",
+      "file": "calendar-transcript-discard-light-393-viewport.png",
+      "asset": "images/7c886266f97d3bf541cd3acadf47c011966ea83c8b712d1224765d5634385b14.png",
+      "sha256": "7c886266f97d3bf541cd3acadf47c011966ea83c8b712d1224765d5634385b14",
+      "judgment": "Approved Expanded prompt drafts: readable body-mounted headings, explanations and placeholders; all controls and feet contained. Native discard confirmation preserves the pasted draft. v2 visual captures approved; its failed action expectation was corrected to exercise the existing confirmation."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "prompt-draft-v3",
+      "file": "calendar-transcript-optional-light-393-viewport.png",
+      "asset": "images/9a11f17ad026f9497b0be72e865bf753a5bf6b45c43d2cc5c6118de4fc10ebff.png",
+      "sha256": "9a11f17ad026f9497b0be72e865bf753a5bf6b45c43d2cc5c6118de4fc10ebff",
+      "judgment": "Approved Expanded prompt drafts: readable body-mounted headings, explanations and placeholders; all controls and feet contained. Native discard confirmation preserves the pasted draft. v2 visual captures approved; its failed action expectation was corrected to exercise the existing confirmation."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "composer-draft-v2",
+      "file": "analytics-overview-light-393-viewport.png",
+      "asset": "images/d24cab9a2d893dd5650c17b3f8526345359749c321b393ab325697a34e4618a5.png",
+      "sha256": "d24cab9a2d893dd5650c17b3f8526345359749c321b393ab325697a34e4618a5",
+      "judgment": "Personally inspected all 5 native contact sheets and both explicit footer shots. Approved phone viewport containment, readable draft fields and contained Comment footer against Expanded. Earlier body-flex drafts rejected because content wrapper was unconstrained. Analytics icon follow-up remains a separate draft."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "composer-draft-v2",
+      "file": "linear-detail-light-393-viewport.png",
+      "asset": "images/4db905919817e2c11ac87cc9c9865a2d2543dc0de863c9523a0086633b858387.png",
+      "sha256": "4db905919817e2c11ac87cc9c9865a2d2543dc0de863c9523a0086633b858387",
+      "judgment": "Personally inspected all 5 native contact sheets and both explicit footer shots. Approved phone viewport containment, readable draft fields and contained Comment footer against Expanded. Earlier body-flex drafts rejected because content wrapper was unconstrained. Analytics icon follow-up remains a separate draft."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "composer-draft-v2",
+      "file": "linear-list-light-393-viewport.png",
+      "asset": "images/e9f871ee050122bbd6c62e65bd4ca6a0e2ad706cb88a4438d8b6b6dfcd6e3525.png",
+      "sha256": "e9f871ee050122bbd6c62e65bd4ca6a0e2ad706cb88a4438d8b6b6dfcd6e3525",
+      "judgment": "Personally inspected all 5 native contact sheets and both explicit footer shots. Approved phone viewport containment, readable draft fields and contained Comment footer against Expanded. Earlier body-flex drafts rejected because content wrapper was unconstrained. Analytics icon follow-up remains a separate draft."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "analytics-controls-draft-v2",
+      "file": "analytics-overview-light-393-viewport.png",
+      "asset": "images/c20b45b7bc936cd61955e5e807d6b52197dca41264ef4bb7fa6d1d0d9496700d.png",
+      "sha256": "c20b45b7bc936cd61955e5e807d6b52197dca41264ef4bb7fa6d1d0d9496700d",
+      "judgment": "All 3 corrected contact sheets personally reviewed. Approved readable 13px dates; older specificity issue repaired without weakening the independent font guard."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "detail-words-draft",
+      "file": "linear-detail-empty-light-393-viewport.png",
+      "asset": "images/45a87661eb976ac25c2d1106a35dcd7223a491be438262f64322d2797e08a769.png",
+      "sha256": "45a87661eb976ac25c2d1106a35dcd7223a491be438262f64322d2797e08a769",
+      "judgment": "All 2 contact sheets personally reviewed: 24 native PNGs, 12 unique crops. Approved truthful Card label while an unknown deliverable loads or is missing, and clean touch menus without desktop keyboard hints. Real Batch headings retain their native label."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "detail-words-draft",
+      "file": "linear-detail-loading-light-393-viewport.png",
+      "asset": "images/c83ef7d858c8c99107d357683125901d8b8b418fd4e425eeb48dbb91cc334a88.png",
+      "sha256": "c83ef7d858c8c99107d357683125901d8b8b418fd4e425eeb48dbb91cc334a88",
+      "judgment": "All 2 contact sheets personally reviewed: 24 native PNGs, 12 unique crops. Approved truthful Card label while an unknown deliverable loads or is missing, and clean touch menus without desktop keyboard hints. Real Batch headings retain their native label."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "detail-words-draft",
+      "file": "linear-detail-menu-light-393-viewport.png",
+      "asset": "images/d1ce548178e8b678e109bf56fa4941275e92a28a09132ec509b4acc310aa5994.png",
+      "sha256": "d1ce548178e8b678e109bf56fa4941275e92a28a09132ec509b4acc310aa5994",
+      "judgment": "All 2 contact sheets personally reviewed: 24 native PNGs, 12 unique crops. Approved truthful Card label while an unknown deliverable loads or is missing, and clean touch menus without desktop keyboard hints. Real Batch headings retain their native label."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "manager-picker",
+      "file": "mockup-dark-393.png",
+      "asset": "images/0ff91fd1575d4a66d9bae5762e5c5aa5c2453bbcf89a5974cbda953a4f2c6005.png",
+      "sha256": "0ff91fd1575d4a66d9bae5762e5c5aa5c2453bbcf89a5974cbda953a4f2c6005",
+      "judgment": "Personally reviewed branded phone manager picker draft in both widths and themes before implementation."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "manager-picker",
+      "file": "mockup-dark-412.png",
+      "asset": "images/4840aee0b8eef59be2f569dcc255d7031704033e72cdffd2fd16d058ff6f35b4.png",
+      "sha256": "4840aee0b8eef59be2f569dcc255d7031704033e72cdffd2fd16d058ff6f35b4",
+      "judgment": "Personally reviewed branded phone manager picker draft in both widths and themes before implementation."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "manager-picker",
+      "file": "mockup-light-393.png",
+      "asset": "images/a108c56335feaf27b86307a56ae1a22aac6043aed2bd5be8292c13063890ec3a.png",
+      "sha256": "a108c56335feaf27b86307a56ae1a22aac6043aed2bd5be8292c13063890ec3a",
+      "judgment": "Personally reviewed branded phone manager picker draft in both widths and themes before implementation."
+    },
+    {
+      "kind": "Expanded draft",
+      "folder": "manager-picker",
+      "file": "mockup-light-412.png",
+      "asset": "images/a3786e6f19c2449fadb0a4cb657e88041d6c312651411ede80a49004344e3cf1.png",
+      "sha256": "a3786e6f19c2449fadb0a4cb657e88041d6c312651411ede80a49004344e3cf1",
+      "judgment": "Personally reviewed branded phone manager picker draft in both widths and themes before implementation."
+    }
+  ],
+  "note": "Approved representative Expanded drafts. CSS includes iteration history, which does not itself imply approval. Product acceptance comes from the separate full and fresh manifests. Empty-thumbnail draft captures were later rejected for fixture selection races; accepted round evidence uses corrected empty-value guards."
+}

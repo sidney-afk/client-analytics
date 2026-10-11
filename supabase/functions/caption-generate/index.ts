@@ -23,6 +23,9 @@
 // fails), BRAIN_GITHUB_TOKEN / BRAIN_REPO / BRAIN_BRANCH (the voice; without them captions are written without it),
 // CAPTION_MODEL (default claude-sonnet-4-6, the model n8n uses).
 //
+// Just before the save the card's caption is read again: one typed and saved while the job ran is kept, and the
+// job ends in error with no caption on its row (so the page saves nothing either).
+//
 // Never logs a transcript, a caption or a file name: only step names and status codes.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
@@ -51,6 +54,10 @@ const BUDGET_MS = 370 * 1000;
 const POLL_MS = 3000;
 const NOT_READABLE = "Could not read the video from the Frame.io page — check the link opens a playable video and is not expired or private.";
 const SAVE_FAILED = "The caption was generated but could not be saved to the sheet — it is kept on the card, save it manually or retry";
+// The two ends where the generated caption is NOT saved and NOT handed back on the row (a page with an empty box
+// saves a caption it finds on an error row, which would put it over the caption the card already has).
+const KEPT_THEIRS = "A caption was written on this card while this one was being generated, so that one was kept.";
+const CARD_UNREADABLE = "The caption was generated but the card could not be checked before saving, so nothing was saved. Try again.";
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -236,6 +243,21 @@ async function writeCaption(job: Job, videoTranscript: string): Promise<string> 
   }
 }
 
+// The card's caption as saved right now, read just before the save: someone may have typed and saved one while
+// this job was queued or running, and calendar-upsert writes the caption without a base, so it would be replaced.
+// null when the card cannot be read; the caller then saves nothing.
+async function savedCaption(job: Job): Promise<string | null> {
+  try {
+    const { data, error } = await job.db.from("calendar_posts").select("caption")
+      .eq("client", job.client).eq("id", job.postId).maybeSingle();
+    if (error) { console.warn("[caption-generate] card read before save failed", error.code || ""); return null; }
+    return clean(data && (data as { caption?: unknown }).caption);
+  } catch (_e) {
+    console.warn("[caption-generate] card read before save failed");
+    return null;
+  }
+}
+
 // n8n "Save caption (calendar-upsert)" + "Save Caption to Sheet": the same body, and only ok:true counts as saved.
 async function saveCaption(job: Job): Promise<boolean> {
   try {
@@ -268,7 +290,12 @@ async function run(job: Job) {
     if (job.mode === "video") await patchJob(job, { stage: "writing" });   // a transcript-only row starts at writing
     job.caption = await writeCaption(job, videoTranscript);
     await checkCancel(job);                       // n8n "Cancel check 2": a cancelled caption is never saved
-    if (!(await saveCaption(job))) throw new Error(SAVE_FAILED);
+    // A caption already on the card wins (typed while this job waited or ran). Neither end hands the generated
+    // caption back on the row, so no page saves it over theirs either.
+    const onCard = await savedCaption(job);
+    if (onCard === null) { job.caption = ""; throw new Error(CARD_UNREADABLE); }
+    if (onCard && onCard !== clean(job.caption)) { job.caption = ""; throw new Error(KEPT_THEIRS); }
+    if (!onCard && !(await saveCaption(job))) throw new Error(SAVE_FAILED);
     await patchJob(job, { status: "done", stage: "done", caption: job.caption });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

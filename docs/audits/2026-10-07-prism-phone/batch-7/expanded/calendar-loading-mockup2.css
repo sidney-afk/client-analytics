@@ -1,0 +1,11 @@
+@media (max-width:767px) {
+ #calView[data-pocket-staff-phone] .cal-skeleton-loader .sv-skeleton {--sv-skel-base:var(--border);--sv-skel-sheen:var(--border-light);}
+ #calView[data-pocket-staff-phone] .cal-skeleton-thumb {height:104px;}
+ #calView[data-pocket-staff-phone] .cal-skeleton-loader::before {content:"Loading your calendar...";display:block;align-self:flex-start;font-size:14px;color:var(--text-secondary);padding-bottom:12px;}
+ #calView[data-pocket-staff-phone] .cal-skeleton-loader {padding:20px 0;align-items:stretch;justify-content:flex-start;width:100%;}
+ #calView[data-pocket-staff-phone] .cal-skeleton-toolbar {display:none;}
+ #calView[data-pocket-staff-phone] .cal-skeleton-strip {padding:0;min-height:0;}
+ #calView[data-pocket-staff-phone] .cal-skeleton-card {flex:0 0 100%;}
+ #calView[data-pocket-staff-phone] .cal-skeleton-card:nth-child(n+2) {display:none;}
+ #calView[data-pocket-staff-phone] .cal-month-cell.today {min-height:78px;}
+}

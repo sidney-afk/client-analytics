@@ -1,0 +1,6 @@
+@media (max-width:767px) {
+  html.fph-on[data-fph="tiktok-upload"] :is(.tk-q-day,.tk-q-meta,.tk-queue-title) { font-size:13px;line-height:1.5;color:var(--text-secondary); }
+  html.fph-on[data-fph="tiktok-upload"] .tk-q-meta { flex-wrap:wrap;gap:3px 8px;white-space:normal;overflow:visible; }
+  html.fph-on[data-fph="tiktok-upload"] .tk-queue-item { grid-template-columns:80px minmax(0,1fr);gap:4px 10px; }
+  html.fph-on[data-fph="tiktok-upload"] .tk-q-day { text-transform:none;letter-spacing:0; }
+}

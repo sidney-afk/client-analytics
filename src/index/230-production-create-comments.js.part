@@ -1008,6 +1008,12 @@ import {
                     fresh.parentId = String(kept.meta.parentId || '');
                     fresh.audience = kept.meta.audience === 'client' ? 'client' : 'internal';
                     fresh.restored = true;
+                    /* Text that was already sent once (the tab closed or reloaded
+                       before the answer) keeps that send's request id, so a second
+                       press replays the same comment instead of posting a second
+                       one; the server derives the comment id from it. Only for the
+                       exact text it was minted for (OPEN_REPAIRS 404). */
+                    if (kept.meta.requestId && String(kept.meta.sentBody || '') === kept.text) fresh.requestId = String(kept.meta.requestId);
                 }
                 _prodState.commentDrafts.set(id, fresh);
             }
@@ -1016,7 +1022,8 @@ import {
         function _prodCommentDraftKeep(id, draft) {
             if (!draft || draft.action !== 'add') return;
             _svDraftSave('prod', _prodCommentDraftClient(id), String(id), 'comment', draft.body,
-                { parentId: draft.parentId || '', audience: draft.audience || 'internal' });
+                { parentId: draft.parentId || '', audience: draft.audience || 'internal',
+                    requestId: draft.requestId || '', sentBody: draft.requestId ? draft.body : '' });
         }
         function _prodDraftDiscard(id) {
             id = String(id || '');
@@ -1140,7 +1147,7 @@ import {
                 + (context ? '<div class="prod-composer-actions"><b class="prod-write-state">' + _calEsc(context) + '</b><span class="prod-spacer"></span><button class="prod-comment-action" type="button" onclick="_prodCommentCancel(' + _jsAttrArg(issue.id) + ')">Cancel</button></div>' : '')
                 + '<textarea class="prod-composer-input" data-prod-comment-input="1" maxlength="20000" placeholder="' + (draft.parentId ? 'Write a reply...' : draft.action === 'edit' ? 'Edit comment...' : 'Write a comment...') + '" oninput="_prodCommentDraftInput(' + _jsAttrArg(issue.id) + ',this.value)" onkeydown="_prodComposerKeydown(event,' + _jsAttrArg(issue.id) + ')"' + (pending ? ' disabled' : '') + '>' + _calEsc(draft.body) + '</textarea>'
                 + '<div class="prod-composer-actions">' + (draft.action === 'add' && !draft.parentId ? visibility : '') + '<span class="prod-spacer"></span>'
-                + (draft.error ? '<span class="prod-write-state is-error" role="alert">' + _calEsc(draft.error) + '</span>' : pending ? '<span class="prod-write-state" role="status">Saving...</span>' : '<span class="prod-write-state">Ctrl/Cmd Enter</span>')
+                + (draft.error ? '<span class="prod-write-state is-error" role="alert">' + _calEsc(draft.error) + '</span>' : pending ? '<span class="prod-write-state" role="status">Saving...</span>' : '<span class="prod-write-state" data-prod-keyboard-hint>Ctrl/Cmd Enter</span>')
                 + '<button class="prod-composer-submit" type="submit"' + (pending ? ' disabled' : '') + '>' + (pending ? 'Saving...' : draft.action === 'edit' ? 'Save edit' : draft.parentId ? 'Reply' : 'Comment') + '</button></div></form></div>';
         }
         function _prodSubmitComment(event, id) {
@@ -1158,6 +1165,7 @@ import {
                 return false;
             }
             if (!draft.requestId) draft.requestId = _prodWriteRequestId('comment');
+            _prodCommentDraftKeep(id, draft);   // the stored copy carries the request id before the write leaves
             const comment = {
                 action: draft.action || 'add',
                 body: String(draft.body).trim(),

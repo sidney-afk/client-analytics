@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
+const { heightFor } = require('../../../qa/client-phone/profiles');
 const root = path.resolve(__dirname, '../../..');
 const beforeRoot = process.argv.find(arg => arg.startsWith('--before-root='))?.slice(14);
 const before = process.argv.includes('--capture-before');
@@ -14,11 +15,21 @@ const headed = process.argv.includes('--headed');
 const shots = process.env.POCKET_PHONE_SHOTS;
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const phoneRules = require('../../../qa/staff-phone-rule-checks');
-const widths = [360, 390, 430];
+const widths = (process.argv.find(arg=>arg.startsWith('--widths='))?.slice(9) || '360,390,430').split(',').map(Number);
+const capturedStates = [
+ 'review-queue','review','tabs','more','platform','import','import-map','import-select','import-select-empty','account','quick-jump','caption-prompt','create-post','create-thumbnail',
+ ...['empty','loading','error','rows'].map(state=>'archived-'+state),'notes','lightbox',
+ ...['loading','pending','retry-loading','empty','error','denied','ready','image-error'].map(state=>'comparison-'+state),'save-error','sending','sheet','organize','sheet-more','status-menu','all-statuses','date-picker','archive-confirm','month','month-preview','week','week-preview',
+ ...['review','sheet','month','week'].flatMap(view=>['loading','read-error','empty'].map(state=>view+'-'+state))
+];
+if(process.argv.includes('--list')) {
+ console.log(JSON.stringify(capturedStates.map(name=>({lane:'staff-calendar-expanded',name:'calendar-'+name,tab:'calendar'}))));process.exit(0);
+}
 const measurements = [];
 let checks = 0;
 const ok = (value, message) => { assert(value, message); checks++; };
 async function measure(page, label) {
+  await require('../../../qa/client-phone/phone-visual-guards').check(page);
   const surface = await phoneRules.activeSurface(page);
   await phoneRules.assertLayout(page, label, surface);
   if (surface !== 'body') await phoneRules.scrollLock(page, surface);
@@ -65,10 +76,10 @@ async function shot(page, label) {
   });
   await page.evaluate(() => document.fonts.ready);
   const overlay = await page.locator('#svJump:not([hidden]), dialog[open], .cal-lightbox.open, .thumb-compare-overlay.open, .cal-comments-overlay.open, .cal-prompt-overlay.open, .cal-import-overlay.open, .cal-preview-overlay.open, .cal-fld-status-menu, .dp-popup, #confirmOverlay.active, #notifyOverlay.active').count();
-  await page.screenshot({ path: path.join(shots, label + '.png'), fullPage: !overlay, animations: 'disabled' });
+  await require('../../../qa/client-phone/native-captures').capture(page,{ path: path.join(shots, label + '.png'), fullPage: !overlay, animations: 'disabled' });
 }
 async function review(browser, origin, width, theme) {
-  const ctx = await browser.newContext({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const ctx = await browser.newContext({ viewport: { width, height: heightFor(width) }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const writes = [];
   const row = { ...BASE_ROW, id: 'p_staff_phone_fixture_1', name: 'Make room for a better day.', scheduled_date: new Date().toISOString().slice(0,10), thumbnail_url: 'https://images.example.invalid/phone-fixture.png', video_deliverable_id: '00000000-0000-4000-8000-000000000001', graphic_deliverable_id: '00000000-0000-4000-8000-000000000002', video_status: 'For SMM Approval', graphic_status: 'For SMM Approval', caption_status: 'For SMM Approval', status: 'For SMM Approval' };
   await installFixture(ctx, origin, row, writes, 'calendar');
@@ -91,6 +102,7 @@ async function review(browser, origin, width, theme) {
   }
   try {
     const page = await ctx.newPage();
+  require('../../../qa/client-phone/native-captures').prepareCaptures(page);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
@@ -123,6 +135,35 @@ async function review(browser, origin, width, theme) {
       for (const view of ['organizer', 'month', 'week']) {
         await page.evaluate(view => onCalViewChange(view), view);
         await shot(page, (view === 'organizer' ? 'sheet' : view) + '-' + suffix);
+      }
+      if (process.argv.includes('--before-dialogs')) {
+        // Capture the native main dialogs for the comparison gallery. Product
+        // guards below still run unchanged on the candidate, never on main.
+        await page.evaluate(() => svQuickJumpOpen());
+        await page.locator('#svJumpInput').fill('no matching fixture');
+        await shot(page, 'quick-jump-' + suffix);
+        await page.evaluate(() => svQuickJumpClose());
+        await page.evaluate(() => _calOpenNativePost());
+        await shot(page, 'create-post-' + suffix);
+        await page.evaluate(() => _calSetNativePostMode('thumbnail'));
+        await shot(page, 'create-thumbnail-' + suffix);
+        await page.evaluate(() => _calCloseNativePost());
+        await page.evaluate(() => onCalViewChange('organizer'));
+        await page.locator('[data-staff-menu=more]').click();
+        await page.locator('dialog[open] #calOrganizeBtn').click();
+        await shot(page, 'organize-' + suffix);
+        await page.keyboard.press('Escape');
+        await page.evaluate(id => archiveCalPost(id), row.id);
+        await page.locator('#confirmOverlay.active').waitFor();
+        await shot(page, 'archive-confirm-' + suffix);
+        await page.locator('#confirmOverlay.active button', { hasText: /^Cancel$/ }).click();
+        await page.evaluate(row => {
+          _arxOpen('cal'); arxState.seq++; arxState.loading = false;
+          arxState.rows = [{ ...row, status: 'Archived' }];
+          arxState.canWiden = true; _arxRenderModal();
+        }, row);
+        await shot(page, 'archived-rows-' + suffix);
+        await page.evaluate(() => _arxClose());
       }
       return;
     }
@@ -252,7 +293,7 @@ async function review(browser, origin, width, theme) {
     ok(await page.locator('#svClientBadgeWrap').evaluate(node => !!node.closest('.header')), 'desktop client selector was not restored');
     ok(await page.locator('#staffIdentityWrap').evaluate(node => !!node.closest('.header')), 'desktop account was not restored');
     ok(await page.locator('#calKebabMenu').evaluate(node => node.hidden), 'desktop setup menu remained open');
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: heightFor(width) });
     await page.locator('[data-pocket-staff-phone=calendar]').waitFor();
     await page.evaluate(row => { delete _calReviewState.saving[row.id + '|caption']; calState.posts = [{ ...row }]; _calRenderBody(); }, row);
     for (const view of ['smmreview', 'organizer', 'month', 'week']) {
@@ -307,7 +348,7 @@ async function review(browser, origin, width, theme) {
         const todayMark = await page.evaluate(v => { const e = document.querySelector(v === 'month' ? '.cal-month-cell.today .cal-month-num' : '.cal-week-col.today .cal-week-num'); if (!e) return null; const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), radius: cs.borderTopLeftRadius, bg: cs.backgroundColor, fg: cs.color }; }, view);
         if (todayMark) ok(todayMark.w === 36 && todayMark.h === 36 && parseFloat(todayMark.radius) >= 18 && todayMark.bg !== todayMark.fg, view + ': Today marker must be the 36 px circle');
         ok(!dayRows.some(r => r.rest), view + ': a folded day must not show');
-        ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? · Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
+        ok(dayRows.every(r => !r.run || /^[A-Z][a-z]{2} \d{1,2}( to [A-Z][a-z]{2} \d{1,2})? \u00b7 Nothing scheduled$/.test(r.label)), view + ': run line must name its days');
         ok(await page.locator('.pocket-run-rest').count() === await page.evaluate(() => document.querySelectorAll('.pocket-run-rest[data-iso]').length), view + ': folded days keep their date for drag and drop');
         const dragDays = await page.evaluate(v => {
           const wrap = document.querySelector(v === 'month' ? '.cal-month-wrap' : '.cal-week-wrap');
@@ -351,5 +392,5 @@ async function review(browser, origin, width, theme) {
     if (failures.length) throw new AggregateError(failures.map(result => result.reason), 'Staff Calendar phone checks failed');
   } finally { await browser.close(); server.close(); }
   if (shots) fs.writeFileSync(path.join(shots, 'measurements.json'), JSON.stringify(measurements, null, 2) + '\n');
-  console.log(before ? 'staff-calendar-expanded: BEFORE pictures captured; no acceptance claimed.' : 'staff-calendar-expanded: OK (' + checks + ' checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 360/390/430).');
+  console.log(before ? 'staff-calendar-expanded: BEFORE pictures captured; no acceptance claimed.' : 'staff-calendar-expanded: OK (' + checks + ' checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; '+widths.join('/')+').');
 })().catch(error => { console.error(error); process.exitCode = 1; });

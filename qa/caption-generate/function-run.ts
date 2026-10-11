@@ -1,5 +1,5 @@
 // End-to-end run of the caption-generate Edge Function's own code under Deno, with every outside service replaced
-// by an in-memory stand-in: the database (caption_jobs, caption_prompts), calendar-upsert, Frame.io, Replicate,
+// by an in-memory stand-in: the database (caption_jobs, caption_prompts, calendar_posts), calendar-upsert, Frame.io, Replicate,
 // Claude and the brain repository on GitHub. Nothing leaves this process. Fictional client and text only.
 //
 //   deno run --allow-env --allow-read --allow-net --node-modules-dir=none qa/caption-generate/function-run.ts
@@ -28,6 +28,11 @@ const state = {
   replicateCancelled: 0,
   cancelOnPoll: 0,
   prompt: "FIXTURE CLIENT PROMPT",
+  // calendar_posts: the caption saved on each card, and a caption someone types and saves on a card while the
+  // caption writer is busy (set when Claude is called, i.e. while the job is running).
+  cardCaptions: new Map<string, string>(),
+  typedWhileWriting: null as null | { postId: string; caption: string },
+  cardReadFails: false,
 };
 const reply = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
@@ -40,6 +45,15 @@ function postgrest(url: URL, init: RequestInit): Response {
   if (table === "caption_prompts") {
     const rows = state.prompt === null ? [] : [{ prompt: state.prompt }];
     return single ? (rows.length ? reply(rows[0]) : reply({}, 406)) : reply(rows);
+  }
+  if (table === "calendar_posts") {
+    if ((init.method || "GET") !== "GET") return reply({ message: "read only here" }, 405);
+    if (state.cardReadFails) return reply({ code: "57014", message: "canceling statement due to statement timeout" }, 500);
+    const id = (url.searchParams.get("id") || "").replace(/^eq\./, "");
+    const client = (url.searchParams.get("client") || "").replace(/^eq\./, "");
+    const rows = client === "fixtureclient" && state.cardCaptions.has(id) ? [{ caption: state.cardCaptions.get(id) }] : [];
+    if (single) return rows.length ? reply(rows[0]) : reply({ code: "PGRST116" }, 406);
+    return reply(rows);
   }
   if (table === "caption_jobs") {
     if ((init.method || "GET") === "GET") {
@@ -76,7 +90,9 @@ globalThis.fetch = (async (input: Request | URL | string, init: RequestInit = {}
   if (url.host === "fixture.supabase.local" && url.pathname.startsWith("/rest/v1/")) return postgrest(url, init);
   if (url.host === "fixture.supabase.local" && url.pathname === "/functions/v1/calendar-upsert") {
     const h = new Headers(init.headers);
-    state.saves.push({ body: JSON.parse(String(init.body)), key: h.get("x-syncview-key") || "", source: h.get("x-syncview-source") || "" });
+    const body = JSON.parse(String(init.body));
+    state.saves.push({ body, key: h.get("x-syncview-key") || "", source: h.get("x-syncview-source") || "" });
+    if (state.saveOk && body.post) state.cardCaptions.set(String(body.post.id), String(body.post.caption || ""));
     return reply(state.saveOk ? { ok: true } : { ok: false, error: "conflict" }, state.saveOk ? 200 : 409);
   }
   if (url.host === "f.io") return new Response(null, { status: 302, headers: { location: `https://next.frame.io/share/${SHARE}/view/${VIEW}` } });
@@ -102,6 +118,7 @@ globalThis.fetch = (async (input: Request | URL | string, init: RequestInit = {}
   if (url.host === "api.anthropic.com") {
     const body = JSON.parse(String(init.body));
     state.claude.push(body);
+    if (state.typedWhileWriting) state.cardCaptions.set(state.typedWhileWriting.postId, state.typedWhileWriting.caption);
     // First draft carries two tells; the revision is clean.
     const text = body.messages.length === 1 ? "Caption: We delve into rest — slowly. #rest #calm #slow" : "We slow down and rest. #rest #calm #slow";
     return reply({ content: [{ type: "text", text }] });
@@ -131,7 +148,7 @@ async function call(body: Record<string, unknown>, headers: Record<string, strin
   await Promise.all(pending.splice(0));
   return { status: res.status, json };
 }
-const reset = () => { state.claude.length = 0; state.saves.length = 0; state.stages.length = 0; state.calls.length = 0; state.cancelOnPoll = 0; state.saveOk = true; state.replicatePollsBeforeDone = 1; };
+const reset = () => { state.claude.length = 0; state.saves.length = 0; state.stages.length = 0; state.calls.length = 0; state.cancelOnPoll = 0; state.saveOk = true; state.replicatePollsBeforeDone = 1; state.typedWhileWriting = null; state.cardReadFails = false; };
 
 // 1. Video + an optional pasted transcript: the whole n8n chain, plus voice, rules and the extra.
 reset();
@@ -174,6 +191,32 @@ reset(); state.saveOk = false;
 r = await call({ client: "fixtureclient", postId: "p5", jobId: "job_savefail", transcript: "SAID" });
 row = state.jobs.get("job_savefail")!;
 ok(row.status === "error" && /could not be saved/.test(String(row.error)) && row.caption === "We slow down and rest. #rest #calm #slow", "save refused: error, caption kept for the page to save");
+
+// 5b. Someone types a caption on the card and it is saved while the job is running (the job was queued or
+// generating when the card was still empty). The generated caption must not overwrite theirs: nothing is sent
+// to calendar-upsert, and the job ends in error with no caption on the row, so no page can save it over theirs.
+reset(); state.cardCaptions.set("p11", ""); state.typedWhileWriting = { postId: "p11", caption: "TYPED BY STAFF" };
+r = await call({ client: "fixtureclient", postId: "p11", assetUrl: "https://f.io/abc", jobId: "job_typed" });
+row = state.jobs.get("job_typed")!;
+ok(r.json.accepted && state.claude.length > 0, "typed while running: the caption was written (the card was empty when the job started)");
+ok(state.saves.filter((s) => (s.body.post as { id?: string } | undefined)?.id === "p11").length === 0, "typed while running: no calendar-upsert save for that card");
+ok(state.cardCaptions.get("p11") === "TYPED BY STAFF", "typed while running: the typed caption is still the card's caption");
+ok(row.status === "error" && /was kept/.test(String(row.error)) && !String(row.caption || ""), "typed while running: the job ends in error, says theirs was kept, and hands back no caption: " + JSON.stringify({ status: row.status, error: row.error, caption: row.caption }));
+// The same, transcript only.
+reset(); state.cardCaptions.set("p12", ""); state.typedWhileWriting = { postId: "p12", caption: "TYPED BY STAFF" };
+r = await call({ client: "fixtureclient", postId: "p12", jobId: "job_typed_tx", transcript: "SAID" });
+row = state.jobs.get("job_typed_tx")!;
+ok(state.saves.length === 0 && row.status === "error" && !String(row.caption || "") && state.cardCaptions.get("p12") === "TYPED BY STAFF", "typed while running (transcript): nothing saved, no caption handed back");
+// The card cannot be read just before the save: never fall through to writing.
+reset(); state.cardCaptions.set("p13", ""); state.cardReadFails = true;
+r = await call({ client: "fixtureclient", postId: "p13", jobId: "job_cardread", transcript: "SAID" });
+row = state.jobs.get("job_cardread")!;
+ok(state.saves.length === 0 && row.status === "error" && /could not be checked/.test(String(row.error)) && !String(row.caption || ""), "card unreadable before the save: nothing saved, an honest error, no caption handed back");
+// An empty card still gets the caption (the check reads the card and goes on).
+reset(); state.cardCaptions.set("p14", "   ");
+r = await call({ client: "fixtureclient", postId: "p14", jobId: "job_blank", transcript: "SAID" });
+ok(state.saves.length === 1 && state.jobs.get("job_blank")!.status === "done" && state.cardCaptions.get("p14") === "We slow down and rest. #rest #calm #slow", "a card whose caption is only spaces still gets the generated caption");
+ok(state.calls.some((c) => c === "GET fixture.supabase.local/rest/v1/calendar_posts"), "the card's caption is read before the save");
 
 // 6. Refusals before anything runs.
 reset();

@@ -145,6 +145,31 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
     ok(post.video_status === 'In Progress', 'Calendar: a parked status is left for the save itself to apply');
   } catch (e) { ok(false, 'this block could not run: ' + String(e && e.message || e).slice(0, 120)); }
 
+  // --- 5b. Samples: the same, for a parked sample edit (OPEN_REPAIRS 401; 384 item 5 fixed only the Calendar)
+  try {
+    const env = { renders: 0, flushed: [], body: '' };
+    const post = { id: 's1', name: 'Fixture sample', creative_direction: 'Server text', video_status: 'In Progress' };
+    const restored = new Function('env', 'post', `
+      const _sxrParkedEdits = { alpha: { s1: { principal: 'me', edits: { creative_direction: 'Typed before the switch', video_status: 'Approved', _sxrPriorStatus: { video_status: 'In Progress' } } } } };
+      const sxrState = { client: 'Alpha', posts: [post] };
+      const sxrClientSlug = n => String(n).toLowerCase();
+      const _writeUiPrincipalKey = () => 'me';
+      const _writeUiQueueDiagnostic = () => {}, showNotify = () => {};
+      const _sxrPendingEdits = {};
+      const _SXR_ROLLBACK_FIELDS = ['video_status', 'graphic_status', 'status'];
+      const _sxrFlushCardSave = pid => env.flushed.push(pid);
+      const document = { getElementById: () => null, activeElement: null };
+      const _svPreserveFocus = render => render();
+      const _sxrRenderBody = () => { env.renders++; env.body = sxrState.posts.map(p => p.creative_direction).join('|'); };
+      ${lift('_sxrRestoreParkedEdits')}
+      return _sxrRestoreParkedEdits('alpha');
+    `)(env, post);
+    ok(restored === 1 && env.flushed.join() === 's1', 'Samples: a parked edit is handed back to the save engine');
+    ok(post.creative_direction === 'Typed before the switch', 'Samples: and its text is put on the shown sample');
+    ok(env.renders === 1 && env.body === 'Typed before the switch', 'Samples: and painted, so the box shows it (renders ' + env.renders + ', body "' + env.body + '")');
+    ok(post.video_status === 'In Progress' && !('_sxrPriorStatus' in post), 'Samples: a parked status and the engine\'s own keys are left for the save itself');
+  } catch (e) { ok(false, 'this block could not run: ' + String(e && e.message || e).slice(0, 120)); }
+
   // --- 6. Samples: unsaved text from a failed save is kept for half an hour, not for ever
   try {
     const merged = ageMs => new Function('ageMs', `

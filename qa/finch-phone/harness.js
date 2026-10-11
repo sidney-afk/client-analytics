@@ -90,7 +90,8 @@ async function open(opts) {
       state.writes.push({ name, method: req.method(), body });
       return json(route, { ok: false, error: 'offline_harness' }, 403);
     }
-    if (!isRest && src !== undefined && !(body && body.action === 'list')) state.writes.push({ name, body });
+    const fixtureRead=body&&(body.action==='list'||name==='workload-plan'&&body.action==='native_snapshot_v2'||name==='production-write'&&['description_read','asset_access_read','labels_read'].includes(body.action)||name==='production-comments'&&body.deliverable_id&&Object.keys(body).every(key=>['deliverable_id','limit','before','include_feedback','source_surface','card_id','component'].includes(key)));
+    if (!isRest && src !== undefined && !fixtureRead) state.writes.push({ name, body });
     if (src === undefined) {
       if (!isRest && req.method() !== 'GET') { state.writes.push({ name, body }); return json(route, { ok: false, error: 'offline_harness' }, 403); }
       return json(route, isRest ? [] : { ok: true });

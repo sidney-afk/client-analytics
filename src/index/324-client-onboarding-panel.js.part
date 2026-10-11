@@ -1,4 +1,4 @@
-import { CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_URL, _svSelectHtml, _svSelectClose, _syncviewStaffCan, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature } from './100-onboarding-staff-controls.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showToast } from './040-shared-briefs.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
@@ -73,6 +73,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
         Object.assign(_cnState, _cnFresh());
         const create = document.getElementById('caCreate');
+        if (document.getElementById('cnManagerWrap')) _svSelectClose('cnManager');
         if (create) create.innerHTML = '';
     }
 
@@ -537,6 +538,13 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     const _cnFresh = () => ({ open: false, managers: null, managersError: '', name: '', manager: '', email: '', preview: null, previewKey: '', checking: false, busy: false, error: '', requestId: '', seq: 0 });
     const _cnState = _cnFresh();
     let _cnTimer = 0;
+    const _cnPhoneMedia = window.matchMedia('(max-width: 767px)');
+    _cnPhoneMedia.addEventListener('change', () => {
+        if (_cnState.open) { _cnPaintManagers(); _cnPaintPreview(); }
+    });
+    document.addEventListener('keydown', event => {
+        if (_cnPhoneMedia.matches && _cnState.open && event.key === 'Escape' && !event.defaultPrevented && !event.target.closest?.('.cn-dialog')) _cnKeydown(event);
+    });
     const _cnKey = () => [_cnState.name.trim().replace(/\s+/g, ' '), _cnState.manager, _cnState.email.trim()].join('\u0001');
     function _cnNewRequestId() {
         try { if (crypto && crypto.randomUUID) return 'create-' + crypto.randomUUID(); } catch (e) {}
@@ -561,6 +569,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         if (_cnState.busy) return;
         if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
         Object.assign(_cnState, _cnFresh());
+        if (document.getElementById('cnManagerWrap')) _svSelectClose('cnManager');
         const el = document.getElementById('caCreate');
         if (el) el.innerHTML = '';
         if (keepFocus !== true) document.getElementById('caNewBtn')?.focus({ preventScroll: true });
@@ -568,6 +577,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     function _cnRender() {
         const el = document.getElementById('caCreate');
         if (!el) return;
+        if (document.getElementById('cnManagerWrap')) _svSelectClose('cnManager');
         if (!_cnState.open) { el.innerHTML = ''; return; }
         el.innerHTML = `<div class="cn-scrim" onclick="_cnClose()"></div>
             <div class="cn-dialog" role="dialog" aria-modal="true" aria-labelledby="cnTitle" onkeydown="_cnKeydown(event)">
@@ -598,14 +608,39 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         _cnPaintPreview();
     }
     function _cnPaintManagers() {
-        const sel = document.getElementById('cnManager');
+        let sel = document.getElementById('cnManager');
         if (!sel) return;
+        const wrap = document.getElementById('cnManagerWrap');
+        const restoreFocus = (wrap || sel).contains(document.activeElement);
+        if (_cnPhoneMedia.matches) {
+            const managers = _cnState.managers;
+            const placeholder = _cnState.managersError ? 'Managers unavailable' : !managers ? 'Loading managers…' : !managers.length ? 'No managers available' : 'Pick a manager';
+            const items = (managers || []).map(m => ({ value: m.slug, label: m.name + (m.slack_id === false ? ' (no Slack id yet)' : '') }));
+            if (wrap) _svSelectClose('cnManager');
+            (wrap || sel).outerHTML = _svSelectHtml('cnManager', items, _cnState.manager, placeholder, { disabled: _cnState.busy || !managers || !managers.length || !!_cnState.managersError, onchange: '_cnInput(this)' });
+            document.getElementById('cnManager').setAttribute('data-cn', 'manager');
+            const button = document.getElementById('cnManagerBtn');
+            button.setAttribute('aria-label', 'Social media manager');
+            if (restoreFocus && !button.disabled) button.focus({ preventScroll: true });
+            return;
+        }
+        if (wrap) {
+            _svSelectClose('cnManager');
+            wrap.outerHTML = '<select class="ca-input" id="cnManager" data-cn="manager" onchange="_cnInput(this)"><option value="">Loading managers…</option></select>';
+            sel = document.getElementById('cnManager');
+        }
         if (_cnState.managersError) { sel.innerHTML = `<option value="">${_calEsc(_cnState.managersError)}</option>`; sel.disabled = true; return; }
         if (!_cnState.managers) return;
-        sel.disabled = false;
+        sel.disabled = wrap ? _cnState.busy : false;
         sel.innerHTML = '<option value="">Pick a manager</option>' + _cnState.managers.map(m => `<option value="${_calEscAttr(m.slug)}"${m.slug === _cnState.manager ? ' selected' : ''}>${_calEsc(m.name)}${m.slack_id === false ? ' (no Slack id yet)' : ''}</option>`).join('');
+        if (restoreFocus && !sel.disabled) sel.focus({ preventScroll: true });
     }
     function _cnKeydown(e) {
+        if (e.key === 'Escape' && document.getElementById('cnManagerWrap')?.classList.contains('open')) {
+            e.preventDefault(); e.stopPropagation(); _svSelectClose('cnManager', true); return;
+        }
+        // The shared picker consumes Escape before it bubbles to the dialog.
+        if (e.defaultPrevented) return;
         if (e.key === 'Escape') { e.preventDefault(); _cnClose(); return; }
         if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') { e.preventDefault(); _cnCreate(); }
     }
@@ -653,6 +688,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         if (btn) { btn.disabled = !ready || _cnState.busy; btn.textContent = _cnState.busy ? 'Creating…' : 'Create client'; }
         if (!box) return;
         if (_cnState.error) { box.innerHTML = `<div class="ca-msg is-error" role="alert">${_calEsc(_cnState.error)}</div>`; return; }
+        if (_cnPhoneMedia.matches && Array.isArray(_cnState.managers) && !_cnState.managers.length) { box.innerHTML = '<div class="cn-hint">No managers are available yet. A manager must be added before you can create a client.</div>'; return; }
         if (!_cnState.name.trim() || !_cnState.manager) { box.innerHTML = `<div class="cn-hint">Type a name and pick a manager. SyncView checks it before anything is made.</div>`; return; }
         if (!fresh || _cnState.checking) { box.innerHTML = `<div class="cn-hint">Checking…</div>`; return; }
         if (!p.ready) {
@@ -706,6 +742,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         if (_cnState.busy || !p || !p.ready || _cnState.previewKey !== _cnKey() || _cnState.checking) return;
         _cnState.busy = true; _cnState.error = ''; _cnPaintPreview();
         for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = true; }
+        if (document.getElementById('cnManagerWrap')) _cnPaintManagers();
         let out;
         try { out = await _cbPost(CB_URL, { action: 'create', request_id: _cnState.requestId, display_name: _cnState.name, manager_slug: _cnState.manager, email: _cnState.email }, true); }
         catch (e) { out = { resp: { status: 0 }, json: { error: 'network_error' } }; }
@@ -723,6 +760,7 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
             return;
         }
         for (const id of ['cnName', 'cnManager', 'cnEmail']) { const el = document.getElementById(id); if (el) el.disabled = false; }
+        if (document.getElementById('cnManagerWrap')) _cnPaintManagers();
         const code = j.error || ('HTTP ' + out.resp.status);
         _cnState.error = (CN_BLOCKERS[code] || (out.resp.status === 401 || out.resp.status === 403 ? 'Creating a client needs an Admin sign-in.' : 'Could not create the client (' + code + ').')) + ' Nothing was made.';
         // A refusal from the database means the live roster moved: check again.

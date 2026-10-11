@@ -1,0 +1,13 @@
+@media (max-width:767px) {
+ html.fph-on[data-fph="production"] .prod-asset-value a[href] { display:inline-flex; align-items:center; min-height:44px; min-width:44px; font-size:14px; color:var(--text-primary); text-decoration:underline; text-underline-offset:3px; }
+ html.fph-on[data-fph="production"] .prod-asset-label { font-size:13px; }
+ html.fph-on[data-fph="production"] .prod-asset-state { font-size:13px; color:var(--text-primary); }
+ html.fph-on[data-fph="production"] .prod-assets-title { font-size:13px; }
+ html.fph-on[data-fph="production"] .prod-feedback-status { font-size:13px; color:var(--text-secondary); }
+ html.fph-on[data-fph="production"] body:has(.prod-pop) .prod-tip { display:none; }
+ html.fph-on[data-fph="production"] .prod-assets-input {min-height:44px;}
+ html.fph-on[data-fph="home"] .pin-selector-item {min-height:44px; font-size:14px;}
+ html.fph-on[data-fph="home"] .search-suggestion {min-height:44px; font-size:14px;}
+ html.fph-on[data-fph="home"] .pin-selector-title {font-size:13px; color:var(--text-secondary);}
+ html.fph-on[data-fph="home"] .pin-selector-count {font-size:13px; color:var(--text-secondary);}
+}

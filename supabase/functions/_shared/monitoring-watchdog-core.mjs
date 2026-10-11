@@ -659,6 +659,16 @@ export async function runCheck(io) {
     }
   }
 
+  // Outcome censuses: checks that are not heartbeats (see the end of this file).
+  // A census can never fail, skip or delay the dead-man's switch: whatever goes
+  // wrong inside it is reported in the result, never thrown.
+  let thumbnailTitles;
+  try {
+    thumbnailTitles = await runThumbnailTitlesCensus(io);
+  } catch (_error) {
+    thumbnailTitles = { check: 'thumbnail_titles', error: 'census_failed' };
+  }
+
   // The watchdog's own liveness proof, written last so it reflects a completed
   // pass rather than merely a started one.
   const heartbeat = await writeHeartbeat(io, 'monitoring_watchdog');
@@ -687,6 +697,237 @@ export async function runCheck(io) {
     delivery_confirmed: receipt ? receipt.delivery_confirmed : null,
     delivery_reason: receipt ? receipt.delivery_reason : null,
     relay_execution_id: receipt ? receipt.relay_execution_id : null,
+    census: { thumbnail_titles: thumbnailTitles },
     heartbeat_at: heartbeat.at,
   };
+}
+
+/*
+ * OUTCOME CENSUS: THUMBNAIL TITLES (OPEN_REPAIRS 403).
+ *
+ * The per-minute pg_cron job `thumbnail-titles-tick`
+ * (migrations/2026-10-09-thumbnail-titles.sql) calls the thumbnail-titles
+ * function through net.http_post, which only QUEUES the request, so
+ * cron.job_run_details records "succeeded" whatever the function answers. A
+ * 401, a 500 at enqueue or claim, a boot error or a missing AI key would leave
+ * every new thumbnail without its brief, and nothing would say so: no lane, no
+ * script and no workflow read the queue, and pg_net keeps responses about six
+ * hours. Thumbnail titles are a Tier 1 surface ("may break, never silently").
+ *
+ * Why not a heartbeat lane: the tick only calls the function while
+ * thumbnail_titles_tick_needed() is true (4 calls in about 6 hours on
+ * 2026-10-10), so a fixed max age would page every quiet night. This asks
+ * about OUTCOMES instead, and only while the `thumbnail_titles` switch lists a
+ * client. Counts only: never a client, a title or an id leaves this check.
+ *
+ *   thumbnail_titles_stuck    thumbnails that have waited more than 30 minutes:
+ *                             queue rows still pending or running, plus new
+ *                             empty thumbnails the enqueue step should have
+ *                             queued and did not (a function that answers 401
+ *                             or fails at enqueue never queues anything, so the
+ *                             queue alone would look empty and healthy).
+ *                             Pages once and latches, like a stale lane; resets
+ *                             quietly when the count is back to zero.
+ *   thumbnail_titles_gave_up  items that gave up (state failed, or needs_info
+ *                             with outcome generation_failed), counted per UTC
+ *                             day of their last change. Each day speaks once:
+ *                             the latch row carries the day.
+ *
+ * The census latches under its own action, so a flapping census can never push
+ * a lane's latch row out of readState's window.
+ */
+export const CENSUS_LATCH_ACTION = 'monitoring_watchdog_census_latch';
+export const THUMBNAIL_TITLES_FLAG = 'thumbnail_titles';
+export const THUMBNAIL_TITLES_STUCK_CHECK = 'thumbnail_titles_stuck';
+export const THUMBNAIL_TITLES_GAVE_UP_CHECK = 'thumbnail_titles_gave_up';
+export const THUMBNAIL_TITLES_STUCK_MINUTES = 30;
+// The enqueue step only looks two days back (thumbnail_titles_enqueue_new).
+export const THUMBNAIL_TITLES_LOOKBACK_MINUTES = 2 * 24 * 60;
+const DAY_MS = 24 * 60 * 60000;
+const ID_CHUNK = 50;
+
+function utcDay(ms) {
+  return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : '';
+}
+
+/** The `thumbnail_titles` switch, read the way the database reads it. */
+export function thumbnailTitlesSwitch(flagRows) {
+  const row = (Array.isArray(flagRows) ? flagRows : []).find(item => item && clean(item.key) === THUMBNAIL_TITLES_FLAG) || null;
+  let value = row ? row.value : null;
+  if (typeof value === 'string') { try { value = JSON.parse(value); } catch (_) { value = null; } }
+  const clients = value && Array.isArray(value.clients) ? value.clients.map(clean).filter(Boolean) : [];
+  // thumbnail_titles_since(): value.since when set, else when the row last changed.
+  const since = Date.parse(clean(value && value.since ? value.since : row && row.updated_at));
+  return {
+    active: clients.length > 0,
+    everyone: clients.includes('*'),
+    clients: new Set(clients),
+    sinceMs: Number.isFinite(since) ? since : Infinity,
+  };
+}
+
+/**
+ * Pure decision. Rows are what the reads return; `latchRows` are census latch
+ * rows, newest first. Returns the counts and the actions to take.
+ */
+export function thumbnailTitlesCensus({ flagRows, stuckRows, waitingRows, queuedIds, giveUpRows, latchRows, nowMs }) {
+  const sw = thumbnailTitlesSwitch(flagRows);
+  if (!sw.active) return { active: false, stuck_in_queue: 0, never_queued: 0, gave_up: {}, actions: [] };
+  const on = slug => sw.everyone || sw.clients.has(clean(slug));
+  const stuckBefore = nowMs - THUMBNAIL_TITLES_STUCK_MINUTES * 60000;
+  const lookbackStart = nowMs - THUMBNAIL_TITLES_LOOKBACK_MINUTES * 60000;
+  const createdMs = row => Date.parse(clean(row && row.created_at));
+
+  // Pending rows of a client that is switched off wait on purpose: the claim skips them.
+  const inQueue = (Array.isArray(stuckRows) ? stuckRows : []).filter(row => ['pending', 'running'].includes(clean(row && row.state))
+    && on(row.client_slug) && createdMs(row) < stuckBefore).length;
+  const queued = new Set((Array.isArray(queuedIds) ? queuedIds : []).map(clean));
+  const neverQueued = (Array.isArray(waitingRows) ? waitingRows : []).filter(row => {
+    const created = createdMs(row);
+    return on(row.client_slug) && created < stuckBefore && created > lookbackStart && created >= sw.sinceMs
+      && !queued.has(clean(row.id));
+  }).length;
+
+  const today = utcDay(nowMs);
+  const yesterday = utcDay(nowMs - DAY_MS);
+  const gaveUp = {};
+  for (const row of Array.isArray(giveUpRows) ? giveUpRows : []) {
+    const state = clean(row && row.state);
+    if (!(state === 'failed' || (state === 'needs_info' && clean(row.outcome) === 'generation_failed'))) continue;
+    const day = utcDay(Date.parse(clean(row.updated_at)));
+    if (day === today || day === yesterday) gaveUp[day] = (gaveUp[day] || 0) + 1;
+  }
+
+  const latches = (Array.isArray(latchRows) ? latchRows : []).map(payloadOf);
+  const stuckLatch = latches.find(payload => clean(payload.check) === THUMBNAIL_TITLES_STUCK_CHECK) || null;
+  const stuckLatched = Boolean(stuckLatch) && clean(stuckLatch.incident_state) === 'latched';
+  const spokenDays = new Set(latches
+    .filter(payload => clean(payload.check) === THUMBNAIL_TITLES_GAVE_UP_CHECK && clean(payload.incident_state) === 'latched')
+    .map(payload => clean(payload.day)));
+
+  const actions = [];
+  const waiting = inQueue + neverQueued;
+  if (waiting > 0 && !stuckLatched) {
+    actions.push({ kind: 'page', check: THUMBNAIL_TITLES_STUCK_CHECK, count: waiting, in_queue: inQueue, never_queued: neverQueued });
+  } else if (waiting === 0 && stuckLatched) {
+    actions.push({ kind: 'reset', check: THUMBNAIL_TITLES_STUCK_CHECK });
+  }
+  const newDays = Object.keys(gaveUp).filter(day => !spokenDays.has(day)).sort();
+  if (newDays.length) {
+    actions.push({ kind: 'page', check: THUMBNAIL_TITLES_GAVE_UP_CHECK, days: newDays.map(day => ({ day, count: gaveUp[day] })) });
+  }
+  return { active: true, stuck_in_queue: inQueue, never_queued: neverQueued, gave_up: gaveUp, actions };
+}
+
+/** The page for one census action. Counts and dates only. */
+export function thumbnailTitlesPageSpec(action, runHandle = 'local:1') {
+  if (action.check === THUMBNAIL_TITLES_STUCK_CHECK) {
+    return {
+      type: THUMBNAIL_TITLES_STUCK_CHECK,
+      summaryParts: [`items${action.count}`, 'waiting_over_30m_for_a_title', `queue${action.in_queue}`, `never_queued${action.never_queued}`],
+      team: 'monitoring',
+      count: action.count,
+      runId: `${runHandle}:census`,
+      details: { check: action.check, in_queue: action.in_queue, never_queued: action.never_queued },
+      text: `SyncView thumbnail titles: ${action.count} thumbnail(s) have waited more than 30 minutes for a title `
+        + `(${action.in_queue} in the queue, ${action.never_queued} never queued). The thumbnail-titles timer or function may be failing.`,
+    };
+  }
+  const total = action.days.reduce((sum, item) => sum + item.count, 0);
+  const perDay = action.days.map(item => `${item.day}: ${item.count}`).join(', ');
+  return {
+    type: THUMBNAIL_TITLES_GAVE_UP_CHECK,
+    summaryParts: [`items${total}`, 'gave_up', ...action.days.map(item => `${item.day.replace(/-/g, '')}x${item.count}`)],
+    team: 'monitoring',
+    count: total,
+    runId: `${runHandle}:census`,
+    details: { check: action.check, days: action.days },
+    text: `SyncView thumbnail titles: ${total} item(s) gave up (${perDay}): no title could be generated after three tries.`,
+  };
+}
+
+/** One census pass through the host's io. Never throws: errors come back as a code. */
+export async function runThumbnailTitlesCensus(io) {
+  let stage = 'read';
+  try {
+    const nowMs = io.nowMs();
+    const flagRows = await io.restRows(`syncview_runtime_flags?select=key,value,updated_at&key=eq.${THUMBNAIL_TITLES_FLAG}`);
+    const sw = thumbnailTitlesSwitch(flagRows);
+    if (!sw.active) return { check: 'thumbnail_titles', active: false };
+
+    const iso = ms => encodeURIComponent(new Date(ms).toISOString());
+    const stuckBefore = nowMs - THUMBNAIL_TITLES_STUCK_MINUTES * 60000;
+    const windowStart = Math.max(nowMs - THUMBNAIL_TITLES_LOOKBACK_MINUTES * 60000, Number.isFinite(sw.sinceMs) ? sw.sinceMs - 1 : -Infinity);
+    const d = new Date(nowMs);
+    const startOfYesterday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - DAY_MS;
+    const latchPath = (check, limit) => `deliverable_events?select=id,payload&action=eq.${CENSUS_LATCH_ACTION}`
+      + `&payload->>check=eq.${check}&order=id.desc&limit=${limit}`;
+    const [stuckRows, waitingRows, giveUpRows, stuckLatches, gaveUpLatches] = await Promise.all([
+      io.restRows(`thumbnail_title_queue?select=client_slug,state,created_at&state=in.(pending,running)`
+        + `&created_at=lt.${iso(stuckBefore)}&order=created_at.asc&limit=500`),
+      // The enqueue step's own predicate (thumbnail_titles_enqueue_new), older than 30 minutes.
+      Number.isFinite(windowStart) && windowStart < stuckBefore
+        ? io.restRows(`deliverables?select=id,client_slug,created_at&kind=eq.thumbnail&team=eq.graphics&origin=eq.calendar`
+          + `&card_id=not.is.null&status=not.in.(canceled,duplicate)&or=${encodeURIComponent('(brief.is.null,brief.match.^ *$)')}`
+          + `&created_at=gt.${iso(windowStart)}&created_at=lt.${iso(stuckBefore)}&order=created_at.asc&limit=500`)
+        : Promise.resolve([]),
+      io.restRows(`thumbnail_title_queue?select=state,outcome,updated_at`
+        + `&or=${encodeURIComponent('(state.eq.failed,and(state.eq.needs_info,outcome.eq.generation_failed))')}`
+        + `&updated_at=gte.${iso(startOfYesterday)}&limit=1000`),
+      io.restRows(latchPath(THUMBNAIL_TITLES_STUCK_CHECK, 1)),
+      io.restRows(latchPath(THUMBNAIL_TITLES_GAVE_UP_CHECK, 4)),
+    ]);
+    const waitingIds = (Array.isArray(waitingRows) ? waitingRows : []).map(row => clean(row && row.id)).filter(Boolean);
+    const queuedIds = [];
+    for (let i = 0; i < waitingIds.length; i += ID_CHUNK) {
+      const list = waitingIds.slice(i, i + ID_CHUNK).map(id => `"${id.replace(/"/g, '')}"`).join(',');
+      const rows = await io.restRows(`thumbnail_title_queue?select=deliverable_id&deliverable_id=in.${encodeURIComponent(`(${list})`)}`);
+      for (const row of Array.isArray(rows) ? rows : []) queuedIds.push(clean(row && row.deliverable_id));
+    }
+
+    const census = thumbnailTitlesCensus({
+      flagRows, stuckRows, waitingRows, queuedIds, giveUpRows,
+      latchRows: [...(stuckLatches || []), ...(gaveUpLatches || [])], nowMs,
+    });
+    const paged = [];
+    let reset = false;
+    if (!io.dryRun) {
+      for (const action of census.actions) {
+        if (action.kind === 'page') {
+          stage = 'page';
+          await io.sendAlert(thumbnailTitlesPageSpec(action, io.runHandle));
+          stage = 'latch';
+          if (action.check === THUMBNAIL_TITLES_STUCK_CHECK) {
+            await io.insertEvent(CENSUS_LATCH_ACTION, {
+              check: action.check, incident_state: 'latched', count: action.count,
+              in_queue: action.in_queue, never_queued: action.never_queued, run_id: io.runHandle,
+            });
+          } else {
+            for (const item of action.days) {
+              await io.insertEvent(CENSUS_LATCH_ACTION, {
+                check: action.check, incident_state: 'latched', day: item.day, count: item.count, run_id: io.runHandle,
+              });
+            }
+          }
+          paged.push(action.check);
+        } else if (action.kind === 'reset') {
+          stage = 'latch';
+          await io.insertEvent(CENSUS_LATCH_ACTION, { check: action.check, incident_state: 'reset', run_id: io.runHandle });
+          reset = true;
+        }
+      }
+    }
+    return {
+      check: 'thumbnail_titles',
+      active: true,
+      stuck_in_queue: census.stuck_in_queue,
+      never_queued: census.never_queued,
+      gave_up: census.gave_up,
+      would_page: census.actions.filter(action => action.kind === 'page').map(action => action.check),
+      paged,
+      reset,
+    };
+  } catch (_error) {
+    return { check: 'thumbnail_titles', error: `${stage}_failed` };
+  }
 }

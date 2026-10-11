@@ -1515,9 +1515,20 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
     }
-    async function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment, afterPersist) {
+    async function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment, afterPersist, draftBody) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
-        const key = pid + '|' + comp; if (_sxrKasperState.saving[key]) return;
+        const key = pid + '|' + comp;
+        /* HIS WORDS COME BACK (OPEN_REPAIRS 401). Comment, Request change and Approve after
+           tweaks empty his box before they call this, so every path below that ends without a
+           saved write puts the text back before the card repaints, as the Calendar twin does.
+           Only into an empty box: words he typed while the save ran are newer and stay. */
+        const restoreDraft = () => {
+            const words = draftBody || linearComment;
+            if (!words || String(_sxrKasperState.drafts[key] || '').trim()) return false;
+            _sxrKasperState.drafts[key] = words;
+            return true;
+        };
+        if (_sxrKasperState.saving[key]) { restoreDraft(); return; }
         _sxrKasperState.writeGen++;
         const p = it.post;
         const cachedRepair = p._writeUiKasperRepair
@@ -1530,6 +1541,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                the Codex finding on the guard above (PR 1278); same fix. */
             showNotify('Reload before another action', 'A prior source repair needs receipt verification; reload before another action.');
             _writeUiQueueDiagnostic('sxr', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
+            restoreDraft();
             _sxrKasperRepaint(pid);
             return;
         }
@@ -1551,6 +1563,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 Object.assign(p, before);
                 _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: your ' + String(COMP_LABELS[comp] || comp).toLowerCase() + ' decision could not be checked against the current card (the read failed). Nothing was changed. Reload the card and decide again.');
                 _sxrKasperState.saving[key] = false;
+                restoreDraft();
                 _sxrKasperRepaint(pid);
                 _kasperPaintReview();
                 return;
@@ -1562,6 +1575,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                     'Not saved: someone else changed this card after your screen loaded, so your decision was not applied (the '
                     + String(COMP_LABELS[comp] || comp).toLowerCase() + ' is now at ' + String(fresh[statusKey] || 'a new state') + '). The card now shows the current version.');
                 _sxrKasperState.saving[key] = false;
+                restoreDraft();
                 _sxrKasperRepaint(pid);
                 _kasperPaintReview();
                 return;
@@ -1684,15 +1698,18 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             if (afterPersist && afterPersist(p, it)) return;
             _sxrKasperRepaint(pid);
         } catch (e) {
+            let wordsBack = false;
             if (!gatewayCommitted) {
                 Object.assign(p, before);
-                if (linearComment) _sxrKasperState.drafts[key] = linearComment;
+                wordsBack = restoreDraft();
             } else {
                 try { checkpointRepair(); } catch (checkpointError) {}
             }
             _sxrKasperState.saving[key] = false;
             _sxrKasperRepaint(pid);
-            _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: your ' + String(COMP_LABELS[comp] || comp).toLowerCase() + ' decision did not go through. ' + String((e && e.message) || '').trim() + ' Reload the card and decide again.');
+            const isDecision = !!(patch && patch[statusKey] !== undefined);   // a plain Comment is a note, not a decision
+            _kasperSetSaveAlert(p.id, p.name, it.client, 'failed', 'Not saved: your ' + String(COMP_LABELS[comp] || comp).toLowerCase() + (isDecision ? ' decision' : ' note') + ' did not go through. ' + String((e && e.message) || '').trim()
+                + (isDecision ? ' Reload the card and decide again.' : wordsBack ? ' Your words are back in the box; send it again.' : ' Send it again.'));
             _kasperPaintReview();
             if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
             else {
@@ -1792,7 +1809,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: false, audience: 'internal', body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
             _sxrSetCommentsFor(p, comp, list);
             return { [comp + '_tweaks']: _sxrStringifyComments(list) };
-        });
+        }, null, null, body);
     }
     // "Finish reviewing" — explicit hand-off. Guard: every component decided.
     // Clean approve-all → Approved history; any change request → stamped finished
@@ -1907,7 +1924,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 { [comp + '_status']: 'Tweaks Needed', status: p.status, [comp + '_tweaks']: _sxrStringifyComments(list) },
                 hadAat ? { kasper_approved_after_tweaks: p.kasper_approved_after_tweaks } : {},
                 stale);
-        }, body);
+        }, body, null, body);
     }
     function _sxrKasperApproveAfterTweaksComp(pid, comp) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
@@ -1928,7 +1945,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             p.kasper_approved_after_tweaks = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
             p.status = computeSampleOverallStatus(p);
             return { [comp + '_status']: 'Tweaks Needed', status: p.status, kasper_approved_after_tweaks: p.kasper_approved_after_tweaks, [comp + '_tweaks']: _sxrStringifyComments(list) };
-        }, body);
+        }, body, null, body);
     }
 
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY

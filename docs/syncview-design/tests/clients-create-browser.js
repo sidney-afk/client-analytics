@@ -1,7 +1,7 @@
 'use strict';
 /* clients-create-browser.js -- Kasper › More › Clients, "New client" (step 2.5 of
  * docs/plans/2026-10-01-onboarding-checklist-and-profile.md; fragments 323 and 324), in a real
- * browser, fully offline. The roster holds the test client (slug sidneylaruel) and one fixture; the
+ * browser, fully offline. The roster and every mutation are intercepted fictional fixtures; the
  * new client is a "ZZ THROWAWAY" test client.
  *
  * Proves:
@@ -28,7 +28,7 @@ try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = requ
 const { seedStaffIdentity, refuseStubKeyProductionWrite } = require('../../../qa/staff-gate-seed');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const SHOTS = path.join(root, 'docs', 'syncview-design', 'screenshots', 'clients-create');
+const SHOTS = path.resolve(process.argv.find(a=>a.startsWith('--out='))?.slice(6) || path.join(root, 'docs', 'syncview-design', 'screenshots', 'clients-create'));
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 function serve() {
   const server = http.createServer((req, res) => {
@@ -60,9 +60,10 @@ const WILL = ['Roster row (the client appears across SyncView)', 'Review link fo
 async function open(browser, origin, role, viewport, opts) {
   opts = opts || {};
   const failures = [];
-  const ctx = await browser.newContext({ viewport, isMobile: viewport.width < 768, hasTouch: viewport.width < 768, deviceScaleFactor: viewport.width < 768 ? 2 : 1 });
+  const ctx = await browser.newContext({ viewport, isMobile: viewport.width < 768, hasTouch: viewport.width < 768, deviceScaleFactor: 1 });
+  await ctx.addInitScript(theme=>localStorage.setItem('syncview_theme',theme),opts.theme || 'light');
   const ob = [];
-  const rows = [mk('sidneylaruel', 'QA Test Client', { email: 'qa@example.invalid', instagram_handle: '@qa.test' })];
+  const rows = [mk('phone-fixture', 'QA Test Client', { email: 'qa@example.invalid', instagram_handle: '@qa.test' })];
   const ctl = { notInstalled: !!opts.notInstalled };
   await ctx.route(u => !u.toString().startsWith(origin), async route => {
     const r = route.request(); const u = new URL(r.url());
@@ -72,7 +73,7 @@ async function open(browser, origin, role, viewport, opts) {
     if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role, member: { id: 'qa_' + role, name: 'QA ' + role, role, team: null } });
     if (u.pathname === '/functions/v1/client-profile-write') {
       const b = JSON.parse(r.postData() || '{}');
-      if (b.action === 'list_managers') return json({ ok: true, managers: MANAGERS, assignments: Object.fromEntries(rows.map(x => [x.slug, x.slug === 'sidneylaruel' ? 'managerone' : 'managertwo'])) });
+      if (b.action === 'list_managers') return json({ ok: true, managers: MANAGERS, assignments: Object.fromEntries(rows.map(x => [x.slug, x.slug === 'phone-fixture' ? 'managerone' : 'managertwo'])) });
       return json({ ok: true });
     }
     if (u.pathname === '/functions/v1/client-onboarding') {
@@ -129,8 +130,11 @@ async function openClients(s, label) {
 }
 async function fill(s, name) {
   await s.page.fill('#cnName', name);
-  await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1, null, { timeout: 15000 }).catch(() => s.failures.push('the manager list never loaded'));
-  await s.page.selectOption('#cnManager', 'managertwo');
+  await s.page.waitForFunction(() => document.querySelectorAll('#cnManager option').length > 1 || document.querySelector('#cnManagerBtn:not([disabled])'), null, { timeout: 15000 }).catch(() => s.failures.push('the manager list never loaded'));
+  if(await s.page.locator('#cnManagerBtn').count()) {
+    await s.page.locator('#cnManagerBtn').tap();
+    await s.page.locator('#cnManagerMenu [data-value="managertwo"]').tap();
+  } else await s.page.selectOption('#cnManager', 'managertwo');
   await s.page.waitForTimeout(700);
 }
 const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.png') });
@@ -148,7 +152,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       const s = await open(browser, origin, 'admin', { width: 1440, height: 900 });
       failures.push(...s.failures);
       await openClients(s, label);
-      await s.page.evaluate(() => _caSelect('sidneylaruel'));
+      await s.page.evaluate(() => _caSelect('phone-fixture'));
       await s.page.waitForTimeout(500);
       if (!(await s.page.$('#caNewBtn'))) failures.push(`${label}: no New client button`);
       if (s.ob.some(c => /^create/.test(c.body.action))) failures.push(`${label}: create calls before the button was pressed`);
@@ -220,7 +224,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       const s = await open(browser, origin, 'admin', { width: 1440, height: 900 });
       failures.push(...s.failures);
       await openClients(s, label);
-      await s.page.evaluate(() => _caSelect('sidneylaruel'));
+      await s.page.evaluate(() => _caSelect('phone-fixture'));
       await s.page.click('#caNewBtn');
       await s.page.waitForSelector('.cn-dialog');
       const note = await s.page.$eval('#cnEmailNote', e => e.innerText).catch(() => '');
@@ -269,7 +273,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       const s = await open(browser, origin, 'admin', { width: 1440, height: 900 });
       failures.push(...s.failures);
       await openClients(s, label);
-      await s.page.evaluate(() => _caSelect('sidneylaruel'));
+      await s.page.evaluate(() => _caSelect('phone-fixture'));
       await s.page.click('#caNewBtn');
       await s.page.waitForSelector('.cn-dialog');
       await fill(s, 'Qx Noemail');
@@ -292,7 +296,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       const label = 'admin, create not installed';
       const s = await open(browser, origin, 'admin', { width: 1440, height: 900 }, { notInstalled: true });
       await openClients(s, label);
-      await s.page.evaluate(() => _caSelect('sidneylaruel'));
+      await s.page.evaluate(() => _caSelect('phone-fixture'));
       await s.page.click('#caNewBtn');
       await s.page.waitForSelector('.cn-dialog');
       await fill(s, NEW_NAME);
@@ -322,12 +326,12 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
     }
 
     // ---- phones ----
-    for (const vp of [{ width: 390, height: 844 }, { width: 375, height: 667 }]) {
-      const label = `admin ${vp.width}x${vp.height}`;
-      const s = await open(browser, origin, 'admin', vp);
+    for (const vp of [{ width: 393, height: 852 }, { width: 412, height: 915 }, { width: 390, height: 844 }, { width: 375, height: 667 }]) for(const theme of ['light','dark']) {
+      const label = `admin ${vp.width}x${vp.height} ${theme}`;
+      const s = await open(browser, origin, 'admin', vp, {theme});
       failures.push(...s.failures);
       await openClients(s, label);
-      await s.page.evaluate(() => _caSelect('sidneylaruel'));
+      await s.page.evaluate(() => _caSelect('phone-fixture'));
       await s.page.waitForTimeout(400);
       const head = await s.page.evaluate(() => {
         const b = document.getElementById('caNewBtn').getBoundingClientRect();
@@ -337,14 +341,14 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       if (head.h < 44 || head.w < 44) failures.push(`${label}: New client is smaller than 44px (${head.w}x${head.h})`);
       if (!head.sameRow) failures.push(`${label}: New client is not on the All clients row`);
       if (head.sw > head.W) failures.push(`${label}: the page scrolls sideways (${head.sw} > ${head.W})`);
-      if (vp.width === 390) await shot(s, 'header-390');
+      await shot(s, 'header-' + theme + '-' + vp.width);
       await s.page.click('#caNewBtn');
       await s.page.waitForSelector('.cn-dialog');
       await fill(s, NEW_NAME);
       const m = await s.page.evaluate(() => {
         const W = document.documentElement.clientWidth, H = window.innerHeight;
         const d = document.querySelector('.cn-dialog').getBoundingClientRect();
-        const vis = [...document.querySelectorAll('.cn-dialog button, .cn-dialog input, .cn-dialog select')].filter(e => e.getClientRects().length);
+        const vis = [...document.querySelectorAll('.cn-dialog button, .cn-dialog input:not([type=hidden]), .cn-dialog select')].filter(e => e.checkVisibility({checkVisibilityCSS:true}));
         const small = vis.filter(e => e.getBoundingClientRect().height < 44).map(e => (e.innerText || e.id || e.tagName).trim().slice(0, 24));
         const fields = vis.filter(e => /INPUT|SELECT/.test(e.tagName));
         return { W, sw: document.documentElement.scrollWidth, small, minFont: Math.min(...fields.map(e => parseFloat(getComputedStyle(e).fontSize))), sheet: Math.abs(d.bottom - H) < 2 && d.left === 0 && Math.abs(d.right - W) < 1 };
@@ -354,7 +358,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       if (m.minFont < 16) failures.push(`${label}: a field has ${m.minFont}px text`);
       if (!m.sheet) failures.push(`${label}: the dialog is not a bottom sheet`);
       if (await s.page.$eval('#cnCreateBtn', b => b.disabled)) failures.push(`${label}: Create stays off after a clean check`);
-      if (vp.width === 390) await shot(s, 'dialog-ready-390');
+      await shot(s, 'dialog-ready-' + theme + '-' + vp.width);
       if (vp.width === 390) {
         await s.page.fill('#cnName', FORM.name);
         await s.page.fill('#cnEmail', FORM.email);
@@ -362,7 +366,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
         const sm = await s.page.evaluate(() => { const W = document.documentElement.clientWidth; return { sw: document.documentElement.scrollWidth, W, has: !!document.querySelector('.cn-slack') }; });
         if (!sm.has || sm.sw > sm.W) failures.push(`${label}: the Slack checklist is missing or scrolls sideways`);
         await s.page.evaluate(() => { const d = document.querySelector('.cn-dialog'); if (d) d.scrollTop = d.scrollHeight; });
-        await shot(s, 'slack-ready-390');
+        await shot(s, 'slack-ready-' + theme + '-' + vp.width);
       }
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
       await s.ctx.close();

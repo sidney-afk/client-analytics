@@ -10,6 +10,8 @@
  *     until text is pasted, and the caption is written from it. A card with a video also offers an optional
  *     Transcript pill whose text rides along with the video.
  *   PHONE (390 x 844, touch): the same, with the transcript box as a bottom sheet.
+ *   QUEUED CARD TYPED INTO: bulk Generate on three cards runs two at a time; a caption typed and saved on the third
+ *     while it waits in the queue is kept, and caption-generate is never called for that card.
  *
  * Set CAPTION_SHOT_DIR to save before/after screenshots there. The client shown defaults to a fixture; a proof run
  * can name another with CAPTION_SHOT_SLUG and CAPTION_SHOT_NAME (nothing is sent anywhere either way).
@@ -38,8 +40,8 @@ const card = (id, name, assetUrl, order) => ({
 
 async function open(browser, origin, opts) {
   const state = {
-    flag: opts.flag, cards: [card('v1', 'Video card', FRAME, 1), card('v2', 'Video card with notes', FRAME, 2), card('n1', 'No video card', '', 3), card('d1', 'Drive link card', 'https://drive.google.com/file/d/fixture/view', 4)],
-    n8n: [], ef: [], jobs: new Map(),
+    flag: opts.flag, cards: opts.cards || [card('v1', 'Video card', FRAME, 1), card('v2', 'Video card with notes', FRAME, 2), card('n1', 'No video card', '', 3), card('d1', 'Drive link card', 'https://drive.google.com/file/d/fixture/view', 4)],
+    n8n: [], ef: [], jobs: new Map(), saves: [], efDoneMs: opts.efDoneMs || 1200,
   };
   const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, opts.device));
   const page = await ctx.newPage();
@@ -72,14 +74,22 @@ async function open(browser, origin, opts) {
         const caption = body.transcript ? 'Caption written from the pasted transcript' : 'Caption written by the function';
         Object.assign(state.jobs.get(body.jobId), { status: 'done', stage: 'done', caption, updated_at: now() });
         const row = state.cards.find(c => c.id === body.postId); if (row) row.caption = caption;
-      }, 1200);
+      }, state.efDoneMs);
       return json({ ok: true, accepted: true, jobId: body.jobId });
     }
     if (p === '/functions/v1/caption-jobs') {
       return json({ ok: true, jobs: Array.from(state.jobs.values()).filter(j => j.client === sp.get('client')) });
     }
-    if (/calendar-upsert/.test(p) && r.method() === 'POST') return json({ ok: true });
-    if (r.method() === 'POST') return json({ ok: true });
+    if (r.method() === 'POST') {
+      // Any card save (calendar-upsert or the write gateway): note the caption it carries.
+      let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (_) {}
+      const post = body && (body.post || (body.payload && body.payload.post));
+      if (post && post.id && Object.prototype.hasOwnProperty.call(post, 'caption')) {
+        state.saves.push({ path: p, id: post.id, caption: post.caption });
+        const row = state.cards.find(c => c.id === post.id); if (row) row.caption = post.caption;
+      }
+      return json({ ok: true });
+    }
     if (p === '/rest/v1/clients') return json([{ slug: SLUG, display_name: NAME, active: true, kind: 'video' }]);
     if (p === '/rest/v1/team_members') return json([{ id: 'm1', name: 'Browser Staff', role: 'admin', team: null, active: true }]);
     if (p === '/rest/v1/caption_prompts') return json([{ client_slug: SLUG, prompt: 'Fixture caption prompt' }]);
@@ -241,6 +251,46 @@ async function runDesktopOrPhone(browser, origin, label, device) {
   await t.ctx.close();
 }
 
+// A caption typed and saved on a card that is still waiting in the bulk queue must win: the queued job is
+// dropped before it is sent, so the function never writes over it.
+async function runQueuedTypedCaption(browser, origin) {
+  console.log('--- desktop: bulk Generate, a queued card gets a typed caption ---');
+  const t = await open(browser, origin, {
+    flag: { clients: [SLUG] }, device: { viewport: { width: 1440, height: 900 } }, efDoneMs: 6000,
+    cards: [card('b1', 'Bulk card one', FRAME, 1), card('b2', 'Bulk card two', FRAME, 2), card('b3', 'Bulk card three', FRAME, 3), card('n1', 'No video card', '', 4)],
+  });
+  await t.page.evaluate(() => { calState.selected = new Set(['b1', 'b2', 'b3']); _calBulkGenerateCaptions(); });
+  const end = Date.now() + 10000;
+  while (Date.now() < end && t.state.ef.length < 2) await sleep(100);
+  const queued = await t.page.evaluate(() => { const j = _calCaptionJobs.get('b3'); return j ? j.status + (j.posted ? ':posted' : '') : 'none'; });
+  expect(t.state.ef.length === 2 && queued === 'queued', `queued: two cards run at once, the third waits (${t.state.ef.length} sent, b3 ${queued})`);
+  const typed = 'Typed by hand while the others were generating.';
+  const ta = t.page.locator('.cal-card[data-pid="b3"] textarea[data-fld="caption"]');
+  await ta.click();
+  await ta.fill(typed);
+  await t.page.evaluate(() => document.activeElement && document.activeElement.blur());
+  const saveEnd = Date.now() + 10000;
+  while (Date.now() < saveEnd && !t.state.saves.some(s => s.id === 'b3' && s.caption === typed)) await sleep(100);
+  expect(t.state.saves.some(s => s.id === 'b3' && s.caption === typed), 'queued: the typed caption autosaves while the card waits');
+  // Let both running jobs finish and the queue move on.
+  const doneEnd = Date.now() + 20000;
+  while (Date.now() < doneEnd) {
+    const left = await t.page.evaluate(() => _calCapJobsActiveList().length);
+    if (!left) break;
+    await sleep(250);
+  }
+  await sleep(1500);
+  const sentB3 = t.state.ef.filter(e => e.body.postId === 'b3').length;
+  expect(sentB3 === 0, `queued: caption-generate is never called for the card that got a typed caption (${sentB3} call(s))`);
+  expect(t.state.ef.length === 2, `queued: only the two empty cards were sent (${t.state.ef.map(e => e.body.postId).join(',')})`);
+  expect(await captionOf(t.page, 'b3') === typed, 'queued: the typed caption is still in the box');
+  expect(!t.state.saves.some(s => s.id === 'b3' && s.caption && s.caption !== typed), 'queued: nothing else was saved over it');
+  const b1 = await captionOf(t.page, 'b1'), b2 = await captionOf(t.page, 'b2');
+  expect(b1 === 'Caption written by the function' && b2 === 'Caption written by the function', `queued: the two empty cards still got their captions (${b1} | ${b2})`);
+  expect(t.pageErrors.length === 0, `queued: no page errors (${t.pageErrors.join(' | ')})`);
+  await t.ctx.close();
+}
+
 (async () => {
   const server = await serveStatic();
   const origin = 'http://127.0.0.1:' + server.address().port;
@@ -251,6 +301,7 @@ async function runDesktopOrPhone(browser, origin, label, device) {
       viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
     });
+    await runQueuedTypedCaption(browser, origin);
   } finally {
     await browser.close();
     server.close();

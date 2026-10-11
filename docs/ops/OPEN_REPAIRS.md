@@ -32572,6 +32572,7 @@ exactly the one past-due post.
    `verify_jwt: false`. Then save the live JSON again and run
    `node scripts/calendar-upsert-live-delta.js --check <live-after.json> --expect-sha=7312f7fc5fbbd3cbcc805800f56a447bef6cd1ac009164b6d3d701f7b6dff843`;
    it must print `CHECK OK`. Rollback: redeploy the saved JSON unchanged, `verify_jwt: false`.
+   (Superseded by the deploy lane: see "Deploy lane for the delta" at the end of this entry.)
 4. Deploy `calendar-auto-posted` (deploy-single-function lane on the merged SHA, or by hand),
    `verify_jwt: false`.
 5. Apply `migrations/2026-10-10-calendar-auto-posted.sql`.
@@ -32583,6 +32584,49 @@ If it stopped itself, `value.halted.reason` says why; fix that, then write the s
 Rollback: switch back to `{"clients": []}` (next tick), then `select cron.unschedule('calendar-auto-posted-tick');`.
 Posts it already flipped stay Posted; a person who sets one back is never overruled.
 
+**Deploy lane for the delta (session Herald, follow-up after #2032 merged).** The one-line change no
+longer has to be copied by hand through MCP. `.github/workflows/calendar-upsert-live-delta.yml` is
+workflow_dispatch only, runs in the production environment with `SUPABASE_ACCESS_TOKEN`, and needs the
+typed confirmation `DEPLOY LIVE CALENDAR-UPSERT DELTA`. Its inputs default to the measured hashes
+(before `67511f67...e91185`, after `7312f7fc...dff843`). Steps: (1) `supabase functions download` into a
+temp folder outside the checkout, sha256 of every file, refuse unless live verify_jwt is false; (2)
+`--dir-apply` must produce the after-hash and refuses any file carrying `authorizeBrowserWrite`; (3)
+deploy only that folder with `--no-verify-jwt --use-api`; (4) download again: index.ts must be the
+after-hash, every other file byte-identical to step 1, verify_jwt still false; (5) if 3 or 4 fails,
+redeploy the step-1 original with `--no-verify-jwt`, prove it by re-downloading, fail the run; (6) a
+live source already at the after-hash is reported as already applied and nothing is deployed. The
+deploy manifest now lists this lane for `calendar-upsert` with the frozen note (the generator counts
+one workflow once even though it has a deploy and a rollback step). `test/calendar-upsert-live-delta-lane.js`
+pins the rules (no repo-source deploy path, `--no-verify-jwt` on every deploy, rollback present, the
+gates and defaults) and runs the script's directory modes on invented files. **Measured read-only on
+the real live source (v83 code)** (from a read-only `get_edge_function`, laid out the way a download writes
+it): snapshot two files, state `before`, apply gives `7312f7fc...dff843`, verify passes on the patched
+copy and fails on the unpatched one. The lane itself has not run: it needs the production token.
+**Not proven yet:** the exact folder layout `supabase functions download --use-api` writes; the lane
+refuses before any deploy unless the entrypoint is `supabase/functions/calendar-upsert/index.ts` with
+its imports present, so a different layout fails safe on the first run.
+
+**Lane review fixes (session Herald, PR #2040 review, 2026-10-11).** This note replaces step 3 above
+as the procedure; step 3 stays as written for the record. Changes: (a) the Supabase CLI is pinned to
+`2.109.0`, the version every other production lane uses (it has `download --use-api`,
+`deploy --use-api` and `--no-verify-jwt` with the same layout). (b) Only `supabase/functions/**` is
+hashed, compared or copied. The CLI writes its own state (`supabase/.temp/linked-project.json`,
+`supabase/.temp/cli-latest`) into the work folder and it can differ between the step-1 and step-4
+downloads, which would have failed a good deploy and set off a rollback; the lane test now runs two
+trees with different `.temp` files and they verify OK. (c) Rollback runs under `always()` when step 3
+succeeded, failed or was cancelled and step 4 did not succeed, so cancelling the run during the deploy
+or the check still puts the original back. (d) Rollback has no stop-on-first-error: if its own deploy
+fails it still re-downloads, checks EVERY file (index.ts included) against the step-1 snapshot with the
+new `--dir-match` mode, re-checks verify_jwt is false, and always prints `ROLLBACK DID NOT VERIFY` when
+any of that fails. (e) Wording: live reports version 84 only because a secret change bumped every
+function's number; the code is the v83 code (same ezbr), so the inputs say "v83 code, reported as
+version 84". **Layout confirmed by the review:** both CLI versions download to
+`supabase/functions/calendar-upsert/index.ts` and `supabase/functions/_shared/thumbnail-revisions.ts`,
+so the entrypoint's import resolves and the "Not proven yet: layout" line above is now settled.
+(f) Lighthouse, merge review: the rollback's `cd "$LIVE_DIR"` moved the whole step out of the checkout,
+so the `node scripts/...` check after it could not be found and a good rollback would still have
+printed `ROLLBACK DID NOT VERIFY`. The rollback deploy now runs in a subshell (`( cd "$LIVE_DIR" && ... )`),
+the step stays in the checkout, and a missing LIVE_DIR counts as a failed rollback; the lane test pins it.
 
 ## 404. [2026-10-10, BUILT, NOT MERGED] Wrong client and lost work: the credentials dialog, the Instagram cover, TikTok's retry key, Samples Notes, a restored SyncLinear comment; dates in the team's time zone (session Digger)
 

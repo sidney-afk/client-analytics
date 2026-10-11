@@ -341,8 +341,9 @@ function grabLine(source, re) {
   try { D.applyDelta(D.ANCHOR + '\n' + D.ANCHOR); } catch (_e) { refused = true; }
   ok('delta: refuses two anchors', refused);
   const script = read('scripts/calendar-upsert-live-delta.js');
-  ok('delta script: no supabase CLI deploy route, verify_jwt false stated', !/--no-verify-jwt/.test(script)
-    && script.includes('there is deliberately no `supabase functions deploy` route') && script.includes('verify_jwt: false'));
+  ok('delta script: no runnable deploy command of its own, the lane named as the deploy route, verify_jwt false stated',
+    !/supabase functions deploy calendar-upsert/.test(script) && script.includes('.github/workflows/calendar-upsert-live-delta.yml')
+    && script.includes('--no-verify-jwt') && script.includes('verify_jwt: false'));
   {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-delta-'));
     const crypto = require('node:crypto');

@@ -35,6 +35,10 @@ const WORKFLOWS = Object.freeze([
     file: '.github/workflows/deploy-single-function.yml',
   }),
   Object.freeze({
+    id: 'calendar-upsert-live-delta',
+    file: '.github/workflows/calendar-upsert-live-delta.yml',
+  }),
+  Object.freeze({
     id: 'deploy-pto',
     file: '.github/workflows/deploy-pto-edge-functions.yml',
   }),
@@ -72,6 +76,7 @@ const REVIEWED_MULTI_OWNER = Object.freeze({
 });
 
 const DELIBERATE_MANUAL = Object.freeze({
+  'calendar-upsert': 'FROZEN: the repo source is never deployed (it re-gates client links). The only lane downloads the LIVE function, adds the one auto-posted line, deploys that copy with --no-verify-jwt, verifies by hash and rolls back on failure (OPEN_REPAIRS 402).',
   'client-token-verify': 'Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release.',
   'linear-outbound': 'RETIRED (B2 Slice 8, 2026-09-24): deleted live after the three-function Section 4 release (run 36023623936) was green; no deploy path. Source kept frozen as a contract-test reference until Slice 10.',
   'linear-inbound': 'RETIRED 2026-09-24 (B2 Slice 7): deleted from production and its dispatch lane removed. The source stays only as the frozen reference its contract tests read, until B2 Slice 10. Do not redeploy it except as the rollback in ROLLBACK.md.',
@@ -256,7 +261,11 @@ function inspectDeployWorkflows(slugs) {
           }
         }
         if (!owners.has(slug)) owners.set(slug, []);
-        owners.get(slug).push({ workflow: workflow.id, deployPath });
+        // One workflow is one owner, however many of its steps deploy the slug
+        // (calendar-upsert-live-delta deploys once and, on failure, rolls back).
+        if (!owners.get(slug).some(row => row.workflow === workflow.id)) {
+          owners.get(slug).push({ workflow: workflow.id, deployPath });
+        }
       }
     }
 

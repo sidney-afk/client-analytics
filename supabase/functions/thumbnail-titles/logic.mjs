@@ -73,16 +73,17 @@ const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9À-ɏ ]+/g, "
 // Splits at sentence ends but never inside a quotation.
 export function splitSentences(text) {
   const out = [];
-  let cur = "", open = false, paren = 0;
+  let cur = "", curly = 0, straight = false, paren = 0;
   const t = String(text || "");
   for (let i = 0; i < t.length; i++) {
     const ch = t[i];
     cur += ch;
-    if (ch === "“") open = true;
-    else if (ch === "”") open = false;
-    else if (ch === '"') open = !open;
+    if (ch === "“") curly++;
+    else if (ch === "”" && curly > 0) curly--;
+    else if (ch === '"') straight = !straight;
     else if (ch === "(") paren++;
     else if (ch === ")" && paren > 0) paren--;
+    const open = curly > 0 || straight;
     if (!open && !paren && /[.!?]/.test(ch) && /\s/.test(t[i + 1] || " ")) {
       const next = t.slice(i + 1).trimStart()[0] || "";
       const abbr = /\b(?:vs|e\.g|i\.e|etc|approx|dr|mr|mrs|ms)\.$/i.test(cur.trim()) || /[\]_]\.$/.test(cur);
@@ -103,7 +104,8 @@ export function cleanSentence(raw) {
   s = s.replace(/(?:“[^”]*”|"[^"]*")/g, (m) => { quotes.push(m); return `\u0001${quotes.length - 1}\u0001`; });
   s = s.replace(/\s*\(([^()]*)\)/g, (m, inner) => (REF_PAREN.test(inner.replace(/\u0001\d+\u0001/g, "")) ? "" : m));
   for (const re of DATE_PIECES) s = s.replace(re, "");
-  s = s.replace(/^\s*from [a-z]+\.[a-z-]+:\s*/i, "").replace(/^\s*(?:historical )?(?:evidence|source)\b[^:]{0,40}:\s*/i, "");
+  s = s.replace(/^\s*from [“"]?[a-z]+\.[a-z-]+[”"]?:\s*/i, "").replace(/^\s*(?:historical )?(?:evidence|source)\b[^:]{0,40}:\s*/i, "");
+  s = s.replace(/^\s*from \u0001(\d+)\u0001:\s*/i, (m, i) => (/^[“"]?[a-z]+\.[a-z-]+[”"]?$/i.test(quotes[Number(i)]) ? "" : m));
   s = s.replace(/^\s*(?:addition|added|superseded in part|updated?)\b[^:]{0,60}:\s*/i, "")
     .replace(/\s+(?:on|in|since|from|by|between|and)\s*(?=[,;:.]|$)/gi, "")
     .replace(/\s+([,;:.!?])/g, "$1").replace(/([,;:])\s*(?=[,;:.])/g, "").replace(/\s{2,}/g, " ").trim();
@@ -111,15 +113,17 @@ export function cleanSentence(raw) {
   return s;
 }
 
-// A sentence joined by a semicolon is two statements: each is judged on its own.
+// A sentence joined by a semicolon is two statements. When the whole sentence is not a writing
+// instruction (a subtitle note beside a title rule), each half is judged on its own.
 function splitClauses(sentence) {
+  if (!notWritingReason(cleanSentence(sentence))) return [sentence];
   const parts = [];
-  let cur = "", open = false, paren = 0;
+  let cur = "", curly = 0, straight = false, paren = 0;
   for (let i = 0; i < sentence.length; i++) {
     const ch = sentence[i];
-    if (ch === "“") open = true; else if (ch === "”") open = false; else if (ch === '"') open = !open;
+    if (ch === "“") curly++; else if (ch === "”" && curly > 0) curly--; else if (ch === '"') straight = !straight;
     else if (ch === "(") paren++; else if (ch === ")" && paren > 0) paren--;
-    if (ch === ";" && !open && !paren && cur.trim().length >= 20 && sentence.slice(i + 1).trim().length >= 20) { parts.push(cur.trim() + "."); cur = ""; continue; }
+    if (ch === ";" && curly === 0 && !straight && !paren && cur.trim().length >= 20 && sentence.slice(i + 1).trim().length >= 20) { parts.push(cur.trim() + "."); cur = ""; continue; }
     cur += ch;
   }
   if (cur.trim()) parts.push(cur.trim());
@@ -152,7 +156,7 @@ const shortQuote = (t) => t.replace(/“([^”]*)”|"([^"]*)"/g, (q, a, b) => {
 const NOT_WRITING = [
   ["visual", /\b(?:subtitles?|fonts?|colou?rs?|gold|serif|hex|highlights?|thumbnails?|covers?|screen grabs?|images?|photos?|plates?|boxes|safe zone|stroke|shadow|gradient|logo|overlay)\b/i],
   ["delivery", /\b(?:on camera|camera|lens|eye line|eye contact|gestures?|pace|words a minute|pauses?|fillers?|talking head)\b/i],
-  ["research", /\b(?:who to ask|next step|the (?:real )?open question|unresolved|loose end|nobody|never (?:been |yet )?(?:decided|made|written|stated|said|spoken|filled|objected)|not (?:written|stated|recorded|verified|established|a rule|permission|a complete)|do(?:es)? not (?:establish|prove|verify|describe|mix)|do not extrapolate|named no|is not asking|kept here|deliberately|own-word evidence|evidence (?:for|that)|the source|this (?:fact|file|page|record)|no row exists|no caption prompt|has never commented|inference|both brands|two different (?:writers|voices))\b/i],
+  ["research", /\b(?:who to ask|next step|the (?:real )?open question|unresolved|loose end|nobody|never (?:been |yet )?(?:decided|made|written|stated|said|spoken|filled|objected)|not (?:written|stated|recorded|verified|established|a rule|permission|a complete)|do(?:es)? not (?:establish|prove|verify|describe|mix)|do not extrapolate|named no|is not asking|is adopted|this supplies|not a (?:general )?ban|a license to|kept here|deliberately|own-word evidence|evidence (?:for|that)|the source|this (?:fact|file|page|record)|no row exists|no caption prompt|has never commented|inference|both brands|two different (?:writers|voices))\b/i],
   ["past", /\b(?:caught|was told|were told|crossed it|logged as|handed the decision|reworded|published|posted|shipped|before we started|corrections? from|review (?:note|comment)s?|our (?:hook|scripts?|captions?) (?:said|used|crossed)|every caption (?:was|were)|rejected (?:the same caption|captions?\b|a caption))\b/i],
 ];
 export function notWritingReason(text) {
@@ -210,6 +214,7 @@ export function styleSentences(facts) {
         // What follows a rule label is its evidence (who asked, when, in what words), not a second rule.
         if (!isRule(labelRaw)) meta.evidence = true;
       }
+      if (label && !isRule(labelRaw) && /^(?:research|past)$/.test(notWritingReason(labelRaw))) meta.evidence = true;
       for (const piece of splitSentences(rest).flatMap(splitClauses)) {
         const text = cleanSentence(piece);
         if (PROVENANCE_ALWAYS.test(text) || (PROVENANCE.test(text) && !isRule(text))) continue;
@@ -286,7 +291,7 @@ export function styleParts(facts) {
     const why = notWritingReason(s.text);
     if (why === "research" || why === "past") { dropped.push({ text: s.text, why }); continue; }
     const toneLine = s.kind === "tone" || preferenceOnly || (s.file === "voice" && !s.kind && TONE_WORDS.test(s.text) && s.text.length <= LINE_MAX);
-    const hookLine = (s.kind === "hooks" || HOOK_WORDS.test(s.text)) && !GEOMETRY.test(s.text);
+    const hookLine = (s.kind === "hooks" || HOOK_WORDS.test(s.text)) && !GEOMETRY.test(s.text) && !/please|:\)|could we say/i.test(s.text);
     const into = toneLine ? tone : hookLine ? hooks : null;
     if (into) into.set(s.line, [...(into.get(s.line) || []), s]);
   }

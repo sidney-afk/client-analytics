@@ -236,6 +236,12 @@ hiring senders when the editor hire closes.
 - **Thumbnail titles follow-up (OPEN_REPAIRS 394, 2026-10-10): week-tab plans and stored failure reasons, in PR.**
   Release: apply `migrations/2026-10-10-thumbnail-titles-error-record.sql`, then deploy `thumbnail-titles`; then re-queue
   the 15 `generation_failed` and 4 week-tab items. Owner decision open: 21 items whose plan's newest month tab is older than the post.
+- **Thumbnail titles, the stuck "Needs info" items (OPEN_REPAIRS 406, 2026-10-11): in PR, not deployed.** Measured 2026-10-11:
+  67 open Needs info items on real clients (39 no match, 21 no month tab, 4 empty plan, 2 no plan, 1 failed). Causes: long plans cut
+  at 20,000 characters, a plan with no tab for the post's month (now falls back to the next, then the previous month), plans that
+  are only a header (now reported as an empty plan), numbering that restarts in a second list, and posts that are not plan videos.
+  Release (the 2026-10-10 error-record migration is already applied, checked 2026-10-11): apply `migrations/2026-10-11-thumbnail-titles-requeue.sql`, deploy `thumbnail-titles` (lane `deploy-single-function`),
+  then dry-run and run the re-queue. Owner decisions open: see the entry.
 - **Thumbnail titles (OPEN_REPAIRS 391): LIVE.** Switch `thumbnail_titles` = `{"clients":["*"]}` since 2026-10-09 19:48 UTC
   (checked 2026-10-10); backfill ran 2026-10-09 (queue: 33 titles written, 111 Needs info lines, 3 skipped as already
   filled). Prompt editor is in the Calendar "..." menu under "Caption prompt". Follow-up above (394).

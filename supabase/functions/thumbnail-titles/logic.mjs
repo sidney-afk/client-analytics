@@ -143,7 +143,7 @@ function splitLabel(line) {
 const TITLE_CASE = (t) => t[0].toUpperCase() + t.slice(1);
 const stripQuotes = (t) => t.replace(/(?:“[^”]*”|"[^"]*")/g, " ");
 // A prohibition or a stated wish, outside any quotation (a quoted sample of speech that holds the word is no rule).
-const STRONG = /^\W*never\b|\b(?:drop|do not|don'?t|must not|should not|shouldn'?t|avoid(?:s|ed)?|refus\w*|reject(?:s|ed)?|banned?|forbid\w*)\b/i;
+const STRONG = /^\W*never\b|^\W*(?:almost )?no [a-z]|\b(?:drop|do not|don'?t|must not|should not|shouldn'?t|avoid(?:s|ed)?|refus\w*|reject(?:s|ed)?|banned?|forbid\w*)\b/i;
 export const isRule = (t) => { const bare = stripQuotes(t); return BOUNDARY.test(bare) || PREFERENCE.test(bare); };
 // A quoted example this long is a sample of the voice, not a word they use: first 12 words kept.
 const shortQuote = (t) => t.replace(/“([^”]*)”|"([^"]*)"/g, (q, a, b) => {
@@ -156,7 +156,7 @@ const shortQuote = (t) => t.replace(/“([^”]*)”|"([^"]*)"/g, (q, a, b) => {
 const NOT_WRITING = [
   ["visual", /\b(?:subtitles?|fonts?|colou?rs?|gold|serif|hex|highlights?|thumbnails?|covers?|screen grabs?|images?|photos?|plates?|boxes|safe zone|stroke|shadow|gradient|logo|overlay)\b/i],
   ["delivery", /\b(?:on camera|camera|lens|eye line|eye contact|gestures?|pace|words a minute|pauses?|fillers?|talking head)\b/i],
-  ["research", /\b(?:who to ask|next step|the (?:real )?open question|unresolved|loose end|nobody|never (?:been |yet )?(?:decided|made|written|stated|said|spoken|filled|objected)|not (?:written|stated|recorded|verified|established|a rule|permission|a complete)|do(?:es)? not (?:establish|prove|verify|describe|mix)|do not extrapolate|named no|is not asking|is adopted|this supplies|not a (?:general )?ban|a license to|kept here|deliberately|own-word evidence|evidence (?:for|that)|the source|this (?:fact|file|page|record)|no row exists|no caption prompt|has never commented|inference|both brands|two different (?:writers|voices))\b/i],
+  ["research", /\b(?:who to ask|next step|the (?:real )?open question|unresolved|loose end|nobody|never (?:been |yet )?(?:decided|made|written|stated|said|spoken|filled|objected)|not (?:written|stated|recorded|verified|established|a rule|permission|a complete)|do(?:es)? not (?:establish|prove|verify|describe|mix)|do not extrapolate|named no|is not asking|in (?:this|these|the) (?:video|videos|openings?)\b|openings? read\b|in any of the (?:five|\d+)\b|is adopted|this supplies|not a (?:general )?ban|a license to|kept here|deliberately|own-word evidence|evidence (?:for|that)|the source|this (?:fact|file|page|record)|no row exists|no caption prompt|has never commented|inference|both brands|two different (?:writers|voices))\b/i],
   ["past", /\b(?:caught|was told|were told|crossed it|logged as|handed the decision|reworded|published|posted|shipped|before we started|corrections? from|review (?:note|comment)s?|our (?:hook|scripts?|captions?) (?:said|used|crossed)|every caption (?:was|were)|rejected (?:the same caption|captions?\b|a caption))\b/i],
 ];
 export function notWritingReason(text) {
@@ -290,6 +290,7 @@ export function styleParts(facts) {
     }
     const why = notWritingReason(s.text);
     if (why === "research" || why === "past") { dropped.push({ text: s.text, why }); continue; }
+    if (/please|:\)|could we say/i.test(s.text)) { dropped.push({ text: s.text, why: "reviewer comment, not their words" }); continue; }
     const toneLine = s.kind === "tone" || preferenceOnly || (s.file === "voice" && !s.kind && TONE_WORDS.test(s.text) && s.text.length <= LINE_MAX);
     const hookLine = (s.kind === "hooks" || HOOK_WORDS.test(s.text)) && !GEOMETRY.test(s.text) && !/please|:\)|could we say/i.test(s.text);
     const into = toneLine ? tone : hookLine ? hooks : null;

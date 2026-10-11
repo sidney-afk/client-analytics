@@ -47,6 +47,10 @@ const CASES = [
   { name: 'Credentials: onboarding import', overlay: '.cc-sensitive-overlay', open: () => _ccOpenOnboardingImport() },
   { name: 'Credentials: bulk import', overlay: '.cc-sensitive-overlay', open: () => _ccOpenBulkImport() },
   { name: 'Credentials: client dialog', overlay: '#ccOverlay', open: () => _ccOpenModalNow('Fixture client') },
+  // Added 2026-09-29 (#1853) and never covered: this test was run by no
+  // workflow until 2026-10-10 (OPEN_REPAIRS 408).
+  { name: 'Archived cards list', overlay: '#arxOverlay', open: new Function(`${mountViews}; calState.client = ${CLIENT}; _arxOpen('cal');`) },
+  { name: 'Archived restore confirm', overlay: '#arxDialog', open: () => { _arxDialog({ title: 'Restore this card?', msg: 'Fixture', yes: 'Restore' }); } },
 ];
 
 // Inventory, read from the source and independent of the cases above, so a
@@ -76,6 +80,21 @@ const NOT_A_BACKDROP_CLICK = [
   ['100-onboarding-staff-controls', "e.target!==body || e.propertyName", 'waits for a CSS transition to end'],
   ['096-quick-jump', "e.target !== input", 'Escape key from a non-input element'],
   ['096-quick-jump', 'if (e.target === box) svQuickJumpClose()', 'closes on the PRESS itself (mousedown), so a press that starts inside can never dismiss it'],
+  // The staff phone sheets (menus and pickers, 2026-10-05..08, OPEN_REPAIRS 342-358)
+  // close on a tap on their backdrop. On a touch screen a press that moves is a
+  // scroll and fires no click, so the press-and-release case cannot happen there;
+  // only a mouse in a window under 768 px wide can reach it, and what closes is a
+  // menu, never typed work. Listed so the decision is written down; a sheet that
+  // ever holds a form needs the guard instead (OPEN_REPAIRS 408).
+  ['095-shared-client', 'event.target === dialog || event.target.closest(\'.view-tab-btn\')', 'phone client picker sheet (touch: a moved press fires no click)'],
+  ['099-phone-staff-shell', "ev.target === d || ev.target.closest('[data-fph-close]')", 'phone sheet (touch: a moved press fires no click)'],
+  ['099-staff-phone-bar', 'if (e.target === dialog) { finish(); return; }', 'phone sheet (touch: a moved press fires no click)'],
+  ['099-staff-phone-bar', 'if (ev.target === dialog) { dialog.close(); return; }', 'phone sheet (touch: a moved press fires no click)'],
+  ['099-staff-phone-bar', 'if (event.target === menu) menu.close()', 'phone menu (touch: a moved press fires no click)'],
+  ['160-calendar-organize-ui', "dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });", 'phone Calendar Tabs and More menus (touch: a moved press fires no click)'],
+  ['160-calendar-organize-ui', "if (ev.target === dialog || ev.target.closest('.view-tab-btn')) dialog.close();", 'phone Calendar menu sheet (touch: a moved press fires no click)'],
+  ['270-samples-model', "dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });", 'phone Samples Tabs and More menus (touch: a moved press fires no click)'],
+  ['321-kasper-dashboard-replies', "if (event.target === tabs || event.target.closest('.header-nav-btn')) closeTabs();", 'phone Kasper tabs sheet (touch: a moved press fires no click)'],
 ];
 const targetCompare = /(\.(target|currentTarget)\b[\s)]*[!=]==?)|([!=]==?[\s(]*[\w$.]*\.(target|currentTarget)\b)|((?<!\$)\{\s*target\s*\})/g;   // any event variable name, either order, across line breaks, through grouping parentheses
 // Whole files, not single lines, so a comparison split over two lines is seen.
@@ -144,10 +163,28 @@ const SIGN_IN_GATE = { name: 'Staff sign-in (start-up gate)', overlay: '#staffId
     return on === want;
   }, [sel, wantShown], { timeout: ms });
 
+  // Wait until the dialog has finished drawing: no loading skeleton left and
+  // the same size for three reads in a row (one second of stillness if a
+  // skeleton never clears). The credential history dialog opens 420 px tall
+  // with a skeleton and shrinks to 233 px when its read answers; on a slower
+  // runner that answer landed between choosing the press point and pressing,
+  // so the "inside" press began on the backdrop and the test blamed the page
+  // (first hosted run, PR 2044).
+  const settle = (page, sel) => page.evaluate(() => { window.__dlgSettle = null; }).then(() => page.waitForFunction(s => {
+    const ov = document.querySelector(s);
+    if (!ov) return false;
+    const shape = Array.from(ov.children).map(ch => { const b = ch.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round).join(','); }).join('|');
+    const loading = !!ov.querySelector('.sv-skeleton, [role="status"][aria-label="Loading"]');
+    const w = window.__dlgSettle || (window.__dlgSettle = { shape: '', still: 0 });
+    if (shape === w.shape) w.still++; else { w.shape = shape; w.still = 0; }
+    return w.still >= (loading ? 20 : 3);
+  }, sel, { polling: 50, timeout: 8000 })).catch(() => {});
+
   async function drive(page, c) {
     const label = c.name;
     await page.evaluate(c.open);
     await until(page, c.overlay, true, 10000).catch(() => { throw new Error(label + ': the dialog did not open (' + c.overlay + ')'); });
+    await settle(page, c.overlay);
     assert.equal(await page.evaluate(s => document.querySelector(s).hasAttribute('data-backdrop-dismiss'), c.overlay), true,
       label + ': the backdrop is not marked data-backdrop-dismiss, so it has no press guard');
 
@@ -197,6 +234,11 @@ const SIGN_IN_GATE = { name: 'Staff sign-in (start-up gate)', overlay: '#staffId
     }, c.overlay);
     assert.ok(pts.back, label + ': no visible backdrop point was found');
     assert.ok(pts.inner, label + ': no point inside the dialog was found');
+
+    // The press point must still be inside the dialog at the moment of the
+    // press; if the dialog moved, say so instead of blaming the page.
+    assert.equal(await page.evaluate(([s, x, y]) => { const ov = document.querySelector(s); const u = document.elementFromPoint(x, y); return !!u && u !== ov && ov.contains(u); }, [c.overlay, pts.inner[0], pts.inner[1]]), true,
+      label + ': the dialog moved after the press point was chosen (the test, not the page)');
 
     // 1. press inside, release on the backdrop: must stay open.
     await page.mouse.move(pts.inner[0], pts.inner[1]);

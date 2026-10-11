@@ -99,7 +99,8 @@ async function openPage(browser, port, dark) {
     assert.notEqual(await page.inputValue('#tkClientInput'), 'zzzz-no-such-client', 'Escape puts the chosen client back'); checks++;
 
     // 2. Uploads card
-    const tabs = await page.locator('.tk-q-tab').allInnerTexts();
+    // The queue's own tabs; the TikTok / Instagram switch (#1887) reuses the class.
+    const tabs = await page.locator('#tkQueueCol .tk-q-tab').allInnerTexts();
     assert.deepEqual(tabs.map(t => t.replace(/\s+/g, ' ').trim()), ['Upcoming 12', 'Failed 1', 'Done 1']); checks++;
     assert.ok(await page.locator('.tk-q-tab.alert', { hasText: 'Failed' }).count(), 'failures are flagged on their tab'); checks++;
     const titles = () => page.locator('.tk-queue-item .tk-queue-title').allInnerTexts();

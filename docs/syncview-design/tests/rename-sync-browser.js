@@ -63,6 +63,11 @@ function mockBackend(page, state) {
     if (url.pathname.endsWith('/functions/v1/key-verify')) {
       return json({ ok: true, role: 'admin', member: { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null } });
     }
+    // Since the n8n exit (#1858) every staff Calendar save reads this switch
+    // fresh and holds when it lists no client; the live row lists every client.
+    if (url.pathname.endsWith('/rest/v1/syncview_runtime_flags') && url.searchParams.get('key') === 'eq.calendar_upsert_ef_clients') {
+      return json([{ value: { clients: ['qa-client'] } }]);
+    }
     if (url.pathname.includes('/rest/v1/')) return json([]);
     if (url.hostname.includes('cdn') || url.hostname.includes('fonts')) return route.abort();
     return json({ ok: true });

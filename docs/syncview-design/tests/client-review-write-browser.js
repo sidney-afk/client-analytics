@@ -220,7 +220,11 @@ async function run(browser, origin, action, mode) {
         assert.equal(visible.retry, true, label + ': source repair was not armed');
         assert.equal(visible.error, true, label + ': refused source save was hidden');
         assert.equal(visible.card, true, label + ': retry surface disappeared');
-        assert.match(visible.text, /VIDEO: APPROVED/i, label + ': native approval not visible');
+        // The phone card (2026-10-03 redesign) draws only the parts still
+        // waiting on the client, so the approved video leaves the card rather
+        // than showing a "Video: Approved" line; it must not ask again.
+        assert.doesNotMatch(visible.text, /Approve video|Video and|Video,|Video need/i, label + ': the approved video is asked for again');
+        assert.match(visible.text, /Thumbnail and Caption need your review/i, label + ': the card does not say what is still waiting');
       }
     } else {
       await until(() => stored[statusField] === expected, label + ' stored status');

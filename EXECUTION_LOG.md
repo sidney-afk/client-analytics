@@ -4,6 +4,24 @@
 
 All times are UTC unless noted.
 
+## 2026-10-10 — Digger preventive bug archaeology over October 2 to October 10
+
+Four cycles over OPEN_REPAIRS 331 to 393: about 90 candidates from ten parallel
+sweeps and own checks, 19 confirmed, the rest refuted, pruned or undecidable
+(one: an n8n failure branch, out of scope). Every confirmed defect was
+reproduced on the old code (real browser or the real function lifted from the
+built page) and has a guard that fails there. Biggest single finding: 30
+offline browser regression tests ran in no workflow and 9 had drifted to
+failing, one of them catching a real crash (a fresh Kasper sub-tab address
+showed an admin "Could not load data"). Shipped as ledger 404 (#2038, wrong
+client and lost work on the page), 398 (#2039, server and ops; owner deployed
+higgsfield-mcp and instagram-upload) and 408 (the guards and the Kasper crash);
+two findings were left to #2037 and #2033, which fixed them more completely.
+Cycle 4's sweep left five candidates unverified when the session was
+re-scoped; they are listed with the pattern matrix, seen ledger and proof
+limits in `docs/audits/2026-10-10-bug-archaeology.md`. Live access was
+read-only SQL counts; no write, deploy, merge, flag or n8n change.
+
 ## 2026-10-08 — Sentinel site assurance, desktop, cycle 3 (batch 6)
 
 Cycle 3 was an independent review of everything batches 1 to 5 changed, plus a

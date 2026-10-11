@@ -62,8 +62,8 @@ const GEOMETRY = /\b(?:box|plate|font|colou?r|px|pixel|hex|placement|cent(?:re|e
 // ones describe how the person looks and moves on camera, read off video by a
 // model: an inference about delivery, so only a sentence that states a rule
 // (never, avoid, refuses ...) is kept from them.
-const DELIVERY_LABEL = /^(?:pace|pauses?(?: and emphasis)?|eye line(?: and address)?|face and gestures|scripted or natural|delivery(?:\b.*)?|against the caption voice|read from words only.*|how (?:they|he|she) close|sentence length and rhythm|swearing)$/i;
-const TONE_LABEL = /^(?:tone|energy|voice|attitude|personality|register|humou?r|how (?:they|he|she) address(?:es)? the viewer|what (?:she|he|they) sounds? like.*)$/i;
+const DELIVERY_LABEL = /^(?:pace|pauses?(?: and emphasis)?|eye line(?: and address)?|face and gestures|scripted or natural|delivery(?:\b.*)?|against the caption voice|read from words only.*|how (?:they|he|she) close|swearing)$/i;
+const TONE_LABEL = /^(?:tone|energy|sentence length and rhythm|voice|attitude|personality|register|humou?r|how (?:they|he|she) address(?:es)? the viewer|what (?:she|he|they) sounds? like.*)$/i;
 const WORD_LABEL = /^(?:words(?: (?:and|&) phrases)?(?: (?:she|he|they) uses?)?|vocabulary(?: and signature phrases)?|signature phrases?|phrases)$/i;
 const AVOID_LABEL = /^(?:words(?: and (?:patterns|openings))? (?:(?:she|he|they) )?(?:avoids?|to avoid)|avoid|banned.*)$/i;
 const HOOK_LABEL = /^(?:how (?:they|he|she) open|openings?|hooks?|written hooks?|titles?|top hook text)$/i;
@@ -188,7 +188,7 @@ function quotedPhrases(sentences) {
     if (!about || isRule(s.text)) continue;
     for (const m of s.text.matchAll(/“([^”]{2,60})”|"([^"]{2,60})"/g)) {
       const q = (m[1] || m[2]).trim().replace(/[.,;:]+$/, "");
-      if (q.split(/\s+/).length > 7 || q.length < 3 || /^\d+$/.test(q) || seen.has(q.toLowerCase())) continue;
+      if (q.split(/\s+/).length > 10 || q.length < 3 || /^\d+$/.test(q) || seen.has(q.toLowerCase())) continue;
       seen.add(q.toLowerCase());
       out.push(q);
     }
@@ -213,13 +213,14 @@ function lineText(items, withLabel) {
 // useful lines; avoid and boundary lines are never trimmed.
 export function styleSectionFor(facts) {
   const all = dedupe(styleSentences(facts));
-  const rules = { boundary: [], avoid: [] }, tone = new Map(), hooks = new Map();
+  const rules = { boundary: [], avoid: [] }, tone = new Map(), hooks = new Map(), vocab = new Map();
   for (const s of all) {
     if (isRule(s.text) || s.kind === "avoid") {
       (HARD_LIMIT.test(stripQuotes(s.text)) ? rules.boundary : rules.avoid).push(s.text);
       continue;
     }
     if (s.kind === "delivery") continue;
+    if (s.kind === "words") { vocab.set(s.line, [...(vocab.get(s.line) || []), s]); continue; }
     const toneLine = s.kind === "tone" || (s.file === "voice" && !s.kind && TONE_WORDS.test(s.text) && s.text.length <= LINE_MAX);
     const hookLine = (s.kind === "hooks" || HOOK_WORDS.test(s.text)) && !GEOMETRY.test(s.text);
     const into = toneLine ? tone : hookLine ? hooks : null;
@@ -229,7 +230,8 @@ export function styleSectionFor(facts) {
   const parts = [];
   const block = (title, items) => { if (items.length) parts.push(`${title}\n${items.map((i) => `- ${i}`).join("\n")}`); };
   block("Tone:", [...tone.values()].map((v) => lineText(v, false)).filter(Boolean).slice(0, 5));
-  block("Words and phrases they use:", words.length ? [words.slice(0, 24).map((w) => `“${w}”`).join(", ")] : []);
+  const vocabLines = [...vocab.values()].map((v) => lineText(v, false)).filter(Boolean).slice(0, 3);
+  block("Words and phrases they use:", [...(words.length ? [words.slice(0, 24).map((w) => `“${w}”`).join(", ")] : []), ...vocabLines]);
   block("How hooks and titles are written:", [...hooks.values()].map((v) => lineText(v, true)).filter(Boolean).slice(0, 5));
   block("Avoid:", rules.avoid);
   block("Boundaries (never break these):", rules.boundary);

@@ -60,9 +60,11 @@ const localStorage = {
   setItem(k,v){ _store[k] = String(v); },
   removeItem(k){ delete _store[k]; }
 };
-let calState = { client: null, monthFilter: null, statusFilter: 'all', sortMode: 'manual' };
+let calState = { client: null, monthFilter: null, statusFilter: 'all', cardStatusFilter: { mode: 'show', picks: [] }, sortMode: 'manual' };
 function calClientSlug(c){ return String(c || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
 ${grabConst('CAL_FILTERS_KEY')}
+const CAL_STATUSES = ['N/A','In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved','Scheduled','Posted'];
+${grabFunc('_calNormCardStatusFilter')}
 ${grabFunc('_calNormMonthFilter')}
 ${grabFunc('_calNormStatusFilter')}
 ${grabFunc('_calNormSortMode')}

@@ -32748,3 +32748,34 @@ Bug archaeology (session Digger, 2026-10-10, over entries 331 to 393). Browser c
 
 Items 7 and 8 came from cycle 2's sweep of fixes made on one twin only, item 9 from cycle 3's sweep of ambiguous answers. Kasper's Samples notes, found in the same run, are left to #2037, which fixes them more completely. Both browser guards run in the `entry-links-boot` job.
 **Way back:** revert the pull request and rebuild the fragments.
+
+## 405. [2026-10-11, BUILT, NOT MERGED, NOT DEPLOYED] Thumbnail titles: a shorter, cleaner default prompt for every client, built by plain code (session Scribe)
+
+**Why.** The default thumbnail title prompt was the five base rules plus the first 5,000 characters of the client's
+Synchro Brain voice file, copied as it stands. That text carries source notes, call and segment references, dates,
+"source status" lines and repeats, so staff could not read it, and the 5,000 character cut could land in the middle of
+a rule: a boundary written late in the file was silently never shown to the model.
+
+**What changed.** `defaultPromptFor` (`supabase/functions/thumbnail-titles/logic.mjs`) now takes the client's written
+facts and returns the five base rules word for word, then a short "This client's style" section: Tone, Words and
+phrases they use (quoted), How hooks and titles are written, Avoid, and Boundaries. No AI step: it splits the facts
+into sentences, takes the source notes off each (reference brackets, dates, fact ids), drops provenance lines and
+repeats, and sorts what is left by plain patterns, so the same Brain file always gives the same prompt.
+- Avoid and Boundaries hold only instructions about what to write. Descriptions of past posts, notes about
+  subtitles, fonts, colours, thumbnail images and screen grabs, on-camera delivery notes and research commentary
+  (who to ask, what was never decided, what the source does or does not prove) are left out. A sentence that
+  mixes both is split at the semicolon and each half judged alone. Avoid and Boundaries are never capped.
+- Words and phrases are the client's own words; a reviewer's comment is never listed as a phrase. Repeated
+  lines within a section are shown once. Tone and Hooks are trimmed, but a line that states a prohibition is
+  never the one trimmed.
+- A sentence is kept whole or left out; nothing is reworded.
+- Lines about on-camera delivery (pace, eye line, gestures) are read off video by a model and are not title rules;
+  only a sentence in them that states a rule is kept.
+- `titleStyleFacts` also returns the facts, and `seed.ts` passes them in. Nothing about which clients are seeded
+  changed: the seed writes `default_prompt` only and never touches a saved `prompt`.
+- Test `test/thumbnail-title-style.js` (invented text only) fails if a boundary line is lost.
+
+**Release.** Merging deploys nothing. Deploy `thumbnail-titles`, `thumbnail-title-prompts` and `higgsfield-mcp`
+(they share `clientinfo.ts`), then run the seed action so every client without a saved prompt gets the new default.
+The live default of a client is read from the table, so re-seeding the table alone already changes what the next
+title run uses.

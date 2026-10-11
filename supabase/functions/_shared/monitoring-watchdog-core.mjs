@@ -383,6 +383,67 @@ export function newestHeartbeats(rows) {
 }
 
 /*
+ * A FAILURE PAGES ONLY ONCE IT IS CONFIRMED (owner rule 2026-10-11, OPEN_REPAIRS 407).
+ *
+ * The "ran and failed" page used to fire on a lane's newest heartbeat alone,
+ * so one red run paged, and a page could not tell a one-off from a real break.
+ * The rule now: a lane pages as failing only when its two most recent runs
+ * BOTH failed. One failure followed by a pass, one failure with no second run
+ * yet, and fail, pass, fail never page. A lane that keeps failing still pages,
+ * on its second failure in a row, so the 22-night and 26-night silences below
+ * cannot repeat: each would now page on its second night.
+ *
+ * WHAT COUNTS AS A RUN. One heartbeat per run, newest first, from the run's
+ * own `at`. Two beats carrying the same run handle are one run. A heartbeat
+ * that says it came from another branch (`ref` set and not `main`: a pull
+ * request, or a manual run of a branch under review) is not a production run
+ * and is left out, in both directions. That is how the 2026-10-11 page came
+ * about: the Samples nightly had failed on main every day since at least
+ * 2026-10-01, a branch run carrying an unmerged fix passed on 2026-10-10 at
+ * 16:56 and un-latched the incident, and the next main failure paged again. A
+ * branch run can no longer confirm a failure, hide one, or end an incident.
+ * Heartbeats written before `ref` existed carry none and count as before.
+ *
+ * Staleness is untouched: it still reads only the newest beat of any branch.
+ */
+export const CONFIRMING_FAILED_RUNS = 2;
+// Production beats read per lane: enough for two runs even when a run beat
+// more than once. Branch beats are filtered out in the database before this
+// bound (see readState); one request per lane, never a window shared between
+// lanes.
+export const HEARTBEAT_HISTORY_PER_LANE = 10;
+export const PRODUCTION_REF = 'main';
+
+/** Each lane's recent production runs, newest first, one entry per run. */
+export function productionRuns(rows) {
+  const byLane = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row, index) => {
+    const payload = payloadOf(row);
+    const lane = clean(payload.lane);
+    if (!laneByKey(lane)) return;
+    const ref = clean(payload.ref);
+    if (ref && ref !== PRODUCTION_REF) return;
+    const at = clean(payload.at || row.ts);
+    const ms = Date.parse(at);
+    if (!byLane.has(lane)) byLane.set(lane, []);
+    byLane.get(lane).push({ at, ms: Number.isFinite(ms) ? ms : -Infinity, index, ok: payload.ok !== false, run_id: clean(payload.run_id) });
+  });
+  const out = new Map();
+  for (const [lane, beats] of byLane) {
+    beats.sort((a, b) => (b.ms - a.ms) || (a.index - b.index));
+    const seen = new Set();
+    const runs = [];
+    for (const beat of beats) {
+      if (beat.run_id && seen.has(beat.run_id)) continue;
+      if (beat.run_id) seen.add(beat.run_id);
+      runs.push({ at: beat.at, ok: beat.ok, run_id: beat.run_id });
+    }
+    out.set(lane, runs);
+  }
+  return out;
+}
+
+/*
  * Latches are keyed by (KIND, lane), not by lane alone.
  *
  * There are now two independent incidents a lane can be in — it stopped
@@ -418,15 +479,22 @@ export function latchedLanes(rows) {
 /**
  * Pure decision function: which lanes are dead, which of those are new, and
  * which previously-dead lanes have come back and should un-latch.
+ *
+ * `heartbeatRows` decide staleness (the newest beat per lane, as always).
+ * `historyRows` are each lane's recent beats, newest first, and decide whether
+ * a failure is confirmed; a caller that passes only `heartbeatRows` gets them
+ * used for both, and one beat per lane can never confirm a failure.
  */
-export function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = activeLanes() }) {
+export function watchdogDecision({ heartbeatRows, historyRows = heartbeatRows, latchRows, nowMs, lanes = activeLanes() }) {
   const newest = newestHeartbeats(heartbeatRows);
+  const history = productionRuns(historyRows);
   const latched = latchedLanes(latchRows);
   const stale = [];
   const recovered = [];
   const healthy = [];
   const failing = [];
   const recoveredFailing = [];
+  const awaitingConfirmation = [];
 
   for (const lane of lanes) {
     const beat = newest.get(lane.key) || null;
@@ -466,13 +534,29 @@ export function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = acti
      * "it failed" is not a claim anyone can make about a lane that has not run
      * — reporting both for one lane would be two pages for one fact, and the
      * second would be guesswork.
+     *
+     * And only a CONFIRMED failure pages (see CONFIRMING_FAILED_RUNS): the
+     * lane's two most recent production runs both failed, the newer one fresh.
+     * A single failure is reported in `awaiting_confirmation` and pages
+     * nothing. A failing latch ends only when the newest production run is a
+     * fresh PASS, exactly as before this rule, so the next confirmed failure
+     * pages again and a lone failure never ends an incident. That also keeps a
+     * host still running the old rule (the tick until it is redeployed, or any
+     * host after a rollback) from fighting this one over the latch: one
+     * resetting what the other just paged would re-page every 15 minutes. A
+     * branch run never ends it.
      */
-    const isFailing = Boolean(beat) && !isStale && beat.ok === false;
+    const runs = history.get(lane.key) || [];
+    const recent = runs.slice(0, CONFIRMING_FAILED_RUNS);
+    const lastFresh = recent.length > 0 && ageMinutes(recent[0].at, nowMs) <= lane.max_age_minutes;
+    const judged = Boolean(beat) && !isStale && lastFresh;
+    const isFailing = judged && recent.length === CONFIRMING_FAILED_RUNS && recent.every(run => run.ok === false);
     const wasFailingLatched = latched.get(latchKey(FAILING_KIND, lane.key)) === true;
-    if (isFailing && !wasFailingLatched) failing.push(row);
-    else if (!isFailing && wasFailingLatched && Boolean(beat) && !isStale) recoveredFailing.push(row);
+    if (isFailing && !wasFailingLatched) failing.push({ ...row, failed_runs: recent.map(run => run.run_id) });
+    else if (!isFailing && wasFailingLatched && judged && recent[0].ok === true) recoveredFailing.push(row);
+    if (judged && !isFailing && recent[0].ok === false) awaitingConfirmation.push({ ...row, failed_runs: [recent[0].run_id] });
   }
-  return { stale, recovered, healthy, failing, recovered_failing: recoveredFailing };
+  return { stale, recovered, healthy, failing, recovered_failing: recoveredFailing, awaiting_confirmation: awaitingConfirmation };
 }
 
 /*
@@ -517,12 +601,15 @@ export function failingPageSpec(rows, runHandle = 'local:1') {
   const detail = rows.map(row => `${row.lane}=failed/${row.age_minutes}m`);
   return {
     type: 'monitoring_lane_failing',
+    // The relay shows only the ~96-character summary, so it stays as it was
+    // (counts, then lane names); this page type now always means a confirmed
+    // failure, and the full text says so.
     summaryParts: [`lanes${rows.length}`, 'ran_but_failed', ...detail],
     team: 'monitoring',
     count: rows.length,
     runId: `${runHandle}:deadman`,
     details: { lanes: rows.map(row => row.lane) },
-    text: `SyncView monitoring: ${rows.length} lane(s) RAN and reported failure. ${detail.join(' ')}`,
+    text: `SyncView monitoring: ${rows.length} lane(s) RAN and reported failure on their last ${CONFIRMING_FAILED_RUNS} runs in a row. ${detail.join(' ')}`,
   };
 }
 
@@ -561,6 +648,10 @@ export async function writeHeartbeat(io, laneKey, { ok = true } = {}) {
     run_id: io.runHandle,
     max_age_minutes: lane.max_age_minutes,
   };
+  // The branch the run came from, when the host knows it. A run on another
+  // branch still proves the lane ran, but never confirms or ends a failure
+  // (see CONFIRMING_FAILED_RUNS).
+  if (clean(io.ref)) payload.ref = clean(io.ref);
   if (!io.dryRun) await io.insertEvent(HEARTBEAT_ACTION, payload);
   return payload;
 }
@@ -587,12 +678,25 @@ export async function readState(io) {
    *
    * One bounded request per lane is exact by construction and cannot rot as
    * cadences change.
+   *
+   * A second request per lane (OPEN_REPAIRS 407) reads its production history,
+   * the newest HEARTBEAT_HISTORY_PER_LANE beats from main (or written before
+   * beats named their branch), which is what confirms a failure. The branch
+   * filter runs in the database, before the limit, so runs on other branches
+   * can never push a main run out of the window. The first request is
+   * untouched and alone decides staleness.
    */
   const watched = activeLanes();
-  const [heartbeatRows, latchRows] = await Promise.all([
+  const [heartbeatRows, historyRows, latchRows] = await Promise.all([
     Promise.all(watched.map(lane => io.restRows(
       `deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}`
       + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=1`,
+    ))).then(perLane => perLane.flat()),
+    Promise.all(watched.map(lane => io.restRows(
+      `deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}`
+      + `&payload->>lane=eq.${encodeURIComponent(lane.key)}`
+      + `&or=(payload->>ref.is.null,payload->>ref.eq.${PRODUCTION_REF})`
+      + `&order=id.desc&limit=${HEARTBEAT_HISTORY_PER_LANE}`,
     ))).then(perLane => perLane.flat()),
     // x20, not x10: latch rows now come in two kinds per lane, and the window
     // has to still contain the newest row of EVERY (kind, lane) pair even when
@@ -601,12 +705,12 @@ export async function readState(io) {
     // minutes.
     io.restRows(`deliverable_events?select=id,ts,payload&action=eq.${LATCH_ACTION}&order=id.desc&limit=${watched.length * 20}`),
   ]);
-  return { heartbeatRows, latchRows };
+  return { heartbeatRows, historyRows, latchRows };
 }
 
 export async function runCheck(io) {
-  const { heartbeatRows, latchRows } = await readState(io);
-  const decision = watchdogDecision({ heartbeatRows, latchRows, nowMs: io.nowMs() });
+  const { heartbeatRows, historyRows, latchRows } = await readState(io);
+  const decision = watchdogDecision({ heartbeatRows, historyRows, latchRows, nowMs: io.nowMs() });
   let receipt = null;
 
   if (decision.stale.length && !io.dryRun) {
@@ -688,6 +792,9 @@ export async function runCheck(io) {
     recovered: decision.recovered.map(row => row.lane),
     healthy: decision.healthy.map(row => ({ lane: row.lane, age_minutes: row.age_minutes, suppressed: row.suppressed })),
     failing: decision.failing.map(row => row.lane),
+    // A single failure, not yet confirmed by the lane's next run: stated on
+    // every pass so it is visible, and never paged (OPEN_REPAIRS 407).
+    awaiting_confirmation: decision.awaiting_confirmation.map(row => row.lane),
     recovered_failing: decision.recovered_failing.map(row => row.lane),
     paged: Boolean(receipt),
     failing_paged: Boolean(failingReceipt),

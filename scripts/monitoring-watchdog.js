@@ -50,14 +50,20 @@ const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 const SLACK_WEBHOOK = String(process.env.SLACK_ALERT_WEBHOOK || '');
 const GITHUB_RUN_ID = String(process.env.GITHUB_RUN_ID || 'local');
 const GITHUB_RUN_ATTEMPT = String(process.env.GITHUB_RUN_ATTEMPT || '1');
+// The branch this run is on (`main` for the timer and the schedule). A beat
+// from any other branch never confirms or ends a failure (OPEN_REPAIRS 407).
+const GITHUB_REF_NAME = String(process.env.GITHUB_REF_NAME || '');
 const DRY_RUN = /^(1|true|yes)$/i.test(process.env.MONITORING_WATCHDOG_DRY_RUN || '');
 const RUN_HANDLE = `${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}`;
 
 const {
+  CONFIRMING_FAILED_RUNS,
   HEARTBEAT_ACTION,
+  HEARTBEAT_HISTORY_PER_LANE,
   LANES,
   LATCH_ACTION,
   FAILING_KIND,
+  PRODUCTION_REF,
   STALE_KIND,
   activeLanes,
   ageMinutes,
@@ -66,6 +72,7 @@ const {
   latchKey,
   latchedLanes,
   newestHeartbeats,
+  productionRuns,
   retiredLanes,
   watchdogDecision,
 } = core;
@@ -110,6 +117,7 @@ function githubIo() {
     insertEvent,
     sendAlert: spec => sendAlert(spec, { webhook: SLACK_WEBHOOK }),
     runHandle: RUN_HANDLE,
+    ref: GITHUB_REF_NAME,
     nowMs: () => Date.now(),
     dryRun: DRY_RUN,
   };
@@ -179,10 +187,13 @@ if (require.main === module) {
 }
 
 module.exports = {
+  CONFIRMING_FAILED_RUNS,
   HEARTBEAT_ACTION,
+  HEARTBEAT_HISTORY_PER_LANE,
   LANES,
   LATCH_ACTION,
   FAILING_KIND,
+  PRODUCTION_REF,
   STALE_KIND,
   activeLanes,
   ageMinutes,
@@ -192,6 +203,7 @@ module.exports = {
   latchKey,
   latchedLanes,
   newestHeartbeats,
+  productionRuns,
   retiredLanes,
   stalePageSpec,
   watchdogDecision,

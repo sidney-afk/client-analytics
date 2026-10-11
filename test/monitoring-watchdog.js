@@ -398,6 +398,16 @@ const LINEAR_SECRET = /\bLINEAR_[A-Z0-9_]+\b/;
       && /payload->>lane=eq\.\$\{encodeURIComponent\(lane\.key\)\}/.test(readStateSource)
       && /order=id\.desc&limit=1/.test(readStateSource),
   'the heartbeat read asks each WATCHED lane for its own newest beat, keyed on the lane');
+  // OPEN_REPAIRS 407: a failure pages only once the next run confirms it, so a
+  // second per-lane read returns the lane's production history, filtered to
+  // main in the database before its own small bound.
+  const history = /export const HEARTBEAT_HISTORY_PER_LANE = (\d+);/.exec(source);
+  const confirm = /export const CONFIRMING_FAILED_RUNS = (\d+);/.exec(source);
+  ok(history && confirm && Number(confirm[1]) === 2 && Number(history[1]) >= Number(confirm[1]) && Number(history[1]) <= 20,
+    'each lane reads a small fixed number of its own production beats, at least the two a confirmed failure needs');
+  ok(/&or=\(payload->>ref\.is\.null,payload->>ref\.eq\.\$\{PRODUCTION_REF\}\)`/.test(readStateSource)
+      && /&order=id\.desc&limit=\$\{HEARTBEAT_HISTORY_PER_LANE\}`/.test(readStateSource),
+    'the history read keeps only production beats, filtered before the limit');
   const heartbeatRead = readStateSource.slice(
     readStateSource.indexOf('HEARTBEAT_ACTION'),
     readStateSource.indexOf('LATCH_ACTION'));

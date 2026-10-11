@@ -388,6 +388,7 @@
     "monitoring-alert-relay.js",
     "monitoring-lane-coverage.js",
     "monitoring-lane-failing.js",
+    "monitoring-confirmed-failure.js",
     "monitoring-watchdog.js",
     "monitoring-watchdog-tick.js",
     "github-dispatch-timer.js",

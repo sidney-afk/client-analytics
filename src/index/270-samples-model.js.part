@@ -91,7 +91,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             menus[kind] = dialog;
             const trigger = heading.querySelector(`[data-staff-menu=${kind}]`);
             trigger.addEventListener('click', () => {
-                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('[class$=menu-body]'), dialog);
+                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('.pocket-staff-samples-menu-body'), dialog);
                 if (kind === 'more') {
                     const body = dialog.querySelector('[class$=menu-body]');
                     body.querySelector('.sv-phone-proxies')?.remove();

@@ -86,7 +86,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             menus[kind] = dialog;
             const trigger = heading.querySelector(`[data-staff-menu=${kind}]`);
             trigger.addEventListener('click', () => {
-                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('[class$=menu-body]'), dialog);
+                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('.pocket-staff-cal-menu-body'), dialog);
                 if (kind === 'more') {
                     const body = dialog.querySelector('[class$=menu-body]');
                     body.querySelector('.sv-phone-proxies')?.remove();

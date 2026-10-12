@@ -35251,7 +35251,7 @@
             menus[kind] = dialog;
             const trigger = heading.querySelector(`[data-staff-menu=${kind}]`);
             trigger.addEventListener('click', () => {
-                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('[class$=menu-body]'), dialog);
+                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('.pocket-staff-cal-menu-body'), dialog);
                 if (kind === 'more') {
                     const body = dialog.querySelector('[class$=menu-body]');
                     body.querySelector('.sv-phone-proxies')?.remove();
@@ -68429,7 +68429,7 @@
             menus[kind] = dialog;
             const trigger = heading.querySelector(`[data-staff-menu=${kind}]`);
             trigger.addEventListener('click', () => {
-                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('[class$=menu-body]'), dialog);
+                if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('.pocket-staff-samples-menu-body'), dialog);
                 if (kind === 'more') {
                     const body = dialog.querySelector('[class$=menu-body]');
                     body.querySelector('.sv-phone-proxies')?.remove();
@@ -90091,4 +90091,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-88f1a7b06481.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-82a637ae0f06.js");

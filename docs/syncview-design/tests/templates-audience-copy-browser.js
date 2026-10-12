@@ -76,6 +76,7 @@ const BRAIN = {
         if (formKey !== NAME + '::client.sample.audience.who') failures.push(`${tag}: change form not opened on the audience fact (${formKey})`);
         await page.click('.tpl-brain-cancel').catch(() => page.evaluate(() => { _tplBrainOpenForm = ''; _maybeRerenderTemplates(); }));
         // Copy.
+        if (label === '390') { const h = await page.$eval('.tpl-copy-btn', el => el.getBoundingClientRect().height); if (h < 44) failures.push(`${tag}: Copy button is ${h}px tall, under the 44px tap target`); }
         await page.click('.tpl-copy-btn');
         await page.waitForFunction(() => (document.querySelector('.tpl-copy-note') || {}).textContent === 'Copied', null, { timeout: 5000 }).catch(() => failures.push(`${tag}: no Copied note`));
         if (!(await page.$('.tpl-aud-list li'))) failures.push(`${tag}: audience bullets not shown as a list`);

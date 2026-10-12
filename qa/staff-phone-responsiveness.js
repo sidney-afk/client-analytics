@@ -217,6 +217,9 @@ async function regularAction(page,screen){
  if(screen.name==='Calendar'){
   await prepare(page,'calendar-sheet');
   await page.evaluate(()=>{const row=calState.posts[0];calState.posts=Array.from({length:20},(_,i)=>({...row,id:'disclosure-fixture-'+i,caption:'A longer fictional caption for a phone. '.repeat(25)}));_calRenderBody();});
+  // Scrolling the control into view is setup. Let its viewport notification
+  // settle before counting the work caused by the caption tap itself.
+  await page.locator('#calView .cal-cap-toggle').first().scrollIntoViewIfNeeded();
   await page.waitForTimeout(150);
   await page.evaluate(()=>{
    window.__titleHeightWrites=0;

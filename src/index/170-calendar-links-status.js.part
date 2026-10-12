@@ -793,7 +793,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const collapsedH = measured ? measured.collapsedH : _calCapCollapsedH(ta);
         if (typeof _calStaffPhoneActive === 'function' && _calStaffPhoneActive()) {
             ta._phoneCaptionMeasure = { full, collapsedH, value: ta.value,
-                width: measured ? measured.width : ta.clientWidth, fonts: document.fonts?.status };
+                width: measured ? measured.width : ta.clientWidth, viewportWidth: innerWidth, fonts: document.fonts?.status };
         }
         const overflowing = full > collapsedH + 1;
         // Collapsed always sits at exactly the default (rows) height, so an
@@ -880,7 +880,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         let measured = null;
         if (typeof _calStaffPhoneActive === 'function' && _calStaffPhoneActive() && ta?._phoneCaptionMeasure) {
             const previous = ta._phoneCaptionMeasure;
-            if (previous.value === ta.value && previous.width === ta.clientWidth
+            // The resize observer already maintains this width. Reading layout
+            // synchronously on a tap defeats the cached caption measurement.
+            if (previous.value === ta.value && previous.width === ta._capLastW && previous.viewportWidth === innerWidth
                 && previous.fonts === document.fonts?.status) measured = previous;
         }
         wrap.classList.toggle('expanded');

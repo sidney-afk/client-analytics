@@ -215,6 +215,10 @@ async function regularAction(page,screen){
   await page.evaluate(()=>{
    window.__titleHeightWrites=0;
    window.__captionPopupScans=0;
+   window.__captionWidthReads=0;
+   const field=document.querySelector('#calView .cal-card textarea.cal-fld-cap');
+   const width=Object.getOwnPropertyDescriptor(Element.prototype,'clientWidth').get;
+   Object.defineProperty(field,'clientWidth',{configurable:true,get(){window.__captionWidthReads++;return width.call(this);}});
    window.__captionQueryAll=document.querySelectorAll;
    document.querySelectorAll=function(q){if(q.includes('[role="alertdialog"]'))window.__captionPopupScans++;return window.__captionQueryAll.call(this,q);};
    window.__titleWatch=new MutationObserver(records=>{window.__titleHeightWrites+=records.length;});
@@ -235,6 +239,9 @@ async function regularAction(page,screen){
   const scans=await page.evaluate(()=>{document.querySelectorAll=window.__captionQueryAll;return window.__captionPopupScans;});
   rows.push({rule:'caption tap does not scan unrelated popups',passed:scans===0,scans});
   if(!baseline)assert.equal(scans,0,'Caption tap scanned unrelated popups');
+  const reads=await page.evaluate(()=>{delete document.querySelector('#calView .cal-card textarea.cal-fld-cap').clientWidth;return window.__captionWidthReads;});
+  rows.push({rule:'cached caption tap avoids synchronous width measurement',passed:reads===0,reads});
+  if(!baseline)assert.equal(reads,0,'Caption tap forced a width measurement');
   const writes=await page.evaluate(()=>{window.__titleWatch.disconnect();return window.__titleHeightWrites;});
   rows.push({rule:'caption expansion does not re-size unchanged titles',passed:writes===0,writes});
   if(!baseline)assert.equal(writes,0,'Caption tap re-sized unchanged titles');

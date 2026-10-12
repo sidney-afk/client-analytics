@@ -39,7 +39,7 @@ import {
   _calParentLinks, _calReassertLinearStatus, _calSetLinearMetaHydrated
 } from './140-calendar-legacy-outbox.js';
 import {
-  _calAdoptThumbnailFolderMeta, _calFmtDateShort, _calMonthWarnChipHtml, _calPostsEqualForRender,
+  _calAdoptThumbnailFolderMeta, _calFmtDateShort, _calMonthWarnChipHtml, _calPostsEqualForRender, _calStaffPhoneActive,
   _calRenderBody, _calStatusFilterLabel, _thumbAdoptPersistedRevision, _thumbRefreshChangedCards,
   onCalViewChange
 } from './160-calendar-organize-ui.js';
@@ -1481,7 +1481,8 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         // Background refresh (tab regained focus, or we just primed cache):
         // keep the current calendar on screen and show a small spinner
         // instead of blanking to "Loading".
-        const background = (!!opts.background && calState.posts.length > 0) || (calState.posts.length > 0 && haveCache);
+        const background = (!!opts.background && calState.posts.length > 0) || (calState.posts.length > 0 && haveCache)
+            || (_calStaffPhoneActive() && calState.posts.length > 0);
         if (background) {
             _calBgLoadInFlight = true;
             _calSetRefreshing(true);

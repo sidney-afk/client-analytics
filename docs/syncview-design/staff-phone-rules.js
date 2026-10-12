@@ -11,19 +11,24 @@
             || document.body.matches('.intake-mode, .onboarding-mode')) return;
         const html = document.documentElement;
         html.classList.add('sv-staff-phone');
-        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [];
-        let lastTrigger = null, locked = null, queued = false, touch = null;
+        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set(), retries = new Map();
+        let lastTrigger = null, locked = null, queued = false, touch = null, cardsDirty = true;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
         const candidates = '.cal-lightbox.open, .kasper-lightbox.open, dialog[open], [aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [class*="-overlay"], [class*="-popup"], [class*="-popover"], [class*="-menu"], [class*="-dropdown"], .prod-pop, .prod-cmd-bd, .cal-card-color-picker, .sv-client-pop, #svJump:not([hidden])';
         function shown(el) {
             // These are inline card affordances, not an open menu or modal.
             if (el.matches('.cal-review-video-overlay, .cal-card-select-overlay, .kasper-hero-poster-overlay')) return false;
-            if (!el.isConnected || !el.checkVisibility({ checkVisibilityCSS: true })
-                || el.closest('dialog:not([open]), [hidden]')) return false;
-            const css = getComputedStyle(el), rect = el.getBoundingClientRect();
-            return css.pointerEvents !== 'none' && rect.width > 0 && rect.height > 0 && (css.opacity !== '0' || el.matches('.open, .active, .is-open, dialog[open]'))
-                && (el.matches('dialog[open]') || /^(fixed|absolute)$/.test(css.position));
+            if (!el.isConnected || el.closest('dialog:not([open]), [hidden]')) return false;
+            const css = getComputedStyle(el);
+            // Most "menu" class names are inline labels or closed surfaces.
+            // Reject them before a geometry read can force a page-wide layout.
+            if (css.pointerEvents === 'none' || css.display === 'none'
+                || !el.matches('dialog[open]') && !/^(fixed|absolute)$/.test(css.position)
+                || css.opacity === '0' && !el.matches('.open, .active, .is-open, dialog[open]')) return false;
+            if (!el.checkVisibility({ checkVisibilityCSS: true })) return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
         }
         function move(el, parent) {
             if (!moves.has(el)) moves.set(el, { parent: el.parentNode, next: el.nextSibling });
@@ -74,17 +79,41 @@
                 });
                 more.hidden = !body.childElementCount;
             });
-            document.querySelectorAll('#calView .cal-cap-toggle, #sxrView .cal-cap-toggle').forEach(btn => {
-                const label = btn.querySelector('.cal-cap-toggle-txt');
-                if (!labels.has(btn)) labels.set(btn, { text: label?.textContent, tabindex: btn.getAttribute('tabindex'), aria: btn.getAttribute('aria-expanded') });
-                const open = btn.classList.contains('is-expanded');
-                const text = open ? 'Show less' : 'Show more';
-                if (label && label.textContent !== text) label.textContent = text;
-                if (btn.getAttribute('aria-expanded') !== String(open)) btn.setAttribute('aria-expanded', String(open));
-                if (btn.tabIndex !== 0) btn.tabIndex = 0;
-            });
+            document.querySelectorAll('#calView .cal-cap-toggle, #sxrView .cal-cap-toggle').forEach(caption);
             for (const el of moves.keys()) if (!el.isConnected) moves.delete(el);
             for (const el of labels.keys()) if (!el.isConnected) labels.delete(el);
+        }
+        function caption(btn) {
+            const label = btn.querySelector('.cal-cap-toggle-txt');
+            if (!labels.has(btn)) labels.set(btn, { text: label?.textContent, tabindex: btn.getAttribute('tabindex'), aria: btn.getAttribute('aria-expanded') });
+            const open = btn.classList.contains('is-expanded');
+            const text = open ? 'Show less' : 'Show more';
+            if (label && label.textContent !== text) label.textContent = text;
+            if (btn.getAttribute('aria-expanded') !== String(open)) btn.setAttribute('aria-expanded', String(open));
+            if (btn.tabIndex !== 0) btn.tabIndex = 0;
+        }
+        function legacyHead(menu) {
+            if (!menu.matches('.kasper-more-menu') || menu.querySelector('.sv-phone-legacy-head')) return;
+            const head = document.createElement('div'); head.className = 'sv-phone-legacy-head';
+            head.innerHTML = '<strong>More</strong><button type="button" aria-label="Close More">Close</button>';
+            head.querySelector('button').onclick = event => {
+                event.stopPropagation();
+                document.querySelector('[data-kasper-more-trigger]')?.click();
+            };
+            menu.prepend(head); legacyHeads.add(head);
+        }
+        function retryControls() {
+            document.querySelectorAll('#calStaleNotice, #sxrStaleNotice').forEach(el => {
+                if (retries.has(el)) return;
+                const attrs = ['role', 'tabindex', 'title'].map(key => [key, el.getAttribute(key)]);
+                const key = event => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault(); el.click();
+                };
+                retries.set(el, { attrs, key });
+                el.setAttribute('role', 'button'); el.tabIndex = 0; el.title = 'Tap to retry';
+                el.addEventListener('keydown', key);
+            });
         }
         function lock() {
             if (locked) return;
@@ -108,13 +137,15 @@
         function sync() {
             queued = false;
             if (!html.classList.contains('sv-staff-phone')) return;
-            cards();
+            if (cardsDirty) { cardsDirty = false; cards(); }
+            retryControls();
             const active = [...document.querySelectorAll(candidates)].filter(shown);
             let returnTo = null;
             for (const [el, trigger] of overlays) if (!active.includes(el)) {
                 returnTo = trigger; overlays.delete(el);
             }
             active.forEach(el => {
+                legacyHead(el);
                 if (!overlays.has(el)) {
                     const trigger = liveTrigger(lastTrigger)
                         || document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
@@ -138,7 +169,25 @@
             const current = trigger?.isConnected ? trigger : trigger?.id ? document.getElementById(trigger.id) : null;
             return current?.checkVisibility() ? current : null;
         }
-        function schedule() {
+        function schedule(records) {
+            // Field sizing and popup movement do not change card tools. Avoid
+            // re-scanning every card on each typed character or layout update.
+            if (records) cardsDirty ||= records.some(record => {
+                if (record.type === 'attributes') {
+                    if (record.target.matches('.cal-cap-toggle')) caption(record.target);
+                    return false;
+                }
+                const elements = [...record.addedNodes, ...record.removedNodes].filter(node => node.nodeType === 1);
+                return record.type === 'childList' && elements.length > 0
+                    && (record.target.closest?.('#calView, #sxrView')
+                        || elements.some(node => node.matches('#calView, #sxrView') || node.querySelector('.cal-card')));
+            });
+            // Caption/field sizing cannot open or close a modal. Its label was
+            // updated above; do not force geometry reads for every other popup.
+            if (!cardsDirty && records?.length && records.every(record =>
+                record.type === 'attributes' && record.target.matches('.cal-cap-toggle, .cal-cap-wrap, textarea')
+                || record.type === 'childList' && record.target.closest?.('.cal-cap-toggle')
+                    && [...record.addedNodes, ...record.removedNodes].every(node => node.nodeType !== 1))) return;
             if (!queued) { queued = true; queueMicrotask(sync); }
         }
         function pointer(event) {
@@ -193,8 +242,12 @@
         };
         function viewport() {
             const vv = window.visualViewport;
-            html.style.setProperty('--sv-phone-vh', (vv?.height || innerHeight) + 'px');
-            html.style.setProperty('--sv-phone-vtop', (vv?.offsetTop || 0) + 'px');
+            const height = (vv?.height || innerHeight) + 'px';
+            const top = (vv?.offsetTop || 0) + 'px';
+            // Ordinary scrolling does not change these dimensions. Rewriting
+            // identical values wakes every layout observer on each touch.
+            if (html.style.getPropertyValue('--sv-phone-vh') !== height) html.style.setProperty('--sv-phone-vh', height);
+            if (html.style.getPropertyValue('--sv-phone-vtop') !== top) html.style.setProperty('--sv-phone-vtop', top);
             const field = document.activeElement;
             if (!field?.matches('input, textarea, [contenteditable="true"]')) return;
             requestAnimationFrame(() => {
@@ -239,6 +292,11 @@
                 }
             });
             actionListeners.forEach(([el, listener]) => el.removeEventListener('click', listener, true));
+            legacyHeads.forEach(el => el.remove());
+            retries.forEach(({ attrs, key }, el) => {
+                el.removeEventListener('keydown', key);
+                attrs.forEach(([name, value]) => value === null ? el.removeAttribute(name) : el.setAttribute(name, value));
+            });
             document.querySelectorAll('.sv-phone-action-label').forEach(el => el.remove());
             document.querySelectorAll('.sv-phone-card-tools').forEach(el => el.remove());
             html.classList.remove('sv-staff-phone');

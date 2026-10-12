@@ -1,0 +1,22 @@
+{
+  "baselineCommit": "02ae95dd8cddd163dc4d8b640e55eedca7525734",
+  "mainAtFinalCheck": "f611eb1c0c219c191d7e85fcc602fe63b4e356da",
+  "sourceCommit": "00a9edf3e553545c75acaaf114d720d90c009ea3",
+  "generatedIndexSha256": "e08b0bb9e135cb586cb10465859a9a017b9e56b554b21ce6c399953f3582dfdf",
+  "screenshotPairs": 92,
+  "profile": {
+    "downloadBytesPerSecond": 200000,
+    "uploadBytesPerSecond": 93750,
+    "rttMs": 150,
+    "cpuSlowdown": 4,
+    "backend": "fictional replies with 150ms RTT; CDP throttles gzip-compressed loopback assets",
+    "cache": "disabled"
+  },
+  "timingFailures": [
+    "Calendar-dark-390: Calendar-dark-390 regular action Expand caption in a 20-card list took 287ms (budget 250ms)"
+  ],
+  "timingHarnessCommit": "00a9edf3e553545c75acaaf114d720d90c009ea3",
+  "visualHarnessCommit": "81e140a85872c7ad80f0d93e0d21a764135fc600",
+  "appSourceCommit": "213fb3568357cb4544a8f9df8bd727775d061661",
+  "captureNote": "Later QA-only changes wait for transient touch feedback, reset main viewport and settle setup scroll before caption counters. Final app bytes unchanged."
+}

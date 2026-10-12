@@ -97,3 +97,5 @@ router is the same thing for system-level questions.
    (Kasper) in the atlas — don't guess, don't invent.
 3. When you learn the answer anywhere else (live system, owner message), ship
    it into the owning doc **in the same session** — sessions feed the vault.
+
+Staff phone tap/refresh responsiveness and shared controls: [dated findings and limits](audits/2026-10-12-phone-responsiveness/README.md), [native comparison gallery](audits/2026-10-12-phone-responsiveness/gallery.html), and [check receipts](audits/2026-10-12-phone-responsiveness/CHECKS.md).

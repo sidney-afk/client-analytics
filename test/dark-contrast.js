@@ -11,8 +11,10 @@
  *   1. NAMED PAIRS  - the colour pairs the product is built on (page text on every
  *      surface, status pills in both palettes, the Approve / warning / error
  *      buttons and their hover and disabled states, success / warning / error ink).
- *   2. RULE SCAN    - every CSS rule that sets both `color` and `background` from
- *      tokens, in the dark theme. A rule below AA fails unless it is listed in
+ *   2. RULE SCAN    - every rule in the page's static stylesheet that sets both `color`
+ *      and `background` from tokens, in the dark theme. CSS that a lazy module injects
+ *      at run time from JavaScript (for example the TikTok upload styles) is NOT seen;
+ *      such a surface needs a browser check of its own. A rule below AA fails unless it is listed in
  *      KNOWN_RULE_GAPS (a list that may only shrink; see the note by it).
  *
  * Disabled controls are held to the same bar on purpose: WCAG exempts them, but a
@@ -231,4 +233,4 @@ for (const key of KNOWN_RULE_GAPS) if (!seen.has(key)) { failures++; lines.push(
 
 for (const l of lines) console.log(l);
 if (failures) { console.error(`dark-contrast: ${failures} failure(s) in ${checks} checks`); process.exit(1); }
-console.log(`dark-contrast: OK, ${checks} checks (named pairs + every token-coloured rule), all at AA or better in dark mode`);
+console.log(`dark-contrast: OK, ${checks} checks (named pairs + every token-coloured rule in the static stylesheet), all at AA or better in dark mode`);

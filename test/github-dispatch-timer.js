@@ -292,7 +292,10 @@ for (const row of rows) {
   };
   for (const id of jobs.keys()) {
     if (id === 'schedule-guard') continue;
-    ok(isGated(id), `${row.workflow}: job '${id}' waits for the guard and is skipped when the timer already ran`);
+    // The one allowed exception is a notice job that runs ONLY when the timer already ran,
+    // so a green scheduled run says "backup skipped here" instead of looking like a saved copy.
+    const notice = jobs.get(id) && jobs.get(id).if === GATE.replace("== 'true'", "== 'false'") && jobs.get(id).needs.includes('schedule-guard');
+    ok(isGated(id) || notice, `${row.workflow}: job '${id}' waits for the guard and is skipped when the timer already ran`);
   }
   const declared = dispatchInputs(source) || [];
   if (row.inputs.source !== 'db-timer') {

@@ -694,7 +694,13 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (_calOpenStatusMenu.triggerEl && _calOpenStatusMenu.triggerEl.contains(e.target)) return;
         _calCloseStatusMenu();
     }, true);
-    window.addEventListener('resize', _calCloseStatusMenu);
+    let _calStatusMenuWidth = innerWidth;
+    window.addEventListener('resize', () => {
+        // A keyboard or browser toolbar changes height, not the phone layout.
+        const width = innerWidth;
+        if (!_calStaffPhoneActive() || width !== _calStatusMenuWidth) _calCloseStatusMenu();
+        _calStatusMenuWidth = width;
+    });
     window.addEventListener('scroll', () => {
         // The phone picker stays at the bottom of the screen. Scrolling its
         // choices or finishing the page scroll that brought the trigger into

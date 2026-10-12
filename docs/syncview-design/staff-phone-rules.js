@@ -12,7 +12,7 @@
         const html = document.documentElement;
         html.classList.add('sv-staff-phone');
         const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [];
-        let lastTrigger = null, locked = null, queued = false, touch = null;
+        let lastTrigger = null, locked = null, queued = false, touch = null, cardsDirty = true;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
         const candidates = '.cal-lightbox.open, .kasper-lightbox.open, dialog[open], [aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [class*="-overlay"], [class*="-popup"], [class*="-popover"], [class*="-menu"], [class*="-dropdown"], .prod-pop, .prod-cmd-bd, .cal-card-color-picker, .sv-client-pop, #svJump:not([hidden])';
@@ -108,7 +108,7 @@
         function sync() {
             queued = false;
             if (!html.classList.contains('sv-staff-phone')) return;
-            cards();
+            if (cardsDirty) { cardsDirty = false; cards(); }
             const active = [...document.querySelectorAll(candidates)].filter(shown);
             let returnTo = null;
             for (const [el, trigger] of overlays) if (!active.includes(el)) {
@@ -138,7 +138,15 @@
             const current = trigger?.isConnected ? trigger : trigger?.id ? document.getElementById(trigger.id) : null;
             return current?.checkVisibility() ? current : null;
         }
-        function schedule() {
+        function schedule(records) {
+            // Field sizing and popup movement do not change card tools. Avoid
+            // re-scanning every card on each typed character or layout update.
+            if (records) cardsDirty ||= records.some(record => {
+                if (record.type === 'attributes') return record.target.matches('.cal-cap-toggle');
+                return record.type === 'childList' && (record.target.closest?.('#calView, #sxrView')
+                    || [...record.addedNodes].some(node => node.nodeType === 1
+                        && (node.matches('#calView, #sxrView') || node.querySelector('.cal-card'))));
+            });
             if (!queued) { queued = true; queueMicrotask(sync); }
         }
         function pointer(event) {

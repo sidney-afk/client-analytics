@@ -103,6 +103,7 @@ async function open(opts) {
     await context.route(u => u.href.includes(needle), r => (text && text.hold ? new Promise(() => {}) : text && typeof text === 'object' ? r.fulfill(text) : r.fulfill({ status: 200, contentType: 'text/csv', body: typeof text === 'function' ? text() : text })));
   }
   for (const [glob, handler] of o.routes || []) await context.route(glob, handler);
+  if (o.beforeNavigate) await o.beforeNavigate(page, context);
   await page.goto(base + (o.query ? '?' + o.query : '') + (o.hash || ''), { waitUntil: 'domcontentloaded' });
   const close = async () => { await context.close().catch(() => {}); await browser.close().catch(() => {}); await new Promise(r => server.close(r)); };
   return { page, context, state, close, base };

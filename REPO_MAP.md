@@ -1,5 +1,10 @@
 # Repo map
 
+`qa/staff-phone-responsiveness.js` measures native staff cold useful paint and
+touch-to-sheet paint with fictional 4G transports. It guards repeated taps,
+inside taps, phone-height resize, retained refresh content/drafts and card-scan
+work during field layout. Finch exposes a before-navigation instrumentation hook.
+
 Prism phone rounds: `qa/client-phone/coverage.js` inventories the scoped native
 journeys using owner-approved devices in `qa/client-phone/profiles.js` and records
 device/theme review cells and outstanding state/action

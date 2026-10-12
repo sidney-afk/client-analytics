@@ -13,12 +13,13 @@ const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
 const backup = require('../scripts/track-b-backup');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const MIGRATION_DIRS = ['migrations', 'supabase/migrations'];
 
 function stripComments(sql) {
-  return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
+  return stripBlockComments(sql, ' ').replace(/--[^\n]*/g, ' ');
 }
 
 // Matches an optionally quoted, optionally public-qualified table name.

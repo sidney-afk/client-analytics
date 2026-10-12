@@ -24,6 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const zlib = require('node:zlib');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
@@ -109,6 +110,7 @@ function resetScenario() { Object.assign(scenario, { templates: 'ok', brain: 'ok
 const json = (route, body, status) => route.fulfill({ status: status || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
 
 async function installBackend(ctx, editor) {
+  await ctx.routeWebSocket('**/*', socket => socket.close());
   await ctx.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), async route => {
     const req = route.request(); const url = new URL(req.url()); const p = url.pathname; const m = req.method();
     if (process.env.DEBUG_REQ) console.log('  req', m, p);
@@ -167,7 +169,7 @@ async function installBackend(ctx, editor) {
   });
 }
 
-function serve() {
+function serve(options = {}) {
   const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg' };
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://127.0.0.1');
@@ -177,6 +179,10 @@ function serve() {
       if (fs.existsSync(file + '.html')) file += '.html';
       else if (!path.extname(rel) && fs.existsSync(path.join(SERVE_ROOT, '404.html'))) { file = path.join(SERVE_ROOT, '404.html'); }
       else { res.writeHead(404); return res.end('not found'); }
+    }
+    if (options.gzip && /\.(html|js|css)$/.test(file)) {
+      res.writeHead(200, { 'Content-Type': mime[path.extname(file).toLowerCase()], 'Content-Encoding': 'gzip' });
+      res.end(zlib.gzipSync(fs.readFileSync(file))); return;
     }
     res.writeHead(200, { 'Content-Type': mime[path.extname(file).toLowerCase()] || 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);

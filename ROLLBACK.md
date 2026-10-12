@@ -1483,3 +1483,7 @@ poll, without disabling Production:
 Before any function deploy, reverting the Digger repair commit and rebuilding the page restores the prior source behavior; Lighthouse handles the merge. The page half serves on the normal Pages merge. After a caption-jobs or client-hubspot-sync deployment, a source revert alone does not change the running function: the owner must redeploy that function's reviewed prior source through the existing single-function lane. HubSpot remains off by default and this audit did not enable it. No schema, credential, flag, grant or data inverse is required. The backfill is an operator script and was not run against live writers. Keep the append-only OPEN_REPAIRS record and dated audit as evidence when preparing a rollback; do not erase those records to undo code.
 
 Reverting restores known read/completeness defects, so weigh that against the reported regression before rolling back. No Clients fragment, roster function, client-profile-write or n8n workflow belongs to this repair.
+
+## Staff phone responsiveness polish — 2026-10-12, not deployed
+
+Revert this bounded PR and run `npm run build:index` from its reverted source fragments; verify `npm run -s check:index` and the phone/desktop gates before the normal release process. No database, credential or workflow rollback is involved. Preserve native write authority and the frozen tokenless client writers. [Evidence and limits](docs/audits/2026-10-12-phone-responsiveness/README.md).

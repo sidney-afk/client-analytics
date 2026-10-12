@@ -32,6 +32,14 @@ import {
   clientOn,
   effectivePrompt,
   borrowedMonthLabel,
+  borrowedPlanName,
+  borrowedVerdict,
+  CHECK_SYSTEM_PROMPT,
+  checkForCutoff,
+  checkMessage,
+  cutoffDay,
+  parseCheck,
+  selectEarlierCaptioned,
   monthLabel,
   needsInfoLine,
   normalizedText,
@@ -90,7 +98,7 @@ async function fail(db: SupabaseClient, job: Job, code: string, counts: Json): P
 
 type Answer = { ok: boolean; content: unknown; error: string };
 
-async function callClaude(apiKey: string, model: string, messages: Json[]): Promise<Answer> {
+async function callClaude(apiKey: string, model: string, messages: Json[], system = SYSTEM_PROMPT): Promise<Answer> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), PROVIDER_TIMEOUT_MS);
   try {
@@ -98,7 +106,7 @@ async function callClaude(apiKey: string, model: string, messages: Json[]): Prom
       method: "POST",
       signal: ctrl.signal,
       headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model, max_tokens: 4096, system: SYSTEM_PROMPT, messages }),
+      body: JSON.stringify({ model, max_tokens: 4096, system, messages }),
     });
     const body = await response.json().catch(() => null) as Json | null;
     if (!response.ok) {
@@ -132,6 +140,15 @@ async function askClaude(apiKey: string, model: string, prompt: string, posts: P
   const again = parseTitles(second.content, keys);
   if (again.ok) return { titles: again.titles, error: "" };
   return { titles: null, error: shortError(again.error, [first.error, second.error].filter(Boolean).join(" ")) };
+}
+
+// The used-video check for posts that borrowed a neighbouring month's tab: one extra request per borrowed
+// tab. Returns the check, or the short reason it could not be read.
+async function askCheck(apiKey: string, model: string, earlier: Array<{ caption: string }>, posts: Post[], planText: string): Promise<{ check: ReturnType<typeof parseCheck> | null; error: string }> {
+  const answer = await callClaude(apiKey, model, [{ role: "user", content: checkMessage(earlier, posts, planText) }], CHECK_SYSTEM_PROMPT);
+  if (!answer.ok) return { check: null, error: answer.error };
+  const check = parseCheck(answer.content, earlier.length, posts.map((p) => p.key));
+  return check.ok ? { check, error: "" } : { check: null, error: check.error };
 }
 
 async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: string, model: string, counts: Json): Promise<void> {
@@ -216,16 +233,64 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
       counts.waiting_for_api_key = Number(counts.waiting_for_api_key || 0) + posts.length;
       continue;
     }
-    const answer = await askClaude(apiKey, model, prompt, posts, tab.text);
+    // Posts on a borrowed tab: numbering restarts every month, so first check that the video the card
+    // points to was not already used by an earlier post. Posts on their own month's tab skip this.
+    let toTitle = posts;
+    const borrowed = posts.filter((p) => p.via);
+    if (borrowed.length) {
+      const first = borrowed[0];
+      const cardIds = borrowed.map((p) => clean(byId.get(p.job.deliverable_id)?.card_id)).filter(Boolean);
+      const [{ data: cardRows, error: cardError }, { data: history, error: historyError }] = await Promise.all([
+        db.from("calendar_posts").select("id,scheduled_date").eq("client", slug).in("id", cardIds.length ? cardIds : ["-"]),
+        db.from("calendar_posts").select("id,name,caption,scheduled_date").eq("client", slug).neq("caption", "").not("caption", "is", null).order("scheduled_date", { ascending: false }).limit(400),
+      ]);
+      // A failed read is a failed check, never an empty one: the posts go back in the queue.
+      const readFailed = !!(cardError || historyError);
+      if (readFailed) {
+        const code = shortError("calendar_read", (cardError || historyError)?.code);
+        console.warn(`thumbnail-titles: calendar read failed for ${borrowed.length} borrowed post(s) (${code})`);
+        for (const p of borrowed) await fail(db, p.job, code, counts);
+        toTitle = posts.filter((p) => !p.via);
+      }
+      // Each borrowed post has its own cutoff day; the captions are read up to the latest of them.
+      const dateOf = new Map(((cardRows || []) as Json[]).map((r) => [clean(r.id), clean(r.scheduled_date)]));
+      const cutoffs = new Map(borrowed.map((p) => [p.key, cutoffDay(dateOf.get(clean(byId.get(p.job.deliverable_id)?.card_id)), p.createdAt)]));
+      const cardDate = [...cutoffs.values()].filter(Boolean).sort().pop() || "";
+      const earlier = readFailed ? [] : selectEarlierCaptioned(history || [], { cardDate, createdAt: first.createdAt, excludeIds: cardIds });
+      const { check, error } = readFailed ? { check: null, error: "" } : await askCheck(apiKey, model, earlier, borrowed, tab.text);
+      if (readFailed) {
+        // The borrowed posts were already put back in the queue above.
+      } else if (!check) {
+        console.warn(`thumbnail-titles: used-video check failed for ${borrowed.length} post(s) (${error})`);
+        for (const p of borrowed) await fail(db, p.job, error || "check_failed", counts);
+        toTitle = posts.filter((p) => !p.via);
+      } else {
+        const stop = new Set<string>();
+        for (const p of borrowed) {
+          const own = checkForCutoff(check, earlier, cutoffs.get(p.key) || "");
+          const verdict = borrowedVerdict(p, own.check, own.count);
+          if (verdict.accept) continue;
+          stop.add(p.key);
+          const vars = { month: monthLabel(p.createdAt), plan: borrowedPlanName(p.createdAt, p.via), video: verdict.video };
+          const note = `tab_${p.via}: ${borrowedMonthLabel(p.createdAt, p.via)}`;
+          const state = await apply(db, p.job.deliverable_id, needsInfoLine(verdict.outcome, vars), "needs_info", verdict.outcome, note);
+          counts[state] = Number(counts[state] || 0) + 1;
+          counts[verdict.outcome] = Number(counts[verdict.outcome] || 0) + 1;
+        }
+        toTitle = posts.filter((p) => !stop.has(p.key));
+      }
+      if (!toTitle.length) continue;
+    }
+    const answer = await askClaude(apiKey, model, prompt, toTitle, tab.text);
     if (!answer.titles) {
       // Counts and a code only: never a title, a plan line or a client name in the logs.
-      console.warn(`thumbnail-titles: no titles for a group of ${posts.length} (${answer.error})`);
-      for (const p of posts) await fail(db, p.job, answer.error || "provider", counts);
+      console.warn(`thumbnail-titles: no titles for a group of ${toTitle.length} (${answer.error})`);
+      for (const p of toTitle) await fail(db, p.job, answer.error || "provider", counts);
       continue;
     }
     const planNormalized = normalizedText(tab.text);
-    for (const post of posts) {
-      const line = resolveLine(post, answer.titles.get(post.key) || "", planNormalized);
+    for (const post of toTitle) {
+      const line = resolveLine(post, answer.titles.get(post.key) || "", planNormalized, post.via ? borrowedPlanName(post.createdAt, post.via) : "");
       // A tab borrowed from the next or previous month is noted in last_error (a code and a month, never plan text).
       const note = post.via ? `tab_${post.via}: ${borrowedMonthLabel(post.createdAt, post.via)}` : "";
       const state = await apply(db, post.job.deliverable_id, line.text, line.state, line.outcome, note);

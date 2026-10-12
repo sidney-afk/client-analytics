@@ -1,0 +1,2241 @@
+{
+  "profile": {
+    "downloadBytesPerSecond": 200000,
+    "uploadBytesPerSecond": 93750,
+    "rttMs": 150,
+    "cpuSlowdown": 4,
+    "backend": "fictional replies with 150ms RTT; CDP throttles gzip-compressed loopback assets",
+    "cache": "disabled"
+  },
+  "baseline": false,
+  "rows": [
+    {
+      "rule": "caption tap does not scan unrelated popups",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "rule": "cached caption tap avoids synchronous width measurement",
+      "passed": true,
+      "reads": 0
+    },
+    {
+      "rule": "caption expansion does not re-size unchanged titles",
+      "passed": true,
+      "writes": 0
+    },
+    {
+      "rule": "ordinary phone action does not build hidden hover tooltip",
+      "passed": true,
+      "invisibleTip": 0
+    },
+    {
+      "screen": "Calendar",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5741,
+      "tapMs": 115,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 115
+      },
+      "cls": 0.14057850976692646,
+      "longTasks": 8
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "unchanged visual viewport avoids style writes and popup scans",
+      "label": "Calendar-light-390",
+      "passed": true,
+      "scans": 0,
+      "writes": 0
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": true
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": true
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": true
+    },
+    {
+      "rule": "refresh recovery has a 44px labelled touch target",
+      "label": "Calendar-light-390",
+      "passed": true,
+      "width": 358,
+      "height": 44
+    },
+    {
+      "rule": "native Retry tap keeps useful cards",
+      "label": "Calendar-light-390",
+      "passed": true
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "rule": "caption disclosure updates locally",
+      "label": "Show less",
+      "passed": true,
+      "scans": 0,
+      "expanded": "true"
+    },
+    {
+      "rule": "caption tap does not scan unrelated popups",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "rule": "cached caption tap avoids synchronous width measurement",
+      "passed": true,
+      "reads": 0
+    },
+    {
+      "rule": "caption expansion does not re-size unchanged titles",
+      "passed": true,
+      "writes": 0
+    },
+    {
+      "rule": "ordinary phone action does not build hidden hover tooltip",
+      "passed": true,
+      "invisibleTip": 0
+    },
+    {
+      "screen": "Calendar",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5788,
+      "tapMs": 287,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 287
+      },
+      "cls": 0.14057850976692646,
+      "longTasks": 9
+    },
+    {
+      "rule": "caption tap does not scan unrelated popups",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "rule": "cached caption tap avoids synchronous width measurement",
+      "passed": true,
+      "reads": 0
+    },
+    {
+      "rule": "caption expansion does not re-size unchanged titles",
+      "passed": true,
+      "writes": 0
+    },
+    {
+      "rule": "ordinary phone action does not build hidden hover tooltip",
+      "passed": true,
+      "invisibleTip": 0
+    },
+    {
+      "screen": "Calendar",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5730,
+      "tapMs": 104,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 104
+      },
+      "cls": 0.12736632479833382,
+      "longTasks": 8
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "unchanged visual viewport avoids style writes and popup scans",
+      "label": "Calendar-light-430",
+      "passed": true,
+      "scans": 0,
+      "writes": 0
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": true
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": true
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": true
+    },
+    {
+      "rule": "refresh recovery has a 44px labelled touch target",
+      "label": "Calendar-light-430",
+      "passed": true,
+      "width": 398,
+      "height": 44
+    },
+    {
+      "rule": "native Retry tap keeps useful cards",
+      "label": "Calendar-light-430",
+      "passed": true
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "rule": "caption disclosure updates locally",
+      "label": "Show less",
+      "passed": true,
+      "scans": 0,
+      "expanded": "true"
+    },
+    {
+      "rule": "caption tap does not scan unrelated popups",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "rule": "cached caption tap avoids synchronous width measurement",
+      "passed": true,
+      "reads": 0
+    },
+    {
+      "rule": "caption expansion does not re-size unchanged titles",
+      "passed": true,
+      "writes": 0
+    },
+    {
+      "rule": "ordinary phone action does not build hidden hover tooltip",
+      "passed": true,
+      "invisibleTip": 0
+    },
+    {
+      "screen": "Calendar",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5741,
+      "tapMs": 218,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 218
+      },
+      "cls": 0.12736632479833382,
+      "longTasks": 10
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "unchanged visual viewport avoids style writes and popup scans",
+      "label": "Calendar-dark-430",
+      "passed": true,
+      "scans": 0,
+      "writes": 0
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "refresh recovery has a 44px labelled touch target",
+      "label": "Calendar-dark-430",
+      "passed": true,
+      "width": 398,
+      "height": 44
+    },
+    {
+      "rule": "native Retry tap keeps useful cards",
+      "label": "Calendar-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "rule": "caption disclosure updates locally",
+      "label": "Show less",
+      "passed": true,
+      "scans": 0,
+      "expanded": "true"
+    },
+    {
+      "screen": "Samples",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5147,
+      "tapMs": 52,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 44
+      },
+      "cls": 0.13976007576948704,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "unchanged visual viewport avoids style writes and popup scans",
+      "label": "Samples-light-390",
+      "passed": true,
+      "scans": 0,
+      "writes": 0
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": true
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": true
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": true
+    },
+    {
+      "rule": "refresh recovery has a 44px labelled touch target",
+      "label": "Samples-light-390",
+      "passed": true,
+      "width": 358,
+      "height": 44
+    },
+    {
+      "rule": "native Retry tap keeps useful cards",
+      "label": "Samples-light-390",
+      "passed": true
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "screen": "Samples",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5253,
+      "tapMs": 70,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 62
+      },
+      "cls": 0.13976007576948704,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "unchanged visual viewport avoids style writes and popup scans",
+      "label": "Samples-dark-390",
+      "passed": true,
+      "scans": 0,
+      "writes": 0
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": true
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": true
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": true
+    },
+    {
+      "rule": "refresh recovery has a 44px labelled touch target",
+      "label": "Samples-dark-390",
+      "passed": true,
+      "width": 358,
+      "height": 44
+    },
+    {
+      "rule": "native Retry tap keeps useful cards",
+      "label": "Samples-dark-390",
+      "passed": true
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "screen": "Samples",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5206,
+      "tapMs": 58,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 44
+      },
+      "cls": 0.1148419183808275,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "unchanged visual viewport avoids style writes and popup scans",
+      "label": "Samples-light-430",
+      "passed": true,
+      "scans": 0,
+      "writes": 0
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": true
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": true
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": true
+    },
+    {
+      "rule": "refresh recovery has a 44px labelled touch target",
+      "label": "Samples-light-430",
+      "passed": true,
+      "width": 398,
+      "height": 44
+    },
+    {
+      "rule": "native Retry tap keeps useful cards",
+      "label": "Samples-light-430",
+      "passed": true
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "screen": "Samples",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5160,
+      "tapMs": 76,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 64
+      },
+      "cls": 0.1148419183808275,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "unchanged visual viewport avoids style writes and popup scans",
+      "label": "Samples-dark-430",
+      "passed": true,
+      "scans": 0,
+      "writes": 0
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "refresh recovery has a 44px labelled touch target",
+      "label": "Samples-dark-430",
+      "passed": true,
+      "width": 398,
+      "height": 44
+    },
+    {
+      "rule": "native Retry tap keeps useful cards",
+      "label": "Samples-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": true,
+      "scans": 0
+    },
+    {
+      "screen": "Workload",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 7129,
+      "tapMs": 105,
+      "regularAction": null,
+      "cls": 0.11444045204251062,
+      "longTasks": 11
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-light-390",
+      "passed": true,
+      "width": 91.375,
+      "height": 44,
+      "scrollWidth": 91,
+      "clientWidth": 91,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "nowrap"
+    },
+    {
+      "screen": "Workload",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 7197,
+      "tapMs": 173,
+      "regularAction": null,
+      "cls": 0.11444045204251062,
+      "longTasks": 14
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-dark-390",
+      "passed": true,
+      "width": 91.375,
+      "height": 44,
+      "scrollWidth": 91,
+      "clientWidth": 91,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "nowrap"
+    },
+    {
+      "screen": "Workload",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 7092,
+      "tapMs": 112,
+      "regularAction": null,
+      "cls": 0.13091726577871143,
+      "longTasks": 10
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-light-430",
+      "passed": true,
+      "width": 91.375,
+      "height": 44,
+      "scrollWidth": 91,
+      "clientWidth": 91,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "nowrap"
+    },
+    {
+      "screen": "Workload",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 7202,
+      "tapMs": 213,
+      "regularAction": null,
+      "cls": 0.13091726577871143,
+      "longTasks": 14
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-dark-430",
+      "passed": true,
+      "width": 91.375,
+      "height": 44,
+      "scrollWidth": 91,
+      "clientWidth": 91,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "nowrap"
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 7003,
+      "tapMs": 69,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 53
+      },
+      "cls": 0.0480817602227039,
+      "longTasks": 6
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 7068,
+      "tapMs": 120,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 94
+      },
+      "cls": 0.0480817602227039,
+      "longTasks": 11
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 7064,
+      "tapMs": 73,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 53
+      },
+      "cls": 0.04410748366997555,
+      "longTasks": 6
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 7089,
+      "tapMs": 132,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 112
+      },
+      "cls": 0.04410748366997555,
+      "longTasks": 13
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5184,
+      "tapMs": 58,
+      "regularAction": null,
+      "cls": 0.25858839204158335,
+      "longTasks": 6
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5188,
+      "tapMs": 86,
+      "regularAction": null,
+      "cls": 0.25858839204158335,
+      "longTasks": 6
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5135,
+      "tapMs": 57,
+      "regularAction": null,
+      "cls": 0.2626909517370323,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5291,
+      "tapMs": 80,
+      "regularAction": null,
+      "cls": 0.2626909517370323,
+      "longTasks": 7
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Templates",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5154,
+      "tapMs": 47,
+      "regularAction": null,
+      "cls": 0.023770883979268787,
+      "longTasks": 2
+    },
+    {
+      "screen": "Templates",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5259,
+      "tapMs": 73,
+      "regularAction": null,
+      "cls": 0.023770883979268787,
+      "longTasks": 4
+    },
+    {
+      "screen": "Templates",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5179,
+      "tapMs": 49,
+      "regularAction": null,
+      "cls": 0.01980596844536154,
+      "longTasks": 2
+    },
+    {
+      "screen": "Templates",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5219,
+      "tapMs": 71,
+      "regularAction": null,
+      "cls": 0.01980596844536154,
+      "longTasks": 5
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5376,
+      "tapMs": 53,
+      "regularAction": null,
+      "cls": 0.02149837529854825,
+      "longTasks": 3
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5418,
+      "tapMs": 78,
+      "regularAction": null,
+      "cls": 0.02149837529854825,
+      "longTasks": 7
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5348,
+      "tapMs": 50,
+      "regularAction": null,
+      "cls": 0.01792893395252882,
+      "longTasks": 2
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5400,
+      "tapMs": 80,
+      "regularAction": null,
+      "cls": 0.01792893395252882,
+      "longTasks": 5
+    },
+    {
+      "screen": "Submit",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5018,
+      "tapMs": 63,
+      "regularAction": null,
+      "cls": 0.053210390774967045,
+      "longTasks": 5
+    },
+    {
+      "screen": "Submit",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5063,
+      "tapMs": 79,
+      "regularAction": null,
+      "cls": 0.053210390774967045,
+      "longTasks": 7
+    },
+    {
+      "screen": "Submit",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5008,
+      "tapMs": 54,
+      "regularAction": null,
+      "cls": 0.049003358211672496,
+      "longTasks": 4
+    },
+    {
+      "screen": "Submit",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5078,
+      "tapMs": 83,
+      "regularAction": null,
+      "cls": 0.049003358211672496,
+      "longTasks": 6
+    },
+    {
+      "screen": "Upload",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 6754,
+      "tapMs": 70,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Upload",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 6812,
+      "tapMs": 95,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 8
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Upload",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 6748,
+      "tapMs": 64,
+      "regularAction": null,
+      "cls": 0.03582554466256602,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Upload",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 6815,
+      "tapMs": 104,
+      "regularAction": null,
+      "cls": 0.03582554466256602,
+      "longTasks": 7
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 6911,
+      "tapMs": 69,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 8
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 6905,
+      "tapMs": 95,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 10
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 6833,
+      "tapMs": 60,
+      "regularAction": null,
+      "cls": 0.03582554466256602,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 6868,
+      "tapMs": 118,
+      "regularAction": null,
+      "cls": 0.03582554466256602,
+      "longTasks": 9
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Analytics",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 6723,
+      "tapMs": 63,
+      "regularAction": null,
+      "cls": 0.2117587526849185,
+      "longTasks": 7
+    },
+    {
+      "screen": "Analytics",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 6935,
+      "tapMs": 144,
+      "regularAction": null,
+      "cls": 0.21094273692290993,
+      "longTasks": 14
+    },
+    {
+      "screen": "Analytics",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 6737,
+      "tapMs": 67,
+      "regularAction": null,
+      "cls": 0.19326010361696894,
+      "longTasks": 6
+    },
+    {
+      "screen": "Analytics",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 6921,
+      "tapMs": 132,
+      "regularAction": null,
+      "cls": 0.19326010361696894,
+      "longTasks": 12
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-390",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-390",
+      "passed": true
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-390",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-390",
+      "passed": true
+    },
+    {
+      "screen": "Reviewer",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5624,
+      "tapMs": 69,
+      "regularAction": null,
+      "cls": 0.1354696199258316,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-390",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-390",
+      "passed": true
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-390",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-390",
+      "passed": true
+    },
+    {
+      "screen": "Reviewer",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5731,
+      "tapMs": 95,
+      "regularAction": null,
+      "cls": 0.1354696199258316,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-430",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-430",
+      "passed": true
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-430",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-430",
+      "passed": true
+    },
+    {
+      "screen": "Reviewer",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5584,
+      "tapMs": 54,
+      "regularAction": null,
+      "cls": 0.11133919587119237,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-430",
+      "passed": true
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-430",
+      "passed": true
+    },
+    {
+      "screen": "Reviewer",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5666,
+      "tapMs": 57,
+      "regularAction": null,
+      "cls": 0.11133919587119237,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Time Off",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5411,
+      "tapMs": 94,
+      "regularAction": null,
+      "cls": 0.07286187042818744,
+      "longTasks": 6
+    },
+    {
+      "screen": "Time Off",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5570,
+      "tapMs": 142,
+      "regularAction": null,
+      "cls": 0.07286187042818744,
+      "longTasks": 13
+    },
+    {
+      "screen": "Time Off",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5421,
+      "tapMs": 82,
+      "regularAction": null,
+      "cls": 0.0599804363126369,
+      "longTasks": 6
+    },
+    {
+      "screen": "Time Off",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5568,
+      "tapMs": 152,
+      "regularAction": null,
+      "cls": 0.0599804363126369,
+      "longTasks": 13
+    }
+  ],
+  "failures": [
+    "Calendar-dark-390: Calendar-dark-390 regular action Expand caption in a 20-card list took 287ms (budget 250ms)"
+  ]
+}

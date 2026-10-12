@@ -33,6 +33,14 @@
             --wl-overdue-section-bg: var(--sv-bg-fef2f2); --wl-overdue-border: var(--sv-border-fca5a5); --wl-overdue-accent: var(--sv-bg-dc2626); --wl-overdue-accent-hover: var(--sv-bg-b91c1c); --wl-overdue-label: var(--sv-fg-991b1b); --wl-overdue-chip-bg: var(--sv-bg-fee2e2); --wl-overdue-chip-hover: var(--sv-bg-fecaca); --wl-overdue-chip-fg: var(--sv-fg-991b1b);
             --wl-tweaks-section-bg: var(--sv-bg-fff7ed); --wl-tweaks-border: var(--sv-border-fdba74); --wl-tweaks-accent: var(--sv-bg-ea580c); --wl-tweaks-accent-hover: var(--sv-bg-c2410c); --wl-tweaks-label: var(--sv-fg-9a3412); --wl-tweaks-chip-bg: var(--sv-bg-ffedd5); --wl-tweaks-chip-hover: var(--sv-bg-fed7aa); --wl-tweaks-chip-fg: var(--sv-fg-9a3412);
             --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
+            /* Solid action colours (Approve, Request change, destructive). One token per
+               meaning: light mode keeps the exact colours these controls always had; dark mode
+               swaps a bright fill for dark text, so success, warning and error read the same
+               everywhere (docs/features/UI_DESIGN_STANDARDS.md, test/dark-contrast.js). */
+            --ok-solid-bg: var(--sv-bg-16a34a); --ok-solid-bg-hover: var(--sv-bg-15803d); --ok-solid-deep-bg: var(--sv-bg-166534); --ok-solid-fg: var(--sv-fg-fff); --ok-solid-chip-bg: var(--sv-bg-rgba-255-255-255-0_24); --ok-solid-off-bg: var(--sv-bg-16a34a); --ok-solid-off-fg: var(--sv-fg-fff); --ok-avatar-from: var(--sv-bg-16a34a); --ok-avatar-to: var(--sv-bg-059669);
+            --warn-solid-bg: var(--sv-bg-f97316); --warn-solid-bg-hover: var(--sv-bg-ea580c); --warn-solid-deep-bg: var(--sv-bg-ea580c); --warn-solid-deep-bg-hover: var(--sv-bg-c2410c); --warn-solid-fg: var(--sv-fg-fff);
+            --err-solid-bg: var(--sv-bg-dc2626); --err-solid-fg: var(--sv-fg-fff);
+            --disabled-fg: var(--text-secondary);
         }
         html[data-theme="dark"] {
             --tpl-prev-dark: #15161a; --tpl-prev-dark2: #3a3f4a; --tpl-prev-light: #d9dce2; --tpl-prev-light2: #f4f5f7; --tpl-prev-shadow: rgba(0,0,0,0.65); --brief-look: #a996ff; --brief-look-bg: #221d38; --brief-edit: #6aa8f5; --brief-edit-bg: #172536; --brief-music: #43d1bf; --brief-music-bg: #13302d; --brief-avoid: #ff7b8c; --brief-avoid-bg: #37191f; --brief-about: #f0b454; --brief-about-bg: #332713; --brief-asks: #f08cc4; --brief-asks-bg: #361b2c; --brief-know: #9fb0c8; --brief-know-bg: #1d2330;
@@ -60,6 +68,10 @@
             --wl-overdue-section-bg: #2a191d; --wl-overdue-border: #f87171; --wl-overdue-accent: #f87171; --wl-overdue-accent-hover: #ef4444; --wl-overdue-label: #f87171; --wl-overdue-chip-bg: #fca5a5; --wl-overdue-chip-hover: #f87171; --wl-overdue-chip-fg: #101114;
             --wl-tweaks-section-bg: #2a1f16; --wl-tweaks-border: #fb923c; --wl-tweaks-accent: #fb923c; --wl-tweaks-accent-hover: #f97316; --wl-tweaks-label: #fb923c; --wl-tweaks-chip-bg: #fdba74; --wl-tweaks-chip-hover: #fb923c; --wl-tweaks-chip-fg: #101114;
             --upload-progress-track: #26303a; --upload-progress-fill: #67e8f9; --upload-progress-glow: rgba(103,232,249,0.45);
+            --ok-solid-bg: #4ade80; --ok-solid-bg-hover: #86efac; --ok-solid-deep-bg: #4ade80; --ok-solid-fg: #0b1f12; --ok-solid-chip-bg: rgba(11,31,18,0.14); --ok-solid-off-bg: #1f3a2b; --ok-solid-off-fg: #a7e8c0; --ok-avatar-from: #4ade80; --ok-avatar-to: #22c55e;
+            --warn-solid-bg: #fb923c; --warn-solid-bg-hover: #fdba74; --warn-solid-deep-bg: #fb923c; --warn-solid-deep-bg-hover: #fdba74; --warn-solid-fg: #1f1004;
+            --err-solid-bg: #f87171; --err-solid-fg: #2a0c0c;
+            --disabled-fg: #9aa3b2;
         }
         html[data-status-palette="classic"] {
             --cal-status-in-progress-bg: var(--sv-bg-fef08a); --cal-status-in-progress-fg: var(--sv-fg-713f12); --cal-status-for-smm-approval-bg: var(--sv-bg-fce7f3); --cal-status-for-smm-approval-fg: var(--sv-fg-9d174d); --cal-status-kasper-approval-bg: var(--sv-bg-ffe4cc); --cal-status-kasper-approval-fg: var(--sv-fg-9a3412); --cal-status-client-approval-bg: var(--sv-bg-fee2e2); --cal-status-client-approval-fg: var(--sv-fg-991b1b); --cal-status-approved-bg: var(--sv-bg-dcfce7); --cal-status-approved-fg: var(--sv-fg-166534); --cal-status-tweaks-needed-bg: var(--sv-bg-fdba74); --cal-status-tweaks-needed-fg: var(--sv-fg-7c2d12); --cal-status-scheduled-bg: var(--sv-bg-ede9fe); --cal-status-scheduled-fg: var(--sv-fg-5b21b6); --cal-status-posted-bg: var(--sv-bg-064e3b); --cal-status-posted-fg: var(--sv-fg-ecfdf5); --cal-status-archived-bg: var(--sv-bg-f3f4f6); --cal-status-archived-fg: var(--sv-fg-6b7280); --cal-status-n-a-bg: var(--sv-bg-f3f4f6); --cal-status-n-a-fg: var(--sv-fg-6b7280);
@@ -711,7 +723,7 @@
             --sv-bg-a78bfa: #5d5088;
             --sv-bg-b1b1aa: #616262;
             --sv-bg-b91c1c: #651b1e;
-            --sv-bg-bbf7d0: #3c4b46;
+            --sv-bg-bbf7d0: #1f3d2b;
             --sv-bg-c2410c: #6a2d16;
             --sv-bg-c46fc6: #6b436f;
             --sv-bg-c56fc0: #6b436c;
@@ -790,7 +802,7 @@
             --sv-bg-f1f1f1: #181a1f;
             --sv-bg-f1f1f2: #181a1f;
             --sv-bg-f1f5f9: #181a1f;
-            --sv-bg-f3e4cb: #484645;
+            --sv-bg-f3e4cb: #2e2619;
             --sv-bg-f3e8ff: #181a1f;
             --sv-bg-f3f0ff: #181a1f;
             --sv-bg-f3f3f1: #181a1f;
@@ -821,24 +833,24 @@
             --sv-bg-fce7f3: #181a1f;
             --sv-bg-fceef0: #181a1f;
             --sv-bg-fcfcfb: #181a1f;
-            --sv-bg-fdba74: #4a3d32;
-            --sv-bg-fde68a: #4a4737;
+            --sv-bg-fdba74: #43291a;
+            --sv-bg-fde68a: #3a2f12;
             --sv-bg-fde8d8: #181a1f;
             --sv-bg-fde8f3: #181a1f;
             --sv-bg-fdf0f5: #181a1f;
             --sv-bg-fdf6e3: #181a1f;
             --sv-bg-fdf6f9: #181a1f;
             --sv-bg-fe2c55: #862339;
-            --sv-bg-fecaca: #4b4145;
-            --sv-bg-fed7aa: #4b443e;
-            --sv-bg-fee2e2: #4b464a;
+            --sv-bg-fecaca: #46232a;
+            --sv-bg-fed7aa: #3a2616;
+            --sv-bg-fee2e2: #3a1d21;
             --sv-bg-fef08a: #181a1f;
             --sv-bg-fef2f2: #181a1f;
             --sv-bg-fef3c7: #181a1f;
             --sv-bg-fef9c3: #181a1f;
             --sv-bg-fefce8: #181a1f;
             --sv-bg-ff0000: #870e10;
-            --sv-bg-ffe4cc: #4b4645;
+            --sv-bg-ffe4cc: #3a2616;
             --sv-bg-ffedd5: #181a1f;
             --sv-bg-fff: #181a1f;
             --sv-bg-fff5e6: #181a1f;
@@ -1019,23 +1031,23 @@
             --sv-fg-000000: #a6a7a9;
             --sv-fg-0284c7: #a7d2e8;
             --sv-fg-0369a1: #a7c9dc;
-            --sv-fg-047857: #a7cec4;
-            --sv-fg-059669: #48b191;
-            --sv-fg-064e3b: #a8c0bc;
-            --sv-fg-065f46: #a8c6bf;
+            --sv-fg-047857: #4ade80;
+            --sv-fg-059669: #4ade80;
+            --sv-fg-064e3b: #4ade80;
+            --sv-fg-065f46: #4ade80;
             --sv-fg-0891b2: #4aadc6;
             --sv-fg-0a66c2: #a9c8e7;
-            --sv-fg-10b981: #50caa2;
+            --sv-fg-10b981: #4ade80;
             --sv-fg-111: #abadae;
             --sv-fg-111110: #abadae;
-            --sv-fg-14532d: #acc2b7;
-            --sv-fg-15803d: #add0bc;
-            --sv-fg-166534: #adc8b9;
-            --sv-fg-16a34a: #54ba7b;
+            --sv-fg-14532d: #4ade80;
+            --sv-fg-15803d: #4ade80;
+            --sv-fg-166534: #4ade80;
+            --sv-fg-16a34a: #4ade80;
             --sv-fg-1877f2: #aecdf6;
             --sv-fg-1d4ed8: #afc0ee;
             --sv-fg-1e40af: #b0bce1;
-            --sv-fg-22c55e: #5dd389;
+            --sv-fg-22c55e: #4ade80;
             --sv-fg-2563eb: #b2c7f4;
             --sv-fg-2a2a26: #b3b5b5;
             --sv-fg-2b2f38: #b4b6bb;
@@ -1046,13 +1058,13 @@
             --sv-fg-4a154b: #beaec1;
             --sv-fg-4a54b8: #bec2e4;
             --sv-fg-4a54c0: #bec2e6;
-            --sv-fg-4ade80: #7ae5a2;
+            --sv-fg-4ade80: #4ade80;
             --sv-fg-4b5563: #bec2c8;
             --sv-fg-4f46e5: #bfbef2;
             --sv-fg-555: #c1c2c4;
             --sv-fg-5b21b6: #c3b2e3;
             --sv-fg-5b6172: #c3c6cd;
-            --sv-fg-5c4426: #c3bdb5;
+            --sv-fg-5c4426: #fbbf24;
             --sv-fg-0d9488: #9edbd2;
             --sv-fg-0f766e: #b7e8e1;
             --sv-fg-5e6ad2: #c4c9ec;
@@ -1063,40 +1075,40 @@
             --sv-fg-6b7280: #c8ccd2;
             --sv-fg-6c5ce7: #c8c5f3;
             --sv-fg-6d28d9: #c9b4ee;
-            --sv-fg-713f12: #cabbae;
+            --sv-fg-713f12: #fbbf24;
             --sv-fg-777: #9a9b9b;
-            --sv-fg-7a4e10: #cdc0ae;
-            --sv-fg-7c2d12: #ceb6ae;
+            --sv-fg-7a4e10: #fbbf24;
+            --sv-fg-7c2d12: #fb923c;
             --sv-fg-7c3aed: #cebaf4;
             --sv-fg-7c79d8: #9e9ce1;
-            --sv-fg-854d0e: #d0c0ad;
+            --sv-fg-854d0e: #fbbf24;
             --sv-fg-888: #a6a7a7;
             --sv-fg-8a8780: #a8a6a2;
             --sv-fg-8a93a6: #a8afbd;
             --sv-fg-8b5cf6: #d2c5f7;
-            --sv-fg-92400e: #d5bcad;
-            --sv-fg-92681e: #d5c9b2;
-            --sv-fg-991b1b: #d7b0b1;
-            --sv-fg-9a3412: #d7b8ae;
-            --sv-fg-9a6700: #d7c8a9;
+            --sv-fg-92400e: #fbbf24;
+            --sv-fg-92681e: #fbbf24;
+            --sv-fg-991b1b: #f87171;
+            --sv-fg-9a3412: #fb923c;
+            --sv-fg-9a6700: #fbbf24;
             --sv-fg-9d174d: #d8afc1;
             --sv-fg-a81950: #dcafc2;
             --sv-fg-a8ffb0: #a8ffb0;
             --sv-fg-aaa: #bfbfc0;
             --sv-fg-aab0c0: #bfc4d0;
-            --sv-fg-b45309: #e0c2ac;
+            --sv-fg-b45309: #fbbf24;
             --sv-fg-b4b4ae: #c6c6c3;
             --sv-fg-b6b6b1: #c7c8c5;
-            --sv-fg-b91c1c: #e1b0b2;
+            --sv-fg-b91c1c: #f87171;
             --sv-fg-bdbdb8: #cccdca;
             --sv-fg-be2d72: #e3b6cd;
             --sv-fg-c026d3: #e3b3ec;
-            --sv-fg-c08a2e: #cfa867;
-            --sv-fg-c2410c: #e4bcac;
+            --sv-fg-c08a2e: #fbbf24;
+            --sv-fg-c2410c: #fb923c;
             --sv-fg-c2c2bd: #d0d1ce;
             --sv-fg-c5c5c2: #d2d3d1;
             --sv-fg-c8c8c3: #d4d5d2;
-            --sv-fg-ca8a04: #d6a848;
+            --sv-fg-ca8a04: #fbbf24;
             --sv-fg-cdcdc8: #d8d8d5;
             --sv-fg-cf6f9e: #d995b7;
             --sv-fg-d4b0bc: #ddc4cd;
@@ -1104,15 +1116,15 @@
             --sv-fg-d6d6d3: #d6d6d3;
             --sv-fg-d8d8d3: #d8d8d3;
             --sv-fg-d946ef: #ebbef5;
-            --sv-fg-d97706: #e19b4a;
-            --sv-fg-dc2626: #ecb3b5;
+            --sv-fg-d97706: #fbbf24;
+            --sv-fg-dc2626: #f87171;
             --sv-fg-e05: #f2a7c4;
             --sv-fg-e4405f: #efbcc7;
             --sv-fg-e60023: #f0a7b4;
-            --sv-fg-ea580c: #f1c3ac;
+            --sv-fg-ea580c: #fb923c;
             --sv-fg-ecfdf5: #ecfdf5;
-            --sv-fg-ef4444: #f2bdbe;
-            --sv-fg-f59e0b: #f5b74d;
+            --sv-fg-ef4444: #f87171;
+            --sv-fg-f59e0b: #fbbf24;
             --sv-fg-f5f5f3: #f5f5f3;
             --sv-fg-ff0000: #f8a7a9;
             --sv-fg-ffb0b0: #fcc4c4;
@@ -1344,7 +1356,7 @@
         .pin-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 13px; border-radius: 99px; background: var(--white); border: 1.5px solid var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_07); user-select: none; }
         .pin-pill:hover { border-color: var(--sv-border-bbb); box-shadow: 0 2px 8px var(--sv-shadow-rgba-0-0-0-0_12); }
         .pin-pill .pin-remove { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--border); color: var(--text-muted); font-size: 0.6rem; line-height: 1; transition: all 0.13s; flex-shrink: 0; }
-        .pin-pill .pin-remove:hover { background: var(--dn); color: var(--sv-fg-fff); }
+        .pin-pill .pin-remove:hover { background: var(--dn); color: var(--err-solid-fg); }
         .pin-add-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 99px; background: transparent; border: 1.5px dashed var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
         .pin-add-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-secondary); background: var(--white); }
         .pin-edit-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; border: none; background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }

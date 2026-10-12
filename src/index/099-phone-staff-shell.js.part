@@ -286,9 +286,16 @@ import { wlState } from './066-core-workload-state.js';
         });
     }
     const _fphNameEditors = new Map();
+    const _fphNameSizes = new WeakMap();
     function _fphNameEditorSize(editor) {
+        const width = editor.clientWidth, font = getComputedStyle(editor).font;
+        const fonts = document.fonts?.status;
+        const previous = _fphNameSizes.get(editor);
+        if (previous && previous.value === editor.value && previous.width === width
+            && previous.font === font && previous.fonts === fonts) return;
         editor.style.height = 'auto';
         editor.style.height = Math.max(44, editor.scrollHeight) + 'px';
+        _fphNameSizes.set(editor, { value: editor.value, width, font, fonts });
     }
     function _fphNameEditorsSync() {
         const phone = FPH_MQ.matches;
@@ -358,7 +365,15 @@ import { wlState } from './066-core-workload-state.js';
         }
         _fphCharts();
     }
-    function _fphQueue() { if (!_fphRaf) _fphRaf = requestAnimationFrame(_fphSync); }
+    function _fphQueue(records) {
+        // Caption/status classes and their text labels do not change the shell
+        // or title widths. Avoid measuring the entire title list on these taps.
+        if (Array.isArray(records) && records.length && records.every(record =>
+            record.target.closest?.('#calView, #sxrView')
+            && (record.type === 'attributes' || [...record.addedNodes, ...record.removedNodes]
+                .every(node => node.nodeType !== 1)))) return;
+        if (!_fphRaf) _fphRaf = requestAnimationFrame(_fphSync);
+    }
     function _fphInit() {
         const nav = document.getElementById('headerNav');
         const main = document.getElementById('mainWrap');
@@ -369,6 +384,8 @@ import { wlState } from './066-core-workload-state.js';
         watch.observe(main, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
         watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
         if (FPH_MQ.addEventListener) FPH_MQ.addEventListener('change', _fphQueue);
+        window.addEventListener('resize', () => { if (FPH_MQ.matches) _fphQueue(); });
+        document.fonts?.addEventListener('loadingdone', () => { if (FPH_MQ.matches) _fphQueue(); });
         _fphQueue();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _fphInit);

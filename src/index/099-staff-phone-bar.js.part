@@ -245,11 +245,16 @@
         function shown(el) {
             // These are inline card affordances, not an open menu or modal.
             if (el.matches('.cal-review-video-overlay, .cal-card-select-overlay, .kasper-hero-poster-overlay')) return false;
-            if (!el.isConnected || !el.checkVisibility({ checkVisibilityCSS: true })
-                || el.closest('dialog:not([open]), [hidden]')) return false;
-            const css = getComputedStyle(el), rect = el.getBoundingClientRect();
-            return css.pointerEvents !== 'none' && rect.width > 0 && rect.height > 0 && (css.opacity !== '0' || el.matches('.open, .active, .is-open, dialog[open]'))
-                && (el.matches('dialog[open]') || /^(fixed|absolute)$/.test(css.position));
+            if (!el.isConnected || el.closest('dialog:not([open]), [hidden]')) return false;
+            const css = getComputedStyle(el);
+            // Most "menu" class names are inline labels or closed surfaces.
+            // Reject them before a geometry read can force a page-wide layout.
+            if (css.pointerEvents === 'none' || css.display === 'none'
+                || !el.matches('dialog[open]') && !/^(fixed|absolute)$/.test(css.position)
+                || css.opacity === '0' && !el.matches('.open, .active, .is-open, dialog[open]')) return false;
+            if (!el.checkVisibility({ checkVisibilityCSS: true })) return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
         }
         function move(el, parent) {
             if (!moves.has(el)) moves.set(el, { parent: el.parentNode, next: el.nextSibling });
@@ -403,6 +408,12 @@
                     && (record.target.closest?.('#calView, #sxrView')
                         || elements.some(node => node.matches('#calView, #sxrView') || node.querySelector('.cal-card')));
             });
+            // Caption/field sizing cannot open or close a modal. Its label was
+            // updated above; do not force geometry reads for every other popup.
+            if (!cardsDirty && records?.length && records.every(record =>
+                record.type === 'attributes' && record.target.matches('.cal-cap-toggle, .cal-cap-wrap, textarea')
+                || record.type === 'childList' && record.target.closest?.('.cal-cap-toggle')
+                    && [...record.addedNodes, ...record.removedNodes].every(node => node.nodeType !== 1))) return;
             if (!queued) { queued = true; queueMicrotask(sync); }
         }
         function pointer(event) {

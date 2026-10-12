@@ -179,6 +179,16 @@ async function calendarRules(page,screen,label,width){
  });
  rows.push({rule:'caption disclosure updates locally',label,passed:captionScans.scans===0&&captionScans.expanded==='true'&&captionScans.label==='Show less',...captionScans});
  if(!baseline)assert(captionScans.scans===0&&captionScans.expanded==='true'&&captionScans.label==='Show less',label+' disclosure rescanned all cards or lost its label');
+ await page.evaluate(()=>{
+  const node=document.createElement('div');node.id='phone-explanation-probe';
+  node.innerHTML=_svExplainLabel('phone-probe','Caption help','A fictional explanation that must remain available on touch.');
+  document.querySelector('#calView .cal-card').append(node);
+ });
+ await page.locator('#phone-explanation-probe [data-sv-explain]').tap();
+ const explanation=page.locator('#globalTooltip[data-label-explainer=true]');await explanation.waitFor({state:'visible'});
+ const box=await explanation.boundingBox();assert(box.x>=0&&box.x+box.width<=width+1,'Phone explanation escaped the viewport');
+ await page.keyboard.press('Escape');await explanation.waitFor({state:'hidden'});
+ await page.locator('#phone-explanation-probe').evaluate(n=>n.remove());
 }
 async function regularAction(page,screen){
  if(!['Calendar','Samples','SyncLinear'].includes(screen.name))return null;
@@ -187,14 +197,30 @@ async function regularAction(page,screen){
   await prepare(page,'calendar-sheet');
   await page.evaluate(()=>{const row=calState.posts[0];calState.posts=Array.from({length:20},(_,i)=>({...row,id:'disclosure-fixture-'+i,caption:'A longer fictional caption for a phone. '.repeat(25)}));_calRenderBody();});
   await page.waitForTimeout(150);
+  await page.evaluate(()=>{
+   window.__titleHeightWrites=0;
+   window.__titleWatch=new MutationObserver(records=>{window.__titleHeightWrites+=records.length;});
+   document.querySelectorAll('textarea[data-pocket-title]').forEach(n=>window.__titleWatch.observe(n,{attributes:true,attributeFilter:['style']}));
+  });
   trigger=page.locator('#calView .cal-cap-toggle').first();target='#calView .cal-cap-toggle[aria-expanded="true"]';
  }else if(screen.name==='Samples'){
   await prepare(page,'samples-sheet');trigger=page.locator('#sxrView .cal-fld-setall').first();target='.cal-fld-status-menu.open';
  }else{trigger=page.locator('.prod-row .prod-status').first();target='.prod-pop';}
  await page.evaluate(target=>{window.__tapTarget=target;window.__measureNextTap=true;},target);
  const before=await page.evaluate(()=>window.__phonePerf.taps.length);
+ let profiler;
+ if(process.env.PHONE_PROFILE){profiler=await page.context().newCDPSession(page);await profiler.send('Profiler.enable');await profiler.send('Profiler.start');}
  await trigger.tap();await page.waitForFunction(before=>window.__phonePerf.taps.length>before,before);
+ if(profiler){const result=await profiler.send('Profiler.stop');fs.writeFileSync(path.join(process.env.PHONE_PROFILE,screen.name+'.json'),JSON.stringify(result));}
  const tap=await page.evaluate(()=>window.__phonePerf.taps.at(-1));assert(tap.opened,'Regular action ignored its first tap');
+ if(screen.name==='Calendar'){
+  const writes=await page.evaluate(()=>{window.__titleWatch.disconnect();return window.__titleHeightWrites;});
+  rows.push({rule:'caption expansion does not re-size unchanged titles',passed:writes===0,writes});
+  if(!baseline)assert.equal(writes,0,'Caption tap re-sized unchanged titles');
+  const invisibleTip=await page.locator('#globalTooltip:not([data-label-explainer=true])').count();
+  rows.push({rule:'ordinary phone action does not build hidden hover tooltip',passed:invisibleTip===0,invisibleTip});
+  if(!baseline)assert.equal(invisibleTip,0,'Caption tap built an invisible hover tooltip');
+ }
  if(screen.name!=='Calendar')await page.keyboard.press('Escape');
  return{action:screen.name==='Calendar'?'Expand caption in a 20-card list':screen.name==='Samples'?'Open Set all':'Open native status',ms:Math.round(tap.ms)};
 }
@@ -240,8 +266,8 @@ async function main(){
    assert(perf.taps.length===4&&perf.taps.every(t=>t.opened),label+' a menu ignored its first tap');
    if(!baseline)assert(perf.taps.every(t=>t.ms<=250),label+' tap-to-sheet paint exceeds 250ms');
    const action=await regularAction(page,screen);
-   if(!baseline&&action)assert(action.ms<=250,label+' regular action exceeds 250ms');
    rows.push({screen:screen.name,width,theme,usefulMs:Math.round(perf.useful),tapMs:Math.round(Math.max(...perf.taps.map(t=>t.ms),action?.ms||0)),regularAction:action,cls:perf.shifts.filter(s=>!s.recentInput).reduce((n,s)=>n+s.value,0),longTasks:perf.longTasks.length});
+   if(!baseline&&action)assert(action.ms<=250,label+' regular action '+action.action+' took '+action.ms+'ms (budget 250ms)');
    await tabRules(page,screen,label);
    if(['Calendar','Samples'].includes(screen.name))await calendarRules(page,screen,label,width);
    if(screen.name==='Workload')await workloadRules(page,label);

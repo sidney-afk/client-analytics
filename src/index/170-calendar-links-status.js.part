@@ -781,16 +781,20 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                   + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
         return Math.round(lh * (ta.rows || 3) + pad);
     }
-    function _calRefreshCaption(ta, focused) {
+    function _calRefreshCaption(ta, focused, measured) {
         if (!ta) return;
         // Not rendered (e.g. the inactive caption tab's textarea) — heights
         // would compute as 0/NaN. _calCapTabSwitch re-runs this on reveal.
-        if (!ta.getClientRects().length) return;
+        if (!measured && !ta.getClientRects().length) return;
         const wrap = ta.closest('.cal-cap-wrap');
         const expanded = !!(wrap && wrap.classList.contains('expanded'));
-        ta.style.height = 'auto';
-        const full = ta.scrollHeight + 2;
-        const collapsedH = _calCapCollapsedH(ta);
+        if (!measured) ta.style.height = 'auto';
+        const full = measured ? measured.full : ta.scrollHeight + 2;
+        const collapsedH = measured ? measured.collapsedH : _calCapCollapsedH(ta);
+        if (typeof _calStaffPhoneActive === 'function' && _calStaffPhoneActive()) {
+            ta._phoneCaptionMeasure = { full, collapsedH, value: ta.value,
+                width: measured ? measured.width : ta.clientWidth, fonts: document.fonts?.status };
+        }
         const overflowing = full > collapsedH + 1;
         // Collapsed always sits at exactly the default (rows) height, so an
         // empty field and a collapsed-with-content field look identical.
@@ -872,9 +876,15 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     function _calToggleCaption(btn) {
         const wrap = btn.closest('.cal-cap-wrap');
         if (!wrap) return;
-        wrap.classList.toggle('expanded');
         const ta = wrap.querySelector('textarea');
-        _calRefreshCaption(ta, document.activeElement === ta);
+        let measured = null;
+        if (typeof _calStaffPhoneActive === 'function' && _calStaffPhoneActive() && ta?._phoneCaptionMeasure) {
+            const previous = ta._phoneCaptionMeasure;
+            if (previous.value === ta.value && previous.width === ta.clientWidth
+                && previous.fonts === document.fonts?.status) measured = previous;
+        }
+        wrap.classList.toggle('expanded');
+        _calRefreshCaption(ta, document.activeElement === ta, measured);
     }
     /* Re-measure captions when they actually get a size — fixes the "I entered
        a long caption but no Show-more appears / it won't expand" report. The

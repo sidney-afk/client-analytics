@@ -24,6 +24,7 @@ const screens=[
  {name:'Filming Plans',route:'filming-plans',ready:'.fp-row, .fp-empty'},
  {name:'Submit',route:'linear',ready:'#linearClientSearch'},
  {name:'Upload',fixture:'tiktok-client-ready',ready:'#tkFormCol'},
+ {name:'Instagram Upload',fixture:'instagram-client-ready',ready:'#igFormCol'},
  {name:'Analytics',fixture:'analytics-overview',ready:'.client-card, .card-client-link'},
  {name:'Reviewer',route:'kasper',ready:'.kasper-subtabs'},
  {name:'Time Off',route:'time-off',ready:'.pto-balance-card'},
@@ -63,7 +64,9 @@ async function instrument(page,context,screen){
 async function boot(screen,width,theme){
  if(screen.fixture){
   const f=SCENARIOS.find(s=>s.id===screen.fixture);assert(f,'Fixture missing: '+screen.fixture);
-  return open({...f.open,realTiming:true,gzip:speed,sourceRoot:arg('before-root',undefined),width,height:width===430?932:844,theme,dsf:1,beforeNavigate:(p,c)=>instrument(p,c,screen)});
+  const handle=await open({...f.open,realTiming:true,gzip:speed,sourceRoot:arg('before-root',undefined),width,height:width===430?932:844,theme,dsf:1,beforeNavigate:(p,c)=>instrument(p,c,screen)});
+  if(screen.name==='Instagram Upload')await f.steps(handle.page);
+  return handle;
  }
  const server=await staff.serve({gzip:speed}),browser=await chromium.launch({headless:true});
  const context=await browser.newContext({viewport:{width,height:width===430?932:844},hasTouch:true,isMobile:true,colorScheme:theme});
@@ -163,8 +166,9 @@ async function calendarRules(page,screen,label,width){
   const original=document.querySelectorAll;let scans=0;
   document.querySelectorAll=function(q){if(q==='#calView .cal-card, #sxrView .cal-card')scans++;return original.call(this,q);};
   const ta=document.querySelector('#calView textarea.cal-cap-ta,#sxrView textarea.cal-cap-ta')||document.querySelector('.cal-card textarea');
+  const originalHeight=ta.style.height;
   for(let i=0;i<5;i++){ta.style.height=(200+i)+'px';await new Promise(r=>setTimeout(r,0));}
-  document.querySelectorAll=original;return scans;
+  document.querySelectorAll=original;ta.style.height=originalHeight;return scans;
  });
  rows.push({rule:'field layout avoids whole card scans',screen:screen.name,label,passed:scans===0,scans});
  if(!baseline)assert.equal(scans,0,label+' field changes scan every card');
@@ -244,7 +248,7 @@ async function workloadRules(page,label){
  await page.keyboard.press('Escape');
 }
 async function tabRules(page,screen,label){
- const selectors={Calendar:'.cal-view-toggle',Samples:'.cal-view-toggle',Workload:'.workload-pills',SyncLinear:'.prod-tabs',Today:'.tdy-vw',Upload:'.tk-platform-switch',Reviewer:'.kasper-wrap[data-pocket-reviewer] > .kasper-subtabs'};
+ const selectors={Calendar:'.cal-view-toggle',Samples:'.cal-view-toggle',Workload:'.workload-pills',SyncLinear:'.prod-tabs',Today:'.tdy-vw',Upload:'.tk-platform-switch','Instagram Upload':'.tk-platform-switch',Reviewer:'.kasper-wrap[data-pocket-reviewer] > .kasper-subtabs'};
  if(!selectors[screen.name])return;
  const bars=await page.locator(selectors[screen.name]).filter({visible:true}).evaluateAll(nodes=>nodes.map(node=>{
   const s=getComputedStyle(node),buttons=[...node.children].filter(n=>n.matches('button')&&!n.hidden);

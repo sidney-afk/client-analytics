@@ -905,8 +905,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 if (!ta.isConnected) { _calCapRO.unobserve(ta); continue; }
                 // Only re-measure on a WIDTH change (reveal 0→W, resize, rotate).
                 // Our own height writes don't change width, so this can't loop.
+                const phone = typeof _calStaffPhoneActive === 'function' && _calStaffPhoneActive();
+                if (phone) {
+                    const contentWidth = Math.round(e.contentRect.width);
+                    if (ta._capContentW === contentWidth) continue;
+                    ta._capContentW = contentWidth;
+                }
                 const w = Math.round(ta.clientWidth);
-                if (ta._capLastW === w) continue;
+                if (!phone && ta._capLastW === w) continue;
                 ta._capLastW = w;
                 _calRefreshCaption(ta, document.activeElement === ta);
             }

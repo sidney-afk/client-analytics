@@ -659,6 +659,7 @@
     "thumbnail-revision-history.js",
     "thumbnail-revision-scheduler.js",
     "thumbnail-titles-source.js",
+    "thumbnail-borrowed-tab.js",
     "thumbnail-title-style.js",
     "tiktok-carousel-transport.js",
     "tiktok-size-label.js",

@@ -11,7 +11,7 @@
             || document.body.matches('.intake-mode, .onboarding-mode')) return;
         const html = document.documentElement;
         html.classList.add('sv-staff-phone');
-        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set();
+        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set(), retries = new Map();
         let lastTrigger = null, locked = null, queued = false, touch = null, cardsDirty = true;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
@@ -97,6 +97,19 @@
             };
             menu.prepend(head); legacyHeads.add(head);
         }
+        function retryControls() {
+            document.querySelectorAll('#calStaleNotice, #sxrStaleNotice').forEach(el => {
+                if (retries.has(el)) return;
+                const attrs = ['role', 'tabindex', 'title'].map(key => [key, el.getAttribute(key)]);
+                const key = event => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault(); el.click();
+                };
+                retries.set(el, { attrs, key });
+                el.setAttribute('role', 'button'); el.tabIndex = 0; el.title = 'Tap to retry';
+                el.addEventListener('keydown', key);
+            });
+        }
         function lock() {
             if (locked) return;
             locked = { x: scrollX, y: scrollY, styles: ['position', 'top', 'left', 'width'].map(key => [key, document.body.style.getPropertyValue(key), document.body.style.getPropertyPriority(key)]) };
@@ -120,6 +133,7 @@
             queued = false;
             if (!html.classList.contains('sv-staff-phone')) return;
             if (cardsDirty) { cardsDirty = false; cards(); }
+            retryControls();
             const active = [...document.querySelectorAll(candidates)].filter(shown);
             let returnTo = null;
             for (const [el, trigger] of overlays) if (!active.includes(el)) {
@@ -264,6 +278,10 @@
             });
             actionListeners.forEach(([el, listener]) => el.removeEventListener('click', listener, true));
             legacyHeads.forEach(el => el.remove());
+            retries.forEach(({ attrs, key }, el) => {
+                el.removeEventListener('keydown', key);
+                attrs.forEach(([name, value]) => value === null ? el.removeAttribute(name) : el.setAttribute(name, value));
+            });
             document.querySelectorAll('.sv-phone-action-label').forEach(el => el.remove());
             document.querySelectorAll('.sv-phone-card-tools').forEach(el => el.remove());
             html.classList.remove('sv-staff-phone');

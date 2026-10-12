@@ -142,6 +142,21 @@ async function calendarRules(page,screen,label,width){
  rows.push({rule:'manual refresh retains cards and draft',screen:screen.name,label,passed:kept.kept&&kept.draft});
  if(!baseline)assert(kept.kept&&kept.draft,label+' refresh blanked useful content');
  await page.waitForFunction(()=>window.__refreshDone);await capture(page,label+'-refresh');
+ const table=samples?'sample_reviews':'calendar_posts';
+ await page.route('**/rest/v1/'+table+'?**',route=>route.fulfill({status:503,headers:{'access-control-allow-origin':'*'},json:{message:'Fictional refresh failure'}}));
+ await page.evaluate(samples=>{window.__refreshDone=false;(samples?loadSxrCards:loadCalendarPosts)({background:true,skipCache:true}).finally(()=>window.__refreshDone=true);},samples);
+ await page.waitForFunction(()=>window.__refreshDone);
+ const retry=page.locator(samples?'#sxrStaleNotice':'#calStaleNotice');await retry.waitFor({state:'visible'});
+ const hit=await retry.boundingBox();
+ rows.push({rule:'refresh recovery has a 44px labelled touch target',label,passed:hit.width>=44&&hit.height>=44&&await retry.getAttribute('role')==='button',width:hit.width,height:hit.height});
+ if(!baseline)assert(hit.width>=44&&hit.height>=44&&await retry.getAttribute('role')==='button',label+' retry is a tiny unlabelled control');
+ await capture(page,label+'-refresh-error');
+ await page.route('**/rest/v1/'+table+'?**',async route=>{await sleep(450);await route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},json:await page.evaluate(samples=>(samples?sxrState:calState).posts,samples)});});
+ await retry.tap();
+ const retryKept=await page.locator(samples?'#sxrBody .cal-card':'#calBody .cal-card').count();
+ rows.push({rule:'native Retry tap keeps useful cards',label,passed:retryKept>0});
+ if(!baseline)assert(retryKept>0,label+' first Retry tap blanked the cards');
+ await page.waitForFunction(samples=>document.getElementById(samples?'sxrStaleNotice':'calStaleNotice')?.hidden,samples);
  // Typing/layout changes must not re-scan every card's controls on each key.
  await prepare(page,samples?'samples-sheet':'calendar-sheet');
  const scans=await page.evaluate(async()=>{

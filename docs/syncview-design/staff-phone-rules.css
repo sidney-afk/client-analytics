@@ -120,5 +120,10 @@
     html.sv-staff-phone .kasper-more-heading { font-size:12px; color:var(--text-secondary); opacity:1; }
     html.sv-staff-phone .kasper-more-item:not(:disabled):not([aria-disabled="true"]) { color:var(--text-primary); font-size:15px; }
 
+    html.sv-staff-phone .cal-stale-notice:not([hidden]) { position:fixed; z-index:950; bottom:calc(12px + env(safe-area-inset-bottom)); left:16px; right:16px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; min-width:44px; min-height:44px; padding:10px 16px; border-radius:14px; font-size:13px; color:var(--text-primary); background:var(--surface-raised); border:1px solid var(--border); box-shadow:var(--shadow-sm); }
+
+    html.sv-staff-phone body:has(#calView) .main,
+    html.sv-staff-phone body:has(#sxrView) .main { padding-bottom:calc(76px + env(safe-area-inset-bottom)); }
+
 }
 /* STAFF-PHONE-RULES:END */

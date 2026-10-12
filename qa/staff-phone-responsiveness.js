@@ -94,8 +94,14 @@ async function boot(screen,width,theme){
 }
 async function capture(page,name){
  if(!out)return;fs.mkdirSync(out,{recursive:true});
+ // Capture the settled viewport, after the browser's transient touch highlight.
+ // Touch-to-response telemetry is already recorded before this visual wait.
+ await page.waitForTimeout(300);
  // The existing feature label names a person. Public evidence uses its role.
  await page.evaluate(()=>{
+  // Repeated touch probes can select text. Preserve the native viewport while
+  // clearing that test-created selection before recording visual evidence.
+  window.getSelection()?.removeAllRanges();
   const nav=document.getElementById('navKasper');
   const label=window.__phoneFixtureReviewerLabel||nav?.textContent.replace(/[0-9]/g,'').replace(/\s+/g,' ').trim();
   if(!label)return;window.__phoneFixtureReviewerLabel=label;
@@ -299,6 +305,7 @@ async function main(){
    await tabRules(page,screen,label);
    if(['Calendar','Samples'].includes(screen.name))await calendarRules(page,screen,label,width);
    if(screen.name==='Workload')await workloadRules(page,label);
+   await page.evaluate(()=>window.scrollTo(0,0));
    await capture(page,label+'-screen');
    console.log('ok '+label+' useful='+Math.round(perf.useful)+'ms tap='+Math.round(Math.max(...perf.taps.map(t=>t.ms)))+'ms');
   }catch(e){failures.push(label+': '+e.message);console.error('FAIL '+failures.at(-1));}
